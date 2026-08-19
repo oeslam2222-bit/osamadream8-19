@@ -167,8 +167,82 @@ export function generateCandidateIdentifiers(
 }
 
 /**
+ * Intelligently discover and prioritize candidate folder paths for a given product
+ * Auto-detects subfolders like منزلي/الفا/LIFESTYLE, منزلي/Casasunco/خلفية بيضاء, منزلي/لاينز/defna/14
+ */
+export function getCandidateFoldersForProduct(product: Partial<Product>, baseFolder: string): string[] {
+  const folders: string[] = [];
+  const cleanBase = (baseFolder || '').trim().replace(/\/+$/, '');
+
+  if (cleanBase) {
+    folders.push(cleanBase);
+  }
+
+  // Common root parent (e.g. "منزلي" if base is "منزلي/الفا/LIFESTYLE" or empty)
+  const rootParent = cleanBase.split('/')[0] || 'منزلي';
+  if (rootParent && !folders.includes(rootParent)) {
+    folders.push(rootParent);
+  }
+
+  // Scan text to detect product family/brand
+  const textToScan = `${product.name || ''} ${product.department || ''} ${product.category || ''} ${product.classification || ''} ${product.code || ''}`.toLowerCase();
+
+  // Known active brand subdirectories in the company's Cloudinary storage
+  const brandSubpaths = [
+    'الفا/LIFESTYLE',
+    'الفا/خلفية بيضاء',
+    'الفا',
+    'Casasunco/خلفية بيضاء',
+    'Casasunco/LIFESTYLE',
+    'Casasunco',
+    'لاينز/defna/14',
+    'لاينز/defna',
+    'لاينز',
+    'defna/14',
+    'defna',
+    'دريم',
+    'لوتس',
+    'جرانيت',
+    'تيفلون',
+    'زجاج',
+    'صيني'
+  ];
+
+  for (const sub of brandSubpaths) {
+    const fullPath = rootParent ? `${rootParent}/${sub}` : sub;
+    if (!folders.includes(fullPath)) {
+      // Prioritize if product name/category matches the brand
+      const isMatch =
+        (sub.includes('الفا') && (textToScan.includes('الفا') || textToScan.includes('alfa'))) ||
+        (sub.includes('Casasunco') && (textToScan.includes('casasunco') || textToScan.includes('كاساسونكو'))) ||
+        (sub.includes('لاينز') && (textToScan.includes('لاينز') || textToScan.includes('lines'))) ||
+        (sub.includes('defna') && (textToScan.includes('defna') || textToScan.includes('دفنا') || textToScan.includes('14'))) ||
+        (sub.includes('دريم') && textToScan.includes('دريم')) ||
+        (sub.includes('لوتس') && (textToScan.includes('لوتس') || textToScan.includes('lotus'))) ||
+        (sub.includes('جرانيت') && textToScan.includes('جرانيت')) ||
+        (sub.includes('تيفلون') && textToScan.includes('تيفلون')) ||
+        (sub.includes('زجاج') && textToScan.includes('زجاج'));
+
+      if (isMatch) {
+        // Insert at very top
+        folders.unshift(fullPath);
+      } else {
+        folders.push(fullPath);
+      }
+    }
+  }
+
+  // Also include root folder
+  if (!folders.includes('')) {
+    folders.push('');
+  }
+
+  return Array.from(new Set(folders));
+}
+
+/**
  * Generate targeted candidate URLs for a product on Cloudinary
- * Matching by Code OR Arabic Product Name OR Composite Slug
+ * Matching by Code OR Arabic Product Name OR Composite Slug across all relevant subfolders
  */
 export function getCandidateImageUrls(
   product: Partial<Product>,
@@ -186,30 +260,25 @@ export function getCandidateImageUrls(
   const identifiers = generateCandidateIdentifiers(product, config.matchingPattern || 'auto');
   if (identifiers.length === 0) return candidates;
 
-  const folder = config.folderPrefix?.trim() || '';
   const trans = config.defaultTransformation || 'f_auto,q_auto,w_500,c_fill';
   const primaryExt = config.fileExtension && config.fileExtension !== 'auto' ? `.${config.fileExtension}` : '';
   const altExt = primaryExt === '.png' ? '.jpg' : '.png';
-  const encodedFolderPart = folder ? encodeCloudinaryPath(folder) + '/' : '';
 
-  for (const id of identifiers) {
-    const encodedId = encodeURIComponent(id);
+  // 3. Get all relevant folders (e.g. automatically checking الفا, Casasunco, لاينز, defna, etc.)
+  const candidateFolders = getCandidateFoldersForProduct(product, config.folderPrefix || '');
 
-    // With configured folder
-    if (encodedFolderPart) {
+  for (const folder of candidateFolders) {
+    const encodedFolderPart = folder ? encodeCloudinaryPath(folder) + '/' : '';
+
+    for (const id of identifiers) {
+      const encodedId = encodeURIComponent(id);
+
       if (primaryExt) {
         candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedFolderPart}${encodedId}${primaryExt}`);
       }
       candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedFolderPart}${encodedId}${altExt}`);
       candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedFolderPart}${encodedId}`);
     }
-
-    // Root level candidate (as fallback)
-    if (primaryExt) {
-      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedId}${primaryExt}`);
-    }
-    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedId}${altExt}`);
-    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedId}`);
   }
 
   // De-duplicate URLs

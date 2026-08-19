@@ -85,6 +85,8 @@ interface AppContextType {
 
   // Settings
   updateCloudinarySettings: (config: CloudinaryConfig) => void;
+  saveMatchedProductImages: (updates: { id: string; imageUrl: string }[]) => void;
+  clearAllAppData: (mode?: 'cache_only' | 'full_reset') => void;
   
   // Helpers for RBAC
   getVisibleInvoices: () => Invoice[];
@@ -114,7 +116,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_USERS;
   });
 
-  const [branches] = useState<Branch[]>(() => {
+  const [branches, setBranches] = useState<Branch[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.BRANCHES);
     return saved ? JSON.parse(saved) : INITIAL_BRANCHES;
   });
@@ -595,6 +597,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCloudinaryConfig(config);
   };
 
+  const saveMatchedProductImages = (updates: { id: string; imageUrl: string }[]) => {
+    setProducts((prev) => {
+      const updateMap = new Map<string, string>();
+      updates.forEach((u) => updateMap.set(u.id, u.imageUrl));
+
+      const updated = prev.map((p) => {
+        if (updateMap.has(p.id)) {
+          return { ...p, imageUrl: updateMap.get(p.id) };
+        }
+        return p;
+      });
+
+      try {
+        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+      } catch (e) {
+        console.warn('LocalStorage limit reached while caching images');
+      }
+
+      return updated;
+    });
+  };
+
+  const clearAllAppData = (mode: 'cache_only' | 'full_reset' = 'cache_only') => {
+    if (mode === 'full_reset') {
+      localStorage.clear();
+      setProducts(INITIAL_PRODUCTS);
+      setInvoices(INITIAL_INVOICES);
+      setUsers(INITIAL_USERS);
+      setBranches(INITIAL_BRANCHES);
+      setCloudinaryConfig(DEFAULT_CLOUDINARY_CONFIG);
+      setCart([]);
+      setAccountingLogs([]);
+    } else {
+      // Clear temporary items & memory caches
+      setCart([]);
+      try {
+        localStorage.removeItem(STORAGE_KEYS.ACCOUNTING_LOGS);
+        // Force garbage cleanup in storage
+        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+      } catch (e) {
+        // Safe ignore
+      }
+    }
+  };
+
   // --- Role-Based Data Visibility (STRICT PRIVACY) ---
   const getVisibleInvoices = (): Invoice[] => {
     if (!currentUser) return [];
@@ -698,6 +745,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         rejectUser,
         assignSupervisor,
         updateCloudinarySettings,
+        saveMatchedProductImages,
+        clearAllAppData,
         getVisibleInvoices,
         getVisibleProducts,
         getSupervisorsInBranch,

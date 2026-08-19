@@ -211,16 +211,31 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                   </div>
                 </div>
 
-                <button
-                  onClick={() => {
-                    setShowProfileMenu(false);
-                    logout();
-                  }}
-                  className="mt-2.5 w-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-2"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>تسجيل الخروج الآمن</span>
-                </button>
+                <div className="space-y-1.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm('هل تريد تنظيف الذاكرة المؤقتة لتسريع أداء المتصفح والتطبيق؟')) {
+                        localStorage.removeItem('dream_dist_acc_logs_v5');
+                        window.location.reload();
+                      }
+                    }}
+                    className="w-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold py-1.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <span>⚡ تسريع التطبيق وتنظيف الذاكرة</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      logout();
+                    }}
+                    className="w-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold py-1.5 rounded-xl text-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>تسجيل الخروج الآمن</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>

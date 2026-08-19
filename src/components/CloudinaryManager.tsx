@@ -16,6 +16,7 @@ import {
   Save,
   Search,
   Sparkles,
+  Trash2,
   Wand2,
   Zap
 } from 'lucide-react';
@@ -32,17 +33,19 @@ import {
 import { CloudinaryConfig } from '../types';
 
 export const CloudinaryManager: React.FC = () => {
-  const { cloudinaryConfig, updateCloudinarySettings, products } = useApp();
+  const { cloudinaryConfig, updateCloudinarySettings, products, saveMatchedProductImages, clearAllAppData } = useApp();
 
   const [formConfig, setFormConfig] = useState<CloudinaryConfig>({
     ...cloudinaryConfig,
     cloudName: cloudinaryConfig.cloudName || 'dzdkhpr2y'
   });
-  const [testCode, setTestCode] = useState('1004973');
-  const [testName, setTestName] = useState('طقم زجاج دريم فاخر');
+  const [testCode, setTestCode] = useState('SK-1016');
+  const [testName, setTestName] = useState('طقم-حلل-استانليس-10-قطع');
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [savedPermanentSuccess, setSavedPermanentSuccess] = useState<string | null>(null);
   const [pastedUrl, setPastedUrl] = useState('');
   const [extractedNotice, setExtractedNotice] = useState<string | null>(null);
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
   const [batchResults, setBatchResults] = useState<{
     updatedCount: number;
     sampleMatches: { code: string; name: string; url: string }[];
@@ -194,6 +197,31 @@ uploadAllImages();`;
     setBatchResults(res);
   };
 
+  const handleSavePermanentlyToDatabase = () => {
+    const updates = products.map((p) => {
+      const url = getProductImageUrl(p, formConfig);
+      return { id: p.id, imageUrl: url };
+    });
+
+    saveMatchedProductImages(updates);
+    setSavedPermanentSuccess(`تم بنجاح تثبيت وحفظ روابط الصور لـ ${updates.length} صنف في قاعدة البيانات الدائمة! لن تحتاج للبحث أو التخمين مرة أخرى.`);
+    setTimeout(() => setSavedPermanentSuccess(null), 6000);
+  };
+
+  const handleClearCache = (mode: 'cache_only' | 'full_reset') => {
+    if (mode === 'full_reset') {
+      if (window.confirm('هل أنت متأكد من رغبتك في استعادة ضبط المصنع ومسح جميع البيانات المدخلة؟')) {
+        clearAllAppData('full_reset');
+        setResetNotice('تمت إعادة ضبط بيانات المنظومة بالكامل بنجاح.');
+        setTimeout(() => setResetNotice(null), 5000);
+      }
+    } else {
+      clearAllAppData('cache_only');
+      setResetNotice('تم تنظيف الذاكرة المؤقتة وتسريع استجابة التطبيق والمتصفح بنجاح! 🚀');
+      setTimeout(() => setResetNotice(null), 5000);
+    }
+  };
+
   const sampleGeneratedUrl = getProductImageUrl(
     { code: testCode, name: testName },
     formConfig
@@ -208,6 +236,26 @@ uploadAllImages();`;
           <div className="flex items-center gap-2 font-bold">
             <CheckCircle2 className="w-5 h-5" />
             <span>تم حفظ إعدادات ربط Cloudinary بنجاح! سيتم تطبيقها فوراً على كل المنتجات والكتالوج.</span>
+          </div>
+        </div>
+      )}
+
+      {/* Permanent Save Notice */}
+      {savedPermanentSuccess && (
+        <div className="bg-amber-500 text-slate-950 p-4 rounded-2xl shadow-xl flex items-center justify-between text-xs font-black animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <Save className="w-5 h-5" />
+            <span>{savedPermanentSuccess}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Cache Notice */}
+      {resetNotice && (
+        <div className="bg-blue-600 text-white p-3.5 rounded-2xl shadow-xl flex items-center justify-between text-xs font-bold animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <Zap className="w-5 h-5" />
+            <span>{resetNotice}</span>
           </div>
         </div>
       )}
@@ -465,13 +513,25 @@ uploadAllImages();`;
               </div>
             </div>
 
-            <button
-              onClick={handleRunBatchMatch}
-              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>فحص ومطابقة الـ 10,000+ صنف المسجلين في النظام</span>
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={handleRunBatchMatch}
+                className="py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer text-xs"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>فحص ومطابقة الـ {products.length.toLocaleString()} صنف المسجلين</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSavePermanentlyToDatabase}
+                className="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl flex items-center justify-center gap-2 transition cursor-pointer text-xs shadow"
+              >
+                <Save className="w-4 h-4" />
+                <span>💾 حفظ وتثبيت الروابط لكل الأصناف نهائياً</span>
+              </button>
+            </div>
           </div>
 
           {/* Image preview box */}
@@ -492,11 +552,16 @@ uploadAllImages();`;
         {/* Batch Match Results */}
         {batchResults && (
           <div className="mt-4 pt-4 border-t border-slate-100 space-y-3 animate-in fade-in">
-            <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-3 rounded-2xl flex items-center justify-between text-xs">
+            <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-3 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
               <div className="font-bold">
                 تمت مطابقة وتوليد روابط سحابية لـ {batchResults.updatedCount} صنف بنجاح!
               </div>
-              <span className="text-emerald-700 font-bold">100% جاهز للعرض والمبيعات</span>
+              <button
+                onClick={handleSavePermanentlyToDatabase}
+                className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow cursor-pointer"
+              >
+                💾 حفظ وتثبيت الروابط في قاعدة البيانات فوراً
+              </button>
             </div>
 
             <div className="space-y-1.5 text-xs">
@@ -526,6 +591,59 @@ uploadAllImages();`;
           </div>
         )}
 
+      </div>
+
+      {/* System Speed, Cache & Data Maintenance Section */}
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-4">
+        <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+          <Zap className="w-5 h-5 text-amber-500" />
+          <div>
+            <h3 className="font-black text-slate-900 text-sm">تسريع النظام وتنظيف الذاكرة ومسح البيانات</h3>
+            <p className="text-xs text-slate-500">للحفاظ على سرعة تصفح فائقة لـ 10,000+ صنف ومنع أي تهنيج في المتصفح</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col justify-between space-y-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 font-black text-xs text-slate-800">
+                <RefreshCw className="w-4 h-4 text-blue-600" />
+                <span>تنظيف الذاكرة المؤقتة وتسريع التصفح</span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                يقوم بمسح سجلات الفحص والذاكرة المؤقتة للصور وتحرير مساحة المتصفح دون المساس بالأصناف أو الفواتير.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleClearCache('cache_only')}
+              className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>تنظيف الذاكرة المؤقتة وتسريع النظام</span>
+            </button>
+          </div>
+
+          <div className="p-4 bg-red-50/50 rounded-2xl border border-red-200 flex flex-col justify-between space-y-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 font-black text-xs text-red-800">
+                <Trash2 className="w-4 h-4 text-red-600" />
+                <span>إعادة ضبط المصنع بالكامل (مسح شامل)</span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                يقوم بإعادة ضبط النظام واستعادة البيانات الأولية في حال الرغبة في البدء من جديد تماماً.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleClearCache('full_reset')}
+              className="w-full py-2 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>إعادة ضبط المصنع ومسح البيانات</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Script Generator & Clean Upload Architecture Guide */}
