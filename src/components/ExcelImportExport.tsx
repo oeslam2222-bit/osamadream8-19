@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Eye,
   FileSpreadsheet,
+  FolderOpen,
   Globe,
   HelpCircle,
   Image as ImageIcon,
@@ -39,7 +40,7 @@ import { Product } from '../types';
 export const ExcelImportExport: React.FC = () => {
   const { products, importProductsList, selectedBranchFilter, cloudinaryConfig, updateCloudinarySettings } = useApp();
 
-  const [activeSubTab, setActiveSubTab] = useState<'google_sheets' | 'excel_file' | 'cloudinary_guide'>('google_sheets');
+  const [activeSubTab, setActiveSubTab] = useState<'google_sheets' | 'excel_file' | 'cloudinary_guide' | 'drive_scanner'>('google_sheets');
 
   // Excel File State
   const [isDragging, setIsDragging] = useState(false);
@@ -234,6 +235,19 @@ function onEdit(e) {
             <CloudLightning className="w-4 h-4 text-amber-500" />
             <span>طريقة ربط الشيت بصور Cloudinary</span>
             <span className="bg-amber-100 text-amber-900 text-[10px] px-1.5 py-0.5 rounded-full font-bold">شرح + فحص</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('drive_scanner')}
+            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
+              activeSubTab === 'drive_scanner'
+                ? 'border-emerald-600 text-emerald-700'
+                : 'border-transparent text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <FolderOpen className="w-4 h-4 text-blue-500" />
+            <span>ماسح مجلدات Google Drive الشامل</span>
+            <span className="bg-blue-100 text-blue-900 text-[10px] px-1.5 py-0.5 rounded-full font-bold">Apps Script</span>
           </button>
         </div>
       </div>
@@ -543,6 +557,159 @@ function onEdit(e) {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 4: Google Drive Recursive Folder Scanner */}
+      {activeSubTab === 'drive_scanner' && (
+        <div className="space-y-6 animate-in fade-in">
+          <div className="bg-gradient-to-br from-blue-950 via-slate-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-blue-800/40 space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-2 bg-blue-500/20 text-blue-300 text-xs font-black px-3 py-1 rounded-full border border-blue-500/30 mb-2">
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  <span>المسح الشامل لمجلدات Google Drive وتوليد روابط سريعة للكتالوج</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-white">
+                  مسح المجلد الرئيسي وكل المجلدات الفرعية تلقائياً وربط الصور بالشيت
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                  يقوم هذا السكريبت بالدخول في المجلد الرئيسي لمشاريعك على Google Drive، والتنقل في جميع المجلدات الفرعية (مهما كان عمقها)، واستخراج اسم كل صورة (كود أو اسم الصنف) وتوليد رابط CDN فائق السرعة جاهز للمناديب والكتالوج.
+                </p>
+              </div>
+
+              <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700 text-center min-w-[200px]">
+                <div className="text-xs text-slate-400 font-medium">صيغة روابط الصور</div>
+                <div className="text-sm font-black text-amber-400 font-mono mt-1">lh3.googleusercontent.com</div>
+                <div className="text-[10px] text-emerald-400 mt-1">⚡ خفيفة وسريعة التحميل</div>
+              </div>
+            </div>
+
+            {/* Script Box with Copy Button */}
+            <div className="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-blue-800/50 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-blue-300 flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>كود Google Apps Script (جاهز للتشغيل في Google Sheets):</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const scriptCode = `/**
+ * سكريبت قراءة جميع الصور من المجلد الرئيسي والمجلدات الفرعية
+ * وربط اسم/كود الصورة برابط مباشر خفيف ومناسب للكتالوج
+ */
+function syncDriveFolderWithSheet() {
+  // 🔴 ضع هنا الـ ID الخاص بالمجلد الرئيسي فقط (الموجود في رابط الفولدر على درايف)
+  var MAIN_FOLDER_ID = "ضع_ID_المجلد_الرئيسي_هنا";
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getActiveSheet();
+  
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(["كود / اسم الصنف", "مسار المجلد الفرعي", "رابط الصورة المباشر", "File ID"]);
+    sheet.getRange("1:1").setFontWeight("bold").setBackground("#0284c7").setFontColor("#ffffff");
+  }
+
+  var rootFolder = DriveApp.getFolderById(MAIN_FOLDER_ID);
+  
+  try {
+    rootFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  } catch(e) {}
+
+  Logger.log("بدء المسح الشامل للمجلدات...");
+  processFolderRecursive(rootFolder, sheet, "");
+  SpreadsheetApp.getUi().alert("✅ تم جلب جميع الصور من كافة المجلدات الفرعية بنجاح!");
+}
+
+function processFolderRecursive(folder, sheet, currentPath) {
+  var rows = [];
+  var folderName = folder.getName();
+  var fullPath = currentPath ? (currentPath + " > " + folderName) : folderName;
+
+  var files = folder.getFiles();
+  while (files.hasNext()) {
+    var file = files.next();
+    var mimeType = file.getMimeType();
+    
+    if (mimeType.indexOf("image") !== -1 || file.getName().match(/\\.(jpg|jpeg|png|webp)$/i)) {
+      var itemCodeOrName = file.getName().replace(/\\.[^/.]+$/, "").trim();
+      var catalogImageUrl = "https://lh3.googleusercontent.com/d/" + file.getId() + "=w800";
+
+      rows.push([
+        itemCodeOrName,
+        fullPath,
+        catalogImageUrl,
+        file.getId()
+      ]);
+    }
+  }
+
+  if (rows.length > 0) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+  }
+
+  var subFolders = folder.getFolders();
+  while (subFolders.hasNext()) {
+    var sub = subFolders.next();
+    processFolderRecursive(sub, sheet, fullPath);
+  }
+}`;
+                    navigator.clipboard.writeText(scriptCode);
+                    setCopiedScript(true);
+                    setTimeout(() => setCopiedScript(false), 3000);
+                  }}
+                  className="px-4 py-1.5 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-xl shadow flex items-center gap-1.5 cursor-pointer"
+                >
+                  {copiedScript ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  <span>{copiedScript ? 'تم نسخ السكريبت!' : 'نسخ كود Apps Script'}</span>
+                </button>
+              </div>
+
+              <pre className="p-3.5 bg-slate-900 text-slate-200 font-mono text-[11px] rounded-xl overflow-x-auto border border-slate-800 leading-relaxed max-h-60">
+{`function syncDriveFolderWithSheet() {
+  var MAIN_FOLDER_ID = "ضع_ID_المجلد_الرئيسي_هنا";
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getActiveSheet();
+  
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(["كود / اسم الصنف", "مسار المجلد الفرعي", "رابط الصورة المباشر", "File ID"]);
+  }
+  var rootFolder = DriveApp.getFolderById(MAIN_FOLDER_ID);
+  processFolderRecursive(rootFolder, sheet, "");
+}`}
+              </pre>
+            </div>
+
+            {/* Step-by-Step Instructions & XLOOKUP Formula */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-800/60 p-4 rounded-2xl border border-slate-700/60 space-y-2">
+                <div className="flex items-center gap-2 font-black text-amber-300 text-xs">
+                  <Globe className="w-4 h-4 text-amber-400" />
+                  <span>خطوات التشغيل في Google Sheets:</span>
+                </div>
+                <ol className="list-decimal list-inside space-y-1.5 text-xs text-slate-300 leading-relaxed">
+                  <li>افتح شيت Google Sheet الخاص بك.</li>
+                  <li>من القائمة العلوية اضغط <strong>Extensions (الإضافات) ⬅️ Apps Script</strong>.</li>
+                  <li>الصق الكود وضع الـ ID الخاص بالمجلد الرئيسي مكان <code>MAIN_FOLDER_ID</code>.</li>
+                  <li>اضغط <strong>Run (تشغيل)</strong> وسيقوم بملء كل الصور والروابط تلقائياً.</li>
+                </ol>
+              </div>
+
+              <div className="bg-slate-800/60 p-4 rounded-2xl border border-slate-700/60 space-y-2">
+                <div className="flex items-center gap-2 font-black text-emerald-300 text-xs">
+                  <Sparkles className="w-4 h-4 text-emerald-400" />
+                  <span>معادلة الربط التلقائي في شيت الأسعار (XLOOKUP):</span>
+                </div>
+                <div className="p-2.5 bg-slate-950 font-mono text-[11px] text-emerald-300 rounded-xl border border-slate-800 select-all">
+                  =XLOOKUP(A2; Sheet_Images!A:A; Sheet_Images!C:C; "بدون صورة")
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  حيث <code>A2</code> هو كود المنتج، و <code>Sheet_Images</code> هو الشيت الذي تم استخراج الصور فيه.
+                </p>
+              </div>
             </div>
           </div>
         </div>
