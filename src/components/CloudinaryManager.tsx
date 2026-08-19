@@ -48,7 +48,101 @@ export const CloudinaryManager: React.FC = () => {
     sampleMatches: { code: string; name: string; url: string }[];
   } | null>(null);
 
-  const sampleCodes = ['1004973', '1004544', '1005049', '1005118', '1004534', '1004550'];
+  const sampleCodes = ['LHD-103', '1004973', '1004544', '1005049', '1005118', '1004534', '1004550'];
+  const [activeScriptTab, setActiveScriptTab] = useState<'gas' | 'node'>('gas');
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  const googleAppsScript = `// ========================================================
+// سكريبت الرفع النظيف من Google Drive / Sheets إلى Cloudinary
+// المعيار: public_id = كود المنتج فقط (بدون أي مسارات أو فولدرات عربي)
+// ========================================================
+
+function uploadImagesToCloudinaryClean() {
+  const cloudName = "${formConfig.cloudName || 'dzdkhpr2y'}";
+  const uploadPreset = "YOUR_UNSIGNED_UPLOAD_PRESET"; // أنشئه من Cloudinary Settings -> Upload -> Add Upload Preset (Unsigned)
+  
+  // مجلد صور المنتجات على Google Drive
+  const driveFolderId = "ضع_هنا_ID_مجلد_جوجل_درايف";
+  const folder = DriveApp.getFolderById(driveFolderId);
+  const files = folder.getFiles();
+  
+  while (files.hasNext()) {
+    const file = files.next();
+    const fileName = file.getName(); // مثال: LHD-103.png أو 1004973.jpg
+    
+    // استخراج كود المنتج فقط (حذف الامتداد)
+    const dotIndex = fileName.lastIndexOf('.');
+    const itemCode = (dotIndex !== -1 ? fileName.substring(0, dotIndex) : fileName).trim();
+    
+    if (!itemCode) continue;
+    
+    // إعداد الحمولة للرفع السريع والمباشر
+    const payload = {
+      file: "data:" + file.getMimeType() + ";base64," + Utilities.base64Encode(file.getBlob().getBytes()),
+      upload_preset: uploadPreset,
+      public_id: itemCode,   // كود المنتج فقط كـ ID نظيف وفريد
+      folder: ""              // جذر السحابة مباشرة (Root) بدون مسارات عربي
+    };
+    
+    const options = {
+      method: "post",
+      payload: payload,
+      muteHttpExceptions: true
+    };
+    
+    try {
+      const response = UrlFetchApp.fetch("https://api.cloudinary.com/v1_1/" + cloudName + "/image/upload", options);
+      Logger.log("تم رفع الصنف بنجاح: " + itemCode);
+    } catch (e) {
+      Logger.log("خطأ في رفع الصنف " + itemCode + ": " + e.toString());
+    }
+  }
+}`;
+
+  const nodeScript = `// ========================================================
+// سكريبت Node.js لرفع مجلد كامل بالكمبيوتر إلى Cloudinary
+// المعيار: public_id = كود المنتج فقط بدون مجلدات عربي
+// ========================================================
+const fs = require('fs');
+const path = require('path');
+const cloudinary = require('cloudinary').v2;
+
+cloudinary.config({
+  cloud_name: '${formConfig.cloudName || 'dzdkhpr2y'}',
+  api_key: 'ضع_الـ_API_KEY_هنا',
+  api_secret: 'ضع_الـ_API_SECRET_هنا'
+});
+
+const localImagesDir = './images'; // مجلد الصور على جهازك
+
+async function uploadAllImages() {
+  const files = fs.readdirSync(localImagesDir);
+  for (const file of files) {
+    const ext = path.extname(file);
+    const itemCode = path.basename(file, ext).trim(); // كود المنتج فقط (مثل LHD-103)
+    const filePath = path.join(localImagesDir, file);
+
+    try {
+      const result = await cloudinary.uploader.upload(filePath, {
+        public_id: itemCode, // كود المنتج فقط
+        folder: '',          // في الـ Root بدون مسارات عربي
+        overwrite: true,
+        resource_type: 'image'
+      });
+      console.log(\`✅ تم رفع الصنف: \${itemCode} -> \${result.secure_url}\`);
+    } catch (err) {
+      console.error(\`❌ فشل رفع \${itemCode}:\`, err.message);
+    }
+  }
+}
+
+uploadAllImages();`;
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2500);
+  };
   const commonFolders = [
     { label: 'بدون مجلد (الرئيسي)', value: '' },
     { label: 'منزلي', value: 'منزلي' },
@@ -431,6 +525,67 @@ export const CloudinaryManager: React.FC = () => {
           </div>
         )}
 
+      </div>
+
+      {/* Script Generator & Clean Upload Architecture Guide */}
+      <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-md border border-slate-800 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <FileCode className="w-5 h-5 text-amber-400" />
+            <div>
+              <h3 className="font-black text-sm text-white">سكريبت الرفع الأوتوماتيكي النظيف لـ Cloudinary</h3>
+              <p className="text-[11px] text-slate-400">بالمعيار القياسي: <code className="text-amber-300">public_id = itemCode</code> بدون أي مسارات عربية لتفادي أخطاء الـ URL</p>
+            </div>
+          </div>
+          
+          {/* Tab buttons */}
+          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+            <button
+              type="button"
+              onClick={() => setActiveScriptTab('gas')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                activeScriptTab === 'gas' ? 'bg-amber-400 text-slate-950 font-black' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Google Apps Script
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveScriptTab('node')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                activeScriptTab === 'node' ? 'bg-amber-400 text-slate-950 font-black' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Node.js / Local Script
+            </button>
+          </div>
+        </div>
+
+        <div className="relative">
+          <div className="flex items-center justify-between pb-1.5 text-xs text-slate-400">
+            <span>انسخ الكود وشغله لرفع كل الصور دفعة واحدة بالكود فقط:</span>
+            <button
+              type="button"
+              onClick={() => copyToClipboard(activeScriptTab === 'gas' ? googleAppsScript : nodeScript)}
+              className="px-3 py-1 bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border border-amber-400/30 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer"
+            >
+              {copiedCode ? <Check className="w-3.5 h-3.5" /> : <Layers className="w-3.5 h-3.5" />}
+              <span>{copiedCode ? 'تم النسخ للحافظة!' : 'نسخ الكود'}</span>
+            </button>
+          </div>
+          <pre className="p-4 bg-slate-950 text-slate-200 text-[11px] font-mono rounded-2xl overflow-x-auto border border-slate-800 leading-relaxed max-h-72">
+            {activeScriptTab === 'gas' ? googleAppsScript : nodeScript}
+          </pre>
+        </div>
+
+        {/* 2-Step Cleanup Guide */}
+        <div className="bg-slate-950/60 p-4 rounded-2xl border border-slate-800 text-xs space-y-2">
+          <span className="font-bold text-amber-300 block">خطوات التنظيف وإعادة الرفع الصحيح:</span>
+          <ol className="list-decimal list-inside space-y-1 text-slate-300 leading-relaxed">
+            <li>قم بتشغيل السكريبت أعلاه لرفع الصور بـ <code>public_id = كود المنتج</code> (مثل <code>LHD-103</code> أو <code>1004973</code>) في الـ Root.</li>
+            <li>من لوحة تحكم Cloudinary (Media Library)، يمكنك حذف المجلدات القديمة ذات الأسماء العربية لتوفير المساحة وتجنب التداخل.</li>
+          </ol>
+        </div>
       </div>
 
     </div>
