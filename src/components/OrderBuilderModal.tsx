@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { ProductImage } from './ProductImage';
 import { exportElectronicInvoiceToExcel } from '../services/excelService';
 import { formatCurrency, shareInvoiceViaWhatsApp } from '../services/invoiceService';
 import { PaymentMethod } from '../types';
@@ -36,7 +37,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   onClose,
   onInvoiceCreated,
 }) => {
-  const { cart, updateCartItem, removeFromCart, clearCart, getCartSummary, createOrder, currentUser, branches } = useApp();
+  const { cart, updateCartItem, removeFromCart, clearCart, getCartSummary, createOrder, currentUser, branches, cloudinaryConfig } = useApp();
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -269,12 +270,22 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                       {/* Product Row Header */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2.5">
-                          <span className="bg-slate-900 text-amber-300 font-black text-xs px-2 py-0.5 rounded-md">
-                            {p.code}
-                          </span>
+                          <ProductImage
+                            product={p}
+                            cloudinaryConfig={cloudinaryConfig}
+                            containerClassName="w-11 h-11 rounded-lg bg-slate-900 overflow-hidden shrink-0 border border-slate-200"
+                            className="w-full h-full object-cover"
+                            showBadgeOnFallback={false}
+                          />
                           <div>
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <span className="bg-slate-900 text-amber-300 font-black text-xs px-2 py-0.5 rounded-md">
+                                {p.code}
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-500">{p.category}</span>
+                            </div>
                             <h4 className="font-bold text-slate-900 text-xs sm:text-sm">{p.name}</h4>
-                            <div className="text-[10px] text-slate-400 flex items-center gap-2">
+                            <div className="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
                               <span>شدة الكرتونة: {p.cartonQuantity} ق</span>
                               <span>سعر القطعة: {formatCurrency(p.promoPrice || p.piecePrice)}</span>
                               <span>سعر الكرتونة: {formatCurrency(p.cartonPrice)}</span>
@@ -284,7 +295,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
                         <button
                           onClick={() => removeFromCart(p.id)}
-                          className="text-slate-400 hover:text-rose-600 p-1 rounded-lg"
+                          className="text-slate-400 hover:text-rose-600 p-1 rounded-lg cursor-pointer"
                           title="حذف الصنف"
                         >
                           <Trash2 className="w-4 h-4" />

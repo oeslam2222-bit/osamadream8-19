@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { ProductImage } from './ProductImage';
 import { generateProductPlaceholderSvg, getProductImageUrl } from '../services/cloudinaryService';
 import { formatCurrency } from '../services/invoiceService';
 import { ItemStatus, OFFICIAL_DEPARTMENTS, Product, SalesPriority } from '../types';
@@ -36,23 +37,56 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
   const { products, currentUser, addToCart, cloudinaryConfig, selectedBranchFilter } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('الكل');
+  const [selectedOfficialDept, setSelectedOfficialDept] = useState<string>('الكل');
+  const [selectedSubCategory, setSelectedSubCategory] = useState<string>('الكل');
   const [selectedPriority, setSelectedPriority] = useState<string>('الكل');
   const [selectedStatus, setSelectedStatus] = useState<string>('الكل');
   const [stockAvailabilityFilter, setStockAvailabilityFilter] = useState<'all' | 'in_branch' | 'in_warehouse' | 'low_stock'>('all');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [selectedProductForModal, setSelectedProductForModal] = useState<Product | null>(null);
   const [addedItemToast, setAddedItemToast] = useState<{ name: string; count: string } | null>(null);
 
-  // Extract unique categories including official departments
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    OFFICIAL_DEPARTMENTS.forEach((dept) => set.add(dept));
-    products.forEach((p) => {
-      if (p.category) set.add(p.category);
-      if (p.department) set.add(p.department);
+  // Department item count helper
+  const deptCounts = useMemo(() => {
+    const counts: Record<string, number> = { 'الكل': products.length };
+    OFFICIAL_DEPARTMENTS.forEach((dept) => {
+      counts[dept] = 0;
     });
-    return ['الكل', ...Array.from(set)];
+
+    products.forEach((p) => {
+      const pDept = (p.department || '').trim();
+      const pCat = (p.category || '').trim();
+      const pName = (p.name || '').trim();
+      const pCode = (p.code || '').trim();
+
+      OFFICIAL_DEPARTMENTS.forEach((dept) => {
+        const dLower = dept.toLowerCase();
+        if (
+          pDept.toLowerCase() === dLower ||
+          pCat.toLowerCase() === dLower ||
+          pName.toLowerCase().includes(dLower) ||
+          pCode.toLowerCase().startsWith(dept.slice(0, 3).toLowerCase())
+        ) {
+          counts[dept] = (counts[dept] || 0) + 1;
+        }
+      });
+    });
+
+    return counts;
+  }, [products]);
+
+  // Extract unique subcategories (like بلومان, تي شيب, etc. from uploaded sheets)
+  const subCategories = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach((p) => {
+      if (p.category && !OFFICIAL_DEPARTMENTS.includes(p.category as any)) {
+        set.add(p.category.trim());
+      }
+      if (p.classification && p.classification !== 'فئة A' && !OFFICIAL_DEPARTMENTS.includes(p.classification as any)) {
+        set.add(p.classification.trim());
+      }
+    });
+    return Array.from(set).filter(Boolean);
   }, [products]);
 
   // Filtered Products
@@ -60,7 +94,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
     return products.filter((p) => {
       // Branch filter if not 'الكل'
       if (selectedBranchFilter !== 'الكل' && p.branchName && p.branchName !== selectedBranchFilter) {
-        // Still allow sales rep to see if main warehouse has stock
         if (p.mainWarehouseActual <= 0 && p.branchStockActual <= 0) return false;
       }
 
@@ -69,7 +102,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
         const query = searchTerm.toLowerCase().trim();
         const codeMatch = p.code.toLowerCase().includes(query);
         const nameMatch = p.name.toLowerCase().includes(query);
-        const catMatch = p.category.toLowerCase().includes(query);
+        const catMatch = p.category?.toLowerCase().includes(query);
         const deptMatch = p.department?.toLowerCase().includes(query);
         const colorMatch = p.color?.toLowerCase().includes(query);
         const barcodeMatch = p.barcode?.includes(query);
@@ -79,9 +112,30 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
         }
       }
 
-      // Category filter
-      if (selectedCategory !== 'الكل' && p.category !== selectedCategory) {
-        return false;
+      // Official 22 Departments Filter
+      if (selectedOfficialDept !== 'الكل') {
+        const target = selectedOfficialDept.toLowerCase().trim();
+        const pDept = (p.department || '').toLowerCase().trim();
+        const pCat = (p.category || '').toLowerCase().trim();
+        const pName = (p.name || '').toLowerCase().trim();
+        const pCode = (p.code || '').toLowerCase().trim();
+
+        const match =
+          pDept === target ||
+          pCat === target ||
+          pDept.includes(target) ||
+          pCat.includes(target) ||
+          pName.includes(target) ||
+          pCode.startsWith(selectedOfficialDept.slice(0, 3).toLowerCase());
+
+        if (!match) return false;
+      }
+
+      // Sub-category filter
+      if (selectedSubCategory !== 'الكل') {
+        const matchCat = p.category === selectedSubCategory;
+        const matchClass = p.classification === selectedSubCategory;
+        if (!matchCat && !matchClass) return false;
       }
 
       // Priority filter
@@ -107,7 +161,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
 
       return true;
     });
-  }, [products, searchTerm, selectedCategory, selectedPriority, selectedStatus, stockAvailabilityFilter, selectedBranchFilter]);
+  }, [
+    products,
+    searchTerm,
+    selectedOfficialDept,
+    selectedSubCategory,
+    selectedPriority,
+    selectedStatus,
+    stockAvailabilityFilter,
+    selectedBranchFilter
+  ]);
 
   const handleQuickAdd = (product: Product, type: 'carton' | 'piece', count: number = 1) => {
     addToCart(product, type, count);
@@ -210,25 +273,82 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
           </div>
         </div>
 
-        {/* Filter Pills Bar */}
-        <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-2">
+        {/* Department & Category Filter Bar */}
+        <div className="mt-4 pt-4 border-t border-slate-100 space-y-2.5">
           
-          {/* Categories Selector */}
-          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-1">
-            {categories.map((cat) => (
+          {/* Primary 22 Official Departments */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+            <span className="text-xs font-black text-slate-800 shrink-0 ml-1">الأقسام الرئيسية (22):</span>
+            <button
+              onClick={() => setSelectedOfficialDept('الكل')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition border shrink-0 flex items-center gap-1.5 ${
+                selectedOfficialDept === 'الكل'
+                  ? 'bg-amber-400 text-slate-950 border-amber-400 shadow-xs'
+                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <span>الكل</span>
+              <span className="text-[10px] bg-slate-900/10 px-1.5 py-0.2 rounded-full font-bold">
+                {products.length}
+              </span>
+            </button>
+
+            {OFFICIAL_DEPARTMENTS.map((dept) => {
+              const count = deptCounts[dept] || 0;
+              const isSelected = selectedOfficialDept === dept;
+              return (
+                <button
+                  key={dept}
+                  onClick={() => setSelectedOfficialDept(dept)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition border shrink-0 flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-slate-900 text-amber-300 border-slate-900 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-amber-400 hover:bg-amber-50/50'
+                  }`}
+                >
+                  <span>{dept}</span>
+                  {count > 0 && (
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      isSelected ? 'bg-amber-400 text-slate-950' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Sub-categories (from uploaded sheets like بلومان, تي شيب, حور...) */}
+          {subCategories.length > 0 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 text-xs border-t border-slate-50">
+              <span className="text-[11px] font-bold text-slate-500 shrink-0 ml-1">التصنيفات الفرعية بالشيت:</span>
               <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition border ${
-                  selectedCategory === cat
-                    ? 'bg-slate-900 text-amber-300 border-slate-900 shadow-xs'
-                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                onClick={() => setSelectedSubCategory('الكل')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition ${
+                  selectedSubCategory === 'الكل'
+                    ? 'bg-slate-800 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {cat}
+                الكل
               </button>
-            ))}
-          </div>
+              {subCategories.map((sub) => (
+                <button
+                  key={sub}
+                  onClick={() => setSelectedSubCategory(sub)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition ${
+                    selectedSubCategory === sub
+                      ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {sub}
+                </button>
+              ))}
+            </div>
+          )}
+
         </div>
 
         {/* Secondary Filter Dropdowns */}
@@ -285,16 +405,17 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
           </div>
 
           {/* Active filters reset */}
-          {(searchTerm || selectedCategory !== 'الكل' || selectedPriority !== 'الكل' || selectedStatus !== 'الكل' || stockAvailabilityFilter !== 'all') && (
+          {(searchTerm || selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل' || selectedPriority !== 'الكل' || selectedStatus !== 'الكل' || stockAvailabilityFilter !== 'all') && (
             <button
               onClick={() => {
                 setSearchTerm('');
-                setSelectedCategory('الكل');
+                setSelectedOfficialDept('الكل');
+                setSelectedSubCategory('الكل');
                 setSelectedPriority('الكل');
                 setSelectedStatus('الكل');
                 setStockAvailabilityFilter('all');
               }}
-              className="text-amber-700 hover:text-amber-900 font-bold underline pr-2"
+              className="text-amber-700 hover:text-amber-900 font-bold underline pr-2 cursor-pointer"
             >
               إلغاء كل الفلاتر
             </button>
@@ -317,21 +438,17 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                 key={product.id}
                 className="bg-white rounded-2xl overflow-hidden border border-slate-200 hover:border-amber-400/80 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group relative"
               >
-                {/* Image Container with Cloudinary Support */}
-                <div className="relative h-44 bg-slate-100 overflow-hidden cursor-pointer" onClick={() => setSelectedProductForModal(product)}>
-                  <img
-                    src={imageUrl}
-                    alt={product.name}
-                    loading="lazy"
+                {/* Image Section */}
+                <div className="relative h-44 bg-slate-900 overflow-hidden cursor-pointer" onClick={() => setSelectedProductForModal(product)}>
+                  <ProductImage
+                    product={product}
+                    cloudinaryConfig={cloudinaryConfig}
+                    containerClassName="w-full h-full"
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                    onError={(e) => {
-                      // Fallback clean SVG placeholder
-                      (e.target as HTMLElement).setAttribute('src', generateProductPlaceholderSvg(product.code, product.category, product.name));
-                    }}
                   />
 
                   {/* Product Code Badge */}
-                  <div className="absolute top-2 right-2 bg-slate-900/90 text-amber-300 text-xs font-black px-2.5 py-1 rounded-lg backdrop-blur-xs shadow">
+                  <div className="absolute top-2 right-2 bg-slate-900/90 text-amber-300 text-xs font-black px-2.5 py-1 rounded-lg backdrop-blur-xs shadow pointer-events-none">
                     {product.code}
                   </div>
 
@@ -495,10 +612,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                     <tr key={product.id} className="hover:bg-amber-50/40 transition">
                       <td className="p-2.5">
                         <div className="flex items-center gap-2">
-                          <img
-                            src={imageUrl}
-                            alt={product.name}
-                            className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0 cursor-pointer"
+                          <ProductImage
+                            product={product}
+                            cloudinaryConfig={cloudinaryConfig}
+                            containerClassName="w-10 h-10 rounded-lg bg-slate-900 overflow-hidden shrink-0 border border-slate-200 cursor-pointer"
+                            className="w-full h-full object-cover"
+                            showBadgeOnFallback={false}
                             onClick={() => setSelectedProductForModal(product)}
                           />
                           <span className="font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded text-[11px]">
@@ -575,12 +694,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
           <button
             onClick={() => {
               setSearchTerm('');
-              setSelectedCategory('الكل');
+              setSelectedOfficialDept('الكل');
+              setSelectedSubCategory('الكل');
               setSelectedPriority('الكل');
               setSelectedStatus('الكل');
               setStockAvailabilityFilter('all');
             }}
-            className="bg-slate-900 text-amber-300 px-4 py-2 rounded-xl text-xs font-bold shadow hover:bg-slate-800"
+            className="bg-slate-900 text-amber-300 px-4 py-2 rounded-xl text-xs font-bold shadow hover:bg-slate-800 cursor-pointer"
           >
             إعادة تعيين البحث
           </button>
@@ -612,14 +732,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* Product Image Preview */}
               <div className="space-y-2">
-                <div className="h-64 bg-slate-100 rounded-2xl overflow-hidden border border-slate-200 relative">
-                  <img
-                    src={getProductImageUrl(selectedProductForModal, cloudinaryConfig)}
-                    alt={selectedProductForModal.name}
-                    className="w-full h-full object-cover"
+                <div className="h-64 bg-slate-900 rounded-2xl overflow-hidden border border-slate-200 relative flex items-center justify-center">
+                  <ProductImage
+                    product={selectedProductForModal}
+                    cloudinaryConfig={cloudinaryConfig}
+                    containerClassName="w-full h-full bg-slate-900"
+                    className="w-full h-full object-contain"
                   />
                   {selectedProductForModal.promoPrice && (
-                    <div className="absolute top-3 right-3 bg-purple-600 text-white font-bold text-xs px-2.5 py-1 rounded-lg shadow">
+                    <div className="absolute top-3 right-3 bg-purple-600 text-white font-bold text-xs px-2.5 py-1 rounded-lg shadow z-10">
                       عرض ترويجي نشط
                     </div>
                   )}
