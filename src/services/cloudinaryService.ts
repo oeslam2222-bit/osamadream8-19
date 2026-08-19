@@ -1,8 +1,8 @@
 import { CloudinaryConfig, Product } from '../types';
 
 export const DEFAULT_CLOUDINARY_CONFIG: CloudinaryConfig = {
-  cloudName: 'dream-dist',
-  folderPrefix: 'products',
+  cloudName: 'dzdkhpr2y',
+  folderPrefix: '',
   defaultTransformation: 'f_auto,q_auto,w_500,c_fill',
   matchingPattern: 'code',
   fileExtension: 'jpg',
@@ -28,7 +28,7 @@ export function generateProductPlaceholderSvg(code: string, category: string, na
     <path d="M170 160 L200 130 L230 160 L200 190 Z" fill="#fbbf24" opacity="0.8"/>
     <text x="200" y="245" font-family="system-ui, sans-serif" font-size="20" font-weight="900" fill="#f8fafc" text-anchor="middle">${shortCode}</text>
     <text x="200" y="275" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#94a3b8" text-anchor="middle">${cat}</text>
-    <text x="200" y="340" font-family="system-ui, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">Cloudinary Image Matching</text>
+    <text x="200" y="340" font-family="system-ui, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">Cloudinary Image</text>
   </svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
@@ -45,40 +45,62 @@ export function sanitizeToCloudinarySlug(text: string): string {
 }
 
 /**
- * Generate a smart Cloudinary image URL for a given product
+ * Generate all possible candidate URLs for a product on Cloudinary
+ * to handle folder prefixes, extensions, and slug variations automatically.
+ */
+export function getCandidateImageUrls(
+  product: Partial<Product>,
+  config: CloudinaryConfig = DEFAULT_CLOUDINARY_CONFIG
+): string[] {
+  const candidates: string[] = [];
+  const cloudName = config.cloudName?.trim() || 'dzdkhpr2y';
+
+  // 1. Direct explicit image URL if valid
+  if (product.imageUrl && product.imageUrl.startsWith('http') && !product.imageUrl.includes('unsplash.com')) {
+    candidates.push(product.imageUrl);
+  }
+
+  // Identifiers to try
+  const identifiers: string[] = [];
+  if (product.code) identifiers.push(product.code.trim());
+  if (product.cloudinaryPublicId) identifiers.push(product.cloudinaryPublicId.trim());
+  if (product.name) identifiers.push(sanitizeToCloudinarySlug(product.name));
+
+  // Folder candidates
+  const folder = config.folderPrefix?.trim() || '';
+  const foldersToTry = folder ? [folder, ''] : ['', 'products', 'dream', 'images', 'items', 'catalog'];
+
+  // Transformations
+  const trans = config.defaultTransformation || 'f_auto,q_auto,w_500,c_fill';
+
+  // Extensions
+  const extensions = [config.fileExtension || 'jpg', 'png', 'webp', ''];
+
+  for (const id of identifiers) {
+    if (!id) continue;
+    for (const f of foldersToTry) {
+      const folderPart = f ? `${encodeURIComponent(f)}/` : '';
+      for (const ext of extensions) {
+        const extPart = ext && ext !== 'auto' ? `.${ext}` : '';
+        const url = `https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${folderPart}${encodeURIComponent(id)}${extPart}`;
+        if (!candidates.includes(url)) {
+          candidates.push(url);
+        }
+      }
+    }
+  }
+
+  return candidates;
+}
+
+/**
+ * Generate primary Cloudinary image URL for a given product
  */
 export function getProductImageUrl(product: Partial<Product>, config: CloudinaryConfig = DEFAULT_CLOUDINARY_CONFIG): string {
-  // 1. If product already has an explicit direct valid URL (and not old unsplash dummy), use it
-  if (product.imageUrl && product.imageUrl.startsWith('http') && !product.imageUrl.includes('unsplash.com')) {
-    return product.imageUrl;
+  const candidates = getCandidateImageUrls(product, config);
+  if (candidates.length > 0) {
+    return candidates[0];
   }
-
-  // 2. If product has a specific cloudinary public ID
-  if (product.cloudinaryPublicId) {
-    const folderPart = config.folderPrefix ? `${config.folderPrefix}/` : '';
-    const ext = config.fileExtension === 'auto' ? '' : `.${config.fileExtension}`;
-    return `https://res.cloudinary.com/${config.cloudName}/image/upload/${config.defaultTransformation}/${folderPart}${product.cloudinaryPublicId}${ext}`;
-  }
-
-  // 3. Auto-match by code or name using Cloudinary pattern
-  let identifier = '';
-  if (config.matchingPattern === 'code' && product.code) {
-    identifier = product.code.trim();
-  } else if (config.matchingPattern === 'name' && product.name) {
-    identifier = sanitizeToCloudinarySlug(product.name);
-  } else if (config.matchingPattern === 'slug') {
-    identifier = `${product.code || ''}_${sanitizeToCloudinarySlug(product.name || '')}`;
-  } else {
-    identifier = product.code || sanitizeToCloudinarySlug(product.name || 'item');
-  }
-
-  if (identifier && config.cloudName) {
-    const ext = config.fileExtension === 'auto' ? '' : `.${config.fileExtension}`;
-    const folderPart = config.folderPrefix ? `${config.folderPrefix}/` : '';
-    return `https://res.cloudinary.com/${config.cloudName}/image/upload/${config.defaultTransformation}/${folderPart}${identifier}${ext}`;
-  }
-
-  // Fallback clean SVG placeholder
   return generateProductPlaceholderSvg(product.code || '', product.category || '', product.name || '');
 }
 

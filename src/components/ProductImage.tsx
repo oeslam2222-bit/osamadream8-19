@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ImageOff, Sparkles, Package } from 'lucide-react';
-import { getProductImageUrl, generateProductPlaceholderSvg } from '../services/cloudinaryService';
+import { getCandidateImageUrls, generateProductPlaceholderSvg } from '../services/cloudinaryService';
 import { CloudinaryConfig, Product } from '../types';
 
 interface ProductImageProps {
@@ -22,30 +22,40 @@ export const ProductImage: React.FC<ProductImageProps> = ({
   onClick,
   alt
 }) => {
-  const [hasError, setHasError] = useState(false);
+  const candidateUrls = useMemo(() => {
+    return getCandidateImageUrls(product, cloudinaryConfig);
+  }, [product.code, product.name, product.imageUrl, product.cloudinaryPublicId, cloudinaryConfig]);
+
+  const [candidateIndex, setCandidateIndex] = useState(0);
+  const [hasExhausted, setHasExhausted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  const initialUrl = getProductImageUrl(product, cloudinaryConfig);
-  const [src, setSrc] = useState(initialUrl);
-
   useEffect(() => {
-    const newUrl = getProductImageUrl(product, cloudinaryConfig);
-    setSrc(newUrl);
-    setHasError(false);
-    setIsLoading(true);
-  }, [product.code, product.imageUrl, product.cloudinaryPublicId, cloudinaryConfig]);
+    setCandidateIndex(0);
+    setHasExhausted(candidateUrls.length === 0);
+    setIsLoading(candidateUrls.length > 0);
+  }, [candidateUrls]);
+
+  const currentSrc = candidateUrls[candidateIndex];
 
   const handleError = () => {
-    setHasError(true);
-    setIsLoading(false);
+    if (candidateIndex + 1 < candidateUrls.length) {
+      // Try next candidate format (e.g. without extension, in another folder, etc.)
+      setCandidateIndex((prev) => prev + 1);
+    } else {
+      // All candidates exhausted, show fallback
+      setHasExhausted(true);
+      setIsLoading(false);
+    }
   };
 
   const handleLoad = () => {
     setIsLoading(false);
+    setHasExhausted(false);
   };
 
-  // If there's an error loading the external image, render an elegant in-app branded placeholder
-  if (hasError || !src) {
+  // If all candidate URLs failed, render an elegant in-app branded placeholder
+  if (hasExhausted || !currentSrc) {
     const code = product.code || 'DRM';
     const cat = product.category || product.department || 'دريم';
     const svgFallback = generateProductPlaceholderSvg(code, cat, product.name || '');
@@ -77,7 +87,8 @@ export const ProductImage: React.FC<ProductImageProps> = ({
       onClick={onClick}
     >
       <img
-        src={src}
+        key={currentSrc}
+        src={currentSrc}
         alt={alt || product.name || product.code || 'صنف'}
         className={`${className} transition-opacity duration-300 ${isLoading ? 'opacity-40 scale-95' : 'opacity-100 scale-100'}`}
         onError={handleError}

@@ -6,6 +6,8 @@ import {
   ExternalLink,
   Eye,
   FileCode,
+  FolderOpen,
+  HelpCircle,
   Image,
   Info,
   Layers,
@@ -17,6 +19,7 @@ import {
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { ProductImage } from './ProductImage';
 import {
   batchMatchCloudinaryImages,
   DEFAULT_CLOUDINARY_CONFIG,
@@ -28,14 +31,27 @@ import { CloudinaryConfig } from '../types';
 export const CloudinaryManager: React.FC = () => {
   const { cloudinaryConfig, updateCloudinarySettings, products } = useApp();
 
-  const [formConfig, setFormConfig] = useState<CloudinaryConfig>(cloudinaryConfig);
-  const [testCode, setTestCode] = useState('DRM-101');
-  const [testName, setTestName] = useState('ويفر دريم سوبر شوكولاتة');
+  const [formConfig, setFormConfig] = useState<CloudinaryConfig>({
+    ...cloudinaryConfig,
+    cloudName: cloudinaryConfig.cloudName || 'dzdkhpr2y'
+  });
+  const [testCode, setTestCode] = useState('1004973');
+  const [testName, setTestName] = useState('طقم زجاج دريم فاخر');
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [batchResults, setBatchResults] = useState<{
     updatedCount: number;
     sampleMatches: { code: string; name: string; url: string }[];
   } | null>(null);
+
+  const sampleCodes = ['1004973', '1004544', '1005049', '1005118', '1004534', '1004550'];
+  const commonFolders = [
+    { label: 'بدون مجلد (الرئيسي)', value: '' },
+    { label: 'products', value: 'products' },
+    { label: 'dream', value: 'dream' },
+    { label: 'images', value: 'images' },
+    { label: 'items', value: 'items' },
+    { label: 'catalog', value: 'catalog' }
+  ];
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,7 +78,7 @@ export const CloudinaryManager: React.FC = () => {
         <div className="bg-emerald-600 text-white p-3.5 rounded-2xl shadow-xl flex items-center justify-between text-xs animate-in fade-in">
           <div className="flex items-center gap-2 font-bold">
             <CheckCircle2 className="w-5 h-5" />
-            <span>تم حفظ إعدادات ربط Cloudinary بنجاح! سيتم تطبيقها فوراً على كل المنتجات.</span>
+            <span>تم حفظ إعدادات ربط Cloudinary بنجاح! سيتم تطبيقها فوراً على كل المنتجات والكتالوج.</span>
           </div>
         </div>
       )}
@@ -76,45 +92,22 @@ export const CloudinaryManager: React.FC = () => {
           <div>
             <h2 className="text-xl sm:text-2xl font-black">منظومة ربط صور المنتجات عبر Cloudinary (10,000+ صورة)</h2>
             <p className="text-xs sm:text-sm text-slate-300">
-              ربط تلقائي ذكي للصور بالاعتماد على كود الصنف أو اسمه مع ضغط ذكي فائق السرعة للشبكات والموبايل
+              سحابة الحساب الحالية: <code className="bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded font-mono font-bold">{formConfig.cloudName || 'dzdkhpr2y'}</code>
             </p>
           </div>
         </div>
       </div>
 
-      {/* Strategy Explanation & Smart Rules */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-2">
-          <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
-            1
-          </div>
-          <h3 className="font-extrabold text-sm text-slate-900">الربط التلقائي بكود الصنف (الأفضل)</h3>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            إذا كانت الصور على Cloudinary مسمّاة بنفس كود الصنف مثل <code>DRM-101.jpg</code>، يقوم النظام بربطها فورياً بجميع شيتات الإكسل والكتالوج دون الحاجة لتعديل الروابط يدوياً.
-          </p>
+      {/* Quick Diagnostic Tip for 404 Errors */}
+      <div className="bg-amber-50 border border-amber-300 p-4 rounded-3xl text-xs space-y-2 text-amber-950">
+        <div className="flex items-center gap-2 font-black text-amber-900 text-sm">
+          <HelpCircle className="w-5 h-5 text-amber-600 shrink-0" />
+          <span>إذا ظهر لك خطأ 404 للصور (مثل 1004973.jpg):</span>
         </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-2">
-          <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
-            2
-          </div>
-          <h3 className="font-extrabold text-sm text-slate-900">الربط باسم الصنف (Sanitized Slug)</h3>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            للصور المسمّاة باسم المنتج (عربي أو إنجليزي)، يحول النظام الاسم إلى معرّف نظيف (مثال: <code>ويفر_دريم_سوبر.jpg</code>) ويطابقه مع ملفات Cloudinary المرفوعة.
-          </p>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-2">
-          <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-            3
-          </div>
-          <h3 className="font-extrabold text-sm text-slate-900">التحسين السحابي الفائق (f_auto,q_auto)</h3>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            يتم تحويل صيغ الصور تلقائياً إلى WebP/AVIF وتصغير حجمها بنسبة 80% مع الاحتفاظ بالجودة الفائقة، مما يجعل تصفح 10,000 صورة سريعاً جداً على موبايلات المناديب.
-          </p>
-        </div>
-
+        <p className="leading-relaxed">
+          خطأ 404 يعني أن الصورة موجودة على Cloudinary داخل <strong>مجلد محدد</strong> (مثل مجلد <code>products</code> أو <code>dream</code>) أو بدون امتداد.
+          لحل ذلك فوراً: اختر اسم المجلد الذي رفعت الصور داخله من الخيارات أدناه أو اكتبه في خانة <strong>(المجلد الافتراضي Folder Prefix)</strong> واضغط حفظ.
+        </p>
       </div>
 
       {/* Cloudinary Configuration Form */}
@@ -142,10 +135,10 @@ export const CloudinaryManager: React.FC = () => {
                 required
                 value={formConfig.cloudName}
                 onChange={(e) => setFormConfig({ ...formConfig, cloudName: e.target.value })}
-                placeholder="مثال: dream-distribution"
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:ring-2 focus:ring-amber-400"
+                placeholder="dzdkhpr2y"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:ring-2 focus:ring-amber-400 font-bold"
               />
-              <span className="text-[10px] text-slate-400 block mt-0.5">اسم حسابك في Cloudinary Dashboard</span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">اسم حسابك في Cloudinary Dashboard (حالياً dzdkhpr2y)</span>
             </div>
 
             {/* Folder Prefix */}
@@ -157,10 +150,26 @@ export const CloudinaryManager: React.FC = () => {
                 type="text"
                 value={formConfig.folderPrefix}
                 onChange={(e) => setFormConfig({ ...formConfig, folderPrefix: e.target.value })}
-                placeholder="مثال: products أو catalog"
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:ring-2 focus:ring-amber-400"
+                placeholder="اتركه فارغاً إذا كانت الصور بالـ Root أو اكتب اسم المجلد"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:ring-2 focus:ring-amber-400 font-bold"
               />
-              <span className="text-[10px] text-slate-400 block mt-0.5">اتركه فارغاً إذا كانت الصور في الـ Root</span>
+              {/* Quick Folder Switchers */}
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {commonFolders.map((f) => (
+                  <button
+                    type="button"
+                    key={f.value}
+                    onClick={() => setFormConfig({ ...formConfig, folderPrefix: f.value })}
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition ${
+                      formConfig.folderPrefix === f.value
+                        ? 'bg-slate-900 text-amber-300 border-slate-900'
+                        : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Matching Pattern */}
@@ -171,10 +180,10 @@ export const CloudinaryManager: React.FC = () => {
               <select
                 value={formConfig.matchingPattern}
                 onChange={(e) => setFormConfig({ ...formConfig, matchingPattern: e.target.value as any })}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-amber-400"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-amber-400 cursor-pointer"
               >
-                <option value="code">المطابقة بكود الصنف (مثل DRM-101.jpg)</option>
-                <option value="name">المطابقة باسم الصنف (مثل wafer_dream.jpg)</option>
+                <option value="code">المطابقة بكود الصنف (مثل 1004973.jpg)</option>
+                <option value="name">المطابقة باسم الصنف (مثل طقم_زجاج.jpg)</option>
                 <option value="slug">المطابقة بالمركب (الكود + الاسم)</option>
               </select>
             </div>
@@ -187,7 +196,7 @@ export const CloudinaryManager: React.FC = () => {
               <select
                 value={formConfig.fileExtension}
                 onChange={(e) => setFormConfig({ ...formConfig, fileExtension: e.target.value as any })}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-amber-400"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-amber-400 cursor-pointer"
               >
                 <option value="jpg">.jpg (الافتراضي)</option>
                 <option value="png">.png</option>
@@ -219,13 +228,13 @@ export const CloudinaryManager: React.FC = () => {
             <button
               type="button"
               onClick={() => setFormConfig(DEFAULT_CLOUDINARY_CONFIG)}
-              className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200"
+              className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 cursor-pointer"
             >
               استعادة الافتراضي
             </button>
             <button
               type="submit"
-              className="flex items-center gap-1.5 px-6 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-black shadow transition"
+              className="flex items-center gap-1.5 px-6 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-black shadow transition cursor-pointer"
             >
               <Save className="w-4 h-4" />
               <span>حفظ إعدادات Cloudinary</span>
@@ -245,23 +254,28 @@ export const CloudinaryManager: React.FC = () => {
           
           <div className="space-y-3">
             <div>
-              <label className="block font-bold text-slate-700 mb-1">جرّب كود الصنف للاختبار:</label>
+              <label className="block font-bold text-slate-700 mb-1">اختر أو اكتب كود الصنف للاختبار:</label>
               <input
                 type="text"
                 value={testCode}
                 onChange={(e) => setTestCode(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold font-mono"
               />
-            </div>
-
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">جرّب اسم الصنف للاختبار:</label>
-              <input
-                type="text"
-                value={testName}
-                onChange={(e) => setTestName(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
-              />
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                <span className="text-[10px] text-slate-400 font-medium">أكواد سريعة من شيتك:</span>
+                {sampleCodes.map((code) => (
+                  <button
+                    key={code}
+                    type="button"
+                    onClick={() => setTestCode(code)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
+                      testCode === code ? 'bg-amber-400 text-slate-950 font-black' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {code}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-1">
@@ -269,11 +283,23 @@ export const CloudinaryManager: React.FC = () => {
               <div className="p-2 bg-slate-900 text-amber-300 font-mono text-[10px] rounded-lg break-all select-all">
                 {sampleGeneratedUrl}
               </div>
+              <div className="flex items-center justify-between pt-1 text-[10px]">
+                <span className="text-slate-500">سحابة: {formConfig.cloudName} | مجلد: {formConfig.folderPrefix || '(Root)'}</span>
+                <a
+                  href={sampleGeneratedUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-amber-600 hover:underline flex items-center gap-1 font-bold"
+                >
+                  <span>فتح الرابط مباشرة</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
             </div>
 
             <button
               onClick={handleRunBatchMatch}
-              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold rounded-xl flex items-center justify-center gap-2 transition"
+              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer"
             >
               <Sparkles className="w-4 h-4" />
               <span>فحص ومطابقة الـ 10,000+ صنف المسجلين في النظام</span>
@@ -282,17 +308,15 @@ export const CloudinaryManager: React.FC = () => {
 
           {/* Image preview box */}
           <div className="flex flex-col items-center justify-center bg-slate-50 rounded-2xl p-4 border border-slate-200 text-center space-y-2">
-            <div className="w-48 h-48 bg-white rounded-2xl overflow-hidden shadow border border-slate-200 flex items-center justify-center">
-              <img
-                src={sampleGeneratedUrl}
-                alt="Cloudinary test"
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLElement).setAttribute('src', 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&auto=format&fit=crop&q=80');
-                }}
+            <div className="w-48 h-48 bg-slate-900 rounded-2xl overflow-hidden shadow border border-slate-200 flex items-center justify-center">
+              <ProductImage
+                product={{ code: testCode, name: testName }}
+                cloudinaryConfig={formConfig}
+                containerClassName="w-full h-full bg-slate-900"
+                className="w-full h-full object-contain"
               />
             </div>
-            <span className="text-[11px] text-slate-500 font-medium">معاينة استجابة Cloudinary للرابط المولد</span>
+            <span className="text-[11px] text-slate-500 font-medium">معاينة استجابة Cloudinary مع التبديل التلقائي الذكي للبديل</span>
           </div>
 
         </div>
