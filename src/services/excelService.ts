@@ -18,6 +18,229 @@ function normalizeHeader(header: string): string {
 }
 
 /**
+ * Extract Google Sheet ID and GID from any Google Sheets URL
+ */
+export function extractGoogleSpreadsheetId(input: string): { sheetId: string; gid: string } {
+  if (!input) return { sheetId: '', gid: '0' };
+  const clean = input.trim();
+
+  // If user pasted just the sheet ID directly
+  if (!clean.includes('/') && clean.length > 20) {
+    return { sheetId: clean, gid: '0' };
+  }
+
+  // Regex to match /d/{SPREADSHEET_ID}
+  const idMatch = clean.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  const sheetId = idMatch ? idMatch[1] : '';
+
+  // Match gid parameter
+  const gidMatch = clean.match(/[#&?]gid=([0-9]+)/);
+  const gid = gidMatch ? gidMatch[1] : '0';
+
+  return { sheetId, gid };
+}
+
+/**
+ * Build direct CSV export URL for any Google Sheet link
+ */
+export function buildGoogleSheetsPublicCsvUrl(input: string): string {
+  const { sheetId, gid } = extractGoogleSpreadsheetId(input);
+  if (!sheetId) {
+    if (input.startsWith('http')) return input;
+    return '';
+  }
+  return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`;
+}
+
+/**
+ * Convert 2D array of rows from sheet/csv to Product list using Dream columns
+ */
+export function parseRawRowsToProducts(rawRows: any[]): {
+  products: Product[];
+  errors: string[];
+  totalRows: number;
+} {
+  if (!rawRows || rawRows.length < 2) {
+    return {
+      products: [],
+      errors: ['الملف فارغ أو لا يحتوي على صفوف بيانات صالحة'],
+      totalRows: 0,
+    };
+  }
+
+  // Find header row index
+  let headerRowIndex = 0;
+  for (let i = 0; i < Math.min(rawRows.length, 5); i++) {
+    const row = rawRows[i];
+    const hasCodeOrName = row.some((cell: any) => {
+      const str = String(cell);
+      return str.includes('كود') || str.includes('اسم') || str.includes('الصنف') || str.includes('code');
+    });
+    if (hasCodeOrName) {
+      headerRowIndex = i;
+      break;
+    }
+  }
+
+  const headers: string[] = rawRows[headerRowIndex].map((h: any) => String(h).trim());
+  const errors: string[] = [];
+  const products: Product[] = [];
+
+  // Identify column indexes based on Arabic & English header variations
+  const colMap: Record<string, number> = {
+    code: -1,
+    name: -1,
+    salesPriority: -1,
+    category: -1,
+    status: -1,
+    cartonQuantity: -1,
+    size: -1,
+    color: -1,
+    branchStockActual: -1,
+    branchStockReserved: -1,
+    mainWarehouseActual: -1,
+    mainWarehouseReserved: -1,
+    department: -1,
+    classification: -1,
+    promoPrice: -1,
+    piecePrice: -1,
+    cartonPrice: -1,
+    branchName: -1,
+    imageUrl: -1,
+    barcode: -1,
+  };
+
+  headers.forEach((h, idx) => {
+    const norm = normalizeHeader(h);
+    if (norm.includes('كود') || norm.includes('code')) colMap.code = idx;
+    else if (norm.includes('اسمالصنف') || norm.includes('اسم') || norm.includes('البيان') || norm.includes('productname')) colMap.name = idx;
+    else if (norm.includes('اولويه') || norm.includes('priority')) colMap.salesPriority = idx;
+    else if (norm.includes('تصنيف') || norm.includes('category')) colMap.category = idx;
+    else if (norm.includes('حاله') || norm.includes('status')) colMap.status = idx;
+    else if (norm.includes('شده') || norm.includes('شدة') || norm.includes('كرتونه') || norm.includes('pack')) colMap.cartonQuantity = idx;
+    else if (norm.includes('حجم') || norm.includes('وزن') || norm.includes('size')) colMap.size = idx;
+    else if (norm.includes('لون') || norm.includes('color')) colMap.color = idx;
+    else if (norm.includes('قسم') || norm.includes('department')) colMap.department = idx;
+    else if (norm.includes('فئه') || norm.includes('class')) colMap.classification = idx;
+    else if (norm.includes('سعرالعرض') || norm.includes('عرض') || norm.includes('promo')) colMap.promoPrice = idx;
+    else if (norm.includes('سعرالقطعه') || norm.includes('قطعه') || norm.includes('piece')) colMap.piecePrice = idx;
+    else if (norm.includes('سعرالكرتونه') || norm.includes('كرتونه') || norm.includes('cartonprice')) colMap.cartonPrice = idx;
+    else if (norm.includes('اسمفرع') || (norm.includes('فرع') && !norm.includes('فعلي') && !norm.includes('فعلى') && !norm.includes('حجز') && !norm.includes('رصيد'))) colMap.branchName = idx;
+    else if (norm.includes('صوره') || norm.includes('image') || norm.includes('url')) colMap.imageUrl = idx;
+    else if (norm.includes('باركود') || norm.includes('barcode')) colMap.barcode = idx;
+
+    // Explicit Stock Header Matching
+    const isBranch = norm.includes('فرع') || norm.includes('branch');
+    const isWarehouse = norm.includes('مخزن') || norm.includes('رئيسي') || norm.includes('warehouse') || norm.includes('main') || norm.includes('اكتوبر');
+    const isActual = norm.includes('فعلي') || norm.includes('فعلى') || norm.includes('actual');
+    const isReserved = norm.includes('حجز') || norm.includes('reserved') || norm.includes('متاح') || norm.includes('available');
+
+    if (isBranch && isActual) colMap.branchStockActual = idx;
+    else if (isBranch && isReserved) colMap.branchStockReserved = idx;
+    else if (isWarehouse && isActual) colMap.mainWarehouseActual = idx;
+    else if (isWarehouse && isReserved) colMap.mainWarehouseReserved = idx;
+  });
+
+  // Fallback for generic sequential headers if explicit branch/warehouse names weren't present in header text
+  let actualColCount = 0;
+  let reservedColCount = 0;
+  headers.forEach((h, idx) => {
+    const norm = normalizeHeader(h);
+    const isActual = norm.includes('فعلي') || norm.includes('فعلى') || norm.includes('actual');
+    const isReserved = norm.includes('حجز') || norm.includes('reserved');
+
+    if (isActual) {
+      if (colMap.branchStockActual === -1 && actualColCount === 0) {
+        colMap.branchStockActual = idx;
+        actualColCount++;
+      } else if (colMap.mainWarehouseActual === -1) {
+        colMap.mainWarehouseActual = idx;
+        actualColCount++;
+      }
+    } else if (isReserved) {
+      if (colMap.branchStockReserved === -1 && reservedColCount === 0) {
+        colMap.branchStockReserved = idx;
+        reservedColCount++;
+      } else if (colMap.mainWarehouseReserved === -1) {
+        colMap.mainWarehouseReserved = idx;
+        reservedColCount++;
+      }
+    }
+  });
+
+  // Loop rows
+  for (let r = headerRowIndex + 1; r < rawRows.length; r++) {
+    const row = rawRows[r];
+    if (!row || row.length === 0 || row.every((c: any) => c === '' || c === null || c === undefined)) continue;
+
+    const getVal = (colIdx: number) => (colIdx >= 0 && row[colIdx] !== undefined && row[colIdx] !== null ? String(row[colIdx]).trim() : '');
+    const getNum = (colIdx: number, fallback = 0) => {
+      if (colIdx < 0 || row[colIdx] === undefined || row[colIdx] === null) return fallback;
+      const clean = String(row[colIdx]).replace(/[^\d.-]/g, '');
+      const parsed = parseFloat(clean);
+      return isNaN(parsed) ? fallback : parsed;
+    };
+
+    const code = getVal(colMap.code) || `DRM-${100 + r}`;
+    const name = getVal(colMap.name);
+
+    if (!name && !code) continue; // skip empty line
+
+    const rawPriority = getVal(colMap.salesPriority);
+    let salesPriority: SalesPriority = 'عادي';
+    if (rawPriority.includes('مرتفع') || rawPriority.includes('عالي') || rawPriority.toLowerCase().includes('high')) salesPriority = 'مرتفع';
+    else if (rawPriority.includes('متوسط') || rawPriority.toLowerCase().includes('med')) salesPriority = 'متوسط';
+    else if (rawPriority.includes('منخفض') || rawPriority.toLowerCase().includes('low')) salesPriority = 'منخفض';
+
+    const rawStatus = getVal(colMap.status);
+    let status: ItemStatus = 'متاح';
+    if (rawStatus.includes('راكد')) status = 'راكد';
+    else if (rawStatus.includes('عرض') || rawStatus.includes('promo')) status = 'عرض ترويجي';
+    else if (rawStatus.includes('نواقص') || rawStatus.includes('شحيح')) status = 'نواقص';
+    else if (rawStatus.includes('موقوف')) status = 'موقوف مؤقتاً';
+
+    const piecePrice = getNum(colMap.piecePrice, 10);
+    const cartonQuantity = Math.max(1, getNum(colMap.cartonQuantity, 12));
+    const cartonPrice = getNum(colMap.cartonPrice, piecePrice * cartonQuantity * 0.95);
+    const promoPriceRaw = getNum(colMap.promoPrice, 0);
+    const dept = getVal(colMap.department) || getVal(colMap.category) || 'LHLotus';
+
+    const product: Product = {
+      id: `p-${Date.now()}-${r}`,
+      code: code,
+      name: name || `صنف دريم ${code}`,
+      salesPriority: salesPriority,
+      category: getVal(colMap.category) || dept,
+      status: status,
+      cartonQuantity: cartonQuantity,
+      size: getVal(colMap.size) || 'حجم قياسي',
+      color: getVal(colMap.color) || 'افتراضي',
+      branchStockActual: getNum(colMap.branchStockActual, 50),
+      branchStockReserved: getNum(colMap.branchStockReserved, 45),
+      mainWarehouseActual: getNum(colMap.mainWarehouseActual, 500),
+      mainWarehouseReserved: getNum(colMap.mainWarehouseReserved, 450),
+      department: dept,
+      classification: getVal(colMap.classification) || 'فئة A',
+      promoPrice: promoPriceRaw > 0 ? promoPriceRaw : undefined,
+      piecePrice: piecePrice,
+      cartonPrice: cartonPrice,
+      branchName: getVal(colMap.branchName) || 'فرع القاهرة - مدينة نصر',
+      imageUrl: getVal(colMap.imageUrl) || undefined,
+      cloudinaryPublicId: code,
+      barcode: getVal(colMap.barcode) || undefined,
+    };
+
+    products.push(product);
+  }
+
+  return {
+    products,
+    errors,
+    totalRows: products.length,
+  };
+}
+
+/**
  * Smart Excel / CSV file parser for Dream Distribution product inventory
  */
 export async function parseExcelProducts(file: File): Promise<{
@@ -25,7 +248,7 @@ export async function parseExcelProducts(file: File): Promise<{
   errors: string[];
   totalRows: number;
 }> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const reader = new FileReader();
 
     reader.onload = (e) => {
@@ -36,250 +259,149 @@ export async function parseExcelProducts(file: File): Promise<{
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
 
-        // Parse sheet as raw json array of rows
         const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-
-        if (rawRows.length < 2) {
-          return resolve({
-            products: [],
-            errors: ['الملف فارغ أو لا يحتوي على صفوف بيانات صالحة'],
-            totalRows: 0,
-          });
-        }
-
-        // Find header row index
-        let headerRowIndex = 0;
-        for (let i = 0; i < Math.min(rawRows.length, 5); i++) {
-          const row = rawRows[i];
-          const hasCodeOrName = row.some((cell: any) => {
-            const str = String(cell);
-            return str.includes('كود') || str.includes('اسم') || str.includes('الصنف') || str.includes('code');
-          });
-          if (hasCodeOrName) {
-            headerRowIndex = i;
-            break;
-          }
-        }
-
-        const headers: string[] = rawRows[headerRowIndex].map((h: any) => String(h).trim());
-        const errors: string[] = [];
-        const products: Product[] = [];
-
-        // Identify column indexes based on Arabic & English header variations
-        const colMap: Record<string, number> = {
-          code: -1,
-          name: -1,
-          salesPriority: -1,
-          category: -1,
-          status: -1,
-          cartonQuantity: -1,
-          size: -1,
-          color: -1,
-          branchStockActual: -1,
-          branchStockReserved: -1,
-          mainWarehouseActual: -1,
-          mainWarehouseReserved: -1,
-          department: -1,
-          classification: -1,
-          promoPrice: -1,
-          piecePrice: -1,
-          cartonPrice: -1,
-          branchName: -1,
-          imageUrl: -1,
-          barcode: -1,
-        };
-
-        headers.forEach((h, idx) => {
-          const norm = normalizeHeader(h);
-          if (norm.includes('كود') || norm.includes('code')) colMap.code = idx;
-          else if (norm.includes('اسمالصنف') || norm.includes('اسم') || norm.includes('البيان') || norm.includes('productname')) colMap.name = idx;
-          else if (norm.includes('اولويه') || norm.includes('priority')) colMap.salesPriority = idx;
-          else if (norm.includes('تصنيف') || norm.includes('category')) colMap.category = idx;
-          else if (norm.includes('حاله') || norm.includes('status')) colMap.status = idx;
-          else if (norm.includes('شده') || norm.includes('شدة') || norm.includes('كرتونه') || norm.includes('pack')) colMap.cartonQuantity = idx;
-          else if (norm.includes('حجم') || norm.includes('وزن') || norm.includes('size')) colMap.size = idx;
-          else if (norm.includes('لون') || norm.includes('color')) colMap.color = idx;
-          else if (norm.includes('قسم') || norm.includes('department')) colMap.department = idx;
-          else if (norm.includes('فئه') || norm.includes('class')) colMap.classification = idx;
-          else if (norm.includes('سعرالعرض') || norm.includes('عرض') || norm.includes('promo')) colMap.promoPrice = idx;
-          else if (norm.includes('سعرالقطعه') || norm.includes('قطعه') || norm.includes('piece')) colMap.piecePrice = idx;
-          else if (norm.includes('سعرالكرتونه') || norm.includes('كرتونه') || norm.includes('cartonprice')) colMap.cartonPrice = idx;
-          else if (norm.includes('فرع') && !norm.includes('فعلي') && !norm.includes('حجز')) colMap.branchName = idx;
-          else if (norm.includes('صوره') || norm.includes('image') || norm.includes('url')) colMap.imageUrl = idx;
-          else if (norm.includes('باركود') || norm.includes('barcode')) colMap.barcode = idx;
-        });
-
-        // Handle the double "فعلي" and "بعد الحجز" columns (for Branch vs Main Warehouse)
-        let actualColCount = 0;
-        let reservedColCount = 0;
-        headers.forEach((h, idx) => {
-          const norm = normalizeHeader(h);
-          if (norm.includes('فعلي') || norm.includes('فعلى') || norm.includes('actual')) {
-            if (actualColCount === 0) {
-              colMap.branchStockActual = idx;
-              actualColCount++;
-            } else if (actualColCount === 1) {
-              colMap.mainWarehouseActual = idx;
-              actualColCount++;
-            }
-          } else if (norm.includes('حجز') || norm.includes('reserved')) {
-            if (reservedColCount === 0) {
-              colMap.branchStockReserved = idx;
-              reservedColCount++;
-            } else if (reservedColCount === 1) {
-              colMap.mainWarehouseReserved = idx;
-              reservedColCount++;
-            }
-          }
-        });
-
-        // Loop rows
-        for (let r = headerRowIndex + 1; r < rawRows.length; r++) {
-          const row = rawRows[r];
-          if (!row || row.length === 0 || row.every((c: any) => c === '')) continue;
-
-          const getVal = (colIdx: number) => (colIdx >= 0 && row[colIdx] !== undefined ? String(row[colIdx]).trim() : '');
-          const getNum = (colIdx: number, fallback = 0) => {
-            if (colIdx < 0 || row[colIdx] === undefined) return fallback;
-            const clean = String(row[colIdx]).replace(/[^\d.-]/g, '');
-            const parsed = parseFloat(clean);
-            return isNaN(parsed) ? fallback : parsed;
-          };
-
-          const code = getVal(colMap.code) || `DRM-${100 + r}`;
-          const name = getVal(colMap.name);
-
-          if (!name && !code) continue; // skip empty line
-
-          const rawPriority = getVal(colMap.salesPriority);
-          let salesPriority: SalesPriority = 'عادي';
-          if (rawPriority.includes('مرتفع') || rawPriority.includes('عالي') || rawPriority.toLowerCase().includes('high')) salesPriority = 'مرتفع';
-          else if (rawPriority.includes('متوسط') || rawPriority.toLowerCase().includes('med')) salesPriority = 'متوسط';
-          else if (rawPriority.includes('منخفض') || rawPriority.toLowerCase().includes('low')) salesPriority = 'منخفض';
-
-          const rawStatus = getVal(colMap.status);
-          let status: ItemStatus = 'متاح';
-          if (rawStatus.includes('راكد')) status = 'راكد';
-          else if (rawStatus.includes('عرض') || rawStatus.includes('promo')) status = 'عرض ترويجي';
-          else if (rawStatus.includes('نواقص') || rawStatus.includes('شحيح')) status = 'نواقص';
-          else if (rawStatus.includes('موقوف')) status = 'موقوف مؤقتاً';
-
-          const piecePrice = getNum(colMap.piecePrice, 10);
-          const cartonQuantity = Math.max(1, getNum(colMap.cartonQuantity, 12));
-          const cartonPrice = getNum(colMap.cartonPrice, piecePrice * cartonQuantity * 0.95);
-          const promoPriceRaw = getNum(colMap.promoPrice, 0);
-
-          const product: Product = {
-            id: `p-${Date.now()}-${r}`,
-            code: code,
-            name: name || `صنف دريم ${code}`,
-            salesPriority: salesPriority,
-            category: getVal(colMap.category) || 'منتجات عامة',
-            status: status,
-            cartonQuantity: cartonQuantity,
-            size: getVal(colMap.size) || 'حجم قياسي',
-            color: getVal(colMap.color) || 'افتراضي',
-            branchStockActual: getNum(colMap.branchStockActual, 50),
-            branchStockReserved: getNum(colMap.branchStockReserved, 45),
-            mainWarehouseActual: getNum(colMap.mainWarehouseActual, 500),
-            mainWarehouseReserved: getNum(colMap.mainWarehouseReserved, 450),
-            department: getVal(colMap.department) || 'عام',
-            classification: getVal(colMap.classification) || 'فئة A',
-            promoPrice: promoPriceRaw > 0 ? promoPriceRaw : undefined,
-            piecePrice: piecePrice,
-            cartonPrice: cartonPrice,
-            branchName: getVal(colMap.branchName) || 'فرع القاهرة - مدينة نصر',
-            imageUrl: getVal(colMap.imageUrl) || undefined,
-            cloudinaryPublicId: code,
-            barcode: getVal(colMap.barcode) || undefined,
-          };
-
-          products.push(product);
-        }
-
-        resolve({
-          products,
-          errors,
-          totalRows: products.length,
-        });
+        const result = parseRawRowsToProducts(rawRows);
+        resolve(result);
       } catch (err: any) {
-        reject(err);
+        resolve({
+          products: [],
+          errors: [`فشل في قراءة الملف: ${err?.message || 'خطأ غير معروف'}`],
+          totalRows: 0,
+        });
       }
     };
 
-    reader.onerror = (err) => reject(err);
+    reader.onerror = () => {
+      resolve({
+        products: [],
+        errors: ['حدث خطأ أثناء قراءة الملف من الجهاز'],
+        totalRows: 0,
+      });
+    };
+
     reader.readAsArrayBuffer(file);
   });
 }
 
 /**
- * Export official Electronic Invoice to Excel (.xlsx) formatted for Dream Trading & Distribution
+ * Fetch and parse data live from Google Sheets URL
  */
-export function exportElectronicInvoiceToExcel(invoice: Invoice): void {
+export async function fetchAndParseGoogleSheet(googleSheetUrlOrId: string): Promise<{
+  products: Product[];
+  errors: string[];
+  totalRows: number;
+}> {
+  const csvUrl = buildGoogleSheetsPublicCsvUrl(googleSheetUrlOrId);
+  if (!csvUrl) {
+    return {
+      products: [],
+      errors: ['رابط Google Sheets غير صالح. يرجى التأكد من نسخ رابط الشيت كاملاً.'],
+      totalRows: 0,
+    };
+  }
+
+  try {
+    const response = await fetch(csvUrl);
+    if (!response.ok) {
+      throw new Error(`تعذر جلب الشيت (كود ${response.status}). يرجى التأكد من أن الشيت منشور للعامة (Anyone with the link can view).`);
+    }
+
+    const csvText = await response.text();
+    if (!csvText || csvText.trim().length === 0) {
+      throw new Error('تم جلب الشيت لكنه لا يحتوي على أي بيانات.');
+    }
+
+    const workbook = XLSX.read(csvText, { type: 'string' });
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+    return parseRawRowsToProducts(rawRows);
+  } catch (err: any) {
+    return {
+      products: [],
+      errors: [err.message || 'فشل الاتصال بـ Google Sheets'],
+      totalRows: 0,
+    };
+  }
+}
+
+/**
+ * Export Invoice to Excel (Electronic Tax Layout)
+ */
+export function exportInvoiceToExcel(invoice: Invoice): void {
   const wb = XLSX.utils.book_new();
 
-  // Build high quality formatted table data
-  const data: any[][] = [
-    ['', '', COMPANY_INFO.nameArabic, '', ''],
-    ['', '', 'فاتورة مبيعات إلكترونية ضريبية - شركة دريم', '', ''],
-    ['', '', COMPANY_INFO.headquarters, '', ''],
-    ['رقم التسجيل الضريبي:', COMPANY_INFO.taxRegistrationNumber, '', 'السجل التجاري:', COMPANY_INFO.commercialRegister],
-    ['-------------------------------------------------------------------------------------------------------------'],
-    ['بيانات الفاتورة والعميل:'],
-    ['رقم الفاتورة:', invoice.invoiceNumber, '', 'التاريخ والوقت:', `${invoice.date} - ${invoice.time}`],
-    ['اسم العميل:', invoice.customerName, '', 'تليفون العميل:', invoice.customerPhone || '---'],
-    ['عنوان العميل:', invoice.customerAddress || '---', '', 'الرقم الضريبي للعميل:', invoice.customerTaxNumber || 'غير مسجل'],
-    ['المندوب المسئول:', invoice.repName, '', 'الفرع:', invoice.branchName],
-    ['طريقة السداد:', invoice.paymentMethod, '', 'حالة الطلب:', invoice.status],
-    ['-------------------------------------------------------------------------------------------------------------'],
-    ['م', 'كود الصنف', 'اسم وبيان الصنف', 'شدة الكرتونة', 'عدد الكراتين', 'عدد القطع', 'إجمالي الوحدات', 'سعر القطعة', 'سعر الكرتونة', 'الإجمالي قبل الضريبة', 'الخصم', 'ضريبة (14%)', 'الصافي النهائي']
+  const titleRows = [
+    [COMPANY_INFO.nameArabic],
+    ['فاتورة مبيعات إلكترونية معتمدة'],
+    [`رقم الفاتورة: ${invoice.invoiceNumber}`, `التاريخ: ${invoice.date}`, `الوقت: ${invoice.time}`],
+    [`اسم العميل: ${invoice.customerName}`, `هاتف العميل: ${invoice.customerPhone || '---'}`, `العنوان: ${invoice.customerAddress || '---'}`],
+    [`الرقم الضريبي للعميل: ${invoice.customerTaxNumber || '---'}`, `مندوب المبيعات: ${invoice.repName}`, `الفرع: ${invoice.branchName}`],
+    [`طريقة السداد: ${invoice.paymentMethod}`, `حالة الفاتورة: ${invoice.status}`, `المشرف المسؤول: ${invoice.supervisorName || '---'}`],
+    []
   ];
 
-  invoice.items.forEach((item, index) => {
-    data.push([
-      index + 1,
-      item.productCode,
-      item.productName,
-      item.cartonQuantity,
-      item.cartonCount,
-      item.pieceCount,
-      item.totalUnits,
-      `${item.pricePerPiece.toFixed(2)} ج.م`,
-      `${item.pricePerCarton.toFixed(2)} ج.م`,
-      `${item.totalBeforeTax.toFixed(2)} ج.م`,
-      `${item.discountAmount.toFixed(2)} ج.م`,
-      `${item.taxAmount.toFixed(2)} ج.م`,
-      `${item.netTotal.toFixed(2)} ج.م`
-    ]);
-  });
+  const tableHeaders = [
+    'م',
+    'كود الصنف',
+    'اسم الصنف والبيان',
+    'شدة الكرتونة',
+    'الكمية (كرتونة)',
+    'الكمية (قطعة)',
+    'إجمالي الوحدات',
+    'سعر القطعة',
+    'سعر الكرتونة',
+    'الإجمالي قبل الخصم',
+    'قيمة الخصم',
+    'ضريبة القيمة المضافة (14%)',
+    'صافي الصنف'
+  ];
 
-  data.push(['-------------------------------------------------------------------------------------------------------------']);
-  data.push(['', '', '', '', `إجمالي الكراتين: ${invoice.totalCartons}`, `إجمالي القطع: ${invoice.totalPieces}`, '', '', 'المجموع الفرعي:', `${invoice.subtotal.toFixed(2)} ج.م`]);
-  data.push(['', '', '', '', '', '', '', '', `إجمالي الخصم (${invoice.discountPercentage}%):`, `${invoice.discountAmount.toFixed(2)} ج.م`]);
-  data.push(['', '', '', '', '', '', '', '', `ضريبة القيمة المضافة (${invoice.taxPercentage}%):`, `${invoice.taxAmount.toFixed(2)} ج.م`]);
-  data.push(['', '', '', '', '', '', '', '', 'إجمالي الفاتورة التقديرية النهائي:', `${invoice.estimatedGrandTotal.toFixed(2)} ج.م`]);
-  data.push(['']);
-  data.push(['ملاحظات الفاتورة:', invoice.notes || 'تسليم معتمد لشركة دريم للتجارة والتوزيع']);
-  data.push(['رمز التحقق الإلكتروني (E-Invoice QR):', invoice.qrPayload || `DREAM-EINV-${invoice.invoiceNumber}`]);
-  data.push(['خدمة العملاء والخط الساخن:', COMPANY_INFO.customerService, 'موقع الشركة:', COMPANY_INFO.website]);
+  const itemRows = invoice.items.map((item, index) => [
+    index + 1,
+    item.productCode,
+    item.productName,
+    item.cartonQuantity,
+    item.cartonCount,
+    item.pieceCount,
+    item.totalUnits,
+    item.pricePerPiece,
+    item.pricePerCarton,
+    item.totalBeforeTax,
+    item.discountAmount,
+    item.taxAmount,
+    item.netTotal
+  ]);
 
-  const ws = XLSX.utils.aoa_to_sheet(data);
+  const summaryRows = [
+    [],
+    ['', '', '', '', '', '', '', '', '', 'إجمالي البضاعة:', '', '', invoice.subtotal],
+    ['', '', '', '', '', '', '', '', '', `إجمالي الخصم (${invoice.discountPercentage}%):`, '', '', -invoice.discountAmount],
+    ['', '', '', '', '', '', '', '', '', `ضريبة القيمة المضافة (${invoice.taxPercentage}%):`, '', '', invoice.taxAmount],
+    ['', '', '', '', '', '', '', '', '', 'الإجمالي النهائي المطلوب سداده:', '', '', invoice.estimatedGrandTotal],
+    [],
+    ['ملاحظات الفاتورة:', invoice.notes || 'لا توجد'],
+    [`خدمة العملاء: ${COMPANY_INFO.customerService}`, `الرقم الضريبي للشركة: ${COMPANY_INFO.taxRegistrationNumber}`, 'نظام فواتير دريم للتجارة والتوزيع']
+  ];
 
-  // Set column widths
+  const fullSheetData = [...titleRows, tableHeaders, ...itemRows, ...summaryRows];
+  const ws = XLSX.utils.aoa_to_sheet(fullSheetData);
+
   ws['!cols'] = [
-    { wch: 6 },  // م
-    { wch: 14 }, // كود
-    { wch: 38 }, // اسم الصنف
-    { wch: 12 }, // شدة الكرتونة
-    { wch: 12 }, // كراتين
-    { wch: 12 }, // قطع
-    { wch: 14 }, // إجمالي الوحدات
-    { wch: 14 }, // سعر القطعة
-    { wch: 14 }, // سعر الكرتونة
-    { wch: 18 }, // إجمالي
-    { wch: 12 }, // الخصم
-    { wch: 14 }, // الضريبة
-    { wch: 18 }  // الصافي
+    { wch: 6 },
+    { wch: 14 },
+    { wch: 38 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 18 }
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, `فاتورة_${invoice.invoiceNumber}`);
@@ -418,3 +540,5 @@ export function generateSampleExcelTemplate(): void {
 
   exportProductsToExcel(sampleProducts, 'نموذج_إدخال_الأصناف_دريم');
 }
+
+export const exportElectronicInvoiceToExcel = exportInvoiceToExcel;

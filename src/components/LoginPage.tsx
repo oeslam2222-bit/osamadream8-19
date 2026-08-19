@@ -199,14 +199,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => handleQuickFill('admin@dream-dist.com', 'admin')}
+                      onClick={() => handleQuickFill('oeslam2222@gmail.com', 'admin')}
                       className="text-right p-2 rounded-lg bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 text-rose-200 transition"
                     >
                       <div className="font-bold flex items-center justify-between">
-                        <span>المدير العام (Admin)</span>
+                        <span>المدير العام (أسامة إسلام)</span>
                         <span className="text-[10px] bg-rose-500/30 px-1 rounded">كل الصلاحيات</span>
                       </div>
-                      <div className="text-[10px] text-slate-400">admin / admin</div>
+                      <div className="text-[10px] text-slate-400">oeslam2222@gmail.com / admin</div>
                     </button>
 
                     <button

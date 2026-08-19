@@ -97,14 +97,14 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
-  PRODUCTS: 'dream_dist_products_v4',
-  INVOICES: 'dream_dist_invoices_v4',
-  USERS: 'dream_dist_users_v4',
-  BRANCHES: 'dream_dist_branches_v4',
-  CLOUDINARY: 'dream_dist_cloudinary_v4',
-  CURRENT_USER_ID: 'dream_dist_current_user_v4',
-  IS_AUTH: 'dream_dist_is_auth_v4',
-  ACCOUNTING_LOGS: 'dream_dist_acc_logs_v4'
+  PRODUCTS: 'dream_dist_products_v5',
+  INVOICES: 'dream_dist_invoices_v5',
+  USERS: 'dream_dist_users_v5',
+  BRANCHES: 'dream_dist_branches_v5',
+  CLOUDINARY: 'dream_dist_cloudinary_v5',
+  CURRENT_USER_ID: 'dream_dist_current_user_v5',
+  IS_AUTH: 'dream_dist_is_auth_v5',
+  ACCOUNTING_LOGS: 'dream_dist_acc_logs_v5'
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {

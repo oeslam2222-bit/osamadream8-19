@@ -56,7 +56,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     { id: 'catalog', label: 'كتالوج الأصناف والبيع', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep'] },
     { id: 'invoices', label: 'الفواتير والطلبيات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep'] },
     { id: 'inventory', label: 'المخزون والرصيد', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep'] },
-    { id: 'excel', label: 'شيتات الإكسل والربط', icon: FileSpreadsheet, roles: ['admin', 'branch_manager', 'supervisor'] },
+    { id: 'excel', label: 'شيتات Google Sheets والإكسل', icon: FileSpreadsheet, roles: ['admin', 'branch_manager', 'supervisor'] },
     { id: 'cloudinary', label: 'صور Cloudinary السحابية', icon: CloudLightning, roles: ['admin', 'branch_manager'] },
     { id: 'users', label: 'المستخدمين والصلاحيات', icon: Users, roles: ['admin', 'branch_manager'] },
     { id: 'accounting', label: 'الربط المحاسبي (ERP)', icon: Server, roles: ['admin', 'branch_manager'] },

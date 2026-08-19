@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { getProductImageUrl } from '../services/cloudinaryService';
+import { generateProductPlaceholderSvg, getProductImageUrl } from '../services/cloudinaryService';
 import { formatCurrency } from '../services/invoiceService';
 import { ItemStatus, OFFICIAL_DEPARTMENTS, Product, SalesPriority } from '../types';
 
@@ -325,8 +325,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                     loading="lazy"
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                     onError={(e) => {
-                      // Fallback image if Cloudinary 404
-                      (e.target as HTMLElement).setAttribute('src', 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&auto=format&fit=crop&q=80');
+                      // Fallback clean SVG placeholder
+                      (e.target as HTMLElement).setAttribute('src', generateProductPlaceholderSvg(product.code, product.category, product.name));
                     }}
                   />
 

@@ -1,7 +1,7 @@
 import { CloudinaryConfig, Product } from '../types';
 
 export const DEFAULT_CLOUDINARY_CONFIG: CloudinaryConfig = {
-  cloudName: 'dream-distribution',
+  cloudName: 'dream-dist',
   folderPrefix: 'products',
   defaultTransformation: 'f_auto,q_auto,w_500,c_fill',
   matchingPattern: 'code',
@@ -9,19 +9,29 @@ export const DEFAULT_CLOUDINARY_CONFIG: CloudinaryConfig = {
   baseUrlPattern: 'https://res.cloudinary.com/{cloudName}/image/upload/{transformations}/{folder}/{filename}.{extension}'
 };
 
-// Fallback high quality placeholder images for Dream distribution categories
-const CATEGORY_PLACEHOLDERS: Record<string, string> = {
-  'بسكويت وويفر': 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&auto=format&fit=crop&q=80',
-  'شوكولاتة وحلويات': 'https://images.unsplash.com/photo-1548741487-18d16a1a083c?w=500&auto=format&fit=crop&q=80',
-  'زيوت وسمن': 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=500&auto=format&fit=crop&q=80',
-  'منظفات وعناية': 'https://images.unsplash.com/photo-1585421514738-01798e348b17?w=500&auto=format&fit=crop&q=80',
-  'عصائر ومشروبات': 'https://images.unsplash.com/photo-1613478223719-2ab802602423?w=500&auto=format&fit=crop&q=80',
-  'معلبات وبقوليات': 'https://images.unsplash.com/photo-1534483509719-3feaee7c30da?w=500&auto=format&fit=crop&q=80',
-  'ألبان وأجبان': 'https://images.unsplash.com/photo-1628088062854-d1870b4553da?w=500&auto=format&fit=crop&q=80',
-  'سناكس وشيبسي': 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=500&auto=format&fit=crop&q=80',
-};
-
-const DEFAULT_FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&auto=format&fit=crop&q=80';
+/**
+ * Generate a clean, branded SVG placeholder image when no image is available
+ */
+export function generateProductPlaceholderSvg(code: string, category: string, name: string): string {
+  const shortCode = code || 'ITEM';
+  const cat = category || 'DREAM';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
+    <defs>
+      <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#0f172a" />
+        <stop offset="50%" stop-color="#1e293b" />
+        <stop offset="100%" stop-color="#334155" />
+      </linearGradient>
+    </defs>
+    <rect width="400" height="400" fill="url(#bg)" rx="24"/>
+    <circle cx="200" cy="160" r="60" fill="#f59e0b" opacity="0.15" />
+    <path d="M170 160 L200 130 L230 160 L200 190 Z" fill="#fbbf24" opacity="0.8"/>
+    <text x="200" y="245" font-family="system-ui, sans-serif" font-size="20" font-weight="900" fill="#f8fafc" text-anchor="middle">${shortCode}</text>
+    <text x="200" y="275" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#94a3b8" text-anchor="middle">${cat}</text>
+    <text x="200" y="340" font-family="system-ui, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">Cloudinary Image Matching</text>
+  </svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
 
 /**
  * Sanitize strings into valid Cloudinary public IDs (clean slug)
@@ -38,18 +48,19 @@ export function sanitizeToCloudinarySlug(text: string): string {
  * Generate a smart Cloudinary image URL for a given product
  */
 export function getProductImageUrl(product: Partial<Product>, config: CloudinaryConfig = DEFAULT_CLOUDINARY_CONFIG): string {
-  // 1. If product already has an explicit direct valid URL, use it
-  if (product.imageUrl && product.imageUrl.startsWith('http')) {
+  // 1. If product already has an explicit direct valid URL (and not old unsplash dummy), use it
+  if (product.imageUrl && product.imageUrl.startsWith('http') && !product.imageUrl.includes('unsplash.com')) {
     return product.imageUrl;
   }
 
   // 2. If product has a specific cloudinary public ID
   if (product.cloudinaryPublicId) {
     const folderPart = config.folderPrefix ? `${config.folderPrefix}/` : '';
-    return `https://res.cloudinary.com/${config.cloudName}/image/upload/${config.defaultTransformation}/${folderPart}${product.cloudinaryPublicId}`;
+    const ext = config.fileExtension === 'auto' ? '' : `.${config.fileExtension}`;
+    return `https://res.cloudinary.com/${config.cloudName}/image/upload/${config.defaultTransformation}/${folderPart}${product.cloudinaryPublicId}${ext}`;
   }
 
-  // 3. Auto-match by code or name
+  // 3. Auto-match by code or name using Cloudinary pattern
   let identifier = '';
   if (config.matchingPattern === 'code' && product.code) {
     identifier = product.code.trim();
@@ -58,22 +69,17 @@ export function getProductImageUrl(product: Partial<Product>, config: Cloudinary
   } else if (config.matchingPattern === 'slug') {
     identifier = `${product.code || ''}_${sanitizeToCloudinarySlug(product.name || '')}`;
   } else {
-    identifier = product.code || sanitizeToCloudinarySlug(product.name || 'product');
+    identifier = product.code || sanitizeToCloudinarySlug(product.name || 'item');
   }
 
-  // If we have an identifier and a configured cloud name, generate the Cloudinary URL
-  if (identifier && config.cloudName && config.cloudName !== 'demo') {
+  if (identifier && config.cloudName) {
     const ext = config.fileExtension === 'auto' ? '' : `.${config.fileExtension}`;
     const folderPart = config.folderPrefix ? `${config.folderPrefix}/` : '';
     return `https://res.cloudinary.com/${config.cloudName}/image/upload/${config.defaultTransformation}/${folderPart}${identifier}${ext}`;
   }
 
-  // 4. Fallback to category visual image
-  if (product.category && CATEGORY_PLACEHOLDERS[product.category]) {
-    return CATEGORY_PLACEHOLDERS[product.category];
-  }
-
-  return DEFAULT_FALLBACK_IMAGE;
+  // Fallback clean SVG placeholder
+  return generateProductPlaceholderSvg(product.code || '', product.category || '', product.name || '');
 }
 
 /**
@@ -86,7 +92,7 @@ export function batchMatchCloudinaryImages(
   let count = 0;
   const samples: { code: string; name: string; url: string }[] = [];
 
-  products.forEach((p, idx) => {
+  products.forEach((p) => {
     const generatedUrl = getProductImageUrl(p, config);
     if (generatedUrl) {
       count++;

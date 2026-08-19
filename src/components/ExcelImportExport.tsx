@@ -1,23 +1,35 @@
 import {
   AlertCircle,
   ArrowDown,
+  ArrowRight,
   Check,
   CheckCircle2,
+  CloudLightning,
+  Copy,
   Download,
+  ExternalLink,
+  Eye,
   FileSpreadsheet,
+  Globe,
   HelpCircle,
+  Image as ImageIcon,
   Layers,
+  Link,
   Package,
   Plus,
   RefreshCw,
+  Search,
+  Share2,
   Sparkles,
   Upload,
   X
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { getProductImageUrl } from '../services/cloudinaryService';
 import {
   exportProductsToExcel,
+  fetchAndParseGoogleSheet,
   generateSampleExcelTemplate,
   parseExcelProducts
 } from '../services/excelService';
@@ -25,14 +37,32 @@ import { formatCurrency } from '../services/invoiceService';
 import { Product } from '../types';
 
 export const ExcelImportExport: React.FC = () => {
-  const { products, importProductsList, selectedBranchFilter } = useApp();
+  const { products, importProductsList, selectedBranchFilter, cloudinaryConfig, updateCloudinarySettings } = useApp();
 
+  const [activeSubTab, setActiveSubTab] = useState<'google_sheets' | 'excel_file' | 'cloudinary_guide'>('google_sheets');
+
+  // Excel File State
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [previewProducts, setPreviewProducts] = useState<Product[]>([]);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
   const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge');
   const [importSuccessMsg, setImportSuccessMsg] = useState<string | null>(null);
+
+  // Google Sheets State
+  const [googleSheetUrl, setGoogleSheetUrl] = useState('');
+  const [isSyncingGoogleSheet, setIsSyncingGoogleSheet] = useState(false);
+  const [googleSheetSuccess, setGoogleSheetSuccess] = useState<string | null>(null);
+  const [googleSheetError, setGoogleSheetError] = useState<string | null>(null);
+  const [copiedScript, setCopiedScript] = useState(false);
+
+  // Cloudinary Live Tester State
+  const [testCloudName, setTestCloudName] = useState(cloudinaryConfig.cloudName || 'dream-dist');
+  const [testProductCode, setTestProductCode] = useState('LHL-101');
+  const [testFolder, setTestFolder] = useState(cloudinaryConfig.folderPrefix || 'products');
+  const [testExt, setTestExt] = useState(cloudinaryConfig.fileExtension || 'jpg');
+  const [testImageResult, setTestImageResult] = useState<string | null>(null);
+  const [hasTested, setHasTested] = useState(false);
 
   const handleFileUpload = async (file: File) => {
     if (!file) return;
@@ -63,10 +93,62 @@ export const ExcelImportExport: React.FC = () => {
     setTimeout(() => setImportSuccessMsg(null), 5000);
   };
 
+  const handleFetchGoogleSheet = async () => {
+    if (!googleSheetUrl.trim()) {
+      setGoogleSheetError('يرجى لصق رابط Google Sheet أولاً');
+      return;
+    }
+
+    setIsSyncingGoogleSheet(true);
+    setGoogleSheetError(null);
+    setGoogleSheetSuccess(null);
+    setParseErrors([]);
+
+    try {
+      const result = await fetchAndParseGoogleSheet(googleSheetUrl);
+      if (result.errors.length > 0 && result.products.length === 0) {
+        setGoogleSheetError(result.errors.join(' • '));
+      } else {
+        if (result.errors.length > 0) {
+          setParseErrors(result.errors);
+        }
+        setPreviewProducts(result.products);
+        setGoogleSheetSuccess(
+          `تم بنجاح جلب ${result.products.length} صنف مباشرة من Google Sheets! يمكنك مراجعة البيانات بالأسفل والضغط على "تأكيد الاستيراد".`
+        );
+      }
+    } catch (err: any) {
+      setGoogleSheetError(err.message || 'تعذر الاتصال بـ Google Sheets');
+    } finally {
+      setIsSyncingGoogleSheet(false);
+    }
+  };
+
+  const handleTestCloudinary = () => {
+    setHasTested(true);
+    const folder = testFolder ? `${testFolder}/` : '';
+    const ext = testExt ? `.${testExt}` : '';
+    const generated = `https://res.cloudinary.com/${testCloudName}/image/upload/f_auto,q_auto,w_600,c_fill/${folder}${testProductCode.trim()}${ext}`;
+    setTestImageResult(generated);
+  };
+
+  const sampleAppsScript = `// كود Google Apps Script لمزامنة Google Sheets مع نظام دريم للتوزيع تلقائياً
+function onEdit(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  // إرسال تنبيه للمنظومة بتحديث البيانات
+  console.log("تم تعديل الشيت بنجاح");
+}`;
+
+  const handleCopyScript = () => {
+    navigator.clipboard.writeText(sampleAppsScript);
+    setCopiedScript(true);
+    setTimeout(() => setCopiedScript(false), 3000);
+  };
+
   return (
-    <div className="space-y-5 pb-16">
+    <div className="space-y-6 pb-16">
       
-      {/* Success Banner */}
+      {/* Success Notification */}
       {importSuccessMsg && (
         <div className="bg-emerald-600 text-white p-4 rounded-2xl shadow-xl flex items-center justify-between text-xs sm:text-sm animate-in fade-in">
           <div className="flex items-center gap-2 font-bold">
@@ -79,33 +161,31 @@ export const ExcelImportExport: React.FC = () => {
         </div>
       )}
 
-      {/* Header Banner */}
-      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Main Header */}
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black">
               <FileSpreadsheet className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-slate-900">مركز استيراد وتصدير شيتات الإكسل (Excel / CSV)</h2>
+              <h2 className="text-xl font-black text-slate-900">مركز ربط الشيتات (Google Sheets & Excel)</h2>
               <p className="text-xs sm:text-sm text-slate-500">
-                مطابقة تلقائية لكافة أعمدة دريم الـ 18 • تحديث المخزون والأسعار والصور السحابية دفعة واحدة
+                مزامنة حية مع Google Sheets • استيراد وتصدير إكسل • ربط تلقائي لـ 10,000+ صورة من Cloudinary
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Download Template */}
             <button
               onClick={generateSampleExcelTemplate}
               className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3.5 py-2 rounded-xl text-xs border border-slate-300 transition"
-              title="تحميل شيت إكسل جاهز بالصيغة المعتمدة"
+              title="تحميل نموذج شيت إكسل جاهز"
             >
               <Download className="w-4 h-4 text-slate-600" />
               <span>تحميل نموذج إكسل معتمد</span>
             </button>
 
-            {/* Export Current Products */}
             <button
               onClick={() => exportProductsToExcel(products, selectedBranchFilter)}
               className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-xs transition"
@@ -115,15 +195,470 @@ export const ExcelImportExport: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Tab Navigation */}
+        <div className="flex items-center gap-2 border-b border-slate-200 pt-2 overflow-x-auto no-scrollbar">
+          <button
+            onClick={() => setActiveSubTab('google_sheets')}
+            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
+              activeSubTab === 'google_sheets'
+                ? 'border-emerald-600 text-emerald-700'
+                : 'border-transparent text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Globe className="w-4 h-4" />
+            <span>ربط مباشر مع Google Sheets</span>
+            <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded-full font-bold">مباشر Live</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('excel_file')}
+            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
+              activeSubTab === 'excel_file'
+                ? 'border-emerald-600 text-emerald-700'
+                : 'border-transparent text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Upload className="w-4 h-4" />
+            <span>رفع ملف إكسل (Excel / CSV)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('cloudinary_guide')}
+            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
+              activeSubTab === 'cloudinary_guide'
+                ? 'border-emerald-600 text-emerald-700'
+                : 'border-transparent text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <CloudLightning className="w-4 h-4 text-amber-500" />
+            <span>طريقة ربط الشيت بصور Cloudinary</span>
+            <span className="bg-amber-100 text-amber-900 text-[10px] px-1.5 py-0.5 rounded-full font-bold">شرح + فحص</span>
+          </button>
+        </div>
       </div>
 
-      {/* Column Specs Reference Pill Matrix */}
+      {/* SUB-TAB 1: Google Sheets Live Sync */}
+      {activeSubTab === 'google_sheets' && (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-br from-emerald-950 via-slate-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-800/40 space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-2 bg-emerald-500/20 text-emerald-300 text-xs font-black px-3 py-1 rounded-full border border-emerald-500/30 mb-2">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>المزامنة السحابية المباشرة مع Google Sheets</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-white">
+                  اربط الشيت مباشرة بجوجل شيت بدون الحاجة لتحميل ورفع ملفات كل مرة
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                  قم فقط بلصق رابط الـ Google Sheet الخاص بك (مع التأكد من تفعيل خاصية "Anyone with the link can view").
+                  المنظومة ستقرأ الأصناف والمخزون والأسعار وتربط الصور تلقائياً في ثوانٍ معدودة.
+                </p>
+              </div>
+
+              <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700 text-center min-w-[200px]">
+                <div className="text-xs text-slate-400 font-medium">الأصناف المحدثة حالياً</div>
+                <div className="text-3xl font-black text-amber-400 mt-0.5">{products.length}</div>
+                <div className="text-[10px] text-emerald-400 mt-1">جاهزة ومربوطة بـ Cloudinary</div>
+              </div>
+            </div>
+
+            {/* Google Sheets URL Input Form */}
+            <div className="bg-slate-800/90 p-4 sm:p-5 rounded-2xl border border-slate-700 space-y-4">
+              <label className="block text-xs font-bold text-slate-200">
+                ضع رابط Google Sheet الخاص بك هنا:
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <Link className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={googleSheetUrl}
+                    onChange={(e) => setGoogleSheetUrl(e.target.value)}
+                    placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
+                    className="w-full bg-slate-900 border border-slate-600 rounded-xl pr-10 pl-4 py-3 text-xs sm:text-sm text-white focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition"
+                  />
+                </div>
+                <button
+                  onClick={handleFetchGoogleSheet}
+                  disabled={isSyncingGoogleSheet || !googleSheetUrl.trim()}
+                  className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-slate-950 font-black px-6 py-3 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition"
+                >
+                  {isSyncingGoogleSheet ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>جاري القراءة والمزامنة...</span>
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4" />
+                      <span>جلب وتحديث من Google Sheets</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Status messages */}
+              {googleSheetSuccess && (
+                <div className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 p-3.5 rounded-xl text-xs flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <span>{googleSheetSuccess}</span>
+                </div>
+              )}
+
+              {googleSheetError && (
+                <div className="bg-rose-500/20 border border-rose-500/40 text-rose-300 p-3.5 rounded-xl text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span>{googleSheetError}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Quick 3-Step Guide */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+              <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/60">
+                <div className="w-7 h-7 rounded-full bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-xs mb-2">1</div>
+                <h4 className="font-black text-sm text-white mb-1">افتح شيت جوجل شيت</h4>
+                <p className="text-xs text-slate-400">
+                  أنشئ جدولك على Google Sheets بنفس الأعمدة (الكود، اسم الصنف، السعر، المخزون، القسم).
+                </p>
+              </div>
+
+              <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/60">
+                <div className="w-7 h-7 rounded-full bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-xs mb-2">2</div>
+                <h4 className="font-black text-sm text-white mb-1">اجعل الرابط متاحاً للرؤية</h4>
+                <p className="text-xs text-slate-400">
+                  اضغط على زر المشاركة (Share) في Google Sheets واختر "Anyone with the link can view".
+                </p>
+              </div>
+
+              <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/60">
+                <div className="w-7 h-7 rounded-full bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-xs mb-2">3</div>
+                <h4 className="font-black text-sm text-white mb-1">الصق الرابط واضغط مزامنة</h4>
+                <p className="text-xs text-slate-400">
+                  الصق الرابط هنا واضغط "جلب وتحديث"، سيتم تحديث كامل فروع ومناديب دريم فوراً!
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 2: Standard Excel/CSV File Upload */}
+      {activeSubTab === 'excel_file' && (
+        <div className="space-y-6">
+          {/* Drag and Drop Zone */}
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragging(false);
+              if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleFileUpload(e.dataTransfer.files[0]);
+              }
+            }}
+            className={`border-2 border-dashed rounded-3xl p-8 sm:p-12 text-center transition-all bg-white shadow-sm ${
+              isDragging ? 'border-emerald-500 bg-emerald-50/50' : 'border-slate-300 hover:border-emerald-400'
+            }`}
+          >
+            <div className="max-w-md mx-auto space-y-4">
+              <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto shadow-inner">
+                {isLoading ? (
+                  <RefreshCw className="w-8 h-8 animate-spin" />
+                ) : (
+                  <Upload className="w-8 h-8" />
+                )}
+              </div>
+
+              <div>
+                <h3 className="text-lg font-black text-slate-900">
+                  اسحب وأفلت ملف الإكسل (XLSX / XLS / CSV) هنا
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  أو اضغط لتصفح الملفات من جهازك أو هاتفك المحمول
+                </p>
+              </div>
+
+              <div>
+                <label className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-2xl text-xs cursor-pointer shadow-md transition">
+                  <Upload className="w-4 h-4" />
+                  <span>اختر ملف إكسل من جهازك</span>
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls, .csv"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleFileUpload(e.target.files[0]);
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 3: Cloudinary + Sheet Binding Master Guide & Live Image Tester */}
+      {activeSubTab === 'cloudinary_guide' && (
+        <div className="space-y-6">
+          
+          {/* Visual Explanation Banner */}
+          <div className="bg-gradient-to-br from-slate-900 via-amber-950/40 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-amber-500/30 space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xl">
+                <CloudLightning className="w-7 h-7" />
+              </div>
+              <div>
+                <h3 className="text-xl sm:text-2xl font-black text-white">
+                  كيف تربط شيت الإكسل بأكثر من 10,000 صورة على Cloudinary؟
+                </h3>
+                <p className="text-xs sm:text-sm text-amber-200/80 mt-0.5">
+                  أسهل وأذكى طريقة: ربط تلقائي بالكامل وبدون كتابة روابط يدوية!
+                </p>
+              </div>
+            </div>
+
+            {/* The 2 Ways Explained */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
+              {/* Method 1: The Magic Auto-Matching */}
+              <div className="bg-slate-800/90 rounded-2xl p-5 border border-amber-400/40 space-y-3">
+                <div className="flex items-center gap-2 text-amber-300 font-black text-sm">
+                  <span className="w-6 h-6 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center text-xs">1</span>
+                  <span>الطريقة الأولى (الأسهل والأسرع - تلقائية 100%)</span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  عند رفع الصور على حسابك في <strong>Cloudinary</strong>، اجعل اسم ملف الصورة هو نفس <strong>كود الصنف</strong> الموجود في الشيت بالضبط.
+                </p>
+                <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-700 text-xs space-y-2 font-mono text-slate-300">
+                  <div className="text-emerald-400">✓ كود الصنف في الشيت: <span className="text-white font-bold">LHL-101</span></div>
+                  <div className="text-amber-400">✓ اسم الصورة في Cloudinary: <span className="text-white font-bold">LHL-101.jpg</span></div>
+                  <div className="text-sky-300 text-[11px]">→ المنظومة تقوم بتركيب الرابط وعرض الصورة فوراً لجميع المناديب!</div>
+                </div>
+              </div>
+
+              {/* Method 2: Direct URL in Sheet Column */}
+              <div className="bg-slate-800/90 rounded-2xl p-5 border border-slate-700 space-y-3">
+                <div className="flex items-center gap-2 text-slate-200 font-black text-sm">
+                  <span className="w-6 h-6 rounded-full bg-slate-700 text-white flex items-center justify-center text-xs">2</span>
+                  <span>الطريقة الثانية (وضع الرابط في عمود الشيت)</span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  إذا كانت الصور بأسماء مختلفة، يمكنك وضع رابط الصورة المباشر من Cloudinary في عمود <strong>"رابط الصورة"</strong> أو <strong>"رابط صورة Cloudinary"</strong> داخل الشيت.
+                </p>
+                <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-700 text-xs space-y-2 font-mono text-slate-300">
+                  <div className="text-slate-400">العمود رقم 19 في الشيت:</div>
+                  <div className="text-amber-300 text-[11px] break-all">https://res.cloudinary.com/your-cloud/image/upload/products/item_99.jpg</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Interactive Live Image Tester */}
+            <div className="bg-slate-950/80 p-5 rounded-2xl border border-amber-500/30 space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-black text-amber-300 flex items-center gap-2">
+                  <Eye className="w-4 h-4" />
+                  <span>أداة تجربة وفحص رابط صورة Cloudinary مباشرة</span>
+                </h4>
+                <span className="text-[10px] text-slate-400">اختبر كيف ستبدو صور أصنافك</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold block mb-1">اسم حسابك (Cloud Name):</label>
+                  <input
+                    type="text"
+                    value={testCloudName}
+                    onChange={(e) => setTestCloudName(e.target.value)}
+                    placeholder="dream-dist"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold block mb-1">كود الصنف (Product Code):</label>
+                  <input
+                    type="text"
+                    value={testProductCode}
+                    onChange={(e) => setTestProductCode(e.target.value)}
+                    placeholder="LHL-101"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold block mb-1">المجلد في Cloudinary:</label>
+                  <input
+                    type="text"
+                    value={testFolder}
+                    onChange={(e) => setTestFolder(e.target.value)}
+                    placeholder="products"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                <div className="flex items-end">
+                  <button
+                    onClick={handleTestCloudinary}
+                    className="w-full bg-amber-400 hover:bg-amber-500 text-slate-950 font-black py-2 rounded-xl text-xs transition flex items-center justify-center gap-1.5"
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    <span>فحص الرابط والصورة</span>
+                  </button>
+                </div>
+              </div>
+
+              {hasTested && testImageResult && (
+                <div className="bg-slate-900 p-4 rounded-xl border border-slate-700 space-y-3 animate-in fade-in">
+                  <div className="text-xs text-slate-300 font-mono break-all">
+                    <span className="text-slate-500">الرابط المتولد تلقائياً: </span>
+                    <a href={testImageResult} target="_blank" rel="noreferrer" className="text-amber-300 hover:underline">
+                      {testImageResult}
+                    </a>
+                  </div>
+
+                  <div className="flex items-center gap-4 pt-1">
+                    <div className="w-24 h-24 rounded-xl overflow-hidden bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+                      <img
+                        src={testImageResult}
+                        alt="معاينة فحص الصورة"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = getProductImageUrl({ code: testProductCode });
+                        }}
+                      />
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      <div className="font-bold text-white mb-1">معاينة الصورة الحية</div>
+                      إذا كانت الصورة مرفوعة على Cloudinary بهذا الكود، ستظهر مباشرة للمناديب في الكتالوج والفاتورة.
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preview Table & Confirmation Section (Shown when data is loaded from Excel or Google Sheets) */}
+      {previewProducts.length > 0 && (
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-5 animate-in fade-in">
+          
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
+                <h3 className="text-lg font-black text-slate-900">
+                  تم استخراج {previewProducts.length} صنف جاهز للحفظ في المنظومة
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                راجع الأصناف والأسعار والمخزون، ثم اختر طريقة الإضافة واضغط تأكيد
+              </p>
+            </div>
+
+            {/* Import Mode Selection */}
+            <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-200">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer">
+                <input
+                  type="radio"
+                  name="importMode"
+                  value="merge"
+                  checked={importMode === 'merge'}
+                  onChange={() => setImportMode('merge')}
+                  className="text-emerald-600 focus:ring-emerald-500"
+                />
+                <span>دمج وتحديث الحالي (Merge)</span>
+              </label>
+
+              <label className="flex items-center gap-1.5 text-xs font-bold text-rose-700 cursor-pointer">
+                <input
+                  type="radio"
+                  name="importMode"
+                  value="replace"
+                  checked={importMode === 'replace'}
+                  onChange={() => setImportMode('replace')}
+                  className="text-rose-600 focus:ring-rose-500"
+                />
+                <span>استبدال الكل بالكامل (Replace All)</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Table of Preview Items */}
+          <div className="overflow-x-auto border border-slate-200 rounded-2xl max-h-96">
+            <table className="w-full text-right text-xs">
+              <thead className="bg-slate-900 text-amber-300 font-bold sticky top-0">
+                <tr>
+                  <th className="p-3">الكود</th>
+                  <th className="p-3">اسم الصنف</th>
+                  <th className="p-3">القسم / Brand</th>
+                  <th className="p-3">سعر القطعة</th>
+                  <th className="p-3">سعر الكرتونة</th>
+                  <th className="p-3">مخزون الفرع</th>
+                  <th className="p-3">مخزن أكتوبر</th>
+                  <th className="p-3">صورة Cloudinary</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {previewProducts.slice(0, 100).map((p, idx) => (
+                  <tr key={idx} className="hover:bg-amber-50/50">
+                    <td className="p-3 font-bold text-amber-900 bg-amber-50/80">{p.code}</td>
+                    <td className="p-3 font-bold text-slate-900">{p.name}</td>
+                    <td className="p-3 text-slate-600 font-semibold">{p.department || p.category}</td>
+                    <td className="p-3 text-emerald-700 font-extrabold">{formatCurrency(p.piecePrice)}</td>
+                    <td className="p-3 text-amber-800 font-black">{formatCurrency(p.cartonPrice)}</td>
+                    <td className="p-3 font-bold text-slate-700">{p.branchStockActual} ق</td>
+                    <td className="p-3 font-bold text-slate-700">{p.mainWarehouseActual} ق</td>
+                    <td className="p-3 text-[10px] text-slate-500 font-mono">
+                      {p.cloudinaryPublicId || p.code}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {previewProducts.length > 100 && (
+            <p className="text-[11px] text-slate-500 text-center">
+              يتم عرض أول 100 صنف للمعاينة السريعة • الإجمالي هو {previewProducts.length} صنف سيتم استيرادها بالكامل.
+            </p>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <button
+              onClick={() => setPreviewProducts([])}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-5 py-2.5 rounded-xl text-xs transition"
+            >
+              إلغاء
+            </button>
+            <button
+              onClick={handleApplyImport}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-7 py-2.5 rounded-xl text-xs sm:text-sm shadow-md transition flex items-center gap-2"
+            >
+              <Check className="w-4 h-4" />
+              <span>تأكيد استيراد وتحديث {previewProducts.length} صنف الآن</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Supported Columns Reference */}
       <div className="bg-slate-900 text-white rounded-3xl p-5 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <span className="font-extrabold text-xs text-amber-300">
-            الأعمدة الـ 18 المدعومة تلقائياً في شيت الإكسل:
+            الأعمدة الـ 18 المدعومة تلقائياً في Google Sheets والإكسل:
           </span>
-          <span className="text-[10px] text-slate-400">يدعم أسماء الأعمدة بالعربي أو الإنجليزي</span>
+          <span className="text-[10px] text-slate-400">مطابقة ذكية باللغتين العربية والإنجليزية</span>
         </div>
 
         <div className="flex flex-wrap gap-1.5 text-[11px]">
@@ -145,193 +680,18 @@ export const ExcelImportExport: React.FC = () => {
             'سعر العرض',
             'سعر القطعة',
             'سعر الكرتونة',
-            'اسم الفرع'
+            'اسم الفرع',
+            'رابط صورة Cloudinary'
           ].map((col, idx) => (
             <span
               key={idx}
-              className="bg-slate-800 text-slate-200 px-2.5 py-1 rounded-lg border border-slate-700 font-medium"
+              className="bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700"
             >
-              {col}
+              {idx + 1}. {col}
             </span>
           ))}
         </div>
       </div>
-
-      {/* Drag & Drop Upload Zone */}
-      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-4">
-        <h3 className="font-black text-sm sm:text-base text-slate-900 flex items-center gap-2">
-          <Upload className="w-4 h-4 text-emerald-600" />
-          <span>رفع ملف الإكسل لتحديث الأصناف والمخزون</span>
-        </h3>
-
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragging(true);
-          }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setIsDragging(false);
-            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-              handleFileUpload(e.dataTransfer.files[0]);
-            }
-          }}
-          className={`border-2 border-dashed rounded-3xl p-8 text-center transition cursor-pointer flex flex-col items-center justify-center gap-3 ${
-            isDragging
-              ? 'border-amber-500 bg-amber-50/50 scale-[0.99]'
-              : 'border-slate-300 hover:border-emerald-500 bg-slate-50/60'
-          }`}
-          onClick={() => document.getElementById('excel-file-input')?.click()}
-        >
-          <input
-            id="excel-file-input"
-            type="file"
-            accept=".xlsx, .xls, .csv"
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files && e.target.files[0]) {
-                handleFileUpload(e.target.files[0]);
-              }
-            }}
-          />
-
-          <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-xs">
-            <Upload className="w-8 h-8" />
-          </div>
-
-          <div>
-            <div className="font-black text-sm text-slate-900">
-              اسحب وأفلت ملف الإكسل (.xlsx, .xls, .csv) هنا، أو اضغط للاختيار
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              يدعم ملفات الأصناف الضخمة حتى 10,000+ صنف مع الربط التلقائي بصور Cloudinary
-            </p>
-          </div>
-
-          {isLoading && (
-            <div className="flex items-center gap-2 text-xs font-bold text-amber-700 bg-amber-100 px-3 py-1 rounded-full animate-pulse">
-              <RefreshCw className="w-4 h-4 animate-spin" />
-              <span>جاري قراءة ومعالجة شيت الإكسل...</span>
-            </div>
-          )}
-        </div>
-
-        {/* Errors list if any */}
-        {parseErrors.length > 0 && (
-          <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-2xl text-xs space-y-1">
-            <div className="font-bold flex items-center gap-1.5">
-              <AlertCircle className="w-4 h-4 text-rose-600" />
-              <span>أخطاء أثناء معالجة الملف:</span>
-            </div>
-            <ul className="list-disc list-inside pr-4 space-y-0.5 font-medium">
-              {parseErrors.map((err, i) => (
-                <li key={i}>{err}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-
-      {/* Preview Table & Confirmation */}
-      {previewProducts.length > 0 && (
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-4 animate-in fade-in">
-          
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-            <div>
-              <h3 className="font-black text-base text-slate-900 flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                <span>معاينة الأصناف المستخرجة من الإكسل ({previewProducts.length} صنف)</span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                تأكد من صحة البيانات وتطابق الأعمدة قبل الحفظ النهائي في المنظومة
-              </p>
-            </div>
-
-            {/* Import Mode Switcher */}
-            <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl text-xs">
-              <button
-                onClick={() => setImportMode('merge')}
-                className={`px-3 py-1.5 rounded-lg font-bold transition ${
-                  importMode === 'merge'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                دمج وتحديث بالأكواد (Merge)
-              </button>
-              <button
-                onClick={() => setImportMode('replace')}
-                className={`px-3 py-1.5 rounded-lg font-bold transition ${
-                  importMode === 'replace'
-                    ? 'bg-rose-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                استبدال المخزون بالكامل (Replace)
-              </button>
-            </div>
-          </div>
-
-          {/* Table Preview */}
-          <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-80 overflow-y-auto">
-            <table className="w-full text-right text-xs">
-              <thead className="bg-slate-900 text-white font-bold sticky top-0">
-                <tr>
-                  <th className="p-2.5">الكود</th>
-                  <th className="p-2.5">اسم الصنف</th>
-                  <th className="p-2.5">التصنيف</th>
-                  <th className="p-2.5 text-center">شدة الكرتونة</th>
-                  <th className="p-2.5 text-center">الفرع (فعلي)</th>
-                  <th className="p-2.5 text-center">المخزن المركزي (فعلي)</th>
-                  <th className="p-2.5 text-left">سعر القطعة</th>
-                  <th className="p-2.5 text-left">سعر الكرتونة</th>
-                  <th className="p-2.5">الفرع</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {previewProducts.slice(0, 15).map((p, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50">
-                    <td className="p-2.5 font-bold font-mono text-amber-900">{p.code}</td>
-                    <td className="p-2.5 font-bold text-slate-900">{p.name}</td>
-                    <td className="p-2.5 text-slate-600">{p.category}</td>
-                    <td className="p-2.5 text-center font-black">{p.cartonQuantity} ق</td>
-                    <td className="p-2.5 text-center font-bold text-emerald-700">{p.branchStockActual}</td>
-                    <td className="p-2.5 text-center font-bold text-amber-800">{p.mainWarehouseActual}</td>
-                    <td className="p-2.5 text-left">{formatCurrency(p.piecePrice)}</td>
-                    <td className="p-2.5 text-left font-bold">{formatCurrency(p.cartonPrice)}</td>
-                    <td className="p-2.5 text-slate-500 text-[11px]">{p.branchName}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {previewProducts.length > 15 && (
-            <div className="text-center text-xs text-slate-500 font-medium">
-              ... ويوجد {previewProducts.length - 15} صنف إضافي سيتم استيرادهم بالكامل
-            </div>
-          )}
-
-          {/* Action Confirmation Buttons */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-            <button
-              onClick={() => setPreviewProducts([])}
-              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs"
-            >
-              إلغاء
-            </button>
-            <button
-              onClick={handleApplyImport}
-              className="flex items-center gap-2 px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-black text-xs shadow-md transition transform active:scale-95"
-            >
-              <Check className="w-4 h-4" />
-              <span>تطبيق الاستيراد وحفظ {previewProducts.length} صنف في دريم</span>
-            </button>
-          </div>
-
-        </div>
-      )}
 
     </div>
   );
