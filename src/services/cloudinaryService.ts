@@ -102,7 +102,7 @@ export function parseCloudinaryUrl(url: string): {
 
 /**
  * Generate targeted candidate URLs for a product on Cloudinary
- * (Limited to 2-3 precise candidates to prevent 404 spam in console)
+ * Prioritizing clean root code matching (public_id = itemCode) without Arabic paths
  */
 export function getCandidateImageUrls(
   product: Partial<Product>,
@@ -116,7 +116,7 @@ export function getCandidateImageUrls(
     candidates.push(product.imageUrl);
   }
 
-  // 2. Select primary identifier based strictly on configured matching pattern
+  // 2. Select primary identifier: strictly product code or explicit public ID
   let id = '';
   if (product.cloudinaryPublicId) {
     id = product.cloudinaryPublicId.trim();
@@ -132,21 +132,30 @@ export function getCandidateImageUrls(
 
   const folder = config.folderPrefix?.trim() || '';
   const trans = config.defaultTransformation || 'f_auto,q_auto,w_500,c_fill';
-  const ext = config.fileExtension && config.fileExtension !== 'auto' ? `.${config.fileExtension}` : '';
 
-  // Candidate 1: Main configured pattern
-  if (folder) {
-    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(folder)}/${encodeURIComponent(id)}${ext}`);
-    // Candidate 2: Same folder without extension (as public ID)
-    if (ext) {
-      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(folder)}/${encodeURIComponent(id)}`);
+  // Clean Root URL Candidates (Best Practice: public_id = itemCode)
+  // Candidate 1: Root with configured extension (e.g., .png or .jpg)
+  const primaryExt = config.fileExtension && config.fileExtension !== 'auto' ? `.${config.fileExtension}` : '';
+  const altExt = primaryExt === '.png' ? '.jpg' : '.png';
+
+  if (!folder) {
+    // 1. Root with primary extension
+    if (primaryExt) {
+      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(id)}${primaryExt}`);
     }
+    // 2. Root with alternate extension (.jpg / .png)
+    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(id)}${altExt}`);
+    // 3. Root without extension (clean public ID with f_auto)
+    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(id)}`);
   } else {
-    // Root level
-    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(id)}${ext}`);
-    if (ext) {
-      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(id)}`);
+    // If user explicitly configured a folder prefix
+    if (primaryExt) {
+      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(folder)}/${encodeURIComponent(id)}${primaryExt}`);
     }
+    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(folder)}/${encodeURIComponent(id)}${altExt}`);
+    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(folder)}/${encodeURIComponent(id)}`);
+    // Fallback to clean root just in case
+    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(id)}${primaryExt || '.png'}`);
   }
 
   return candidates;
