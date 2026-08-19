@@ -349,9 +349,10 @@ uploadAllImages();`;
                 onChange={(e) => setFormConfig({ ...formConfig, matchingPattern: e.target.value as any })}
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-amber-400 cursor-pointer"
               >
-                <option value="code">المطابقة بكود الصنف (مثل 1004973.jpg)</option>
-                <option value="name">المطابقة باسم الصنف (مثل طقم_زجاج.jpg)</option>
-                <option value="slug">المطابقة بالمركب (الكود + الاسم)</option>
+                <option value="auto">🌟 المطابقة الذكية الهجينة (كود + اسم عربي + مركب تلقائياً)</option>
+                <option value="code">المطابقة بكود الصنف فقط (مثل 1004973.jpg)</option>
+                <option value="name">المطابقة باسم الصنف العربي (مثل طقم_زجاج.jpg)</option>
+                <option value="slug">المطابقة بالمركب (الكود + الاسم العربي)</option>
               </select>
             </div>
 
