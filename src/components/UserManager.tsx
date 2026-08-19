@@ -1,0 +1,706 @@
+import {
+  AlertCircle,
+  Building,
+  Check,
+  CheckCircle2,
+  Clock,
+  Edit2,
+  Key,
+  Lock,
+  Plus,
+  Shield,
+  ShieldAlert,
+  ShieldCheck,
+  Smartphone,
+  Trash2,
+  UserCheck,
+  UserMinus,
+  UserPlus,
+  Users,
+  X
+} from 'lucide-react';
+import React, { useState } from 'react';
+import { useApp } from '../context/AppContext';
+import { User, UserApprovalStatus, UserRole } from '../types';
+
+export const UserManager: React.FC = () => {
+  const {
+    users,
+    branches,
+    currentUser,
+    addUser,
+    updateUser,
+    deleteUser,
+    approveUser,
+    rejectUser,
+    assignSupervisor,
+    getSupervisorsInBranch,
+    loginAs
+  } = useApp();
+
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('الكل');
+
+  // Approval modal state
+  const [approvingUser, setApprovingUser] = useState<User | null>(null);
+  const [approvalSupervisorId, setApprovalSupervisorId] = useState<string>('');
+  const [approvalBranchName, setApprovalBranchName] = useState<string>('');
+  const [approvalRole, setApprovalRole] = useState<UserRole>('sales_rep');
+
+  const [formData, setFormData] = useState<Partial<User>>({
+    name: '',
+    username: '',
+    email: '',
+    password: '123',
+    role: 'sales_rep',
+    branchName: 'فرع القاهرة - مدينة نصر',
+    supervisorId: '',
+    phone: '',
+    commissionRate: 2.5,
+    isActive: true,
+    approvalStatus: 'active',
+  });
+
+  const roleConfigs: Record<UserRole, { label: string; bg: string; text: string; desc: string }> = {
+    admin: {
+      label: 'مدير عام النظام (Super Admin)',
+      bg: 'bg-rose-100 border-rose-300',
+      text: 'text-rose-800',
+      desc: 'صلاحيات مطلقة: إنشاء وتعديل المستخدمين والمدراء، رفع شيتات الإكسل، إدارة ربط Cloudinary، والاطلاع على كل الفروع والفواتير ومزامنة الحسابات.'
+    },
+    branch_manager: {
+      label: 'مدير الفرع (Branch Manager)',
+      bg: 'bg-purple-100 border-purple-300',
+      text: 'text-purple-800',
+      desc: 'إدارة مخزون الفرع والطلبيات الواردة من المناديب، اعتماد الفواتير، ومتابعة مبيعات الفرع وطلب تحويلات المخزون من أكتوبر.'
+    },
+    supervisor: {
+      label: 'مشرف المناديب (Sales Supervisor)',
+      bg: 'bg-blue-100 border-blue-300',
+      text: 'text-blue-800',
+      desc: 'متابعة فريق المناديب المخصصين له فقط، مراقبة أداء الفواتير وإجمالي المبالغ وعدد الكراتين الصادرة لمجموعته لحظياً.'
+    },
+    sales_rep: {
+      label: 'مندوب مبيعات (Field Sales Rep)',
+      bg: 'bg-emerald-100 border-emerald-300',
+      text: 'text-emerald-800',
+      desc: 'سرية تامة: يرى فقط مخزون فرعه والمخزن المركزي، ولا يرى إلا فواتيره وعملاءه فقط. إنشاء الفواتير وإرسالها بالواتساب والإكسل.'
+    }
+  };
+
+  // Pending users waiting for approval
+  const pendingUsers = users.filter((u) => u.approvalStatus === 'pending_approval');
+
+  // Active users filtered
+  const activeUsers = users.filter((u) => {
+    if (u.approvalStatus === 'pending_approval') return false;
+    if (selectedBranchFilter !== 'الكل' && u.branchName !== selectedBranchFilter) return false;
+    return true;
+  });
+
+  const handleOpenApproveModal = (user: User) => {
+    setApprovingUser(user);
+    setApprovalBranchName(user.branchName || branches[0]?.name || 'فرع القاهرة - مدينة نصر');
+    setApprovalRole(user.role || 'sales_rep');
+    setApprovalSupervisorId(user.supervisorId || '');
+  };
+
+  const handleConfirmApproval = () => {
+    if (!approvingUser) return;
+    approveUser(approvingUser.id, approvalSupervisorId || undefined, approvalBranchName, approvalRole);
+    setApprovingUser(null);
+  };
+
+  const handleSaveUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name || !formData.username) return;
+
+    if (editingUser) {
+      updateUser({ ...editingUser, ...formData } as User);
+      setEditingUser(null);
+    } else {
+      const newUser: User = {
+        id: `u-${Date.now()}`,
+        name: formData.name || '',
+        username: formData.username || '',
+        email: formData.email || `${formData.username}@dream-dist.com`,
+        password: formData.password || '123',
+        role: formData.role || 'sales_rep',
+        branchName: formData.branchName || 'فرع القاهرة - مدينة نصر',
+        supervisorId: formData.role === 'sales_rep' ? (formData.supervisorId || undefined) : undefined,
+        phone: formData.phone || '',
+        avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80`,
+        commissionRate: formData.commissionRate || 2.5,
+        isActive: true,
+        approvalStatus: 'active',
+      };
+      addUser(newUser);
+    }
+
+    setShowAddUserModal(false);
+  };
+
+  return (
+    <div className="space-y-6 pb-16">
+      
+      {/* Header Banner */}
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center font-black">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-900">إدارة المستخدمين والصلاحيات وهيكل الإشراف</h2>
+              <p className="text-xs sm:text-sm text-slate-500">
+                تفعيل حسابات المناديب والمشرفين • تقسيم المناديب على المشرفين في كل فرع • سرية تامة للبيانات
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              setEditingUser(null);
+              setFormData({
+                name: '',
+                username: '',
+                email: '',
+                password: '123',
+                role: 'sales_rep',
+                branchName: 'فرع القاهرة - مدينة نصر',
+                supervisorId: '',
+                phone: '',
+                commissionRate: 2.5,
+                isActive: true,
+                approvalStatus: 'active',
+              });
+              setShowAddUserModal(true);
+            }}
+            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>إنشاء حساب جديد (مندوب / مشرف / أدمن)</span>
+          </button>
+        </div>
+      </div>
+
+      {/* PENDING APPROVALS SECTION (Requests from login/register page) */}
+      {pendingUsers.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent rounded-3xl p-5 border-2 border-amber-500/30 shadow-sm space-y-3 animate-in fade-in">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-amber-500 animate-ping"></span>
+              <h3 className="font-black text-sm text-slate-900 flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-amber-600" />
+                <span>طلبات تسجيل الحسابات الجديدة بانتظار تفعيل الإدارة ({pendingUsers.length})</span>
+              </h3>
+            </div>
+            <span className="text-xs text-amber-800 font-bold bg-amber-100 px-2.5 py-1 rounded-full border border-amber-300">
+              تفعيل مباشر بدون تأكيد بريد
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+            {pendingUsers.map((pUser) => {
+              const branchSupervisors = getSupervisorsInBranch(pUser.branchName);
+              return (
+                <div
+                  key={pUser.id}
+                  className="bg-white p-4 rounded-2xl border border-amber-200 shadow-xs space-y-3 flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-black text-sm text-slate-900">{pUser.name}</div>
+                        <div className="text-[11px] text-slate-500 font-mono">@{pUser.username} • {pUser.email}</div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                        {pUser.role === 'supervisor' ? 'مشرف' : pUser.role === 'branch_manager' ? 'مدير فرع' : 'مندوب'}
+                      </span>
+                    </div>
+
+                    <div className="mt-2 text-xs text-slate-600 space-y-1 bg-slate-50 p-2 rounded-xl">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">الفرع المطلوب:</span>
+                        <span className="font-bold text-slate-800">{pUser.branchName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">الهاتف:</span>
+                        <span className="font-mono text-slate-800">{pUser.phone}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">تاريخ الطلب:</span>
+                        <span>{pUser.registrationDate || 'اليوم'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      onClick={() => handleOpenApproveModal(pUser)}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-1 shadow-xs"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>تفعيل وتخصيص المشرف</span>
+                    </button>
+                    <button
+                      onClick={() => rejectUser(pUser.id)}
+                      className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold p-2 rounded-xl text-xs transition border border-rose-200"
+                      title="رفض الطلب"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Role Hierarchy Matrix Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {(Object.keys(roleConfigs) as UserRole[]).map((roleKey) => {
+          const cfg = roleConfigs[roleKey];
+          const count = users.filter((u) => u.role === roleKey && u.approvalStatus === 'active').length;
+
+          return (
+            <div key={roleKey} className="bg-white rounded-3xl p-4 border border-slate-200 shadow-xs space-y-2 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className={`text-[11px] font-black px-2 py-0.5 rounded-md border ${cfg.bg} ${cfg.text}`}>
+                    {cfg.label.split('(')[0]}
+                  </span>
+                  <span className="font-extrabold text-xs text-slate-900">{count} مستخدم</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+                  {cfg.desc}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Active Users List Table with Supervisor & Branch Assignment */}
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-black text-sm text-slate-900 flex items-center gap-2">
+            <Users className="w-4 h-4 text-slate-700" />
+            <span>المستخدمين والمناديب المفعلين في المنظومة ({activeUsers.length})</span>
+          </h3>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 font-bold">تصفية الفرع:</span>
+            <select
+              value={selectedBranchFilter}
+              onChange={(e) => setSelectedBranchFilter(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none"
+            >
+              <option value="الكل">كل الفروع</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.name}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-xs">
+            <thead className="bg-slate-900 text-white font-bold">
+              <tr>
+                <th className="p-3.5">المستخدم</th>
+                <th className="p-3.5">اسم الدخول / البريد</th>
+                <th className="p-3.5">الدور والصلاحية</th>
+                <th className="p-3.5">الفرع المرتبط</th>
+                <th className="p-3.5">المشرف المباشر</th>
+                <th className="p-3.5">الهاتف</th>
+                <th className="p-3.5 text-center">العمولة</th>
+                <th className="p-3.5 text-center">الإجراءات</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {activeUsers.map((user) => {
+                const cfg = roleConfigs[user.role];
+                const isCurrent = currentUser?.id === user.id;
+                const branchSupervisors = getSupervisorsInBranch(user.branchName);
+
+                return (
+                  <tr key={user.id} className={`hover:bg-amber-50/30 transition ${isCurrent ? 'bg-amber-50/60 font-medium' : ''}`}>
+                    
+                    {/* Name & Avatar */}
+                    <td className="p-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <img
+                          src={user.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&auto=format&fit=crop&q=80'}
+                          alt={user.name}
+                          className="w-8 h-8 rounded-full object-cover border border-slate-300"
+                        />
+                        <div>
+                          <div className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
+                            <span>{user.name}</span>
+                            {isCurrent && (
+                              <span className="bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.2 rounded">
+                                أنت
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Username & Email */}
+                    <td className="p-3.5">
+                      <div className="font-bold text-slate-800 font-mono">{user.username}</div>
+                      <div className="text-[10px] text-slate-400">{user.email}</div>
+                    </td>
+
+                    {/* Role Badge */}
+                    <td className="p-3.5">
+                      <span className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-black border ${cfg.bg} ${cfg.text}`}>
+                        {cfg.label.split('(')[0]}
+                      </span>
+                    </td>
+
+                    {/* Branch */}
+                    <td className="p-3.5 font-bold text-slate-800">
+                      {user.branchName}
+                    </td>
+
+                    {/* Supervisor Assignment Dropdown */}
+                    <td className="p-3.5">
+                      {user.role === 'sales_rep' ? (
+                        <select
+                          value={user.supervisorId || ''}
+                          onChange={(e) => assignSupervisor(user.id, e.target.value)}
+                          className="bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-500"
+                        >
+                          <option value="">-- بدون مشرف محدد --</option>
+                          {branchSupervisors.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : user.role === 'supervisor' ? (
+                        <span className="text-[11px] text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded">
+                          مشرف فرع ({users.filter((u) => u.supervisorId === user.id).length} مناديب)
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">---</span>
+                      )}
+                    </td>
+
+                    {/* Phone */}
+                    <td className="p-3.5 text-slate-600 font-mono">
+                      {user.phone || '---'}
+                    </td>
+
+                    {/* Commission */}
+                    <td className="p-3.5 text-center font-black text-amber-900">
+                      {user.commissionRate ? `${user.commissionRate}%` : '---'}
+                    </td>
+
+                    {/* Actions */}
+                    <td className="p-3.5 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        
+                        {/* Switch account for testing */}
+                        <button
+                          onClick={() => loginAs(user.id)}
+                          className={`px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                            isCurrent
+                              ? 'bg-amber-500 text-slate-950 font-black'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                          }`}
+                          title="تجربة بيئة وصلاحيات هذا المستخدم"
+                        >
+                          <UserCheck className="w-3.5 h-3.5" />
+                          <span>{isCurrent ? 'الحالي' : 'تجربة'}</span>
+                        </button>
+
+                        {/* Edit */}
+                        <button
+                          onClick={() => {
+                            setEditingUser(user);
+                            setFormData(user);
+                            setShowAddUserModal(true);
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600"
+                          title="تعديل المستخدم"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Delete (if not self) */}
+                        {!isCurrent && (
+                          <button
+                            onClick={() => deleteUser(user.id)}
+                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600"
+                            title="حذف المستخدم"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* APPROVAL & SUPERVISOR ASSIGNMENT MODAL */}
+      {approvingUser && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-black text-base text-slate-900 flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                <span>تفعيل حساب وتخصيص المشرف والفرع</span>
+              </h3>
+              <button onClick={() => setApprovingUser(null)}>
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-2xl text-xs space-y-1">
+              <div className="font-bold text-slate-900 text-sm">{approvingUser.name}</div>
+              <div className="text-slate-500 font-mono">@{approvingUser.username} • {approvingUser.email}</div>
+              <div className="text-slate-500">الهاتف: {approvingUser.phone}</div>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              {/* Branch */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">الفرع المخصص</label>
+                <select
+                  value={approvalBranchName}
+                  onChange={(e) => setApprovalBranchName(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold"
+                >
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.name}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Role */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">الدور والصلاحية</label>
+                <select
+                  value={approvalRole}
+                  onChange={(e) => setApprovalRole(e.target.value as UserRole)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold"
+                >
+                  <option value="sales_rep">مندوب مبيعات وتوزيع</option>
+                  <option value="supervisor">مشرف مناديب</option>
+                  <option value="branch_manager">مدير فرع</option>
+                  <option value="admin">مدير نظام عام (Admin)</option>
+                </select>
+              </div>
+
+              {/* Supervisor selection for Reps */}
+              {approvalRole === 'sales_rep' && (
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    تعيين المشرف المباشر (لتقسيم المناديب في الفرع)
+                  </label>
+                  <select
+                    value={approvalSupervisorId}
+                    onChange={(e) => setApprovalSupervisorId(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                  >
+                    <option value="">بدون مشرف مباشر (عام على الفرع)</option>
+                    {getSupervisorsInBranch(approvalBranchName).map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.branchName})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setApprovingUser(null)}
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 text-xs"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmApproval}
+                className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black shadow text-xs flex items-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                <span>اعتماد وتفعيل الحساب فوراً</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add / Edit User Modal */}
+      {showAddUserModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-black text-base text-slate-900">
+                {editingUser ? 'تعديل بيانات المستخدم' : 'إنشاء حساب جديد لمنظومة دريم'}
+              </h3>
+              <button onClick={() => setShowAddUserModal(false)}>
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUser} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">الاسم بالكامل *</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="مثال: أحمد سامي الشناوي"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">اسم المستخدم (Login) *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    placeholder="rep_ahmed"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">كلمة المرور</label>
+                  <input
+                    type="text"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="123"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">البريد الإلكتروني</label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="name@dream-dist.com"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">رقم الهاتف</label>
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="010XXXXXXXX"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">الدور والصلاحية *</label>
+                  <select
+                    value={formData.role}
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold"
+                  >
+                    <option value="sales_rep">مندوب مبيعات</option>
+                    <option value="supervisor">مشرف مناديب</option>
+                    <option value="branch_manager">مدير فرع</option>
+                    <option value="admin">مدير عام للنظام (Admin كامل)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">الفرع المرتبط به *</label>
+                  <select
+                    value={formData.branchName}
+                    onChange={(e) => setFormData({ ...formData, branchName: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold"
+                  >
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.name}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* If sales rep, supervisor selector */}
+              {formData.role === 'sales_rep' && (
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">المشرف المباشر للمندوب</label>
+                  <select
+                    value={formData.supervisorId || ''}
+                    onChange={(e) => setFormData({ ...formData, supervisorId: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold"
+                  >
+                    <option value="">بدون مشرف (عام)</option>
+                    {getSupervisorsInBranch(formData.branchName).map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">نسبة عمولة المبيعات (%)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={formData.commissionRate}
+                  onChange={(e) => setFormData({ ...formData, commissionRate: parseFloat(e.target.value) || 0 })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddUserModal(false)}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-black shadow"
+                >
+                  حفظ المستخدم
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+};
