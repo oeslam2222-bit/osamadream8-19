@@ -4,8 +4,8 @@ export const DEFAULT_CLOUDINARY_CONFIG: CloudinaryConfig = {
   cloudName: 'dzdkhpr2y',
   folderPrefix: '',
   defaultTransformation: 'f_auto,q_auto,w_500,c_fill',
-  matchingPattern: 'code',
-  fileExtension: 'jpg',
+  matchingPattern: 'auto',
+  fileExtension: 'png',
   baseUrlPattern: 'https://res.cloudinary.com/{cloudName}/image/upload/{transformations}/{folder}/{filename}.{extension}'
 };
 
@@ -34,14 +34,15 @@ export function generateProductPlaceholderSvg(code: string, category: string, na
 }
 
 /**
- * Sanitize strings into valid Cloudinary public IDs (clean slug)
+ * Sanitize strings into valid Cloudinary public IDs (clean slug) with customizable separator
  */
-export function sanitizeToCloudinarySlug(text: string): string {
+export function sanitizeToCloudinarySlug(text: string, separator: '_' | '-' = '_'): string {
   if (!text) return '';
   return text
     .trim()
-    .replace(/[^\w\u0621-\u064A0-9-_]/g, '_')
-    .replace(/_+/g, '_');
+    .replace(/[^\w\u0621-\u064A0-9-_]/g, separator)
+    .replace(new RegExp(`\\${separator}+`, 'g'), separator)
+    .replace(new RegExp(`^\\${separator}|\\${separator}$`, 'g'), '');
 }
 
 /**
@@ -114,8 +115,60 @@ export function parseCloudinaryUrl(url: string): {
 }
 
 /**
+ * Generate intelligent candidate identifiers (Codes, Arabic Names, Slugs, Composites)
+ */
+export function generateCandidateIdentifiers(
+  product: Partial<Product>,
+  pattern: 'auto' | 'code' | 'name' | 'slug' | 'custom_url' = 'auto'
+): string[] {
+  const ids: string[] = [];
+
+  const code = product.code?.trim() || '';
+  const name = product.name?.trim() || '';
+  const explicitId = product.cloudinaryPublicId?.trim();
+
+  if (explicitId) {
+    ids.push(explicitId);
+  }
+
+  // Generate building blocks
+  const nameUnderscore = sanitizeToCloudinarySlug(name, '_');
+  const nameHyphen = sanitizeToCloudinarySlug(name, '-');
+  const composite1 = code && nameUnderscore ? `${code}_-_${nameUnderscore}` : '';
+  const composite2 = code && nameUnderscore ? `${code}_${nameUnderscore}` : '';
+  const composite3 = code && nameHyphen ? `${code}-${nameHyphen}` : '';
+
+  if (pattern === 'code') {
+    if (code) ids.push(code);
+    if (composite1) ids.push(composite1);
+    if (nameUnderscore) ids.push(nameUnderscore);
+  } else if (pattern === 'name') {
+    if (nameUnderscore) ids.push(nameUnderscore);
+    if (nameHyphen) ids.push(nameHyphen);
+    if (composite1) ids.push(composite1);
+    if (code) ids.push(code);
+  } else if (pattern === 'slug') {
+    if (composite1) ids.push(composite1);
+    if (composite2) ids.push(composite2);
+    if (code) ids.push(code);
+    if (nameUnderscore) ids.push(nameUnderscore);
+  } else {
+    // Default 'auto' Smart Hybrid Strategy:
+    // Tries Code first -> Composite (Code + Arabic Name) -> Arabic Name with underscores -> Arabic Name with hyphens
+    if (code) ids.push(code);
+    if (composite1) ids.push(composite1);
+    if (nameUnderscore && !ids.includes(nameUnderscore)) ids.push(nameUnderscore);
+    if (nameHyphen && !ids.includes(nameHyphen)) ids.push(nameHyphen);
+    if (composite2 && !ids.includes(composite2)) ids.push(composite2);
+    if (composite3 && !ids.includes(composite3)) ids.push(composite3);
+  }
+
+  return ids.filter(Boolean);
+}
+
+/**
  * Generate targeted candidate URLs for a product on Cloudinary
- * Prioritizing clean root code matching (public_id = itemCode) without Arabic paths
+ * Matching by Code OR Arabic Product Name OR Composite Slug
  */
 export function getCandidateImageUrls(
   product: Partial<Product>,
@@ -129,51 +182,38 @@ export function getCandidateImageUrls(
     candidates.push(product.imageUrl);
   }
 
-  // 2. Select primary identifier: strictly product code or explicit public ID
-  let id = '';
-  if (product.cloudinaryPublicId) {
-    id = product.cloudinaryPublicId.trim();
-  } else if (config.matchingPattern === 'name' && product.name) {
-    id = sanitizeToCloudinarySlug(product.name);
-  } else if (config.matchingPattern === 'slug') {
-    id = `${product.code || ''}_${sanitizeToCloudinarySlug(product.name || '')}`;
-  } else {
-    id = product.code?.trim() || '';
-  }
-
-  if (!id) return candidates;
+  // 2. Extract smart identifiers (Code, Arabic Name variations, Composites)
+  const identifiers = generateCandidateIdentifiers(product, config.matchingPattern || 'auto');
+  if (identifiers.length === 0) return candidates;
 
   const folder = config.folderPrefix?.trim() || '';
   const trans = config.defaultTransformation || 'f_auto,q_auto,w_500,c_fill';
-
-  // Clean Root URL Candidates (Best Practice: public_id = itemCode)
   const primaryExt = config.fileExtension && config.fileExtension !== 'auto' ? `.${config.fileExtension}` : '';
   const altExt = primaryExt === '.png' ? '.jpg' : '.png';
-  const encodedId = encodeURIComponent(id);
+  const encodedFolderPart = folder ? encodeCloudinaryPath(folder) + '/' : '';
 
-  if (!folder) {
-    // 1. Root with primary extension
+  for (const id of identifiers) {
+    const encodedId = encodeURIComponent(id);
+
+    // With configured folder
+    if (encodedFolderPart) {
+      if (primaryExt) {
+        candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedFolderPart}${encodedId}${primaryExt}`);
+      }
+      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedFolderPart}${encodedId}${altExt}`);
+      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedFolderPart}${encodedId}`);
+    }
+
+    // Root level candidate (as fallback)
     if (primaryExt) {
       candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedId}${primaryExt}`);
     }
-    // 2. Root with alternate extension (.jpg / .png)
     candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedId}${altExt}`);
-    // 3. Root without extension (clean public ID with f_auto)
     candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedId}`);
-  } else {
-    // If user explicitly configured a folder prefix (properly preserve subfolder slashes!)
-    const encodedFolderPart = encodeCloudinaryPath(folder) + '/';
-
-    if (primaryExt) {
-      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedFolderPart}${encodedId}${primaryExt}`);
-    }
-    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedFolderPart}${encodedId}${altExt}`);
-    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedFolderPart}${encodedId}`);
-    // Fallback to clean root just in case
-    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedId}${primaryExt || '.png'}`);
   }
 
-  return candidates;
+  // De-duplicate URLs
+  return Array.from(new Set(candidates));
 }
 
 /**
