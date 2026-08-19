@@ -45,8 +45,64 @@ export function sanitizeToCloudinarySlug(text: string): string {
 }
 
 /**
- * Generate all possible candidate URLs for a product on Cloudinary
- * to handle folder prefixes, extensions, and slug variations automatically.
+ * Parse a raw Cloudinary URL to automatically extract Cloud Name, Folder, and File Extension
+ */
+export function parseCloudinaryUrl(url: string): {
+  cloudName: string;
+  folderPrefix: string;
+  fileExtension: 'jpg' | 'png' | 'webp' | 'auto';
+  sampleCodeOrFilename: string;
+} | null {
+  try {
+    const trimmed = url.trim();
+    if (!trimmed.includes('res.cloudinary.com/')) return null;
+
+    // Pattern: https://res.cloudinary.com/<cloudName>/image/upload/<optional_transformations>/<folder>/<filename>.<ext>
+    const match = trimmed.match(/res\.cloudinary\.com\/([^\/]+)\/image\/upload\/(?:[^\/]+\/)?(?:v\d+\/)?(.+)/);
+    if (!match) return null;
+
+    const cloudName = match[1];
+    const restPath = decodeURIComponent(match[2]);
+
+    const lastSlashIdx = restPath.lastIndexOf('/');
+    let folderPrefix = '';
+    let filenameWithExt = restPath;
+
+    if (lastSlashIdx !== -1) {
+      folderPrefix = restPath.substring(0, lastSlashIdx);
+      filenameWithExt = restPath.substring(lastSlashIdx + 1);
+    }
+
+    const dotIdx = filenameWithExt.lastIndexOf('.');
+    let fileExtension: 'jpg' | 'png' | 'webp' | 'auto' = 'jpg';
+    let sampleCode = filenameWithExt;
+
+    if (dotIdx !== -1) {
+      const ext = filenameWithExt.substring(dotIdx + 1).toLowerCase();
+      sampleCode = filenameWithExt.substring(0, dotIdx);
+      if (['jpg', 'png', 'webp'].includes(ext)) {
+        fileExtension = ext as any;
+      } else {
+        fileExtension = 'auto';
+      }
+    } else {
+      fileExtension = 'auto';
+    }
+
+    return {
+      cloudName,
+      folderPrefix,
+      fileExtension,
+      sampleCodeOrFilename: sampleCode
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Generate targeted candidate URLs for a product on Cloudinary
+ * (Limited to 2-3 precise candidates to prevent 404 spam in console)
  */
 export function getCandidateImageUrls(
   product: Partial<Product>,
@@ -55,38 +111,41 @@ export function getCandidateImageUrls(
   const candidates: string[] = [];
   const cloudName = config.cloudName?.trim() || 'dzdkhpr2y';
 
-  // 1. Direct explicit image URL if valid
+  // 1. Direct explicit image URL if present
   if (product.imageUrl && product.imageUrl.startsWith('http') && !product.imageUrl.includes('unsplash.com')) {
     candidates.push(product.imageUrl);
   }
 
-  // Identifiers to try
-  const identifiers: string[] = [];
-  if (product.code) identifiers.push(product.code.trim());
-  if (product.cloudinaryPublicId) identifiers.push(product.cloudinaryPublicId.trim());
-  if (product.name) identifiers.push(sanitizeToCloudinarySlug(product.name));
+  // 2. Select primary identifier based strictly on configured matching pattern
+  let id = '';
+  if (product.cloudinaryPublicId) {
+    id = product.cloudinaryPublicId.trim();
+  } else if (config.matchingPattern === 'name' && product.name) {
+    id = sanitizeToCloudinarySlug(product.name);
+  } else if (config.matchingPattern === 'slug') {
+    id = `${product.code || ''}_${sanitizeToCloudinarySlug(product.name || '')}`;
+  } else {
+    id = product.code?.trim() || '';
+  }
 
-  // Folder candidates
+  if (!id) return candidates;
+
   const folder = config.folderPrefix?.trim() || '';
-  const foldersToTry = folder ? [folder, ''] : ['', 'products', 'dream', 'images', 'items', 'catalog'];
-
-  // Transformations
   const trans = config.defaultTransformation || 'f_auto,q_auto,w_500,c_fill';
+  const ext = config.fileExtension && config.fileExtension !== 'auto' ? `.${config.fileExtension}` : '';
 
-  // Extensions
-  const extensions = [config.fileExtension || 'jpg', 'png', 'webp', ''];
-
-  for (const id of identifiers) {
-    if (!id) continue;
-    for (const f of foldersToTry) {
-      const folderPart = f ? `${encodeURIComponent(f)}/` : '';
-      for (const ext of extensions) {
-        const extPart = ext && ext !== 'auto' ? `.${ext}` : '';
-        const url = `https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${folderPart}${encodeURIComponent(id)}${extPart}`;
-        if (!candidates.includes(url)) {
-          candidates.push(url);
-        }
-      }
+  // Candidate 1: Main configured pattern
+  if (folder) {
+    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(folder)}/${encodeURIComponent(id)}${ext}`);
+    // Candidate 2: Same folder without extension (as public ID)
+    if (ext) {
+      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(folder)}/${encodeURIComponent(id)}`);
+    }
+  } else {
+    // Root level
+    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(id)}${ext}`);
+    if (ext) {
+      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(id)}`);
     }
   }
 
