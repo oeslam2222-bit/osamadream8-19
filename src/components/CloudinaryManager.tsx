@@ -11,10 +11,12 @@ import {
   Image,
   Info,
   Layers,
+  Link,
   RefreshCw,
   Save,
   Search,
   Sparkles,
+  Wand2,
   Zap
 } from 'lucide-react';
 import React, { useState } from 'react';
@@ -24,6 +26,7 @@ import {
   batchMatchCloudinaryImages,
   DEFAULT_CLOUDINARY_CONFIG,
   getProductImageUrl,
+  parseCloudinaryUrl,
   sanitizeToCloudinarySlug
 } from '../services/cloudinaryService';
 import { CloudinaryConfig } from '../types';
@@ -38,6 +41,8 @@ export const CloudinaryManager: React.FC = () => {
   const [testCode, setTestCode] = useState('1004973');
   const [testName, setTestName] = useState('طقم زجاج دريم فاخر');
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [pastedUrl, setPastedUrl] = useState('');
+  const [extractedNotice, setExtractedNotice] = useState<string | null>(null);
   const [batchResults, setBatchResults] = useState<{
     updatedCount: number;
     sampleMatches: { code: string; name: string; url: string }[];
@@ -46,6 +51,7 @@ export const CloudinaryManager: React.FC = () => {
   const sampleCodes = ['1004973', '1004544', '1005049', '1005118', '1004534', '1004550'];
   const commonFolders = [
     { label: 'بدون مجلد (الرئيسي)', value: '' },
+    { label: 'منزلي', value: 'منزلي' },
     { label: 'products', value: 'products' },
     { label: 'dream', value: 'dream' },
     { label: 'images', value: 'images' },
@@ -58,6 +64,35 @@ export const CloudinaryManager: React.FC = () => {
     updateCloudinarySettings(formConfig);
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
+  };
+
+  const handleExtractFromUrl = () => {
+    if (!pastedUrl) return;
+    const parsed = parseCloudinaryUrl(pastedUrl);
+    if (!parsed) {
+      setExtractedNotice('تعذر قراءة رابط Cloudinary. يرجى التأكد من نسخ رابط صورة يبدأ بـ https://res.cloudinary.com/');
+      return;
+    }
+
+    const updated: CloudinaryConfig = {
+      ...formConfig,
+      cloudName: parsed.cloudName,
+      folderPrefix: parsed.folderPrefix,
+      fileExtension: parsed.fileExtension,
+      matchingPattern: 'code'
+    };
+
+    setFormConfig(updated);
+    updateCloudinarySettings(updated);
+    if (parsed.sampleCodeOrFilename) {
+      setTestCode(parsed.sampleCodeOrFilename);
+    }
+    setExtractedNotice(`تم بنجاح! تم استخراج: اسم السحابة (${parsed.cloudName}) والمجلد (${parsed.folderPrefix || 'الجذر'}) والامتداد (${parsed.fileExtension}).`);
+    setSavedSuccess(true);
+    setTimeout(() => {
+      setSavedSuccess(false);
+      setExtractedNotice(null);
+    }, 5000);
   };
 
   const handleRunBatchMatch = () => {
@@ -98,15 +133,53 @@ export const CloudinaryManager: React.FC = () => {
         </div>
       </div>
 
+      {/* 1-Click Smart URL Auto-Detector */}
+      <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white p-5 rounded-3xl shadow-md border border-indigo-700/50 space-y-3">
+        <div className="flex items-center gap-2">
+          <Wand2 className="w-5 h-5 text-amber-400" />
+          <h3 className="font-black text-sm text-white">الاستخراج السحري الفوري بمجرد لصق رابط صورة واحدة</h3>
+        </div>
+        <p className="text-xs text-indigo-200">
+          افتح أي صورة من مجلدك على موقع Cloudinary، انسخ رابطها المباشر والصقه هنا، وسيقوم النظام فوراً بضبط المجلد واسم السحابة وامتداد كل الـ 10,000 منتج بضغطة زر واحدة!
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Link className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
+            <input
+              type="text"
+              value={pastedUrl}
+              onChange={(e) => setPastedUrl(e.target.value)}
+              placeholder="مثال: https://res.cloudinary.com/dzdkhpr2y/image/upload/منزلي/1004973.jpg"
+              className="w-full pr-9 pl-3 py-2.5 bg-slate-950/80 border border-indigo-500/50 rounded-xl text-xs font-mono text-white placeholder-slate-400 focus:ring-2 focus:ring-amber-400 focus:outline-none"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleExtractFromUrl}
+            className="px-5 py-2.5 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-xl shadow flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+          >
+            <Wand2 className="w-4 h-4" />
+            <span>استخراج وضبط الكل فوراً</span>
+          </button>
+        </div>
+
+        {extractedNotice && (
+          <div className="p-2.5 bg-indigo-950/90 border border-amber-400/50 text-amber-200 text-xs rounded-xl font-bold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>{extractedNotice}</span>
+          </div>
+        )}
+      </div>
+
       {/* Quick Diagnostic Tip for 404 Errors */}
       <div className="bg-amber-50 border border-amber-300 p-4 rounded-3xl text-xs space-y-2 text-amber-950">
         <div className="flex items-center gap-2 font-black text-amber-900 text-sm">
           <HelpCircle className="w-5 h-5 text-amber-600 shrink-0" />
-          <span>إذا ظهر لك خطأ 404 للصور (مثل 1004973.jpg):</span>
+          <span>تحديد المجلد الافتراضي لصور Cloudinary:</span>
         </div>
         <p className="leading-relaxed">
-          خطأ 404 يعني أن الصورة موجودة على Cloudinary داخل <strong>مجلد محدد</strong> (مثل مجلد <code>products</code> أو <code>dream</code>) أو بدون امتداد.
-          لحل ذلك فوراً: اختر اسم المجلد الذي رفعت الصور داخله من الخيارات أدناه أو اكتبه في خانة <strong>(المجلد الافتراضي Folder Prefix)</strong> واضغط حفظ.
+          إذا كانت صورك مرفوعة في مجلد باسم <strong>منزلي</strong> أو <strong>products</strong> أو غيره، اختره من الأزرار السريعة أدناه واضغط حفظ.
         </p>
       </div>
 
@@ -150,7 +223,7 @@ export const CloudinaryManager: React.FC = () => {
                 type="text"
                 value={formConfig.folderPrefix}
                 onChange={(e) => setFormConfig({ ...formConfig, folderPrefix: e.target.value })}
-                placeholder="اتركه فارغاً إذا كانت الصور بالـ Root أو اكتب اسم المجلد"
+                placeholder="مثال: منزلي أو products"
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:ring-2 focus:ring-amber-400 font-bold"
               />
               {/* Quick Folder Switchers */}
@@ -160,9 +233,9 @@ export const CloudinaryManager: React.FC = () => {
                     type="button"
                     key={f.value}
                     onClick={() => setFormConfig({ ...formConfig, folderPrefix: f.value })}
-                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition ${
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition cursor-pointer ${
                       formConfig.folderPrefix === f.value
-                        ? 'bg-slate-900 text-amber-300 border-slate-900'
+                        ? 'bg-slate-900 text-amber-300 border-slate-900 font-black'
                         : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
                     }`}
                   >
@@ -268,7 +341,7 @@ export const CloudinaryManager: React.FC = () => {
                     key={code}
                     type="button"
                     onClick={() => setTestCode(code)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono cursor-pointer ${
                       testCode === code ? 'bg-amber-400 text-slate-950 font-black' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
