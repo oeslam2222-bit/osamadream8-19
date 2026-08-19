@@ -45,6 +45,19 @@ export function sanitizeToCloudinarySlug(text: string): string {
 }
 
 /**
+ * Encode folder paths preserving '/' between nested subfolders
+ * Example: "منزلي/لاينز/defna/14" -> "%D9%85%D9%86%D8%B2%D9%84%D9%8A/%D9%84%D8%A7%D9%8A%D9%86%D8%B2/defna/14"
+ */
+export function encodeCloudinaryPath(pathStr: string): string {
+  if (!pathStr) return '';
+  return pathStr
+    .split('/')
+    .map((seg) => encodeURIComponent(seg.trim()))
+    .filter(Boolean)
+    .join('/');
+}
+
+/**
  * Parse a raw Cloudinary URL to automatically extract Cloud Name, Folder, and File Extension
  */
 export function parseCloudinaryUrl(url: string): {
@@ -134,28 +147,30 @@ export function getCandidateImageUrls(
   const trans = config.defaultTransformation || 'f_auto,q_auto,w_500,c_fill';
 
   // Clean Root URL Candidates (Best Practice: public_id = itemCode)
-  // Candidate 1: Root with configured extension (e.g., .png or .jpg)
   const primaryExt = config.fileExtension && config.fileExtension !== 'auto' ? `.${config.fileExtension}` : '';
   const altExt = primaryExt === '.png' ? '.jpg' : '.png';
+  const encodedId = encodeURIComponent(id);
 
   if (!folder) {
     // 1. Root with primary extension
     if (primaryExt) {
-      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(id)}${primaryExt}`);
+      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedId}${primaryExt}`);
     }
     // 2. Root with alternate extension (.jpg / .png)
-    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(id)}${altExt}`);
+    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedId}${altExt}`);
     // 3. Root without extension (clean public ID with f_auto)
-    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(id)}`);
+    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedId}`);
   } else {
-    // If user explicitly configured a folder prefix
+    // If user explicitly configured a folder prefix (properly preserve subfolder slashes!)
+    const encodedFolderPart = encodeCloudinaryPath(folder) + '/';
+
     if (primaryExt) {
-      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(folder)}/${encodeURIComponent(id)}${primaryExt}`);
+      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedFolderPart}${encodedId}${primaryExt}`);
     }
-    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(folder)}/${encodeURIComponent(id)}${altExt}`);
-    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(folder)}/${encodeURIComponent(id)}`);
+    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedFolderPart}${encodedId}${altExt}`);
+    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedFolderPart}${encodedId}`);
     // Fallback to clean root just in case
-    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodeURIComponent(id)}${primaryExt || '.png'}`);
+    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedId}${primaryExt || '.png'}`);
   }
 
   return candidates;
