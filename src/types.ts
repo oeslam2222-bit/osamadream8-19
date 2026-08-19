@@ -153,7 +153,7 @@ export interface CloudinaryConfig {
   cloudName: string;
   folderPrefix: string;
   defaultTransformation: string;
-  matchingPattern: 'code' | 'name' | 'slug' | 'custom_url';
+  matchingPattern: 'auto' | 'code' | 'name' | 'slug' | 'custom_url';
   fileExtension: 'jpg' | 'png' | 'webp' | 'auto';
   baseUrlPattern: string;
 }
