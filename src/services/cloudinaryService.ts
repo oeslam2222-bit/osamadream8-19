@@ -1,406 +1,565 @@
-import { CloudinaryConfig, Product } from '../types';
-
-export const DEFAULT_CLOUDINARY_CONFIG: CloudinaryConfig = {
-  cloudName: 'dzdkhpr2y',
-  folderPrefix: '',
-  defaultTransformation: 'f_auto,q_auto,w_500,c_fill',
-  matchingPattern: 'auto',
-  fileExtension: 'png',
-  baseUrlPattern: 'https://res.cloudinary.com/{cloudName}/image/upload/{transformations}/{folder}/{filename}.{extension}'
-};
+import * as XLSX from 'xlsx';
+import { COMPANY_INFO } from '../data/mockData';
+import { Invoice, ItemStatus, Product, SalesPriority } from '../types';
 
 /**
- * Extract clean Google Drive File ID from any Google Drive URL format or raw ID
+ * Normalizes header string to match flexibly
  */
-export function extractGoogleDriveFileId(urlOrId: string): string | null {
-  if (!urlOrId) return null;
-  const trimmed = urlOrId.trim();
-
-  // If it's already a raw ID (e.g. 1A2b3C4d5E6F7G8H9I0J...)
-  if (/^[a-zA-Z0-9_-]{25,55}$/.test(trimmed)) {
-    return trimmed;
-  }
-
-  // /file/d/FILE_ID/
-  const fileDMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-  if (fileDMatch) return fileDMatch[1];
-
-  // id=FILE_ID
-  const idParamMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if (idParamMatch) return idParamMatch[1];
-
-  // /d/FILE_ID (lh3.googleusercontent.com/d/FILE_ID)
-  const lh3Match = trimmed.match(/googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
-  if (lh3Match) return lh3Match[1];
-
-  // open?id=FILE_ID
-  const openMatch = trimmed.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
-  if (openMatch) return openMatch[1];
-
-  return null;
-}
-
-/**
- * Build fast, dynamically compressed Google Drive image URLs with size parameters (e.g. s=200, w=200)
- */
-export function buildGoogleDriveCompressedUrls(urlOrId: string, size = 200): string[] {
-  const fileId = extractGoogleDriveFileId(urlOrId);
-  if (!fileId) return [];
-
-  // Produce ordered candidate URLs from fastest compressed CDN to standard fallback
-  return [
-    // 1. Google High-Speed Content CDN with dynamic size constraint (WebP/JPEG auto-compressed)
-    `https://lh3.googleusercontent.com/d/${fileId}=s${size}`,
-    `https://lh3.googleusercontent.com/d/${fileId}=w${size}-h${size}-c`,
-    // 2. Google Drive Thumbnail API with dynamic width/height parameter
-    `https://drive.google.com/thumbnail?id=${fileId}&sz=w${size}-h${size}`,
-    `https://drive.google.com/thumbnail?id=${fileId}&s=${size}`,
-    // 3. Fallback direct export view
-    `https://drive.google.com/uc?export=view&id=${fileId}`
-  ];
-}
-
-/**
- * Dynamically optimize any image URL (Google Drive, Cloudinary, etc.) for target size and bandwidth savings
- */
-export function optimizeImageUrl(rawUrl: string, targetSize = 200, isDataSaver = false): string {
-  if (!rawUrl) return '';
-  const trimmed = rawUrl.trim();
-
-  // Check if it's a Google Drive link
-  const driveId = extractGoogleDriveFileId(trimmed);
-  if (driveId) {
-    const size = isDataSaver ? Math.min(targetSize, 200) : targetSize;
-    return `https://lh3.googleusercontent.com/d/${driveId}=s${size}`;
-  }
-
-  // Check if it's Cloudinary
-  if (trimmed.includes('res.cloudinary.com/') && trimmed.includes('/upload/')) {
-    const quality = isDataSaver ? 'eco' : 'auto';
-    const size = isDataSaver ? Math.min(targetSize, 240) : targetSize;
-    const transformation = `w_${size},c_limit,q_auto:${quality},f_auto`;
-    return trimmed.replace(/\/upload\/(?:[^\/]+\/)?/, `/upload/${transformation}/`);
-  }
-
-  return trimmed;
-}
-
-/**
- * Generate a clean, branded SVG placeholder image when no image is available
- */
-export function generateProductPlaceholderSvg(code: string, category: string, name: string): string {
-  const shortCode = code || 'ITEM';
-  const cat = category || 'DREAM';
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
-    <defs>
-      <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#0f172a" />
-        <stop offset="50%" stop-color="#1e293b" />
-        <stop offset="100%" stop-color="#334155" />
-      </linearGradient>
-    </defs>
-    <rect width="400" height="400" fill="url(#bg)" rx="24"/>
-    <circle cx="200" cy="160" r="60" fill="#f59e0b" opacity="0.15" />
-    <path d="M170 160 L200 130 L230 160 L200 190 Z" fill="#fbbf24" opacity="0.8"/>
-    <text x="200" y="245" font-family="system-ui, sans-serif" font-size="20" font-weight="900" fill="#f8fafc" text-anchor="middle">${shortCode}</text>
-    <text x="200" y="275" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#94a3b8" text-anchor="middle">${cat}</text>
-    <text x="200" y="340" font-family="system-ui, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">Cloudinary Image</text>
-  </svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-}
-
-/**
- * Sanitize strings into valid Cloudinary public IDs (clean slug) with customizable separator
- */
-export function sanitizeToCloudinarySlug(text: string, separator: '_' | '-' = '_'): string {
-  if (!text) return '';
-  return text
+function normalizeHeader(header: string): string {
+  if (!header) return '';
+  return header
+    .toString()
     .trim()
-    .replace(/[^\w\u0621-\u064A0-9-_]/g, separator)
-    .replace(new RegExp(`\\${separator}+`, 'g'), separator)
-    .replace(new RegExp(`^\\${separator}|\\${separator}$`, 'g'), '');
+    .toLowerCase()
+    .replace(/[ـ\s_-]/g, '')
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي');
 }
 
 /**
- * Encode folder paths preserving '/' between nested subfolders
- * Example: "منزلي/لاينز/defna/14" -> "%D9%85%D9%86%D8%B2%D9%84%D9%8A/%D9%84%D8%A7%D9%8A%D9%86%D8%B2/defna/14"
+ * Extract Google Sheet ID and GID from any Google Sheets URL
  */
-export function encodeCloudinaryPath(pathStr: string): string {
-  if (!pathStr) return '';
-  return pathStr
-    .split('/')
-    .map((seg) => encodeURIComponent(seg.trim()))
-    .filter(Boolean)
-    .join('/');
+export function extractGoogleSpreadsheetId(input: string): { sheetId: string; gid: string } {
+  if (!input) return { sheetId: '', gid: '0' };
+  const clean = input.trim();
+
+  // If user pasted just the sheet ID directly
+  if (!clean.includes('/') && clean.length > 20) {
+    return { sheetId: clean, gid: '0' };
+  }
+
+  // Regex to match /d/{SPREADSHEET_ID}
+  const idMatch = clean.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  const sheetId = idMatch ? idMatch[1] : '';
+
+  // Match gid parameter
+  const gidMatch = clean.match(/[#&?]gid=([0-9]+)/);
+  const gid = gidMatch ? gidMatch[1] : '0';
+
+  return { sheetId, gid };
 }
 
 /**
- * Parse a raw Cloudinary URL to automatically extract Cloud Name, Folder, and File Extension
+ * Build direct CSV export URL for any Google Sheet link
  */
-export function parseCloudinaryUrl(url: string): {
-  cloudName: string;
-  folderPrefix: string;
-  fileExtension: 'jpg' | 'png' | 'webp' | 'auto';
-  sampleCodeOrFilename: string;
-} | null {
-  try {
-    const trimmed = url.trim();
-    if (!trimmed.includes('res.cloudinary.com/')) return null;
+export function buildGoogleSheetsPublicCsvUrl(input: string): string {
+  const { sheetId, gid } = extractGoogleSpreadsheetId(input);
+  if (!sheetId) {
+    if (input.startsWith('http')) return input;
+    return '';
+  }
+  return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`;
+}
 
-    // Pattern: https://res.cloudinary.com/<cloudName>/image/upload/<optional_transformations>/<folder>/<filename>.<ext>
-    const match = trimmed.match(/res\.cloudinary\.com\/([^\/]+)\/image\/upload\/(?:[^\/]+\/)?(?:v\d+\/)?(.+)/);
-    if (!match) return null;
-
-    const cloudName = match[1];
-    const restPath = decodeURIComponent(match[2]);
-
-    const lastSlashIdx = restPath.lastIndexOf('/');
-    let folderPrefix = '';
-    let filenameWithExt = restPath;
-
-    if (lastSlashIdx !== -1) {
-      folderPrefix = restPath.substring(0, lastSlashIdx);
-      filenameWithExt = restPath.substring(lastSlashIdx + 1);
-    }
-
-    const dotIdx = filenameWithExt.lastIndexOf('.');
-    let fileExtension: 'jpg' | 'png' | 'webp' | 'auto' = 'jpg';
-    let sampleCode = filenameWithExt;
-
-    if (dotIdx !== -1) {
-      const ext = filenameWithExt.substring(dotIdx + 1).toLowerCase();
-      sampleCode = filenameWithExt.substring(0, dotIdx);
-      if (['jpg', 'png', 'webp'].includes(ext)) {
-        fileExtension = ext as any;
-      } else {
-        fileExtension = 'auto';
-      }
-    } else {
-      fileExtension = 'auto';
-    }
-
+/**
+ * Convert 2D array of rows from sheet/csv to Product list using Dream columns
+ */
+export function parseRawRowsToProducts(rawRows: any[]): {
+  products: Product[];
+  errors: string[];
+  totalRows: number;
+} {
+  if (!rawRows || rawRows.length < 2) {
     return {
-      cloudName,
-      folderPrefix,
-      fileExtension,
-      sampleCodeOrFilename: sampleCode
+      products: [],
+      errors: ['الملف فارغ أو لا يحتوي على صفوف بيانات صالحة'],
+      totalRows: 0,
     };
-  } catch (e) {
-    return null;
-  }
-}
-
-/**
- * Generate intelligent candidate identifiers (Codes, Arabic Names, Slugs, Composites)
- */
-export function generateCandidateIdentifiers(
-  product: Partial<Product>,
-  pattern: 'auto' | 'code' | 'name' | 'slug' | 'custom_url' = 'auto'
-): string[] {
-  const ids: string[] = [];
-
-  const code = product.code?.trim() || '';
-  const name = product.name?.trim() || '';
-  const explicitId = product.cloudinaryPublicId?.trim();
-
-  if (explicitId) {
-    ids.push(explicitId);
   }
 
-  // Generate building blocks
-  const nameUnderscore = sanitizeToCloudinarySlug(name, '_');
-  const nameHyphen = sanitizeToCloudinarySlug(name, '-');
-  const composite1 = code && nameUnderscore ? `${code}_-_${nameUnderscore}` : '';
-  const composite2 = code && nameUnderscore ? `${code}_${nameUnderscore}` : '';
-  const composite3 = code && nameHyphen ? `${code}-${nameHyphen}` : '';
-
-  if (pattern === 'code') {
-    if (code) ids.push(code);
-    if (composite1) ids.push(composite1);
-    if (nameUnderscore) ids.push(nameUnderscore);
-  } else if (pattern === 'name') {
-    if (nameUnderscore) ids.push(nameUnderscore);
-    if (nameHyphen) ids.push(nameHyphen);
-    if (composite1) ids.push(composite1);
-    if (code) ids.push(code);
-  } else if (pattern === 'slug') {
-    if (composite1) ids.push(composite1);
-    if (composite2) ids.push(composite2);
-    if (code) ids.push(code);
-    if (nameUnderscore) ids.push(nameUnderscore);
-  } else {
-    // Default 'auto' Smart Hybrid Strategy:
-    // Tries Code first -> Composite (Code + Arabic Name) -> Arabic Name with underscores -> Arabic Name with hyphens
-    if (code) ids.push(code);
-    if (composite1) ids.push(composite1);
-    if (nameUnderscore && !ids.includes(nameUnderscore)) ids.push(nameUnderscore);
-    if (nameHyphen && !ids.includes(nameHyphen)) ids.push(nameHyphen);
-    if (composite2 && !ids.includes(composite2)) ids.push(composite2);
-    if (composite3 && !ids.includes(composite3)) ids.push(composite3);
+  // Find header row index
+  let headerRowIndex = 0;
+  for (let i = 0; i < Math.min(rawRows.length, 5); i++) {
+    const row = rawRows[i];
+    const hasCodeOrName = row.some((cell: any) => {
+      const str = String(cell);
+      return str.includes('كود') || str.includes('اسم') || str.includes('الصنف') || str.includes('code');
+    });
+    if (hasCodeOrName) {
+      headerRowIndex = i;
+      break;
+    }
   }
 
-  return ids.filter(Boolean);
-}
+  const headers: string[] = rawRows[headerRowIndex].map((h: any) => String(h).trim());
+  const errors: string[] = [];
+  const products: Product[] = [];
 
-/**
- * Intelligently discover and prioritize candidate folder paths for a given product
- * Auto-detects subfolders like منزلي/الفا/LIFESTYLE, منزلي/Casasunco/خلفية بيضاء, منزلي/لاينز/defna/14
- */
-export function getCandidateFoldersForProduct(product: Partial<Product>, baseFolder: string): string[] {
-  const folders: string[] = [];
-  const cleanBase = (baseFolder || '').trim().replace(/\/+$/, '');
+  // Identify column indexes based on Arabic & English header variations
+  const colMap: Record<string, number> = {
+    code: -1,
+    name: -1,
+    salesPriority: -1,
+    category: -1,
+    status: -1,
+    cartonQuantity: -1,
+    size: -1,
+    color: -1,
+    branchStockActual: -1,
+    branchStockReserved: -1,
+    mainWarehouseActual: -1,
+    mainWarehouseReserved: -1,
+    department: -1,
+    classification: -1,
+    promoPrice: -1,
+    piecePrice: -1,
+    cartonPrice: -1,
+    branchName: -1,
+    imageUrl: -1,
+    barcode: -1,
+  };
 
-  if (cleanBase) {
-    folders.push(cleanBase);
-  }
+  headers.forEach((h, idx) => {
+    const norm = normalizeHeader(h);
 
-  // Common root parent (e.g. "منزلي" if base is "منزلي/الفا/LIFESTYLE" or empty)
-  const rootParent = cleanBase.split('/')[0] || 'منزلي';
-  if (rootParent && !folders.includes(rootParent)) {
-    folders.push(rootParent);
-  }
+    // 1. Stock columns (Highest priority to avoid overlap with branchName)
+    const isBranch = norm.includes('فرع') || norm.includes('branch');
+    const isWarehouse = norm.includes('مخزن') || norm.includes('رئيسي') || norm.includes('warehouse') || norm.includes('main') || norm.includes('اكتوبر');
+    const isActual = norm.includes('فعلي') || norm.includes('فعلى') || norm.includes('actual');
+    const isReserved = norm.includes('حجز') || norm.includes('reserved') || norm.includes('متاح') || norm.includes('available');
 
-  // Scan text to detect product family/brand
-  const textToScan = `${product.name || ''} ${product.department || ''} ${product.category || ''} ${product.classification || ''} ${product.code || ''}`.toLowerCase();
+    if (isBranch && isActual) {
+      colMap.branchStockActual = idx;
+    } else if (isBranch && isReserved) {
+      colMap.branchStockReserved = idx;
+    } else if (isWarehouse && isActual) {
+      colMap.mainWarehouseActual = idx;
+    } else if (isWarehouse && isReserved) {
+      colMap.mainWarehouseReserved = idx;
+    } else if (norm.includes('كود') || norm.includes('code')) {
+      colMap.code = idx;
+    } else if (norm.includes('اسمالصنف') || norm.includes('اسم') || norm.includes('البيان') || norm.includes('productname')) {
+      colMap.name = idx;
+    } else if (norm.includes('اولويه') || norm.includes('priority')) {
+      colMap.salesPriority = idx;
+    } else if (norm.includes('تصنيف') || norm.includes('category')) {
+      colMap.category = idx;
+    } else if (norm.includes('حاله') || norm.includes('status')) {
+      colMap.status = idx;
+    } else if (norm.includes('شده') || norm.includes('شدة') || norm.includes('كرتونه') || norm.includes('pack')) {
+      colMap.cartonQuantity = idx;
+    } else if (norm.includes('حجم') || norm.includes('وزن') || norm.includes('size')) {
+      colMap.size = idx;
+    } else if (norm.includes('لون') || norm.includes('color')) {
+      colMap.color = idx;
+    } else if (norm.includes('قسم') || norm.includes('department')) {
+      colMap.department = idx;
+    } else if (norm.includes('فئه') || norm.includes('class')) {
+      colMap.classification = idx;
+    } else if (norm.includes('سعرالعرض') || norm.includes('عرض') || norm.includes('promo')) {
+      colMap.promoPrice = idx;
+    } else if (norm.includes('سعرالقطعه') || norm.includes('قطعه') || norm.includes('piece')) {
+      colMap.piecePrice = idx;
+    } else if (norm.includes('سعرالكرتونه') || norm.includes('كرتونه') || norm.includes('cartonprice')) {
+      colMap.cartonPrice = idx;
+    } else if (norm.includes('صوره') || norm.includes('صور') || norm.includes('لينك') || norm.includes('image') || norm.includes('url')) {
+      colMap.imageUrl = idx;
+    } else if (norm.includes('باركود') || norm.includes('barcode')) {
+      colMap.barcode = idx;
+    } else if (norm.includes('فرع') || norm.includes('branch')) {
+      colMap.branchName = idx;
+    }
+  });
 
-  // Known active brand subdirectories in the company's Cloudinary storage
-  const brandSubpaths = [
-    'الفا/LIFESTYLE',
-    'الفا/خلفية بيضاء',
-    'الفا',
-    'Casasunco/خلفية بيضاء',
-    'Casasunco/LIFESTYLE',
-    'Casasunco',
-    'لاينز/defna/14',
-    'لاينز/defna',
-    'لاينز',
-    'defna/14',
-    'defna',
-    'دريم',
-    'لوتس',
-    'جرانيت',
-    'تيفلون',
-    'زجاج',
-    'صيني'
-  ];
+  // Fallback for generic sequential headers if explicit branch/warehouse names weren't present in header text
+  let actualColCount = 0;
+  let reservedColCount = 0;
+  headers.forEach((h, idx) => {
+    const norm = normalizeHeader(h);
+    const isActual = norm.includes('فعلي') || norm.includes('فعلى') || norm.includes('actual');
+    const isReserved = norm.includes('حجز') || norm.includes('reserved');
 
-  for (const sub of brandSubpaths) {
-    const fullPath = rootParent ? `${rootParent}/${sub}` : sub;
-    if (!folders.includes(fullPath)) {
-      // Prioritize if product name/category matches the brand
-      const isMatch =
-        (sub.includes('الفا') && (textToScan.includes('الفا') || textToScan.includes('alfa'))) ||
-        (sub.includes('Casasunco') && (textToScan.includes('casasunco') || textToScan.includes('كاساسونكو'))) ||
-        (sub.includes('لاينز') && (textToScan.includes('لاينز') || textToScan.includes('lines'))) ||
-        (sub.includes('defna') && (textToScan.includes('defna') || textToScan.includes('دفنا') || textToScan.includes('14'))) ||
-        (sub.includes('دريم') && textToScan.includes('دريم')) ||
-        (sub.includes('لوتس') && (textToScan.includes('لوتس') || textToScan.includes('lotus'))) ||
-        (sub.includes('جرانيت') && textToScan.includes('جرانيت')) ||
-        (sub.includes('تيفلون') && textToScan.includes('تيفلون')) ||
-        (sub.includes('زجاج') && textToScan.includes('زجاج'));
-
-      if (isMatch) {
-        // Insert at very top
-        folders.unshift(fullPath);
-      } else {
-        folders.push(fullPath);
+    if (isActual) {
+      if (colMap.branchStockActual === -1 && actualColCount === 0) {
+        colMap.branchStockActual = idx;
+        actualColCount++;
+      } else if (colMap.mainWarehouseActual === -1) {
+        colMap.mainWarehouseActual = idx;
+        actualColCount++;
       }
-    }
-  }
-
-  // Also include root folder
-  if (!folders.includes('')) {
-    folders.push('');
-  }
-
-  return Array.from(new Set(folders));
-}
-
-/**
- * Generate targeted candidate URLs for a product on Cloudinary
- * Matching by Code OR Arabic Product Name OR Composite Slug across all relevant subfolders
- */
-export function getCandidateImageUrls(
-  product: Partial<Product>,
-  config: CloudinaryConfig = DEFAULT_CLOUDINARY_CONFIG
-): string[] {
-  const candidates: string[] = [];
-  const cloudName = config.cloudName?.trim() || 'dzdkhpr2y';
-
-  // 1. Direct explicit image URL if present (Google Drive or Cloudinary or Web CDN)
-  if (product.imageUrl && product.imageUrl.startsWith('http') && !product.imageUrl.includes('unsplash.com')) {
-    // If it's a Google Drive link, expand to high-speed compressed CDN URLs with s=200/w=200
-    const driveUrls = buildGoogleDriveCompressedUrls(product.imageUrl, 240);
-    if (driveUrls.length > 0) {
-      candidates.push(...driveUrls);
-    } else {
-      candidates.push(product.imageUrl);
-    }
-  }
-
-  // 2. Extract smart identifiers (Code, Arabic Name variations, Composites)
-  const identifiers = generateCandidateIdentifiers(product, config.matchingPattern || 'auto');
-  if (identifiers.length === 0) return candidates;
-
-  const trans = config.defaultTransformation || 'f_auto,q_auto,w_500,c_fill';
-  const primaryExt = config.fileExtension && config.fileExtension !== 'auto' ? `.${config.fileExtension}` : '';
-  const altExt = primaryExt === '.png' ? '.jpg' : '.png';
-
-  // 3. Get all relevant folders (e.g. automatically checking الفا, Casasunco, لاينز, defna, etc.)
-  const candidateFolders = getCandidateFoldersForProduct(product, config.folderPrefix || '');
-
-  for (const folder of candidateFolders) {
-    const encodedFolderPart = folder ? encodeCloudinaryPath(folder) + '/' : '';
-
-    for (const id of identifiers) {
-      const encodedId = encodeURIComponent(id);
-
-      if (primaryExt) {
-        candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedFolderPart}${encodedId}${primaryExt}`);
-      }
-      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedFolderPart}${encodedId}${altExt}`);
-      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedFolderPart}${encodedId}`);
-    }
-  }
-
-  // De-duplicate URLs
-  return Array.from(new Set(candidates));
-}
-
-/**
- * Generate primary Cloudinary image URL for a given product
- */
-export function getProductImageUrl(product: Partial<Product>, config: CloudinaryConfig = DEFAULT_CLOUDINARY_CONFIG): string {
-  const candidates = getCandidateImageUrls(product, config);
-  if (candidates.length > 0) {
-    return candidates[0];
-  }
-  return generateProductPlaceholderSvg(product.code || '', product.category || '', product.name || '');
-}
-
-/**
- * Batch match Cloudinary images against list of products
- */
-export function batchMatchCloudinaryImages(
-  products: Product[],
-  config: CloudinaryConfig
-): { updatedCount: number; sampleMatches: { code: string; name: string; url: string }[] } {
-  let count = 0;
-  const samples: { code: string; name: string; url: string }[] = [];
-
-  products.forEach((p) => {
-    const generatedUrl = getProductImageUrl(p, config);
-    if (generatedUrl) {
-      count++;
-      if (samples.length < 5) {
-        samples.push({
-          code: p.code,
-          name: p.name,
-          url: generatedUrl
-        });
+    } else if (isReserved) {
+      if (colMap.branchStockReserved === -1 && reservedColCount === 0) {
+        colMap.branchStockReserved = idx;
+        reservedColCount++;
+      } else if (colMap.mainWarehouseReserved === -1) {
+        colMap.mainWarehouseReserved = idx;
+        reservedColCount++;
       }
     }
   });
 
-  return { updatedCount: count, sampleMatches: samples };
+  // Loop rows
+  for (let r = headerRowIndex + 1; r < rawRows.length; r++) {
+    const row = rawRows[r];
+    if (!row || row.length === 0 || row.every((c: any) => c === '' || c === null || c === undefined)) continue;
+
+    const getVal = (colIdx: number) => (colIdx >= 0 && row[colIdx] !== undefined && row[colIdx] !== null ? String(row[colIdx]).trim() : '');
+    const getNum = (colIdx: number, fallback = 0) => {
+      if (colIdx < 0 || row[colIdx] === undefined || row[colIdx] === null) return fallback;
+      const clean = String(row[colIdx]).replace(/[^\d.-]/g, '');
+      const parsed = parseFloat(clean);
+      return isNaN(parsed) ? fallback : parsed;
+    };
+
+    const code = getVal(colMap.code) || `DRM-${100 + r}`;
+    const name = getVal(colMap.name);
+
+    if (!name && !code) continue; // skip empty line
+
+    const rawPriority = getVal(colMap.salesPriority);
+    let salesPriority: SalesPriority = 'عادي';
+    if (rawPriority.includes('مرتفع') || rawPriority.includes('عالي') || rawPriority.toLowerCase().includes('high')) salesPriority = 'مرتفع';
+    else if (rawPriority.includes('متوسط') || rawPriority.toLowerCase().includes('med')) salesPriority = 'متوسط';
+    else if (rawPriority.includes('منخفض') || rawPriority.toLowerCase().includes('low')) salesPriority = 'منخفض';
+
+    const rawStatus = getVal(colMap.status);
+    let status: ItemStatus = 'متاح';
+    if (rawStatus.includes('راكد')) status = 'راكد';
+    else if (rawStatus.includes('عرض') || rawStatus.includes('promo')) status = 'عرض ترويجي';
+    else if (rawStatus.includes('نواقص') || rawStatus.includes('شحيح')) status = 'نواقص';
+    else if (rawStatus.includes('موقوف')) status = 'موقوف مؤقتاً';
+
+    const piecePrice = Math.max(0.5, getNum(colMap.piecePrice, 10));
+    const cartonQuantity = Math.min(500, Math.max(1, getNum(colMap.cartonQuantity, 12)));
+    const cartonPrice = Math.max(piecePrice, getNum(colMap.cartonPrice, piecePrice * cartonQuantity * 0.95));
+    const promoPriceRaw = getNum(colMap.promoPrice, 0);
+    const dept = getVal(colMap.department) || getVal(colMap.category) || 'LHLotus';
+
+    const product: Product = {
+      id: `p-${Date.now()}-${r}`,
+      code: code,
+      name: name || `صنف دريم ${code}`,
+      salesPriority: salesPriority,
+      category: getVal(colMap.category) || dept,
+      status: status,
+      cartonQuantity: cartonQuantity,
+      size: getVal(colMap.size) || 'حجم قياسي',
+      color: getVal(colMap.color) || 'افتراضي',
+      branchStockActual: getNum(colMap.branchStockActual, 50),
+      branchStockReserved: getNum(colMap.branchStockReserved, 45),
+      mainWarehouseActual: getNum(colMap.mainWarehouseActual, 500),
+      mainWarehouseReserved: getNum(colMap.mainWarehouseReserved, 450),
+      department: dept,
+      classification: getVal(colMap.classification) || 'فئة A',
+      promoPrice: promoPriceRaw > 0 ? promoPriceRaw : undefined,
+      piecePrice: piecePrice,
+      cartonPrice: cartonPrice,
+      branchName: getVal(colMap.branchName) || 'فرع القاهرة - مدينة نصر',
+      imageUrl: getVal(colMap.imageUrl) || undefined,
+      cloudinaryPublicId: code,
+      barcode: getVal(colMap.barcode) || undefined,
+    };
+
+    products.push(product);
+  }
+
+  return {
+    products,
+    errors,
+    totalRows: products.length,
+  };
 }
+
+/**
+ * Smart Excel / CSV file parser for Dream Distribution product inventory
+ */
+export async function parseExcelProducts(file: File): Promise<{
+  products: Product[];
+  errors: string[];
+  totalRows: number;
+}> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+
+        const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+        const result = parseRawRowsToProducts(rawRows);
+        resolve(result);
+      } catch (err: any) {
+        resolve({
+          products: [],
+          errors: [`فشل في قراءة الملف: ${err?.message || 'خطأ غير معروف'}`],
+          totalRows: 0,
+        });
+      }
+    };
+
+    reader.onerror = () => {
+      resolve({
+        products: [],
+        errors: ['حدث خطأ أثناء قراءة الملف من الجهاز'],
+        totalRows: 0,
+      });
+    };
+
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+/**
+ * Fetch and parse data live from Google Sheets URL
+ */
+export async function fetchAndParseGoogleSheet(googleSheetUrlOrId: string): Promise<{
+  products: Product[];
+  errors: string[];
+  totalRows: number;
+}> {
+  const csvUrl = buildGoogleSheetsPublicCsvUrl(googleSheetUrlOrId);
+  if (!csvUrl) {
+    return {
+      products: [],
+      errors: ['رابط Google Sheets غير صالح. يرجى التأكد من نسخ رابط الشيت كاملاً.'],
+      totalRows: 0,
+    };
+  }
+
+  try {
+    const response = await fetch(csvUrl);
+    if (!response.ok) {
+      throw new Error(`تعذر جلب الشيت (كود ${response.status}). يرجى التأكد من أن الشيت منشور للعامة (Anyone with the link can view).`);
+    }
+
+    const csvText = await response.text();
+    if (!csvText || csvText.trim().length === 0) {
+      throw new Error('تم جلب الشيت لكنه لا يحتوي على أي بيانات.');
+    }
+
+    const workbook = XLSX.read(csvText, { type: 'string' });
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+    return parseRawRowsToProducts(rawRows);
+  } catch (err: any) {
+    return {
+      products: [],
+      errors: [err.message || 'فشل الاتصال بـ Google Sheets'],
+      totalRows: 0,
+    };
+  }
+}
+
+/**
+ * Export Invoice to Excel (Electronic Tax Layout)
+ */
+export function exportInvoiceToExcel(invoice: Invoice): void {
+  const wb = XLSX.utils.book_new();
+
+  const titleRows = [
+    [COMPANY_INFO.nameArabic],
+    ['فاتورة مبيعات إلكترونية معتمدة'],
+    [`رقم الفاتورة: ${invoice.invoiceNumber}`, `التاريخ: ${invoice.date}`, `الوقت: ${invoice.time}`],
+    [`اسم العميل: ${invoice.customerName}`, `هاتف العميل: ${invoice.customerPhone || '---'}`, `العنوان: ${invoice.customerAddress || '---'}`],
+    [`الرقم الضريبي للعميل: ${invoice.customerTaxNumber || '---'}`, `مندوب المبيعات: ${invoice.repName}`, `الفرع: ${invoice.branchName}`],
+    [`طريقة السداد: ${invoice.paymentMethod}`, `حالة الفاتورة: ${invoice.status}`, `المشرف المسؤول: ${invoice.supervisorName || '---'}`],
+    []
+  ];
+
+  const tableHeaders = [
+    'م',
+    'كود الصنف',
+    'اسم الصنف والبيان',
+    'شدة الكرتونة',
+    'الكمية (كرتونة)',
+    'الكمية (قطعة)',
+    'إجمالي الوحدات',
+    'سعر القطعة',
+    'سعر الكرتونة',
+    'الإجمالي قبل الخصم',
+    'قيمة الخصم',
+    'ضريبة القيمة المضافة (14%)',
+    'صافي الصنف'
+  ];
+
+  const itemRows = invoice.items.map((item, index) => [
+    index + 1,
+    item.productCode,
+    item.productName,
+    item.cartonQuantity,
+    item.cartonCount,
+    item.pieceCount,
+    item.totalUnits,
+    item.pricePerPiece,
+    item.pricePerCarton,
+    item.totalBeforeTax,
+    item.discountAmount,
+    item.taxAmount,
+    item.netTotal
+  ]);
+
+  const summaryRows = [
+    [],
+    ['', '', '', '', '', '', '', '', '', 'إجمالي البضاعة:', '', '', invoice.subtotal],
+    ['', '', '', '', '', '', '', '', '', `إجمالي الخصم (${invoice.discountPercentage}%):`, '', '', -invoice.discountAmount],
+    ['', '', '', '', '', '', '', '', '', `ضريبة القيمة المضافة (${invoice.taxPercentage}%):`, '', '', invoice.taxAmount],
+    ['', '', '', '', '', '', '', '', '', 'الإجمالي النهائي المطلوب سداده:', '', '', invoice.estimatedGrandTotal],
+    [],
+    ['ملاحظات الفاتورة:', invoice.notes || 'لا توجد'],
+    [`خدمة العملاء: ${COMPANY_INFO.customerService}`, `الرقم الضريبي للشركة: ${COMPANY_INFO.taxRegistrationNumber}`, 'نظام فواتير دريم للتجارة والتوزيع']
+  ];
+
+  const fullSheetData = [...titleRows, tableHeaders, ...itemRows, ...summaryRows];
+  const ws = XLSX.utils.aoa_to_sheet(fullSheetData);
+
+  ws['!cols'] = [
+    { wch: 6 },
+    { wch: 14 },
+    { wch: 38 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 18 }
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, `فاتورة_${invoice.invoiceNumber}`);
+  XLSX.writeFile(wb, `فاتورة_دريم_${invoice.invoiceNumber}_${invoice.customerName.replace(/[^\w\u0621-\u064A]/g, '_')}.xlsx`);
+}
+
+/**
+ * Export Products Catalog & Inventory to Excel matching Dream spreadsheet format
+ */
+export function exportProductsToExcel(products: Product[], branchName = 'الكل'): void {
+  const wb = XLSX.utils.book_new();
+
+  const headers = [
+    'الكود',
+    'اسم الصنف',
+    'اولوية البيع',
+    'التصنيف',
+    'حالة الصنف',
+    'شدة الكرتونة',
+    'الحجم',
+    'اللون',
+    'الفرع - فعلى',
+    'الفرع - بعد الحجز',
+    'المخزن الرئيسي - فعلى',
+    'المخزن الرئيسي - بعد الحجز',
+    'القسم',
+    'الفئة',
+    'سعر العرض',
+    'سعر القطعة',
+    'سعر الكرتونة',
+    'اسم الفرع',
+    'رابط صورة Cloudinary / صورة'
+  ];
+
+  const rows = products.map(p => [
+    p.code,
+    p.name,
+    p.salesPriority,
+    p.category,
+    p.status,
+    p.cartonQuantity,
+    p.size,
+    p.color,
+    p.branchStockActual,
+    p.branchStockReserved,
+    p.mainWarehouseActual,
+    p.mainWarehouseReserved,
+    p.department,
+    p.classification,
+    p.promoPrice || '',
+    p.piecePrice,
+    p.cartonPrice,
+    p.branchName,
+    p.imageUrl || `https://res.cloudinary.com/dream-dist/image/upload/products/${p.code}.jpg`
+  ]);
+
+  const data = [headers, ...rows];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+
+  ws['!cols'] = [
+    { wch: 12 },
+    { wch: 35 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 20 },
+    { wch: 22 },
+    { wch: 18 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 24 },
+    { wch: 45 }
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'مخزون_دريم');
+  XLSX.writeFile(wb, `مخزون_شركة_دريم_${branchName}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+/**
+ * Generate a blank template Excel file ready for import
+ */
+export function generateSampleExcelTemplate(): void {
+  const sampleProducts: Product[] = [
+    {
+      id: 'sample-1',
+      code: 'LHL-101',
+      name: 'طقم لوتس كلاسيك زجاجي 6 قطع - LHLotus',
+      salesPriority: 'مرتفع',
+      category: 'LHLotus',
+      status: 'متاح',
+      cartonQuantity: 12,
+      size: '300 مل',
+      color: 'شفاف كرستال',
+      branchStockActual: 150,
+      branchStockReserved: 130,
+      mainWarehouseActual: 2000,
+      mainWarehouseReserved: 1800,
+      department: 'LHLotus',
+      classification: 'سوبر A',
+      promoPrice: 85,
+      piecePrice: 95,
+      cartonPrice: 1020,
+      branchName: 'فرع القاهرة - مدينة نصر',
+      imageUrl: 'https://res.cloudinary.com/dream-dist/image/upload/products/LHL-101.jpg'
+    },
+    {
+      id: 'sample-2',
+      code: 'FHL-111',
+      name: 'طقم لومينارك فرنسي أصلي 6 قطع - FHLuminarc',
+      salesPriority: 'مرتفع',
+      category: 'FHLuminarc',
+      status: 'متاح',
+      cartonQuantity: 6,
+      size: '330 مل',
+      color: 'شفاف مقاوم للصدمات',
+      branchStockActual: 200,
+      branchStockReserved: 180,
+      mainWarehouseActual: 3000,
+      mainWarehouseReserved: 2800,
+      department: 'FHLuminarc',
+      classification: 'أصلي Import',
+      promoPrice: undefined,
+      piecePrice: 175,
+      cartonPrice: 990,
+      branchName: 'فرع القاهرة - مدينة نصر',
+      imageUrl: 'https://res.cloudinary.com/dream-dist/image/upload/products/FHL-111.jpg'
+    }
+  ];
+
+  exportProductsToExcel(sampleProducts, 'نموذج_إدخال_الأصناف_دريم');
+}
+
+export const exportElectronicInvoiceToExcel = exportInvoiceToExcel;
