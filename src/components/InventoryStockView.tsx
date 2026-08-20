@@ -90,7 +90,7 @@ export const InventoryStockView: React.FC = () => {
     classification: 'سوبر A',
     piecePrice: 10,
     cartonPrice: 220,
-    branchName: currentUser?.branchName || 'فرع القاهرة - مدينة نصر',
+    branchName: currentUser?.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
   });
 
   const categories = useMemo(() => {
@@ -212,7 +212,7 @@ export const InventoryStockView: React.FC = () => {
         promoPrice: formData.promoPrice ? Number(formData.promoPrice) : undefined,
         piecePrice: Number(formData.piecePrice) || 10,
         cartonPrice: Number(formData.cartonPrice) || 200,
-        branchName: formData.branchName || currentUser?.branchName || 'فرع القاهرة - مدينة نصر',
+        branchName: formData.branchName || currentUser?.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
         cloudinaryPublicId: formData.code,
       };
       addProduct(newProd);
@@ -469,7 +469,7 @@ export const InventoryStockView: React.FC = () => {
                         classification: 'سوبر A',
                         piecePrice: 10,
                         cartonPrice: 220,
-                        branchName: currentUser?.branchName || 'فرع القاهرة - مدينة نصر',
+                        branchName: currentUser?.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
                       });
                       setShowAddModal(true);
                     }}

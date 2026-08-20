@@ -72,7 +72,7 @@ export const UserManager: React.FC = () => {
     email: '',
     password: '123',
     role: 'sales_rep',
-    branchName: 'فرع القاهرة (الفرع الرئيسي والمخزن المركزي)',
+    branchName: 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
     supervisorId: '',
     phone: '',
     commissionRate: 2.5,
@@ -119,7 +119,7 @@ export const UserManager: React.FC = () => {
 
   const handleOpenApproveModal = (user: User) => {
     setApprovingUser(user);
-    setApprovalBranchName(user.branchName || branches[0]?.name || 'فرع القاهرة - مدينة نصر');
+    setApprovalBranchName(user.branchName || branches[0]?.name || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)');
     setApprovalRole(user.role || 'sales_rep');
     setApprovalSupervisorId(user.supervisorId || '');
   };
@@ -145,7 +145,7 @@ export const UserManager: React.FC = () => {
         email: formData.email || `${formData.username}@dream-dist.com`,
         password: formData.password || '123',
         role: formData.role || 'sales_rep',
-        branchName: formData.branchName || 'فرع القاهرة - مدينة نصر',
+        branchName: formData.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
         supervisorId: formData.role === 'sales_rep' ? (formData.supervisorId || undefined) : undefined,
         phone: formData.phone || '',
         avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80`,
@@ -186,7 +186,7 @@ export const UserManager: React.FC = () => {
                 email: '',
                 password: '123',
                 role: 'sales_rep',
-                branchName: 'فرع القاهرة (الفرع الرئيسي والمخزن المركزي)',
+                branchName: 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
                 supervisorId: '',
                 phone: '',
                 commissionRate: 2.5,

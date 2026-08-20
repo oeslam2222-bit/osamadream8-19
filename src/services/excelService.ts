@@ -245,7 +245,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       promoPrice: promoPriceRaw > 0 ? promoPriceRaw : undefined,
       piecePrice: piecePrice,
       cartonPrice: cartonPrice,
-      branchName: getVal(colMap.branchName) || 'فرع القاهرة - مدينة نصر',
+      branchName: getVal(colMap.branchName) || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
       imageUrl: getVal(colMap.imageUrl) || undefined,
       cloudinaryPublicId: code,
       barcode: getVal(colMap.barcode) || undefined,
@@ -532,7 +532,7 @@ export function generateSampleExcelTemplate(): void {
       promoPrice: 85,
       piecePrice: 95,
       cartonPrice: 1020,
-      branchName: 'فرع القاهرة - مدينة نصر',
+      branchName: 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
       imageUrl: 'https://res.cloudinary.com/dream-dist/image/upload/products/LHL-101.jpg'
     },
     {
@@ -554,7 +554,7 @@ export function generateSampleExcelTemplate(): void {
       promoPrice: undefined,
       piecePrice: 175,
       cartonPrice: 990,
-      branchName: 'فرع القاهرة - مدينة نصر',
+      branchName: 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
       imageUrl: 'https://res.cloudinary.com/dream-dist/image/upload/products/FHL-111.jpg'
     }
   ];

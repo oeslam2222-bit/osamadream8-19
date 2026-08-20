@@ -141,6 +141,13 @@ const STORAGE_KEYS = {
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Helper to normalize branch names across legacy stored data
+  const normalizeBranchName = (name?: string): string => {
+    if (!name) return 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)';
+    if (name.includes('القاهرة')) return 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)';
+    return name;
+  };
+
   // Initialize state with localStorage fallbacks
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.USERS);
@@ -149,6 +156,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const parsed: User[] = JSON.parse(saved);
       return parsed.map((u) => ({
         ...u,
+        branchName: normalizeBranchName(u.branchName),
         role: u.role === 'admin' || u.role === 'branch_manager' || u.role === 'supervisor' || u.role === 'sales_rep' ? u.role : 'sales_rep',
       }));
     } catch {
@@ -158,7 +166,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [branches, setBranches] = useState<Branch[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.BRANCHES);
-    return saved ? JSON.parse(saved) : INITIAL_BRANCHES;
+    if (!saved) return INITIAL_BRANCHES;
+    try {
+      const parsed: Branch[] = JSON.parse(saved);
+      const hasOctober = parsed.some(b => b.name.includes('أكتوبر'));
+      if (!hasOctober) {
+        return INITIAL_BRANCHES;
+      }
+      return parsed.map(b => ({
+        ...b,
+        name: normalizeBranchName(b.name)
+      }));
+    } catch {
+      return INITIAL_BRANCHES;
+    }
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -443,7 +464,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       email: userData.email.trim().toLowerCase(),
       password: userData.password || '123456',
       phone: userData.phone.trim(),
-      branchName: userData.branchName || 'فرع القاهرة - مدينة نصر',
+      branchName: userData.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
       role: userData.role || 'sales_rep',
       supervisorId: userData.supervisorId,
       isActive: true,
@@ -825,7 +846,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       repId: currentUser ? currentUser.id : 'u-admin-1',
       repName: currentUser ? currentUser.name : 'مسؤول النظام',
       supervisorName: userSupervisor,
-      branchName: currentUser?.branchName || 'فرع القاهرة - مدينة نصر',
+      branchName: currentUser?.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
       items: invoiceItems,
       totalCartons: summary.totalCartons,
       totalPieces: summary.totalPieces,

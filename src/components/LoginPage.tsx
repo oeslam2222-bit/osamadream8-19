@@ -215,7 +215,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                       className="text-right p-2 rounded-lg bg-purple-500/10 border border-purple-500/30 hover:bg-purple-500/20 text-purple-200 transition"
                     >
                       <div className="font-bold flex items-center justify-between">
-                        <span>مدير فرع القاهرة</span>
+                        <span>مدير فرع أكتوبر (الرئيسي)</span>
                         <span className="text-[10px] bg-purple-500/30 px-1 rounded">إدارة الفرع</span>
                       </div>
                       <div className="text-[10px] text-slate-400">ashraf@dream-dist.com / 123</div>
