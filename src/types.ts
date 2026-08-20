@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'branch_manager' | 'supervisor' | 'sales_rep';
+export type UserRole = 'admin' | 'branch_manager' | 'sales_coordinator' | 'supervisor' | 'sales_rep';
 
 export type UserApprovalStatus = 'active' | 'pending_approval' | 'rejected';
 
