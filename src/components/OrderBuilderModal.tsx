@@ -69,15 +69,22 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      const createdInvoice = createOrder({
+      const result = createOrder({
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         customerAddress: customerAddress.trim(),
         customerTaxNumber: customerTaxNumber.trim(),
         paymentMethod: paymentMethod,
         notes: orderNotes.trim(),
-        status: 'قيد المراجعة',
       });
+
+      if (!result.success || !result.invoice) {
+        setFormErrors([result.message || 'تعذر تسجيل الطلبية بسبب نفاذ المخزون.']);
+        setIsSubmitting(false);
+        return;
+      }
+
+      const createdInvoice = result.invoice;
 
       if (andExportExcel) {
         exportElectronicInvoiceToExcel(createdInvoice);
@@ -91,6 +98,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
       onClose();
     } catch (err) {
       console.error(err);
+      setFormErrors(['حدث خطأ أثناء حفظ الطلبية. يرجى المحاولة ثانية.']);
     } finally {
       setIsSubmitting(false);
     }

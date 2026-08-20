@@ -98,8 +98,37 @@ export interface CartItem {
   fulfillFromMainWarehouse?: boolean; // If branch stock is insufficient
 }
 
-export type OrderStatus = 'مسودة' | 'قيد المراجعة' | 'معتمدة' | 'جاري التجهيز' | 'تم التسليم' | 'ملغاة';
+export type OrderStatus =
+  | 'مسودة'
+  | 'قيد مراجعة المشرف'
+  | 'معلقة بانتظار اعتماد الفرع'
+  | 'قيد المراجعة'
+  | 'معتمدة ومصروفة من المخزن'
+  | 'معتمدة'
+  | 'جاري التجهيز'
+  | 'تم التسليم'
+  | 'مرفوضة / ملغاة'
+  | 'ملغاة';
 export type PaymentMethod = 'نقدي (كاش)' | 'آجل (30 يوم)' | 'آجل (60 يوم)' | 'تحويل بنكي' | 'شيك';
+
+export interface InventoryTransaction {
+  id: string;
+  timestamp: string;
+  date: string;
+  productId: string;
+  productCode: string;
+  productName: string;
+  type: 'حجز طلبية مندوب' | 'صرف واعتماد مشرف' | 'إلغاء حجز وإرجاع' | 'توريد مخزني' | 'تحويل بين الفروع' | 'تعديل جردي';
+  quantityPieces: number;
+  branchStockBefore: number;
+  branchStockAfter: number;
+  branchName: string;
+  userName: string;
+  userRole: UserRole;
+  invoiceId?: string;
+  invoiceNumber?: string;
+  notes?: string;
+}
 
 export interface InvoiceItem {
   productId: string;

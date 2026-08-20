@@ -23,7 +23,8 @@ import {
   Share2,
   Sparkles,
   Upload,
-  X
+  X,
+  Trash2
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -38,9 +39,14 @@ import { formatCurrency } from '../services/invoiceService';
 import { Product } from '../types';
 
 export const ExcelImportExport: React.FC = () => {
-  const { products, importProductsList, selectedBranchFilter, cloudinaryConfig, updateCloudinarySettings } = useApp();
+  const { products, importProductsList, wipeAllProductsAndData, selectedBranchFilter, cloudinaryConfig, updateCloudinarySettings } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<'google_sheets' | 'excel_file' | 'cloudinary_guide' | 'drive_scanner'>('google_sheets');
+
+  // Wipe / Reset Modal State
+  const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
+  const [isWiping, setIsWiping] = useState(false);
+  const [wipeInvoicesToo, setWipeInvoicesToo] = useState(false);
 
   // Excel File State
   const [isDragging, setIsDragging] = useState(false);
@@ -178,6 +184,15 @@ function onEdit(e) {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setIsWipeModalOpen(true)}
+              className="flex items-center gap-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 font-black px-3.5 py-2 rounded-xl text-xs border border-rose-300 transition cursor-pointer"
+              title="مسح وتصفير كافة الأصناف للرفع من جديد"
+            >
+              <Trash2 className="w-4 h-4 text-rose-600" />
+              <span>تصفير ومسح الكل 🗑️</span>
+            </button>
+
             <button
               onClick={generateSampleExcelTemplate}
               className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3.5 py-2 rounded-xl text-xs border border-slate-300 transition"
@@ -859,6 +874,64 @@ function processFolderRecursive(folder, sheet, currentPath) {
           ))}
         </div>
       </div>
+
+      {/* Wipe Confirmation Modal */}
+      {isWipeModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="text-lg font-black text-slate-900">تأكيد مسح وتصفير كافة البيانات</h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                هل أنت متأكد من رغبتك في مسح كافة المنتجات والصور الحالية؟ سيتم تفريغ النظام لتتمكن من رفع شيت الإكسل الجديد الخاص بك من البداية.
+              </p>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200">
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={wipeInvoicesToo}
+                  onChange={(e) => setWipeInvoicesToo(e.target.checked)}
+                  className="rounded text-amber-500 focus:ring-amber-400 w-4 h-4"
+                />
+                <span>مسح سجل الفواتير والطلبيات السابقة أيضاً</span>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsWipeModalOpen(false)}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-2.5 rounded-2xl text-xs transition cursor-pointer"
+              >
+                إلغاء
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsWiping(true);
+                  try {
+                    await wipeAllProductsAndData({ wipeInvoices: wipeInvoicesToo });
+                    setIsWipeModalOpen(false);
+                    setImportSuccessMsg('تم مسح جميع الأصناف والبيانات بنجاح! يمكنك الآن رفع ملفك من الصفر.');
+                  } finally {
+                    setIsWiping(false);
+                  }
+                }}
+                disabled={isWiping}
+                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 rounded-2xl text-xs shadow-md transition cursor-pointer disabled:opacity-50"
+              >
+                {isWiping ? 'جاري المسح...' : 'نعم، مسح والبدء من جديد'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

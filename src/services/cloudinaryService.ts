@@ -10,6 +10,82 @@ export const DEFAULT_CLOUDINARY_CONFIG: CloudinaryConfig = {
 };
 
 /**
+ * Extract clean Google Drive File ID from any Google Drive URL format or raw ID
+ */
+export function extractGoogleDriveFileId(urlOrId: string): string | null {
+  if (!urlOrId) return null;
+  const trimmed = urlOrId.trim();
+
+  // If it's already a raw ID (e.g. 1A2b3C4d5E6F7G8H9I0J...)
+  if (/^[a-zA-Z0-9_-]{25,55}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // /file/d/FILE_ID/
+  const fileDMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (fileDMatch) return fileDMatch[1];
+
+  // id=FILE_ID
+  const idParamMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (idParamMatch) return idParamMatch[1];
+
+  // /d/FILE_ID (lh3.googleusercontent.com/d/FILE_ID)
+  const lh3Match = trimmed.match(/googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
+  if (lh3Match) return lh3Match[1];
+
+  // open?id=FILE_ID
+  const openMatch = trimmed.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
+  if (openMatch) return openMatch[1];
+
+  return null;
+}
+
+/**
+ * Build fast, dynamically compressed Google Drive image URLs with size parameters (e.g. s=200, w=200)
+ */
+export function buildGoogleDriveCompressedUrls(urlOrId: string, size = 200): string[] {
+  const fileId = extractGoogleDriveFileId(urlOrId);
+  if (!fileId) return [];
+
+  // Produce ordered candidate URLs from fastest compressed CDN to standard fallback
+  return [
+    // 1. Google High-Speed Content CDN with dynamic size constraint (WebP/JPEG auto-compressed)
+    `https://lh3.googleusercontent.com/d/${fileId}=s${size}`,
+    `https://lh3.googleusercontent.com/d/${fileId}=w${size}-h${size}-c`,
+    // 2. Google Drive Thumbnail API with dynamic width/height parameter
+    `https://drive.google.com/thumbnail?id=${fileId}&sz=w${size}-h${size}`,
+    `https://drive.google.com/thumbnail?id=${fileId}&s=${size}`,
+    // 3. Fallback direct export view
+    `https://drive.google.com/uc?export=view&id=${fileId}`
+  ];
+}
+
+/**
+ * Dynamically optimize any image URL (Google Drive, Cloudinary, etc.) for target size and bandwidth savings
+ */
+export function optimizeImageUrl(rawUrl: string, targetSize = 200, isDataSaver = false): string {
+  if (!rawUrl) return '';
+  const trimmed = rawUrl.trim();
+
+  // Check if it's a Google Drive link
+  const driveId = extractGoogleDriveFileId(trimmed);
+  if (driveId) {
+    const size = isDataSaver ? Math.min(targetSize, 200) : targetSize;
+    return `https://lh3.googleusercontent.com/d/${driveId}=s${size}`;
+  }
+
+  // Check if it's Cloudinary
+  if (trimmed.includes('res.cloudinary.com/') && trimmed.includes('/upload/')) {
+    const quality = isDataSaver ? 'eco' : 'auto';
+    const size = isDataSaver ? Math.min(targetSize, 240) : targetSize;
+    const transformation = `w_${size},c_limit,q_auto:${quality},f_auto`;
+    return trimmed.replace(/\/upload\/(?:[^\/]+\/)?/, `/upload/${transformation}/`);
+  }
+
+  return trimmed;
+}
+
+/**
  * Generate a clean, branded SVG placeholder image when no image is available
  */
 export function generateProductPlaceholderSvg(code: string, category: string, name: string): string {
@@ -251,9 +327,15 @@ export function getCandidateImageUrls(
   const candidates: string[] = [];
   const cloudName = config.cloudName?.trim() || 'dzdkhpr2y';
 
-  // 1. Direct explicit image URL if present
+  // 1. Direct explicit image URL if present (Google Drive or Cloudinary or Web CDN)
   if (product.imageUrl && product.imageUrl.startsWith('http') && !product.imageUrl.includes('unsplash.com')) {
-    candidates.push(product.imageUrl);
+    // If it's a Google Drive link, expand to high-speed compressed CDN URLs with s=200/w=200
+    const driveUrls = buildGoogleDriveCompressedUrls(product.imageUrl, 240);
+    if (driveUrls.length > 0) {
+      candidates.push(...driveUrls);
+    } else {
+      candidates.push(product.imageUrl);
+    }
   }
 
   // 2. Extract smart identifiers (Code, Arabic Name variations, Composites)

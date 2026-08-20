@@ -112,33 +112,54 @@ export function parseRawRowsToProducts(rawRows: any[]): {
 
   headers.forEach((h, idx) => {
     const norm = normalizeHeader(h);
-    if (norm.includes('كود') || norm.includes('code')) colMap.code = idx;
-    else if (norm.includes('اسمالصنف') || norm.includes('اسم') || norm.includes('البيان') || norm.includes('productname')) colMap.name = idx;
-    else if (norm.includes('اولويه') || norm.includes('priority')) colMap.salesPriority = idx;
-    else if (norm.includes('تصنيف') || norm.includes('category')) colMap.category = idx;
-    else if (norm.includes('حاله') || norm.includes('status')) colMap.status = idx;
-    else if (norm.includes('شده') || norm.includes('شدة') || norm.includes('كرتونه') || norm.includes('pack')) colMap.cartonQuantity = idx;
-    else if (norm.includes('حجم') || norm.includes('وزن') || norm.includes('size')) colMap.size = idx;
-    else if (norm.includes('لون') || norm.includes('color')) colMap.color = idx;
-    else if (norm.includes('قسم') || norm.includes('department')) colMap.department = idx;
-    else if (norm.includes('فئه') || norm.includes('class')) colMap.classification = idx;
-    else if (norm.includes('سعرالعرض') || norm.includes('عرض') || norm.includes('promo')) colMap.promoPrice = idx;
-    else if (norm.includes('سعرالقطعه') || norm.includes('قطعه') || norm.includes('piece')) colMap.piecePrice = idx;
-    else if (norm.includes('سعرالكرتونه') || norm.includes('كرتونه') || norm.includes('cartonprice')) colMap.cartonPrice = idx;
-    else if (norm.includes('اسمفرع') || (norm.includes('فرع') && !norm.includes('فعلي') && !norm.includes('فعلى') && !norm.includes('حجز') && !norm.includes('رصيد'))) colMap.branchName = idx;
-    else if (norm.includes('صوره') || norm.includes('image') || norm.includes('url')) colMap.imageUrl = idx;
-    else if (norm.includes('باركود') || norm.includes('barcode')) colMap.barcode = idx;
 
-    // Explicit Stock Header Matching
+    // 1. Stock columns (Highest priority to avoid overlap with branchName)
     const isBranch = norm.includes('فرع') || norm.includes('branch');
     const isWarehouse = norm.includes('مخزن') || norm.includes('رئيسي') || norm.includes('warehouse') || norm.includes('main') || norm.includes('اكتوبر');
     const isActual = norm.includes('فعلي') || norm.includes('فعلى') || norm.includes('actual');
     const isReserved = norm.includes('حجز') || norm.includes('reserved') || norm.includes('متاح') || norm.includes('available');
 
-    if (isBranch && isActual) colMap.branchStockActual = idx;
-    else if (isBranch && isReserved) colMap.branchStockReserved = idx;
-    else if (isWarehouse && isActual) colMap.mainWarehouseActual = idx;
-    else if (isWarehouse && isReserved) colMap.mainWarehouseReserved = idx;
+    if (isBranch && isActual) {
+      colMap.branchStockActual = idx;
+    } else if (isBranch && isReserved) {
+      colMap.branchStockReserved = idx;
+    } else if (isWarehouse && isActual) {
+      colMap.mainWarehouseActual = idx;
+    } else if (isWarehouse && isReserved) {
+      colMap.mainWarehouseReserved = idx;
+    } else if (norm.includes('كود') || norm.includes('code')) {
+      colMap.code = idx;
+    } else if (norm.includes('اسمالصنف') || norm.includes('اسم') || norm.includes('البيان') || norm.includes('productname')) {
+      colMap.name = idx;
+    } else if (norm.includes('اولويه') || norm.includes('priority')) {
+      colMap.salesPriority = idx;
+    } else if (norm.includes('تصنيف') || norm.includes('category')) {
+      colMap.category = idx;
+    } else if (norm.includes('حاله') || norm.includes('status')) {
+      colMap.status = idx;
+    } else if (norm.includes('شده') || norm.includes('شدة') || norm.includes('كرتونه') || norm.includes('pack')) {
+      colMap.cartonQuantity = idx;
+    } else if (norm.includes('حجم') || norm.includes('وزن') || norm.includes('size')) {
+      colMap.size = idx;
+    } else if (norm.includes('لون') || norm.includes('color')) {
+      colMap.color = idx;
+    } else if (norm.includes('قسم') || norm.includes('department')) {
+      colMap.department = idx;
+    } else if (norm.includes('فئه') || norm.includes('class')) {
+      colMap.classification = idx;
+    } else if (norm.includes('سعرالعرض') || norm.includes('عرض') || norm.includes('promo')) {
+      colMap.promoPrice = idx;
+    } else if (norm.includes('سعرالقطعه') || norm.includes('قطعه') || norm.includes('piece')) {
+      colMap.piecePrice = idx;
+    } else if (norm.includes('سعرالكرتونه') || norm.includes('كرتونه') || norm.includes('cartonprice')) {
+      colMap.cartonPrice = idx;
+    } else if (norm.includes('صوره') || norm.includes('صور') || norm.includes('لينك') || norm.includes('image') || norm.includes('url')) {
+      colMap.imageUrl = idx;
+    } else if (norm.includes('باركود') || norm.includes('barcode')) {
+      colMap.barcode = idx;
+    } else if (norm.includes('فرع') || norm.includes('branch')) {
+      colMap.branchName = idx;
+    }
   });
 
   // Fallback for generic sequential headers if explicit branch/warehouse names weren't present in header text

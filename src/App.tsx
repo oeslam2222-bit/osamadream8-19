@@ -61,8 +61,8 @@ const MainLayout: React.FC = () => {
         onOpenCart={() => setIsOrderModalOpen(true)}
       />
 
-      {/* Content Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-5">
+      {/* Content Container with bottom padding for mobile navigation bar */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-5 pb-24 md:pb-8">
         {activeTab === 'catalog' && (
           <ProductCatalog onOpenCart={() => setIsOrderModalOpen(true)} />
         )}
@@ -87,8 +87,8 @@ const MainLayout: React.FC = () => {
 
       {/* Floating Action / Cart Bar for Mobile Sales Reps */}
       {cart && cart.length > 0 && activeTab === 'catalog' && (
-        <div className="fixed bottom-4 left-4 right-4 z-40 max-w-md mx-auto animate-in slide-in-from-bottom-5">
-          <div className="bg-slate-900 text-white p-3.5 rounded-2xl shadow-2xl border border-slate-750 flex items-center justify-between">
+        <div className="fixed bottom-16 md:bottom-4 left-4 right-4 z-40 max-w-md mx-auto animate-in slide-in-from-bottom-5">
+          <div className="bg-slate-900 text-white p-3 sm:p-3.5 rounded-2xl shadow-2xl border border-slate-750 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
                 <ShoppingCart className="w-5 h-5" />
@@ -103,7 +103,7 @@ const MainLayout: React.FC = () => {
 
             <button
               onClick={() => setIsOrderModalOpen(true)}
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs shadow-md transition transform active:scale-95 flex items-center gap-1.5"
+              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs shadow-md transition transform active:scale-95 flex items-center gap-1.5 cursor-pointer"
             >
               <span>معاينة الفاتورة</span>
               <span className="font-bold text-[11px] bg-slate-950 text-amber-300 px-1.5 py-0.5 rounded-md">
@@ -132,15 +132,15 @@ const MainLayout: React.FC = () => {
       />
 
       {/* Bottom Footer */}
-      <footer className="bg-white border-t border-slate-200 py-4 px-4 text-center text-xs text-slate-500 print:hidden">
+      <footer className="bg-white border-t border-slate-200 py-4 px-4 text-center text-xs text-slate-500 print:hidden mb-16 md:mb-0">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="font-black text-slate-900">شركة دريم للتجارة والتوزيع</span>
+            <span className="font-black text-slate-900">شركة دريم طنطاوي للتجارة والتوزيع</span>
             <span className="text-slate-300">|</span>
-            <span>نظام إدارة المبيعات والمخازن والربط السحابي Cloudinary</span>
+            <span>نظام إدارة المبيعات والمخازن والربط السحابي وتوفير الباقة</span>
           </div>
           <div className="text-[11px] text-slate-400">
-            مستند للفاتورة الإلكترونية المصرية • يدعم العمل بدون إنترنت
+            مستند للفاتورة الإلكترونية المصرية • يدعم العمل بدون إنترنت وتثبيت التطبيق PWA
           </div>
         </div>
       </footer>

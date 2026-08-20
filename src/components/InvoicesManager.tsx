@@ -1,6 +1,6 @@
 import {
   Calendar,
-  CheckCircle,
+  CheckCircle2,
   Clock,
   Download,
   Eye,
@@ -11,10 +11,14 @@ import {
   Receipt,
   Search,
   Send,
+  ShieldCheck,
   Trash2,
   TrendingUp,
   User,
-  Users
+  UserCheck,
+  Users,
+  X,
+  XCircle
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -31,11 +35,24 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   onOpenNewOrder,
   onViewInvoice,
 }) => {
-  const { invoices, currentUser, users, updateOrderStatus, deleteInvoice, selectedBranchFilter } = useApp();
+  const {
+    invoices,
+    currentUser,
+    users,
+    updateOrderStatus,
+    deleteInvoice,
+    approveOrder,
+    forwardOrderToManager,
+    rejectOrder,
+    selectedBranchFilter
+  } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('الكل');
   const [selectedRepFilter, setSelectedRepFilter] = useState<string>('الكل');
+  const [rejectModalInvoiceId, setRejectModalInvoiceId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState<string>('نفاذ الكمية أو طلب العميل إلغاء الطلبية');
+  const [successToast, setSuccessToast] = useState<string | null>(null);
 
   // Role based filtering logic
   const accessibleInvoices = useMemo(() => {
@@ -94,9 +111,9 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
       return true;
     });
-  }, [invoices, currentUser, searchTerm, selectedStatus, selectedRepFilter, selectedBranchFilter]);
+  }, [invoices, currentUser, users, searchTerm, selectedStatus, selectedRepFilter, selectedBranchFilter]);
 
-  // Aggregate Metrics for Supervisor / Branch Manager / Admin
+  // Aggregate Metrics
   const metrics = useMemo(() => {
     let totalRevenue = 0;
     let totalCartons = 0;
@@ -107,7 +124,13 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       totalRevenue += inv.estimatedGrandTotal;
       totalCartons += inv.totalCartons;
       totalPieces += inv.totalPieces;
-      if (inv.status === 'قيد المراجعة') pendingCount++;
+      if (
+        inv.status === 'قيد مراجعة المشرف' ||
+        inv.status === 'معلقة بانتظار اعتماد الفرع' ||
+        inv.status === 'قيد المراجعة'
+      ) {
+        pendingCount++;
+      }
     });
 
     return { totalRevenue, totalCartons, totalPieces, pendingCount, count: accessibleInvoices.length };
@@ -119,18 +142,63 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     return ['الكل', ...Array.from(set)];
   }, [invoices]);
 
-  const statusStyles: Record<OrderStatus, { bg: string; text: string }> = {
+  const statusStyles: Record<string, { bg: string; text: string; label?: string }> = {
     'مسودة': { bg: 'bg-slate-100 border-slate-300', text: 'text-slate-700' },
-    'قيد المراجعة': { bg: 'bg-amber-100 border-amber-300 animate-pulse', text: 'text-amber-800' },
-    'معتمدة': { bg: 'bg-blue-100 border-blue-300', text: 'text-blue-800' },
+    'قيد مراجعة المشرف': { bg: 'bg-amber-100 border-amber-300 animate-pulse', text: 'text-amber-900', label: 'قيد مراجعة المشرف ⏳' },
+    'معلقة بانتظار اعتماد الفرع': { bg: 'bg-blue-100 border-blue-300 animate-pulse', text: 'text-blue-900', label: 'بانتظار مدير الفرع 🏛️' },
+    'قيد المراجعة': { bg: 'bg-amber-100 border-amber-300', text: 'text-amber-800' },
+    'معتمدة ومصروفة من المخزن': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-800', label: 'معتمدة ومصروفة ✅' },
+    'معتمدة': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-800' },
     'جاري التجهيز': { bg: 'bg-indigo-100 border-indigo-300', text: 'text-indigo-800' },
-    'تم التسليم': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-800' },
+    'تم التسليم': { bg: 'bg-teal-100 border-teal-300', text: 'text-teal-800' },
+    'مرفوضة / ملغاة': { bg: 'bg-rose-100 border-rose-300', text: 'text-rose-800', label: 'مرفوضة / ملغاة ❌' },
     'ملغاة': { bg: 'bg-rose-100 border-rose-300', text: 'text-rose-800' },
+  };
+
+  const handleApproveClick = (invoiceId: string) => {
+    const res = approveOrder(invoiceId, 'تم اعتماد الطلبية وصرف الرصيد من المخزن');
+    if (res.success) {
+      setSuccessToast(res.message);
+      setTimeout(() => setSuccessToast(null), 4000);
+    } else {
+      alert(res.message);
+    }
+  };
+
+  const handleForwardClick = (invoiceId: string) => {
+    const res = forwardOrderToManager(invoiceId, 'تم إرسال الطلبية لمدير الفرع للموافقة النهائية');
+    if (res.success) {
+      setSuccessToast(res.message);
+      setTimeout(() => setSuccessToast(null), 4000);
+    }
+  };
+
+  const handleRejectConfirm = () => {
+    if (!rejectModalInvoiceId) return;
+    const res = rejectOrder(rejectModalInvoiceId, rejectReason);
+    if (res.success) {
+      setSuccessToast(res.message);
+      setRejectModalInvoiceId(null);
+      setTimeout(() => setSuccessToast(null), 4000);
+    }
   };
 
   return (
     <div className="space-y-4 pb-16">
       
+      {/* Success Notification Toast */}
+      {successToast && (
+        <div className="bg-emerald-600 text-white p-3.5 rounded-2xl shadow-xl flex items-center justify-between text-xs animate-in fade-in sticky top-20 z-30">
+          <div className="flex items-center gap-2 font-bold">
+            <CheckCircle2 className="w-5 h-5 text-emerald-200" />
+            <span>{successToast}</span>
+          </div>
+          <button onClick={() => setSuccessToast(null)} className="text-white hover:text-emerald-200">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Header & High Level Metrics Cards */}
       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
         
@@ -143,13 +211,13 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               </span>
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              متابعة طلبات المناديب والعملاء • إصدار شيتات إكسل وتتبع الفواتير الإلكترونية
+              متابعة طلبات المناديب والعملاء • دورة الاعتماد والصرف المخزني • تصدير إكسل رسمي
             </p>
           </div>
 
           <button
             onClick={onOpenNewOrder}
-            className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95"
+            className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>إنشاء فاتورة / طلبية جديدة</span>
@@ -158,93 +226,80 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
         {/* Dashboard Aggregate Stat Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-          
-          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200">
-            <span className="text-[11px] text-slate-500 font-bold block">إجمالي القيمة المتوقعة</span>
-            <div className="text-lg font-black text-amber-600 mt-0.5">
+          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
+            <div className="text-[11px] text-slate-500 font-bold">إجمالي مبيعات الفواتير</div>
+            <div className="text-base sm:text-lg font-black text-slate-900">
               {formatCurrency(metrics.totalRevenue)}
             </div>
-            <span className="text-[10px] text-slate-400">إجمالي الفواتير النشطة</span>
           </div>
 
-          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200">
-            <span className="text-[11px] text-slate-500 font-bold block">إجمالي عدد الكراتين</span>
-            <div className="text-lg font-black text-slate-900 mt-0.5">
+          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
+            <div className="text-[11px] text-slate-500 font-bold">إجمالي الكراتين المطلوبة</div>
+            <div className="text-base sm:text-lg font-black text-amber-800">
               {metrics.totalCartons} كرتونة
             </div>
-            <span className="text-[10px] text-slate-400">+ {metrics.totalPieces} قطعة منفردة</span>
           </div>
 
-          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200">
-            <span className="text-[11px] text-slate-500 font-bold block">فواتير قيد المراجعة</span>
-            <div className="text-lg font-black text-amber-700 mt-0.5">
+          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
+            <div className="text-[11px] text-slate-500 font-bold">إجمالي القطع</div>
+            <div className="text-base sm:text-lg font-black text-slate-900">
+              {metrics.totalPieces} قطعة
+            </div>
+          </div>
+
+          <div className="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 space-y-1">
+            <div className="text-[11px] text-amber-800 font-bold">طلبيات معلقة بانتظار الاعتماد</div>
+            <div className="text-base sm:text-lg font-black text-amber-900">
               {metrics.pendingCount} طلبية
             </div>
-            <span className="text-[10px] text-slate-400">تحتاج اعتماد مدير الفرع</span>
+          </div>
+        </div>
+
+        {/* Search & Filter Controls */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
+          <div className="relative">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="ابحث برقم الفاتورة، اسم العميل، الهاتف، المندوب..."
+              className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 text-xs"
+            />
           </div>
 
-          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200">
-            <span className="text-[11px] text-slate-500 font-bold block">نطاق العرض والصلاحية</span>
-            <div className="text-xs font-black text-slate-800 mt-1 truncate">
-              {currentUser.role === 'sales_rep' ? 'فواتير المندوب الشخصية' : currentUser.branchName}
-            </div>
-            <span className="text-[10px] text-slate-400">{currentUser.name}</span>
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* Filters Bar */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
-        
-        {/* Search */}
-        <div className="relative flex-1 min-w-[220px]">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="ابحث برقم الفاتورة، اسم العميل، المندوب..."
-            className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 text-xs"
-          />
-        </div>
-
-        {/* Status Filter */}
-        <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
-          <span className="text-slate-500 font-bold">الحالة:</span>
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer"
-          >
-            <option value="الكل">كل الحالات</option>
-            <option value="قيد المراجعة">قيد المراجعة</option>
-            <option value="معتمدة">معتمدة</option>
-            <option value="جاري التجهيز">جاري التجهيز</option>
-            <option value="تم التسليم">تم التسليم</option>
-            <option value="مسودة">مسودة</option>
-            <option value="ملغاة">ملغاة</option>
-          </select>
-        </div>
-
-        {/* Rep Filter for supervisors/managers */}
-        {currentUser.role !== 'sales_rep' && (
           <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
-            <span className="text-slate-500 font-bold">المندوب:</span>
+            <span className="text-slate-500 font-bold">الحالة:</span>
             <select
-              value={selectedRepFilter}
-              onChange={(e) => setSelectedRepFilter(e.target.value)}
-              className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer"
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer w-full"
             >
-              {repsList.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
+              <option value="الكل">كل الحالات</option>
+              <option value="قيد مراجعة المشرف">قيد مراجعة المشرف</option>
+              <option value="معلقة بانتظار اعتماد الفرع">بانتظار مدير الفرع</option>
+              <option value="معتمدة ومصروفة من المخزن">معتمدة ومصروفة</option>
+              <option value="مرفوضة / ملغاة">مرفوضة / ملغاة</option>
             </select>
           </div>
-        )}
+
+          {currentUser?.role !== 'sales_rep' && (
+            <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+              <span className="text-slate-500 font-bold">المندوب:</span>
+              <select
+                value={selectedRepFilter}
+                onChange={(e) => setSelectedRepFilter(e.target.value)}
+                className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer w-full"
+              >
+                {repsList.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
 
       </div>
 
@@ -255,7 +310,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
           <div className="p-12 text-center space-y-3">
             <Receipt className="w-12 h-12 text-slate-300 mx-auto" />
             <h3 className="text-base font-bold text-slate-700">لا توجد فواتير مطابقة للبحث</h3>
-            <p className="text-xs text-slate-400">اضغط على زر (إنشاء طلبية جديدة) لإصدار فاتورة جديدة للعميل</p>
+            <p className="text-xs text-slate-400">اضغط على زر (إنشاء فاتورة / طلبية جديدة) لإصدار فاتورة جديدة للعميل</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -269,13 +324,25 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                   <th className="p-3.5 text-center">الكميات (كراتين/قطع)</th>
                   <th className="p-3.5 text-left">إجمالي الفاتورة</th>
                   <th className="p-3.5 text-center">طريقة السداد</th>
-                  <th className="p-3.5 text-center">حالة الفاتورة</th>
-                  <th className="p-3.5 text-center">إجراءات الفاتورة</th>
+                  <th className="p-3.5 text-center">حالة الفاتورة والاعتماد</th>
+                  <th className="p-3.5 text-center">الإجراءات والعمليات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {accessibleInvoices.map((invoice) => {
-                  const style = statusStyles[invoice.status] || { bg: 'bg-slate-100 text-slate-800' };
+                  const style = statusStyles[invoice.status] || {
+                    bg: 'bg-slate-100 border-slate-300',
+                    text: 'text-slate-800',
+                    label: invoice.status
+                  };
+                  const isPending =
+                    invoice.status === 'قيد مراجعة المشرف' ||
+                    invoice.status === 'معلقة بانتظار اعتماد الفرع' ||
+                    invoice.status === 'قيد المراجعة';
+
+                  const canApprove =
+                    (currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin') &&
+                    isPending;
 
                   return (
                     <tr key={invoice.id} className="hover:bg-amber-50/30 transition">
@@ -330,35 +397,53 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
                       {/* Status Dropdown / Badge */}
                       <td className="p-3 text-center">
-                        {currentUser.role === 'admin' || currentUser.role === 'branch_manager' ? (
-                          <select
-                            aria-label="تغيير حالة الفاتورة"
-                            value={invoice.status}
-                            onChange={(e) => updateOrderStatus(invoice.id, e.target.value as OrderStatus)}
-                            className={`text-[11px] font-bold px-2 py-1 rounded-lg border focus:outline-none cursor-pointer ${style.bg} ${style.text}`}
-                          >
-                            <option value="مسودة">مسودة</option>
-                            <option value="قيد المراجعة">قيد المراجعة</option>
-                            <option value="معتمدة">معتمدة</option>
-                            <option value="جاري التجهيز">جاري التجهيز</option>
-                            <option value="تم التسليم">تم التسليم</option>
-                            <option value="ملغاة">ملغاة</option>
-                          </select>
-                        ) : (
-                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${style.bg} ${style.text}`}>
-                            {invoice.status}
-                          </span>
-                        )}
+                        <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold border ${style.bg} ${style.text}`}>
+                          {style.label || invoice.status}
+                        </span>
                       </td>
 
                       {/* Actions */}
                       <td className="p-3">
-                        <div className="flex items-center justify-center gap-1.5">
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
                           
+                          {/* Fast Approval Action for Supervisor/Manager */}
+                          {canApprove && (
+                            <>
+                              <button
+                                onClick={() => handleApproveClick(invoice.id)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                title="اعتماد وصرف المخزون"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>اعتماد</span>
+                              </button>
+
+                              {currentUser?.role === 'supervisor' && invoice.status === 'قيد مراجعة المشرف' && (
+                                <button
+                                  onClick={() => handleForwardClick(invoice.id)}
+                                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                  title="إرسال لمدير الفرع"
+                                >
+                                  <Send className="w-3.5 h-3.5" />
+                                  <span>للمدير</span>
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => setRejectModalInvoiceId(invoice.id)}
+                                className="bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer border border-rose-300"
+                                title="رفض وإرجاع الرصيد المحجوز"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                <span>رفض</span>
+                              </button>
+                            </>
+                          )}
+
                           {/* View E-Invoice */}
                           <button
                             onClick={() => onViewInvoice(invoice)}
-                            className="bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition shadow-xs"
+                            className="bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition shadow-xs cursor-pointer"
                             title="عرض الفاتورة الإلكترونية والباركود"
                           >
                             <Eye className="w-3.5 h-3.5" />
@@ -368,7 +453,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           {/* Export Excel (.xlsx) */}
                           <button
                             onClick={() => exportElectronicInvoiceToExcel(invoice)}
-                            className="bg-emerald-700 hover:bg-emerald-800 text-white p-1.5 rounded-lg transition"
+                            className="bg-emerald-700 hover:bg-emerald-800 text-white p-1.5 rounded-lg transition cursor-pointer"
                             title="تحميل شيت إكسل رسمي"
                           >
                             <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -377,21 +462,21 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           {/* Share WhatsApp */}
                           <button
                             onClick={() => shareInvoiceViaWhatsApp(invoice)}
-                            className="bg-green-600 hover:bg-green-700 text-white p-1.5 rounded-lg transition"
+                            className="bg-green-600 hover:bg-green-700 text-white p-1.5 rounded-lg transition cursor-pointer"
                             title="مشاركة تفاصيل الفاتورة عبر واتساب"
                           >
                             <Send className="w-3.5 h-3.5" />
                           </button>
 
                           {/* Delete (Admin only) */}
-                          {currentUser.role === 'admin' && (
+                          {currentUser?.role === 'admin' && (
                             <button
                               onClick={() => {
                                 if (window.confirm(`هل أنت متأكد من حذف الفاتورة رقم ${invoice.invoiceNumber}؟`)) {
                                   deleteInvoice(invoice.id);
                                 }
                               }}
-                              className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg transition"
+                              className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg transition cursor-pointer"
                               title="حذف الفاتورة"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -410,6 +495,53 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         )}
 
       </div>
+
+      {/* Reject Order Reason Prompt Modal */}
+      {rejectModalInvoiceId && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-black text-sm text-rose-700 flex items-center gap-2">
+                <XCircle className="w-4 h-4" />
+                <span>رفض الطلبية وإرجاع الرصيد المحجوز للمخزن</span>
+              </h3>
+              <button onClick={() => setRejectModalInvoiceId(null)}>
+                <X className="w-4 h-4 text-slate-400 hover:text-slate-700 cursor-pointer" />
+              </button>
+            </div>
+
+            <div className="text-xs space-y-3">
+              <p className="text-slate-600">
+                سيتم فك حجز الأصناف وإرجاع الكميات فوراً للرصيد المتاح للبيع حتى يتمكن باقي المناديب من بيعها.
+              </p>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">سبب الرفض:</label>
+                <textarea
+                  rows={3}
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-rose-400"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                onClick={handleRejectConfirm}
+                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer"
+              >
+                تأكيد الرفض وإرجاع المخزون
+              </button>
+              <button
+                onClick={() => setRejectModalInvoiceId(null)}
+                className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200 cursor-pointer"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

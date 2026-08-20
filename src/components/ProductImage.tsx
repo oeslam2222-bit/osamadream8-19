@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ImageOff, Sparkles, Package } from 'lucide-react';
+import { useApp } from '../context/AppContext';
 import { getCandidateImageUrls, generateProductPlaceholderSvg } from '../services/cloudinaryService';
 import { CloudinaryConfig, Product } from '../types';
 
@@ -9,6 +10,8 @@ interface ProductImageProps {
   className?: string;
   containerClassName?: string;
   showBadgeOnFallback?: boolean;
+  targetSize?: number;
+  sizeVariant?: 'thumbnail' | 'card' | 'modal' | 'full';
   onClick?: () => void;
   alt?: string;
 }
@@ -19,12 +22,55 @@ export const ProductImage: React.FC<ProductImageProps> = ({
   className = 'w-full h-full object-cover',
   containerClassName = 'relative w-full h-full bg-slate-900 overflow-hidden flex items-center justify-center',
   showBadgeOnFallback = true,
+  targetSize,
+  sizeVariant = 'card',
   onClick,
   alt
 }) => {
+  const { dataSaverMode } = useApp();
+
+  // Determine optimal size based on variant and data saver mode
+  const effectiveSize = useMemo(() => {
+    if (targetSize) return targetSize;
+    if (dataSaverMode) {
+      if (sizeVariant === 'thumbnail') return 120;
+      if (sizeVariant === 'card') return 200; // Compressed s=200 for phone catalog cards
+      return 400; // for modal
+    }
+    if (sizeVariant === 'thumbnail') return 180;
+    if (sizeVariant === 'card') return 360;
+    return 800; // modal
+  }, [targetSize, sizeVariant, dataSaverMode]);
+
   const candidateUrls = useMemo(() => {
-    return getCandidateImageUrls(product, cloudinaryConfig);
-  }, [product.code, product.name, product.imageUrl, product.cloudinaryPublicId, cloudinaryConfig]);
+    let urls = getCandidateImageUrls(product, cloudinaryConfig);
+    
+    // Apply dynamic parameter sizing for Google Drive and Cloudinary
+    return urls.map(url => {
+      // 1. Google Drive & Google CDN URLs (Dynamic compression parameter s=200 or sz=w200)
+      if (url.includes('googleusercontent.com/d/')) {
+        if (url.includes('=s') || url.includes('=w')) {
+          return url.replace(/=(s|w)\d+[^&]*/, `=s${effectiveSize}`);
+        }
+        return `${url}=s${effectiveSize}`;
+      }
+
+      if (url.includes('drive.google.com/thumbnail')) {
+        if (url.includes('&s=') || url.includes('&sz=')) {
+          return url.replace(/&(s|sz)=[^&]+/, `&sz=w${effectiveSize}-h${effectiveSize}`);
+        }
+        return `${url}&sz=w${effectiveSize}-h${effectiveSize}`;
+      }
+
+      // 2. Cloudinary URLs
+      if (url.includes('res.cloudinary.com/') && url.includes('/upload/')) {
+        const quality = dataSaverMode ? 'eco' : 'auto';
+        return url.replace(/\/upload\/[^/]+\//, `/upload/f_auto,q_auto:${quality},w_${effectiveSize},c_limit/`);
+      }
+
+      return url;
+    });
+  }, [product.code, product.name, product.imageUrl, product.cloudinaryPublicId, cloudinaryConfig, dataSaverMode, effectiveSize]);
 
   const [candidateIndex, setCandidateIndex] = useState(0);
   const [hasExhausted, setHasExhausted] = useState(false);

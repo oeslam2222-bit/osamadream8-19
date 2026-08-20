@@ -1,0 +1,21 @@
+{
+  "name": "دريم طنطاوي | Dream Tantawy",
+  "short_name": "دريم طنطاوي",
+  "description": "منظومة المبيعات وإدارة المخزون والكتالوج والفواتير لشركة دريم للتجارة والتوزيع",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "any",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity", "utilities"]
+}

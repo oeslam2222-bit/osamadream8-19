@@ -4,10 +4,15 @@ import {
   Check,
   CheckCircle2,
   Clock,
+  Cloud,
+  CloudDownload,
+  CloudUpload,
+  Database,
   Edit2,
   Key,
   Lock,
   Plus,
+  RefreshCw,
   Shield,
   ShieldAlert,
   ShieldCheck,
@@ -35,12 +40,25 @@ export const UserManager: React.FC = () => {
     rejectUser,
     assignSupervisor,
     getSupervisorsInBranch,
-    loginAs
+    loginAs,
+    supabaseStatus,
+    isSupabaseSyncing,
+    syncWithSupabase,
   } = useApp();
 
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('الكل');
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+
+  const handleSyncSupabase = async (direction: 'fetch' | 'push' | 'both') => {
+    setSyncFeedback(null);
+    const res = await syncWithSupabase(direction);
+    setSyncFeedback(res.message);
+    setTimeout(() => {
+      setSyncFeedback(null);
+    }, 6000);
+  };
 
   // Approval modal state
   const [approvingUser, setApprovingUser] = useState<User | null>(null);
@@ -54,7 +72,7 @@ export const UserManager: React.FC = () => {
     email: '',
     password: '123',
     role: 'sales_rep',
-    branchName: 'فرع القاهرة - مدينة نصر',
+    branchName: 'فرع القاهرة (الفرع الرئيسي والمخزن المركزي)',
     supervisorId: '',
     phone: '',
     commissionRate: 2.5,
@@ -168,7 +186,7 @@ export const UserManager: React.FC = () => {
                 email: '',
                 password: '123',
                 role: 'sales_rep',
-                branchName: 'فرع القاهرة - مدينة نصر',
+                branchName: 'فرع القاهرة (الفرع الرئيسي والمخزن المركزي)',
                 supervisorId: '',
                 phone: '',
                 commissionRate: 2.5,
@@ -183,6 +201,57 @@ export const UserManager: React.FC = () => {
             <span>إنشاء حساب جديد (مندوب / مشرف / أدمن)</span>
           </button>
         </div>
+      </div>
+
+      {/* Supabase Database Connection & Cloud Sync Card */}
+      <div className="bg-gradient-to-br from-emerald-900 via-slate-900 to-slate-950 text-white rounded-3xl p-5 shadow-lg border border-emerald-500/30 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-400">
+              <Database className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-sm">قاعدة بيانات Supabase السحابية (المجانية)</span>
+                <span className="bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>متصل بنجاح</span>
+                </span>
+              </div>
+              <p className="text-[11px] text-emerald-200/80 font-mono pt-0.5">
+                kjdpayvavaarlcochzgt.supabase.co • تم ربط وتفعيل قاعدة البيانات المشتركة لليوزرات والفروع
+              </p>
+            </div>
+          </div>
+
+          {/* Sync Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => handleSyncSupabase('fetch')}
+              disabled={isSupabaseSyncing}
+              className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-slate-950 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSupabaseSyncing ? 'animate-spin' : ''}`} />
+              <span>جلب ومزامنة اليوزرات</span>
+            </button>
+            <button
+              onClick={() => handleSyncSupabase('push')}
+              disabled={isSupabaseSyncing}
+              className="bg-slate-800 hover:bg-slate-700 border border-emerald-500/40 text-emerald-300 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95"
+            >
+              <CloudUpload className="w-3.5 h-3.5" />
+              <span>رفع الحسابات الحالية لـ Supabase</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Sync Toast Feedback */}
+        {syncFeedback && (
+          <div className="bg-emerald-500/20 border border-emerald-400/50 text-emerald-200 text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-2 animate-in fade-in">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{syncFeedback}</span>
+          </div>
+        )}
       </div>
 
       {/* PENDING APPROVALS SECTION (Requests from login/register page) */}
@@ -262,7 +331,12 @@ export const UserManager: React.FC = () => {
       {/* Role Hierarchy Matrix Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {(Object.keys(roleConfigs) as UserRole[]).map((roleKey) => {
-          const cfg = roleConfigs[roleKey];
+          const cfg = roleConfigs[roleKey] || {
+            label: roleKey,
+            bg: 'bg-slate-100 border-slate-300',
+            text: 'text-slate-800',
+            desc: ''
+          };
           const count = users.filter((u) => u.role === roleKey && u.approvalStatus === 'active').length;
 
           return (
@@ -322,7 +396,12 @@ export const UserManager: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {activeUsers.map((user) => {
-                const cfg = roleConfigs[user.role];
+                const cfg = roleConfigs[user.role] || {
+                  label: user.role || 'مندوب مبيعات',
+                  bg: 'bg-emerald-100 border-emerald-300',
+                  text: 'text-emerald-800',
+                  desc: ''
+                };
                 const isCurrent = currentUser?.id === user.id;
                 const branchSupervisors = getSupervisorsInBranch(user.branchName);
 
