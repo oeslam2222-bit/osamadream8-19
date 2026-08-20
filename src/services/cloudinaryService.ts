@@ -3,7 +3,7 @@ import { CloudinaryConfig, Product } from '../types';
 export const DEFAULT_CLOUDINARY_CONFIG: CloudinaryConfig = {
   cloudName: 'dzdkhpr2y',
   folderPrefix: '',
-  defaultTransformation: 'f_auto,q_auto,w_500,c_fill',
+  defaultTransformation: 'f_auto,q_auto:good,w_500,c_limit,fl_progressive',
   matchingPattern: 'auto',
   fileExtension: 'png',
   baseUrlPattern: 'https://res.cloudinary.com/{cloudName}/image/upload/{transformations}/{folder}/{filename}.{extension}'
@@ -67,18 +67,16 @@ export function optimizeImageUrl(rawUrl: string, targetSize = 200, isDataSaver =
   if (!rawUrl) return '';
   const trimmed = rawUrl.trim();
 
-  // Check if it's a Google Drive link
   const driveId = extractGoogleDriveFileId(trimmed);
   if (driveId) {
     const size = isDataSaver ? Math.min(targetSize, 200) : targetSize;
     return `https://lh3.googleusercontent.com/d/${driveId}=s${size}`;
   }
 
-  // Check if it's Cloudinary
   if (trimmed.includes('res.cloudinary.com/') && trimmed.includes('/upload/')) {
-    const quality = isDataSaver ? 'eco' : 'auto';
+    const quality = isDataSaver ? 'eco' : 'good';
     const size = isDataSaver ? Math.min(targetSize, 240) : targetSize;
-    const transformation = `w_${size},c_limit,q_auto:${quality},f_auto`;
+    const transformation = `w_${size},c_limit,q_auto:${quality},f_auto,fl_progressive`;
     return trimmed.replace(/\/upload\/(?:[^\/]+\/)?/, `/upload/${transformation}/`);
   }
 
@@ -94,17 +92,17 @@ export function generateProductPlaceholderSvg(code: string, category: string, na
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
     <defs>
       <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#f1f5f9" />
-        <stop offset="50%" stop-color="#e2e8f0" />
-        <stop offset="100%" stop-color="#cbd5e1" />
+        <stop offset="0%" stop-color="#0f172a" />
+        <stop offset="50%" stop-color="#1e293b" />
+        <stop offset="100%" stop-color="#334155" />
       </linearGradient>
     </defs>
     <rect width="400" height="400" fill="url(#bg)" rx="24"/>
-    <circle cx="200" cy="160" r="60" fill="#f59e0b" opacity="0.2" />
-    <path d="M170 160 L200 130 L230 160 L200 190 Z" fill="#fbbf24" opacity="0.9"/>
-    <text x="200" y="245" font-family="system-ui, sans-serif" font-size="20" font-weight="900" fill="#475569" text-anchor="middle">${shortCode}</text>
-    <text x="200" y="275" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#64748b" text-anchor="middle">${cat}</text>
-    <text x="200" y="340" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8" text-anchor="middle">No Image</text>
+    <circle cx="200" cy="160" r="60" fill="#f59e0b" opacity="0.15" />
+    <path d="M170 160 L200 130 L230 160 L200 190 Z" fill="#fbbf24" opacity="0.8"/>
+    <text x="200" y="245" font-family="system-ui, sans-serif" font-size="20" font-weight="900" fill="#f8fafc" text-anchor="middle">${shortCode}</text>
+    <text x="200" y="275" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#94a3b8" text-anchor="middle">${cat}</text>
+    <text x="200" y="340" font-family="system-ui, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">Cloudinary Image</text>
   </svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
