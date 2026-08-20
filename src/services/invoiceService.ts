@@ -2,11 +2,14 @@ import { COMPANY_INFO } from '../data/mockData';
 import { Invoice } from '../types';
 
 /**
- * Format Egyptian Pound currency
+ * Format Egyptian Pound currency with robust fallback
  */
 export function formatCurrency(amount: number | undefined): string {
-  if (amount === undefined || isNaN(amount)) return '0.00 ج.م';
-  return `${amount.toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج.م`;
+  if (amount === undefined || isNaN(amount) || !isFinite(amount)) return '0.00 ج.م';
+  const rounded = Math.round(amount * 100) / 100;
+  const parts = rounded.toFixed(2).split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${parts[0]}.${parts[1]} ج.م`;
 }
 
 /**
