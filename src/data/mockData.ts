@@ -121,7 +121,7 @@ export const INITIAL_USERS: User[] = [
     username: 'admin',
     email: 'oeslam2222@gmail.com',
     password: 'admin',
-    role: 'admin',
+     role: 'admin',
     branchName: 'فرع القاهرة (الفرع الرئيسي والمخزن المركزي)',
     phone: '01000000001',
     isActive: true,
