@@ -12,11 +12,41 @@ export default defineConfig(() => {
       },
     },
     server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+    },
+    build: {
+      minify: 'esbuild',
+      esbuild: {
+        drop: ['debugger'],
+      },
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom'],
+            'vendor-icons': ['lucide-react'],
+            'vendor-data': ['xlsx', '@supabase/supabase-js', '@google/genai'],
+          },
+          chunkFileNames: 'assets/js/[name]-[hash].js',
+          entryFileNames: 'assets/js/[name]-[hash].js',
+          assetFileNames: (assetInfo) => {
+            if (assetInfo.name?.endsWith('.css')) {
+              return 'assets/css/[name]-[hash][extname]';
+            }
+            const extType = assetInfo.name?.split('.').pop();
+            if (extType === 'png' || extType === 'jpg' || extType === 'jpeg' || extType === 'gif' || extType === 'svg' || extType === 'webp') {
+              return 'assets/images/[name]-[hash][extname]';
+            }
+            if (extType === 'woff' || extType === 'woff2' || extType === 'ttf' || extType === 'eot') {
+              return 'assets/fonts/[name]-[hash][extname]';
+            }
+            return 'assets/[name]-[hash][extname]';
+          },
+        },
+      },
+      chunkSizeWarningLimit: 800,
+      sourcemap: false,
+      reportCompressedSize: false,
     },
   };
 });
