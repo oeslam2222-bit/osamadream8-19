@@ -3,7 +3,7 @@ import { CloudinaryConfig, Product } from '../types';
 export const DEFAULT_CLOUDINARY_CONFIG: CloudinaryConfig = {
   cloudName: 'dzdkhpr2y',
   folderPrefix: '',
-  defaultTransformation: 'f_auto,q_auto:good,w_500,c_limit,fl_progressive',
+  defaultTransformation: 'f_auto,q_auto,w_500,c_fill',
   matchingPattern: 'auto',
   fileExtension: 'png',
   baseUrlPattern: 'https://res.cloudinary.com/{cloudName}/image/upload/{transformations}/{folder}/{filename}.{extension}'
@@ -67,16 +67,18 @@ export function optimizeImageUrl(rawUrl: string, targetSize = 200, isDataSaver =
   if (!rawUrl) return '';
   const trimmed = rawUrl.trim();
 
+  // Check if it's a Google Drive link
   const driveId = extractGoogleDriveFileId(trimmed);
   if (driveId) {
     const size = isDataSaver ? Math.min(targetSize, 200) : targetSize;
     return `https://lh3.googleusercontent.com/d/${driveId}=s${size}`;
   }
 
+  // Check if it's Cloudinary
   if (trimmed.includes('res.cloudinary.com/') && trimmed.includes('/upload/')) {
-    const quality = isDataSaver ? 'eco' : 'good';
+    const quality = isDataSaver ? 'eco' : 'auto';
     const size = isDataSaver ? Math.min(targetSize, 240) : targetSize;
-    const transformation = `w_${size},c_limit,q_auto:${quality},f_auto,fl_progressive`;
+    const transformation = `w_${size},c_limit,q_auto:${quality},f_auto`;
     return trimmed.replace(/\/upload\/(?:[^\/]+\/)?/, `/upload/${transformation}/`);
   }
 

@@ -14,7 +14,7 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
-import React, { Suspense, useState, lazy } from 'react';
+import React, { useState } from 'react';
 import { AccountingSyncView } from './components/AccountingSyncView';
 import { CloudinaryManager } from './components/CloudinaryManager';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
@@ -29,22 +29,6 @@ import { UserManager } from './components/UserManager';
 import { AppProvider, useApp } from './context/AppContext';
 import { Invoice } from './types';
 
-const LoadingFallback: React.FC = () => (
-  <div className="flex items-center justify-center py-20">
-    <div className="flex flex-col items-center gap-3">
-      <div className="w-10 h-10 border-4 border-amber-400 border-t-transparent rounded-full animate-spin" />
-      <span className="text-sm font-bold text-slate-500">جاري التحميل...</span>
-    </div>
-  </div>
-);
-
-const LazyInvoicesManager = lazy(() => import('./components/InvoicesManager').then(m => ({ default: m.InvoicesManager })));
-const LazyInventoryStockView = lazy(() => import('./components/InventoryStockView').then(m => ({ default: m.InventoryStockView })));
-const LazyExcelImportExport = lazy(() => import('./components/ExcelImportExport').then(m => ({ default: m.ExcelImportExport })));
-const LazyCloudinaryManager = lazy(() => import('./components/CloudinaryManager').then(m => ({ default: m.CloudinaryManager })));
-const LazyUserManager = lazy(() => import('./components/UserManager').then(m => ({ default: m.UserManager })));
-const LazyAccountingSyncView = lazy(() => import('./components/AccountingSyncView').then(m => ({ default: m.AccountingSyncView })));
-
 const MainLayout: React.FC = () => {
   const { cart, isOffline, currentUser, isAuthenticated, getCartSummary } = useApp();
 
@@ -52,6 +36,7 @@ const MainLayout: React.FC = () => {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
 
+  // If user is not logged in, show dedicated Login / Registration Page
   if (!isAuthenticated || !currentUser) {
     return <LoginPage />;
   }
@@ -61,6 +46,7 @@ const MainLayout: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col text-slate-900 font-sans antialiased selection:bg-amber-400 selection:text-slate-950">
       
+      {/* Offline Status Top Bar if offline */}
       {isOffline && (
         <div className="bg-amber-600 text-white text-xs py-1.5 px-4 text-center font-bold flex items-center justify-center gap-2 shadow-inner">
           <WifiOff className="w-3.5 h-3.5" />
@@ -68,34 +54,38 @@ const MainLayout: React.FC = () => {
         </div>
       )}
 
+      {/* Main Responsive Navbar */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenCart={() => setIsOrderModalOpen(true)}
       />
 
+      {/* Content Container with bottom padding for mobile navigation bar */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-5 pb-24 md:pb-8">
         {activeTab === 'catalog' && (
           <ProductCatalog onOpenCart={() => setIsOrderModalOpen(true)} />
         )}
 
-        {activeTab !== 'catalog' && (
-          <Suspense fallback={<LoadingFallback />}>
-            {activeTab === 'invoices' && (
-              <LazyInvoicesManager
-                onOpenNewOrder={() => setIsOrderModalOpen(true)}
-                onViewInvoice={(inv) => setViewingInvoice(inv)}
-              />
-            )}
-            {activeTab === 'inventory' && <LazyInventoryStockView />}
-            {activeTab === 'excel' && <LazyExcelImportExport />}
-            {activeTab === 'cloudinary' && <LazyCloudinaryManager />}
-            {activeTab === 'users' && <LazyUserManager />}
-            {activeTab === 'accounting' && <LazyAccountingSyncView />}
-          </Suspense>
+        {activeTab === 'invoices' && (
+          <InvoicesManager
+            onOpenNewOrder={() => setIsOrderModalOpen(true)}
+            onViewInvoice={(inv) => setViewingInvoice(inv)}
+          />
         )}
+
+        {activeTab === 'inventory' && <InventoryStockView />}
+
+        {activeTab === 'excel' && <ExcelImportExport />}
+
+        {activeTab === 'cloudinary' && <CloudinaryManager />}
+
+        {activeTab === 'users' && <UserManager />}
+
+        {activeTab === 'accounting' && <AccountingSyncView />}
       </main>
 
+      {/* Floating Action / Cart Bar for Mobile Sales Reps */}
       {cart && cart.length > 0 && activeTab === 'catalog' && (
         <div className="fixed bottom-16 md:bottom-4 left-4 right-4 z-40 max-w-md mx-auto animate-in slide-in-from-bottom-5">
           <div className="bg-slate-900 text-white p-3 sm:p-3.5 rounded-2xl shadow-2xl border border-slate-750 flex items-center justify-between">
@@ -124,6 +114,7 @@ const MainLayout: React.FC = () => {
         </div>
       )}
 
+      {/* Order & Cart Builder Modal */}
       <OrderBuilderModal
         isOpen={isOrderModalOpen}
         onClose={() => setIsOrderModalOpen(false)}
@@ -133,12 +124,14 @@ const MainLayout: React.FC = () => {
         }}
       />
 
+      {/* Electronic Invoice Modal */}
       <ElectronicInvoiceModal
         isOpen={!!viewingInvoice}
         invoice={viewingInvoice}
         onClose={() => setViewingInvoice(null)}
       />
 
+      {/* Bottom Footer */}
       <footer className="bg-white border-t border-slate-200 py-4 px-4 text-center text-xs text-slate-500 print:hidden mb-16 md:mb-0">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2">
