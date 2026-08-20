@@ -220,9 +220,9 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     else if (rawStatus.includes('نواقص') || rawStatus.includes('شحيح')) status = 'نواقص';
     else if (rawStatus.includes('موقوف')) status = 'موقوف مؤقتاً';
 
-    const piecePrice = getNum(colMap.piecePrice, 10);
-    const cartonQuantity = Math.max(1, getNum(colMap.cartonQuantity, 12));
-    const cartonPrice = getNum(colMap.cartonPrice, piecePrice * cartonQuantity * 0.95);
+    const piecePrice = Math.max(0.5, getNum(colMap.piecePrice, 10));
+    const cartonQuantity = Math.min(500, Math.max(1, getNum(colMap.cartonQuantity, 12)));
+    const cartonPrice = Math.max(piecePrice, getNum(colMap.cartonPrice, piecePrice * cartonQuantity * 0.95));
     const promoPriceRaw = getNum(colMap.promoPrice, 0);
     const dept = getVal(colMap.department) || getVal(colMap.category) || 'LHLotus';
 
