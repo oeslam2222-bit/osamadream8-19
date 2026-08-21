@@ -3,6 +3,63 @@ import { COMPANY_INFO } from '../data/mockData';
 import { Invoice, ItemStatus, Product, SalesPriority } from '../types';
 
 /**
+ * Smart Branch Name normalizer for Excel input
+ * Supports all 7 company branches + central warehouse, and handles any flexible naming or custom branches
+ */
+export function normalizeExcelBranchName(rawBranch?: string): string {
+  if (!rawBranch || !rawBranch.trim()) {
+    return 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+  }
+  const clean = rawBranch.trim();
+  const lower = clean.toLowerCase();
+
+  if (
+    lower.includes('أكتوبر') ||
+    lower.includes('اكتوبر') ||
+    lower.includes('مركزي') ||
+    lower.includes('مركزي') ||
+    lower.includes('رئيسي') ||
+    lower.includes('october') ||
+    lower.includes('main')
+  ) {
+    return 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+  }
+  if (
+    lower.includes('بحيرة') ||
+    lower.includes('بحيره') ||
+    lower.includes('دمنهور') ||
+    lower.includes('beheira') ||
+    lower.includes('damanhour')
+  ) {
+    return 'فرع البحيرة';
+  }
+  if (lower.includes('قاهرة') || lower.includes('قاهره') || lower.includes('cairo')) {
+    return 'فرع القاهرة';
+  }
+  if (lower.includes('فيوم') || lower.includes('fayoum')) {
+    return 'فرع الفيوم';
+  }
+  if (lower.includes('منيا القمح') || lower.includes('القمح') || lower.includes('meq')) {
+    return 'فرع منيا القمح';
+  }
+  if (lower.includes('منيا') || lower.includes('minya')) {
+    return 'فرع المنيا';
+  }
+  if (lower.includes('ديمشلت') || lower.includes('dimeshalt')) {
+    return 'فرع ديمشلت';
+  }
+  if (lower.includes('منوف') || lower.includes('menouf')) {
+    return 'فرع منوف';
+  }
+
+  // If user provided a specific branch name, format nicely
+  if (!clean.startsWith('فرع') && !clean.includes('المخزن')) {
+    return `فرع ${clean}`;
+  }
+  return clean;
+}
+
+/**
  * Normalizes header string to match flexibly
  */
 function normalizeHeader(header: string): string {
@@ -245,7 +302,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       promoPrice: promoPriceRaw > 0 ? promoPriceRaw : undefined,
       piecePrice: piecePrice,
       cartonPrice: cartonPrice,
-      branchName: getVal(colMap.branchName) || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
+      branchName: normalizeExcelBranchName(getVal(colMap.branchName)),
       imageUrl: getVal(colMap.imageUrl) || undefined,
       cloudinaryPublicId: code,
       barcode: getVal(colMap.barcode) || undefined,

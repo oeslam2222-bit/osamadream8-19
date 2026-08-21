@@ -232,3 +232,32 @@ export interface AccountingSyncLog {
   systemName: string;
   responseMessage: string;
 }
+
+export type AuditActionType =
+  | 'create_invoice'
+  | 'update_invoice_status'
+  | 'approve_invoice'
+  | 'cancel_invoice'
+  | 'return_invoice'
+  | 'import_products'
+  | 'stock_adjustment'
+  | 'user_login'
+  | 'create_user'
+  | 'update_user';
+
+export interface AuditLog {
+  id: string;
+  timestamp: string; // ISO string
+  formattedTime: string; // e.g. 2026-08-21 04:30 م
+  userId: string;
+  userName: string;
+  userRole: UserRole;
+  branchName: string;
+  action: AuditActionType;
+  actionTitle: string;
+  details: string;
+  invoiceId?: string;
+  invoiceNumber?: string;
+  ipAddress?: string;
+  badgeType?: 'success' | 'warning' | 'info' | 'danger' | 'neutral';
+}

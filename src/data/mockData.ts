@@ -1,4 +1,4 @@
-import { Branch, Invoice, Product, User } from '../types';
+import { AuditLog, Branch, Invoice, Product, User } from '../types';
 
 export const COMPANY_INFO = {
   name: 'شركة دريم للتجارة والتوزيع',
@@ -110,6 +110,16 @@ export const INITIAL_BRANCHES: Branch[] = [
     address: 'منيا القمح، طريق الزقازيق الرئيسي',
     managerName: 'عصام عبد الفتاح',
     phone: '01155443322',
+    isMainWarehouse: false,
+  },
+  {
+    id: 'b-beheira',
+    name: 'فرع البحيرة',
+    code: 'BEH-08',
+    city: 'دمنهور - البحيرة',
+    address: 'دمنهور، شارع الجمهورية / الموقف الجديد',
+    managerName: 'أشرف عبد العاطي',
+    phone: '01044332211',
     isMainWarehouse: false,
   },
 ];
@@ -812,4 +822,78 @@ export const INITIAL_INVOICES: Invoice[] = [
     restoredStockDetails: 'تم إرجاع 6 كراتين (48 قطعة) إلى رصيد فرع الفيوم',
     qrPayload: 'DREAM-DIST-INV-0039-CANCELLED'
   }
+];
+
+export const INITIAL_AUDIT_LOGS: AuditLog[] = [
+  {
+    id: 'log-101',
+    timestamp: '2026-08-21T06:45:00Z',
+    formattedTime: '2026-08-21 06:45 ص',
+    userId: 'u-admin-osama',
+    userName: 'أسامة إسلام (المطور والمدير العام)',
+    userRole: 'admin',
+    branchName: 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+    action: 'user_login',
+    actionTitle: 'تسجيل دخول ناجح للمنظومة',
+    details: 'تم الدخول إلى لوحة التحكم الرئيسية بصلاحية الإدارة والمطور العام.',
+    badgeType: 'info',
+  },
+  {
+    id: 'log-102',
+    timestamp: '2026-08-21T06:10:00Z',
+    formattedTime: '2026-08-21 06:10 ص',
+    userId: 'u-admin-osama',
+    userName: 'أسامة إسلام (المطور والمدير العام)',
+    userRole: 'admin',
+    branchName: 'فرع القاهرة',
+    action: 'approve_invoice',
+    actionTitle: 'اعتماد وصرف فاتورة مبيعات DRM-2026-0040',
+    details: 'العميل: هايبر الفردوس للتجارة والتوزيع • القيمة: 18,750.00 ج.م • تم الخصم الفعلي من مخزن القاهرة.',
+    invoiceId: 'inv-1001',
+    invoiceNumber: 'DRM-2026-0040',
+    badgeType: 'success',
+  },
+  {
+    id: 'log-103',
+    timestamp: '2026-08-20T17:30:00Z',
+    formattedTime: '2026-08-20 05:30 م',
+    userId: 'u-admin-osama',
+    userName: 'أسامة إسلام (المطور والمدير العام)',
+    userRole: 'admin',
+    branchName: 'فرع القاهرة',
+    action: 'create_invoice',
+    actionTitle: 'تسجيل طلبية جديدة DRM-2026-0042 مع فصل نواقص',
+    details: 'العميل: سنتر النجوم الذهبية • تم تجزئة 5 كراتين نواقص إلى فاتورة تحويل مستقلة DRM-2026-0042-NQ من أكتوبر.',
+    invoiceId: 'inv-1002',
+    invoiceNumber: 'DRM-2026-0042',
+    badgeType: 'warning',
+  },
+  {
+    id: 'log-104',
+    timestamp: '2026-08-20T16:00:00Z',
+    formattedTime: '2026-08-20 04:00 م',
+    userId: 'u-admin-osama',
+    userName: 'أسامة إسلام (المطور والمدير العام)',
+    userRole: 'admin',
+    branchName: 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+    action: 'import_products',
+    actionTitle: 'مزامنة وتحديث كتالوج الأصناف من شيت الإكسل',
+    details: 'تمت مطابقة أسعار العروض وشدات الكراتين لـ 20 صنف وتحديث الأرصدة عبر جميع الفروع.',
+    badgeType: 'info',
+  },
+  {
+    id: 'log-105',
+    timestamp: '2026-08-17T17:00:00Z',
+    formattedTime: '2026-08-17 05:00 م',
+    userId: 'u-admin-osama',
+    userName: 'أسامة إسلام (المطور والمدير العام)',
+    userRole: 'admin',
+    branchName: 'فرع الفيوم',
+    action: 'cancel_invoice',
+    actionTitle: 'إلغاء طلبية DRM-2026-0039 واسترجاع المخزون',
+    details: 'السبب: اعتذار العميل عن الاستلام لظروف سيولة مالية • تم إعادة 6 كراتين (48 قطعة) فوراً لرصيد الفرع.',
+    invoiceId: 'inv-1004-cancelled',
+    invoiceNumber: 'DRM-2026-0039',
+    badgeType: 'danger',
+  },
 ];

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
+  INITIAL_AUDIT_LOGS,
   INITIAL_BRANCHES,
   INITIAL_INVOICES,
   INITIAL_PRODUCTS,
@@ -16,6 +17,7 @@ import {
 } from '../services/supabaseService';
 import {
   AccountingSyncLog,
+  AuditLog,
   Branch,
   CartItem,
   CloudinaryConfig,
@@ -38,6 +40,9 @@ interface AppContextType {
   cart: CartItem[];
   cloudinaryConfig: CloudinaryConfig;
   accountingLogs: AccountingSyncLog[];
+  auditLogs: AuditLog[];
+  recordAuditLog: (logData: Omit<AuditLog, 'id' | 'timestamp' | 'formattedTime'>) => void;
+  clearAuditLogs: () => void;
   isOffline: boolean;
   selectedBranchFilter: string;
   setSelectedBranchFilter: (branch: string) => void;
@@ -148,9 +153,51 @@ const STORAGE_KEYS = {
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Helper to normalize branch names across legacy stored data
   const normalizeBranchName = (name?: string): string => {
-    if (!name) return 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
-    if (name.includes('أكتوبر') || name.includes('المركزي')) return 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
-    return name;
+    if (!name || !name.trim()) return 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+    const clean = name.trim();
+    const lower = clean.toLowerCase();
+    if (
+      lower.includes('أكتوبر') ||
+      lower.includes('اكتوبر') ||
+      lower.includes('المركزي') ||
+      lower.includes('مركزي') ||
+      lower.includes('رئيسي') ||
+      lower.includes('october') ||
+      lower.includes('main')
+    ) {
+      return 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+    }
+    if (
+      lower.includes('بحيرة') ||
+      lower.includes('بحيره') ||
+      lower.includes('دمنهور') ||
+      lower.includes('beheira') ||
+      lower.includes('damanhour')
+    ) {
+      return 'فرع البحيرة';
+    }
+    if (lower.includes('قاهرة') || lower.includes('قاهره') || lower.includes('cairo')) {
+      return 'فرع القاهرة';
+    }
+    if (lower.includes('فيوم') || lower.includes('fayoum')) {
+      return 'فرع الفيوم';
+    }
+    if (lower.includes('منيا القمح') || lower.includes('القمح') || lower.includes('meq')) {
+      return 'فرع منيا القمح';
+    }
+    if (lower.includes('منيا') || lower.includes('minya')) {
+      return 'فرع المنيا';
+    }
+    if (lower.includes('ديمشلت') || lower.includes('dimeshalt')) {
+      return 'فرع ديمشلت';
+    }
+    if (lower.includes('منوف') || lower.includes('menouf')) {
+      return 'فرع منوف';
+    }
+    if (!clean.startsWith('فرع') && !clean.includes('المخزن')) {
+      return `فرع ${clean}`;
+    }
+    return clean;
   };
 
   // Initialize state with localStorage fallbacks
@@ -174,14 +221,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!saved) return INITIAL_BRANCHES;
     try {
       const parsed: Branch[] = JSON.parse(saved);
-      const hasOctober = parsed.some(b => b.name.includes('أكتوبر'));
-      if (!hasOctober) {
-        return INITIAL_BRANCHES;
-      }
-      return parsed.map(b => ({
-        ...b,
-        name: normalizeBranchName(b.name)
-      }));
+      const map = new Map<string, Branch>();
+      INITIAL_BRANCHES.forEach((b) => map.set(b.name, b));
+      parsed.forEach((b) => {
+        const norm = normalizeBranchName(b.name);
+        if (!map.has(norm)) {
+          map.set(norm, { ...b, name: norm });
+        }
+      });
+      return Array.from(map.values());
     } catch {
       return INITIAL_BRANCHES;
     }
@@ -228,6 +276,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem('dream_dist_inv_logs_v5');
     return saved ? JSON.parse(saved) : [];
   });
+
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
+    const saved = localStorage.getItem('dream_dist_audit_logs_v7');
+    return saved ? JSON.parse(saved) : INITIAL_AUDIT_LOGS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('dream_dist_audit_logs_v7', JSON.stringify(auditLogs));
+  }, [auditLogs]);
+
+  const recordAuditLog = (logData: Omit<AuditLog, 'id' | 'timestamp' | 'formattedTime'>) => {
+    const now = new Date();
+    const formattedTime = `${now.toISOString().slice(0, 10)} ${now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+    const newLog: AuditLog = {
+      ...logData,
+      id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      timestamp: now.toISOString(),
+      formattedTime,
+    };
+    setAuditLogs((prev) => [newLog, ...prev].slice(0, 300));
+  };
+
+  const clearAuditLogs = () => {
+    setAuditLogs([]);
+    localStorage.removeItem('dream_dist_audit_logs_v7');
+  };
 
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('الكل');
@@ -439,6 +513,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setCurrentUser(found);
     setIsAuthenticated(true);
+
+    recordAuditLog({
+      userId: found.id,
+      userName: found.name,
+      userRole: found.role,
+      branchName: found.branchName,
+      action: 'user_login',
+      actionTitle: `تسجيل دخول (${found.name})`,
+      details: `تم تسجيل الدخول بصلاحية (${found.role === 'admin' ? 'مدير عام' : found.role === 'branch_manager' ? 'مدير فرع' : found.role === 'supervisor' ? 'مشرف مبيعات' : 'مندوب مبيعات'}) لـ ${found.branchName}.`,
+      badgeType: 'info',
+    });
+
     return { success: true, message: `مرحباً بك ${found.name}`, user: found };
   };
 
@@ -481,6 +567,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUsers((prev) => [...prev, newUser]);
     // Save to Supabase asynchronously
     saveUserToSupabase(newUser).catch((e) => console.warn('Supabase auto-save user failed:', e));
+
+    recordAuditLog({
+      userId: newUser.id,
+      userName: newUser.name,
+      userRole: newUser.role,
+      branchName: newUser.branchName,
+      action: 'create_user',
+      actionTitle: `طلب تسجيل مستخدم جديد (${newUser.name})`,
+      details: `تم تقديم طلب حساب جديد برقم هاتف ${newUser.phone} بانتظار اعتماد الإدارة.`,
+      badgeType: 'warning',
+    });
+
     return {
       success: true,
       message: 'تم تسجيل طلب الحساب بنجاح وهو الآن بانتظار تفعيل الأدمن وتخصيص المشرف والفرع.'
@@ -507,6 +605,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
         // Auto sync to Supabase
         saveUserToSupabase(updated).catch((e) => console.warn('Supabase update failed:', e));
+
+        recordAuditLog({
+          userId: currentUser?.id || 'admin',
+          userName: currentUser?.name || 'مدير النظام',
+          userRole: currentUser?.role || 'admin',
+          branchName: branchName || u.branchName,
+          action: 'update_user',
+          actionTitle: `اعتماد وتفعيل حساب (${u.name})`,
+          details: `تم اعتماد المستخدم وتعيين الصلاحية (${role || u.role}) لفرع (${branchName || u.branchName}).`,
+          badgeType: 'success',
+        });
+
         return updated;
       })
     );
@@ -732,6 +842,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const importProductsList = (newProducts: Product[], mode: 'merge' | 'replace') => {
+    // Automatically register any newly encountered branch names dynamically
+    setBranches((prevBranches) => {
+      const existingNames = new Set(prevBranches.map((b) => b.name));
+      const newBranchesToAdd: Branch[] = [];
+
+      newProducts.forEach((p) => {
+        const bName = p.branchName ? normalizeBranchName(p.branchName) : '';
+        if (bName && !existingNames.has(bName)) {
+          existingNames.add(bName);
+          newBranchesToAdd.push({
+            id: `b-custom-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            name: bName,
+            code: `BR-0${prevBranches.length + newBranchesToAdd.length + 1}`,
+            city: bName.replace('فرع ', ''),
+            address: `محافظة ${bName.replace('فرع ', '')}`,
+            managerName: 'مدير الفرع',
+            phone: '01000000000',
+            isMainWarehouse: bName.includes('المركزي') || bName.includes('أكتوبر'),
+          });
+        }
+      });
+
+      if (newBranchesToAdd.length > 0) {
+        return [...prevBranches, ...newBranchesToAdd];
+      }
+      return prevBranches;
+    });
+
     // Intelligently calculate currently active reservations from pending invoices to prevent overwriting sales rep reserves
     const reservedPiecesByProduct = new Map<string, number>();
     invoices.forEach((inv) => {
@@ -773,6 +911,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return Array.from(map.values());
       });
     }
+
+    recordAuditLog({
+      userId: currentUser?.id || 'admin',
+      userName: currentUser?.name || 'مدير النظام',
+      userRole: currentUser?.role || 'admin',
+      branchName: currentUser?.branchName || 'الفرع الرئيسي',
+      action: 'import_products',
+      actionTitle: `استيراد ومزامنة ${newProducts.length} صنف من شيت الإكسل (${mode === 'replace' ? 'استبدال كامل' : 'دمج وتحديث'})`,
+      details: `تم تحديث بيانات وشدات وأسعار ${newProducts.length} صنف مع الحفاظ على حجوزات المناديب النشطة.`,
+      badgeType: 'info',
+    });
   };
 
   const adjustStock = (productId: string, branchChange: number, mainWarehouseChange: number, reason?: string) => {
@@ -792,7 +941,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
-    if (prod && branchChange !== 0) {
+    if (prod && (branchChange !== 0 || mainWarehouseChange !== 0)) {
       recordInventoryTransaction({
         productId: prod.id,
         productCode: prod.code,
@@ -805,6 +954,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userName: currentUser?.name || 'مدير المخزن',
         userRole: currentUser?.role || 'branch_manager',
         notes: reason || `تعديل يدوي في رصيد الفرع: ${branchChange > 0 ? '+' : ''}${branchChange} قطعة`
+      });
+
+      recordAuditLog({
+        userId: currentUser?.id || 'mgr',
+        userName: currentUser?.name || 'مدير المخزن',
+        userRole: currentUser?.role || 'branch_manager',
+        branchName: prod.branchName || currentUser?.branchName || 'الفرع الرئيسي',
+        action: 'stock_adjustment',
+        actionTitle: `تعديل رصيد الصنف (${prod.code} - ${prod.name})`,
+        details: `تعديل الفرع: ${branchChange > 0 ? `+${branchChange}` : branchChange} قطعة • تعديل أكتوبر: ${mainWarehouseChange > 0 ? `+${mainWarehouseChange}` : mainWarehouseChange} قطعة • السبب: ${reason || 'تسوية جردية'}`,
+        badgeType: 'warning',
       });
     }
   };
@@ -1054,6 +1214,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     clearCart();
+
+    recordAuditLog({
+      userId: currentUser?.id || 'rep',
+      userName: currentUser?.name || 'المندوب',
+      userRole: currentUser?.role || 'sales_rep',
+      branchName: primaryInvoice.branchName,
+      action: 'create_invoice',
+      actionTitle: `تسجيل فاتورة مبيعات جديدة #${primaryInvoice.invoiceNumber}`,
+      details: `العميل: ${primaryInvoice.customerName} • ${primaryInvoice.totalCartons} كرتونة (${primaryInvoice.totalPieces} قطعة) • القيمة: ${primaryInvoice.estimatedGrandTotal.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م • الحالة: ${primaryInvoice.status}${shouldSplit ? ` • تم تجزئة نواقص لفاتورة #${createdShortageInvoice?.invoiceNumber}` : ''}`,
+      invoiceId: primaryInvoice.id,
+      invoiceNumber: primaryInvoice.invoiceNumber,
+      badgeType: 'warning',
+    });
+
     return {
       success: true,
       invoice: primaryInvoice,
@@ -1117,6 +1291,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       )
     );
 
+    recordAuditLog({
+      userId: currentUser?.id || 'supervisor',
+      userName: currentUser?.name || 'المشرف',
+      userRole: currentUser?.role || 'supervisor',
+      branchName: inv.branchName,
+      action: 'approve_invoice',
+      actionTitle: `اعتماد وصرف الفاتورة #${inv.invoiceNumber}`,
+      details: `العميل: ${inv.customerName} • المندوب: ${inv.repName} • تم خصم المخزون الفعلي من ${inv.branchName} • القيمة: ${inv.estimatedGrandTotal.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م ${notes ? `• ملاحظة: ${notes}` : ''}`,
+      invoiceId: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      badgeType: 'success',
+    });
+
     return {
       success: true,
       message: `تم اعتماد وصرف الطلبية #${inv.invoiceNumber} وخصم المخزون الفعلي من الفرع بنجاح!`,
@@ -1139,6 +1326,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : i
       )
     );
+
+    recordAuditLog({
+      userId: currentUser?.id || 'supervisor',
+      userName: currentUser?.name || 'المشرف',
+      userRole: currentUser?.role || 'supervisor',
+      branchName: inv.branchName,
+      action: 'update_invoice_status',
+      actionTitle: `تحويل الفاتورة #${inv.invoiceNumber} لمدير الفرع`,
+      details: `تم إحالة الطلبية للاعتماد النهائي لمدير الفرع ${notes ? `• ملاحظات: ${notes}` : ''}`,
+      invoiceId: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      badgeType: 'info',
+    });
 
     return {
       success: true,
@@ -1202,6 +1402,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : i
       )
     );
+
+    recordAuditLog({
+      userId: currentUser?.id || 'supervisor',
+      userName: currentUser?.name || 'المشرف',
+      userRole: currentUser?.role || 'supervisor',
+      branchName: inv.branchName,
+      action: 'cancel_invoice',
+      actionTitle: `رفض/إلغاء الطلبية #${inv.invoiceNumber} وفك الحجز`,
+      details: `السبب: ${reason} • تم إعادة ${inv.totalCartons} كرتونة (${inv.totalPieces} قطعة) فوراً إلى رصيد مخزن الفرع المتاح.`,
+      invoiceId: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      badgeType: 'danger',
+    });
 
     return {
       success: true,
@@ -1333,6 +1546,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : i
       )
     );
+
+    recordAuditLog({
+      userId: currentUser?.id || 'admin',
+      userName: currentUser?.name || 'مسؤول النظام',
+      userRole: currentUser?.role || 'admin',
+      branchName: inv.branchName,
+      action: status === 'مرتجع' ? 'return_invoice' : isNowReturnedOrCancelled ? 'cancel_invoice' : 'update_invoice_status',
+      actionTitle: `تحديث حالة الفاتورة #${inv.invoiceNumber} إلى (${status})`,
+      details: `العميل: ${inv.customerName} • الحالة السابقة: (${oldStatus}) ⬅️ الحالة الجديدة: (${status}) ${reason ? `• السبب / الملاحظات: ${reason}` : ''}`,
+      invoiceId: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      badgeType: status === 'تم التسليم' || status === 'معتمدة ومصروفة من المخزن' ? 'success' : isNowReturnedOrCancelled ? 'danger' : 'info',
+    });
 
     let message = `تم تحديث حالة الطلبية #${inv.invoiceNumber} بنجاح إلى: ${status}`;
     if (status === 'مرتجع') {
@@ -1537,6 +1763,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cloudinaryConfig,
         accountingLogs,
         inventoryLogs,
+        auditLogs,
+        recordAuditLog,
+        clearAuditLogs,
         isOffline,
         selectedBranchFilter,
         setSelectedBranchFilter,

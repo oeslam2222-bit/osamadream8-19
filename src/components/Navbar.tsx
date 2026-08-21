@@ -87,6 +87,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     { id: 'invoices', label: 'الفواتير والطلبيات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep'], badge: pendingOrdersCount },
     { id: 'inventory', label: 'إدارة المخزون والاعتمادات', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep'], badge: pendingOrdersCount },
     { id: 'excel', label: 'شيتات Google Sheets والإكسل', icon: FileSpreadsheet, roles: ['admin', 'branch_manager', 'supervisor'] },
+    { id: 'audit', label: 'سجل العمليات (Audit Log)', icon: ShieldCheck, roles: ['admin', 'branch_manager', 'supervisor'] },
     { id: 'users', label: 'المستخدمين والصلاحيات', icon: Users, roles: ['admin', 'branch_manager'], badge: pendingApprovalsCount },
     { id: 'accounting', label: 'الربط المحاسبي (ERP)', icon: Server, roles: ['admin', 'branch_manager'] },
   ];

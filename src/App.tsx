@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { AccountingSyncView } from './components/AccountingSyncView';
+import { AuditLogView } from './components/AuditLogView';
 import { CloudinaryManager } from './components/CloudinaryManager';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
 import { ExcelImportExport } from './components/ExcelImportExport';
@@ -31,7 +32,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { Invoice } from './types';
 
 const MainLayout: React.FC = () => {
-  const { cart, isOffline, currentUser, isAuthenticated, getCartSummary } = useApp();
+  const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary } = useApp();
 
   const [activeTab, setActiveTab] = useState<string>('catalog');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
@@ -85,6 +86,15 @@ const MainLayout: React.FC = () => {
         {activeTab === 'inventory' && <InventoryStockView />}
 
         {activeTab === 'excel' && <ExcelImportExport />}
+
+        {activeTab === 'audit' && (
+          <AuditLogView
+            onViewInvoice={(invoiceId) => {
+              const found = invoices.find((i) => i.id === invoiceId || i.invoiceNumber === invoiceId);
+              if (found) setViewingInvoice(found);
+            }}
+          />
+        )}
 
         {activeTab === 'cloudinary' && <CloudinaryManager />}
 
