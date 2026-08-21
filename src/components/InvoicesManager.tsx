@@ -100,8 +100,24 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       }
 
       // 3. Status filter
-      if (selectedStatus !== 'الكل' && inv.status !== selectedStatus) {
-        return false;
+      if (selectedStatus !== 'الكل') {
+        if (selectedStatus === 'فواتير النواقص') {
+          if (!inv.isShortageInvoice && !inv.hasShortageSplit) return false;
+        } else if (selectedStatus === 'قيد مراجعة المشرف') {
+          if (inv.status !== 'قيد مراجعة المشرف' && inv.status !== 'معلقة بانتظار اعتماد الفرع' && inv.status !== 'قيد المراجعة') {
+            return false;
+          }
+        } else if (selectedStatus === 'معتمدة ومصروفة من المخزن') {
+          if (inv.status !== 'معتمدة ومصروفة من المخزن' && inv.status !== 'معتمدة') {
+            return false;
+          }
+        } else if (selectedStatus === 'مرفوضة / ملغاة') {
+          if (inv.status !== 'مرفوضة / ملغاة' && inv.status !== 'ملغاة') {
+            return false;
+          }
+        } else if (inv.status !== selectedStatus) {
+          return false;
+        }
       }
 
       // 4. Rep filter (for supervisor / manager / admin)
@@ -255,6 +271,64 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
           </div>
         </div>
 
+        {/* Quick Filter Categories Tabs */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold scrollbar-none">
+          <button
+            onClick={() => setSelectedStatus('الكل')}
+            className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition cursor-pointer ${
+              selectedStatus === 'الكل'
+                ? 'bg-slate-900 text-amber-400 shadow-sm'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            كافة الفواتير ({invoices.length})
+          </button>
+
+          <button
+            onClick={() => setSelectedStatus('معتمدة ومصروفة من المخزن')}
+            className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition cursor-pointer ${
+              selectedStatus === 'معتمدة ومصروفة من المخزن'
+                ? 'bg-emerald-700 text-white shadow-sm'
+                : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+            }`}
+          >
+            معتمدة ومصروفة ✅ ({invoices.filter(i => i.status === 'معتمدة ومصروفة من المخزن' || i.status === 'معتمدة').length})
+          </button>
+
+          <button
+            onClick={() => setSelectedStatus('قيد مراجعة المشرف')}
+            className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition cursor-pointer ${
+              selectedStatus === 'قيد مراجعة المشرف'
+                ? 'bg-amber-600 text-white shadow-sm'
+                : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+            }`}
+          >
+            بانتظار الاعتماد ⏳ ({invoices.filter(i => i.status === 'قيد مراجعة المشرف' || i.status === 'معلقة بانتظار اعتماد الفرع' || i.status === 'قيد المراجعة').length})
+          </button>
+
+          <button
+            onClick={() => setSelectedStatus('فواتير النواقص')}
+            className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition cursor-pointer ${
+              selectedStatus === 'فواتير النواقص'
+                ? 'bg-indigo-700 text-white shadow-sm'
+                : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100'
+            }`}
+          >
+            فواتير النواقص والتحويل 🚚 ({invoices.filter(i => i.isShortageInvoice || i.hasShortageSplit).length})
+          </button>
+
+          <button
+            onClick={() => setSelectedStatus('مرفوضة / ملغاة')}
+            className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition cursor-pointer ${
+              selectedStatus === 'مرفوضة / ملغاة'
+                ? 'bg-rose-700 text-white shadow-sm'
+                : 'bg-rose-50 text-rose-800 hover:bg-rose-100'
+            }`}
+          >
+            الملغية والمرفوضة ❌ ({invoices.filter(i => i.status === 'مرفوضة / ملغاة' || i.status === 'ملغاة').length})
+          </button>
+        </div>
+
         {/* Search & Filter Controls */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
           <div className="relative">
@@ -279,6 +353,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               <option value="قيد مراجعة المشرف">قيد مراجعة المشرف</option>
               <option value="معلقة بانتظار اعتماد الفرع">بانتظار مدير الفرع</option>
               <option value="معتمدة ومصروفة من المخزن">معتمدة ومصروفة</option>
+              <option value="فواتير النواقص">فواتير النواقص والتحويل</option>
               <option value="مرفوضة / ملغاة">مرفوضة / ملغاة</option>
             </select>
           </div>
@@ -349,10 +424,20 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                       
                       {/* Invoice Number */}
                       <td className="p-3 font-mono font-black text-slate-900">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex flex-col gap-1 items-start">
                           <span className="bg-slate-100 px-2 py-1 rounded-md text-amber-900 border border-slate-200">
                             {invoice.invoiceNumber}
                           </span>
+                          {invoice.isShortageInvoice && (
+                            <span className="bg-indigo-100 text-indigo-900 px-1.5 py-0.5 rounded text-[10px] font-bold border border-indigo-200">
+                              🚚 فاتورة نواقص (أكتوبر)
+                            </span>
+                          )}
+                          {invoice.hasShortageSplit && (
+                            <span className="bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-200">
+                              ⚠️ مفصولة لنواقص
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -397,9 +482,21 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
                       {/* Status Dropdown / Badge */}
                       <td className="p-3 text-center">
-                        <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold border ${style.bg} ${style.text}`}>
-                          {style.label || invoice.status}
-                        </span>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold border ${style.bg} ${style.text}`}>
+                            {style.label || invoice.status}
+                          </span>
+                          {(invoice.status === 'مرفوضة / ملغاة' || invoice.status === 'ملغاة') && invoice.cancellationReason && (
+                            <div className="text-[10px] text-rose-700 max-w-[140px] truncate" title={`سبب الرفض: ${invoice.cancellationReason} | ${invoice.restoredStockDetails || ''}`}>
+                              {invoice.cancellationReason}
+                            </div>
+                          )}
+                          {invoice.restoredStockDetails && (invoice.status === 'مرفوضة / ملغاة' || invoice.status === 'ملغاة' || invoice.status === 'مرتجع') && (
+                            <span className="text-[9px] bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded font-medium border border-emerald-200">
+                              تم استرجاع الرصيد للمخزن 🔄
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Actions */}

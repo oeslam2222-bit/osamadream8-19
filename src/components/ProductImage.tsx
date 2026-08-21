@@ -12,6 +12,7 @@ interface ProductImageProps {
   showBadgeOnFallback?: boolean;
   targetSize?: number;
   sizeVariant?: 'thumbnail' | 'card' | 'modal' | 'full';
+  fitMode?: 'cover' | 'contain';
   onClick?: () => void;
   alt?: string;
 }
@@ -19,11 +20,12 @@ interface ProductImageProps {
 export const ProductImage: React.FC<ProductImageProps> = ({
   product,
   cloudinaryConfig,
-  className = 'w-full h-full object-cover',
-  containerClassName = 'relative w-full h-full bg-slate-900 overflow-hidden flex items-center justify-center',
+  className = 'w-full h-full object-contain',
+  containerClassName = 'relative w-full h-full bg-slate-900/90 overflow-hidden flex items-center justify-center',
   showBadgeOnFallback = true,
   targetSize,
   sizeVariant = 'card',
+  fitMode = 'contain',
   onClick,
   alt
 }) => {
@@ -34,11 +36,11 @@ export const ProductImage: React.FC<ProductImageProps> = ({
     if (targetSize) return targetSize;
     if (dataSaverMode) {
       if (sizeVariant === 'thumbnail') return 120;
-      if (sizeVariant === 'card') return 200; // Compressed s=200 for phone catalog cards
-      return 400; // for modal
+      if (sizeVariant === 'card') return 220; // Fast lightweight ~15-20KB for mobile
+      return 450; // for modal
     }
     if (sizeVariant === 'thumbnail') return 180;
-    if (sizeVariant === 'card') return 360;
+    if (sizeVariant === 'card') return 300;
     return 800; // modal
   }, [targetSize, sizeVariant, dataSaverMode]);
 
@@ -47,7 +49,7 @@ export const ProductImage: React.FC<ProductImageProps> = ({
     
     // Apply dynamic parameter sizing for Google Drive and Cloudinary
     return urls.map(url => {
-      // 1. Google Drive & Google CDN URLs (Dynamic compression parameter s=200 or sz=w200)
+      // 1. Google Drive & Google CDN URLs (Dynamic compression parameter s=220 or sz=w220)
       if (url.includes('googleusercontent.com/d/')) {
         if (url.includes('=s') || url.includes('=w')) {
           return url.replace(/=(s|w)\d+[^&]*/, `=s${effectiveSize}`);
@@ -114,7 +116,10 @@ export const ProductImage: React.FC<ProductImageProps> = ({
         <img
           src={svgFallback}
           alt={alt || product.name || code}
-          className={className}
+          className={`${className} ${fitMode === 'contain' ? 'object-contain' : 'object-cover'}`}
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
         />
         {showBadgeOnFallback && (
           <div className="absolute inset-0 bg-slate-950/20 flex flex-col items-center justify-center p-2 text-center pointer-events-none">
@@ -136,10 +141,14 @@ export const ProductImage: React.FC<ProductImageProps> = ({
         key={currentSrc}
         src={currentSrc}
         alt={alt || product.name || product.code || 'صنف'}
-        className={`${className} transition-opacity duration-300 ${isLoading ? 'opacity-40 scale-95' : 'opacity-100 scale-100'}`}
+        className={`${className} ${fitMode === 'contain' ? 'object-contain' : 'object-cover'} transition-opacity duration-300 ${
+          isLoading ? 'opacity-30 scale-95' : 'opacity-100 scale-100'
+        }`}
         onError={handleError}
         onLoad={handleLoad}
         loading="lazy"
+        decoding="async"
+        referrerPolicy="no-referrer"
       />
     </div>
   );

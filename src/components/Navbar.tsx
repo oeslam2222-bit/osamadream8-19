@@ -7,6 +7,7 @@ import {
   Download,
   FileSpreadsheet,
   Layers,
+  LayoutDashboard,
   LogOut,
   Receipt,
   Server,
@@ -82,6 +83,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
 
   const navItems = [
     { id: 'catalog', label: 'كتالوج الأصناف والبيع', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep'] },
+    { id: 'dashboard', label: 'لوحة المشرف والمتابعة 📊', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep'] },
     { id: 'invoices', label: 'الفواتير والطلبيات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep'], badge: pendingOrdersCount },
     { id: 'inventory', label: 'إدارة المخزون والاعتمادات', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep'], badge: pendingOrdersCount },
     { id: 'excel', label: 'شيتات Google Sheets والإكسل', icon: FileSpreadsheet, roles: ['admin', 'branch_manager', 'supervisor'] },
@@ -384,6 +386,16 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
         >
           <Boxes className="w-5 h-5" />
           <span className="text-[10px] mt-0.5">الكتالوج</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`relative flex flex-col items-center justify-center p-1 rounded-xl transition cursor-pointer ${
+            activeTab === 'dashboard' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <LayoutDashboard className="w-5 h-5" />
+          <span className="text-[10px] mt-0.5">المتابعة 📊</span>
         </button>
 
         <button

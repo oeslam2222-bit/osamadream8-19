@@ -45,6 +45,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const [customerTaxNumber, setCustomerTaxNumber] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('نقدي (كاش)');
   const [orderNotes, setOrderNotes] = useState('');
+  const [splitShortagesToBackorder, setSplitShortagesToBackorder] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState<string[]>([]);
 
@@ -52,6 +53,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
   const summary = getCartSummary();
   const todayDate = new Date().toISOString().slice(0, 10);
+  const hasWarehouseItems = cart.some((c) => c.fulfillFromMainWarehouse);
 
   const handleSubmitOrder = (andExportExcel = false, andShareWhatsApp = false) => {
     const errors: string[] = [];
@@ -76,6 +78,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         customerTaxNumber: customerTaxNumber.trim(),
         paymentMethod: paymentMethod,
         notes: orderNotes.trim(),
+        splitShortagesToBackorder: splitShortagesToBackorder,
       });
 
       if (!result.success || !result.invoice) {
@@ -88,6 +91,9 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
       if (andExportExcel) {
         exportElectronicInvoiceToExcel(createdInvoice);
+        if (result.shortageInvoice) {
+          exportElectronicInvoiceToExcel(result.shortageInvoice);
+        }
       }
 
       if (andShareWhatsApp) {
@@ -434,6 +440,28 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               />
             </div>
           </div>
+
+          {/* Shortage Backorder Splitting Option */}
+          {hasWarehouseItems && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3.5 space-y-2 text-xs">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={splitShortagesToBackorder}
+                  onChange={(e) => setSplitShortagesToBackorder(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 accent-amber-500 rounded cursor-pointer"
+                />
+                <div>
+                  <span className="font-black text-slate-900 block">
+                    فصل أصناف النواقص تلقائياً في فاتورة توريد مستقلة (-NQ) محولة من المخزن المركزي بأكتوبر
+                  </span>
+                  <p className="text-[11px] text-slate-600 mt-0.5">
+                    تضمن هذه الميزة إصدار فاتورة فورية لما هو متاح بالفرع، وفاتورة ملحقة بنواقص الطلبية لطلب تحويلها من المخزن الرئيسي المركزي دون تعطيل تسليم العميل.
+                  </p>
+                </div>
+              </label>
+            </div>
+          )}
 
           {/* Estimated Financial Summary Box */}
           <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-5 shadow-xl border border-slate-700 space-y-3">

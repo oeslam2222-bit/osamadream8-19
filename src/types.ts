@@ -106,7 +106,9 @@ export type OrderStatus =
   | 'معتمدة ومصروفة من المخزن'
   | 'معتمدة'
   | 'جاري التجهيز'
+  | 'قيد التوصيل'
   | 'تم التسليم'
+  | 'مرتجع'
   | 'مرفوضة / ملغاة'
   | 'ملغاة';
 export type PaymentMethod = 'نقدي (كاش)' | 'آجل (30 يوم)' | 'آجل (60 يوم)' | 'تحويل بنكي' | 'شيك';
@@ -118,7 +120,7 @@ export interface InventoryTransaction {
   productId: string;
   productCode: string;
   productName: string;
-  type: 'حجز طلبية مندوب' | 'صرف واعتماد مشرف' | 'إلغاء حجز وإرجاع' | 'توريد مخزني' | 'تحويل بين الفروع' | 'تعديل جردي';
+  type: 'حجز طلبية مندوب' | 'صرف واعتماد مشرف' | 'إلغاء حجز وإرجاع' | 'مرتجع مبيعات وإرجاع للمخزن' | 'توريد مخزني' | 'تحويل بين الفروع' | 'تعديل جردي';
   quantityPieces: number;
   branchStockBefore: number;
   branchStockAfter: number;
@@ -176,6 +178,19 @@ export interface Invoice {
   syncedToAccounting?: boolean;
   accountingSyncDate?: string;
   qrPayload?: string;
+
+  // Shortage Backorders & Splitting
+  isShortageInvoice?: boolean;
+  parentInvoiceId?: string;
+  parentInvoiceNumber?: string;
+  hasShortageSplit?: boolean;
+  shortageInvoiceNumber?: string;
+
+  // Cancellation & Restitution Details
+  cancellationReason?: string;
+  cancelledBy?: string;
+  cancelledAt?: string;
+  restoredStockDetails?: string;
 }
 
 export interface CloudinaryConfig {

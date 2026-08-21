@@ -25,6 +25,7 @@ import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ProductCatalog } from './components/ProductCatalog';
+import { SupervisorDashboard } from './components/SupervisorDashboard';
 import { UserManager } from './components/UserManager';
 import { AppProvider, useApp } from './context/AppContext';
 import { Invoice } from './types';
@@ -65,6 +66,13 @@ const MainLayout: React.FC = () => {
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-5 pb-24 md:pb-8">
         {activeTab === 'catalog' && (
           <ProductCatalog onOpenCart={() => setIsOrderModalOpen(true)} />
+        )}
+
+        {activeTab === 'dashboard' && (
+          <SupervisorDashboard
+            onOpenNewOrder={() => setIsOrderModalOpen(true)}
+            onViewInvoice={(inv) => setViewingInvoice(inv)}
+          />
         )}
 
         {activeTab === 'invoices' && (

@@ -88,11 +88,16 @@ interface AppContextType {
   checkProductAvailability: (productId: string, requestedPieces: number) => { available: boolean; remainingPieces: number; message?: string };
 
   // Invoice / Order Actions & Approval Workflow
-  createOrder: (orderData: Partial<Invoice>) => { success: boolean; invoice?: Invoice; message?: string };
+  createOrder: (orderData: Partial<Invoice> & { splitShortagesToBackorder?: boolean }) => {
+    success: boolean;
+    invoice?: Invoice;
+    shortageInvoice?: Invoice;
+    message?: string;
+  };
   approveOrder: (invoiceId: string, notes?: string) => { success: boolean; message: string };
   forwardOrderToManager: (invoiceId: string, notes?: string) => { success: boolean; message: string };
   rejectOrder: (invoiceId: string, reason: string) => { success: boolean; message: string };
-  updateOrderStatus: (invoiceId: string, status: OrderStatus) => void;
+  updateOrderStatus: (invoiceId: string, status: OrderStatus, reason?: string) => { success: boolean; message: string };
   deleteInvoice: (invoiceId: string) => void;
   syncToAccounting: (invoiceId: string) => Promise<boolean>;
 
@@ -129,22 +134,22 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
-  PRODUCTS: 'dream_dist_products_v5',
-  INVOICES: 'dream_dist_invoices_v5',
-  USERS: 'dream_dist_users_v5',
-  BRANCHES: 'dream_dist_branches_v5',
-  CLOUDINARY: 'dream_dist_cloudinary_v5',
-  CURRENT_USER_ID: 'dream_dist_current_user_v5',
-  IS_AUTH: 'dream_dist_is_auth_v5',
-  ACCOUNTING_LOGS: 'dream_dist_acc_logs_v5',
-  CART: 'dream_dist_cart_v5'
+  PRODUCTS: 'dream_dist_products_v7',
+  INVOICES: 'dream_dist_invoices_v7',
+  USERS: 'dream_dist_users_v7',
+  BRANCHES: 'dream_dist_branches_v7',
+  CLOUDINARY: 'dream_dist_cloudinary_v7',
+  CURRENT_USER_ID: 'dream_dist_current_user_v7',
+  IS_AUTH: 'dream_dist_is_auth_v7',
+  ACCOUNTING_LOGS: 'dream_dist_acc_logs_v7',
+  CART: 'dream_dist_cart_v7'
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Helper to normalize branch names across legacy stored data
   const normalizeBranchName = (name?: string): string => {
-    if (!name) return 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)';
-    if (name.includes('القاهرة')) return 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)';
+    if (!name) return 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+    if (name.includes('أكتوبر') || name.includes('المركزي')) return 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
     return name;
   };
 
@@ -727,13 +732,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const importProductsList = (newProducts: Product[], mode: 'merge' | 'replace') => {
+    // Intelligently calculate currently active reservations from pending invoices to prevent overwriting sales rep reserves
+    const reservedPiecesByProduct = new Map<string, number>();
+    invoices.forEach((inv) => {
+      if (
+        inv.status === 'قيد مراجعة المشرف' ||
+        inv.status === 'معلقة بانتظار اعتماد الفرع' ||
+        inv.status === 'قيد المراجعة' ||
+        inv.status === 'جاري التجهيز'
+      ) {
+        inv.items.forEach((item) => {
+          const current = reservedPiecesByProduct.get(item.productId) || 0;
+          reservedPiecesByProduct.set(item.productId, current + item.totalUnits);
+        });
+      }
+    });
+
+    const protectReserved = (prod: Product): Product => {
+      const activePending = reservedPiecesByProduct.get(prod.id) || 0;
+      const safeReserved = Math.max(0, prod.branchStockActual - activePending);
+      return {
+        ...prod,
+        branchStockReserved: safeReserved,
+      };
+    };
+
     if (mode === 'replace') {
-      setProducts(newProducts);
+      setProducts(newProducts.map(protectReserved));
     } else {
       setProducts((prev) => {
         const map = new Map<string, Product>();
         prev.forEach((p) => map.set(p.code, p));
-        newProducts.forEach((p) => map.set(p.code, p));
+        newProducts.forEach((p) => {
+          const existing = map.get(p.code);
+          const mergedProd: Product = existing
+            ? { ...existing, ...p, id: existing.id }
+            : p;
+          map.set(p.code, protectReserved(mergedProd));
+        });
         return Array.from(map.values());
       });
     }
@@ -774,7 +810,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // --- Orders, Concurrency, and Approval Workflow ---
-  const createOrder = (orderData: Partial<Invoice>): { success: boolean; invoice?: Invoice; message?: string } => {
+  const createOrder = (
+    orderData: Partial<Invoice> & { splitShortagesToBackorder?: boolean }
+  ): {
+    success: boolean;
+    invoice?: Invoice;
+    shortageInvoice?: Invoice;
+    message?: string;
+  } => {
     if (cart.length === 0) {
       return { success: false, message: 'سلة الطلبية فارغة! يرجى إضافة أصناف أولاً.' };
     }
@@ -794,38 +837,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    const summary = getCartSummary();
     const newInvoiceNumber = `DRM-${new Date().getFullYear()}-${String(invoices.length + 104).padStart(4, '0')}`;
     const now = new Date();
-
     const formattedDate = now.toISOString().slice(0, 10);
     const formattedTime = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true });
-
-    const invoiceItems = cart.map((item) => {
-      const cartonQty = item.product.cartonQuantity || 1;
-      const effectivePiecePrice = item.product.promoPrice || item.product.piecePrice;
-      const itemSubtotal = item.cartonCount * item.product.cartonPrice + item.pieceCount * effectivePiecePrice;
-      const itemDiscount = itemSubtotal * 0.035;
-      const itemTax = (itemSubtotal - itemDiscount) * 0.14;
-
-      return {
-        productId: item.product.id,
-        productCode: item.product.code,
-        productName: item.product.name,
-        cartonCount: item.cartonCount,
-        pieceCount: item.pieceCount,
-        cartonQuantity: cartonQty,
-        totalUnits: item.totalPieces,
-        pricePerPiece: effectivePiecePrice,
-        pricePerCarton: item.product.cartonPrice,
-        appliedPrice: item.cartonCount > 0 ? item.product.cartonPrice : effectivePiecePrice,
-        totalBeforeTax: itemSubtotal,
-        discountAmount: itemDiscount,
-        taxAmount: itemTax,
-        netTotal: itemSubtotal - itemDiscount + itemTax,
-        fulfilledFrom: (item.fulfillFromMainWarehouse ? 'main_warehouse' : 'branch') as 'branch' | 'main_warehouse',
-      };
-    });
 
     const userSupervisor = currentUser?.supervisorId
       ? users.find((u) => u.id === currentUser.supervisorId)?.name
@@ -834,7 +849,66 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const isDirectManager = currentUser?.role === 'admin' || currentUser?.role === 'branch_manager';
     const initialStatus: OrderStatus = isDirectManager ? 'معتمدة ومصروفة من المخزن' : 'قيد مراجعة المشرف';
 
-    const newInvoice: Invoice = {
+    // Check if user requested shortage backorder split or has main warehouse fulfilled items
+    const hasWarehouseItems = cart.some((c) => c.fulfillFromMainWarehouse);
+    const shouldSplit = (orderData.splitShortagesToBackorder || hasWarehouseItems) && cart.some(c => !c.fulfillFromMainWarehouse) && hasWarehouseItems;
+
+    let primaryCartItems = cart;
+    let shortageCartItems: typeof cart = [];
+
+    if (shouldSplit) {
+      primaryCartItems = cart.filter((c) => !c.fulfillFromMainWarehouse);
+      shortageCartItems = cart.filter((c) => c.fulfillFromMainWarehouse);
+    }
+
+    const buildInvoiceItems = (items: typeof cart) => {
+      return items.map((item) => {
+        const cartonQty = item.product.cartonQuantity || 1;
+        const effectivePiecePrice = item.product.promoPrice || item.product.piecePrice;
+        const itemSubtotal = item.cartonCount * item.product.cartonPrice + item.pieceCount * effectivePiecePrice;
+        const itemDiscount = itemSubtotal * 0.035;
+        const itemTax = (itemSubtotal - itemDiscount) * 0.14;
+
+        return {
+          productId: item.product.id,
+          productCode: item.product.code,
+          productName: item.product.name,
+          cartonCount: item.cartonCount,
+          pieceCount: item.pieceCount,
+          cartonQuantity: cartonQty,
+          totalUnits: item.totalPieces,
+          pricePerPiece: effectivePiecePrice,
+          pricePerCarton: item.product.cartonPrice,
+          appliedPrice: item.cartonCount > 0 ? item.product.cartonPrice : effectivePiecePrice,
+          totalBeforeTax: itemSubtotal,
+          discountAmount: itemDiscount,
+          taxAmount: itemTax,
+          netTotal: itemSubtotal - itemDiscount + itemTax,
+          fulfilledFrom: (item.fulfillFromMainWarehouse ? 'main_warehouse' : 'branch') as 'branch' | 'main_warehouse',
+        };
+      });
+    };
+
+    const calculateTotals = (items: ReturnType<typeof buildInvoiceItems>) => {
+      let subtotal = 0;
+      let totalCartons = 0;
+      let totalPieces = 0;
+      items.forEach((it) => {
+        subtotal += it.totalBeforeTax;
+        totalCartons += it.cartonCount;
+        totalPieces += it.totalUnits;
+      });
+      const discountAmount = subtotal * 0.035;
+      const taxableAmount = subtotal - discountAmount;
+      const taxAmount = taxableAmount * 0.14;
+      const estimatedGrandTotal = taxableAmount + taxAmount;
+      return { subtotal, totalCartons, totalPieces, discountAmount, taxAmount, estimatedGrandTotal };
+    };
+
+    const primaryItems = buildInvoiceItems(primaryCartItems);
+    const primaryTotals = calculateTotals(primaryItems);
+
+    const primaryInvoice: Invoice = {
       id: `inv-${Date.now()}`,
       invoiceNumber: newInvoiceNumber,
       customerName: orderData.customerName || 'عميل تجزئة عام',
@@ -844,53 +918,112 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       date: formattedDate,
       time: formattedTime,
       repId: currentUser ? currentUser.id : 'u-admin-1',
-      repName: currentUser ? currentUser.name : 'مسؤول النظام',
+      repName: currentUser ? currentUser.name : 'أسامة إسلام (المطور والمدير العام)',
       supervisorName: userSupervisor,
-      branchName: currentUser?.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
-      items: invoiceItems,
-      totalCartons: summary.totalCartons,
-      totalPieces: summary.totalPieces,
-      subtotal: summary.subtotal,
+      branchName: currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+      items: primaryItems,
+      totalCartons: primaryTotals.totalCartons,
+      totalPieces: primaryTotals.totalPieces,
+      subtotal: primaryTotals.subtotal,
       discountPercentage: 3.5,
-      discountAmount: summary.discountAmount,
+      discountAmount: primaryTotals.discountAmount,
       taxPercentage: 14,
-      taxAmount: summary.taxAmount,
-      estimatedGrandTotal: summary.grandTotal,
+      taxAmount: primaryTotals.taxAmount,
+      estimatedGrandTotal: primaryTotals.estimatedGrandTotal,
       paymentMethod: orderData.paymentMethod || 'نقدي (كاش)',
       status: initialStatus,
       notes: orderData.notes || '',
       syncedToAccounting: false,
-      qrPayload: `DREAM-EINV-${newInvoiceNumber}|${orderData.customerTaxNumber || 'GEN'}|${summary.grandTotal.toFixed(2)}|${summary.taxAmount.toFixed(2)}|${formattedDate}`,
+      hasShortageSplit: shouldSplit,
+      shortageInvoiceNumber: shouldSplit ? `${newInvoiceNumber}-NQ` : undefined,
+      qrPayload: `DREAM-EINV-${newInvoiceNumber}|${orderData.customerTaxNumber || 'GEN'}|${primaryTotals.estimatedGrandTotal.toFixed(2)}|${primaryTotals.taxAmount.toFixed(2)}|${formattedDate}`,
     };
 
-    // Stock deduction & reservation:
-    // If sales_rep: reserve stock immediately (branchStockReserved decreases) so other reps CANNOT book it!
-    // If manager/admin: approve & deduct both actual and reserved immediately
+    let createdShortageInvoice: Invoice | undefined = undefined;
+
+    if (shouldSplit && shortageCartItems.length > 0) {
+      const shortageItems = buildInvoiceItems(shortageCartItems);
+      const shortageTotals = calculateTotals(shortageItems);
+      const shortageInvoiceNumber = `${newInvoiceNumber}-NQ`;
+
+      createdShortageInvoice = {
+        id: `inv-${Date.now() + 1}`,
+        invoiceNumber: shortageInvoiceNumber,
+        customerName: orderData.customerName || 'عميل تجزئة عام',
+        customerPhone: orderData.customerPhone || '',
+        customerAddress: orderData.customerAddress || '',
+        customerTaxNumber: orderData.customerTaxNumber || '',
+        date: formattedDate,
+        time: formattedTime,
+        repId: currentUser ? currentUser.id : 'u-admin-1',
+        repName: currentUser ? currentUser.name : 'أسامة إسلام (المطور والمدير العام)',
+        supervisorName: userSupervisor,
+        branchName: 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+        items: shortageItems,
+        totalCartons: shortageTotals.totalCartons,
+        totalPieces: shortageTotals.totalPieces,
+        subtotal: shortageTotals.subtotal,
+        discountPercentage: 3.5,
+        discountAmount: shortageTotals.discountAmount,
+        taxPercentage: 14,
+        taxAmount: shortageTotals.taxAmount,
+        estimatedGrandTotal: shortageTotals.estimatedGrandTotal,
+        paymentMethod: orderData.paymentMethod || 'نقدي (كاش)',
+        status: 'قيد مراجعة المشرف',
+        notes: `فاتورة تحويل نواقص تابعة للفاتورة الأساسية #${newInvoiceNumber}`,
+        syncedToAccounting: false,
+        isShortageInvoice: true,
+        parentInvoiceId: primaryInvoice.id,
+        parentInvoiceNumber: primaryInvoice.invoiceNumber,
+        qrPayload: `DREAM-EINV-${shortageInvoiceNumber}|${orderData.customerTaxNumber || 'GEN'}|${shortageTotals.estimatedGrandTotal.toFixed(2)}|${shortageTotals.taxAmount.toFixed(2)}|${formattedDate}`,
+      };
+    }
+
+    // Deduct / Reserve Stock in Products
     setProducts((prev) => {
       return prev.map((p) => {
         const cartItem = cart.find((c) => c.product.id === p.id);
         if (!cartItem) return p;
         const pieceUnits = cartItem.totalPieces;
 
-        if (isDirectManager) {
-          return {
-            ...p,
-            branchStockActual: Math.max(0, p.branchStockActual - pieceUnits),
-            branchStockReserved: Math.max(0, p.branchStockReserved - pieceUnits),
-          };
+        if (cartItem.fulfillFromMainWarehouse) {
+          // Central warehouse deduction / reserve
+          if (isDirectManager) {
+            return {
+              ...p,
+              mainWarehouseActual: Math.max(0, p.mainWarehouseActual - pieceUnits),
+              mainWarehouseReserved: Math.max(0, p.mainWarehouseReserved - pieceUnits),
+            };
+          } else {
+            return {
+              ...p,
+              mainWarehouseReserved: Math.max(0, p.mainWarehouseReserved - pieceUnits),
+            };
+          }
         } else {
-          return {
-            ...p,
-            branchStockReserved: Math.max(0, p.branchStockReserved - pieceUnits),
-          };
+          // Branch stock deduction / reserve
+          if (isDirectManager) {
+            return {
+              ...p,
+              branchStockActual: Math.max(0, p.branchStockActual - pieceUnits),
+              branchStockReserved: Math.max(0, p.branchStockReserved - pieceUnits),
+            };
+          } else {
+            return {
+              ...p,
+              branchStockReserved: Math.max(0, p.branchStockReserved - pieceUnits),
+            };
+          }
         }
       });
     });
 
-    // Record inventory audit logs
+    // Record inventory audit logs for each item
     cart.forEach((item) => {
       const prod = products.find((p) => p.id === item.product.id);
-      const beforeReserved = prod ? prod.branchStockReserved : 0;
+      const isFromMain = item.fulfillFromMainWarehouse;
+      const beforeReserved = prod ? (isFromMain ? prod.mainWarehouseReserved : prod.branchStockReserved) : 0;
+
       recordInventoryTransaction({
         productId: item.product.id,
         productCode: item.product.code,
@@ -899,20 +1032,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         quantityPieces: item.totalPieces,
         branchStockBefore: beforeReserved,
         branchStockAfter: Math.max(0, beforeReserved - item.totalPieces),
-        branchName: currentUser?.branchName || 'الفرع الرئيسي',
+        branchName: isFromMain ? 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)' : (currentUser?.branchName || 'الفرع الرئيسي'),
         userName: currentUser?.name || 'المندوب',
         userRole: currentUser?.role || 'sales_rep',
-        invoiceId: newInvoice.id,
+        invoiceId: primaryInvoice.id,
         invoiceNumber: newInvoiceNumber,
-        notes: isDirectManager
+        notes: isFromMain
+          ? `حجز صنف نواقص من المخزن المركزي بأكتوبر للطلبية #${newInvoiceNumber}`
+          : isDirectManager
           ? `اعتماد وصرف فوري للطلبية #${newInvoiceNumber}`
           : `حجز رصيد للطلبية #${newInvoiceNumber} قيد مراجعة واعتماد المشرف`,
       });
     });
 
-    setInvoices((prev) => [newInvoice, ...prev]);
+    setInvoices((prev) => {
+      const updated = [primaryInvoice, ...prev];
+      if (createdShortageInvoice) {
+        updated.unshift(createdShortageInvoice);
+      }
+      return updated;
+    });
+
     clearCart();
-    return { success: true, invoice: newInvoice };
+    return {
+      success: true,
+      invoice: primaryInvoice,
+      shortageInvoice: createdShortageInvoice,
+      message: createdShortageInvoice
+        ? `تم إصدار الفاتورة الأساسية #${primaryInvoice.invoiceNumber} وفاتورة النواقص المحولة #${createdShortageInvoice.invoiceNumber} بنجاح!`
+        : `تم تسجيل الطلبية #${primaryInvoice.invoiceNumber} بنجاح وحجز الأصناف بالمخزن!`
+    };
   };
 
   // Supervisor / Manager approves order & discharges physical stock
@@ -1044,6 +1193,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? {
               ...i,
               status: 'مرفوضة / ملغاة' as OrderStatus,
+              cancellationReason: reason,
+              cancelledBy: currentUser?.name || 'مشرف المبيعات',
+              cancelledAt: `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true })}`,
+              restoredStockDetails: `تم استرجاع ${inv.totalCartons} كرتونة (${inv.totalPieces} قطعة) إلى مخزن الفرع`,
               notes: `${i.notes ? i.notes + ' | ' : ''}سبب الرفض: ${reason}`,
             }
           : i
@@ -1056,8 +1209,141 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
-  const updateOrderStatus = (invoiceId: string, status: OrderStatus) => {
-    setInvoices((prev) => prev.map((inv) => (inv.id === invoiceId ? { ...inv, status } : inv)));
+  const updateOrderStatus = (
+    invoiceId: string,
+    status: OrderStatus,
+    reason?: string
+  ): { success: boolean; message: string } => {
+    const inv = invoices.find((i) => i.id === invoiceId);
+    if (!inv) return { success: false, message: 'الفاتورة غير موجودة' };
+
+    const oldStatus = inv.status;
+    if (oldStatus === status) return { success: true, message: 'حالة الطلبية مطابقة بالفعل' };
+
+    const isNowReturnedOrCancelled = status === 'مرتجع' || status === 'ملغاة' || status === 'مرفوضة / ملغاة';
+    const wasDeductedOrApproved =
+      oldStatus === 'معتمدة ومصروفة من المخزن' ||
+      oldStatus === 'معتمدة' ||
+      oldStatus === 'جاري التجهيز' ||
+      oldStatus === 'قيد التوصيل' ||
+      oldStatus === 'تم التسليم';
+    const wasPending =
+      oldStatus === 'قيد مراجعة المشرف' ||
+      oldStatus === 'معلقة بانتظار اعتماد الفرع' ||
+      oldStatus === 'قيد المراجعة';
+
+    // If order is marked as Returned or Cancelled after stock was deducted/approved:
+    if (isNowReturnedOrCancelled) {
+      if (wasDeductedOrApproved) {
+        // Restore physical actual AND reserved stock
+        setProducts((prev) =>
+          prev.map((p) => {
+            const item = inv.items.find((it) => it.productId === p.id);
+            if (!item) return p;
+            const qty = item.totalUnits;
+            if (item.fulfilledFrom === 'main_warehouse') {
+              return {
+                ...p,
+                mainWarehouseActual: p.mainWarehouseActual + qty,
+                mainWarehouseReserved: p.mainWarehouseReserved + qty,
+              };
+            } else {
+              return {
+                ...p,
+                branchStockActual: p.branchStockActual + qty,
+                branchStockReserved: p.branchStockReserved + qty,
+              };
+            }
+          })
+        );
+
+        // Record inventory audit logs for each returned item
+        inv.items.forEach((item) => {
+          const prod = products.find((p) => p.id === item.productId);
+          const currentActual = prod ? prod.branchStockActual : 0;
+          recordInventoryTransaction({
+            productId: item.productId,
+            productCode: item.productCode,
+            productName: item.productName,
+            type: 'مرتجع مبيعات وإرجاع للمخزن',
+            quantityPieces: item.totalUnits,
+            branchStockBefore: currentActual,
+            branchStockAfter: currentActual + item.totalUnits,
+            branchName: inv.branchName,
+            userName: currentUser?.name || 'مسئول المخازن',
+            userRole: currentUser?.role || 'branch_manager',
+            invoiceId: inv.id,
+            invoiceNumber: inv.invoiceNumber,
+            notes:
+              status === 'مرتجع'
+                ? `تسجيل مرتجع للطلبية #${inv.invoiceNumber} وإعادة ${item.cartonCount} كرتونة (${item.totalUnits} قطعة) إلى رصيد مخزن الفرع. ${reason ? `السبب: ${reason}` : ''}`
+                : `إلغاء الطلبية #${inv.invoiceNumber} واسترداد الرصيد بالكامل إلى المخزن`,
+          });
+        });
+      } else if (wasPending) {
+        // Only reserved stock was held -> release reserved stock
+        setProducts((prev) =>
+          prev.map((p) => {
+            const item = inv.items.find((it) => it.productId === p.id);
+            if (!item) return p;
+            const qty = item.totalUnits;
+            return {
+              ...p,
+              branchStockReserved: p.branchStockReserved + qty,
+            };
+          })
+        );
+
+        inv.items.forEach((item) => {
+          const prod = products.find((p) => p.id === item.productId);
+          const resBefore = prod ? prod.branchStockReserved : 0;
+          recordInventoryTransaction({
+            productId: item.productId,
+            productCode: item.productCode,
+            productName: item.productName,
+            type: 'إلغاء حجز وإرجاع',
+            quantityPieces: item.totalUnits,
+            branchStockBefore: resBefore,
+            branchStockAfter: resBefore + item.totalUnits,
+            branchName: inv.branchName,
+            userName: currentUser?.name || 'المشرف',
+            userRole: currentUser?.role || 'supervisor',
+            invoiceId: inv.id,
+            invoiceNumber: inv.invoiceNumber,
+            notes: `فك حجز الأصناف وإلغاء الطلبية #${inv.invoiceNumber}`,
+          });
+        });
+      }
+    }
+
+    setInvoices((prev) =>
+      prev.map((i) =>
+        i.id === invoiceId
+          ? {
+              ...i,
+              status,
+              cancellationReason: isNowReturnedOrCancelled ? (reason || i.cancellationReason || 'إلغاء الطلبية') : i.cancellationReason,
+              cancelledBy: isNowReturnedOrCancelled ? (currentUser?.name || 'مسؤول النظام') : i.cancelledBy,
+              cancelledAt: isNowReturnedOrCancelled ? `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true })}` : i.cancelledAt,
+              restoredStockDetails: isNowReturnedOrCancelled ? `تم استرجاع ${inv.totalCartons} كرتونة (${inv.totalPieces} قطعة) إلى المخزن` : i.restoredStockDetails,
+              notes: reason
+                ? `${i.notes ? i.notes + ' | ' : ''}تحديث الحالة إلى (${status}): ${reason}`
+                : i.notes,
+            }
+          : i
+      )
+    );
+
+    let message = `تم تحديث حالة الطلبية #${inv.invoiceNumber} بنجاح إلى: ${status}`;
+    if (status === 'مرتجع') {
+      message = `تم تسجيل الطلبية #${inv.invoiceNumber} كـ (مرتجع) وإرجاع كافة الكراتين والأرصدة إلى المخزن بنجاح!`;
+    } else if (status === 'تم التسليم') {
+      message = `تم تأكيد تسليم الطلبية #${inv.invoiceNumber} للعميل بنجاح!`;
+    } else if (status === 'قيد التوصيل') {
+      message = `تم تحويل الطلبية #${inv.invoiceNumber} إلى (قيد التوصيل) مع المندوب / سيارة التوزيع.`;
+    }
+
+    return { success: true, message };
   };
 
   const deleteInvoice = (invoiceId: string) => {

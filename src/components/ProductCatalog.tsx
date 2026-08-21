@@ -78,7 +78,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('الكل');
   const [selectedPriority, setSelectedPriority] = useState<string>('الكل');
   const [selectedStatus, setSelectedStatus] = useState<string>('الكل');
-  const [stockAvailabilityFilter, setStockAvailabilityFilter] = useState<'all' | 'in_branch' | 'in_warehouse' | 'low_stock'>('all');
+  const [stockAvailabilityFilter, setStockAvailabilityFilter] = useState<
+    'all' | 'in_branch' | 'in_warehouse' | 'low_stock' | 'out_of_stock' | 'high_stock'
+  >('all');
   const [priceSort, setPriceSort] = useState<'default' | 'price_asc' | 'price_desc' | 'priority'>('default');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
@@ -242,6 +244,39 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
     return Array.from(set).filter(Boolean);
   }, [products]);
 
+  // Stock Counts for Filtering
+  const stockCounts = useMemo(() => {
+    let outOfStock = 0;
+    let lowStock = 0;
+    let highStock = 0;
+    let inBranch = 0;
+    let inWarehouse = 0;
+
+    products.forEach((p) => {
+      const branchCartons = Math.floor(p.branchStockReserved / (p.cartonQuantity || 1));
+      const isOut = p.branchStockReserved <= 0 && p.branchStockActual <= 0;
+      if (isOut) {
+        outOfStock++;
+      } else if (branchCartons > 0 && branchCartons <= 5) {
+        lowStock++;
+      } else if (branchCartons >= 30) {
+        highStock++;
+      }
+
+      if (p.branchStockReserved > 0 || p.branchStockActual > 0) inBranch++;
+      if (p.mainWarehouseReserved > 0 || p.mainWarehouseActual > 0) inWarehouse++;
+    });
+
+    return {
+      all: products.length,
+      outOfStock,
+      lowStock,
+      highStock,
+      inBranch,
+      inWarehouse,
+    };
+  }, [products]);
+
   // Filtered & Sorted Products
   const filteredProducts = useMemo(() => {
     let result = products.filter((p) => {
@@ -301,15 +336,18 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
         return false;
       }
 
-      // Stock filter
-      if (stockAvailabilityFilter === 'in_branch' && p.branchStockActual <= 0) {
-        return false;
-      }
-      if (stockAvailabilityFilter === 'in_warehouse' && p.mainWarehouseActual <= 0) {
-        return false;
-      }
-      if (stockAvailabilityFilter === 'low_stock' && p.branchStockActual > 20) {
-        return false;
+      // Stock Filters (المنتهية، قاربت على النفاذ، المتوفرة بكثرة، إلخ)
+      const branchCartons = Math.floor(p.branchStockReserved / (p.cartonQuantity || 1));
+      if (stockAvailabilityFilter === 'out_of_stock') {
+        if (p.branchStockReserved > 0 || p.branchStockActual > 0) return false;
+      } else if (stockAvailabilityFilter === 'low_stock') {
+        if (branchCartons <= 0 || branchCartons > 5) return false;
+      } else if (stockAvailabilityFilter === 'high_stock') {
+        if (branchCartons < 30) return false;
+      } else if (stockAvailabilityFilter === 'in_branch') {
+        if (p.branchStockActual <= 0 && p.branchStockReserved <= 0) return false;
+      } else if (stockAvailabilityFilter === 'in_warehouse') {
+        if (p.mainWarehouseActual <= 0 && p.mainWarehouseReserved <= 0) return false;
       }
 
       return true;
@@ -645,50 +683,100 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
           </div>
         </div>
 
-        {/* Quick Filter Badges (Stock & Deals) */}
-        <div className="flex flex-wrap items-center gap-2 text-xs pt-1">
+        {/* Dedicated Inventory Status & Stock Quick Filters */}
+        <div className="flex flex-wrap items-center gap-1.5 text-xs pt-1 border-t border-slate-800/60">
+          <span className="text-[11px] text-slate-400 font-bold ml-1">تصفية المخزون:</span>
+
+          <button
+            onClick={() => setStockAvailabilityFilter(stockAvailabilityFilter === 'out_of_stock' ? 'all' : 'out_of_stock')}
+            className={`px-3 py-1.5 rounded-xl font-bold border transition flex items-center gap-1.5 cursor-pointer ${
+              stockAvailabilityFilter === 'out_of_stock'
+                ? 'bg-rose-600 text-white border-rose-400 shadow-md'
+                : 'bg-rose-950/40 text-rose-300 border-rose-800/60 hover:bg-rose-900/50'
+            }`}
+          >
+            <span>🚫 منتجات منتهية (0 كرتونة)</span>
+            <span className="text-[10px] bg-rose-950 px-1.5 py-0.2 rounded-full font-black border border-rose-700">
+              {stockCounts.outOfStock}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setStockAvailabilityFilter(stockAvailabilityFilter === 'low_stock' ? 'all' : 'low_stock')}
+            className={`px-3 py-1.5 rounded-xl font-bold border transition flex items-center gap-1.5 cursor-pointer ${
+              stockAvailabilityFilter === 'low_stock'
+                ? 'bg-amber-500 text-slate-950 border-amber-300 shadow-md font-black'
+                : 'bg-amber-950/40 text-amber-300 border-amber-800/60 hover:bg-amber-900/50'
+            }`}
+          >
+            <span>⚠️ قاربت على النفاذ (≤ 5 كراتين)</span>
+            <span className="text-[10px] bg-amber-950 text-amber-300 px-1.5 py-0.2 rounded-full font-black border border-amber-700">
+              {stockCounts.lowStock}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setStockAvailabilityFilter(stockAvailabilityFilter === 'high_stock' ? 'all' : 'high_stock')}
+            className={`px-3 py-1.5 rounded-xl font-bold border transition flex items-center gap-1.5 cursor-pointer ${
+              stockAvailabilityFilter === 'high_stock'
+                ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow-md font-black'
+                : 'bg-emerald-950/40 text-emerald-300 border-emerald-800/60 hover:bg-emerald-900/50'
+            }`}
+          >
+            <span>🟢 متوفرة بكثرة (≥ 30 كرتونة)</span>
+            <span className="text-[10px] bg-emerald-950 text-emerald-300 px-1.5 py-0.2 rounded-full font-black border border-emerald-700">
+              {stockCounts.highStock}
+            </span>
+          </button>
+
           <button
             onClick={() => setStockAvailabilityFilter(stockAvailabilityFilter === 'in_branch' ? 'all' : 'in_branch')}
-            className={`px-3 py-1 rounded-lg font-bold border transition ${
+            className={`px-3 py-1.5 rounded-xl font-bold border transition flex items-center gap-1.5 cursor-pointer ${
               stockAvailabilityFilter === 'in_branch'
-                ? 'bg-emerald-500 text-slate-950 border-emerald-400'
+                ? 'bg-blue-600 text-white border-blue-400 shadow-md'
                 : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
             }`}
           >
-            🏢 متوفر بالفرع فقط
+            <span>🏢 متاح بالفرع</span>
+            <span className="text-[10px] bg-slate-900 px-1.5 py-0.2 rounded-full font-bold">
+              {stockCounts.inBranch}
+            </span>
           </button>
 
           <button
             onClick={() => setStockAvailabilityFilter(stockAvailabilityFilter === 'in_warehouse' ? 'all' : 'in_warehouse')}
-            className={`px-3 py-1 rounded-lg font-bold border transition ${
+            className={`px-3 py-1.5 rounded-xl font-bold border transition flex items-center gap-1.5 cursor-pointer ${
               stockAvailabilityFilter === 'in_warehouse'
-                ? 'bg-amber-400 text-slate-950 border-amber-300'
+                ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md font-black'
                 : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
             }`}
           >
-            📦 متوفر بالمخزن الرئيسي
+            <span>📦 مخزن أكتوبر المركزي</span>
+            <span className="text-[10px] bg-slate-900 text-amber-300 px-1.5 py-0.2 rounded-full font-bold">
+              {stockCounts.inWarehouse}
+            </span>
           </button>
 
           <button
             onClick={() => setSelectedPriority(selectedPriority === 'مرتفع' ? 'الكل' : 'مرتفع')}
-            className={`px-3 py-1 rounded-lg font-bold border transition ${
+            className={`px-3 py-1.5 rounded-xl font-bold border transition cursor-pointer ${
               selectedPriority === 'مرتفع'
                 ? 'bg-rose-500 text-white border-rose-400'
                 : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
             }`}
           >
-            🔥 الأكثر طلباً ومبيعاً
+            🔥 الأكثر طلباً
           </button>
 
           <button
             onClick={() => setSelectedStatus(selectedStatus === 'عرض ترويجي' ? 'الكل' : 'عرض ترويجي')}
-            className={`px-3 py-1 rounded-lg font-bold border transition ${
+            className={`px-3 py-1.5 rounded-xl font-bold border transition cursor-pointer ${
               selectedStatus === 'عرض ترويجي'
                 ? 'bg-purple-600 text-white border-purple-400'
                 : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
             }`}
           >
-            🎁 صفقات وعروض حصرية
+            🎁 عروض حصرية
           </button>
 
           {(searchTerm || selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل' || selectedPriority !== 'الكل' || selectedStatus !== 'الكل' || stockAvailabilityFilter !== 'all' || priceSort !== 'default') && (
@@ -702,7 +790,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                 setStockAvailabilityFilter('all');
                 setPriceSort('default');
               }}
-              className="text-amber-400 hover:text-amber-300 underline font-bold px-2 cursor-pointer"
+              className="text-amber-400 hover:text-amber-300 underline font-bold px-2 py-1 cursor-pointer text-xs"
             >
               إلغاء كل الفلاتر
             </button>
@@ -891,72 +979,89 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                     {product.branchStockReserved <= 0 ? (
                       <div className="bg-rose-600 text-white text-[10px] font-black px-2 py-1 rounded-xl flex items-center justify-center gap-1 shadow-xs">
                         <AlertTriangle className="w-3 h-3" />
-                        <span>نفذ المخزون المتاح للفرع 🚫 (لا يمكن حجزه)</span>
+                        <span>نفذ المخزون بالفرع (0 كرتونة) 🚫</span>
                       </div>
-                    ) : product.branchStockReserved <= 25 ? (
+                    ) : Math.floor(product.branchStockReserved / (product.cartonQuantity || 1)) <= 5 ? (
                       <div className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black px-2 py-1 rounded-xl flex items-center justify-center gap-1 animate-pulse">
                         <AlertTriangle className="w-3 h-3 text-amber-700" />
-                        <span>تنبيه: قارب على النفاذ! متبقي {product.branchStockReserved} قطعة فقط</span>
+                        <span>تنبيه: قارب على النفاذ! متبقي {Math.floor(product.branchStockReserved / (product.cartonQuantity || 1))} كرتونة فقط</span>
                       </div>
                     ) : null}
 
-                    {/* Branch Stock */}
+                    {/* Branch Stock in Cartons as Primary */}
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1 text-slate-600 font-medium">
+                      <div className="flex items-center gap-1 text-slate-700 font-bold">
                         <Package className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>الفرع الحالي:</span>
+                        <span>رصيد الفرع:</span>
                       </div>
-                      <div>
+                      <div className="text-left">
                         {hasBranchStock ? (
-                          <span className="text-emerald-700 font-black">{product.branchStockActual} ق</span>
+                          <span className="text-emerald-800 font-black">
+                            {Math.floor(product.branchStockActual / (product.cartonQuantity || 1))} كرتونة
+                          </span>
                         ) : (
                           <span className="text-rose-600 font-bold">نفذ بالفرع</span>
                         )}
-                        <span className="text-[10px] text-slate-400 mr-1">(متاح: {product.branchStockReserved})</span>
+                        <span className="text-[10px] text-slate-400 mr-1">
+                          (متاح: {Math.floor(product.branchStockReserved / (product.cartonQuantity || 1))} ك)
+                        </span>
                       </div>
                     </div>
 
-                    {/* Main Warehouse Stock */}
+                    {/* October Central Warehouse Stock in Cartons */}
                     <div className="flex items-center justify-between pt-1 border-t border-slate-200/70">
-                      <div className="flex items-center gap-1 text-slate-600 font-medium">
-                        <Warehouse className="w-3.5 h-3.5 text-amber-500" />
-                        <span>المخزن الرئيسي:</span>
+                      <div className="flex items-center gap-1 text-slate-700 font-bold">
+                        <Warehouse className="w-3.5 h-3.5 text-amber-600" />
+                        <span>مخزن أكتوبر الرئيسي:</span>
                       </div>
-                      <div>
+                      <div className="text-left">
                         {hasMainWhStock ? (
-                          <span className="text-amber-800 font-black">{product.mainWarehouseActual} ق</span>
+                          <span className="text-amber-900 font-black">
+                            {Math.floor(product.mainWarehouseActual / (product.cartonQuantity || 1))} كرتونة
+                          </span>
                         ) : (
-                          <span className="text-slate-400">غير متوفر</span>
+                          <span className="text-slate-400 font-medium">غير متوفر</span>
                         )}
-                        <span className="text-[10px] text-slate-400 mr-1">(متاح: {product.mainWarehouseReserved})</span>
+                        <span className="text-[10px] text-slate-400 mr-1">
+                          (متاح: {Math.floor(product.mainWarehouseReserved / (product.cartonQuantity || 1))} ك)
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Amazon Pricing Section (Piece vs Carton) */}
-                  <div className="bg-gradient-to-r from-amber-50 to-orange-50/50 p-3 rounded-2xl border border-amber-200/80 space-y-1">
+                  {/* Pricing Section (Carton Wholesale Price as Primary + Piece Guide Price) */}
+                  <div className="bg-gradient-to-r from-amber-50 via-amber-100/60 to-yellow-50 p-3 rounded-2xl border border-amber-300 shadow-xs space-y-1.5">
                     <div className="flex items-baseline justify-between">
                       <div>
-                        <div className="text-[10px] text-slate-500 font-bold">سعر القطعة:</div>
-                        <div className="text-base font-black text-slate-950">
-                          {isPromo ? (
-                            <span className="text-purple-700">{formatCurrency(product.promoPrice)}</span>
-                          ) : (
-                            formatCurrency(product.piecePrice)
-                          )}
+                        <div className="text-[10px] text-amber-950 font-extrabold flex items-center gap-1">
+                          <span>سعر الكرتونة بالجملة (الأساسي):</span>
+                        </div>
+                        <div className="text-lg font-black text-amber-950">
+                          {formatCurrency(product.cartonPrice)}
                         </div>
                       </div>
 
                       <div className="text-left">
-                        <div className="text-[10px] text-slate-500 font-bold">سعر الكرتونة ({product.cartonQuantity} ق):</div>
-                        <div className="text-sm font-black text-amber-900">
-                          {formatCurrency(product.cartonPrice)}
+                        <div className="text-[10px] text-slate-500 font-bold">الشدة:</div>
+                        <div className="text-xs font-black bg-amber-200/80 text-amber-950 px-2 py-0.5 rounded-lg">
+                          {product.cartonQuantity} قطعة
                         </div>
                       </div>
                     </div>
 
+                    <div className="pt-1 border-t border-amber-200 text-[11px] text-slate-600 flex items-center justify-between">
+                      <span>سعر القطعة الاسترشادي:</span>
+                      <strong className="text-slate-900 font-black">
+                        {isPromo ? (
+                          <span className="text-purple-700">{formatCurrency(product.promoPrice)}</span>
+                        ) : (
+                          formatCurrency(product.piecePrice)
+                        )}
+                      </strong>
+                    </div>
+
                     {cartonSavings > 0 && (
-                      <div className="text-[10px] text-emerald-700 font-black pt-1 border-t border-amber-200/50 flex items-center justify-between">
+                      <div className="text-[10px] text-emerald-800 font-black flex items-center justify-between">
                         <span>وفر عند الشراء بالكرتونة:</span>
                         <span>{formatCurrency(cartonSavings)}</span>
                       </div>

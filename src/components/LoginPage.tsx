@@ -19,13 +19,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
   const { login } = useApp();
 
   // Login State
-  const [loginIdentifier, setLoginIdentifier] = useState('admin');
-  const [loginPassword, setLoginPassword] = useState('admin');
+  const [loginIdentifier, setLoginIdentifier] = useState('osama');
+  const [loginPassword, setLoginPassword] = useState('osama');
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Quick Demo credentials toggle
+  // Quick info toggle
   const [showDemoLogins, setShowDemoLogins] = useState(false);
 
   const handleLoginSubmit = (e: React.FormEvent) => {
@@ -129,8 +129,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                 <label className="block text-xs font-bold text-slate-300">
                   كلمة المرور
                 </label>
-                <span className="text-[11px] text-slate-500">
-                  (admin للأدمن أو 123 للمناديب)
+                <span className="text-[11px] text-slate-400">
+                  (الافتراضي: osama)
                 </span>
               </div>
               <div className="relative">
