@@ -127,11 +127,11 @@ export const INITIAL_BRANCHES: Branch[] = [
 export const INITIAL_USERS: User[] = [
   {
     id: 'u-admin-osama',
-    name: 'أسامة إسلام (المدير العام)',
+    name: 'أسامة إسلام (المطور التقني)',
     username: 'osama',
     email: 'Osama@dream.com',
     password: '123456',
-    role: 'admin',
+    role: 'developer',
     branchName: 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
     phone: '01000000001',
     isActive: true,
@@ -174,18 +174,6 @@ export const INITIAL_USERS: User[] = [
     isActive: true,
     approvalStatus: 'active',
     commissionRate: 3.0,
-  },
-  {
-    id: 'u-dev-tech',
-    name: 'المطور التقني (Developer Console)',
-    username: 'developer',
-    email: 'dev@dream.com',
-    password: '123456',
-    role: 'developer',
-    branchName: 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
-    phone: '01098765432',
-    isActive: true,
-    approvalStatus: 'active',
   },
 ];
 

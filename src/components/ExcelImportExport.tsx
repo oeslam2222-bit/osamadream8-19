@@ -41,7 +41,7 @@ import { Product } from '../types';
 export const ExcelImportExport: React.FC = () => {
   const { products, importProductsList, wipeAllProductsAndData, selectedBranchFilter, cloudinaryConfig, updateCloudinarySettings } = useApp();
 
-  const [activeSubTab, setActiveSubTab] = useState<'google_sheets' | 'excel_file' | 'cloudinary_guide' | 'drive_scanner'>('google_sheets');
+  const [activeSubTab, setActiveSubTab] = useState<'google_sheets' | 'excel_file' | 'drive_scanner'>('google_sheets');
 
   // Wipe / Reset Modal State
   const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
@@ -178,7 +178,7 @@ function onEdit(e) {
             <div>
               <h2 className="text-xl font-black text-slate-900">مركز ربط الشيتات (Google Sheets & Excel)</h2>
               <p className="text-xs sm:text-sm text-slate-500">
-                مزامنة حية مع Google Sheets • استيراد وتصدير إكسل • ربط تلقائي لـ 10,000+ صورة من Cloudinary
+                مزامنة حية مع Google Sheets • استيراد وتصدير إكسل • دعم مباشر لروابط صور Google Drive وسعر الكرتونة
               </p>
             </div>
           </div>
@@ -237,19 +237,6 @@ function onEdit(e) {
           >
             <Upload className="w-4 h-4" />
             <span>رفع ملف إكسل (Excel / CSV)</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('cloudinary_guide')}
-            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
-              activeSubTab === 'cloudinary_guide'
-                ? 'border-emerald-600 text-emerald-700'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <CloudLightning className="w-4 h-4 text-amber-500" />
-            <span>طريقة ربط الشيت بصور Cloudinary</span>
-            <span className="bg-amber-100 text-amber-900 text-[10px] px-1.5 py-0.5 rounded-full font-bold">شرح + فحص</span>
           </button>
 
           <button
@@ -434,150 +421,7 @@ function onEdit(e) {
         </div>
       )}
 
-      {/* SUB-TAB 3: Cloudinary + Sheet Binding Master Guide & Live Image Tester */}
-      {activeSubTab === 'cloudinary_guide' && (
-        <div className="space-y-6">
-          
-          {/* Visual Explanation Banner */}
-          <div className="bg-gradient-to-br from-slate-900 via-amber-950/40 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-amber-500/30 space-y-6">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xl">
-                <CloudLightning className="w-7 h-7" />
-              </div>
-              <div>
-                <h3 className="text-xl sm:text-2xl font-black text-white">
-                  كيف تربط شيت الإكسل بأكثر من 10,000 صورة على Cloudinary؟
-                </h3>
-                <p className="text-xs sm:text-sm text-amber-200/80 mt-0.5">
-                  أسهل وأذكى طريقة: ربط تلقائي بالكامل وبدون كتابة روابط يدوية!
-                </p>
-              </div>
-            </div>
-
-            {/* The 2 Ways Explained */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
-              {/* Method 1: The Magic Auto-Matching */}
-              <div className="bg-slate-800/90 rounded-2xl p-5 border border-amber-400/40 space-y-3">
-                <div className="flex items-center gap-2 text-amber-300 font-black text-sm">
-                  <span className="w-6 h-6 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center text-xs">1</span>
-                  <span>الطريقة الأولى (الأسهل والأسرع - تلقائية 100%)</span>
-                </div>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  عند رفع الصور على حسابك في <strong>Cloudinary</strong>، اجعل اسم ملف الصورة هو نفس <strong>كود الصنف</strong> الموجود في الشيت بالضبط.
-                </p>
-                <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-700 text-xs space-y-2 font-mono text-slate-300">
-                  <div className="text-emerald-400">✓ كود الصنف في الشيت: <span className="text-white font-bold">LHL-101</span></div>
-                  <div className="text-amber-400">✓ اسم الصورة في Cloudinary: <span className="text-white font-bold">LHL-101.jpg</span></div>
-                  <div className="text-sky-300 text-[11px]">→ المنظومة تقوم بتركيب الرابط وعرض الصورة فوراً لجميع المناديب!</div>
-                </div>
-              </div>
-
-              {/* Method 2: Direct URL in Sheet Column */}
-              <div className="bg-slate-800/90 rounded-2xl p-5 border border-slate-700 space-y-3">
-                <div className="flex items-center gap-2 text-slate-200 font-black text-sm">
-                  <span className="w-6 h-6 rounded-full bg-slate-700 text-white flex items-center justify-center text-xs">2</span>
-                  <span>الطريقة الثانية (وضع الرابط في عمود الشيت)</span>
-                </div>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  إذا كانت الصور بأسماء مختلفة، يمكنك وضع رابط الصورة المباشر من Cloudinary في عمود <strong>"رابط الصورة"</strong> أو <strong>"رابط صورة Cloudinary"</strong> داخل الشيت.
-                </p>
-                <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-700 text-xs space-y-2 font-mono text-slate-300">
-                  <div className="text-slate-400">العمود رقم 19 في الشيت:</div>
-                  <div className="text-amber-300 text-[11px] break-all">https://res.cloudinary.com/your-cloud/image/upload/products/item_99.jpg</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Interactive Live Image Tester */}
-            <div className="bg-slate-950/80 p-5 rounded-2xl border border-amber-500/30 space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-black text-amber-300 flex items-center gap-2">
-                  <Eye className="w-4 h-4" />
-                  <span>أداة تجربة وفحص رابط صورة Cloudinary مباشرة</span>
-                </h4>
-                <span className="text-[10px] text-slate-400">اختبر كيف ستبدو صور أصنافك</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="text-[10px] text-slate-400 font-bold block mb-1">اسم حسابك (Cloud Name):</label>
-                  <input
-                    type="text"
-                    value={testCloudName}
-                    onChange={(e) => setTestCloudName(e.target.value)}
-                    placeholder="dream-dist"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[10px] text-slate-400 font-bold block mb-1">كود الصنف (Product Code):</label>
-                  <input
-                    type="text"
-                    value={testProductCode}
-                    onChange={(e) => setTestProductCode(e.target.value)}
-                    placeholder="LHL-101"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[10px] text-slate-400 font-bold block mb-1">المجلد في Cloudinary:</label>
-                  <input
-                    type="text"
-                    value={testFolder}
-                    onChange={(e) => setTestFolder(e.target.value)}
-                    placeholder="products"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
-                  />
-                </div>
-
-                <div className="flex items-end">
-                  <button
-                    onClick={handleTestCloudinary}
-                    className="w-full bg-amber-400 hover:bg-amber-500 text-slate-950 font-black py-2 rounded-xl text-xs transition flex items-center justify-center gap-1.5"
-                  >
-                    <Search className="w-3.5 h-3.5" />
-                    <span>فحص الرابط والصورة</span>
-                  </button>
-                </div>
-              </div>
-
-              {hasTested && testImageResult && (
-                <div className="bg-slate-900 p-4 rounded-xl border border-slate-700 space-y-3 animate-in fade-in">
-                  <div className="text-xs text-slate-300 font-mono break-all">
-                    <span className="text-slate-500">الرابط المتولد تلقائياً: </span>
-                    <a href={testImageResult} target="_blank" rel="noreferrer" className="text-amber-300 hover:underline">
-                      {testImageResult}
-                    </a>
-                  </div>
-
-                  <div className="flex items-center gap-4 pt-1">
-                    <div className="w-24 h-24 rounded-xl overflow-hidden bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
-                      <img
-                        src={testImageResult}
-                        alt="معاينة فحص الصورة"
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.src = getProductImageUrl({ code: testProductCode });
-                        }}
-                      />
-                    </div>
-                    <div className="text-xs text-slate-400">
-                      <div className="font-bold text-white mb-1">معاينة الصورة الحية</div>
-                      إذا كانت الصورة مرفوعة على Cloudinary بهذا الكود، ستظهر مباشرة للمناديب في الكتالوج والفاتورة.
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* SUB-TAB 4: Google Drive Recursive Folder Scanner */}
+      {/* SUB-TAB 3: Google Drive Recursive Folder Scanner */}
       {activeSubTab === 'drive_scanner' && (
         <div className="space-y-6 animate-in fade-in">
           <div className="bg-gradient-to-br from-blue-950 via-slate-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-blue-800/40 space-y-6">
@@ -781,27 +625,27 @@ function processFolderRecursive(folder, sheet, currentPath) {
               <thead className="bg-slate-900 text-amber-300 font-bold sticky top-0">
                 <tr>
                   <th className="p-3">الكود</th>
-                  <th className="p-3">اسم الصنف</th>
+                  <th className="p-3">اسم وبيان الصنف</th>
                   <th className="p-3">القسم / Brand</th>
-                  <th className="p-3">سعر القطعة</th>
+                  <th className="p-3">شدة الكرتونة</th>
                   <th className="p-3">سعر الكرتونة</th>
                   <th className="p-3">مخزون الفرع</th>
-                  <th className="p-3">مخزن أكتوبر</th>
-                  <th className="p-3">صورة Cloudinary</th>
+                  <th className="p-3">مخزن أكتوبر الرئيسي</th>
+                  <th className="p-3">رابط الصورة (Drive / Sheet)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
                 {previewProducts.slice(0, 100).map((p, idx) => (
                   <tr key={idx} className="hover:bg-amber-50/50">
-                    <td className="p-3 font-bold text-amber-900 bg-amber-50/80">{p.code}</td>
+                    <td className="p-3 font-bold text-amber-900 bg-amber-50/80 font-mono">{p.code}</td>
                     <td className="p-3 font-bold text-slate-900">{p.name}</td>
                     <td className="p-3 text-slate-600 font-semibold">{p.department || p.category}</td>
-                    <td className="p-3 text-emerald-700 font-extrabold">{formatCurrency(p.piecePrice)}</td>
-                    <td className="p-3 text-amber-800 font-black">{formatCurrency(p.cartonPrice)}</td>
-                    <td className="p-3 font-bold text-slate-700">{p.branchStockActual} ق</td>
-                    <td className="p-3 font-bold text-slate-700">{p.mainWarehouseActual} ق</td>
-                    <td className="p-3 text-[10px] text-slate-500 font-mono">
-                      {p.cloudinaryPublicId || p.code}
+                    <td className="p-3 font-bold text-slate-700">{p.cartonQuantity} ق</td>
+                    <td className="p-3 text-amber-900 font-black text-sm">{formatCurrency(p.cartonPrice)}</td>
+                    <td className="p-3 font-bold text-slate-700">{p.branchStockActual} كرتونة</td>
+                    <td className="p-3 font-bold text-slate-700">{p.mainWarehouseActual} كرتونة</td>
+                    <td className="p-3 text-[10px] text-slate-500 font-mono max-w-[150px] truncate">
+                      {p.imageUrl ? '✓ رابط صورة مباشر' : 'بدون صورة'}
                     </td>
                   </tr>
                 ))}
@@ -838,9 +682,9 @@ function processFolderRecursive(folder, sheet, currentPath) {
       <div className="bg-slate-900 text-white rounded-3xl p-5 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <span className="font-extrabold text-xs text-amber-300">
-            الأعمدة الـ 18 المدعومة تلقائياً في Google Sheets والإكسل:
+            الأعمدة الأساسية المدعومة تلقائياً في Google Sheets والإكسل:
           </span>
-          <span className="text-[10px] text-slate-400">مطابقة ذكية باللغتين العربية والإنجليزية</span>
+          <span className="text-[10px] text-slate-400">مطابقة ذكية وسريعة للأسعار والمخزون</span>
         </div>
 
         <div className="flex flex-wrap gap-1.5 text-[11px]">
@@ -860,10 +704,9 @@ function processFolderRecursive(folder, sheet, currentPath) {
             'القسم',
             'الفئة',
             'سعر العرض',
-            'سعر القطعة',
             'سعر الكرتونة',
             'اسم الفرع',
-            'رابط صورة Cloudinary'
+            'رابط صورة Google Drive / مباشر'
           ].map((col, idx) => (
             <span
               key={idx}

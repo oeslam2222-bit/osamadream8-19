@@ -468,9 +468,6 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
     'اسم الصنف والبيان',
     'شدة الكرتونة',
     'الكمية (كرتونة)',
-    'الكمية (قطعة)',
-    'إجمالي الوحدات',
-    'سعر القطعة',
     'سعر الكرتونة',
     'الإجمالي قبل الخصم',
     'قيمة الخصم',
@@ -484,9 +481,6 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
     item.productName,
     item.cartonQuantity,
     item.cartonCount,
-    item.pieceCount,
-    item.totalUnits,
-    item.pricePerPiece,
     item.pricePerCarton,
     item.totalBeforeTax,
     item.discountAmount,
@@ -550,10 +544,9 @@ export function exportProductsToExcel(products: Product[], branchName = 'الك�
     'القسم',
     'الفئة',
     'سعر العرض',
-    'سعر القطعة',
     'سعر الكرتونة',
     'اسم الفرع',
-    'رابط صورة Cloudinary / صورة'
+    'رابط الصورة'
   ];
 
   const rows = products.map(p => [
@@ -572,10 +565,9 @@ export function exportProductsToExcel(products: Product[], branchName = 'الك�
     p.department,
     p.classification,
     p.promoPrice || '',
-    p.piecePrice,
     p.cartonPrice,
     p.branchName,
-    p.imageUrl || `https://res.cloudinary.com/dream-dist/image/upload/products/${p.code}.jpg`
+    p.imageUrl || ''
   ]);
 
   const data = [headers, ...rows];

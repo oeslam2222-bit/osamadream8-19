@@ -208,8 +208,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const parsed: User[] = JSON.parse(saved);
       return parsed.map((u) => ({
         ...u,
+        name: u.id === 'u-admin-osama' ? 'أسامة إسلام (المطور التقني)' : u.name,
         branchName: normalizeBranchName(u.branchName),
-        role: u.role === 'admin' || u.role === 'branch_manager' || u.role === 'supervisor' || u.role === 'sales_rep' ? u.role : 'sales_rep',
+        role: u.role === 'developer' || u.role === 'admin' || u.role === 'branch_manager' || u.role === 'supervisor' || u.role === 'sales_rep' ? u.role : 'sales_rep',
       }));
     } catch {
       return INITIAL_USERS;

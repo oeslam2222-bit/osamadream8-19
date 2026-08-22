@@ -81,20 +81,26 @@ export const UserManager: React.FC = () => {
   });
 
   const roleConfigs: Record<UserRole, { label: string; bg: string; text: string; desc: string }> = {
+    developer: {
+      label: 'المطور التقني (Developer)',
+      bg: 'bg-amber-100 border-amber-300',
+      text: 'text-amber-800',
+      desc: 'صلاحيات تقنية وإدارية كاملة: إدارة قاعدة البيانات Supabase، استعلامات SQL، النسخ الاحتياطي، وإدارة المنظومة بالكامل.'
+    },
     admin: {
-      label: 'مدير عام النظام (Super Admin)',
+      label: 'المطور التقني والإداري (Developer Admin)',
       bg: 'bg-rose-100 border-rose-300',
       text: 'text-rose-800',
-      desc: 'صلاحيات مطلقة: إنشاء وتعديل المستخدمين والمدراء، رفع شيتات الإكسل، إدارة ربط Cloudinary، والاطلاع على كل الفروع والفواتير ومزامنة الحسابات.'
+      desc: 'صلاحيات مطلقة: إنشاء وتعديل المستخدمين، رفع شيتات الإكسل، إدارة ربط Cloudinary، والاطلاع على كل الفروع والفواتير ومزامنة الحسابات.'
     },
     branch_manager: {
-      label: 'مدير الفرع (Branch Manager)',
+      label: 'مشرف الفرع (Branch Supervisor)',
       bg: 'bg-purple-100 border-purple-300',
       text: 'text-purple-800',
       desc: 'إدارة مخزون الفرع والطلبيات الواردة من المناديب، اعتماد الفواتير، ومتابعة مبيعات الفرع وطلب تحويلات المخزون من أكتوبر.'
     },
     supervisor: {
-      label: 'مشرف المناديب (Sales Supervisor)',
+      label: 'مشرف قطاع المناديب (Sales Supervisor)',
       bg: 'bg-blue-100 border-blue-300',
       text: 'text-blue-800',
       desc: 'متابعة فريق المناديب المخصصين له فقط، مراقبة أداء الفواتير وإجمالي المبالغ وعدد الكراتين الصادرة لمجموعته لحظياً.'
@@ -577,9 +583,10 @@ export const UserManager: React.FC = () => {
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold"
                 >
                   <option value="sales_rep">مندوب مبيعات وتوزيع</option>
-                  <option value="supervisor">مشرف مناديب</option>
-                  <option value="branch_manager">مدير فرع</option>
-                  <option value="admin">مدير نظام عام (Admin)</option>
+                  <option value="supervisor">مشرف قطاع المناديب</option>
+                  <option value="branch_manager">مشرف الفرع والمخزن</option>
+                  <option value="developer">المطور التقني (Developer)</option>
+                  <option value="admin">المطور والمسؤول التقني (Admin)</option>
                 </select>
               </div>
 
@@ -709,10 +716,11 @@ export const UserManager: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold"
                   >
-                    <option value="sales_rep">مندوب مبيعات</option>
-                    <option value="supervisor">مشرف مناديب</option>
-                    <option value="branch_manager">مدير فرع</option>
-                    <option value="admin">مدير عام للنظام (Admin كامل)</option>
+                    <option value="sales_rep">مندوب مبيعات وتوزيع</option>
+                    <option value="supervisor">مشرف قطاع المناديب</option>
+                    <option value="branch_manager">مشرف الفرع والمخزن</option>
+                    <option value="developer">المطور التقني (Developer)</option>
+                    <option value="admin">المطور والمسؤول التقني (Admin كامل)</option>
                   </select>
                 </div>
 
