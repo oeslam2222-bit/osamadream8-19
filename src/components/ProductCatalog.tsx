@@ -37,6 +37,9 @@ import {
   FileSpreadsheet,
   Link,
   ChevronRight,
+  ChevronLeft,
+  ChevronsRight,
+  ChevronsLeft,
   Clock
 } from 'lucide-react';
 import React, { useMemo, useState, useEffect } from 'react';
@@ -107,6 +110,24 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
   const [cacheStats, setCacheStats] = useState<{ count: number; estimatedSizeMB: number }>({ count: 0, estimatedSizeMB: 0 });
   const [isCaching, setIsCaching] = useState(false);
   const [cacheProgressText, setCacheProgressText] = useState('');
+
+  // Pagination & Progressive Loading state to avoid network choke and high data consumption
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(16);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Auto-reset pagination when filters or search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    searchTerm,
+    selectedOfficialDept,
+    selectedSubCategory,
+    selectedPriority,
+    selectedStatus,
+    stockAvailabilityFilter,
+    selectedBranchFilter,
+    priceSort
+  ]);
 
   useEffect(() => {
     getCachedImagesStats().then(setCacheStats);
@@ -376,6 +397,18 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
     priceSort
   ]);
 
+  // Total pages and chunked display computation
+  const totalPages = useMemo(() => {
+    if (itemsPerPage === 'all') return 1;
+    return Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
+  }, [filteredProducts.length, itemsPerPage]);
+
+  const displayedProducts = useMemo(() => {
+    if (itemsPerPage === 'all') return filteredProducts;
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage]);
+
   // Card quantity & type handler
   const getCardState = (productId: string) => {
     return cardOrderState[productId] || { type: 'carton', quantity: 1 };
@@ -486,68 +519,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
         </div>
       )}
 
-      {/* Amazon-Style Header & Search Hub */}
-      <div className="bg-gradient-to-b from-slate-900 to-slate-950 text-white rounded-3xl p-4 sm:p-6 shadow-xl border border-slate-800 space-y-4">
+      {/* Unified, Clean Search & Quick Filters Bar */}
+      <div className="bg-slate-900 text-white rounded-2xl sm:rounded-3xl p-3 sm:p-5 shadow-lg border border-slate-800 space-y-3">
         
-        {/* Top Branding & Fast Actions */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="bg-amber-400 text-slate-950 font-black text-xs px-2.5 py-1 rounded-lg shadow uppercase tracking-wider flex items-center gap-1">
-                <Star className="w-3.5 h-3.5 fill-slate-950" />
-                <span>دريـــم طنطـــاوي</span>
-              </span>
-              <h2 className="text-lg sm:text-xl font-black text-white">كتالوج المبيعات والتوزيع</h2>
-              <span className="bg-slate-800 text-amber-300 text-xs font-black px-2.5 py-0.5 rounded-full border border-slate-700">
-                {filteredProducts.length} صنف متوفر
-              </span>
-            </div>
-            <p className="text-xs text-slate-400 mt-1">
-              طلب مباشر للمناديب والعملاء • صور سريعة مضغوطة من جوجل درايف و Cloudinary • أسعار قطاعي وجملة بالكرتونة
-            </p>
-          </div>
-
-          {/* Wipe / Reset from scratch button + Upload fresh button */}
-          <div className="flex items-center gap-2 self-stretch sm:self-auto flex-wrap">
-            <button
-              onClick={() => setIsUploadBoxOpen(true)}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold px-3 py-2 rounded-xl text-xs border border-slate-700 transition cursor-pointer shadow-sm"
-              title="رفع ملف إكسل أو ربط شيت جديد"
-            >
-              <Upload className="w-3.5 h-3.5 text-amber-400" />
-              <span>رفع أصناف وشيت 📄</span>
-            </button>
-
-            <button
-              onClick={() => setIsWipeModalOpen(true)}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 font-bold px-3 py-2 rounded-xl text-xs border border-rose-500/30 transition cursor-pointer"
-              title="مسح كل الأصناف والبيانات للبدء من الصفر"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-              <span>تصفير ومسح الكل 🗑️</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Amazon-Style Search Bar with Department Selector */}
-        <div className="flex flex-col sm:flex-row gap-2">
-          {/* Department selector inside search box */}
-          <div className="relative shrink-0 sm:w-48">
-            <select
-              aria-label="اختر القسم للبحث"
-              value={selectedOfficialDept}
-              onChange={(e) => setSelectedOfficialDept(e.target.value)}
-              className="w-full h-11 px-3 bg-slate-800 text-amber-300 border border-slate-700 rounded-xl text-xs font-black focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
-            >
-              <option value="الكل">كل الأقسام (22 قسم)</option>
-              {OFFICIAL_DEPARTMENTS.map((dept) => (
-                <option key={dept} value={dept}>
-                  {dept} ({deptCounts[dept] || 0})
-                </option>
-              ))}
-            </select>
-          </div>
-
+        {/* Main Search Row */}
+        <div className="flex flex-col md:flex-row items-stretch gap-2.5">
           {/* Main search input */}
           <div className="relative flex-1">
             <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -555,8 +531,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="ابحث مثل أمازون بالكود، الاسم، الماركة (الفا، لاينز، كاساسونكو، ديفنا)، المقاس..."
-              className="w-full h-11 pl-9 pr-10 bg-slate-800/90 text-white placeholder-slate-400 border border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-slate-800 transition"
+              placeholder="ابحث بالكود، اسم الصنف، الماركة (الفا، لاينز، كاساسونكو)..."
+              className="w-full h-11 pl-9 pr-10 bg-slate-800 text-white placeholder-slate-400 border border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
             />
             {searchTerm && (
               <button
@@ -568,218 +544,134 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
             )}
           </div>
 
-          {/* View toggle (Amazon Grid vs List) & Sort */}
-          <div className="flex items-center gap-2">
+          {/* Quick Actions in Top Bar */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => setIsUploadBoxOpen(true)}
+              className="flex items-center gap-1 bg-slate-800 hover:bg-slate-750 text-amber-300 font-bold px-3 h-11 rounded-xl text-xs border border-slate-700 transition cursor-pointer"
+              title="رفع ملف إكسل أو ربط Google Sheets"
+            >
+              <Upload className="w-3.5 h-3.5 text-amber-400" />
+              <span>رفع إكسل</span>
+            </button>
+
+            <button
+              onClick={() => setIsWipeModalOpen(true)}
+              className="flex items-center gap-1 bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 font-bold px-2.5 h-11 rounded-xl text-xs border border-rose-800/40 transition cursor-pointer"
+              title="تصفير ومسح الكل للبدء من جديد"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+            </button>
+          </div>
+        </div>
+
+        {/* Dropdown Filters Toolbar (منظم ومجمع في سطر واحد بدون تطاير) */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-slate-800/80 text-xs">
+          {/* Department Filter Dropdown */}
+          <div className="relative">
+            <select
+              aria-label="اختر القسم"
+              value={selectedOfficialDept}
+              onChange={(e) => setSelectedOfficialDept(e.target.value)}
+              className="w-full h-10 px-2.5 bg-slate-800 text-amber-300 border border-slate-700 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer text-xs"
+            >
+              <option value="الكل">🏢 كل الأقسام ({products.length})</option>
+              {OFFICIAL_DEPARTMENTS.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept} ({deptCounts[dept] || 0})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Stock Status Dropdown */}
+          <div className="relative">
+            <select
+              aria-label="تصفية حالة المخزون"
+              value={stockAvailabilityFilter}
+              onChange={(e) => setStockAvailabilityFilter(e.target.value as any)}
+              className="w-full h-10 px-2.5 bg-slate-800 text-slate-200 border border-slate-700 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer text-xs"
+            >
+              <option value="all">📦 كل حالات المخزون</option>
+              <option value="in_branch">🏢 متوفر بالفرع ({stockCounts.inBranch})</option>
+              <option value="in_warehouse">🏬 مخزن أكتوبر المركزي ({stockCounts.inWarehouse})</option>
+              <option value="low_stock">⚠️ قاربت على النفاذ ({stockCounts.lowStock})</option>
+              <option value="high_stock">🟢 متوفر بكثرة ({stockCounts.highStock})</option>
+              <option value="out_of_stock">🚫 نفذ المخزون ({stockCounts.outOfStock})</option>
+            </select>
+          </div>
+
+          {/* Priority & Offers Dropdown */}
+          <div className="relative">
+            <select
+              aria-label="تصفية الطلب والعروض"
+              value={selectedPriority !== 'الكل' ? `priority_${selectedPriority}` : selectedStatus !== 'الكل' ? `status_${selectedStatus}` : 'all'}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val.startsWith('priority_')) {
+                  setSelectedPriority(val.replace('priority_', ''));
+                  setSelectedStatus('الكل');
+                } else if (val.startsWith('status_')) {
+                  setSelectedStatus(val.replace('status_', ''));
+                  setSelectedPriority('الكل');
+                } else {
+                  setSelectedPriority('الكل');
+                  setSelectedStatus('الكل');
+                }
+              }}
+              className="w-full h-10 px-2.5 bg-slate-800 text-slate-200 border border-slate-700 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer text-xs"
+            >
+              <option value="all">⚡ كل الأصناف والعروض</option>
+              <option value="priority_مرتفع">🔥 الأكثر طلباً</option>
+              <option value="status_عرض ترويجي">🎁 عروض ترويجية</option>
+              <option value="status_راكد">⏳ أصناف راكدة</option>
+              <option value="status_نواقص">❗ نواقص مطلوب توفيرها</option>
+            </select>
+          </div>
+
+          {/* Sort & View Mode Dropdown */}
+          <div className="flex items-center gap-1">
             <select
               aria-label="ترتيب المنتجات"
               value={priceSort}
               onChange={(e) => setPriceSort(e.target.value as any)}
-              className="h-11 px-3 bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+              className="flex-1 h-10 px-2.5 bg-slate-800 text-slate-200 border border-slate-700 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer text-xs"
             >
               <option value="default">الترتيب: الافتراضي</option>
-              <option value="priority">الأكثر مبيعاً 🔥</option>
+              <option value="priority">الأكثر طلباً 🔥</option>
               <option value="price_asc">الأقل سعراً ⬆️</option>
               <option value="price_desc">الأعلى سعراً ⬇️</option>
             </select>
 
-            <div className="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700 h-11">
+            <div className="flex bg-slate-800 p-0.5 rounded-xl border border-slate-700 h-10">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-2 rounded-lg text-xs font-bold flex items-center gap-1 transition ${
+                className={`px-2 rounded-lg text-xs font-bold transition cursor-pointer ${
                   viewMode === 'grid' ? 'bg-amber-400 text-slate-950 shadow-xs' : 'text-slate-400 hover:text-white'
                 }`}
-                title="عرض بطاقات أمازون"
+                title="عرض بطاقات"
               >
-                <Grid className="w-4 h-4" />
-                <span className="hidden sm:inline">بطاقات</span>
+                <Grid className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-2 rounded-lg text-xs font-bold flex items-center gap-1 transition ${
+                className={`px-2 rounded-lg text-xs font-bold transition cursor-pointer ${
                   viewMode === 'list' ? 'bg-amber-400 text-slate-950 shadow-xs' : 'text-slate-400 hover:text-white'
                 }`}
-                title="عرض جدول مناديب سريع"
+                title="عرض جدول"
               >
-                <List className="w-4 h-4" />
-                <span className="hidden sm:inline">جدول</span>
+                <List className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
         </div>
 
-        {/* Data Saver & Google Drive / Cache Optimization Status Bar */}
-        <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-2xl flex flex-wrap items-center justify-between gap-2.5 text-xs">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-400/20 text-amber-300 font-bold border border-amber-400/30">
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              <span>ضغط صور جوجل درايف: <strong>s=200px (فائق السرعة)</strong></span>
-            </div>
-            
-            <div className="flex items-center gap-1.5 text-slate-300 text-xs">
-              <HardDrive className="w-3.5 h-3.5 text-blue-400" />
-              <span>الصور المخزنة بالهاتف: <strong>{cacheStats.count}</strong> صورة ({cacheStats.estimatedSizeMB} MB)</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleCacheAllImages}
-            disabled={isCaching}
-            className="flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 px-3 py-1.5 rounded-xl font-black text-xs transition shadow cursor-pointer disabled:opacity-50"
-          >
-            <DownloadCloud className={`w-3.5 h-3.5 ${isCaching ? 'animate-bounce' : ''}`} />
-            <span>{isCaching ? 'جاري الحفظ...' : 'حفظ كل الصور لتوفير الباقة 📱'}</span>
-          </button>
-        </div>
-
-        {cacheProgressText && (
-          <div className="p-2.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs rounded-xl font-bold flex items-center gap-2 animate-in fade-in">
-            <CheckCheck className="w-4 h-4 text-emerald-400" />
-            <span>{cacheProgressText}</span>
-          </div>
-        )}
-
-        {/* Amazon Horizontal Department Category Pills */}
-        <div className="pt-2 border-t border-slate-800/80">
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-            <button
-              onClick={() => setSelectedOfficialDept('الكل')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition shrink-0 flex items-center gap-1.5 ${
-                selectedOfficialDept === 'الكل'
-                  ? 'bg-amber-400 text-slate-950 shadow-md'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
-              }`}
-            >
-              <span>جميع الأقسام</span>
-              <span className="text-[10px] bg-slate-950/20 px-1.5 py-0.2 rounded-full font-bold">
-                {products.length}
-              </span>
-            </button>
-
-            {OFFICIAL_DEPARTMENTS.map((dept) => {
-              const count = deptCounts[dept] || 0;
-              const isSelected = selectedOfficialDept === dept;
-              return (
-                <button
-                  key={dept}
-                  onClick={() => setSelectedOfficialDept(dept)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition shrink-0 flex items-center gap-1.5 ${
-                    isSelected
-                      ? 'bg-amber-400 text-slate-950 shadow-md'
-                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'
-                  }`}
-                >
-                  <span>{dept}</span>
-                  {count > 0 && (
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                      isSelected ? 'bg-slate-950 text-amber-300' : 'bg-slate-900 text-slate-400'
-                    }`}>
-                      {count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Dedicated Inventory Status & Stock Quick Filters */}
-        <div className="flex flex-wrap items-center gap-1.5 text-xs pt-1 border-t border-slate-800/60">
-          <span className="text-[11px] text-slate-400 font-bold ml-1">تصفية المخزون:</span>
-
-          <button
-            onClick={() => setStockAvailabilityFilter(stockAvailabilityFilter === 'out_of_stock' ? 'all' : 'out_of_stock')}
-            className={`px-3 py-1.5 rounded-xl font-bold border transition flex items-center gap-1.5 cursor-pointer ${
-              stockAvailabilityFilter === 'out_of_stock'
-                ? 'bg-rose-600 text-white border-rose-400 shadow-md'
-                : 'bg-rose-950/40 text-rose-300 border-rose-800/60 hover:bg-rose-900/50'
-            }`}
-          >
-            <span>🚫 منتجات منتهية (0 كرتونة)</span>
-            <span className="text-[10px] bg-rose-950 px-1.5 py-0.2 rounded-full font-black border border-rose-700">
-              {stockCounts.outOfStock}
+        {/* Active Filter Reset Pill if filtered */}
+        {(searchTerm || selectedOfficialDept !== 'الكل' || selectedPriority !== 'الكل' || selectedStatus !== 'الكل' || stockAvailabilityFilter !== 'all' || priceSort !== 'default') && (
+          <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-xs">
+            <span className="text-slate-400 text-[11px]">
+              النتائج المطابقة: <strong className="text-amber-300 font-bold">{filteredProducts.length}</strong> صنف
             </span>
-          </button>
-
-          <button
-            onClick={() => setStockAvailabilityFilter(stockAvailabilityFilter === 'low_stock' ? 'all' : 'low_stock')}
-            className={`px-3 py-1.5 rounded-xl font-bold border transition flex items-center gap-1.5 cursor-pointer ${
-              stockAvailabilityFilter === 'low_stock'
-                ? 'bg-amber-500 text-slate-950 border-amber-300 shadow-md font-black'
-                : 'bg-amber-950/40 text-amber-300 border-amber-800/60 hover:bg-amber-900/50'
-            }`}
-          >
-            <span>⚠️ قاربت على النفاذ (≤ 5 كراتين)</span>
-            <span className="text-[10px] bg-amber-950 text-amber-300 px-1.5 py-0.2 rounded-full font-black border border-amber-700">
-              {stockCounts.lowStock}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setStockAvailabilityFilter(stockAvailabilityFilter === 'high_stock' ? 'all' : 'high_stock')}
-            className={`px-3 py-1.5 rounded-xl font-bold border transition flex items-center gap-1.5 cursor-pointer ${
-              stockAvailabilityFilter === 'high_stock'
-                ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow-md font-black'
-                : 'bg-emerald-950/40 text-emerald-300 border-emerald-800/60 hover:bg-emerald-900/50'
-            }`}
-          >
-            <span>🟢 متوفرة بكثرة (≥ 30 كرتونة)</span>
-            <span className="text-[10px] bg-emerald-950 text-emerald-300 px-1.5 py-0.2 rounded-full font-black border border-emerald-700">
-              {stockCounts.highStock}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setStockAvailabilityFilter(stockAvailabilityFilter === 'in_branch' ? 'all' : 'in_branch')}
-            className={`px-3 py-1.5 rounded-xl font-bold border transition flex items-center gap-1.5 cursor-pointer ${
-              stockAvailabilityFilter === 'in_branch'
-                ? 'bg-blue-600 text-white border-blue-400 shadow-md'
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
-            }`}
-          >
-            <span>🏢 متاح بالفرع</span>
-            <span className="text-[10px] bg-slate-900 px-1.5 py-0.2 rounded-full font-bold">
-              {stockCounts.inBranch}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setStockAvailabilityFilter(stockAvailabilityFilter === 'in_warehouse' ? 'all' : 'in_warehouse')}
-            className={`px-3 py-1.5 rounded-xl font-bold border transition flex items-center gap-1.5 cursor-pointer ${
-              stockAvailabilityFilter === 'in_warehouse'
-                ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md font-black'
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
-            }`}
-          >
-            <span>📦 مخزن أكتوبر المركزي</span>
-            <span className="text-[10px] bg-slate-900 text-amber-300 px-1.5 py-0.2 rounded-full font-bold">
-              {stockCounts.inWarehouse}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setSelectedPriority(selectedPriority === 'مرتفع' ? 'الكل' : 'مرتفع')}
-            className={`px-3 py-1.5 rounded-xl font-bold border transition cursor-pointer ${
-              selectedPriority === 'مرتفع'
-                ? 'bg-rose-500 text-white border-rose-400'
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
-            }`}
-          >
-            🔥 الأكثر طلباً
-          </button>
-
-          <button
-            onClick={() => setSelectedStatus(selectedStatus === 'عرض ترويجي' ? 'الكل' : 'عرض ترويجي')}
-            className={`px-3 py-1.5 rounded-xl font-bold border transition cursor-pointer ${
-              selectedStatus === 'عرض ترويجي'
-                ? 'bg-purple-600 text-white border-purple-400'
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
-            }`}
-          >
-            🎁 عروض حصرية
-          </button>
-
-          {(searchTerm || selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل' || selectedPriority !== 'الكل' || selectedStatus !== 'الكل' || stockAvailabilityFilter !== 'all' || priceSort !== 'default') && (
             <button
               onClick={() => {
                 setSearchTerm('');
@@ -790,12 +682,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                 setStockAvailabilityFilter('all');
                 setPriceSort('default');
               }}
-              className="text-amber-400 hover:text-amber-300 underline font-bold px-2 py-1 cursor-pointer text-xs"
+              className="text-amber-400 hover:text-amber-300 font-bold underline cursor-pointer text-xs"
             >
-              إلغاء كل الفلاتر
+              إلغاء التصفية
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
       </div>
 
@@ -885,7 +777,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
       {/* Product Display (Amazon / Souq Style Grid View) */}
       {viewMode === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredProducts.map((product) => {
+          {displayedProducts.map((product) => {
             const isPromo = product.promoPrice && product.promoPrice > 0;
             const priorityConfig = priorityBadges[product.salesPriority];
             const hasBranchStock = product.branchStockActual > 0;
@@ -900,7 +792,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
               >
                 {/* Top Image & Floating Badges */}
                 <div
-                  className="relative h-48 bg-slate-900 overflow-hidden cursor-pointer"
+                  className="relative h-48 bg-gradient-to-br from-slate-50 via-slate-100/80 to-amber-50/20 overflow-hidden cursor-pointer flex items-center justify-center border-b border-slate-100"
                   onClick={() => setSelectedProductForModal(product)}
                 >
                   {/* Google Drive / Cloudinary Compressed Image with parameter s=200 */}
@@ -977,18 +869,18 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                   <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 space-y-1.5 text-xs">
                     {/* Low Stock / Out of Stock Visual Warning */}
                     {product.branchStockReserved <= 0 ? (
-                      <div className="bg-rose-600 text-white text-[10px] font-black px-2 py-1 rounded-xl flex items-center justify-center gap-1 shadow-xs">
-                        <AlertTriangle className="w-3 h-3" />
-                        <span>نفذ المخزون بالفرع (0 كرتونة) 🚫</span>
+                      <div className="bg-rose-600 text-white text-[10px] font-black px-2.5 py-1 rounded-xl flex items-center justify-center gap-1 shadow-xs">
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        <span>نفذ المخزون بالكامل (0 كرتونة متبقية) 🚫</span>
                       </div>
-                    ) : Math.floor(product.branchStockReserved / (product.cartonQuantity || 1)) <= 5 ? (
-                      <div className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black px-2 py-1 rounded-xl flex items-center justify-center gap-1 animate-pulse">
+                    ) : product.branchStockReserved <= 5 ? (
+                      <div className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black px-2 py-1 rounded-xl flex items-center justify-center gap-1">
                         <AlertTriangle className="w-3 h-3 text-amber-700" />
-                        <span>تنبيه: قارب على النفاذ! متبقي {Math.floor(product.branchStockReserved / (product.cartonQuantity || 1))} كرتونة فقط</span>
+                        <span>تنبيه: متبقي {product.branchStockReserved} كرتونة فقط بالفرع</span>
                       </div>
                     ) : null}
 
-                    {/* Branch Stock in Cartons as Primary */}
+                    {/* Branch Stock in Cartons */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1 text-slate-700 font-bold">
                         <Package className="w-3.5 h-3.5 text-emerald-600" />
@@ -997,13 +889,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                       <div className="text-left">
                         {hasBranchStock ? (
                           <span className="text-emerald-800 font-black">
-                            {Math.floor(product.branchStockActual / (product.cartonQuantity || 1))} كرتونة
+                            {product.branchStockActual} كرتونة
                           </span>
                         ) : (
                           <span className="text-rose-600 font-bold">نفذ بالفرع</span>
                         )}
-                        <span className="text-[10px] text-slate-400 mr-1">
-                          (متاح: {Math.floor(product.branchStockReserved / (product.cartonQuantity || 1))} ك)
+                        <span className="text-[10px] text-slate-500 mr-1 font-bold">
+                          (المتاح للطلب: {Math.max(0, product.branchStockReserved)} ك)
                         </span>
                       </div>
                     </div>
@@ -1012,133 +904,89 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                     <div className="flex items-center justify-between pt-1 border-t border-slate-200/70">
                       <div className="flex items-center gap-1 text-slate-700 font-bold">
                         <Warehouse className="w-3.5 h-3.5 text-amber-600" />
-                        <span>مخزن أكتوبر الرئيسي:</span>
+                        <span>مخزن أكتوبر المركزي:</span>
                       </div>
                       <div className="text-left">
                         {hasMainWhStock ? (
                           <span className="text-amber-900 font-black">
-                            {Math.floor(product.mainWarehouseActual / (product.cartonQuantity || 1))} كرتونة
+                            {product.mainWarehouseActual} كرتونة
                           </span>
                         ) : (
                           <span className="text-slate-400 font-medium">غير متوفر</span>
                         )}
-                        <span className="text-[10px] text-slate-400 mr-1">
-                          (متاح: {Math.floor(product.mainWarehouseReserved / (product.cartonQuantity || 1))} ك)
+                        <span className="text-[10px] text-slate-500 mr-1 font-bold">
+                          (المتاح: {Math.max(0, product.mainWarehouseReserved)} ك)
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Pricing Section (Carton Wholesale Price as Primary + Piece Guide Price) */}
-                  <div className="bg-gradient-to-r from-amber-50 via-amber-100/60 to-yellow-50 p-3 rounded-2xl border border-amber-300 shadow-xs space-y-1.5">
+                  {/* Pricing Section (Carton Price ONLY) */}
+                  <div className="bg-gradient-to-r from-amber-50 via-amber-100/60 to-yellow-50 p-3 rounded-2xl border border-amber-300 shadow-xs">
                     <div className="flex items-baseline justify-between">
                       <div>
-                        <div className="text-[10px] text-amber-950 font-extrabold flex items-center gap-1">
-                          <span>سعر الكرتونة بالجملة (الأساسي):</span>
+                        <div className="text-[10px] text-amber-950 font-black flex items-center gap-1">
+                          <span>سعر الكرتونة بالجملة:</span>
                         </div>
-                        <div className="text-lg font-black text-amber-950">
+                        <div className="text-xl font-black text-amber-950">
                           {formatCurrency(product.cartonPrice)}
                         </div>
                       </div>
 
                       <div className="text-left">
-                        <div className="text-[10px] text-slate-500 font-bold">الشدة:</div>
+                        <div className="text-[10px] text-slate-500 font-bold">شدة الكرتونة:</div>
                         <div className="text-xs font-black bg-amber-200/80 text-amber-950 px-2 py-0.5 rounded-lg">
                           {product.cartonQuantity} قطعة
                         </div>
                       </div>
                     </div>
-
-                    <div className="pt-1 border-t border-amber-200 text-[11px] text-slate-600 flex items-center justify-between">
-                      <span>سعر القطعة الاسترشادي:</span>
-                      <strong className="text-slate-900 font-black">
-                        {isPromo ? (
-                          <span className="text-purple-700">{formatCurrency(product.promoPrice)}</span>
-                        ) : (
-                          formatCurrency(product.piecePrice)
-                        )}
-                      </strong>
-                    </div>
-
-                    {cartonSavings > 0 && (
-                      <div className="text-[10px] text-emerald-800 font-black flex items-center justify-between">
-                        <span>وفر عند الشراء بالكرتونة:</span>
-                        <span>{formatCurrency(cartonSavings)}</span>
-                      </div>
-                    )}
                   </div>
 
-                  {/* Order Mode Switcher (كرتونة vs قطعة) */}
-                  <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
-                    <button
-                      type="button"
-                      disabled={product.branchStockReserved <= 0}
-                      onClick={() => updateCardType(product.id, 'carton')}
-                      className={`py-1.5 rounded-lg font-black transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                        orderState.type === 'carton'
-                          ? 'bg-amber-400 text-slate-950 shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      📦 كرتونة ({product.cartonQuantity} ق)
-                    </button>
-                    <button
-                      type="button"
-                      disabled={product.branchStockReserved <= 0}
-                      onClick={() => updateCardType(product.id, 'piece')}
-                      className={`py-1.5 rounded-lg font-black transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                        orderState.type === 'piece'
-                          ? 'bg-slate-900 text-white shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      🏷️ بالقطعة
-                    </button>
-                  </div>
-
-                  {/* Amazon Quick Quantity Stepper & Add to Cart Button */}
+                  {/* Quick Carton Quantity Stepper & Add to Cart Button */}
                   <div className="flex items-center gap-2 pt-1">
-                    {/* Stepper */}
+                    {/* Carton Stepper */}
                     <div className="flex items-center bg-slate-100 rounded-xl border border-slate-200 p-0.5">
                       <button
                         type="button"
                         disabled={product.branchStockReserved <= 0}
                         onClick={() => adjustCardQuantity(product.id, -1)}
-                        className="w-7 h-8 flex items-center justify-center text-slate-700 hover:bg-slate-200 rounded-lg font-black disabled:opacity-40"
+                        className="w-7 h-8 flex items-center justify-center text-slate-700 hover:bg-slate-200 rounded-lg font-black disabled:opacity-30 cursor-pointer"
+                        title="إنقاص كرتونة"
                       >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="w-8 text-center text-xs font-black text-slate-900">
-                        {orderState.quantity}
+                      <span className="w-10 text-center text-xs font-black text-slate-900">
+                        {orderState.quantity} ك
                       </span>
                       <button
                         type="button"
                         disabled={product.branchStockReserved <= 0}
                         onClick={() => adjustCardQuantity(product.id, 1)}
-                        className="w-7 h-8 flex items-center justify-center text-slate-700 hover:bg-slate-200 rounded-lg font-black disabled:opacity-40"
+                        className="w-7 h-8 flex items-center justify-center text-slate-700 hover:bg-slate-200 rounded-lg font-black disabled:opacity-30 cursor-pointer"
+                        title="زيادة كرتونة"
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
                     </div>
 
-                    {/* Amazon-Style Golden "Add to Cart" Button */}
+                    {/* Golden "Add to Cart" Button in Cartons */}
                     {product.branchStockReserved > 0 ? (
                       <button
                         type="button"
                         onClick={() => handleQuickAddWithState(product)}
-                        className="flex-1 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black py-2 px-3 rounded-xl text-xs shadow-md transition transform active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="flex-1 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black py-2.5 px-3 rounded-xl text-xs shadow-md transition transform active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <ShoppingCart className="w-4 h-4" />
-                        <span>أضف للسلة</span>
+                        <span>أضف {orderState.quantity} كرتونة</span>
                       </button>
                     ) : (
                       <button
                         type="button"
                         disabled
-                        className="flex-1 bg-rose-100 border border-rose-300 text-rose-800 font-bold py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1 cursor-not-allowed opacity-80"
+                        className="flex-1 bg-slate-100 border border-slate-300 text-slate-500 font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1 cursor-not-allowed opacity-80"
                       >
-                        <XCircle className="w-4 h-4" />
-                        <span>نفذ المخزون</span>
+                        <XCircle className="w-4 h-4 text-rose-500" />
+                        <span>غير متاح للطلب</span>
                       </button>
                     )}
                   </div>
@@ -1158,17 +1006,19 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                   <th className="p-3">الكود والصورة</th>
                   <th className="p-3">اسم الصنف والبيان</th>
                   <th className="p-3">القسم والتصنيف</th>
-                  <th className="p-3">شدة الكرتونة</th>
-                  <th className="p-3">مخزون الفرع</th>
-                  <th className="p-3">المخزن الرئيسي</th>
-                  <th className="p-3">سعر القطعة</th>
-                  <th className="p-3">سعر الكرتونة</th>
-                  <th className="p-3 text-center">إضافة سريعة للطلبية</th>
+                  <th className="p-3 text-center">شدة الكرتونة</th>
+                  <th className="p-3 text-center">مخزون الفرع (كرتونة)</th>
+                  <th className="p-3 text-center">مخزن أكتوبر (كرتونة)</th>
+                  <th className="p-3 text-left">سعر الكرتونة بالجملة</th>
+                  <th className="p-3 text-center">إضافة كرتونة للطلبية</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredProducts.map((product) => {
-                  const isPromo = product.promoPrice && product.promoPrice > 0;
+                {displayedProducts.map((product) => {
+                  const branchCartons = product.branchStockActual;
+                  const branchReservedCartons = Math.max(0, product.branchStockReserved);
+                  const mainWhCartons = product.mainWarehouseActual;
+
                   return (
                     <tr key={product.id} className="hover:bg-amber-50/40 transition">
                       <td className="p-2.5">
@@ -1178,7 +1028,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                             cloudinaryConfig={cloudinaryConfig}
                             targetSize={120}
                             sizeVariant="thumbnail"
-                            containerClassName="w-11 h-11 rounded-xl bg-slate-900 overflow-hidden shrink-0 border border-slate-200 cursor-pointer"
+                            containerClassName="w-11 h-11 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200 cursor-pointer"
                             className="w-full h-full object-cover"
                             showBadgeOnFallback={false}
                             onClick={() => setSelectedProductForModal(product)}
@@ -1198,55 +1048,38 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                         </div>
                       </td>
                       <td className="p-2.5 font-bold text-slate-600">{product.department || product.category}</td>
-                      <td className="p-2.5 font-black text-slate-800">{product.cartonQuantity} ق</td>
-                      <td className="p-2.5">
-                        <span className={product.branchStockActual > 0 ? 'text-emerald-700 font-extrabold' : 'text-red-600 font-bold'}>
-                          {product.branchStockActual} ق
+                      <td className="p-2.5 text-center font-black text-slate-800">{product.cartonQuantity} ق</td>
+                      <td className="p-2.5 text-center">
+                        <span className={branchCartons > 0 ? 'text-emerald-700 font-black' : 'text-red-600 font-bold'}>
+                          {branchCartons} كرتونة
                         </span>
                         <div className="text-[10px]">
-                          {product.branchStockReserved <= 0 ? (
+                          {branchReservedCartons <= 0 ? (
                             <span className="text-rose-600 font-black">نفذ (0 متاح)</span>
-                          ) : product.branchStockReserved <= 25 ? (
-                            <span className="text-amber-700 font-bold">متبقي: {product.branchStockReserved}</span>
                           ) : (
-                            <span className="text-slate-400">متاح: {product.branchStockReserved}</span>
+                            <span className="text-slate-500 font-bold">متاح: {branchReservedCartons} ك</span>
                           )}
                         </div>
                       </td>
-                      <td className="p-2.5">
-                        <span className="text-amber-800 font-extrabold">{product.mainWarehouseActual} ق</span>
-                        <div className="text-[10px] text-slate-400">متاح: {product.mainWarehouseReserved}</div>
+                      <td className="p-2.5 text-center">
+                        <span className="text-amber-800 font-black">{mainWhCartons} كرتونة</span>
                       </td>
-                      <td className="p-2.5 font-extrabold text-slate-900">
-                        {isPromo ? (
-                          <div>
-                            <span className="text-purple-700 font-black">{formatCurrency(product.promoPrice)}</span>
-                            <span className="text-[10px] text-slate-400 line-through block">{formatCurrency(product.piecePrice)}</span>
-                          </div>
-                        ) : (
-                          formatCurrency(product.piecePrice)
-                        )}
+                      <td className="p-2.5 text-left font-black text-amber-950 text-sm">
+                        {formatCurrency(product.cartonPrice)}
                       </td>
-                      <td className="p-2.5 font-black text-amber-900">{formatCurrency(product.cartonPrice)}</td>
-                      <td className="p-2.5">
+                      <td className="p-2.5 text-center">
                         {product.branchStockReserved > 0 ? (
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               onClick={() => handleDirectAdd(product, 'carton', 1)}
-                              className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-black px-2.5 py-1 rounded-xl text-xs transition cursor-pointer shadow-xs"
+                              className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs transition cursor-pointer shadow-xs"
                             >
-                              +1 كرتونة
-                            </button>
-                            <button
-                              onClick={() => handleDirectAdd(product, 'piece', 1)}
-                              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-2 py-1 rounded-xl text-xs transition cursor-pointer"
-                            >
-                              +1 قطعة
+                              +1 كرتونة 🛒
                             </button>
                           </div>
                         ) : (
                           <div className="text-center text-rose-600 font-bold text-[11px] bg-rose-50 px-2 py-1 rounded-lg border border-rose-200">
-                            نفذ المخزون
+                            غير متاح للطلب
                           </div>
                         )}
                       </td>
@@ -1256,6 +1089,107 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Pagination & Progressive Loading Controller */}
+      {filteredProducts.length > 0 && (
+        <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+          
+          {/* Left / Info & Per-Page selector */}
+          <div className="flex flex-wrap items-center justify-between sm:justify-start gap-3 w-full sm:w-auto text-xs">
+            <div className="text-slate-600 font-bold flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+              <span className="text-slate-400 font-normal">عرض الأصناف:</span>
+              <strong className="text-slate-900">
+                {itemsPerPage === 'all'
+                  ? `كافة الأصناف (${filteredProducts.length})`
+                  : `${Math.min((currentPage - 1) * itemsPerPage + 1, filteredProducts.length)} - ${Math.min(currentPage * itemsPerPage, filteredProducts.length)} من أصل ${filteredProducts.length}`}
+              </strong>
+            </div>
+
+            <div className="flex items-center gap-1.5 text-slate-500 font-bold">
+              <span>لكل صفحة:</span>
+              <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                {[16, 24, 48, 'all'].map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => {
+                      setItemsPerPage(size as any);
+                      setCurrentPage(1);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                      itemsPerPage === size
+                        ? 'bg-amber-400 text-slate-950 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-950 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    {size === 'all' ? 'الكل' : size}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Right / Page Switcher */}
+          {itemsPerPage !== 'all' && totalPages > 1 && (
+            <div className="flex flex-wrap items-center justify-center gap-1.5 w-full sm:w-auto">
+              {/* Previous Page */}
+              <button
+                onClick={() => {
+                  setCurrentPage((p) => Math.max(1, p - 1));
+                  window.scrollTo({ top: 180, behavior: 'smooth' });
+                }}
+                disabled={currentPage === 1}
+                className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none text-slate-700 transition cursor-pointer"
+                title="الصفحة السابقة"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+
+              {/* Page Number Pills */}
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => {
+                  if (totalPages <= 7) return true;
+                  if (p === 1 || p === totalPages) return true;
+                  return Math.abs(p - currentPage) <= 1;
+                })
+                .map((p, idx, arr) => {
+                  const prevVal = arr[idx - 1];
+                  const hasGap = prevVal && p - prevVal > 1;
+                  return (
+                    <React.Fragment key={p}>
+                      {hasGap && <span className="px-1 text-slate-400 font-bold">...</span>}
+                      <button
+                        onClick={() => {
+                          setCurrentPage(p);
+                          window.scrollTo({ top: 180, behavior: 'smooth' });
+                        }}
+                        className={`min-w-[34px] h-[34px] rounded-xl text-xs font-black transition cursor-pointer flex items-center justify-center ${
+                          currentPage === p
+                            ? 'bg-slate-950 text-amber-400 shadow-md scale-105'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
+
+              {/* Next Page */}
+              <button
+                onClick={() => {
+                  setCurrentPage((p) => Math.min(totalPages, p + 1));
+                  window.scrollTo({ top: 180, behavior: 'smooth' });
+                }}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none text-slate-700 transition cursor-pointer"
+                title="الصفحة التالية"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1382,13 +1316,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* Product Image Preview */}
               <div className="space-y-2">
-                <div className="h-64 bg-slate-900 rounded-3xl overflow-hidden border border-slate-200 relative flex items-center justify-center">
+                <div className="h-64 bg-slate-50 rounded-3xl overflow-hidden border border-slate-200 relative flex items-center justify-center">
                   <ProductImage
                     product={selectedProductForModal}
                     cloudinaryConfig={cloudinaryConfig}
                     targetSize={800}
                     sizeVariant="modal"
-                    containerClassName="w-full h-full bg-slate-900"
+                    containerClassName="w-full h-full bg-slate-50"
                     className="w-full h-full object-contain"
                   />
                   {selectedProductForModal.promoPrice && (
@@ -1415,35 +1349,42 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
 
                 {/* Stock Details Box */}
                 <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2">
-                  <div className="font-bold text-slate-900 text-xs">مستويات المخزون الحالية:</div>
+                  <div className="font-bold text-slate-900 text-xs">مستويات المخزون بالكراتين:</div>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="bg-white p-2.5 rounded-xl border border-slate-100">
                       <div className="text-[10px] text-slate-400">الفرع الحالي:</div>
-                      <div className="font-black text-sm text-emerald-700">{selectedProductForModal.branchStockActual} قطعة</div>
-                      <div className="text-[10px] text-slate-400">متاح بعد الحجز: {selectedProductForModal.branchStockReserved}</div>
+                      <div className="font-black text-sm text-emerald-700">
+                        {selectedProductForModal.branchStockActual} كرتونة
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-bold">
+                        متاح للطلب: {Math.max(0, selectedProductForModal.branchStockReserved)} ك
+                      </div>
                     </div>
                     <div className="bg-white p-2.5 rounded-xl border border-slate-100">
-                      <div className="text-[10px] text-slate-400">المخزن المركزي:</div>
-                      <div className="font-black text-sm text-amber-800">{selectedProductForModal.mainWarehouseActual} قطعة</div>
-                      <div className="text-[10px] text-slate-400">متاح بعد الحجز: {selectedProductForModal.mainWarehouseReserved}</div>
+                      <div className="text-[10px] text-slate-400">المخزن المركزي بأكتوبر:</div>
+                      <div className="font-black text-sm text-amber-800">
+                        {selectedProductForModal.mainWarehouseActual} كرتونة
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-bold">
+                        متاح للطلب: {Math.max(0, selectedProductForModal.mainWarehouseReserved)} ك
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Pricing Box */}
-                <div className="bg-amber-50 p-3 rounded-2xl border border-amber-200 space-y-2">
-                  <div className="font-bold text-amber-950">أسعار البيع المعتمدة:</div>
-                  <div className="grid grid-cols-2 gap-2">
+                {/* Pricing Box (Carton Price Only) */}
+                <div className="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 space-y-2">
+                  <div className="flex items-baseline justify-between">
                     <div>
-                      <div className="text-[10px] text-slate-500 font-bold">سعر القطعة</div>
-                      <div className="text-sm font-black text-slate-900">
-                        {formatCurrency(selectedProductForModal.promoPrice || selectedProductForModal.piecePrice)}
+                      <div className="text-xs text-amber-950 font-black">سعر الكرتونة بالجملة (المعتمد):</div>
+                      <div className="text-xl font-black text-amber-950">
+                        {formatCurrency(selectedProductForModal.cartonPrice)}
                       </div>
                     </div>
-                    <div>
-                      <div className="text-[10px] text-slate-500 font-bold">سعر الكرتونة ({selectedProductForModal.cartonQuantity} ق)</div>
-                      <div className="text-sm font-black text-amber-900">
-                        {formatCurrency(selectedProductForModal.cartonPrice)}
+                    <div className="text-left">
+                      <div className="text-[10px] text-slate-500 font-bold">شدة الكرتونة:</div>
+                      <div className="text-xs font-black bg-amber-200/80 text-amber-950 px-2 py-0.5 rounded-lg">
+                        {selectedProductForModal.cartonQuantity} قطعة
                       </div>
                     </div>
                   </div>
@@ -1458,25 +1399,26 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                 </div>
 
                 {/* Quick Add Action in Modal */}
-                <div className="flex items-center gap-2 pt-2">
-                  <button
-                    onClick={() => {
-                      handleDirectAdd(selectedProductForModal, 'carton', 1);
-                      setSelectedProductForModal(null);
-                    }}
-                    className="flex-1 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black py-2.5 rounded-2xl shadow-md text-xs transition cursor-pointer"
-                  >
-                    + إضافة 1 كرتونة للسلة 🛒
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleDirectAdd(selectedProductForModal, 'piece', 1);
-                      setSelectedProductForModal(null);
-                    }}
-                    className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-2xl text-xs transition cursor-pointer"
-                  >
-                    + إضافة 1 قطعة للسلة
-                  </button>
+                <div className="pt-2">
+                  {selectedProductForModal.branchStockReserved > 0 ? (
+                    <button
+                      onClick={() => {
+                        handleDirectAdd(selectedProductForModal, 'carton', 1);
+                        setSelectedProductForModal(null);
+                      }}
+                      className="w-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-black py-3 rounded-2xl shadow-md text-xs transition cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      <span>إضافة 1 كرتونة للطلبية الآن</span>
+                    </button>
+                  ) : (
+                    <button
+                      disabled
+                      className="w-full bg-slate-100 border border-slate-300 text-slate-500 font-bold py-3 rounded-2xl text-xs cursor-not-allowed opacity-80"
+                    >
+                      الصنف غير متاح للطلب (المخزون محجوز بالكامل)
+                    </button>
+                  )}
                 </div>
 
               </div>

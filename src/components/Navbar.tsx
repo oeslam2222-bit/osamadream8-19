@@ -59,10 +59,11 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
   if (!currentUser) return null;
 
   const roleNames: Record<UserRole, { label: string; bg: string; text: string }> = {
-    admin: { label: 'مدير النظام العام (Admin)', bg: 'bg-rose-500/20 border-rose-500/40', text: 'text-rose-300' },
-    branch_manager: { label: 'مدير الفرع (Branch Mgr)', bg: 'bg-purple-500/20 border-purple-500/40', text: 'text-purple-300' },
-    supervisor: { label: 'مشرف مبيعات (Supervisor)', bg: 'bg-blue-500/20 border-blue-500/40', text: 'text-blue-300' },
+    admin: { label: 'المدير العام (Admin)', bg: 'bg-rose-500/20 border-rose-500/40', text: 'text-rose-300' },
+    branch_manager: { label: 'مشرف الفرع (Branch Mgr)', bg: 'bg-purple-500/20 border-purple-500/40', text: 'text-purple-300' },
+    supervisor: { label: 'مشرف قطاع المناديب (Supervisor)', bg: 'bg-blue-500/20 border-blue-500/40', text: 'text-blue-300' },
     sales_rep: { label: 'مندوب مبيعات (Sales Rep)', bg: 'bg-emerald-500/20 border-emerald-500/40', text: 'text-emerald-300' },
+    developer: { label: 'المطور التقني (Developer)', bg: 'bg-amber-500/20 border-amber-500/40', text: 'text-amber-300' },
   };
 
   const pendingApprovalsCount = users.filter((u) => u.approvalStatus === 'pending_approval').length;
@@ -82,14 +83,14 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     : 0;
 
   const navItems = [
-    { id: 'catalog', label: 'كتالوج الأصناف والبيع', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep'] },
-    { id: 'dashboard', label: 'لوحة المشرف والمتابعة 📊', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep'] },
-    { id: 'invoices', label: 'الفواتير والطلبيات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep'], badge: pendingOrdersCount },
-    { id: 'inventory', label: 'إدارة المخزون والاعتمادات', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep'], badge: pendingOrdersCount },
-    { id: 'excel', label: 'شيتات Google Sheets والإكسل', icon: FileSpreadsheet, roles: ['admin', 'branch_manager', 'supervisor'] },
-    { id: 'audit', label: 'سجل العمليات (Audit Log)', icon: ShieldCheck, roles: ['admin', 'branch_manager', 'supervisor'] },
-    { id: 'users', label: 'المستخدمين والصلاحيات', icon: Users, roles: ['admin', 'branch_manager'], badge: pendingApprovalsCount },
-    { id: 'accounting', label: 'الربط المحاسبي (ERP)', icon: Server, roles: ['admin', 'branch_manager'] },
+    { id: 'catalog', label: 'كتالوج الأصناف والبيع', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'dashboard', label: 'لوحة المشرف والمتابعة 📊', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'invoices', label: 'الفواتير والطلبيات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
+    { id: 'inventory', label: 'إدارة المخزون والاعتمادات', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
+    { id: 'excel', label: 'شيتات Google Sheets والإكسل', icon: FileSpreadsheet, roles: ['admin', 'branch_manager', 'supervisor', 'developer'] },
+    { id: 'audit', label: 'سجل العمليات (Audit Log)', icon: ShieldCheck, roles: ['admin', 'branch_manager', 'supervisor', 'developer'] },
+    { id: 'users', label: 'المستخدمين والصلاحيات', icon: Users, roles: ['admin', 'branch_manager', 'developer'], badge: pendingApprovalsCount },
+    { id: 'accounting', label: 'وحدة المطور والربط (ERP & Supabase)', icon: Server, roles: ['admin', 'branch_manager', 'developer'] },
   ];
 
   const filteredNavItems = navItems.filter((item) => item.roles.includes(currentUser.role));

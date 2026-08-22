@@ -23,6 +23,7 @@ import {
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { exportElectronicInvoiceToExcel } from '../services/excelService';
+import { downloadInvoicePDF } from '../services/pdfService';
 import { formatArabicDate, formatCurrency, shareInvoiceViaWhatsApp } from '../services/invoiceService';
 import { Invoice, OrderStatus } from '../types';
 
@@ -545,6 +546,15 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>عرض</span>
+                          </button>
+
+                          {/* Download PDF */}
+                          <button
+                            onClick={() => downloadInvoicePDF(invoice)}
+                            className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded-lg transition cursor-pointer shadow-xs"
+                            title="تحميل فاتورة PDF رسمية"
+                          >
+                            <Download className="w-3.5 h-3.5" />
                           </button>
 
                           {/* Export Excel (.xlsx) */}

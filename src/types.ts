@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'branch_manager' | 'supervisor' | 'sales_rep';
+export type UserRole = 'admin' | 'branch_manager' | 'supervisor' | 'sales_rep' | 'developer';
 
 export type UserApprovalStatus = 'active' | 'pending_approval' | 'rejected';
 
@@ -66,18 +66,18 @@ export interface Product {
   salesPriority: SalesPriority;      // اولوية البيع
   category: string;                  // التصنيف
   status: ItemStatus;                // حالة الصنف
-  cartonQuantity: number;            // شدة الكرتونة (عدد القطع بالكرتونة)
+  cartonQuantity: number;            // شدة الكرتونة (عدد القطع بالكرتونة - بيان استرشادي)
   size: string;                      // الحجم
   color: string;                     // اللون
-  branchStockActual: number;         // الكمية بالفرع - فعلي
-  branchStockReserved: number;       // الكمية بالفرع - بعد الحجز
-  mainWarehouseActual: number;       // الكمية بالمخزن الرئيسي - فعلي
-  mainWarehouseReserved: number;     // الكمية بالمخزن الرئيسي - بعد الحجز
+  branchStockActual: number;         // رصيد الفرع بالكراتين - فعلي
+  branchStockReserved: number;       // رصيد الفرع بالكراتين - متاح للطلب
+  mainWarehouseActual: number;       // رصيد مخزن أكتوبر بالكراتين - فعلي
+  mainWarehouseReserved: number;     // رصيد مخزن أكتوبر بالكراتين - متاح للطلب
   department: string;                // القسم
   classification: string;            // الفئة
-  promoPrice?: number;               // سعر العرض
-  piecePrice: number;                // سعر القطعة
-  cartonPrice: number;               // سعر الكرتونة
+  promoPrice?: number;               // سعر العرض للكرتونة (اختياري)
+  piecePrice?: number;               // سعر مرجعي
+  cartonPrice: number;               // سعر الكرتونة بالجملة (السعر الفعلي المعتمد للطلب)
   branchName: string;                // اسم الفرع
   imageUrl?: string;                 // رابط الصورة المباشر
   cloudinaryPublicId?: string;       // معرّف Cloudinary
@@ -88,14 +88,14 @@ export interface Product {
 
 export interface CartItem {
   product: Product;
-  orderType: 'carton' | 'piece' | 'mixed';
+  orderType?: 'carton';
   cartonCount: number;
-  pieceCount: number;
-  totalPieces: number;
-  unitPrice: number;        // Price applied (promo, regular piece, or carton equivalent)
-  totalPrice: number;
+  pieceCount?: number;
+  totalPieces?: number;
+  unitPrice: number;                 // سعر الكرتونة
+  totalPrice: number;                // إجمالي الصنف = عدد الكراتين * سعر الكرتونة
   notes?: string;
-  fulfillFromMainWarehouse?: boolean; // If branch stock is insufficient
+  fulfillFromMainWarehouse?: boolean; // سحب من المخزن الرئيسي
 }
 
 export type OrderStatus =
@@ -121,7 +121,7 @@ export interface InventoryTransaction {
   productCode: string;
   productName: string;
   type: 'حجز طلبية مندوب' | 'صرف واعتماد مشرف' | 'إلغاء حجز وإرجاع' | 'مرتجع مبيعات وإرجاع للمخزن' | 'توريد مخزني' | 'تحويل بين الفروع' | 'تعديل جردي';
-  quantityPieces: number;
+  quantityPieces: number;            // عدد الكراتين المنقولة / المحجوزة
   branchStockBefore: number;
   branchStockAfter: number;
   branchName: string;
@@ -136,17 +136,17 @@ export interface InvoiceItem {
   productId: string;
   productCode: string;
   productName: string;
-  cartonCount: number;
-  pieceCount: number;
-  cartonQuantity: number;
-  totalUnits: number;
-  pricePerPiece: number;
-  pricePerCarton: number;
-  appliedPrice: number;
-  totalBeforeTax: number;
-  discountAmount: number;
-  taxAmount: number;
-  netTotal: number;
+  cartonCount: number;               // عدد الكراتين المطلوبة
+  pieceCount?: number;
+  cartonQuantity: number;            // شدة الكرتونة (ق/ك)
+  totalUnits?: number;
+  pricePerPiece?: number;
+  pricePerCarton: number;            // سعر الكرتونة
+  appliedPrice: number;              // سعر الكرتونة الفعلي
+  totalBeforeTax: number;            // عدد الكراتين * سعر الكرتونة
+  discountAmount: number;            // قيمة الخصم
+  taxAmount: number;                 // قيمة الضريبة
+  netTotal: number;                  // الإجمالي النهائي
   fulfilledFrom: 'branch' | 'main_warehouse' | 'mixed';
 }
 

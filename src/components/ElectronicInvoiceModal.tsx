@@ -17,6 +17,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { COMPANY_INFO } from '../data/mockData';
 import { exportElectronicInvoiceToExcel } from '../services/excelService';
+import { downloadInvoicePDF } from '../services/pdfService';
 import {
   formatArabicDate,
   formatCurrency,
@@ -41,8 +42,18 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   const [copied, setCopied] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
+  const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
 
   if (!isOpen || !invoice) return null;
+
+  const handleDownloadPDF = async () => {
+    setIsDownloadingPDF(true);
+    try {
+      await downloadInvoicePDF(invoice);
+    } finally {
+      setIsDownloadingPDF(false);
+    }
+  };
 
   const handleCopyText = async () => {
     const text = generateWhatsAppMessage(invoice);
@@ -89,20 +100,31 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
 
           {/* Header Action Buttons */}
           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+            {/* Direct PDF Download */}
+            <button
+              onClick={handleDownloadPDF}
+              disabled={isDownloadingPDF}
+              className="flex items-center gap-1 bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-lg text-xs font-black transition shadow-xs cursor-pointer disabled:opacity-50"
+              title="تحميل وطباعة فاتورة PDF رسمية"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>{isDownloadingPDF ? 'جاري التحميل...' : 'تحميل PDF 📄'}</span>
+            </button>
+
             {/* Excel Download */}
             <button
               onClick={() => exportElectronicInvoiceToExcel(invoice)}
-              className="flex items-center gap-1 bg-emerald-700 hover:bg-emerald-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition shadow-xs"
+              className="flex items-center gap-1 bg-emerald-700 hover:bg-emerald-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
               title="تصدير شيت إكسل رسمي"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">تحميل إكسل (.xlsx)</span>
+              <span className="hidden sm:inline">إكسل (.xlsx)</span>
             </button>
 
             {/* WhatsApp Share */}
             <button
               onClick={() => shareInvoiceViaWhatsApp(invoice)}
-              className="flex items-center gap-1 bg-green-600 hover:bg-green-500 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition shadow-xs"
+              className="flex items-center gap-1 bg-green-600 hover:bg-green-500 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
               title="إرسال عبر الواتساب"
             >
               <Send className="w-3.5 h-3.5" />
@@ -112,7 +134,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             {/* Print */}
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition"
+              className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">طباعة</span>
@@ -121,7 +143,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             {/* Close */}
             <button
               onClick={onClose}
-              className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
+              className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -228,10 +250,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                   <th className="p-2.5">كود الصنف</th>
                   <th className="p-2.5">اسم وبيان الصنف</th>
                   <th className="p-2.5 text-center">شدة الكرتونة</th>
-                  <th className="p-2.5 text-center">كرتونة</th>
-                  <th className="p-2.5 text-center">قطع</th>
-                  <th className="p-2.5 text-center">إجمالي الوحدات</th>
-                  <th className="p-2.5 text-left">سعر القطعة</th>
+                  <th className="p-2.5 text-center">عدد الكراتين</th>
                   <th className="p-2.5 text-left">سعر الكرتونة</th>
                   <th className="p-2.5 text-left">الإجمالي</th>
                   <th className="p-2.5 text-left">الخصم</th>
@@ -245,17 +264,12 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                     <td className="p-2.5 font-bold font-mono text-slate-800">{item.productCode}</td>
                     <td className="p-2.5 font-bold text-slate-900">{item.productName}</td>
                     <td className="p-2.5 text-center text-slate-600 font-bold">{item.cartonQuantity} ق</td>
-                    <td className="p-2.5 text-center font-black text-amber-900 bg-amber-50/50">
-                      {item.cartonCount > 0 ? item.cartonCount : '-'}
+                    <td className="p-2.5 text-center font-black text-amber-950 bg-amber-50/50">
+                      {item.cartonCount} كرتونة
                     </td>
-                    <td className="p-2.5 text-center font-semibold text-slate-700">
-                      {item.pieceCount > 0 ? item.pieceCount : '-'}
-                    </td>
-                    <td className="p-2.5 text-center font-bold text-slate-900">{item.totalUnits}</td>
-                    <td className="p-2.5 text-left font-medium text-slate-700">{item.pricePerPiece.toFixed(2)}</td>
-                    <td className="p-2.5 text-left font-bold text-slate-900">{item.pricePerCarton.toFixed(2)}</td>
-                    <td className="p-2.5 text-left font-medium text-slate-700">{item.totalBeforeTax.toFixed(2)}</td>
-                    <td className="p-2.5 text-left text-emerald-700 font-medium">-{item.discountAmount.toFixed(2)}</td>
+                    <td className="p-2.5 text-left font-bold text-slate-900">{formatCurrency(item.pricePerCarton)}</td>
+                    <td className="p-2.5 text-left font-medium text-slate-700">{formatCurrency(item.totalBeforeTax)}</td>
+                    <td className="p-2.5 text-left text-emerald-700 font-medium">-{formatCurrency(item.discountAmount)}</td>
                     <td className="p-2.5 text-left font-black text-slate-950">{formatCurrency(item.netTotal)}</td>
                   </tr>
                 ))}
@@ -301,8 +315,8 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             {/* Calculations Totals Box */}
             <div className="w-full sm:w-96 bg-slate-900 text-white p-4 rounded-3xl space-y-2.5 text-xs">
               <div className="flex justify-between items-center text-slate-300">
-                <span>إجمالي الكراتين / القطع:</span>
-                <strong className="text-white font-bold">{invoice.totalCartons} كرتونة | {invoice.totalPieces} قطعة</strong>
+                <span>إجمالي الكراتين:</span>
+                <strong className="text-white font-bold">{invoice.totalCartons} كرتونة</strong>
               </div>
 
               <div className="flex justify-between items-center text-slate-300">
@@ -335,14 +349,33 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
         {/* Modal Footer Controls (Hidden in Print) */}
         <div className="bg-slate-50 p-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 print:hidden">
           
-          {/* Copy Message */}
-          <button
-            onClick={handleCopyText}
-            className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 px-3 py-2 rounded-xl transition"
-          >
-            <Copy className="w-3.5 h-3.5" />
-            <span>{copied ? 'تم نسخ نص الفاتورة!' : 'نسخ نص الفاتورة'}</span>
-          </button>
+          {/* Quick Share / Export Buttons */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleDownloadPDF}
+              disabled={isDownloadingPDF}
+              className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer disabled:opacity-50"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>{isDownloadingPDF ? 'جاري التحميل...' : 'تحميل PDF 📄'}</span>
+            </button>
+
+            <button
+              onClick={() => shareInvoiceViaWhatsApp(invoice)}
+              className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>إرسال واتساب</span>
+            </button>
+
+            <button
+              onClick={handleCopyText}
+              className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 px-3 py-2 rounded-xl transition cursor-pointer"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              <span>{copied ? 'تم النسخ!' : 'نسخ النص'}</span>
+            </button>
+          </div>
 
           {/* Sync to Accounting / Actions */}
           <div className="flex items-center gap-2 flex-wrap">
@@ -368,7 +401,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
 
             <button
               onClick={onClose}
-              className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-5 py-2 rounded-xl text-xs shadow transition"
+              className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-5 py-2 rounded-xl text-xs shadow transition cursor-pointer"
             >
               إغلاق
             </button>

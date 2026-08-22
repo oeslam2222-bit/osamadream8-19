@@ -18,15 +18,12 @@ interface LoginPageProps {
 export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
   const { login } = useApp();
 
-  // Login State
-  const [loginIdentifier, setLoginIdentifier] = useState('osama');
-  const [loginPassword, setLoginPassword] = useState('osama');
+  // Login State - Default clean inputs
+  const [loginIdentifier, setLoginIdentifier] = useState('Osama@dream.com');
+  const [loginPassword, setLoginPassword] = useState('123456');
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-
-  // Quick info toggle
-  const [showDemoLogins, setShowDemoLogins] = useState(false);
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,12 +46,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
         if (onSuccess) onSuccess();
       }
     }, 300);
-  };
-
-  const handleQuickFill = (identifier: string, pass: string) => {
-    setLoginIdentifier(identifier);
-    setLoginPassword(pass);
-    setLoginError(null);
   };
 
   return (
@@ -175,78 +166,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
             <div className="pt-3 border-t border-slate-800/80 text-center">
               <p className="text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>حسابات المناديب والمشرفين يتم إدارتها وتفعيلها بواسطة الإدارة</span>
+                <span>تسجيل دخول مشفر وآمن • مخصص لمناديب ومشرفي شركة دريم</span>
               </p>
-            </div>
-
-            {/* Quick Demo credentials toggle */}
-            <div className="mt-4 pt-1">
-              <button
-                type="button"
-                onClick={() => setShowDemoLogins(!showDemoLogins)}
-                className="w-full py-1.5 text-xs text-amber-400/80 hover:text-amber-300 flex items-center justify-center gap-1.5 transition"
-              >
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>{showDemoLogins ? 'إخفاء الحسابات الجاهزة للتجربة' : 'عرض حسابات التجربة السريعة (أدمن، مشرف، مندوب)'}</span>
-              </button>
-
-              {showDemoLogins && (
-                <div className="mt-2 bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2 text-xs animate-in fade-in">
-                  <div className="text-[11px] text-slate-400 font-bold mb-1">
-                    انقر لتعبئة بيانات الحساب تلقائياً:
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleQuickFill('oeslam2222@gmail.com', 'admin')}
-                      className="text-right p-2 rounded-lg bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 text-rose-200 transition"
-                    >
-                      <div className="font-bold flex items-center justify-between">
-                        <span>المدير العام (أسامة إسلام)</span>
-                        <span className="text-[10px] bg-rose-500/30 px-1 rounded">كل الصلاحيات</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400">oeslam2222@gmail.com / admin</div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleQuickFill('ashraf@dream-dist.com', '123')}
-                      className="text-right p-2 rounded-lg bg-purple-500/10 border border-purple-500/30 hover:bg-purple-500/20 text-purple-200 transition"
-                    >
-                      <div className="font-bold flex items-center justify-between">
-                        <span>مدير فرع أكتوبر (الرئيسي)</span>
-                        <span className="text-[10px] bg-purple-500/30 px-1 rounded">إدارة الفرع</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400">ashraf@dream-dist.com / 123</div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleQuickFill('mahmoud@dream-dist.com', '123')}
-                      className="text-right p-2 rounded-lg bg-blue-500/10 border border-blue-500/30 hover:bg-blue-500/20 text-blue-200 transition"
-                    >
-                      <div className="font-bold flex items-center justify-between">
-                        <span>مشرف مبيعات (Supervisor)</span>
-                        <span className="text-[10px] bg-blue-500/30 px-1 rounded">مناديبه فقط</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400">mahmoud@dream-dist.com / 123</div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleQuickFill('ahmed.rep@dream-dist.com', '123')}
-                      className="text-right p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-200 transition"
-                    >
-                      <div className="font-bold flex items-center justify-between">
-                        <span>مندوب مبيعات (أحمد سامي)</span>
-                        <span className="text-[10px] bg-emerald-500/30 px-1 rounded">سرية تامة</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400">rep_ahmed / 123</div>
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
 
           </form>

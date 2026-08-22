@@ -139,15 +139,15 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
-  PRODUCTS: 'dream_dist_products_v7',
-  INVOICES: 'dream_dist_invoices_v7',
-  USERS: 'dream_dist_users_v7',
-  BRANCHES: 'dream_dist_branches_v7',
-  CLOUDINARY: 'dream_dist_cloudinary_v7',
-  CURRENT_USER_ID: 'dream_dist_current_user_v7',
-  IS_AUTH: 'dream_dist_is_auth_v7',
-  ACCOUNTING_LOGS: 'dream_dist_acc_logs_v7',
-  CART: 'dream_dist_cart_v7'
+  PRODUCTS: 'dream_dist_products_v9',
+  INVOICES: 'dream_dist_invoices_v9',
+  USERS: 'dream_dist_users_v9',
+  BRANCHES: 'dream_dist_branches_v9',
+  CLOUDINARY: 'dream_dist_cloudinary_v9',
+  CURRENT_USER_ID: 'dream_dist_current_user_v9',
+  IS_AUTH: 'dream_dist_is_auth_v9',
+  ACCOUNTING_LOGS: 'dream_dist_acc_logs_v9',
+  CART: 'dream_dist_cart_v9'
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -650,7 +650,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setInventoryLogs((prev) => [newTx, ...prev]);
   };
 
-  const checkProductAvailability = (productId: string, requestedPieces: number) => {
+  const checkProductAvailability = (productId: string, requestedCartons: number) => {
     const prod = products.find((p) => p.id === productId);
     if (!prod) return { available: false, remainingPieces: 0, message: 'الصنف غير موجود بالسيستم' };
 
@@ -661,34 +661,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return {
         available: false,
         remainingPieces: 0,
-        message: `عفواً، الصنف (${prod.name}) نفذ تماماً من المخزن (0 قطع)! الرصيد محجوز بالكامل.`
+        message: `عفواً، الصنف (${prod.name}) نفذ تماماً من المخزن (0 كرتونة متبقية)! الرصيد محجوز بالكامل.`
       };
     }
 
-    if (requestedPieces > totalAvailable) {
+    if (requestedCartons > totalAvailable) {
       return {
         available: false,
         remainingPieces: totalAvailable,
-        message: `الكمية المطلوبة (${requestedPieces} قطعة) تتجاوز الرصيد المتاح (${totalAvailable} قطعة متبقية)!`
+        message: `الكمية المطلوبة (${requestedCartons} كرتونة) تتجاوز الرصيد المتاح (${totalAvailable} كرتونة متبقية)!`
       };
     }
 
     return { available: true, remainingPieces: totalAvailable };
   };
 
-  // --- Cart Actions with Concurrency Checks ---
+  // --- Cart Actions with Concurrency Checks (Pure Carton Logic) ---
   const addToCart = (
     product: Product,
     orderType: 'carton' | 'piece' = 'carton',
     count: number = 1
   ): { success: boolean; message?: string } => {
     const latestProd = products.find((p) => p.id === product.id) || product;
-    const pieceMultiplier = latestProd.cartonQuantity || 1;
-    const piecesRequested = orderType === 'carton' ? count * pieceMultiplier : count;
+    const cartonsToAdd = Math.max(1, count);
 
     const existing = cart.find((item) => item.product.id === latestProd.id);
-    const existingPieces = existing ? existing.totalPieces : 0;
-    const totalRequiredPieces = existingPieces + piecesRequested;
+    const existingCartons = existing ? existing.cartonCount : 0;
+    const totalRequiredCartons = existingCartons + cartonsToAdd;
 
     const availableInBranch = Math.max(0, latestProd.branchStockReserved);
     const availableInWarehouse = Math.max(0, latestProd.mainWarehouseReserved);
@@ -697,55 +696,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (totalAvailable <= 0) {
       return {
         success: false,
-        message: `عفواً، الصنف (${latestProd.name}) نفذ من المخزن تماماً (0 قطع)! تم حجز كامل الكمية بواسطة مناديب آخرين.`
+        message: `عفواً، الصنف (${latestProd.name}) نفذ من المخزن تماماً (0 كرتونة متبقية)! تم حجز كامل الكمية بواسطة مناديب آخرين.`
       };
     }
 
-    if (totalRequiredPieces > totalAvailable) {
+    if (totalRequiredCartons > totalAvailable) {
       return {
         success: false,
-        message: `عفواً، الكمية المطلوبة تتجاوز المتاح! المتبقي حالياً بالمخزن (${totalAvailable} قطعة فقط) بينما طلبت (${totalRequiredPieces} قطعة).`
+        message: `عفواً، الكمية المطلوبة تتجاوز المتاح! المتبقي حالياً بالمخزن (${totalAvailable} كرتونة فقط) بينما طلبت (${totalRequiredCartons} كرتونة).`
       };
     }
+
+    const appliedCartonPrice = latestProd.promoPrice && latestProd.promoPrice > 0 ? latestProd.promoPrice : latestProd.cartonPrice;
 
     setCart((prev) => {
       const existingInCart = prev.find((item) => item.product.id === latestProd.id);
-      const effectivePiecePrice =
-        latestProd.promoPrice && latestProd.promoPrice > 0 ? latestProd.promoPrice : latestProd.piecePrice;
 
       if (existingInCart) {
-        const newCartonCount = orderType === 'carton' ? existingInCart.cartonCount + count : existingInCart.cartonCount;
-        const newPieceCount = orderType === 'piece' ? existingInCart.pieceCount + count : existingInCart.pieceCount;
-        const totalPieces = newCartonCount * pieceMultiplier + newPieceCount;
-        const totalPrice = newCartonCount * latestProd.cartonPrice + newPieceCount * effectivePiecePrice;
+        const newCartonCount = existingInCart.cartonCount + cartonsToAdd;
+        const totalPrice = newCartonCount * appliedCartonPrice;
 
         return prev.map((item) =>
           item.product.id === latestProd.id
             ? {
                 ...item,
                 cartonCount: newCartonCount,
-                pieceCount: newPieceCount,
-                totalPieces,
+                unitPrice: appliedCartonPrice,
                 totalPrice,
-                orderType: newCartonCount > 0 && newPieceCount > 0 ? 'mixed' : newCartonCount > 0 ? 'carton' : 'piece',
+                orderType: 'carton',
               }
             : item
         );
       } else {
-        const cartonCount = orderType === 'carton' ? count : 0;
-        const pieceCount = orderType === 'piece' ? count : 0;
-        const totalPieces = cartonCount * pieceMultiplier + pieceCount;
-        const totalPrice = cartonCount * latestProd.cartonPrice + pieceCount * effectivePiecePrice;
+        const totalPrice = cartonsToAdd * appliedCartonPrice;
 
         return [
           ...prev,
           {
             product: latestProd,
-            orderType,
-            cartonCount,
-            pieceCount,
-            totalPieces,
-            unitPrice: orderType === 'carton' ? latestProd.cartonPrice : effectivePiecePrice,
+            orderType: 'carton',
+            cartonCount: cartonsToAdd,
+            unitPrice: appliedCartonPrice,
             totalPrice,
             fulfillFromMainWarehouse: latestProd.branchStockActual <= 0 && latestProd.mainWarehouseActual > 0,
           },
@@ -761,20 +752,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       prev.map((item) => {
         if (item.product.id !== productId) return item;
         const merged = { ...item, ...updates };
-        const pieceMultiplier = merged.product.cartonQuantity || 1;
-        const effectivePiecePrice =
+        const appliedCartonPrice =
           merged.product.promoPrice && merged.product.promoPrice > 0
             ? merged.product.promoPrice
-            : merged.product.piecePrice;
+            : merged.product.cartonPrice;
 
-        const totalPieces = merged.cartonCount * pieceMultiplier + merged.pieceCount;
-        const totalPrice = merged.cartonCount * merged.product.cartonPrice + merged.pieceCount * effectivePiecePrice;
+        const safeCartonCount = Math.max(1, merged.cartonCount || 1);
+        const totalPrice = safeCartonCount * appliedCartonPrice;
 
         return {
           ...merged,
-          totalPieces,
+          cartonCount: safeCartonCount,
+          unitPrice: appliedCartonPrice,
           totalPrice,
-          orderType: merged.cartonCount > 0 && merged.pieceCount > 0 ? 'mixed' : merged.cartonCount > 0 ? 'carton' : 'piece',
+          orderType: 'carton',
         };
       })
     );
@@ -788,12 +779,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const getCartSummary = () => {
     let totalCartons = 0;
-    let totalPieces = 0;
     let subtotal = 0;
 
     cart.forEach((item) => {
       totalCartons += item.cartonCount;
-      totalPieces += item.pieceCount;
       subtotal += item.totalPrice;
     });
 
@@ -806,7 +795,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return {
       totalCartons,
-      totalPieces,
+      totalPieces: totalCartons,
       subtotal,
       discountAmount,
       taxAmount,
@@ -988,11 +977,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!currentProd) {
         return { success: false, message: `الصنف (${item.product.name}) لم يعد متوفراً بالسيستم!` };
       }
-      const availablePieces = Math.max(0, currentProd.branchStockReserved) + Math.max(0, currentProd.mainWarehouseReserved);
-      if (item.totalPieces > availablePieces) {
+      const availableCartons = Math.max(0, currentProd.branchStockReserved) + Math.max(0, currentProd.mainWarehouseReserved);
+      if (item.cartonCount > availableCartons) {
         return {
           success: false,
-          message: `عفواً، تعذر اعتماد الطلبية: الصنف (${currentProd.name}) لم يعد متوفراً بالكمية المطلوبة (المتبقي فقط ${availablePieces} قطعة بسبب طلبية مندوب آخر تم تسجيلها للتو)! يرجى تعديل السلة.`
+          message: `عفواً، تعذر اعتماد الطلبية: الصنف (${currentProd.name}) لم يعد متوفراً بالكمية المطلوبة (المتبقي فقط ${availableCartons} كرتونة بسبب طلبية مندوب آخر تم تسجيلها للتو)! يرجى تعديل السلة.`
         };
       }
     }
@@ -1024,8 +1013,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const buildInvoiceItems = (items: typeof cart) => {
       return items.map((item) => {
         const cartonQty = item.product.cartonQuantity || 1;
-        const effectivePiecePrice = item.product.promoPrice || item.product.piecePrice;
-        const itemSubtotal = item.cartonCount * item.product.cartonPrice + item.pieceCount * effectivePiecePrice;
+        const appliedCartonPrice = item.product.promoPrice && item.product.promoPrice > 0 ? item.product.promoPrice : item.product.cartonPrice;
+        const itemSubtotal = item.cartonCount * appliedCartonPrice;
         const itemDiscount = itemSubtotal * 0.035;
         const itemTax = (itemSubtotal - itemDiscount) * 0.14;
 
@@ -1034,12 +1023,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           productCode: item.product.code,
           productName: item.product.name,
           cartonCount: item.cartonCount,
-          pieceCount: item.pieceCount,
+          pieceCount: 0,
           cartonQuantity: cartonQty,
-          totalUnits: item.totalPieces,
-          pricePerPiece: effectivePiecePrice,
+          totalUnits: item.cartonCount,
+          pricePerPiece: item.product.piecePrice || 0,
           pricePerCarton: item.product.cartonPrice,
-          appliedPrice: item.cartonCount > 0 ? item.product.cartonPrice : effectivePiecePrice,
+          appliedPrice: appliedCartonPrice,
           totalBeforeTax: itemSubtotal,
           discountAmount: itemDiscount,
           taxAmount: itemTax,
@@ -1052,17 +1041,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const calculateTotals = (items: ReturnType<typeof buildInvoiceItems>) => {
       let subtotal = 0;
       let totalCartons = 0;
-      let totalPieces = 0;
       items.forEach((it) => {
         subtotal += it.totalBeforeTax;
         totalCartons += it.cartonCount;
-        totalPieces += it.totalUnits;
       });
       const discountAmount = subtotal * 0.035;
       const taxableAmount = subtotal - discountAmount;
       const taxAmount = taxableAmount * 0.14;
       const estimatedGrandTotal = taxableAmount + taxAmount;
-      return { subtotal, totalCartons, totalPieces, discountAmount, taxAmount, estimatedGrandTotal };
+      return { subtotal, totalCartons, totalPieces: totalCartons, discountAmount, taxAmount, estimatedGrandTotal };
     };
 
     const primaryItems = buildInvoiceItems(primaryCartItems);
@@ -1139,25 +1126,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    // Deduct / Reserve Stock in Products
+    // Deduct / Reserve Stock in Products (Pure Carton Deductions)
     setProducts((prev) => {
       return prev.map((p) => {
         const cartItem = cart.find((c) => c.product.id === p.id);
         if (!cartItem) return p;
-        const pieceUnits = cartItem.totalPieces;
+        const cartonUnits = cartItem.cartonCount;
 
         if (cartItem.fulfillFromMainWarehouse) {
           // Central warehouse deduction / reserve
           if (isDirectManager) {
             return {
               ...p,
-              mainWarehouseActual: Math.max(0, p.mainWarehouseActual - pieceUnits),
-              mainWarehouseReserved: Math.max(0, p.mainWarehouseReserved - pieceUnits),
+              mainWarehouseActual: Math.max(0, p.mainWarehouseActual - cartonUnits),
+              mainWarehouseReserved: Math.max(0, p.mainWarehouseReserved - cartonUnits),
             };
           } else {
             return {
               ...p,
-              mainWarehouseReserved: Math.max(0, p.mainWarehouseReserved - pieceUnits),
+              mainWarehouseReserved: Math.max(0, p.mainWarehouseReserved - cartonUnits),
             };
           }
         } else {
@@ -1165,13 +1152,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (isDirectManager) {
             return {
               ...p,
-              branchStockActual: Math.max(0, p.branchStockActual - pieceUnits),
-              branchStockReserved: Math.max(0, p.branchStockReserved - pieceUnits),
+              branchStockActual: Math.max(0, p.branchStockActual - cartonUnits),
+              branchStockReserved: Math.max(0, p.branchStockReserved - cartonUnits),
             };
           } else {
             return {
               ...p,
-              branchStockReserved: Math.max(0, p.branchStockReserved - pieceUnits),
+              branchStockReserved: Math.max(0, p.branchStockReserved - cartonUnits),
             };
           }
         }
@@ -1189,9 +1176,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         productCode: item.product.code,
         productName: item.product.name,
         type: isDirectManager ? 'صرف واعتماد مشرف' : 'حجز طلبية مندوب',
-        quantityPieces: item.totalPieces,
+        quantityPieces: item.cartonCount,
         branchStockBefore: beforeReserved,
-        branchStockAfter: Math.max(0, beforeReserved - item.totalPieces),
+        branchStockAfter: Math.max(0, beforeReserved - item.cartonCount),
         branchName: isFromMain ? 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)' : (currentUser?.branchName || 'الفرع الرئيسي'),
         userName: currentUser?.name || 'المندوب',
         userRole: currentUser?.role || 'sales_rep',
@@ -1222,7 +1209,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: primaryInvoice.branchName,
       action: 'create_invoice',
       actionTitle: `تسجيل فاتورة مبيعات جديدة #${primaryInvoice.invoiceNumber}`,
-      details: `العميل: ${primaryInvoice.customerName} • ${primaryInvoice.totalCartons} كرتونة (${primaryInvoice.totalPieces} قطعة) • القيمة: ${primaryInvoice.estimatedGrandTotal.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م • الحالة: ${primaryInvoice.status}${shouldSplit ? ` • تم تجزئة نواقص لفاتورة #${createdShortageInvoice?.invoiceNumber}` : ''}`,
+      details: `العميل: ${primaryInvoice.customerName} • ${primaryInvoice.totalCartons} كرتونة • القيمة: ${primaryInvoice.estimatedGrandTotal.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م • الحالة: ${primaryInvoice.status}${shouldSplit ? ` • تم تجزئة نواقص لفاتورة #${createdShortageInvoice?.invoiceNumber}` : ''}`,
       invoiceId: primaryInvoice.id,
       invoiceNumber: primaryInvoice.invoiceNumber,
       badgeType: 'warning',
@@ -1253,7 +1240,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!invItem) return p;
         return {
           ...p,
-          branchStockActual: Math.max(0, p.branchStockActual - invItem.totalUnits),
+          branchStockActual: Math.max(0, p.branchStockActual - invItem.cartonCount),
         };
       });
     });
@@ -1267,9 +1254,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         productCode: item.productCode,
         productName: item.productName,
         type: 'صرف واعتماد مشرف',
-        quantityPieces: item.totalUnits,
+        quantityPieces: item.cartonCount,
         branchStockBefore: currentActual,
-        branchStockAfter: Math.max(0, currentActual - item.totalUnits),
+        branchStockAfter: Math.max(0, currentActual - item.cartonCount),
         branchName: inv.branchName,
         userName: currentUser?.name || 'المشرف',
         userRole: currentUser?.role || 'supervisor',
@@ -1298,7 +1285,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: inv.branchName,
       action: 'approve_invoice',
       actionTitle: `اعتماد وصرف الفاتورة #${inv.invoiceNumber}`,
-      details: `العميل: ${inv.customerName} • المندوب: ${inv.repName} • تم خصم المخزون الفعلي من ${inv.branchName} • القيمة: ${inv.estimatedGrandTotal.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م ${notes ? `• ملاحظة: ${notes}` : ''}`,
+      details: `العميل: ${inv.customerName} • المندوب: ${inv.repName} • تم خصم المخزون الفعلي من ${inv.branchName} (${inv.totalCartons} كرتونة) • القيمة: ${inv.estimatedGrandTotal.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م ${notes ? `• ملاحظة: ${notes}` : ''}`,
       invoiceId: inv.id,
       invoiceNumber: inv.invoiceNumber,
       badgeType: 'success',
@@ -1306,7 +1293,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return {
       success: true,
-      message: `تم اعتماد وصرف الطلبية #${inv.invoiceNumber} وخصم المخزون الفعلي من الفرع بنجاح!`,
+      message: `تم اعتماد وصرف الطلبية #${inv.invoiceNumber} وخصم المخزون الفعلي (${inv.totalCartons} كرتونة) من الفرع بنجاح!`,
     };
   };
 
@@ -1354,14 +1341,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'الطلبية ملغاة بالفعل' };
     }
 
-    // Restore reserved stock back to available stock
+    // Restore reserved stock back to available stock (in Cartons)
     setProducts((prev) => {
       return prev.map((p) => {
         const invItem = inv.items.find((it) => it.productId === p.id);
         if (!invItem) return p;
         return {
           ...p,
-          branchStockReserved: p.branchStockReserved + invItem.totalUnits,
+          branchStockReserved: p.branchStockReserved + invItem.cartonCount,
         };
       });
     });
@@ -1375,9 +1362,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         productCode: item.productCode,
         productName: item.productName,
         type: 'إلغاء حجز وإرجاع',
-        quantityPieces: item.totalUnits,
+        quantityPieces: item.cartonCount,
         branchStockBefore: reservedBefore,
-        branchStockAfter: reservedBefore + item.totalUnits,
+        branchStockAfter: reservedBefore + item.cartonCount,
         branchName: inv.branchName,
         userName: currentUser?.name || 'المشرف',
         userRole: currentUser?.role || 'supervisor',
@@ -1396,7 +1383,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               cancellationReason: reason,
               cancelledBy: currentUser?.name || 'مشرف المبيعات',
               cancelledAt: `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true })}`,
-              restoredStockDetails: `تم استرجاع ${inv.totalCartons} كرتونة (${inv.totalPieces} قطعة) إلى مخزن الفرع`,
+              restoredStockDetails: `تم استرجاع ${inv.totalCartons} كرتونة إلى مخزن الفرع`,
               notes: `${i.notes ? i.notes + ' | ' : ''}سبب الرفض: ${reason}`,
             }
           : i
@@ -1410,7 +1397,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: inv.branchName,
       action: 'cancel_invoice',
       actionTitle: `رفض/إلغاء الطلبية #${inv.invoiceNumber} وفك الحجز`,
-      details: `السبب: ${reason} • تم إعادة ${inv.totalCartons} كرتونة (${inv.totalPieces} قطعة) فوراً إلى رصيد مخزن الفرع المتاح.`,
+      details: `السبب: ${reason} • تم إعادة ${inv.totalCartons} كرتونة فوراً إلى رصيد مخزن الفرع المتاح.`,
       invoiceId: inv.id,
       invoiceNumber: inv.invoiceNumber,
       badgeType: 'danger',
@@ -1418,7 +1405,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return {
       success: true,
-      message: `تم رفض الطلبية #${inv.invoiceNumber} وإرجاع الأصناف المحجوزة للمخزن فوراً لتصبح متاحة للمناديب الآخرين.`,
+      message: `تم إلغاء الطلبية #${inv.invoiceNumber} وفك حجز ${inv.totalCartons} كرتونة وإعادتها للرصيد المتاح!`,
     };
   };
 
@@ -1448,12 +1435,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // If order is marked as Returned or Cancelled after stock was deducted/approved:
     if (isNowReturnedOrCancelled) {
       if (wasDeductedOrApproved) {
-        // Restore physical actual AND reserved stock
+        // Restore physical actual AND reserved stock in Cartons
         setProducts((prev) =>
           prev.map((p) => {
             const item = inv.items.find((it) => it.productId === p.id);
             if (!item) return p;
-            const qty = item.totalUnits;
+            const qty = item.cartonCount;
             if (item.fulfilledFrom === 'main_warehouse') {
               return {
                 ...p,
@@ -1479,9 +1466,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             productCode: item.productCode,
             productName: item.productName,
             type: 'مرتجع مبيعات وإرجاع للمخزن',
-            quantityPieces: item.totalUnits,
+            quantityPieces: item.cartonCount,
             branchStockBefore: currentActual,
-            branchStockAfter: currentActual + item.totalUnits,
+            branchStockAfter: currentActual + item.cartonCount,
             branchName: inv.branchName,
             userName: currentUser?.name || 'مسئول المخازن',
             userRole: currentUser?.role || 'branch_manager',
@@ -1489,7 +1476,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             invoiceNumber: inv.invoiceNumber,
             notes:
               status === 'مرتجع'
-                ? `تسجيل مرتجع للطلبية #${inv.invoiceNumber} وإعادة ${item.cartonCount} كرتونة (${item.totalUnits} قطعة) إلى رصيد مخزن الفرع. ${reason ? `السبب: ${reason}` : ''}`
+                ? `تسجيل مرتجع للطلبية #${inv.invoiceNumber} وإعادة ${item.cartonCount} كرتونة إلى رصيد مخزن الفرع. ${reason ? `السبب: ${reason}` : ''}`
                 : `إلغاء الطلبية #${inv.invoiceNumber} واسترداد الرصيد بالكامل إلى المخزن`,
           });
         });
@@ -1499,7 +1486,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           prev.map((p) => {
             const item = inv.items.find((it) => it.productId === p.id);
             if (!item) return p;
-            const qty = item.totalUnits;
+            const qty = item.cartonCount;
             return {
               ...p,
               branchStockReserved: p.branchStockReserved + qty,
@@ -1515,9 +1502,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             productCode: item.productCode,
             productName: item.productName,
             type: 'إلغاء حجز وإرجاع',
-            quantityPieces: item.totalUnits,
+            quantityPieces: item.cartonCount,
             branchStockBefore: resBefore,
-            branchStockAfter: resBefore + item.totalUnits,
+            branchStockAfter: resBefore + item.cartonCount,
             branchName: inv.branchName,
             userName: currentUser?.name || 'المشرف',
             userRole: currentUser?.role || 'supervisor',
@@ -1538,7 +1525,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               cancellationReason: isNowReturnedOrCancelled ? (reason || i.cancellationReason || 'إلغاء الطلبية') : i.cancellationReason,
               cancelledBy: isNowReturnedOrCancelled ? (currentUser?.name || 'مسؤول النظام') : i.cancelledBy,
               cancelledAt: isNowReturnedOrCancelled ? `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true })}` : i.cancelledAt,
-              restoredStockDetails: isNowReturnedOrCancelled ? `تم استرجاع ${inv.totalCartons} كرتونة (${inv.totalPieces} قطعة) إلى المخزن` : i.restoredStockDetails,
+              restoredStockDetails: isNowReturnedOrCancelled ? `تم استرجاع ${inv.totalCartons} كرتونة إلى المخزن` : i.restoredStockDetails,
               notes: reason
                 ? `${i.notes ? i.notes + ' | ' : ''}تحديث الحالة إلى (${status}): ${reason}`
                 : i.notes,

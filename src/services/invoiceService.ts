@@ -2,11 +2,11 @@ import { COMPANY_INFO } from '../data/mockData';
 import { Invoice } from '../types';
 
 /**
- * Format Egyptian Pound currency
+ * Format Egyptian Pound currency with clean, standard legible digits (e.g. 31,958.00 ج.م)
  */
 export function formatCurrency(amount: number | undefined): string {
   if (amount === undefined || isNaN(amount)) return '0.00 ج.م';
-  return `${amount.toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج.م`;
+  return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج.م`;
 }
 
 /**

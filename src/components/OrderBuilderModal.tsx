@@ -259,11 +259,11 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                 <ShoppingCart className="w-10 h-10 text-slate-400 mx-auto" />
                 <div className="font-bold text-slate-700 text-xs sm:text-sm">لم تقم بإضافة أي أصناف بعد!</div>
                 <p className="text-slate-400 text-xs">
-                  توجه إلى كتالوج المنتجات واضغط على (+1 كرتونة) أو (+1 قطعة) لإضافة أصناف دريم.
+                  توجه إلى كتالوج المنتجات واضغط على (+1 كرتونة) لإضافة أصناف دريم.
                 </p>
                 <button
                   onClick={onClose}
-                  className="bg-amber-500 text-slate-950 font-black px-4 py-1.5 rounded-xl text-xs shadow hover:bg-amber-400"
+                  className="bg-amber-500 text-slate-950 font-black px-4 py-1.5 rounded-xl text-xs shadow hover:bg-amber-400 cursor-pointer"
                 >
                   العودة للكتالوج
                 </button>
@@ -272,9 +272,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               <div className="space-y-3">
                 {cart.map((item) => {
                   const p = item.product;
-                  const pieceMultiplier = p.cartonQuantity || 1;
-                  const totalUnits = (item.cartonCount * pieceMultiplier) + item.pieceCount;
-                  const branchShortage = totalUnits > p.branchStockActual;
+                  const branchShortage = item.cartonCount > p.branchStockActual;
 
                   return (
                     <div
@@ -287,7 +285,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                           <ProductImage
                             product={p}
                             cloudinaryConfig={cloudinaryConfig}
-                            containerClassName="w-11 h-11 rounded-lg bg-slate-900 overflow-hidden shrink-0 border border-slate-200"
+                            containerClassName="w-11 h-11 rounded-lg bg-slate-100 overflow-hidden shrink-0 border border-slate-200"
                             className="w-full h-full object-cover"
                             showBadgeOnFallback={false}
                           />
@@ -299,10 +297,10 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                               <span className="text-[10px] font-bold text-slate-500">{p.category}</span>
                             </div>
                             <h4 className="font-bold text-slate-900 text-xs sm:text-sm">{p.name}</h4>
-                            <div className="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
-                              <span>شدة الكرتونة: {p.cartonQuantity} ق</span>
-                              <span>سعر القطعة: {formatCurrency(p.promoPrice || p.piecePrice)}</span>
-                              <span>سعر الكرتونة: {formatCurrency(p.cartonPrice)}</span>
+                            <div className="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
+                              <span>شدة الكرتونة: <strong className="text-slate-800">{p.cartonQuantity} ق</strong></span>
+                              <span>•</span>
+                              <span>سعر الكرتونة: <strong className="text-amber-900 font-black">{formatCurrency(p.cartonPrice)}</strong></span>
                             </div>
                           </div>
                         </div>
@@ -322,7 +320,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                           <div className="flex items-center gap-1.5">
                             <Warehouse className="w-4 h-4 text-amber-600 shrink-0" />
                             <span>
-                              الكمية المطلوبة ({totalUnits} ق) تفوق مخزون الفرع الحالي ({p.branchStockActual} ق).
+                              الكراتين المطلوبة ({item.cartonCount} ك) تفوق رصيد الفرع الحالي ({p.branchStockActual} ك).
                             </span>
                           </div>
                           <label className="flex items-center gap-2 cursor-pointer bg-white px-2 py-1 rounded-lg border border-amber-300 text-amber-950 font-bold text-[11px]">
@@ -334,7 +332,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                               }
                               className="accent-amber-500 rounded"
                             />
-                            <span>سحب العجز من المخزن الرئيسي المركزي (أكتوبر)</span>
+                            <span>سحب العجز من المخزن الرئيسي (أكتوبر)</span>
                           </label>
                         </div>
                       )}
@@ -344,62 +342,34 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                         
                         {/* Carton Counter */}
                         <div className="flex items-center gap-2">
-                          <span className="text-slate-500 font-bold">الكراتين:</span>
+                          <span className="text-slate-700 font-black">عدد الكراتين المطلوبة:</span>
                           <div className="flex items-center bg-slate-100 rounded-xl border border-slate-200 p-0.5">
                             <button
-                              onClick={() => updateCartItem(p.id, { cartonCount: Math.max(0, item.cartonCount - 1) })}
-                              className="w-7 h-7 flex items-center justify-center text-slate-700 hover:bg-white rounded-lg transition"
+                              onClick={() => updateCartItem(p.id, { cartonCount: Math.max(1, item.cartonCount - 1) })}
+                              className="w-8 h-8 flex items-center justify-center text-slate-700 hover:bg-white rounded-lg transition font-black cursor-pointer"
                             >
                               <Minus className="w-3.5 h-3.5" />
                             </button>
                             <input
                               type="number"
-                              min="0"
+                              min="1"
                               value={item.cartonCount}
-                              onChange={(e) => updateCartItem(p.id, { cartonCount: Math.max(0, parseInt(e.target.value) || 0) })}
+                              onChange={(e) => updateCartItem(p.id, { cartonCount: Math.max(1, parseInt(e.target.value) || 1) })}
                               className="w-12 text-center bg-transparent font-black text-slate-900 focus:outline-none"
                             />
                             <button
                               onClick={() => updateCartItem(p.id, { cartonCount: item.cartonCount + 1 })}
-                              className="w-7 h-7 flex items-center justify-center text-slate-700 hover:bg-white rounded-lg transition"
+                              className="w-8 h-8 flex items-center justify-center text-slate-700 hover:bg-white rounded-lg transition font-black cursor-pointer"
                             >
                               <Plus className="w-3.5 h-3.5" />
                             </button>
                           </div>
+                          <span className="text-slate-500 text-[11px] font-bold">({item.cartonCount * (p.cartonQuantity || 1)} قطعة داخل الكراتين)</span>
                         </div>
 
-                        {/* Piece Counter */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-slate-500 font-bold">القطع المنفردة:</span>
-                          <div className="flex items-center bg-slate-100 rounded-xl border border-slate-200 p-0.5">
-                            <button
-                              onClick={() => updateCartItem(p.id, { pieceCount: Math.max(0, item.pieceCount - 1) })}
-                              className="w-7 h-7 flex items-center justify-center text-slate-700 hover:bg-white rounded-lg transition"
-                            >
-                              <Minus className="w-3.5 h-3.5" />
-                            </button>
-                            <input
-                              type="number"
-                              min="0"
-                              value={item.pieceCount}
-                              onChange={(e) => updateCartItem(p.id, { pieceCount: Math.max(0, parseInt(e.target.value) || 0) })}
-                              className="w-12 text-center bg-transparent font-black text-slate-900 focus:outline-none"
-                            />
-                            <button
-                              onClick={() => updateCartItem(p.id, { pieceCount: item.pieceCount + 1 })}
-                              className="w-7 h-7 flex items-center justify-center text-slate-700 hover:bg-white rounded-lg transition"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Item Total Units & Price */}
+                        {/* Item Total Price */}
                         <div className="text-left flex items-center gap-3">
-                          <div className="text-[11px] text-slate-500">
-                            المجموع: <strong className="text-slate-900">{totalUnits} قطعة</strong>
-                          </div>
-                          <div className="text-sm font-black text-amber-900 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                          <div className="text-sm font-black text-amber-950 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
                             {formatCurrency(item.totalPrice)}
                           </div>
                         </div>
@@ -467,18 +437,13 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
           <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-5 shadow-xl border border-slate-700 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-700 pb-3">
               <h4 className="font-extrabold text-sm text-amber-300">الملخص المالي والتقديري للفاتورة</h4>
-              <span className="text-xs text-slate-400">حساب آلي لشركة دريم</span>
+              <span className="text-xs text-slate-400">حساب آلي لشركة دريم (اعتماد سعر الكرتونة فقط)</span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
                 <span className="text-slate-400 block text-[10px]">إجمالي الكراتين</span>
                 <strong className="text-base font-black text-amber-400">{summary.totalCartons} كرتونة</strong>
-              </div>
-
-              <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
-                <span className="text-slate-400 block text-[10px]">إجمالي القطع</span>
-                <strong className="text-base font-black text-white">{summary.totalPieces} قطعة</strong>
               </div>
 
               <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">

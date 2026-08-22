@@ -62,7 +62,7 @@ export const InventoryStockView: React.FC = () => {
   
   // Quick Supply / Replenish Modal
   const [supplyModal, setSupplyModal] = useState<Product | null>(null);
-  const [supplyPieces, setSupplyPieces] = useState<number>(50);
+  const [supplyCartons, setSupplyCartons] = useState<number>(10);
   const [supplyReason, setSupplyReason] = useState<string>('توريد واستلام شحنة جديدة من المصنع');
 
   // Reject Order Reason Prompt Modal
@@ -88,7 +88,6 @@ export const InventoryStockView: React.FC = () => {
     mainWarehouseReserved: 1000,
     department: 'الأغذية والحلويات',
     classification: 'سوبر A',
-    piecePrice: 10,
     cartonPrice: 220,
     branchName: currentUser?.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
   });
@@ -162,24 +161,24 @@ export const InventoryStockView: React.FC = () => {
   const stockMetrics = useMemo(() => {
     let outOfStockCount = 0;
     let lowStockCount = 0;
-    let totalPiecesActual = 0;
-    let totalPiecesReserved = 0;
+    let totalCartonsActual = 0;
+    let totalCartonsReserved = 0;
 
     products.forEach((p) => {
       if (p.branchStockReserved <= 0) {
         outOfStockCount++;
-      } else if (p.branchStockReserved <= 25) {
+      } else if (p.branchStockReserved <= 10) {
         lowStockCount++;
       }
-      totalPiecesActual += p.branchStockActual;
-      totalPiecesReserved += p.branchStockReserved;
+      totalCartonsActual += p.branchStockActual;
+      totalCartonsReserved += p.branchStockReserved;
     });
 
     return {
       outOfStockCount,
       lowStockCount,
-      totalPiecesActual,
-      totalPiecesReserved,
+      totalCartonsActual,
+      totalCartonsReserved,
       pendingApprovalsCount: pendingInvoices.length
     };
   }, [products, pendingInvoices]);
@@ -210,13 +209,12 @@ export const InventoryStockView: React.FC = () => {
         department: formData.department || 'عام',
         classification: formData.classification || 'فئة A',
         promoPrice: formData.promoPrice ? Number(formData.promoPrice) : undefined,
-        piecePrice: Number(formData.piecePrice) || 10,
         cartonPrice: Number(formData.cartonPrice) || 200,
         branchName: formData.branchName || currentUser?.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
         cloudinaryPublicId: formData.code,
       };
       addProduct(newProd);
-      setActionSuccessMsg(`تمت إضافة الصنف الجديد (${newProd.name}) مع رصيد افتتاحي ${newProd.branchStockActual} قطعة`);
+      setActionSuccessMsg(`تمت إضافة الصنف الجديد (${newProd.name}) مع رصيد افتتاحي ${newProd.branchStockActual} كرتونة`);
     }
 
     setShowAddModal(false);
@@ -225,29 +223,28 @@ export const InventoryStockView: React.FC = () => {
 
   const handleExecuteTransfer = () => {
     if (!stockTransferModal || transferAmount <= 0) return;
-    const piecesToMove = transferAmount * (stockTransferModal.cartonQuantity || 1);
 
-    if (stockTransferModal.mainWarehouseActual < piecesToMove) {
-      alert('الكمية المطلوبة تتجاوز المخزون الفعلي المتاح بالمخزن المركزي!');
+    if (stockTransferModal.mainWarehouseActual < transferAmount) {
+      alert('الكمية المطلوبة تتجاوز مخزون الكراتين الفعلي المتاح بالمخزن المركزي!');
       return;
     }
 
     // Move from main warehouse to branch
     adjustStock(
       stockTransferModal.id,
-      piecesToMove,
-      -piecesToMove,
+      transferAmount,
+      -transferAmount,
       `تحويل مخزني داخلي (${transferAmount} كرتونة) من المخزن المركزي إلى ${stockTransferModal.branchName}`
     );
-    setActionSuccessMsg(`تم بنجاح تحويل ${transferAmount} كرتونة (${piecesToMove} قطعة) لصالح ${stockTransferModal.branchName}`);
+    setActionSuccessMsg(`تم بنجاح تحويل ${transferAmount} كرتونة لصالح ${stockTransferModal.branchName}`);
     setStockTransferModal(null);
     setTimeout(() => setActionSuccessMsg(null), 4000);
   };
 
   const handleExecuteSupply = () => {
-    if (!supplyModal || supplyPieces <= 0) return;
-    adjustStock(supplyModal.id, supplyPieces, 0, supplyReason);
-    setActionSuccessMsg(`تم تسجيل توريد مباشر (+${supplyPieces} قطعة) لصالح صنف (${supplyModal.name})`);
+    if (!supplyModal || supplyCartons <= 0) return;
+    adjustStock(supplyModal.id, supplyCartons, 0, supplyReason);
+    setActionSuccessMsg(`تم تسجيل توريد مباشر (+${supplyCartons} كرتونة) لصالح صنف (${supplyModal.name})`);
     setSupplyModal(null);
     setTimeout(() => setActionSuccessMsg(null), 4000);
   };
@@ -534,20 +531,19 @@ export const InventoryStockView: React.FC = () => {
                   <tr>
                     <th className="p-3">الكود</th>
                     <th className="p-3">اسم الصنف والبيان</th>
-                    <th className="p-3 text-center">الكرتونة</th>
+                    <th className="p-3 text-center">شدة الكرتونة</th>
                     <th className="p-3 text-center">المخزون الفعلي بالفرع</th>
                     <th className="p-3 text-center">المتاح للبيع (بعد الحجز)</th>
                     <th className="p-3 text-center">حالة الصنف والتنبيه</th>
                     <th className="p-3 text-center">المخزن المركزي</th>
-                    <th className="p-3 text-left">سعر القطعة</th>
-                    <th className="p-3 text-left">سعر الكرتونة</th>
+                    <th className="p-3 text-left">سعر الكرتونة بالجملة</th>
                     <th className="p-3 text-center">الإجراءات والعمليات</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredProducts.map((p) => {
                     const isOutOfStock = p.branchStockReserved <= 0;
-                    const isLowStock = p.branchStockReserved > 0 && p.branchStockReserved <= 25;
+                    const isLowStock = p.branchStockReserved > 0 && p.branchStockReserved <= 10;
                     const isReservedDifference = p.branchStockActual !== p.branchStockReserved;
 
                     return (
@@ -579,9 +575,9 @@ export const InventoryStockView: React.FC = () => {
 
                         {/* Branch Actual Stock */}
                         <td className="p-3 text-center font-black">
-                          <span className="text-slate-800 text-sm">{p.branchStockActual} ق</span>
+                          <span className="text-slate-800 text-sm">{p.branchStockActual} كرتونة</span>
                           <div className="text-[10px] text-slate-400 font-normal">
-                            ({Math.floor(p.branchStockActual / (p.cartonQuantity || 1))} كرتونة)
+                            ({p.branchStockActual * (p.cartonQuantity || 1)} قطعة)
                           </div>
                         </td>
 
@@ -596,11 +592,11 @@ export const InventoryStockView: React.FC = () => {
                                 : 'text-emerald-700 font-black'
                             }`}
                           >
-                            {p.branchStockReserved} ق
+                            {p.branchStockReserved} كرتونة
                           </span>
                           {isReservedDifference && (
                             <div className="text-[10px] text-amber-700 font-bold">
-                              (محجوز: {p.branchStockActual - p.branchStockReserved} ق)
+                              (محجوز: {p.branchStockActual - p.branchStockReserved} ك)
                             </div>
                           )}
                         </td>
@@ -620,20 +616,15 @@ export const InventoryStockView: React.FC = () => {
                           ) : (
                             <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px] font-bold">
                               <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                              <span>متوفر ({p.branchStockReserved})</span>
+                              <span>متوفر ({p.branchStockReserved} ك)</span>
                             </span>
                           )}
                         </td>
 
                         {/* Main Warehouse Stock */}
                         <td className="p-3 text-center font-black text-amber-900 bg-amber-50/20">
-                          <div>{p.mainWarehouseActual} ق</div>
-                          <div className="text-[10px] text-slate-400 font-normal">متاح: {p.mainWarehouseReserved}</div>
-                        </td>
-
-                        {/* Piece Price */}
-                        <td className="p-3 text-left font-bold text-slate-900">
-                          {formatCurrency(p.promoPrice || p.piecePrice)}
+                          <div>{p.mainWarehouseActual} كرتونة</div>
+                          <div className="text-[10px] text-slate-400 font-normal">متاح: {p.mainWarehouseReserved} ك</div>
                         </td>
 
                         {/* Carton Price */}
@@ -649,10 +640,10 @@ export const InventoryStockView: React.FC = () => {
                               <button
                                 onClick={() => {
                                   setSupplyModal(p);
-                                  setSupplyPieces(p.cartonQuantity * 5 || 50);
+                                  setSupplyCartons(10);
                                 }}
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs transition cursor-pointer"
-                                title="توريد مخزون إضافي للفرع"
+                                title="توريد كراتين إضافية للفرع"
                               >
                                 <Plus className="w-3.5 h-3.5" />
                                 <span>توريد</span>
@@ -954,18 +945,18 @@ export const InventoryStockView: React.FC = () => {
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <div className="font-black text-slate-900">{supplyModal.name}</div>
                 <div className="text-slate-500">كود: {supplyModal.code} • شدة الكرتونة: {supplyModal.cartonQuantity} قطعة</div>
-                <div className="text-emerald-700 font-bold mt-1">الرصيد الفعلي الحالي: {supplyModal.branchStockActual} قطعة</div>
+                <div className="text-emerald-700 font-bold mt-1">الرصيد الفعلي الحالي: {supplyModal.branchStockActual} كرتونة</div>
               </div>
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  الكمية الموردة (بالقطع):
+                  الكمية الموردة (بالكرتونة):
                 </label>
                 <input
                   type="number"
                   min="1"
-                  value={supplyPieces}
-                  onChange={(e) => setSupplyPieces(Math.max(1, parseInt(e.target.value) || 1))}
+                  value={supplyCartons}
+                  onChange={(e) => setSupplyCartons(Math.max(1, parseInt(e.target.value) || 1))}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-base text-slate-900 focus:ring-2 focus:ring-emerald-400"
                 />
               </div>
@@ -1024,11 +1015,11 @@ export const InventoryStockView: React.FC = () => {
               <div className="grid grid-cols-2 gap-2 text-[11px]">
                 <div className="bg-amber-50 p-2.5 rounded-xl border border-amber-200">
                   <div className="text-slate-500">المخزن المركزي (أكتوبر):</div>
-                  <strong className="text-amber-900 font-bold text-sm">{stockTransferModal.mainWarehouseActual} قطعة</strong>
+                  <strong className="text-amber-900 font-bold text-sm">{stockTransferModal.mainWarehouseActual} كرتونة</strong>
                 </div>
                 <div className="bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
                   <div className="text-slate-500">مخزون الفرع الحالي:</div>
-                  <strong className="text-emerald-900 font-bold text-sm">{stockTransferModal.branchStockActual} قطعة</strong>
+                  <strong className="text-emerald-900 font-bold text-sm">{stockTransferModal.branchStockActual} كرتونة</strong>
                 </div>
               </div>
 
@@ -1039,13 +1030,13 @@ export const InventoryStockView: React.FC = () => {
                 <input
                   type="number"
                   min="1"
-                  max={Math.floor(stockTransferModal.mainWarehouseActual / (stockTransferModal.cartonQuantity || 1))}
+                  max={stockTransferModal.mainWarehouseActual}
                   value={transferAmount}
                   onChange={(e) => setTransferAmount(Math.max(1, parseInt(e.target.value) || 1))}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-base text-slate-900 focus:ring-2 focus:ring-amber-400"
                 />
                 <div className="text-[10px] text-slate-400 mt-1">
-                  إجمالي القطع المنقولة: <strong>{transferAmount * (stockTransferModal.cartonQuantity || 1)} قطعة</strong>
+                  إجمالي القطع المعبأة داخل الكراتين: <strong>{transferAmount * (stockTransferModal.cartonQuantity || 1)} قطعة</strong>
                 </div>
               </div>
             </div>
@@ -1200,7 +1191,7 @@ export const InventoryStockView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">المخزون الافتتاحي الفعلي بالفرع (قطع)</label>
+                  <label className="block font-bold text-slate-700 mb-1">المخزون الافتتاحي الفعلي بالفرع (كرتونة)</label>
                   <input
                     type="number"
                     min="0"
@@ -1217,7 +1208,7 @@ export const InventoryStockView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">مخزون المستودع المركزي (قطع)</label>
+                  <label className="block font-bold text-slate-700 mb-1">مخزون المستودع المركزي (كرتونة)</label>
                   <input
                     type="number"
                     min="0"
@@ -1234,29 +1225,18 @@ export const InventoryStockView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">سعر القطعة (ج.م)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={formData.piecePrice}
-                    onChange={(e) => setFormData({ ...formData, piecePrice: parseFloat(e.target.value) || 0 })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">سعر الكرتونة (ج.م)</label>
+                  <label className="block font-bold text-slate-700 mb-1">سعر الكرتونة بالجملة (ج.م) *</label>
                   <input
                     type="number"
                     step="0.5"
                     value={formData.cartonPrice}
                     onChange={(e) => setFormData({ ...formData, cartonPrice: parseFloat(e.target.value) || 0 })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">سعر العرض الترويجي (إن وجد)</label>
+                  <label className="block font-bold text-slate-700 mb-1">سعر العرض الترويجي للكرتونة (إن وجد)</label>
                   <input
                     type="number"
                     step="0.1"

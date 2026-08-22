@@ -4,6 +4,7 @@ import {
   FileSpreadsheet,
   FileText,
   Layers,
+  Loader2,
   Package,
   Plus,
   Receipt,
@@ -14,22 +15,37 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
-import React, { useState } from 'react';
-import { AccountingSyncView } from './components/AccountingSyncView';
-import { AuditLogView } from './components/AuditLogView';
-import { CloudinaryManager } from './components/CloudinaryManager';
-import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
-import { ExcelImportExport } from './components/ExcelImportExport';
-import { InventoryStockView } from './components/InventoryStockView';
-import { InvoicesManager } from './components/InvoicesManager';
+import React, { Suspense, lazy, useState } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
-import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ProductCatalog } from './components/ProductCatalog';
-import { SupervisorDashboard } from './components/SupervisorDashboard';
-import { UserManager } from './components/UserManager';
 import { AppProvider, useApp } from './context/AppContext';
 import { Invoice } from './types';
+
+// Lazy-load secondary views and modals to keep initial bundle ultra-lightweight and fast
+const SupervisorDashboard = lazy(() => import('./components/SupervisorDashboard').then(m => ({ default: m.SupervisorDashboard })));
+const InvoicesManager = lazy(() => import('./components/InvoicesManager').then(m => ({ default: m.InvoicesManager })));
+const InventoryStockView = lazy(() => import('./components/InventoryStockView').then(m => ({ default: m.InventoryStockView })));
+const ExcelImportExport = lazy(() => import('./components/ExcelImportExport').then(m => ({ default: m.ExcelImportExport })));
+const AuditLogView = lazy(() => import('./components/AuditLogView').then(m => ({ default: m.AuditLogView })));
+const CloudinaryManager = lazy(() => import('./components/CloudinaryManager').then(m => ({ default: m.CloudinaryManager })));
+const UserManager = lazy(() => import('./components/UserManager').then(m => ({ default: m.UserManager })));
+const AccountingSyncView = lazy(() => import('./components/AccountingSyncView').then(m => ({ default: m.AccountingSyncView })));
+const OrderBuilderModal = lazy(() => import('./components/OrderBuilderModal').then(m => ({ default: m.OrderBuilderModal })));
+const ElectronicInvoiceModal = lazy(() => import('./components/ElectronicInvoiceModal').then(m => ({ default: m.ElectronicInvoiceModal })));
+
+// Lightweight Skeleton for tab transitions
+const TabLoadingSkeleton = () => (
+  <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[350px] space-y-4 animate-in fade-in">
+    <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center animate-spin">
+      <Loader2 className="w-6 h-6" />
+    </div>
+    <div className="text-center">
+      <h3 className="font-black text-slate-800 text-sm">جاري تحميل البيانات...</h3>
+      <p className="text-xs text-slate-400 mt-1">يتم جلب محتويات القسم وتجهيزها بأعلى سرعة</p>
+    </div>
+  </div>
+);
 
 const MainLayout: React.FC = () => {
   const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary } = useApp();
@@ -65,42 +81,44 @@ const MainLayout: React.FC = () => {
 
       {/* Content Container with bottom padding for mobile navigation bar */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-5 pb-24 md:pb-8">
-        {activeTab === 'catalog' && (
-          <ProductCatalog onOpenCart={() => setIsOrderModalOpen(true)} />
-        )}
+        <Suspense fallback={<TabLoadingSkeleton />}>
+          {activeTab === 'catalog' && (
+            <ProductCatalog onOpenCart={() => setIsOrderModalOpen(true)} />
+          )}
 
-        {activeTab === 'dashboard' && (
-          <SupervisorDashboard
-            onOpenNewOrder={() => setIsOrderModalOpen(true)}
-            onViewInvoice={(inv) => setViewingInvoice(inv)}
-          />
-        )}
+          {activeTab === 'dashboard' && (
+            <SupervisorDashboard
+              onOpenNewOrder={() => setIsOrderModalOpen(true)}
+              onViewInvoice={(inv) => setViewingInvoice(inv)}
+            />
+          )}
 
-        {activeTab === 'invoices' && (
-          <InvoicesManager
-            onOpenNewOrder={() => setIsOrderModalOpen(true)}
-            onViewInvoice={(inv) => setViewingInvoice(inv)}
-          />
-        )}
+          {activeTab === 'invoices' && (
+            <InvoicesManager
+              onOpenNewOrder={() => setIsOrderModalOpen(true)}
+              onViewInvoice={(inv) => setViewingInvoice(inv)}
+            />
+          )}
 
-        {activeTab === 'inventory' && <InventoryStockView />}
+          {activeTab === 'inventory' && <InventoryStockView />}
 
-        {activeTab === 'excel' && <ExcelImportExport />}
+          {activeTab === 'excel' && <ExcelImportExport />}
 
-        {activeTab === 'audit' && (
-          <AuditLogView
-            onViewInvoice={(invoiceId) => {
-              const found = invoices.find((i) => i.id === invoiceId || i.invoiceNumber === invoiceId);
-              if (found) setViewingInvoice(found);
-            }}
-          />
-        )}
+          {activeTab === 'audit' && (
+            <AuditLogView
+              onViewInvoice={(invoiceId) => {
+                const found = invoices.find((i) => i.id === invoiceId || i.invoiceNumber === invoiceId);
+                if (found) setViewingInvoice(found);
+              }}
+            />
+          )}
 
-        {activeTab === 'cloudinary' && <CloudinaryManager />}
+          {activeTab === 'cloudinary' && <CloudinaryManager />}
 
-        {activeTab === 'users' && <UserManager />}
+          {activeTab === 'users' && <UserManager />}
 
-        {activeTab === 'accounting' && <AccountingSyncView />}
+          {activeTab === 'accounting' && <AccountingSyncView />}
+        </Suspense>
       </main>
 
       {/* Floating Action / Cart Bar for Mobile Sales Reps */}
@@ -132,22 +150,29 @@ const MainLayout: React.FC = () => {
         </div>
       )}
 
-      {/* Order & Cart Builder Modal */}
-      <OrderBuilderModal
-        isOpen={isOrderModalOpen}
-        onClose={() => setIsOrderModalOpen(false)}
-        onInvoiceCreated={(inv) => {
-          setIsOrderModalOpen(false);
-          setViewingInvoice(inv);
-        }}
-      />
+      {/* Lazy Modals with Suspense */}
+      <Suspense fallback={null}>
+        {/* Order & Cart Builder Modal */}
+        {isOrderModalOpen && (
+          <OrderBuilderModal
+            isOpen={isOrderModalOpen}
+            onClose={() => setIsOrderModalOpen(false)}
+            onInvoiceCreated={(inv) => {
+              setIsOrderModalOpen(false);
+              setViewingInvoice(inv);
+            }}
+          />
+        )}
 
-      {/* Electronic Invoice Modal */}
-      <ElectronicInvoiceModal
-        isOpen={!!viewingInvoice}
-        invoice={viewingInvoice}
-        onClose={() => setViewingInvoice(null)}
-      />
+        {/* Electronic Invoice Modal */}
+        {viewingInvoice && (
+          <ElectronicInvoiceModal
+            isOpen={!!viewingInvoice}
+            invoice={viewingInvoice}
+            onClose={() => setViewingInvoice(null)}
+          />
+        )}
+      </Suspense>
 
       {/* Bottom Footer */}
       <footer className="bg-white border-t border-slate-200 py-4 px-4 text-center text-xs text-slate-500 print:hidden mb-16 md:mb-0">
@@ -167,11 +192,60 @@ const MainLayout: React.FC = () => {
   );
 };
 
+// Class-based ErrorBoundary to catch any runtime exceptions on mobile browsers and prevent white screens
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class MobileErrorBoundary extends React.Component<{ children: React.ReactNode }, ErrorBoundaryState> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('App runtime error caught by MobileErrorBoundary:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center font-sans">
+          <div className="w-16 h-16 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black mb-4 shadow-xl">
+            <Package className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-black text-amber-300 mb-2">منظومة دريم طنطاوي للتوزيع</h2>
+          <p className="text-sm text-slate-300 max-w-md mb-6 leading-relaxed">
+            تم استعادة بيانات التطبيق بنجاح لمنع توقف الشاشة. اضغط على الزر أدناه لإعادة تشغيل الكتالوج.
+          </p>
+          <button
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              window.location.reload();
+            }}
+            className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-6 py-3 rounded-2xl text-sm shadow-lg transition cursor-pointer active:scale-95"
+          >
+            إعادة تشغيل التطبيق 🔄
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export function App() {
   return (
-    <AppProvider>
-      <MainLayout />
-    </AppProvider>
+    <MobileErrorBoundary>
+      <AppProvider>
+        <MainLayout />
+      </AppProvider>
+    </MobileErrorBoundary>
   );
 }
 

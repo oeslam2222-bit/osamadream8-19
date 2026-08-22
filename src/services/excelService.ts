@@ -60,6 +60,40 @@ export function normalizeExcelBranchName(rawBranch?: string): string {
 }
 
 /**
+ * Clean and extract raw Image URL from Google Sheets cells
+ * Handles =IMAGE("..."), =HYPERLINK("...", "..."), quotes, and drive links
+ */
+export function cleanGoogleSheetImageUrl(raw: string): string {
+  if (!raw) return '';
+  let clean = String(raw).trim();
+
+  // 1. Extract URL if inside =IMAGE("https://...") or =IMAGE('https://...')
+  const imageFormulaMatch = clean.match(/=IMAGE\s*\(\s*["']([^"']+)["']/i);
+  if (imageFormulaMatch) {
+    clean = imageFormulaMatch[1].trim();
+  }
+
+  // 2. Extract URL if inside =HYPERLINK("https://...", "...")
+  const hyperlinkMatch = clean.match(/=HYPERLINK\s*\(\s*["']([^"']+)["']/i);
+  if (hyperlinkMatch) {
+    clean = hyperlinkMatch[1].trim();
+  }
+
+  // 3. Strip enclosing single or double quotes
+  clean = clean.replace(/^["']+|["']+$/g, '').trim();
+
+  // 4. If someone has multiple space-separated or comma-separated URLs, take the first valid one
+  if (clean.includes(' ') && (clean.startsWith('http://') || clean.startsWith('https://'))) {
+    const parts = clean.split(/\s+/);
+    if (parts[0] && parts[0].startsWith('http')) {
+      clean = parts[0];
+    }
+  }
+
+  return clean;
+}
+
+/**
  * Normalizes header string to match flexibly
  */
 function normalizeHeader(header: string): string {
@@ -254,7 +288,15 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const getVal = (colIdx: number) => (colIdx >= 0 && row[colIdx] !== undefined && row[colIdx] !== null ? String(row[colIdx]).trim() : '');
     const getNum = (colIdx: number, fallback = 0) => {
       if (colIdx < 0 || row[colIdx] === undefined || row[colIdx] === null) return fallback;
-      const clean = String(row[colIdx]).replace(/[^\d.-]/g, '');
+      let rawStr = String(row[colIdx]).trim();
+      // Convert eastern Arabic digits (٠-٩) to standard (0-9)
+      const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+      for (let i = 0; i < 10; i++) {
+        rawStr = rawStr.split(arabicNumerals[i]).join(String(i));
+      }
+      // Clean up thousands commas and spaces
+      rawStr = rawStr.replace(/,/g, '').replace(/٬/g, '').replace(/٫/g, '.');
+      const clean = rawStr.replace(/[^\d.-]/g, '');
       const parsed = parseFloat(clean);
       return isNaN(parsed) ? fallback : parsed;
     };

@@ -21,7 +21,7 @@ export const ProductImage: React.FC<ProductImageProps> = ({
   product,
   cloudinaryConfig,
   className = 'w-full h-full object-contain',
-  containerClassName = 'relative w-full h-full bg-slate-900/90 overflow-hidden flex items-center justify-center',
+  containerClassName = 'relative w-full h-full bg-gradient-to-br from-slate-50 via-slate-100/70 to-amber-50/20 overflow-hidden flex items-center justify-center',
   showBadgeOnFallback = true,
   targetSize,
   sizeVariant = 'card',
@@ -105,7 +105,7 @@ export const ProductImage: React.FC<ProductImageProps> = ({
   // If all candidate URLs failed, render an elegant in-app branded placeholder
   if (hasExhausted || !currentSrc) {
     const code = product.code || 'DRM';
-    const cat = product.category || product.department || 'دريم';
+    const cat = product.category || product.department || 'دريم للتوزيع';
     const svgFallback = generateProductPlaceholderSvg(code, cat, product.name || '');
 
     return (
@@ -121,13 +121,6 @@ export const ProductImage: React.FC<ProductImageProps> = ({
           decoding="async"
           referrerPolicy="no-referrer"
         />
-        {showBadgeOnFallback && (
-          <div className="absolute inset-0 bg-slate-950/20 flex flex-col items-center justify-center p-2 text-center pointer-events-none">
-            <span className="bg-amber-400 text-slate-950 text-[10px] sm:text-xs font-black px-2 py-0.5 rounded shadow">
-              {code}
-            </span>
-          </div>
-        )}
       </div>
     );
   }
@@ -137,12 +130,22 @@ export const ProductImage: React.FC<ProductImageProps> = ({
       className={`${containerClassName} ${onClick ? 'cursor-pointer' : ''}`}
       onClick={onClick}
     >
+      {/* Animated Loading Shimmer Skeleton */}
+      {isLoading && (
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-100 via-amber-50/60 to-slate-100 animate-pulse flex items-center justify-center z-0">
+          <div className="flex flex-col items-center gap-1.5 opacity-40">
+            <Package className="w-8 h-8 text-amber-600 animate-bounce" />
+            <span className="text-[10px] font-bold text-slate-500">جاري التحميل...</span>
+          </div>
+        </div>
+      )}
+
       <img
         key={currentSrc}
         src={currentSrc}
         alt={alt || product.name || product.code || 'صنف'}
-        className={`${className} ${fitMode === 'contain' ? 'object-contain' : 'object-cover'} transition-opacity duration-300 ${
-          isLoading ? 'opacity-30 scale-95' : 'opacity-100 scale-100'
+        className={`${className} ${fitMode === 'contain' ? 'object-contain' : 'object-cover'} transition-all duration-300 ${
+          isLoading ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
         }`}
         onError={handleError}
         onLoad={handleLoad}

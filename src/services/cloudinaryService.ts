@@ -86,25 +86,47 @@ export function optimizeImageUrl(rawUrl: string, targetSize = 200, isDataSaver =
 }
 
 /**
- * Generate a clean, branded SVG placeholder image when no image is available
+ * Generate a clean, bright, branded SVG placeholder image when no image is available
  */
 export function generateProductPlaceholderSvg(code: string, category: string, name: string): string {
   const shortCode = code || 'ITEM';
-  const cat = category || 'DREAM';
+  const cat = category || 'دريم طنطاوي';
+  const cleanName = (name || '').length > 25 ? `${name.substring(0, 25)}...` : name || 'صنف للتوزيع';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
     <defs>
       <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#0f172a" />
-        <stop offset="50%" stop-color="#1e293b" />
-        <stop offset="100%" stop-color="#334155" />
+        <stop offset="0%" stop-color="#f8fafc" />
+        <stop offset="50%" stop-color="#f1f5f9" />
+        <stop offset="100%" stop-color="#e2e8f0" />
       </linearGradient>
+      <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#f59e0b" />
+        <stop offset="100%" stop-color="#d97706" />
+      </linearGradient>
+      <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+        <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.08" />
+      </filter>
     </defs>
     <rect width="400" height="400" fill="url(#bg)" rx="24"/>
-    <circle cx="200" cy="160" r="60" fill="#f59e0b" opacity="0.15" />
-    <path d="M170 160 L200 130 L230 160 L200 190 Z" fill="#fbbf24" opacity="0.8"/>
-    <text x="200" y="245" font-family="system-ui, sans-serif" font-size="20" font-weight="900" fill="#f8fafc" text-anchor="middle">${shortCode}</text>
-    <text x="200" y="275" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#94a3b8" text-anchor="middle">${cat}</text>
-    <text x="200" y="340" font-family="system-ui, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">Cloudinary Image</text>
+    <rect x="20" y="20" width="360" height="360" rx="18" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="6,6"/>
+    
+    <!-- Stylized Package / Studio Icon -->
+    <circle cx="200" cy="150" r="54" fill="#ffffff" filter="url(#shadow)"/>
+    <circle cx="200" cy="150" r="50" fill="#fffbeb" stroke="#fef3c7" stroke-width="2"/>
+    <path d="M175 142 L200 126 L225 142 L200 158 Z" fill="url(#gold)"/>
+    <path d="M175 145 L175 168 L200 182 L200 160 Z" fill="#b45309" opacity="0.85"/>
+    <path d="M225 145 L225 168 L200 182 L200 160 Z" fill="#f59e0b" opacity="0.95"/>
+    
+    <!-- Code Badge -->
+    <rect x="130" y="222" width="140" height="32" rx="10" fill="#0f172a"/>
+    <text x="200" y="244" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="900" fill="#fbbf24" text-anchor="middle" letter-spacing="1">${shortCode}</text>
+    
+    <!-- Category & Name -->
+    <text x="200" y="280" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="800" fill="#1e293b" text-anchor="middle">${cat}</text>
+    <text x="200" y="306" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#64748b" text-anchor="middle">${cleanName}</text>
+    
+    <!-- Subtle Watermark -->
+    <text x="200" y="352" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="bold" fill="#94a3b8" text-anchor="middle">شركة دريم للتجارة والتوزيع</text>
   </svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
@@ -317,53 +339,42 @@ export function getCandidateFoldersForProduct(product: Partial<Product>, baseFol
 }
 
 /**
- * Generate targeted candidate URLs for a product on Cloudinary
- * Matching by Code OR Arabic Product Name OR Composite Slug across all relevant subfolders
+ * Generate targeted candidate URLs for a product
+ * Prioritizes direct image links from Google Sheets and Google Drive
  */
 export function getCandidateImageUrls(
   product: Partial<Product>,
   config: CloudinaryConfig = DEFAULT_CLOUDINARY_CONFIG
 ): string[] {
   const candidates: string[] = [];
-  const cloudName = config.cloudName?.trim() || 'dzdkhpr2y';
 
-  // 1. Direct explicit image URL if present (Google Drive or Cloudinary or Web CDN)
-  if (product.imageUrl && product.imageUrl.startsWith('http') && !product.imageUrl.includes('unsplash.com')) {
-    // If it's a Google Drive link, expand to high-speed compressed CDN URLs with s=200/w=200
-    const driveUrls = buildGoogleDriveCompressedUrls(product.imageUrl, 240);
+  // 1. Direct explicit image URL from Google Sheets or product data
+  if (product.imageUrl && typeof product.imageUrl === 'string' && product.imageUrl.trim()) {
+    const rawUrl = product.imageUrl.trim();
+    
+    // If it's a Google Drive link, expand to high-speed compressed CDN URLs
+    const driveUrls = buildGoogleDriveCompressedUrls(rawUrl, 320);
     if (driveUrls.length > 0) {
       candidates.push(...driveUrls);
-    } else {
-      candidates.push(product.imageUrl);
+    } else if (rawUrl.startsWith('http')) {
+      candidates.push(rawUrl);
     }
   }
 
-  // 2. Extract smart identifiers (Code, Arabic Name variations, Composites)
-  const identifiers = generateCandidateIdentifiers(product, config.matchingPattern || 'auto');
-  if (identifiers.length === 0) return candidates;
-
-  const trans = config.defaultTransformation || 'f_auto,q_auto,w_500,c_fill';
-  const primaryExt = config.fileExtension && config.fileExtension !== 'auto' ? `.${config.fileExtension}` : '';
-  const altExt = primaryExt === '.png' ? '.jpg' : '.png';
-
-  // 3. Get all relevant folders (e.g. automatically checking الفا, Casasunco, لاينز, defna, etc.)
-  const candidateFolders = getCandidateFoldersForProduct(product, config.folderPrefix || '');
-
-  for (const folder of candidateFolders) {
-    const encodedFolderPart = folder ? encodeCloudinaryPath(folder) + '/' : '';
-
-    for (const id of identifiers) {
-      const encodedId = encodeURIComponent(id);
-
-      if (primaryExt) {
-        candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedFolderPart}${encodedId}${primaryExt}`);
-      }
-      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedFolderPart}${encodedId}${altExt}`);
-      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${encodedFolderPart}${encodedId}`);
-    }
+  // If we already have direct image candidates, return them immediately for blazing fast mobile loading
+  if (candidates.length > 0) {
+    return Array.from(new Set(candidates));
   }
 
-  // De-duplicate URLs
+  // 2. Only check Cloudinary if cloudName is explicitly configured and user has not cancelled it
+  const cloudName = config.cloudName?.trim();
+  if (cloudName && product.code) {
+    const trans = config.defaultTransformation || 'f_auto,q_auto,w_400,c_limit';
+    const cleanCode = encodeURIComponent(product.code.trim());
+    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${cleanCode}.png`);
+    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${cleanCode}.jpg`);
+  }
+
   return Array.from(new Set(candidates));
 }
 
