@@ -117,7 +117,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 hidden sm:block">
-                المنظومة الشاملة للمبيعات والمخزون • ربط الصور السحابية وتوفير الباقة
+                المنظومة الشاملة للمبيعات والمخزون • دعم روابط Google Sheets & Drive وتوفير الباقة
               </p>
             </div>
           </div>

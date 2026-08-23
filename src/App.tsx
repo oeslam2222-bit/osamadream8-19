@@ -28,7 +28,6 @@ const InvoicesManager = lazy(() => import('./components/InvoicesManager').then(m
 const InventoryStockView = lazy(() => import('./components/InventoryStockView').then(m => ({ default: m.InventoryStockView })));
 const ExcelImportExport = lazy(() => import('./components/ExcelImportExport').then(m => ({ default: m.ExcelImportExport })));
 const AuditLogView = lazy(() => import('./components/AuditLogView').then(m => ({ default: m.AuditLogView })));
-const CloudinaryManager = lazy(() => import('./components/CloudinaryManager').then(m => ({ default: m.CloudinaryManager })));
 const UserManager = lazy(() => import('./components/UserManager').then(m => ({ default: m.UserManager })));
 const AccountingSyncView = lazy(() => import('./components/AccountingSyncView').then(m => ({ default: m.AccountingSyncView })));
 const OrderBuilderModal = lazy(() => import('./components/OrderBuilderModal').then(m => ({ default: m.OrderBuilderModal })));
@@ -112,8 +111,6 @@ const MainLayout: React.FC = () => {
               }}
             />
           )}
-
-          {activeTab === 'cloudinary' && <CloudinaryManager />}
 
           {activeTab === 'users' && <UserManager />}
 

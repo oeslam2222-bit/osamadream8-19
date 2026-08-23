@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { ImageOff, Sparkles, Package } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Package } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getCandidateImageUrls, generateProductPlaceholderSvg } from '../services/cloudinaryService';
 import { CloudinaryConfig, Product } from '../types';
@@ -10,7 +10,7 @@ const failedImageCache = new Set<string>();
 
 interface ProductImageProps {
   product: Partial<Product>;
-  cloudinaryConfig: CloudinaryConfig;
+  cloudinaryConfig?: CloudinaryConfig;
   className?: string;
   containerClassName?: string;
   showBadgeOnFallback?: boolean;
@@ -37,10 +37,10 @@ export const ProductImage: React.FC<ProductImageProps> = ({
 }) => {
   const { dataSaverMode } = useApp();
 
-  // Cache key per product code and cloud configuration
+  // Cache key per product code and direct imageUrl
   const productKey = useMemo(() => {
-    return `${product.code || product.id || 'item'}_${product.imageUrl || ''}_${cloudinaryConfig.cloudName || ''}`;
-  }, [product.code, product.id, product.imageUrl, cloudinaryConfig.cloudName]);
+    return `${product.code || product.id || 'item'}_${product.imageUrl || ''}`;
+  }, [product.code, product.id, product.imageUrl]);
 
   // Determine optimal size based on variant and data saver mode
   const effectiveSize = useMemo(() => {
@@ -56,13 +56,16 @@ export const ProductImage: React.FC<ProductImageProps> = ({
   }, [targetSize, sizeVariant, dataSaverMode]);
 
   const candidateUrls = useMemo(() => {
+    if (!product.imageUrl || !product.imageUrl.trim()) {
+      return [];
+    }
+
     // If we already know the exact working URL for this product from cache, put it first
     const cachedWorkingUrl = verifiedImageCache.get(productKey);
     let urls = getCandidateImageUrls(product, cloudinaryConfig);
     
-    // Apply dynamic parameter sizing for Google Drive and Cloudinary
+    // Apply dynamic parameter sizing for Google Drive and Google CDN URLs
     const transformed = urls.map(url => {
-      // 1. Google Drive & Google CDN URLs (Dynamic compression parameter s=220 or sz=w220)
       if (url.includes('googleusercontent.com/d/')) {
         if (url.includes('=s') || url.includes('=w')) {
           return url.replace(/=(s|w)\d+[^&]*/, `=s${effectiveSize}`);
@@ -77,16 +80,6 @@ export const ProductImage: React.FC<ProductImageProps> = ({
         return `${url}&sz=w${effectiveSize}-h${effectiveSize}`;
       }
 
-      // 2. Cloudinary URLs (Auto WebP, auto quality good/eco, exact bounded width)
-      if (url.includes('res.cloudinary.com/') && url.includes('/upload/')) {
-        const quality = dataSaverMode ? 'eco' : 'good';
-        // Check if already transformed or clean upload
-        if (url.includes('/upload/q_auto') || url.includes('/upload/f_auto')) {
-          return url.replace(/\/upload\/(?:[^\/]+\/)?/, `/upload/f_auto,q_auto:${quality},w_${effectiveSize}/`);
-        }
-        return url;
-      }
-
       return url;
     });
 
@@ -95,14 +88,20 @@ export const ProductImage: React.FC<ProductImageProps> = ({
     }
 
     return transformed;
-  }, [productKey, product.code, product.name, product.imageUrl, product.cloudinaryPublicId, cloudinaryConfig, dataSaverMode, effectiveSize]);
+  }, [productKey, product.imageUrl, cloudinaryConfig, effectiveSize]);
 
-  const initialExhausted = failedImageCache.has(productKey) && candidateUrls.length === 0;
+  const initialExhausted = candidateUrls.length === 0 || failedImageCache.has(productKey);
   const [candidateIndex, setCandidateIndex] = useState(0);
   const [hasExhausted, setHasExhausted] = useState(initialExhausted);
   const [isLoading, setIsLoading] = useState(!verifiedImageCache.has(productKey) && !initialExhausted && candidateUrls.length > 0);
 
   useEffect(() => {
+    if (candidateUrls.length === 0) {
+      setHasExhausted(true);
+      setIsLoading(false);
+      return;
+    }
+
     if (verifiedImageCache.has(productKey)) {
       setCandidateIndex(0);
       setHasExhausted(false);
@@ -117,42 +116,11 @@ export const ProductImage: React.FC<ProductImageProps> = ({
     }
 
     setCandidateIndex(0);
-    setHasExhausted(candidateUrls.length === 0);
-    setIsLoading(candidateUrls.length > 0);
+    setHasExhausted(false);
+    setIsLoading(true);
   }, [productKey, candidateUrls]);
 
   const currentSrc = candidateUrls[candidateIndex];
-
-  // Preload next candidate quickly if current is taking time
-  useEffect(() => {
-    if (!currentSrc || verifiedImageCache.has(productKey) || hasExhausted) return;
-
-    let isMounted = true;
-    const img = new Image();
-    img.src = currentSrc;
-    img.onload = () => {
-      if (isMounted) {
-        verifiedImageCache.set(productKey, currentSrc);
-        setIsLoading(false);
-        setHasExhausted(false);
-      }
-    };
-    img.onerror = () => {
-      if (isMounted) {
-        if (candidateIndex + 1 < candidateUrls.length) {
-          setCandidateIndex((prev) => prev + 1);
-        } else {
-          failedImageCache.add(productKey);
-          setHasExhausted(true);
-          setIsLoading(false);
-        }
-      }
-    };
-
-    return () => {
-      isMounted = false;
-    };
-  }, [currentSrc, candidateIndex, candidateUrls.length, productKey, hasExhausted]);
 
   const handleError = () => {
     if (candidateIndex + 1 < candidateUrls.length) {
@@ -172,7 +140,7 @@ export const ProductImage: React.FC<ProductImageProps> = ({
     setHasExhausted(false);
   };
 
-  // If all candidate URLs failed or no candidates, render an instant, lightweight in-app SVG
+  // If all candidate URLs failed or no direct link provided, render an instant in-app vector SVG
   if (hasExhausted || !currentSrc) {
     const code = product.code || 'DRM';
     const cat = product.category || product.department || 'دريم للتوزيع';
@@ -226,4 +194,3 @@ export const ProductImage: React.FC<ProductImageProps> = ({
     </div>
   );
 };
-

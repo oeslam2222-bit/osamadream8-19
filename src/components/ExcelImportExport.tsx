@@ -39,7 +39,7 @@ import { formatCurrency } from '../services/invoiceService';
 import { Product } from '../types';
 
 export const ExcelImportExport: React.FC = () => {
-  const { products, importProductsList, wipeAllProductsAndData, selectedBranchFilter, cloudinaryConfig, updateCloudinarySettings } = useApp();
+  const { products, importProductsList, wipeAllProductsAndData, selectedBranchFilter } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<'google_sheets' | 'excel_file' | 'drive_scanner'>('google_sheets');
 
@@ -62,14 +62,6 @@ export const ExcelImportExport: React.FC = () => {
   const [googleSheetSuccess, setGoogleSheetSuccess] = useState<string | null>(null);
   const [googleSheetError, setGoogleSheetError] = useState<string | null>(null);
   const [copiedScript, setCopiedScript] = useState(false);
-
-  // Cloudinary Live Tester State
-  const [testCloudName, setTestCloudName] = useState(cloudinaryConfig.cloudName || 'dream-dist');
-  const [testProductCode, setTestProductCode] = useState('LHL-101');
-  const [testFolder, setTestFolder] = useState(cloudinaryConfig.folderPrefix || 'products');
-  const [testExt, setTestExt] = useState(cloudinaryConfig.fileExtension || 'jpg');
-  const [testImageResult, setTestImageResult] = useState<string | null>(null);
-  const [hasTested, setHasTested] = useState(false);
 
   const handleFileUpload = async (file: File) => {
     if (!file) return;
@@ -94,7 +86,7 @@ export const ExcelImportExport: React.FC = () => {
     if (previewProducts.length === 0) return;
     importProductsList(previewProducts, importMode);
     setImportSuccessMsg(
-      `تم بنجاح استيراد ${previewProducts.length} صنف وتحديث بيانات مخزون الفروع والمخزن الرئيسي وصور Cloudinary!`
+      `تم بنجاح استيراد ${previewProducts.length} صنف وتحديث بيانات مخزون الفروع والمخزن الرئيسي وروابط الصور!`
     );
     setPreviewProducts([]);
     setTimeout(() => setImportSuccessMsg(null), 5000);
@@ -129,14 +121,6 @@ export const ExcelImportExport: React.FC = () => {
     } finally {
       setIsSyncingGoogleSheet(false);
     }
-  };
-
-  const handleTestCloudinary = () => {
-    setHasTested(true);
-    const folder = testFolder ? `${testFolder}/` : '';
-    const ext = testExt ? `.${testExt}` : '';
-    const generated = `https://res.cloudinary.com/${testCloudName}/image/upload/f_auto,q_auto,w_600,c_fill/${folder}${testProductCode.trim()}${ext}`;
-    setTestImageResult(generated);
   };
 
   const sampleAppsScript = `// كود Google Apps Script لمزامنة Google Sheets مع نظام دريم للتوزيع تلقائياً
