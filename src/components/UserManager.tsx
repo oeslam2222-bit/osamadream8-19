@@ -396,7 +396,6 @@ export const UserManager: React.FC = () => {
                 <th className="p-3.5">الفرع المرتبط</th>
                 <th className="p-3.5">المشرف المباشر</th>
                 <th className="p-3.5">الهاتف</th>
-                <th className="p-3.5 text-center">العمولة</th>
                 <th className="p-3.5 text-center">الإجراءات</th>
               </tr>
             </thead>
@@ -480,11 +479,6 @@ export const UserManager: React.FC = () => {
                     {/* Phone */}
                     <td className="p-3.5 text-slate-600 font-mono">
                       {user.phone || '---'}
-                    </td>
-
-                    {/* Commission */}
-                    <td className="p-3.5 text-center font-black text-amber-900">
-                      {user.commissionRate ? `${user.commissionRate}%` : '---'}
                     </td>
 
                     {/* Actions */}
@@ -756,17 +750,6 @@ export const UserManager: React.FC = () => {
                   </select>
                 </div>
               )}
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">نسبة عمولة المبيعات (%)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={formData.commissionRate}
-                  onChange={(e) => setFormData({ ...formData, commissionRate: parseFloat(e.target.value) || 0 })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
-                />
-              </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                 <button

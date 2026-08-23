@@ -122,24 +122,23 @@ export async function downloadInvoicePDF(invoice: Invoice): Promise<void> {
     const cleanName = item.productName.length > 35 ? item.productName.substring(0, 35) + '...' : item.productName;
     doc.text(`${cleanName} (${item.productCode})`, pageWidth - 70, y + 14, { align: 'right' });
     doc.text(`${item.cartonCount} كرتونة`, pageWidth / 2, y + 14, { align: 'center' });
-    doc.text(`${item.pricePerCarton.toFixed(2)} ج.م`, 140, y + 14, { align: 'left' });
-    doc.text(`${item.netTotal.toFixed(2)} ج.م`, 45, y + 14, { align: 'left' });
+    doc.text(`${formatCurrency(item.pricePerCarton)}`, 140, y + 14, { align: 'left' });
+    doc.text(`${formatCurrency(item.netTotal)}`, 45, y + 14, { align: 'left' });
     y += 20;
   });
 
   // Totals Box
   y += 15;
   doc.setFillColor(15, 23, 42);
-  doc.roundedRect(pageWidth - 250, y, 220, 95, 6, 6, 'F');
+  doc.roundedRect(pageWidth - 250, y, 220, 85, 6, 6, 'F');
   doc.setTextColor(203, 213, 225);
   doc.setFontSize(9);
   doc.text(`إجمالي الكراتين: ${invoice.totalCartons} كرتونة`, pageWidth - 45, y + 20, { align: 'right' });
   doc.text(`المجموع قبل الخصم: ${formatCurrency(invoice.subtotal)}`, pageWidth - 45, y + 36, { align: 'right' });
   doc.text(`الخصم التجاري (${invoice.discountPercentage}%): -${formatCurrency(invoice.discountAmount)}`, pageWidth - 45, y + 52, { align: 'right' });
-  doc.text(`ضريبة القيمة المضافة (14%): +${formatCurrency(invoice.taxAmount)}`, pageWidth - 45, y + 68, { align: 'right' });
   doc.setFontSize(12);
   doc.setTextColor(251, 191, 36);
-  doc.text(`الصافي النهائي: ${formatCurrency(invoice.estimatedGrandTotal)}`, pageWidth - 45, y + 86, { align: 'right' });
+  doc.text(`الصافي النهائي: ${formatCurrency(invoice.estimatedGrandTotal)}`, pageWidth - 45, y + 74, { align: 'right' });
 
   // Stamp & Signatures
   doc.setDrawColor(203, 213, 225);
@@ -152,6 +151,11 @@ export async function downloadInvoicePDF(invoice: Invoice): Promise<void> {
   doc.setFontSize(8);
   doc.text('ختم شركة دريم واعتماد المشرف', 85, y + 80, { align: 'center' });
   doc.text('توقيع واستلام العميل', 215, y + 80, { align: 'center' });
+
+  // Customer appreciation note
+  doc.setTextColor(30, 41, 59);
+  doc.setFontSize(9);
+  doc.text('شكراً لأنك أصبحت جزءاً من عائلة شركة دريم للتجارة والتوزيع', pageWidth / 2, y + 115, { align: 'center' });
 
   doc.save(`فاتورة_دريم_${invoice.invoiceNumber}.pdf`);
 }

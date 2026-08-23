@@ -127,15 +127,14 @@ export const ProductImage: React.FC<ProductImageProps> = ({
 
   return (
     <div
-      className={`${containerClassName} ${onClick ? 'cursor-pointer' : ''}`}
+      className={`relative overflow-hidden ${containerClassName} ${onClick ? 'cursor-pointer' : ''}`}
       onClick={onClick}
     >
       {/* Animated Loading Shimmer Skeleton */}
       {isLoading && (
         <div className="absolute inset-0 bg-gradient-to-r from-slate-100 via-amber-50/60 to-slate-100 animate-pulse flex items-center justify-center z-0">
-          <div className="flex flex-col items-center gap-1.5 opacity-40">
-            <Package className="w-8 h-8 text-amber-600 animate-bounce" />
-            <span className="text-[10px] font-bold text-slate-500">جاري التحميل...</span>
+          <div className="flex flex-col items-center gap-1 opacity-30">
+            <Package className="w-5 h-5 text-amber-600 animate-bounce" />
           </div>
         </div>
       )}

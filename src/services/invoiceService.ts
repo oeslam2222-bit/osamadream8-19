@@ -2,11 +2,12 @@ import { COMPANY_INFO } from '../data/mockData';
 import { Invoice } from '../types';
 
 /**
- * Format Egyptian Pound currency with clean, standard legible digits (e.g. 31,958.00 ج.م)
+ * Format Egyptian Pound currency with clean integer/rounded numbers (e.g. 840 ج.م or 31,958 ج.م)
  */
 export function formatCurrency(amount: number | undefined): string {
-  if (amount === undefined || isNaN(amount)) return '0.00 ج.م';
-  return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج.م`;
+  if (amount === undefined || isNaN(amount)) return '0 ج.م';
+  const rounded = Math.round(amount);
+  return `${rounded.toLocaleString('en-US')} ج.م`;
 }
 
 /**
@@ -31,31 +32,30 @@ export function generateWhatsAppMessage(invoice: Invoice): string {
     .join('\n\n');
 
   return `🌟 *${COMPANY_INFO.nameArabic}* 🌟
-📄 *فاتورة مبيعات إلكترونية رقم:* \`${invoice.invoiceNumber}\`
+📄 *فاتورة مبيعات معتمدة رقم:* \`${invoice.invoiceNumber}\`
 📅 *التاريخ:* ${invoice.date} ${invoice.time}
 🏢 *الفرع:* ${invoice.branchName}
 👤 *المندوب:* ${invoice.repName}
+
+✨ *شكراً لأنك أصبحت جزءاً من شركة دريم للتجارة والتوزيع ❤️*
 
 ━━━━━━━━━━━━━━━━━━━
 🏬 *بيانات العميل:*
 • الاسم: *${invoice.customerName}*
 • الهاتف: ${invoice.customerPhone || '---'}
 • العنوان: ${invoice.customerAddress || '---'}
-• الرقم الضريبي: ${invoice.customerTaxNumber || 'غير مسجل'}
 
 ━━━━━━━━━━━━━━━━━━━
 🛒 *تفاصيل الأصناف والطلبية:*
 ${itemsText}
 
 ━━━━━━━━━━━━━━━━━━━
-📊 *الملخص المالي والتقديري:*
+📊 *الملخص المالي للفاتورة:*
 📦 إجمالي الكراتين: *${invoice.totalCartons}* كرتونة
-🏷️ إجمالي القطع المنفردة: *${invoice.totalPieces}* قطعة
-💵 المجموع الفرعي: ${formatCurrency(invoice.subtotal)}
-🏷️ الخصم الممنوح (${invoice.discountPercentage}%): -${formatCurrency(invoice.discountAmount)}
-🏛️ ضريبة القيمة المضافة (${invoice.taxPercentage}%): +${formatCurrency(invoice.taxAmount)}
+💵 المجموع قبل الخصم: ${formatCurrency(invoice.subtotal)}
+🏷️ الخصم التجاري الممنوح (${invoice.discountPercentage}%): -${formatCurrency(invoice.discountAmount)}
 ━━━━━━━━━━━━━━━━━━━
-✨ *إجمالي الفاتورة التقديرية النهائي:* 
+✨ *إجمالي الفاتورة الصافي النهائي:* 
 👉 *${formatCurrency(invoice.estimatedGrandTotal)}*
 💳 طريقة الدفع: *${invoice.paymentMethod}*
 📌 حالة الفاتورة: *${invoice.status}*

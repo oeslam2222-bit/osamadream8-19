@@ -155,7 +155,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ onViewInvoice }) => 
     }
   };
 
-  const getBadgeStyle = (badgeType: 'info' | 'success' | 'warning' | 'danger' | 'purple') => {
+  const getBadgeStyle = (badgeType: 'info' | 'success' | 'warning' | 'danger' | 'purple' | 'neutral' | string) => {
     switch (badgeType) {
       case 'success':
         return 'bg-emerald-100 text-emerald-800 border-emerald-300';
@@ -165,6 +165,8 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ onViewInvoice }) => 
         return 'bg-amber-100 text-amber-800 border-amber-300';
       case 'purple':
         return 'bg-purple-100 text-purple-800 border-purple-300';
+      case 'neutral':
+        return 'bg-slate-100 text-slate-800 border-slate-300';
       case 'info':
       default:
         return 'bg-blue-100 text-blue-800 border-blue-300';

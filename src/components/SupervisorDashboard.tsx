@@ -50,6 +50,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     currentUser,
     branches,
     selectedBranchFilter,
+    setSelectedBranchFilter,
     updateOrderStatus,
     approveOrder,
     forwardOrderToManager,
@@ -69,10 +70,89 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   const [rejectModalInvoice, setRejectModalInvoice] = useState<Invoice | null>(null);
   const [rejectReason, setRejectReason] = useState('نفاذ الكمية أو عدم استيفاء الشروط');
 
-  // Filter accessible invoices based on user role
+  // Real-Time Branch Sales Performance Calculation across all branches
+  const branchSalesSummary = useMemo(() => {
+    const branchMap = new Map<string, {
+      name: string;
+      code: string;
+      city: string;
+      totalSales: number;
+      totalCartons: number;
+      ordersCount: number;
+      deliveredCount: number;
+      deliveredSales: number;
+      pendingCount: number;
+    }>();
+
+    // 1. Initialize from registered branches
+    branches.forEach((b) => {
+      branchMap.set(b.name, {
+        name: b.name,
+        code: b.code || '',
+        city: b.city || '',
+        totalSales: 0,
+        totalCartons: 0,
+        ordersCount: 0,
+        deliveredCount: 0,
+        deliveredSales: 0,
+        pendingCount: 0,
+      });
+    });
+
+    // 2. Populate from invoices in real-time
+    invoices.forEach((inv) => {
+      const bName = inv.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+      if (!branchMap.has(bName)) {
+        branchMap.set(bName, {
+          name: bName,
+          code: '',
+          city: bName.replace('فرع ', ''),
+          totalSales: 0,
+          totalCartons: 0,
+          ordersCount: 0,
+          deliveredCount: 0,
+          deliveredSales: 0,
+          pendingCount: 0,
+        });
+      }
+
+      const branchData = branchMap.get(bName)!;
+      branchData.ordersCount += 1;
+
+      if (inv.status !== 'مرفوضة / ملغاة' && inv.status !== 'ملغاة') {
+        branchData.totalSales += inv.estimatedGrandTotal || 0;
+        branchData.totalCartons += inv.totalCartons || 0;
+      }
+      if (inv.status === 'تم التسليم') {
+        branchData.deliveredCount += 1;
+        branchData.deliveredSales += inv.estimatedGrandTotal || 0;
+      }
+      if (
+        inv.status === 'قيد مراجعة المشرف' ||
+        inv.status === 'معلقة بانتظار اعتماد الفرع' ||
+        inv.status === 'قيد المراجعة'
+      ) {
+        branchData.pendingCount += 1;
+      }
+    });
+
+    return Array.from(branchMap.values());
+  }, [branches, invoices]);
+
+  // Overall aggregate sales across all branches
+  const totalAllBranchSales = useMemo(() => {
+    return branchSalesSummary.reduce((acc, b) => acc + b.totalSales, 0);
+  }, [branchSalesSummary]);
+
+  // Filter accessible invoices based on user role and branch selection
   const accessibleInvoices = useMemo(() => {
     return invoices.filter((inv) => {
-      // 1. Role-based scoping
+      // 1. Branch filter (Dropdown & quick-chip selection)
+      if (selectedBranchFilter !== 'الكل' && inv.branchName !== selectedBranchFilter) {
+        return false;
+      }
+
+      // 2. Role-based scoping
       if (currentUser?.role === 'sales_rep') {
         if (inv.repId !== currentUser.id) return false;
       } else if (currentUser?.role === 'supervisor') {
@@ -80,26 +160,22 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           (u) => u.id === inv.repId && u.supervisorId === currentUser.id
         );
         const isSameBranch = inv.branchName === currentUser.branchName;
-        if (!isSupervisedRep && !isSameBranch) return false;
+        if (!isSupervisedRep && !isSameBranch && selectedBranchFilter === 'الكل') return false;
       } else if (currentUser?.role === 'branch_manager') {
-        if (inv.branchName !== currentUser.branchName) return false;
-      } else if (currentUser?.role === 'admin') {
-        if (selectedBranchFilter !== 'الكل' && inv.branchName !== selectedBranchFilter) {
-          return false;
-        }
+        if (inv.branchName !== currentUser.branchName && selectedBranchFilter === 'الكل') return false;
       }
 
-      // 2. Status filter
+      // 3. Status filter
       if (activeStatusTab !== 'الكل' && inv.status !== activeStatusTab) {
         return false;
       }
 
-      // 3. Rep filter
+      // 4. Rep filter
       if (selectedRepFilter !== 'الكل' && inv.repName !== selectedRepFilter) {
         return false;
       }
 
-      // 4. Search term
+      // 5. Search term
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase().trim();
         const numMatch = inv.invoiceNumber?.toLowerCase().includes(q);
@@ -554,36 +630,152 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         </div>
       </div>
 
+      {/* Real-Time Branch Sales Performance Tracker */}
+      <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
+              <Building className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-black text-sm sm:text-base text-slate-900">
+                متابعة مبيعات وأداء الفروع لحظياً (Real-Time Branch Performance)
+              </h3>
+              <p className="text-xs text-slate-500">
+                إجمالي مبيعات كل فرع، عدد الكراتين المحجوزة، ونسبة التنفيذ المباشرة
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500">إجمالي مبيعات كافة الفروع:</span>
+            <span className="bg-slate-900 text-amber-300 font-black px-3 py-1 rounded-xl text-xs sm:text-sm">
+              {formatCurrency(totalAllBranchSales)}
+            </span>
+          </div>
+        </div>
+
+        {/* Branch Interactive Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {branchSalesSummary.map((b) => {
+            const isSelected = selectedBranchFilter === b.name;
+            return (
+              <button
+                key={b.name}
+                onClick={() => setSelectedBranchFilter(isSelected ? 'الكل' : b.name)}
+                className={`text-right p-3.5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+                  isSelected
+                    ? 'bg-slate-900 text-white border-slate-900 ring-2 ring-amber-400 shadow-md transform scale-[1.01]'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-900 border-slate-200'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2 w-full">
+                  <div className="space-y-0.5">
+                    <div className={`text-xs font-black truncate ${isSelected ? 'text-amber-300' : 'text-slate-900'}`}>
+                      {b.name}
+                    </div>
+                    <div className={`text-[10px] font-medium ${isSelected ? 'text-slate-400' : 'text-slate-500'}`}>
+                      {b.city || 'الفرع'}
+                    </div>
+                  </div>
+                  <span
+                    className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
+                      isSelected
+                        ? 'bg-amber-400 text-slate-950'
+                        : 'bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {b.ordersCount} طلبية
+                  </span>
+                </div>
+
+                <div className="pt-3 border-t border-current/10 mt-3 flex items-end justify-between gap-2 w-full">
+                  <div>
+                    <span className={`text-[10px] block font-bold ${isSelected ? 'text-slate-400' : 'text-slate-500'}`}>
+                      إجمالي المبيعات:
+                    </span>
+                    <strong className={`text-sm sm:text-base font-black ${isSelected ? 'text-white' : 'text-amber-950'}`}>
+                      {formatCurrency(b.totalSales)}
+                    </strong>
+                  </div>
+                  <div className={`text-[10px] font-bold text-left ${isSelected ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                    {b.totalCartons} كرتونة
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Orders Management Table with Delivery & Return Action Controls */}
       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
         
         {/* Table Search & Status Filter Tabs */}
         <div className="space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
               <span>قائمة الطلبيات ومتابعة دورة التسليم</span>
               <span className="bg-amber-100 text-amber-900 text-xs px-2.5 py-0.5 rounded-full font-bold">
                 {accessibleInvoices.length} طلبية
               </span>
+              {selectedBranchFilter !== 'الكل' && (
+                <span className="bg-slate-900 text-amber-300 text-xs px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                  <span>فرع: {selectedBranchFilter}</span>
+                  <button
+                    onClick={() => setSelectedBranchFilter('الكل')}
+                    className="hover:text-white p-0.5"
+                    title="إلغاء تصفية الفرع"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
             </h3>
 
-            {/* Rep Filter if Supervisor / Manager */}
-            {currentUser?.role !== 'sales_rep' && (
-              <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
-                <span className="text-slate-500 font-bold">تصفية المندوب:</span>
+            {/* Dropdown Filters: Branch Filter + Rep Filter */}
+            <div className="flex items-center gap-2 flex-wrap text-xs">
+              
+              {/* Branch Filter Dropdown with Real-Time Total Sales per Branch */}
+              <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+                <Building className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span className="text-slate-500 font-bold whitespace-nowrap">الفرع:</span>
                 <select
-                  value={selectedRepFilter}
-                  onChange={(e) => setSelectedRepFilter(e.target.value)}
-                  className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer"
+                  value={selectedBranchFilter}
+                  onChange={(e) => setSelectedBranchFilter(e.target.value)}
+                  className="bg-transparent font-black text-slate-900 focus:outline-none cursor-pointer text-xs"
                 >
-                  {repsList.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
+                  <option value="الكل">
+                    🏢 جميع الفروع ({formatCurrency(totalAllBranchSales)})
+                  </option>
+                  {branchSalesSummary.map((b) => (
+                    <option key={b.name} value={b.name}>
+                      📍 {b.name} — ({formatCurrency(b.totalSales)} | {b.totalCartons} كرتونة)
                     </option>
                   ))}
                 </select>
               </div>
-            )}
+
+              {/* Rep Filter if Supervisor / Manager */}
+              {currentUser?.role !== 'sales_rep' && (
+                <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+                  <Users className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  <span className="text-slate-500 font-bold whitespace-nowrap">المندوب:</span>
+                  <select
+                    value={selectedRepFilter}
+                    onChange={(e) => setSelectedRepFilter(e.target.value)}
+                    className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer text-xs"
+                  >
+                    {repsList.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+            </div>
           </div>
 
           {/* Status Tab Pills */}

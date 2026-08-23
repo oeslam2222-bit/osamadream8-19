@@ -782,6 +782,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
             const priorityConfig = priorityBadges[product.salesPriority];
             const hasBranchStock = product.branchStockActual > 0;
             const hasMainWhStock = product.mainWarehouseActual > 0;
+            const totalCartonsAvailable = Math.max(0, product.branchStockReserved) + Math.max(0, product.mainWarehouseReserved);
             const orderState = getCardState(product.id);
             const cartonSavings = Math.max(0, (product.piecePrice * product.cartonQuantity) - product.cartonPrice);
 
@@ -868,10 +869,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                   {/* Stock Availability Health Bar */}
                   <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 space-y-1.5 text-xs">
                     {/* Low Stock / Out of Stock Visual Warning */}
-                    {product.branchStockReserved <= 0 ? (
+                    {totalCartonsAvailable <= 0 ? (
                       <div className="bg-rose-600 text-white text-[10px] font-black px-2.5 py-1 rounded-xl flex items-center justify-center gap-1 shadow-xs">
                         <AlertTriangle className="w-3.5 h-3.5" />
-                        <span>نفذ المخزون بالكامل (0 كرتونة متبقية) 🚫</span>
+                        <span>نفد المخزون بالكامل (0 كرتونة متبقية) 🚫</span>
+                      </div>
+                    ) : product.branchStockReserved <= 0 && product.mainWarehouseReserved > 0 ? (
+                      <div className="bg-blue-100 text-blue-900 border border-blue-300 text-[10px] font-black px-2 py-1 rounded-xl flex items-center justify-center gap-1">
+                        <Warehouse className="w-3.5 h-3.5 text-blue-700" />
+                        <span>متوفر بالمخزن المركزي فقط ({product.mainWarehouseReserved} ك) 🏢</span>
                       </div>
                     ) : product.branchStockReserved <= 5 ? (
                       <div className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black px-2 py-1 rounded-xl flex items-center justify-center gap-1">
@@ -948,7 +954,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                     <div className="flex items-center bg-slate-100 rounded-xl border border-slate-200 p-0.5">
                       <button
                         type="button"
-                        disabled={product.branchStockReserved <= 0}
+                        disabled={totalCartonsAvailable <= 0}
                         onClick={() => adjustCardQuantity(product.id, -1)}
                         className="w-7 h-8 flex items-center justify-center text-slate-700 hover:bg-slate-200 rounded-lg font-black disabled:opacity-30 cursor-pointer"
                         title="إنقاص كرتونة"
@@ -960,7 +966,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                       </span>
                       <button
                         type="button"
-                        disabled={product.branchStockReserved <= 0}
+                        disabled={totalCartonsAvailable <= 0 || orderState.quantity >= totalCartonsAvailable}
                         onClick={() => adjustCardQuantity(product.id, 1)}
                         className="w-7 h-8 flex items-center justify-center text-slate-700 hover:bg-slate-200 rounded-lg font-black disabled:opacity-30 cursor-pointer"
                         title="زيادة كرتونة"
@@ -970,7 +976,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                     </div>
 
                     {/* Golden "Add to Cart" Button in Cartons */}
-                    {product.branchStockReserved > 0 ? (
+                    {totalCartonsAvailable > 0 ? (
                       <button
                         type="button"
                         onClick={() => handleQuickAddWithState(product)}
@@ -986,7 +992,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                         className="flex-1 bg-slate-100 border border-slate-300 text-slate-500 font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1 cursor-not-allowed opacity-80"
                       >
                         <XCircle className="w-4 h-4 text-rose-500" />
-                        <span>غير متاح للطلب</span>
+                        <span>نفد المخزون</span>
                       </button>
                     )}
                   </div>
@@ -1068,7 +1074,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                         {formatCurrency(product.cartonPrice)}
                       </td>
                       <td className="p-2.5 text-center">
-                        {product.branchStockReserved > 0 ? (
+                        {(branchReservedCartons + mainWhCartons) > 0 ? (
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               onClick={() => handleDirectAdd(product, 'carton', 1)}
@@ -1079,7 +1085,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                           </div>
                         ) : (
                           <div className="text-center text-rose-600 font-bold text-[11px] bg-rose-50 px-2 py-1 rounded-lg border border-rose-200">
-                            غير متاح للطلب
+                            نفد المخزون
                           </div>
                         )}
                       </td>

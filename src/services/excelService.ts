@@ -470,8 +470,7 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
     'الكمية (كرتونة)',
     'سعر الكرتونة',
     'الإجمالي قبل الخصم',
-    'قيمة الخصم',
-    'ضريبة القيمة المضافة (14%)',
+    'قيمة الخصم التجاري',
     'صافي الصنف'
   ];
 
@@ -484,19 +483,18 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
     item.pricePerCarton,
     item.totalBeforeTax,
     item.discountAmount,
-    item.taxAmount,
     item.netTotal
   ]);
 
   const summaryRows = [
     [],
-    ['', '', '', '', '', '', '', '', '', 'إجمالي البضاعة:', '', '', invoice.subtotal],
-    ['', '', '', '', '', '', '', '', '', `إجمالي الخصم (${invoice.discountPercentage}%):`, '', '', -invoice.discountAmount],
-    ['', '', '', '', '', '', '', '', '', `ضريبة القيمة المضافة (${invoice.taxPercentage}%):`, '', '', invoice.taxAmount],
-    ['', '', '', '', '', '', '', '', '', 'الإجمالي النهائي المطلوب سداده:', '', '', invoice.estimatedGrandTotal],
+    ['', '', '', '', '', '', 'إجمالي البضاعة:', '', invoice.subtotal],
+    ['', '', '', '', '', '', `إجمالي الخصم التجاري (${invoice.discountPercentage}%):`, '', -invoice.discountAmount],
+    ['', '', '', '', '', '', 'الإجمالي النهائي المطلوب سداده:', '', invoice.estimatedGrandTotal],
     [],
+    ['رسالة شكر:', '✨ شكراً لأنك أصبحت جزءاً من شركة دريم للتجارة والتوزيع ❤️'],
     ['ملاحظات الفاتورة:', invoice.notes || 'لا توجد'],
-    [`خدمة العملاء: ${COMPANY_INFO.customerService}`, `الرقم الضريبي للشركة: ${COMPANY_INFO.taxRegistrationNumber}`, 'نظام فواتير دريم للتجارة والتوزيع']
+    [`خدمة العملاء: ${COMPANY_INFO.customerService}`, 'نظام فواتير دريم للتجارة والتوزيع']
   ];
 
   const fullSheetData = [...titleRows, tableHeaders, ...itemRows, ...summaryRows];

@@ -15,7 +15,7 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
-import React, { Suspense, lazy, useState } from 'react';
+import React, { Component, ErrorInfo, Suspense, lazy, useState } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { ProductCatalog } from './components/ProductCatalog';
@@ -193,22 +193,26 @@ const MainLayout: React.FC = () => {
 };
 
 // Class-based ErrorBoundary to catch any runtime exceptions on mobile browsers and prevent white screens
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
 }
 
-class MobileErrorBoundary extends React.Component<{ children: React.ReactNode }, ErrorBoundaryState> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+class MobileErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  public state: ErrorBoundaryState = {
+    hasError: false,
+    error: null,
+  };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('App runtime error caught by MobileErrorBoundary:', error, errorInfo);
   }
 

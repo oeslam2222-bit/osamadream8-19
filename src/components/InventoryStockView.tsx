@@ -5,6 +5,8 @@ import {
   Boxes,
   Building,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Download,
   Edit2,
@@ -55,6 +57,10 @@ export const InventoryStockView: React.FC = () => {
   const [stockLevelFilter, setStockLevelFilter] = useState<'all' | 'low_stock' | 'out_of_stock' | 'healthy'>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // Pagination state for responsive performance
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(20);
   
   // Stock Transfer Modal
   const [stockTransferModal, setStockTransferModal] = useState<Product | null>(null);
@@ -130,6 +136,13 @@ export const InventoryStockView: React.FC = () => {
       return true;
     });
   }, [products, searchTerm, selectedCategory, stockLevelFilter, selectedBranchFilter]);
+
+  // Paginated products
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(start, start + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage]);
 
   // Pending Approvals List (for Supervisors and Managers)
   const pendingInvoices = useMemo(() => {
@@ -541,7 +554,7 @@ export const InventoryStockView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredProducts.map((p) => {
+                  {paginatedProducts.map((p) => {
                     const isOutOfStock = p.branchStockReserved <= 0;
                     const isLowStock = p.branchStockReserved > 0 && p.branchStockReserved <= 10;
                     const isReservedDifference = p.branchStockActual !== p.branchStockReserved;
@@ -696,6 +709,53 @@ export const InventoryStockView: React.FC = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls Bar */}
+            {filteredProducts.length > 0 && (
+              <div className="bg-slate-50 border-t border-slate-200 p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2 text-slate-600 font-bold">
+                  <span>عرض</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-slate-800 font-black focus:outline-none"
+                  >
+                    <option value={10}>10 أصناف</option>
+                    <option value={20}>20 صنف</option>
+                    <option value={30}>30 صنف</option>
+                    <option value={50}>50 صنف</option>
+                  </select>
+                  <span>من إجمالي <strong className="text-slate-900">{filteredProducts.length}</strong> صنف</span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    title="الصفحة السابقة"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+
+                  <span className="px-3 py-1 bg-amber-100 text-amber-950 font-black rounded-lg text-xs">
+                    صفحة {currentPage} من {totalPages}
+                  </span>
+
+                  <button
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    title="الصفحة التالية"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -875,7 +935,7 @@ export const InventoryStockView: React.FC = () => {
                       return (
                         <tr key={log.id} className="hover:bg-slate-50 transition">
                           <td className="p-3 text-slate-600 font-mono text-[11px]">
-                            <div>{log.time || log.timestamp}</div>
+                            <div>{log.timestamp}</div>
                             <div className="text-[10px] text-slate-400">{log.date}</div>
                           </td>
 

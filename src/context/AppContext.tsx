@@ -789,10 +789,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const discountPercentage = 3.5;
     const discountAmount = subtotal * (discountPercentage / 100);
-    const afterDiscount = subtotal - discountAmount;
-    const taxPercentage = 14; // Egypt VAT
-    const taxAmount = afterDiscount * (taxPercentage / 100);
-    const grandTotal = afterDiscount + taxAmount;
+    const grandTotal = subtotal - discountAmount;
+    const taxAmount = 0;
 
     return {
       totalCartons,
@@ -1017,7 +1015,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const appliedCartonPrice = item.product.promoPrice && item.product.promoPrice > 0 ? item.product.promoPrice : item.product.cartonPrice;
         const itemSubtotal = item.cartonCount * appliedCartonPrice;
         const itemDiscount = itemSubtotal * 0.035;
-        const itemTax = (itemSubtotal - itemDiscount) * 0.14;
+        const itemTax = 0;
 
         return {
           productId: item.product.id,
@@ -1033,7 +1031,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           totalBeforeTax: itemSubtotal,
           discountAmount: itemDiscount,
           taxAmount: itemTax,
-          netTotal: itemSubtotal - itemDiscount + itemTax,
+          netTotal: itemSubtotal - itemDiscount,
           fulfilledFrom: (item.fulfillFromMainWarehouse ? 'main_warehouse' : 'branch') as 'branch' | 'main_warehouse',
         };
       });
@@ -1047,9 +1045,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         totalCartons += it.cartonCount;
       });
       const discountAmount = subtotal * 0.035;
-      const taxableAmount = subtotal - discountAmount;
-      const taxAmount = taxableAmount * 0.14;
-      const estimatedGrandTotal = taxableAmount + taxAmount;
+      const taxAmount = 0;
+      const estimatedGrandTotal = subtotal - discountAmount;
       return { subtotal, totalCartons, totalPieces: totalCartons, discountAmount, taxAmount, estimatedGrandTotal };
     };
 
@@ -1075,8 +1072,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       subtotal: primaryTotals.subtotal,
       discountPercentage: 3.5,
       discountAmount: primaryTotals.discountAmount,
-      taxPercentage: 14,
-      taxAmount: primaryTotals.taxAmount,
+      taxPercentage: 0,
+      taxAmount: 0,
       estimatedGrandTotal: primaryTotals.estimatedGrandTotal,
       paymentMethod: orderData.paymentMethod || 'نقدي (كاش)',
       status: initialStatus,
@@ -1113,8 +1110,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         subtotal: shortageTotals.subtotal,
         discountPercentage: 3.5,
         discountAmount: shortageTotals.discountAmount,
-        taxPercentage: 14,
-        taxAmount: shortageTotals.taxAmount,
+        taxPercentage: 0,
+        taxAmount: 0,
         estimatedGrandTotal: shortageTotals.estimatedGrandTotal,
         paymentMethod: orderData.paymentMethod || 'نقدي (كاش)',
         status: 'قيد مراجعة المشرف',
@@ -1127,7 +1124,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    // Deduct / Reserve Stock in Products (Pure Carton Deductions)
+    // Deduct / Reserve Stock in Products (Smart Proportional Split across Branch and Main Central Warehouse)
     setProducts((prev) => {
       return prev.map((p) => {
         const cartItem = cart.find((c) => c.product.id === p.id);
@@ -1135,33 +1132,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const cartonUnits = cartItem.cartonCount;
 
         if (cartItem.fulfillFromMainWarehouse) {
-          // Central warehouse deduction / reserve
-          if (isDirectManager) {
-            return {
-              ...p,
-              mainWarehouseActual: Math.max(0, p.mainWarehouseActual - cartonUnits),
-              mainWarehouseReserved: Math.max(0, p.mainWarehouseReserved - cartonUnits),
-            };
-          } else {
-            return {
-              ...p,
-              mainWarehouseReserved: Math.max(0, p.mainWarehouseReserved - cartonUnits),
-            };
-          }
+          // Explicit full central warehouse reservation
+          const mainUnits = Math.min(cartonUnits, Math.max(0, p.mainWarehouseReserved));
+          return {
+            ...p,
+            mainWarehouseActual: isDirectManager ? Math.max(0, p.mainWarehouseActual - mainUnits) : p.mainWarehouseActual,
+            mainWarehouseReserved: Math.max(0, p.mainWarehouseReserved - mainUnits),
+          };
         } else {
-          // Branch stock deduction / reserve
-          if (isDirectManager) {
-            return {
-              ...p,
-              branchStockActual: Math.max(0, p.branchStockActual - cartonUnits),
-              branchStockReserved: Math.max(0, p.branchStockReserved - cartonUnits),
-            };
-          } else {
-            return {
-              ...p,
-              branchStockReserved: Math.max(0, p.branchStockReserved - cartonUnits),
-            };
-          }
+          // Smart priority: take available from branch first, and remaining shortage from central warehouse
+          const availableInBranch = Math.max(0, p.branchStockReserved);
+          const takeFromBranch = Math.min(cartonUnits, availableInBranch);
+          const takeFromMain = Math.max(0, cartonUnits - takeFromBranch);
+
+          return {
+            ...p,
+            branchStockActual: isDirectManager ? Math.max(0, p.branchStockActual - takeFromBranch) : p.branchStockActual,
+            branchStockReserved: Math.max(0, p.branchStockReserved - takeFromBranch),
+            mainWarehouseActual: isDirectManager ? Math.max(0, p.mainWarehouseActual - takeFromMain) : p.mainWarehouseActual,
+            mainWarehouseReserved: Math.max(0, p.mainWarehouseReserved - takeFromMain),
+          };
         }
       });
     });

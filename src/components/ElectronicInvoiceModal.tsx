@@ -166,17 +166,17 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs text-slate-700 pt-1">
                   <span>س.ت: <strong>{COMPANY_INFO.commercialRegister}</strong></span>
                   <span>•</span>
-                  <span>ر.ض: <strong>{COMPANY_INFO.taxRegistrationNumber}</strong></span>
-                  <span>•</span>
                   <span>الخط الساخن: <strong>{COMPANY_INFO.customerService}</strong></span>
+                  <span>•</span>
+                  <span>الموقع: <strong>{COMPANY_INFO.website}</strong></span>
                 </div>
               </div>
 
-              {/* Left: E-Invoice Badge & Logo */}
+              {/* Left: Invoice Badge & QR Code */}
               <div className="flex items-center gap-4">
                 <div className="text-center sm:text-left">
                   <div className="inline-block bg-slate-900 text-amber-300 font-black text-xs px-3 py-1 rounded-md shadow-xs">
-                    فاتورة مبيعات إلكترونية
+                    فاتورة مبيعات معتمدة
                   </div>
                   <div className="text-sm font-extrabold text-slate-900 mt-1 font-mono">
                     {invoice.invoiceNumber}
@@ -189,11 +189,18 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                 {/* QR Code Placeholder Box */}
                 <div className="w-20 h-20 bg-slate-100 p-1 rounded-xl border border-slate-300 flex flex-col items-center justify-center text-center shrink-0">
                   <QrCode className="w-12 h-12 text-slate-800" />
-                  <span className="text-[8px] font-mono text-slate-500">منظومة الضرائب</span>
+                  <span className="text-[8px] font-mono text-slate-500">شركة دريم</span>
                 </div>
               </div>
 
             </div>
+          </div>
+
+          {/* Customer Appreciation Greeting Banner */}
+          <div className="bg-gradient-to-r from-amber-50 to-amber-100/70 border border-amber-300/80 rounded-2xl p-3 text-center shadow-xs">
+            <p className="text-xs sm:text-sm font-black text-amber-950 flex items-center justify-center gap-2">
+              <span>✨ شكراً لأنك أصبحت جزءاً من شركة دريم للتجارة والتوزيع ❤️</span>
+            </p>
           </div>
 
           {/* Invoice & Customer Meta Grid */}
@@ -320,7 +327,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               </div>
 
               <div className="flex justify-between items-center text-slate-300">
-                <span>المجموع الفرعي (قبل الضريبة):</span>
+                <span>المجموع الفرعي (قبل الخصم):</span>
                 <span className="font-bold">{formatCurrency(invoice.subtotal)}</span>
               </div>
 
@@ -329,13 +336,8 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                 <span className="font-bold">-{formatCurrency(invoice.discountAmount)}</span>
               </div>
 
-              <div className="flex justify-between items-center text-amber-300">
-                <span>ضريبة القيمة المضافة ({invoice.taxPercentage}%):</span>
-                <span className="font-bold">+{formatCurrency(invoice.taxAmount)}</span>
-              </div>
-
               <div className="pt-2 border-t border-slate-700 flex justify-between items-center">
-                <span className="font-bold text-slate-200">إجمالي الفاتورة التقديرية النهائي:</span>
+                <span className="font-bold text-slate-200">إجمالي الفاتورة الصافي النهائي:</span>
                 <div className="text-xl font-black text-amber-400">
                   {formatCurrency(invoice.estimatedGrandTotal)}
                 </div>
