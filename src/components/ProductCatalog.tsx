@@ -430,6 +430,18 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
     }));
   };
 
+  const setCardQuantityDirect = (productId: string, quantity: number, maxAllowed?: number) => {
+    let safeQty = isNaN(quantity) || quantity < 1 ? 1 : quantity;
+    if (maxAllowed && maxAllowed > 0) {
+      safeQty = Math.min(safeQty, maxAllowed);
+    }
+    const current = getCardState(productId);
+    setCardOrderState((prev) => ({
+      ...prev,
+      [productId]: { ...current, quantity: safeQty }
+    }));
+  };
+
   const handleQuickAddWithState = (product: Product) => {
     const state = getCardState(product.id);
     const res = addToCart(product, state.type, state.quantity);
@@ -777,7 +789,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
       {/* Product Display (Amazon / Souq Style Grid View) */}
       {viewMode === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {displayedProducts.map((product) => {
+          {displayedProducts.map((product, idx) => {
             const isPromo = product.promoPrice && product.promoPrice > 0;
             const priorityConfig = priorityBadges[product.salesPriority];
             const hasBranchStock = product.branchStockActual > 0;
@@ -802,6 +814,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                     cloudinaryConfig={cloudinaryConfig}
                     targetSize={200}
                     sizeVariant="card"
+                    priority={idx < 6}
                     containerClassName="w-full h-full"
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                   />
@@ -877,7 +890,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                     ) : product.branchStockReserved <= 0 && product.mainWarehouseReserved > 0 ? (
                       <div className="bg-blue-100 text-blue-900 border border-blue-300 text-[10px] font-black px-2 py-1 rounded-xl flex items-center justify-center gap-1">
                         <Warehouse className="w-3.5 h-3.5 text-blue-700" />
-                        <span>متوفر بالمخزن المركزي فقط ({product.mainWarehouseReserved} ك) 🏢</span>
+                        <span>متوفر بالمخزن المركزي فقط ({product.mainWarehouseReserved} كرتونة) 🏢</span>
                       </div>
                     ) : product.branchStockReserved <= 5 ? (
                       <div className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black px-2 py-1 rounded-xl flex items-center justify-center gap-1">
@@ -901,7 +914,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                           <span className="text-rose-600 font-bold">نفذ بالفرع</span>
                         )}
                         <span className="text-[10px] text-slate-500 mr-1 font-bold">
-                          (المتاح للطلب: {Math.max(0, product.branchStockReserved)} ك)
+                          (المتاح: {Math.max(0, product.branchStockReserved)} كرتونة)
                         </span>
                       </div>
                     </div>
@@ -921,7 +934,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                           <span className="text-slate-400 font-medium">غير متوفر</span>
                         )}
                         <span className="text-[10px] text-slate-500 mr-1 font-bold">
-                          (المتاح: {Math.max(0, product.mainWarehouseReserved)} ك)
+                          (المتاح: {Math.max(0, product.mainWarehouseReserved)} كرتونة)
                         </span>
                       </div>
                     </div>
@@ -948,28 +961,40 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                     </div>
                   </div>
 
-                  {/* Quick Carton Quantity Stepper & Add to Cart Button */}
+                  {/* Quick Carton Quantity Direct Editable Input & Add to Cart Button */}
                   <div className="flex items-center gap-2 pt-1">
-                    {/* Carton Stepper */}
-                    <div className="flex items-center bg-slate-100 rounded-xl border border-slate-200 p-0.5">
+                    {/* Carton Editable Stepper */}
+                    <div className="flex items-center bg-slate-100 rounded-xl border border-slate-300 p-0.5 shrink-0">
                       <button
                         type="button"
-                        disabled={totalCartonsAvailable <= 0}
+                        disabled={totalCartonsAvailable <= 0 || orderState.quantity <= 1}
                         onClick={() => adjustCardQuantity(product.id, -1)}
                         className="w-7 h-8 flex items-center justify-center text-slate-700 hover:bg-slate-200 rounded-lg font-black disabled:opacity-30 cursor-pointer"
-                        title="إنقاص كرتونة"
+                        title="إنقاص كرتونة (-1)"
                       >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="w-10 text-center text-xs font-black text-slate-900">
-                        {orderState.quantity} ك
-                      </span>
+
+                      <input
+                        type="number"
+                        min="1"
+                        max={Math.max(1, totalCartonsAvailable)}
+                        disabled={totalCartonsAvailable <= 0}
+                        value={orderState.quantity}
+                        onChange={(e) => {
+                          const parsed = parseInt(e.target.value, 10);
+                          setCardQuantityDirect(product.id, parsed, totalCartonsAvailable);
+                        }}
+                        className="w-12 h-7 text-center font-black text-xs text-slate-900 bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
+                        title="اكتب عدد الكراتين مباشرة"
+                      />
+
                       <button
                         type="button"
                         disabled={totalCartonsAvailable <= 0 || orderState.quantity >= totalCartonsAvailable}
                         onClick={() => adjustCardQuantity(product.id, 1)}
                         className="w-7 h-8 flex items-center justify-center text-slate-700 hover:bg-slate-200 rounded-lg font-black disabled:opacity-30 cursor-pointer"
-                        title="زيادة كرتونة"
+                        title="زيادة كرتونة (+1)"
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
@@ -980,9 +1005,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                       <button
                         type="button"
                         onClick={() => handleQuickAddWithState(product)}
-                        className="flex-1 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black py-2.5 px-3 rounded-xl text-xs shadow-md transition transform active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="flex-1 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black py-2.5 px-2 rounded-xl text-xs shadow-md transition transform active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
                       >
-                        <ShoppingCart className="w-4 h-4" />
+                        <ShoppingCart className="w-4 h-4 shrink-0" />
                         <span>أضف {orderState.quantity} كرتونة</span>
                       </button>
                     ) : (
@@ -1054,7 +1079,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                         </div>
                       </td>
                       <td className="p-2.5 font-bold text-slate-600">{product.department || product.category}</td>
-                      <td className="p-2.5 text-center font-black text-slate-800">{product.cartonQuantity} ق</td>
+                      <td className="p-2.5 text-center font-black text-slate-800">{product.cartonQuantity} قطعة</td>
                       <td className="p-2.5 text-center">
                         <span className={branchCartons > 0 ? 'text-emerald-700 font-black' : 'text-red-600 font-bold'}>
                           {branchCartons} كرتونة
@@ -1063,7 +1088,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                           {branchReservedCartons <= 0 ? (
                             <span className="text-rose-600 font-black">نفذ (0 متاح)</span>
                           ) : (
-                            <span className="text-slate-500 font-bold">متاح: {branchReservedCartons} ك</span>
+                            <span className="text-slate-500 font-bold">متاح: {branchReservedCartons} كرتونة</span>
                           )}
                         </div>
                       </td>
@@ -1078,7 +1103,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               onClick={() => handleDirectAdd(product, 'carton', 1)}
-                              className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs transition cursor-pointer shadow-xs"
+                              className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs transition cursor-pointer shadow-xs whitespace-nowrap"
                             >
                               +1 كرتونة 🛒
                             </button>
@@ -1363,7 +1388,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                         {selectedProductForModal.branchStockActual} كرتونة
                       </div>
                       <div className="text-[10px] text-slate-500 font-bold">
-                        متاح للطلب: {Math.max(0, selectedProductForModal.branchStockReserved)} ك
+                        متاح للطلب: {Math.max(0, selectedProductForModal.branchStockReserved)} كرتونة
                       </div>
                     </div>
                     <div className="bg-white p-2.5 rounded-xl border border-slate-100">
@@ -1372,7 +1397,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                         {selectedProductForModal.mainWarehouseActual} كرتونة
                       </div>
                       <div className="text-[10px] text-slate-500 font-bold">
-                        متاح للطلب: {Math.max(0, selectedProductForModal.mainWarehouseReserved)} ك
+                        متاح للطلب: {Math.max(0, selectedProductForModal.mainWarehouseReserved)} كرتونة
                       </div>
                     </div>
                   </div>
@@ -1398,25 +1423,57 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
 
                 {/* Additional Attributes */}
                 <div className="grid grid-cols-2 gap-2 text-slate-600">
-                  <div className="bg-slate-50 p-2 rounded-xl">شدة الكرتونة: <strong className="text-slate-900">{selectedProductForModal.cartonQuantity} ق</strong></div>
-                  <div className="bg-slate-50 p-2 rounded-xl">الحجم / الوزن: <strong className="text-slate-900">{selectedProductForModal.size}</strong></div>
-                  <div className="bg-slate-50 p-2 rounded-xl">اللون: <strong className="text-slate-900">{selectedProductForModal.color}</strong></div>
+                  <div className="bg-slate-50 p-2 rounded-xl">شدة الكرتونة: <strong className="text-slate-900">{selectedProductForModal.cartonQuantity} قطعة</strong></div>
+                  <div className="bg-slate-50 p-2 rounded-xl">الحجم / الوزن: <strong className="text-slate-900">{selectedProductForModal.size || 'قياسي'}</strong></div>
+                  <div className="bg-slate-50 p-2 rounded-xl">اللون: <strong className="text-slate-900">{selectedProductForModal.color || 'أصلي'}</strong></div>
                   <div className="bg-slate-50 p-2 rounded-xl">الأولوية: <strong className="text-slate-900">{selectedProductForModal.salesPriority}</strong></div>
                 </div>
 
                 {/* Quick Add Action in Modal */}
                 <div className="pt-2">
                   {selectedProductForModal.branchStockReserved > 0 ? (
-                    <button
-                      onClick={() => {
-                        handleDirectAdd(selectedProductForModal, 'carton', 1);
-                        setSelectedProductForModal(null);
-                      }}
-                      className="w-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-black py-3 rounded-2xl shadow-md text-xs transition cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      <ShoppingCart className="w-4 h-4" />
-                      <span>إضافة 1 كرتونة للطلبية الآن</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center bg-slate-100 rounded-2xl border border-slate-300 p-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => adjustCardQuantity(selectedProductForModal.id, -1)}
+                          className="w-8 h-9 flex items-center justify-center text-slate-800 hover:bg-white rounded-xl font-black cursor-pointer"
+                          title="إنقاص (-1)"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        <input
+                          type="number"
+                          min="1"
+                          max={Math.max(1, selectedProductForModal.branchStockReserved)}
+                          value={getCardState(selectedProductForModal.id).quantity}
+                          onChange={(e) => {
+                            setCardQuantityDirect(selectedProductForModal.id, parseInt(e.target.value, 10), selectedProductForModal.branchStockReserved);
+                          }}
+                          className="w-14 text-center font-black text-sm text-slate-900 bg-white border border-slate-200 rounded-lg h-8 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => adjustCardQuantity(selectedProductForModal.id, 1)}
+                          className="w-8 h-9 flex items-center justify-center text-slate-800 hover:bg-white rounded-xl font-black cursor-pointer"
+                          title="زيادة (+1)"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          const count = getCardState(selectedProductForModal.id).quantity;
+                          handleDirectAdd(selectedProductForModal, 'carton', count);
+                          setSelectedProductForModal(null);
+                        }}
+                        className="flex-1 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black py-3 px-3 rounded-2xl shadow-md text-xs transition cursor-pointer flex items-center justify-center gap-2"
+                      >
+                        <ShoppingCart className="w-4 h-4" />
+                        <span>أضف {getCardState(selectedProductForModal.id).quantity} كرتونة للطلبية</span>
+                      </button>
+                    </div>
                   ) : (
                     <button
                       disabled

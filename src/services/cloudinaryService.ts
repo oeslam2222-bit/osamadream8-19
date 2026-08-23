@@ -3,7 +3,7 @@ import { CloudinaryConfig, Product } from '../types';
 export const DEFAULT_CLOUDINARY_CONFIG: CloudinaryConfig = {
   cloudName: 'dzdkhpr2y',
   folderPrefix: '',
-  defaultTransformation: 'f_auto,q_auto,w_500,c_fill',
+  defaultTransformation: 'f_auto,q_auto,w_500',
   matchingPattern: 'auto',
   fileExtension: 'png',
   baseUrlPattern: 'https://res.cloudinary.com/{cloudName}/image/upload/{transformations}/{folder}/{filename}.{extension}'
@@ -76,9 +76,9 @@ export function optimizeImageUrl(rawUrl: string, targetSize = 200, isDataSaver =
 
   // Check if it's Cloudinary
   if (trimmed.includes('res.cloudinary.com/') && trimmed.includes('/upload/')) {
-    const quality = isDataSaver ? 'eco' : 'auto';
+    const quality = isDataSaver ? 'eco' : 'good';
     const size = isDataSaver ? Math.min(targetSize, 240) : targetSize;
-    const transformation = `w_${size},c_limit,q_auto:${quality},f_auto`;
+    const transformation = `q_auto:${quality},f_auto,w_${size}`;
     return trimmed.replace(/\/upload\/(?:[^\/]+\/)?/, `/upload/${transformation}/`);
   }
 
@@ -369,10 +369,13 @@ export function getCandidateImageUrls(
   // 2. Only check Cloudinary if cloudName is explicitly configured and user has not cancelled it
   const cloudName = config.cloudName?.trim();
   if (cloudName && product.code) {
-    const trans = config.defaultTransformation || 'f_auto,q_auto,w_400,c_limit';
     const cleanCode = encodeURIComponent(product.code.trim());
-    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${cleanCode}.png`);
-    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${trans}/${cleanCode}.jpg`);
+    // Directly target WebP/auto transformed images first for maximum speed & lowest bytes
+    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/f_auto,q_auto,w_350/${cleanCode}.jpg`);
+    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/f_auto,q_auto,w_350/${cleanCode}.png`);
+    // Then direct upload without transformation as reliable fallback
+    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${cleanCode}.jpg`);
+    candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${cleanCode}.png`);
   }
 
   return Array.from(new Set(candidates));
