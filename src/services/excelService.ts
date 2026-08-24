@@ -359,24 +359,13 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     else if (rawStatus.includes('نواقص') || rawStatus.includes('شحيح')) status = 'نواقص';
     else if (rawStatus.includes('موقوف')) status = 'موقوف مؤقتاً';
 
-    // Read raw numbers from sheet
-    let rawCartonQty = getNum(colMap.cartonQuantity, 0);
-    let rawCartonPrice = getNum(colMap.cartonPrice, 0);
+    // Strict raw values from sheet without alteration
+    const rawCartonQty = getNum(colMap.cartonQuantity, 0);
+    const rawCartonPrice = getNum(colMap.cartonPrice, 0);
     const rawPiecePrice = getNum(colMap.piecePrice, 0);
     const promoPriceRaw = getNum(colMap.promoPrice, 0);
 
-    // Safeguard: If pack size is a huge price number (e.g. 5800) and carton price is empty,
-    // this means the sheet column contained the carton price 5800 EGP.
-    if (rawCartonQty > 200 && rawCartonPrice <= 0) {
-      rawCartonPrice = rawCartonQty;
-      rawCartonQty = 12; // default pack size (بيان استرشادي)
-    } else if (rawCartonQty > 200) {
-      rawCartonQty = 12;
-    }
-
-    const cartonQuantity = rawCartonQty > 0 ? Math.min(100, Math.floor(rawCartonQty)) : 12;
-
-    // Strict 1-to-1 Carton Price (No multiplication by pieces!)
+    // Exact Carton Price directly from sheet (1:1 literal)
     let cartonPrice = 0;
     if (rawCartonPrice > 0) {
       cartonPrice = rawCartonPrice;
@@ -384,6 +373,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       cartonPrice = rawPiecePrice;
     }
 
+    const cartonQuantity = rawCartonQty > 0 ? rawCartonQty : 1;
     const piecePrice = cartonPrice > 0 && cartonQuantity > 0 ? Math.round((cartonPrice / cartonQuantity) * 100) / 100 : cartonPrice;
 
     const dept = getVal(colMap.department) || getVal(colMap.category) || 'LHLotus';

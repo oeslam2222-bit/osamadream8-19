@@ -254,24 +254,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const sanitizeProducts = (list: Product[]): Product[] => {
     return list.map((p) => {
-      let cartonQty = p.cartonQuantity;
-      let cartonPrice = p.cartonPrice;
-
-      // Fix if 5800 was saved in cartonQuantity instead of cartonPrice
-      if (cartonQty > 100) {
-        if (!cartonPrice || cartonPrice <= 0) {
-          cartonPrice = cartonQty; // the 5800 was actually the price!
-        }
-        cartonQty = 12; // default pack size (بيان استرشادي)
-      } else if (!cartonQty || cartonQty <= 0) {
-        cartonQty = 12;
-      }
+      const cartonQty = p.cartonQuantity && p.cartonQuantity > 0 ? p.cartonQuantity : 1;
+      const cartonPrice = typeof p.cartonPrice === 'number' ? p.cartonPrice : 0;
 
       return {
         ...p,
         cartonQuantity: cartonQty,
-        cartonPrice: Math.max(0, cartonPrice || 0),
-        piecePrice: cartonPrice > 0 ? Math.round((cartonPrice / cartonQty) * 100) / 100 : (p.piecePrice || 0),
+        cartonPrice: cartonPrice,
+        piecePrice: cartonPrice > 0 && cartonQty > 0 ? Math.round((cartonPrice / cartonQty) * 100) / 100 : (p.piecePrice || cartonPrice),
       };
     });
   };
