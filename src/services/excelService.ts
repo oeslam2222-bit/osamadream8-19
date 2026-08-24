@@ -228,7 +228,52 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       colMap.category = idx;
     } else if (norm.includes('حاله') || norm.includes('status')) {
       colMap.status = idx;
-    } else if (norm.includes('شده') || norm.includes('شدة') || norm.includes('كرتونه') || norm.includes('pack')) {
+    } else if (
+      norm.includes('سعرالعرض') ||
+      norm.includes('سعرخاص') ||
+      norm.includes('عرض') ||
+      norm.includes('promo')
+    ) {
+      colMap.promoPrice = idx;
+    } else if (
+      norm.includes('سعرالكرتون') ||
+      norm.includes('سعركرتون') ||
+      norm.includes('سعرالجمل') ||
+      norm.includes('سعرجمل') ||
+      norm.includes('سعرالبيع') ||
+      norm.includes('سعرالصنف') ||
+      norm.includes('سعرالطلب') ||
+      norm.includes('cartonprice') ||
+      norm.includes('wholesaleprice') ||
+      norm === 'السعر' ||
+      norm === 'سعر' ||
+      norm === 'المبلغ' ||
+      norm === 'مبلغ' ||
+      norm === 'price' ||
+      norm === 'totalprice'
+    ) {
+      colMap.cartonPrice = idx;
+    } else if (
+      norm.includes('سعرالقطع') ||
+      norm.includes('سعرقطع') ||
+      norm.includes('سعرالمفرد') ||
+      norm.includes('pieceprice') ||
+      norm.includes('unitprice')
+    ) {
+      colMap.piecePrice = idx;
+    } else if (
+      (norm.includes('شد') ||
+        norm.includes('عددالقطع') ||
+        norm.includes('العددبالكرتون') ||
+        norm.includes('العبو') ||
+        norm.includes('الشد') ||
+        norm.includes('pack') ||
+        norm.includes('packsize') ||
+        norm.includes('qtypercarton') ||
+        norm.includes('piecespercarton')) &&
+      !norm.includes('سعر') &&
+      !norm.includes('مبلغ')
+    ) {
       colMap.cartonQuantity = idx;
     } else if (norm.includes('حجم') || norm.includes('وزن') || norm.includes('size')) {
       colMap.size = idx;
@@ -238,12 +283,6 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       colMap.department = idx;
     } else if (norm.includes('فئه') || norm.includes('class')) {
       colMap.classification = idx;
-    } else if (norm.includes('سعرالعرض') || norm.includes('عرض') || norm.includes('promo')) {
-      colMap.promoPrice = idx;
-    } else if (norm.includes('سعرالقطعه') || norm.includes('قطعه') || norm.includes('piece')) {
-      colMap.piecePrice = idx;
-    } else if (norm.includes('سعرالكرتونه') || norm.includes('كرتونه') || norm.includes('cartonprice')) {
-      colMap.cartonPrice = idx;
     } else if (norm.includes('صوره') || norm.includes('صور') || norm.includes('لينك') || norm.includes('image') || norm.includes('url')) {
       colMap.imageUrl = idx;
     } else if (norm.includes('باركود') || norm.includes('barcode')) {
@@ -319,10 +358,30 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     else if (rawStatus.includes('نواقص') || rawStatus.includes('شحيح')) status = 'نواقص';
     else if (rawStatus.includes('موقوف')) status = 'موقوف مؤقتاً';
 
-    const piecePrice = getNum(colMap.piecePrice, 10);
-    const cartonQuantity = Math.max(1, getNum(colMap.cartonQuantity, 12));
-    const cartonPrice = getNum(colMap.cartonPrice, piecePrice * cartonQuantity * 0.95);
+    // Read raw numbers from sheet
+    const rawCartonQty = getNum(colMap.cartonQuantity, 0);
+    const cartonQuantity = rawCartonQty > 0 ? rawCartonQty : 1;
+
+    const rawCartonPrice = getNum(colMap.cartonPrice, 0);
+    const rawPiecePrice = getNum(colMap.piecePrice, 0);
     const promoPriceRaw = getNum(colMap.promoPrice, 0);
+
+    // Exact 1-to-1 price handling without any synthetic formula or multiplication
+    let cartonPrice = 0;
+    let piecePrice = 0;
+
+    if (rawCartonPrice > 0) {
+      cartonPrice = rawCartonPrice;
+      piecePrice = rawPiecePrice > 0 ? rawPiecePrice : (cartonQuantity > 0 ? cartonPrice / cartonQuantity : cartonPrice);
+    } else if (rawPiecePrice > 0) {
+      piecePrice = rawPiecePrice;
+      cartonPrice = piecePrice * cartonQuantity;
+    } else {
+      // Fallback only if no prices were found in sheet
+      cartonPrice = 0;
+      piecePrice = 0;
+    }
+
     const dept = getVal(colMap.department) || getVal(colMap.category) || 'LHLotus';
 
     const product: Product = {

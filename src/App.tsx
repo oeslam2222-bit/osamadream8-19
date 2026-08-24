@@ -30,6 +30,7 @@ const ExcelImportExport = lazy(() => import('./components/ExcelImportExport').th
 const AuditLogView = lazy(() => import('./components/AuditLogView').then(m => ({ default: m.AuditLogView })));
 const UserManager = lazy(() => import('./components/UserManager').then(m => ({ default: m.UserManager })));
 const AccountingSyncView = lazy(() => import('./components/AccountingSyncView').then(m => ({ default: m.AccountingSyncView })));
+const SystemWorkflowGuide = lazy(() => import('./components/SystemWorkflowGuide').then(m => ({ default: m.SystemWorkflowGuide })));
 const OrderBuilderModal = lazy(() => import('./components/OrderBuilderModal').then(m => ({ default: m.OrderBuilderModal })));
 const ElectronicInvoiceModal = lazy(() => import('./components/ElectronicInvoiceModal').then(m => ({ default: m.ElectronicInvoiceModal })));
 
@@ -78,8 +79,8 @@ const MainLayout: React.FC = () => {
         onOpenCart={() => setIsOrderModalOpen(true)}
       />
 
-      {/* Content Container with bottom padding for mobile navigation bar */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-5 pb-24 md:pb-8">
+      {/* Content Container with optimal tight padding for mobile and standard padding for desktop */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-2 sm:px-4 md:px-6 py-2.5 sm:py-5 pb-24 md:pb-8">
         <Suspense fallback={<TabLoadingSkeleton />}>
           {activeTab === 'catalog' && (
             <ProductCatalog onOpenCart={() => setIsOrderModalOpen(true)} />
@@ -113,6 +114,10 @@ const MainLayout: React.FC = () => {
           )}
 
           {activeTab === 'users' && <UserManager />}
+
+          {activeTab === 'guide' && (
+            <SystemWorkflowGuide onNavigateToTab={(tab) => setActiveTab(tab)} />
+          )}
 
           {activeTab === 'accounting' && <AccountingSyncView />}
         </Suspense>

@@ -1,6 +1,10 @@
 import {
   Calendar,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Clock,
   Download,
   Eye,
@@ -20,7 +24,7 @@ import {
   X,
   XCircle
 } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { exportElectronicInvoiceToExcel } from '../services/excelService';
 import { downloadInvoicePDF } from '../services/pdfService';
@@ -54,6 +58,14 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   const [rejectModalInvoiceId, setRejectModalInvoiceId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<string>('نفاذ الكمية أو طلب العميل إلغاء الطلبية');
   const [successToast, setSuccessToast] = useState<string | null>(null);
+
+  // Pagination state for responsive multi-page browsing
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(15);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedStatus, selectedRepFilter, selectedBranchFilter, itemsPerPage]);
 
   // Role based filtering logic
   const accessibleInvoices = useMemo(() => {
@@ -158,6 +170,18 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     invoices.forEach((inv) => set.add(inv.repName));
     return ['الكل', ...Array.from(set)];
   }, [invoices]);
+
+  // Paginated Slices
+  const totalPages = useMemo(() => {
+    if (itemsPerPage === 'all') return 1;
+    return Math.max(1, Math.ceil(accessibleInvoices.length / itemsPerPage));
+  }, [accessibleInvoices.length, itemsPerPage]);
+
+  const displayedInvoices = useMemo(() => {
+    if (itemsPerPage === 'all') return accessibleInvoices;
+    const start = (currentPage - 1) * itemsPerPage;
+    return accessibleInvoices.slice(start, start + itemsPerPage);
+  }, [accessibleInvoices, currentPage, itemsPerPage]);
 
   const statusStyles: Record<string, { bg: string; text: string; label?: string }> = {
     'مسودة': { bg: 'bg-slate-100 border-slate-300', text: 'text-slate-700' },
@@ -405,7 +429,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {accessibleInvoices.map((invoice) => {
+                {displayedInvoices.map((invoice) => {
                   const style = statusStyles[invoice.status] || {
                     bg: 'bg-slate-100 border-slate-300',
                     text: 'text-slate-800',
@@ -598,6 +622,126 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination & Progressive Loading Controller */}
+        {accessibleInvoices.length > 0 && (
+          <div className="bg-slate-50 border-t border-slate-200 p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+            
+            {/* Left: Info & Per-Page Selector */}
+            <div className="flex flex-wrap items-center justify-between sm:justify-start gap-3 w-full sm:w-auto text-xs">
+              <div className="text-slate-600 font-bold flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-xs">
+                <span className="text-slate-400 font-normal">عرض الفواتير:</span>
+                <strong className="text-slate-900">
+                  {itemsPerPage === 'all'
+                    ? `كافة الفواتير (${accessibleInvoices.length})`
+                    : `${Math.min(accessibleInvoices.length, (currentPage - 1) * itemsPerPage + 1)} - ${Math.min(accessibleInvoices.length, currentPage * itemsPerPage)} من أصل ${accessibleInvoices.length}`}
+                </strong>
+              </div>
+
+              {/* Per page dropdown */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500 font-medium">عدد الفواتير بالصفحة:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    const val = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                    setItemsPerPage(val);
+                  }}
+                  className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer shadow-xs"
+                >
+                  <option value={15}>15 فاتورة (سريع)</option>
+                  <option value={30}>30 فاتورة</option>
+                  <option value={50}>50 فاتورة</option>
+                  <option value={100}>100 فاتورة</option>
+                  <option value="all">عرض الكل ({accessibleInvoices.length})</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Right: Page Navigation Buttons */}
+            {itemsPerPage !== 'all' && totalPages > 1 && (
+              <div className="flex items-center gap-1 sm:gap-1.5">
+                
+                {/* First page */}
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(1)}
+                  className="p-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-700 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer shadow-xs"
+                  title="الصفحة الأولى"
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+
+                {/* Previous page */}
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer flex items-center gap-1 shadow-xs"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                  <span>السابق</span>
+                </button>
+
+                {/* Page numbers (smart window) */}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                    .reduce<(number | string)[]>((acc, p, idx, arr) => {
+                      if (idx > 0 && p - (arr[idx - 1] as number) > 1) {
+                        acc.push('...');
+                      }
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((item, idx) => {
+                      if (item === '...') {
+                        return (
+                          <span key={`dots-inv-${idx}`} className="px-1.5 text-slate-400 text-xs font-black">
+                            ...
+                          </span>
+                        );
+                      }
+                      const pageNum = item as number;
+                      const isActive = pageNum === currentPage;
+                      return (
+                        <button
+                          key={`page-inv-${pageNum}`}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`w-8 h-8 rounded-xl text-xs font-black transition cursor-pointer ${
+                            isActive
+                              ? 'bg-amber-500 text-slate-950 shadow-sm'
+                              : 'bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 shadow-xs'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                </div>
+
+                {/* Next page */}
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer flex items-center gap-1 shadow-xs"
+                >
+                  <span>التالي</span>
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Last page */}
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(totalPages)}
+                  className="p-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-700 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer shadow-xs"
+                  title="الصفحة الأخيرة"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         )}
 

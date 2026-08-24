@@ -290,14 +290,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const recordAuditLog = (logData: Omit<AuditLog, 'id' | 'timestamp' | 'formattedTime'>) => {
     const now = new Date();
-    const formattedTime = `${now.toISOString().slice(0, 10)} ${now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+    const formattedTime = `${now.toISOString().slice(0, 10)} ${now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;
     const newLog: AuditLog = {
       ...logData,
       id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       timestamp: now.toISOString(),
       formattedTime,
     };
-    setAuditLogs((prev) => [newLog, ...prev].slice(0, 300));
+    setAuditLogs((prev) => [newLog, ...prev].slice(0, 800));
   };
 
   const clearAuditLogs = () => {

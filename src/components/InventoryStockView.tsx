@@ -7,6 +7,8 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Clock,
   Download,
   Edit2,
@@ -61,6 +63,10 @@ export const InventoryStockView: React.FC = () => {
   // Pagination state for responsive performance
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(20);
+  
+  // Logs tab pagination
+  const [logsCurrentPage, setLogsCurrentPage] = useState<number>(1);
+  const [logsPerPage, setLogsPerPage] = useState<number | 'all'>(15);
   
   // Stock Transfer Modal
   const [stockTransferModal, setStockTransferModal] = useState<Product | null>(null);
@@ -195,6 +201,18 @@ export const InventoryStockView: React.FC = () => {
       pendingApprovalsCount: pendingInvoices.length
     };
   }, [products, pendingInvoices]);
+
+  // Logs Tab Pagination
+  const logsTotalPages = useMemo(() => {
+    if (logsPerPage === 'all') return 1;
+    return Math.max(1, Math.ceil(inventoryLogs.length / logsPerPage));
+  }, [inventoryLogs.length, logsPerPage]);
+
+  const displayedInventoryLogs = useMemo(() => {
+    if (logsPerPage === 'all') return inventoryLogs;
+    const start = (logsCurrentPage - 1) * logsPerPage;
+    return inventoryLogs.slice(start, start + logsPerPage);
+  }, [inventoryLogs, logsCurrentPage, logsPerPage]);
 
   const handleSaveProduct = (e: React.FormEvent) => {
     e.preventDefault();
@@ -923,7 +941,7 @@ export const InventoryStockView: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium">
-                    {inventoryLogs.map((log) => {
+                    {displayedInventoryLogs.map((log) => {
                       const typeColors: Record<string, string> = {
                         'حجز طلبية مندوب': 'bg-amber-100 text-amber-900 border-amber-300',
                         'صرف واعتماد مشرف': 'bg-emerald-100 text-emerald-900 border-emerald-300',
@@ -982,6 +1000,68 @@ export const InventoryStockView: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+
+              {/* Logs Pagination Footer */}
+              {inventoryLogs.length > 0 && (
+                <div className="bg-slate-50 border-t border-slate-200 p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 text-slate-600 font-bold">
+                    <span>عرض الحركات:</span>
+                    <select
+                      value={logsPerPage}
+                      onChange={(e) => {
+                        const val = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                        setLogsPerPage(val);
+                        setLogsCurrentPage(1);
+                      }}
+                      className="bg-white border border-slate-300 rounded-lg px-2 py-1 font-bold text-slate-800 focus:outline-none"
+                    >
+                      <option value={15}>15 حركة</option>
+                      <option value={30}>30 حركة</option>
+                      <option value={50}>50 حركة</option>
+                      <option value="all">عرض الكل ({inventoryLogs.length})</option>
+                    </select>
+                    <span className="text-slate-400">
+                      ({inventoryLogs.length} حركة إجمالية)
+                    </span>
+                  </div>
+
+                  {logsPerPage !== 'all' && logsTotalPages > 1 && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        disabled={logsCurrentPage === 1}
+                        onClick={() => setLogsCurrentPage(1)}
+                        className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 disabled:opacity-40"
+                      >
+                        <ChevronsRight className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        disabled={logsCurrentPage === 1}
+                        onClick={() => setLogsCurrentPage((p) => Math.max(1, p - 1))}
+                        className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 disabled:opacity-40"
+                      >
+                        السابق
+                      </button>
+                      <span className="px-2 font-bold text-slate-800">
+                        {logsCurrentPage} / {logsTotalPages}
+                      </span>
+                      <button
+                        disabled={logsCurrentPage === logsTotalPages}
+                        onClick={() => setLogsCurrentPage((p) => Math.min(logsTotalPages, p + 1))}
+                        className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 disabled:opacity-40"
+                      >
+                        التالي
+                      </button>
+                      <button
+                        disabled={logsCurrentPage === logsTotalPages}
+                        onClick={() => setLogsCurrentPage(logsTotalPages)}
+                        className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 disabled:opacity-40"
+                      >
+                        <ChevronsLeft className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

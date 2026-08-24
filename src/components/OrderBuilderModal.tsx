@@ -218,48 +218,48 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               <span className="text-[10px] text-slate-500 font-bold">الحقول الأساسية لإصدار الفاتورة الإلكترونية</span>
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
               <div>
-                <label className="block text-slate-800 font-bold mb-1">اسم العميل / السوبر ماركت <span className="text-rose-600">*</span></label>
+                <label className="block text-slate-900 font-black mb-1">اسم العميل / السوبر ماركت <span className="text-rose-600">*</span></label>
                 <input
                   type="text"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="مثال: سوبر ماركت الأمانة، محل أولاد رجب..."
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-bold text-slate-900 shadow-xs placeholder:text-slate-400"
+                  className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-950 shadow-xs placeholder:text-slate-400"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-800 font-bold mb-1">رقم هاتف العميل (لإرسال فاتورة الواتساب)</label>
+                <label className="block text-slate-900 font-black mb-1">رقم هاتف العميل (لإرسال الفاتورة عبر واتساب)</label>
                 <input
                   type="tel"
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
                   placeholder="مثال: 01023456789"
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-bold text-slate-900 shadow-xs placeholder:text-slate-400"
+                  className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-950 shadow-xs placeholder:text-slate-400"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-800 font-bold mb-1">عنوان العميل / المنطقة</label>
+                <label className="block text-slate-900 font-black mb-1">عنوان العميل / المنطقة</label>
                 <input
                   type="text"
                   value={customerAddress}
                   onChange={(e) => setCustomerAddress(e.target.value)}
                   placeholder="مثال: شارع مكرم عبيد، المنطقة السادسة، مدينة نصر"
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-semibold text-slate-900 shadow-xs placeholder:text-slate-400"
+                  className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-semibold text-slate-950 shadow-xs placeholder:text-slate-400"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-800 font-bold mb-1">الرقم الضريبي للعميل (اختياري)</label>
+                <label className="block text-slate-900 font-black mb-1">الرقم الضريبي للعميل (اختياري)</label>
                 <input
                   type="text"
                   value={customerTaxNumber}
                   onChange={(e) => setCustomerTaxNumber(e.target.value)}
                   placeholder="مثال: 341-987-123"
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-semibold text-slate-900 shadow-xs placeholder:text-slate-400"
+                  className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-semibold text-slate-950 shadow-xs placeholder:text-slate-400"
                 />
               </div>
             </div>
@@ -621,25 +621,25 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         </div>
 
         {/* Modal Actions Footer */}
-        <div className="bg-slate-50 p-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div className="bg-slate-50 p-3 sm:p-4 border-t border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
           
           <button
             onClick={onClose}
-            className="px-4 py-2.5 text-xs font-black text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-xl hover:bg-slate-100 transition cursor-pointer shadow-xs"
+            className="w-full sm:w-auto h-11 px-4 text-xs font-black text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-xl hover:bg-slate-100 transition cursor-pointer shadow-xs order-last sm:order-first flex items-center justify-center"
           >
-            إلغاء
+            إلغاء الطلبية
           </button>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             
             {/* Direct Export to Excel */}
             <button
               disabled={isSubmitting || cart.length === 0}
               onClick={() => handleSubmitOrder(true, false)}
-              className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-black px-3.5 py-2.5 rounded-xl text-xs shadow-sm transition disabled:opacity-50 cursor-pointer"
+              className="flex items-center justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-black h-11 px-3.5 rounded-xl text-xs shadow-sm transition disabled:opacity-50 cursor-pointer"
               title="تصدير شيت إكسل رسمي لشركة دريم"
             >
-              <FileSpreadsheet className="w-4 h-4" />
+              <FileSpreadsheet className="w-4 h-4 shrink-0" />
               <span>حفظ وتصدير إكسل</span>
             </button>
 
@@ -647,10 +647,10 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
             <button
               disabled={isSubmitting || cart.length === 0}
               onClick={() => handleSubmitOrder(false, true)}
-              className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white font-black px-3.5 py-2.5 rounded-xl text-xs shadow-sm transition disabled:opacity-50 cursor-pointer"
+              className="flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 text-white font-black h-11 px-3.5 rounded-xl text-xs shadow-sm transition disabled:opacity-50 cursor-pointer"
               title="مشاركة تفاصيل الفاتورة عبر واتساب"
             >
-              <Share2 className="w-4 h-4" />
+              <Share2 className="w-4 h-4 shrink-0" />
               <span>مشاركة واتساب</span>
             </button>
 
@@ -659,9 +659,9 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               id="confirm-order-btn"
               disabled={isSubmitting || cart.length === 0}
               onClick={() => handleSubmitOrder(false, false)}
-              className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95 disabled:opacity-50 cursor-pointer"
+              className="flex items-center justify-center gap-2 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black h-12 sm:h-11 px-5 rounded-xl text-xs sm:text-sm shadow-md transition transform active:scale-95 disabled:opacity-50 cursor-pointer"
             >
-              <CheckCircle2 className="w-4 h-4" />
+              <CheckCircle2 className="w-5 h-5 shrink-0 stroke-[2.5]" />
               <span>تأكيد الحجز والفاتورة الإلكترونية</span>
             </button>
 

@@ -1,5 +1,6 @@
 import {
   Bell,
+  BookOpen,
   Boxes,
   Building,
   CheckCircle,
@@ -89,6 +90,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     { id: 'inventory', label: 'إدارة المخزون والاعتمادات', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
     { id: 'excel', label: 'شيتات Google Sheets والإكسل', icon: FileSpreadsheet, roles: ['admin', 'branch_manager', 'supervisor', 'developer'] },
     { id: 'audit', label: 'سجل العمليات (Audit Log)', icon: ShieldCheck, roles: ['admin', 'branch_manager', 'supervisor', 'developer'] },
+    { id: 'guide', label: 'دليل دورة العمل 📖', icon: BookOpen, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'users', label: 'المستخدمين والصلاحيات', icon: Users, roles: ['admin', 'branch_manager', 'developer'], badge: pendingApprovalsCount },
     { id: 'accounting', label: 'وحدة المطور والربط (ERP & Supabase)', icon: Server, roles: ['admin', 'branch_manager', 'developer'] },
   ];
@@ -98,93 +100,92 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
   return (
     <>
       <header className="sticky top-0 z-40 bg-slate-900 text-white shadow-lg border-b border-slate-800">
-        {/* Top Banner */}
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3">
+        {/* Top Banner - Compact on mobile with large touch controls */}
+        <div className="max-w-7xl mx-auto px-2 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2">
           
           {/* Brand & Logo */}
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-2xl bg-slate-950 p-1 border-2 border-amber-400/80 shadow-md shadow-amber-500/20 flex items-center justify-center shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-slate-950 p-1 border-2 border-amber-400 shadow-md shadow-amber-500/20 flex items-center justify-center shrink-0">
               <img src="/icon.svg" alt="دريم طنطاوي" className="h-full w-full object-contain" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-black text-base sm:text-lg tracking-tight text-white flex items-center gap-1.5">
-                  <span>شركة دريم طنطاوي</span>
-                  <span className="text-amber-400 text-xs sm:text-sm font-bold">للتجارة والتوزيع</span>
+              <div className="flex items-center gap-1.5">
+                <h1 className="font-black text-sm sm:text-lg tracking-tight text-white flex items-center gap-1">
+                  <span>دريم طنطاوي</span>
+                  <span className="text-amber-400 text-xs sm:text-sm font-bold hidden xs:inline">للتوزيع</span>
                 </h1>
                 <span className="hidden md:inline-block px-2 py-0.5 text-[10px] font-extrabold bg-amber-400/20 text-amber-300 rounded-md border border-amber-400/30">
                   DREAM TANTAWY
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 hidden sm:block">
-                المنظومة الشاملة للمبيعات والمخزون • دعم روابط Google Sheets & Drive وتوفير الباقة
+              <p className="text-[10px] sm:text-[11px] text-slate-300 hidden sm:block">
+                المنظومة الذكية للمبيعات والمخزون والفواتير
               </p>
             </div>
           </div>
 
           {/* Status Indicators, User Info, & Actions */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap">
+          <div className="flex items-center gap-1.5 sm:gap-2.5">
             
-            {/* PWA Install Button (Mobile & Desktop) */}
+            {/* PWA Install Button (Compact & Large Touch Target) */}
             <button
               type="button"
               onClick={() => setIsInstallModalOpen(true)}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:from-amber-500/30 hover:to-yellow-500/30 text-amber-300 border border-amber-400/40 px-2.5 py-1 rounded-xl text-xs font-black transition shadow-sm cursor-pointer"
+              className="flex items-center justify-center gap-1 bg-amber-500/20 hover:bg-amber-500/30 active:bg-amber-500/40 text-amber-300 border border-amber-400/50 px-2.5 h-9 sm:h-10 rounded-xl text-xs font-black transition cursor-pointer"
               title="تثبيت التطبيق على الموبايل أو الكمبيوتر"
             >
-              <Smartphone className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden xs:inline">تثبيت التطبيق</span>
-              <span className="xs:hidden">تثبيت</span>
+              <Smartphone className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="hidden sm:inline">تثبيت</span>
             </button>
 
             {/* Data Saver Mode Toggle Button */}
             <button
               type="button"
               onClick={toggleDataSaverMode}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold border transition cursor-pointer ${
+              className={`flex items-center justify-center gap-1 px-2.5 h-9 sm:h-10 rounded-xl text-xs font-black border transition cursor-pointer ${
                 dataSaverMode
-                  ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50 shadow-sm shadow-emerald-500/20'
-                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
+                  ? 'bg-emerald-900/90 text-emerald-200 border-emerald-400 shadow-sm'
+                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
               }`}
-              title={dataSaverMode ? 'وضع توفير الباقة مفعل (تحميل صور خفيفة وسريعة)' : 'تفعيل وضع توفير الباقة للمناديب'}
+              title={dataSaverMode ? 'وضع توفير الباقة مفعل' : 'تفعيل وضع توفير الباقة'}
             >
               {dataSaverMode ? (
                 <>
-                  <Zap className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="hidden sm:inline">توفير الباقة:</span>
-                  <span className="text-emerald-300 font-black">مفعّل ⚡</span>
+                  <Zap className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="hidden sm:inline">باقة:</span>
+                  <span className="text-emerald-300 font-black">مفعّل</span>
                 </>
               ) : (
                 <>
-                  <ZapOff className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="hidden sm:inline">توفير الباقة: معطل</span>
-                  <span className="sm:hidden">الباقة</span>
+                  <ZapOff className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span className="hidden sm:inline">توفير الباقة</span>
+                  <span className="sm:hidden text-[11px]">باقة</span>
                 </>
               )}
             </button>
 
-            {/* Offline / Online Status Badge */}
-            <div className={`hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium border ${
-              isOffline ? 'bg-amber-950/80 text-amber-300 border-amber-700' : 'bg-emerald-950/80 text-emerald-300 border-emerald-700'
+            {/* Offline / Online Status Badge (Visible everywhere with high contrast) */}
+            <div className={`flex items-center gap-1 px-2 h-9 sm:h-10 rounded-xl text-xs font-bold border ${
+              isOffline ? 'bg-amber-900 text-amber-200 border-amber-500' : 'bg-emerald-950/80 text-emerald-300 border-emerald-700'
             }`}>
               {isOffline ? (
                 <>
                   <WifiOff className="w-3.5 h-3.5 animate-pulse text-amber-400" />
-                  <span>أوفلاين</span>
+                  <span className="text-[11px] font-black">أوفلاين</span>
                 </>
               ) : (
                 <>
                   <Wifi className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="hidden lg:inline">متصل</span>
+                  <span className="hidden md:inline">متصل</span>
                 </>
               )}
             </div>
 
-            {/* Pending Users Notification for Admin */}
+            {/* Pending Users Notification for Admin (Hidden for reps) */}
             {currentUser.role === 'admin' && pendingApprovalsCount > 0 && (
               <button
                 onClick={() => setActiveTab('users')}
-                className="flex items-center gap-1 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 px-2 py-1 rounded-lg text-xs font-bold transition animate-pulse"
+                className="flex items-center justify-center gap-1 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 px-2.5 h-9 sm:h-10 rounded-xl text-xs font-bold transition animate-pulse"
                 title="يوجد طلبات انضمام جديدة بانتظار التفعيل"
               >
                 <Bell className="w-3.5 h-3.5 text-rose-400" />
@@ -192,14 +193,14 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
               </button>
             )}
 
-            {/* Branch Filter for Admin OR Branch Indicator for Rep */}
-            {currentUser.role === 'admin' ? (
-              <div className="relative hidden sm:block">
+            {/* Branch Filter for Admin (Desktop only) */}
+            {currentUser.role === 'admin' && (
+              <div className="relative hidden lg:block">
                 <select
                   aria-label="تصفية الفرع"
                   value={selectedBranchFilter}
                   onChange={(e) => setSelectedBranchFilter(e.target.value)}
-                  className="bg-slate-800 text-slate-200 text-xs rounded-lg px-2 py-1.5 border border-slate-700 focus:outline-none focus:border-amber-400 font-medium"
+                  className="bg-slate-800 text-slate-200 text-xs rounded-xl px-2.5 h-10 border border-slate-700 focus:outline-none focus:border-amber-400 font-bold"
                 >
                   <option value="الكل">🏢 كل الفروع</option>
                   {branches.map((b) => (
@@ -209,25 +210,20 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                   ))}
                 </select>
               </div>
-            ) : (
-              <div className="hidden md:flex items-center gap-1.5 bg-slate-800/90 border border-slate-750 px-2 py-1 rounded-lg text-xs text-slate-300">
-                <Building className="w-3.5 h-3.5 text-amber-400" />
-                <span className="font-semibold text-amber-300">{currentUser.branchName}</span>
-              </div>
             )}
 
             {/* User Profile Menu with Logout */}
             <div className="relative">
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-750 px-2.5 py-1.5 rounded-lg border border-slate-700 transition"
+                className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 active:bg-slate-700 px-2.5 h-9 sm:h-10 rounded-xl border border-slate-700 transition cursor-pointer"
               >
                 <img
                   src={currentUser.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&auto=format&fit=crop&q=80'}
                   alt={currentUser.name}
                   className="w-6 h-6 rounded-full object-cover border border-amber-400"
                 />
-                <div className="text-right hidden sm:block">
+                <div className="text-right hidden md:block">
                   <div className="text-xs font-bold text-slate-100 flex items-center gap-1">
                     {currentUser.name}
                   </div>
@@ -235,7 +231,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                     {roleNames[currentUser.role]?.label || currentUser.role}
                   </div>
                 </div>
-                <span className="text-xs text-slate-400 mr-1">▼</span>
+                <span className="text-xs text-slate-400 mr-0.5">▼</span>
               </button>
 
               {/* Profile Popup Menu */}
@@ -286,25 +282,12 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                       type="button"
                       onClick={() => {
                         setShowProfileMenu(false);
-                        setIsInstallModalOpen(true);
+                        setActiveTab('guide');
                       }}
-                      className="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold py-1.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[40px]"
                     >
-                      <Smartphone className="w-3.5 h-3.5" />
-                      <span>📱 تثبيت تطبيق دريم طنطاوي</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm('هل تريد تنظيف الذاكرة المؤقتة لتسريع أداء المتصفح والتطبيق؟')) {
-                          localStorage.removeItem('dream_dist_acc_logs_v5');
-                          window.location.reload();
-                        }
-                      }}
-                      className="w-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold py-1.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <span>⚡ تسريع التطبيق وتنظيف الذاكرة</span>
+                      <BookOpen className="w-4 h-4" />
+                      <span>📖 دليل دورة العمل والتشغيل</span>
                     </button>
 
                     <button
@@ -312,7 +295,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                         setShowProfileMenu(false);
                         logout();
                       }}
-                      className="w-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold py-1.5 rounded-xl text-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-2 cursor-pointer min-h-[40px]"
                     >
                       <LogOut className="w-4 h-4" />
                       <span>تسجيل الخروج الآمن</span>
@@ -322,11 +305,11 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
               )}
             </div>
 
-            {/* Floating Cart Button */}
+            {/* Top Bar Cart Button */}
             <button
               id="open-cart-btn"
               onClick={onOpenCart}
-              className="relative flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black px-2.5 sm:px-4 py-1.5 rounded-xl shadow-md transition transform active:scale-95 cursor-pointer"
+              className="relative flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black px-3 h-9 sm:h-10 rounded-xl shadow-md transition transform active:scale-95 cursor-pointer min-w-[40px]"
             >
               <ShoppingCart className="w-4 h-4" />
               <span className="hidden xs:inline text-xs">الطلبية</span>
@@ -378,73 +361,66 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
         </div>
       </header>
 
-      {/* Mobile Bottom Navigation Bar (Smartphones & Small Screens) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur border-t border-slate-800/90 flex items-center justify-around py-1.5 px-1 shadow-2xl safe-area-inset-bottom">
+      {/* Mobile Bottom Navigation Bar (Smartphones & Small Screens - High Contrast & Large Touch Targets) */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/98 backdrop-blur border-t border-slate-800 flex items-center justify-around py-1.5 px-2 shadow-2xl safe-area-inset-bottom">
         <button
           onClick={() => setActiveTab('catalog')}
-          className={`flex flex-col items-center justify-center p-1 rounded-xl transition cursor-pointer ${
-            activeTab === 'catalog' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+          className={`flex flex-col items-center justify-center min-w-[52px] min-h-[52px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
+            activeTab === 'catalog' ? 'text-amber-400 font-black' : 'text-slate-300 hover:text-white font-bold'
           }`}
         >
-          <Boxes className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">الكتالوج</span>
+          <Boxes className={`w-5 h-5 ${activeTab === 'catalog' ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
+          <span className="text-[11px] mt-0.5 font-bold">الكتالوج</span>
         </button>
 
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`relative flex flex-col items-center justify-center p-1 rounded-xl transition cursor-pointer ${
-            activeTab === 'dashboard' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+          className={`relative flex flex-col items-center justify-center min-w-[52px] min-h-[52px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
+            activeTab === 'dashboard' ? 'text-amber-400 font-black' : 'text-slate-300 hover:text-white font-bold'
           }`}
         >
-          <LayoutDashboard className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">المتابعة 📊</span>
+          <LayoutDashboard className={`w-5 h-5 ${activeTab === 'dashboard' ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
+          <span className="text-[11px] mt-0.5 font-bold">المتابعة</span>
         </button>
 
-        <button
-          onClick={() => setActiveTab('invoices')}
-          className={`relative flex flex-col items-center justify-center p-1 rounded-xl transition cursor-pointer ${
-            activeTab === 'invoices' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Receipt className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">الفواتير</span>
-          {pendingOrdersCount > 0 && (
-            <span className="absolute top-0 right-1 w-2 h-2 bg-amber-400 rounded-full"></span>
-          )}
-        </button>
-
-        {/* Center Cart Trigger */}
+        {/* Center Cart Trigger (High Prominence & Large Touch Area) */}
         <button
           onClick={onOpenCart}
-          className="relative -top-3 bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 text-slate-950 p-3 rounded-2xl shadow-xl shadow-amber-500/30 flex items-center justify-center transform active:scale-90 transition border-2 border-slate-900 cursor-pointer"
+          className="relative -top-3.5 bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 text-slate-950 w-13 h-13 rounded-2xl shadow-xl shadow-amber-500/40 flex items-center justify-center transform active:scale-90 transition border-2 border-slate-950 cursor-pointer shrink-0"
+          aria-label="فتح سلة الطلبية"
         >
-          <ShoppingCart className="w-5 h-5" />
+          <ShoppingCart className="w-6 h-6 stroke-[2.5]" />
           {cartSummary.itemCount > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-black min-w-[18px] text-center border border-white">
+            <span className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white text-[11px] px-1.5 py-0.5 rounded-full font-black min-w-[20px] text-center border-2 border-white shadow-sm">
               {cartSummary.itemCount}
             </span>
           )}
         </button>
 
         <button
-          onClick={() => setActiveTab('inventory')}
-          className={`relative flex flex-col items-center justify-center p-1 rounded-xl transition cursor-pointer ${
-            activeTab === 'inventory' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+          onClick={() => setActiveTab('invoices')}
+          className={`relative flex flex-col items-center justify-center min-w-[52px] min-h-[52px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
+            activeTab === 'invoices' ? 'text-amber-400 font-black' : 'text-slate-300 hover:text-white font-bold'
           }`}
         >
-          <Layers className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">المخزون</span>
+          <Receipt className={`w-5 h-5 ${activeTab === 'invoices' ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
+          <span className="text-[11px] mt-0.5 font-bold">الفواتير</span>
           {pendingOrdersCount > 0 && (
-            <span className="absolute top-0 right-1 w-2 h-2 bg-rose-500 rounded-full animate-ping"></span>
+            <span className="absolute top-1 right-2 w-2.5 h-2.5 bg-amber-400 rounded-full border border-slate-950"></span>
           )}
         </button>
 
         <button
-          onClick={() => setIsInstallModalOpen(true)}
-          className="flex flex-col items-center justify-center p-1 rounded-xl text-amber-400 hover:text-amber-300 transition cursor-pointer"
+          onClick={() => setActiveTab('inventory')}
+          className={`relative flex flex-col items-center justify-center min-w-[52px] min-h-[52px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
+            activeTab === 'inventory' ? 'text-amber-400 font-black' : 'text-slate-300 hover:text-white font-bold'
+          }`}
         >
-          <Smartphone className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">تثبيت 📱</span>
+          <Layers className={`w-5 h-5 ${activeTab === 'inventory' ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
+          <span className="text-[11px] mt-0.5 font-bold">المخزون</span>
+          {pendingOrdersCount > 0 && (
+            <span className="absolute top-1 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full animate-ping"></span>
+          )}
         </button>
       </div>
 

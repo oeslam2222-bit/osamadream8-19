@@ -5,6 +5,10 @@ import {
   Boxes,
   Building,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Clock,
   Eye,
   FileSpreadsheet,
@@ -28,7 +32,7 @@ import {
   X,
   XCircle
 } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { exportElectronicInvoiceToExcel } from '../services/excelService';
 import { formatCurrency, shareInvoiceViaWhatsApp } from '../services/invoiceService';
@@ -61,6 +65,10 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRepFilter, setSelectedRepFilter] = useState('الكل');
   const [successToast, setSuccessToast] = useState<string | null>(null);
+
+  // Pagination state for responsive performance
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(15);
 
   // Return Modal State
   const [returnModalInvoice, setReturnModalInvoice] = useState<Invoice | null>(null);
@@ -191,6 +199,22 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
       return true;
     });
   }, [invoices, currentUser, users, selectedBranchFilter, activeStatusTab, selectedRepFilter, searchTerm]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedBranchFilter, activeStatusTab, selectedRepFilter, searchTerm]);
+
+  const totalPages = useMemo(() => {
+    if (itemsPerPage === 'all') return 1;
+    return Math.max(1, Math.ceil(accessibleInvoices.length / itemsPerPage));
+  }, [accessibleInvoices.length, itemsPerPage]);
+
+  const displayedInvoices = useMemo(() => {
+    if (itemsPerPage === 'all') return accessibleInvoices;
+    const start = (currentPage - 1) * itemsPerPage;
+    return accessibleInvoices.slice(start, start + itemsPerPage);
+  }, [accessibleInvoices, currentPage, itemsPerPage]);
 
   // High-Level Dashboard Metrics
   const metrics = useMemo(() => {
@@ -845,7 +869,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {accessibleInvoices.map((inv) => {
+                {displayedInvoices.map((inv) => {
                   const badge = statusBadges[inv.status] || {
                     bg: 'bg-slate-100 border-slate-300',
                     text: 'text-slate-800',
@@ -1029,6 +1053,71 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             </table>
           )}
         </div>
+
+        {/* Pagination Bar */}
+        {accessibleInvoices.length > 0 && (
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="font-bold text-slate-700">
+                عرض {itemsPerPage === 'all' ? `كافة الطلبيات (${accessibleInvoices.length})` : `${Math.min(accessibleInvoices.length, (currentPage - 1) * itemsPerPage + 1)} - ${Math.min(accessibleInvoices.length, currentPage * itemsPerPage)} من أصل ${accessibleInvoices.length}`}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500">في الصفحة:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    const val = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                    setItemsPerPage(val);
+                  }}
+                  className="bg-white border border-slate-300 rounded-xl px-2.5 py-1 font-bold text-slate-800 focus:outline-none cursor-pointer"
+                >
+                  <option value={15}>15 طلبية</option>
+                  <option value={30}>30 طلبية</option>
+                  <option value={50}>50 طلبية</option>
+                  <option value="all">عرض الكل ({accessibleInvoices.length})</option>
+                </select>
+              </div>
+            </div>
+
+            {itemsPerPage !== 'all' && totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(1)}
+                  className="p-1.5 bg-white border border-slate-200 rounded-xl text-slate-700 disabled:opacity-40 hover:bg-slate-100 transition cursor-pointer"
+                  title="الصفحة الأولى"
+                >
+                  <ChevronsRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="px-2.5 py-1 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 disabled:opacity-40 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  السابق
+                </button>
+                <span className="px-2 font-black text-slate-900">
+                  {currentPage} / {totalPages}
+                </span>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="px-2.5 py-1 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 disabled:opacity-40 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  التالي
+                </button>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(totalPages)}
+                  className="p-1.5 bg-white border border-slate-200 rounded-xl text-slate-700 disabled:opacity-40 hover:bg-slate-100 transition cursor-pointer"
+                  title="الصفحة الأخيرة"
+                >
+                  <ChevronsLeft className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
 
