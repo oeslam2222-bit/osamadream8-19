@@ -72,10 +72,11 @@ interface AppContextType {
   updateCartItem: (productId: string, updates: Partial<CartItem>) => void;
   removeFromCart: (productId: string) => void;
   clearCart: () => void;
-  getCartSummary: () => {
+  getCartSummary: (customDiscountPercent?: number) => {
     totalCartons: number;
     totalPieces: number;
     subtotal: number;
+    discountPercentage: number;
     discountAmount: number;
     taxAmount: number;
     grandTotal: number;
@@ -778,7 +779,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const clearCart = () => setCart([]);
 
-  const getCartSummary = () => {
+  const getCartSummary = (customDiscountPercent?: number) => {
     let totalCartons = 0;
     let subtotal = 0;
 
@@ -787,15 +788,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       subtotal += item.totalPrice;
     });
 
-    const discountPercentage = 3.5;
+    const discountPercentage = typeof customDiscountPercent === 'number' ? Math.max(0, customDiscountPercent) : 0;
     const discountAmount = subtotal * (discountPercentage / 100);
-    const grandTotal = subtotal - discountAmount;
+    const grandTotal = Math.max(0, subtotal - discountAmount);
     const taxAmount = 0;
 
     return {
       totalCartons,
       totalPieces: totalCartons,
       subtotal,
+      discountPercentage,
       discountAmount,
       taxAmount,
       grandTotal,
@@ -1009,12 +1011,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       shortageCartItems = cart.filter((c) => c.fulfillFromMainWarehouse);
     }
 
+    const orderDiscountPercent = typeof orderData.discountPercentage === 'number' ? Math.max(0, orderData.discountPercentage) : 0;
+
     const buildInvoiceItems = (items: typeof cart) => {
       return items.map((item) => {
         const cartonQty = item.product.cartonQuantity || 1;
         const appliedCartonPrice = item.product.promoPrice && item.product.promoPrice > 0 ? item.product.promoPrice : item.product.cartonPrice;
         const itemSubtotal = item.cartonCount * appliedCartonPrice;
-        const itemDiscount = itemSubtotal * 0.035;
+        const itemDiscount = itemSubtotal * (orderDiscountPercent / 100);
         const itemTax = 0;
 
         return {
@@ -1044,9 +1048,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         subtotal += it.totalBeforeTax;
         totalCartons += it.cartonCount;
       });
-      const discountAmount = subtotal * 0.035;
+      const discountAmount = subtotal * (orderDiscountPercent / 100);
       const taxAmount = 0;
-      const estimatedGrandTotal = subtotal - discountAmount;
+      const estimatedGrandTotal = Math.max(0, subtotal - discountAmount);
       return { subtotal, totalCartons, totalPieces: totalCartons, discountAmount, taxAmount, estimatedGrandTotal };
     };
 
@@ -1070,7 +1074,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalCartons: primaryTotals.totalCartons,
       totalPieces: primaryTotals.totalPieces,
       subtotal: primaryTotals.subtotal,
-      discountPercentage: 3.5,
+      discountPercentage: orderDiscountPercent,
       discountAmount: primaryTotals.discountAmount,
       taxPercentage: 0,
       taxAmount: 0,
@@ -1108,7 +1112,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         totalCartons: shortageTotals.totalCartons,
         totalPieces: shortageTotals.totalPieces,
         subtotal: shortageTotals.subtotal,
-        discountPercentage: 3.5,
+        discountPercentage: orderDiscountPercent,
         discountAmount: shortageTotals.discountAmount,
         taxPercentage: 0,
         taxAmount: 0,

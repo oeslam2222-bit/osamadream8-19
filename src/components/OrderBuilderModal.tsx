@@ -48,6 +48,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [customerTaxNumber, setCustomerTaxNumber] = useState('');
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('نقدي (كاش)');
   const [orderNotes, setOrderNotes] = useState('');
   const [splitShortagesToBackorder, setSplitShortagesToBackorder] = useState(true);
@@ -56,7 +57,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
   if (!isOpen) return null;
 
-  const summary = getCartSummary();
+  const summary = getCartSummary(discountPercent);
   const todayDate = new Date().toISOString().slice(0, 10);
   const hasWarehouseItems = cart.some((c) => c.fulfillFromMainWarehouse);
 
@@ -96,6 +97,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         customerAddress: customerAddress.trim(),
         customerTaxNumber: customerTaxNumber.trim(),
         paymentMethod: paymentMethod,
+        discountPercentage: discountPercent,
         notes: orderNotes.trim(),
         splitShortagesToBackorder: splitShortagesToBackorder,
       });
@@ -342,7 +344,18 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                             <div className="text-[11px] text-slate-600 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
                               <span>شدة الكرتونة: <strong className="text-slate-900 font-bold">{p.cartonQuantity} ق</strong></span>
                               <span>•</span>
-                              <span>سعر الكرتونة: <strong className="text-amber-900 font-black">{formatCurrency(p.cartonPrice)}</strong></span>
+                              <span>
+                                سعر الكرتونة: 
+                                {p.promoPrice && p.promoPrice > 0 ? (
+                                  <>
+                                    <span className="line-through text-slate-400 mr-1 text-[10px]">{formatCurrency(p.cartonPrice)}</span>
+                                    <strong className="text-rose-600 font-black mr-1">{formatCurrency(p.promoPrice)}</strong>
+                                    <span className="bg-rose-100 text-rose-800 text-[10px] font-black px-1.5 py-0.2 rounded-md">عرض خاص</span>
+                                  </>
+                                ) : (
+                                  <strong className="text-amber-900 font-black mr-1">{formatCurrency(p.cartonPrice)}</strong>
+                                )}
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -447,32 +460,89 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
             )}
           </div>
 
-          {/* Payment Method & Notes */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-slate-50/70 p-4 rounded-2xl border border-slate-200">
-            <div>
-              <label className="block text-slate-800 font-bold mb-1">طريقة سداد الفاتورة</label>
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                className="w-full p-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-black text-slate-900 shadow-xs"
-              >
-                <option value="نقدي (كاش)">نقدي (كاش عند الاستلام)</option>
-                <option value="آجل (30 يوم)">آجل تجاري (30 يوم)</option>
-                <option value="آجل (60 يوم)">آجل تجاري (60 يوم)</option>
-                <option value="تحويل بنكي">تحويل بنكي / إلكتروني</option>
-                <option value="شيك">شيك بنكي معتمد</option>
-              </select>
-            </div>
+          {/* Payment Method & Commercial Discount & Notes */}
+          <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200 space-y-3 text-xs">
+            <h3 className="text-xs font-black text-slate-900 flex items-center justify-between border-b border-slate-200 pb-2">
+              <span className="flex items-center gap-1.5">
+                <span>3. شروط السداد والخصم التجاري</span>
+              </span>
+              <span className="text-[10px] text-slate-500 font-bold">يمكنك تحديد أو إلغاء الخصم (0%) بحرية</span>
+            </h3>
 
-            <div>
-              <label className="block text-slate-800 font-bold mb-1">ملاحظات التحميل والتسليم</label>
-              <input
-                type="text"
-                value={orderNotes}
-                onChange={(e) => setOrderNotes(e.target.value)}
-                placeholder="مثال: تسليم صباحاً، إرفاق إشعار الخصم، اتصال مسبق..."
-                className="w-full p-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-semibold text-slate-900 shadow-xs placeholder:text-slate-400"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Payment Method */}
+              <div>
+                <label className="block text-slate-800 font-bold mb-1">طريقة سداد الفاتورة</label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-black text-slate-900 shadow-xs"
+                >
+                  <option value="نقدي (كاش)">نقدي (كاش عند الاستلام)</option>
+                  <option value="آجل (30 يوم)">آجل تجاري (30 يوم)</option>
+                  <option value="آجل (60 يوم)">آجل تجاري (60 يوم)</option>
+                  <option value="تحويل بنكي">تحويل بنكي / إلكتروني</option>
+                  <option value="شيك">شيك بنكي معتمد</option>
+                </select>
+              </div>
+
+              {/* Commercial Discount % */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-800 font-bold">الخصم التجاري الممنوح (%)</label>
+                  <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded">
+                    {discountPercent > 0 ? `-${formatCurrency(summary.discountAmount)}` : 'بدون خصم (0 ج.م)'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="relative flex-1">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.5"
+                      value={discountPercent}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        setDiscountPercent(isNaN(val) ? 0 : Math.max(0, Math.min(100, val)));
+                      }}
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-black text-slate-900 shadow-xs text-center"
+                      placeholder="0"
+                    />
+                    <span className="absolute left-2.5 top-2.5 text-slate-400 font-black text-xs">%</span>
+                  </div>
+
+                  {/* Quick Preset Buttons */}
+                  <div className="flex items-center gap-1">
+                    {[0, 2, 3.5, 5].map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => setDiscountPercent(pct)}
+                        className={`px-2 py-2 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                          discountPercent === pct
+                            ? 'bg-amber-500 text-slate-950 shadow-xs'
+                            : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
+                        }`}
+                      >
+                        {pct === 0 ? '0% (إلغاء)' : `${pct}%`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-slate-800 font-bold mb-1">ملاحظات التحميل والتسليم</label>
+                <input
+                  type="text"
+                  value={orderNotes}
+                  onChange={(e) => setOrderNotes(e.target.value)}
+                  placeholder="مثال: تسليم صباحاً، إرفاق إشعار الخصم..."
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-semibold text-slate-900 shadow-xs placeholder:text-slate-400"
+                />
+              </div>
             </div>
           </div>
 
@@ -524,8 +594,12 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               </div>
 
               <div className="bg-slate-800/90 p-3 rounded-2xl border border-slate-700">
-                <span className="text-slate-400 block text-[10px] font-bold">الخصم التجاري الممنوح (3.5%)</span>
-                <strong className="text-sm font-black text-emerald-400">-{formatCurrency(summary.discountAmount)}</strong>
+                <span className="text-slate-400 block text-[10px] font-bold">
+                  الخصم التجاري الممنوح ({discountPercent}%)
+                </span>
+                <strong className={`text-sm font-black ${discountPercent > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                  {discountPercent > 0 ? `-${formatCurrency(summary.discountAmount)}` : '0 ج.م'}
+                </strong>
               </div>
             </div>
 

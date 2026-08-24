@@ -274,7 +274,16 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                     <td className="p-2.5 text-center font-black text-amber-950 bg-amber-50/50">
                       {item.cartonCount} كرتونة
                     </td>
-                    <td className="p-2.5 text-left font-bold text-slate-900">{formatCurrency(item.pricePerCarton)}</td>
+                    <td className="p-2.5 text-left font-bold text-slate-900">
+                      {item.appliedPrice && item.appliedPrice !== item.pricePerCarton ? (
+                        <div>
+                          <span className="text-rose-600 font-black block">{formatCurrency(item.appliedPrice)}</span>
+                          <span className="text-[10px] text-slate-400 line-through">{formatCurrency(item.pricePerCarton)}</span>
+                        </div>
+                      ) : (
+                        formatCurrency(item.pricePerCarton)
+                      )}
+                    </td>
                     <td className="p-2.5 text-left font-medium text-slate-700">{formatCurrency(item.totalBeforeTax)}</td>
                     <td className="p-2.5 text-left text-emerald-700 font-medium">-{formatCurrency(item.discountAmount)}</td>
                     <td className="p-2.5 text-left font-black text-slate-950">{formatCurrency(item.netTotal)}</td>
