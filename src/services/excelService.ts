@@ -236,15 +236,17 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     ) {
       colMap.promoPrice = idx;
     } else if (
-      norm.includes('سعرالكرتون') ||
-      norm.includes('سعركرتون') ||
-      norm.includes('سعرالجمل') ||
-      norm.includes('سعرجمل') ||
-      norm.includes('سعرالبيع') ||
-      norm.includes('سعرالصنف') ||
-      norm.includes('سعرالطلب') ||
+      norm.includes('سعر') ||
+      norm.includes('مبلغ') ||
+      norm.includes('قيمة') ||
+      norm.includes('قيمه') ||
+      norm.includes('تكلفة') ||
+      norm.includes('تكلفه') ||
+      norm.includes('price') ||
       norm.includes('cartonprice') ||
       norm.includes('wholesaleprice') ||
+      norm.includes('cost') ||
+      norm.includes('rate') ||
       norm === 'السعر' ||
       norm === 'سعر' ||
       norm === 'المبلغ' ||
@@ -252,27 +254,26 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       norm === 'price' ||
       norm === 'totalprice'
     ) {
+      // In wholesale distribution, any general price column is the full CARTON PRICE
       colMap.cartonPrice = idx;
     } else if (
-      norm.includes('سعرالقطع') ||
-      norm.includes('سعرقطع') ||
-      norm.includes('سعرالمفرد') ||
-      norm.includes('pieceprice') ||
-      norm.includes('unitprice')
-    ) {
-      colMap.piecePrice = idx;
-    } else if (
-      (norm.includes('شد') ||
-        norm.includes('عددالقطع') ||
+      (norm.includes('عددالقطع') ||
         norm.includes('العددبالكرتون') ||
-        norm.includes('العبو') ||
-        norm.includes('الشد') ||
-        norm.includes('pack') ||
+        norm.includes('القطعبالكرتون') ||
+        norm.includes('قطعبالكرتون') ||
+        norm.includes('شدةالكرتون') ||
+        norm.includes('شدةالكرتونه') ||
+        norm.includes('شدة') ||
+        norm.includes('شده') ||
+        norm.includes('العبوة') ||
+        norm.includes('العبوه') ||
         norm.includes('packsize') ||
         norm.includes('qtypercarton') ||
         norm.includes('piecespercarton')) &&
       !norm.includes('سعر') &&
-      !norm.includes('مبلغ')
+      !norm.includes('مبلغ') &&
+      !norm.includes('قيمة') &&
+      !norm.includes('قيمه')
     ) {
       colMap.cartonQuantity = idx;
     } else if (norm.includes('حجم') || norm.includes('وزن') || norm.includes('size')) {
@@ -359,28 +360,31 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     else if (rawStatus.includes('موقوف')) status = 'موقوف مؤقتاً';
 
     // Read raw numbers from sheet
-    const rawCartonQty = getNum(colMap.cartonQuantity, 0);
-    const cartonQuantity = rawCartonQty > 0 ? rawCartonQty : 1;
-
-    const rawCartonPrice = getNum(colMap.cartonPrice, 0);
+    let rawCartonQty = getNum(colMap.cartonQuantity, 0);
+    let rawCartonPrice = getNum(colMap.cartonPrice, 0);
     const rawPiecePrice = getNum(colMap.piecePrice, 0);
     const promoPriceRaw = getNum(colMap.promoPrice, 0);
 
-    // Exact 1-to-1 price handling without any synthetic formula or multiplication
-    let cartonPrice = 0;
-    let piecePrice = 0;
+    // Safeguard: If pack size is a huge price number (e.g. 5800) and carton price is empty,
+    // this means the sheet column contained the carton price 5800 EGP.
+    if (rawCartonQty > 200 && rawCartonPrice <= 0) {
+      rawCartonPrice = rawCartonQty;
+      rawCartonQty = 12; // default pack size (بيان استرشادي)
+    } else if (rawCartonQty > 200) {
+      rawCartonQty = 12;
+    }
 
+    const cartonQuantity = rawCartonQty > 0 ? Math.min(100, Math.floor(rawCartonQty)) : 12;
+
+    // Strict 1-to-1 Carton Price (No multiplication by pieces!)
+    let cartonPrice = 0;
     if (rawCartonPrice > 0) {
       cartonPrice = rawCartonPrice;
-      piecePrice = rawPiecePrice > 0 ? rawPiecePrice : (cartonQuantity > 0 ? cartonPrice / cartonQuantity : cartonPrice);
     } else if (rawPiecePrice > 0) {
-      piecePrice = rawPiecePrice;
-      cartonPrice = piecePrice * cartonQuantity;
-    } else {
-      // Fallback only if no prices were found in sheet
-      cartonPrice = 0;
-      piecePrice = 0;
+      cartonPrice = rawPiecePrice;
     }
+
+    const piecePrice = cartonPrice > 0 && cartonQuantity > 0 ? Math.round((cartonPrice / cartonQuantity) * 100) / 100 : cartonPrice;
 
     const dept = getVal(colMap.department) || getVal(colMap.category) || 'LHLotus';
 

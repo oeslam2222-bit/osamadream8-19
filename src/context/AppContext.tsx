@@ -252,9 +252,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return localStorage.getItem(STORAGE_KEYS.IS_AUTH) === 'true';
   });
 
+  const sanitizeProducts = (list: Product[]): Product[] => {
+    return list.map((p) => {
+      let cartonQty = p.cartonQuantity;
+      let cartonPrice = p.cartonPrice;
+
+      // Fix if 5800 was saved in cartonQuantity instead of cartonPrice
+      if (cartonQty > 100) {
+        if (!cartonPrice || cartonPrice <= 0) {
+          cartonPrice = cartonQty; // the 5800 was actually the price!
+        }
+        cartonQty = 12; // default pack size (بيان استرشادي)
+      } else if (!cartonQty || cartonQty <= 0) {
+        cartonQty = 12;
+      }
+
+      return {
+        ...p,
+        cartonQuantity: cartonQty,
+        cartonPrice: Math.max(0, cartonPrice || 0),
+        piecePrice: cartonPrice > 0 ? Math.round((cartonPrice / cartonQty) * 100) / 100 : (p.piecePrice || 0),
+      };
+    });
+  };
+
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-    return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+    try {
+      const raw = saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+      return sanitizeProducts(raw);
+    } catch {
+      return sanitizeProducts(INITIAL_PRODUCTS);
+    }
   });
 
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
@@ -807,16 +836,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // --- Product & Stock Management ---
   const addProduct = (product: Product) => {
-    setProducts((prev) => [product, ...prev]);
+    const sanitized = sanitizeProducts([product])[0];
+    setProducts((prev) => [sanitized, ...prev]);
     recordInventoryTransaction({
-      productId: product.id,
-      productCode: product.code,
-      productName: product.name,
+      productId: sanitized.id,
+      productCode: sanitized.code,
+      productName: sanitized.name,
       type: 'تعديل جردي',
-      quantityPieces: product.branchStockActual,
+      quantityPieces: sanitized.branchStockActual,
       branchStockBefore: 0,
-      branchStockAfter: product.branchStockActual,
-      branchName: product.branchName || currentUser?.branchName || 'الفرع الرئيسي',
+      branchStockAfter: sanitized.branchStockActual,
+      branchName: sanitized.branchName || currentUser?.branchName || 'الفرع الرئيسي',
       userName: currentUser?.name || 'مسؤول النظام',
       userRole: currentUser?.role || 'admin',
       notes: 'إضافة صنف جديد للكتالوج مع رصيد افتتاحي'
@@ -824,7 +854,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateProduct = (updated: Product) => {
-    setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    const sanitized = sanitizeProducts([updated])[0];
+    setProducts((prev) => prev.map((p) => (p.id === sanitized.id ? sanitized : p)));
   };
 
   const deleteProduct = (productId: string) => {
@@ -886,7 +917,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     if (mode === 'replace') {
-      setProducts(newProducts.map(protectReserved));
+      setProducts(sanitizeProducts(newProducts.map(protectReserved)));
     } else {
       setProducts((prev) => {
         const map = new Map<string, Product>();
@@ -898,7 +929,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             : p;
           map.set(p.code, protectReserved(mergedProd));
         });
-        return Array.from(map.values());
+        return sanitizeProducts(Array.from(map.values()));
       });
     }
 
