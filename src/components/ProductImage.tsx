@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Package } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getCandidateImageUrls, generateProductPlaceholderSvg } from '../services/cloudinaryService';
@@ -36,24 +36,54 @@ export const ProductImage: React.FC<ProductImageProps> = ({
   priority = false,
 }) => {
   const { dataSaverMode } = useApp();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isInView, setIsInView] = useState(priority);
 
   // Cache key per product code and direct imageUrl
   const productKey = useMemo(() => {
     return `${product.code || product.id || 'item'}_${product.imageUrl || ''}`;
   }, [product.code, product.id, product.imageUrl]);
 
-  // Determine optimal size based on variant and data saver mode
+  // Determine optimal size based on variant and data saver mode (optimized for mobile speed)
   const effectiveSize = useMemo(() => {
     if (targetSize) return targetSize;
     if (dataSaverMode) {
-      if (sizeVariant === 'thumbnail') return 120;
-      if (sizeVariant === 'card') return 200; // Lightweight ~15KB WebP
-      return 400; // for modal
+      if (sizeVariant === 'thumbnail') return 100;
+      if (sizeVariant === 'card') return 180; // Ultra lightweight ~10-15KB WebP for mobile
+      return 360; // for modal
     }
-    if (sizeVariant === 'thumbnail') return 160;
-    if (sizeVariant === 'card') return 260;
-    return 600; // modal
+    if (sizeVariant === 'thumbnail') return 140;
+    if (sizeVariant === 'card') return 220;
+    return 500; // modal
   }, [targetSize, sizeVariant, dataSaverMode]);
+
+  // IntersectionObserver for lazy rendering off-screen items
+  useEffect(() => {
+    if (priority || isInView) return;
+
+    if (!window.IntersectionObserver) {
+      setIsInView(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '250px' } // Pre-load when 250px away from viewport
+    );
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [priority, isInView]);
 
   const candidateUrls = useMemo(() => {
     if (!product.imageUrl || !product.imageUrl.trim()) {
@@ -65,7 +95,7 @@ export const ProductImage: React.FC<ProductImageProps> = ({
     let urls = getCandidateImageUrls(product, cloudinaryConfig);
     
     // Apply dynamic parameter sizing for Google Drive and Google CDN URLs
-    const transformed = urls.map(url => {
+    const transformed = urls.map((url) => {
       if (url.includes('googleusercontent.com/d/')) {
         if (url.includes('=s') || url.includes('=w')) {
           return url.replace(/=(s|w)\d+[^&]*/, `=s${effectiveSize}`);
@@ -84,7 +114,7 @@ export const ProductImage: React.FC<ProductImageProps> = ({
     });
 
     if (cachedWorkingUrl) {
-      return [cachedWorkingUrl, ...transformed.filter(u => u !== cachedWorkingUrl)];
+      return [cachedWorkingUrl, ...transformed.filter((u) => u !== cachedWorkingUrl)];
     }
 
     return transformed;
@@ -148,6 +178,7 @@ export const ProductImage: React.FC<ProductImageProps> = ({
 
     return (
       <div
+        ref={containerRef}
         className={`${containerClassName} cursor-pointer group`}
         onClick={onClick}
       >
@@ -165,6 +196,7 @@ export const ProductImage: React.FC<ProductImageProps> = ({
 
   return (
     <div
+      ref={containerRef}
       className={`relative overflow-hidden ${containerClassName} ${onClick ? 'cursor-pointer' : ''}`}
       onClick={onClick}
     >
@@ -177,20 +209,24 @@ export const ProductImage: React.FC<ProductImageProps> = ({
         </div>
       )}
 
-      <img
-        key={currentSrc}
-        src={currentSrc}
-        alt={alt || product.name || product.code || 'صنف'}
-        className={`${className} ${fitMode === 'contain' ? 'object-contain' : 'object-cover'} transition-opacity duration-200 ${
-          isLoading ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
-        }`}
-        onError={handleError}
-        onLoad={handleLoad}
-        loading={priority ? 'eager' : 'lazy'}
-        decoding="async"
-        fetchPriority={priority ? 'high' : 'auto'}
-        referrerPolicy="no-referrer"
-      />
+      {isInView ? (
+        <img
+          key={currentSrc}
+          src={currentSrc}
+          alt={alt || product.name || product.code || 'صنف'}
+          className={`${className} ${fitMode === 'contain' ? 'object-contain' : 'object-cover'} transition-opacity duration-200 ${
+            isLoading ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
+          }`}
+          onError={handleError}
+          onLoad={handleLoad}
+          loading={priority ? 'eager' : 'lazy'}
+          decoding="async"
+          fetchPriority={priority ? 'high' : 'auto'}
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <div className="w-full h-full bg-slate-50" />
+      )}
     </div>
   );
 };

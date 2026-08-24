@@ -678,6 +678,44 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
           </div>
         </div>
 
+        {/* Mobile Horizontal Quick-Swipe Category Chips (Amazon/Noon App Style) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar pt-1 border-t border-slate-800/80 -mx-1 px-1">
+          <button
+            onClick={() => setSelectedOfficialDept('الكل')}
+            className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition cursor-pointer flex items-center gap-1 ${
+              selectedOfficialDept === 'الكل'
+                ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
+                : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'
+            }`}
+          >
+            <span>🏢 الكل</span>
+            <span className="text-[10px] opacity-80">({products.length})</span>
+          </button>
+
+          {OFFICIAL_DEPARTMENTS.map((dept) => {
+            const count = deptCounts[dept] || 0;
+            const isSelected = selectedOfficialDept === dept;
+            return (
+              <button
+                key={dept}
+                onClick={() => setSelectedOfficialDept(dept)}
+                className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition cursor-pointer flex items-center gap-1 ${
+                  isSelected
+                    ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'
+                }`}
+              >
+                <span>{dept}</span>
+                {count > 0 && (
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-slate-950 text-amber-300' : 'bg-slate-700 text-slate-300'}`}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Active Filter Reset Pill if filtered */}
         {(searchTerm || selectedOfficialDept !== 'الكل' || selectedPriority !== 'الكل' || selectedStatus !== 'الكل' || stockAvailabilityFilter !== 'all' || priceSort !== 'default') && (
           <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-xs">
@@ -786,9 +824,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
         </div>
       )}
 
-      {/* Product Display (Amazon / Souq Style Grid View) */}
+      {/* Product Display (Amazon / Souq Style Grid View - 2 columns on mobile for fast, easy shopping) */}
       {viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4">
           {displayedProducts.map((product, idx) => {
             const isPromo = product.promoPrice && product.promoPrice > 0;
             const priorityConfig = priorityBadges[product.salesPriority];
@@ -796,183 +834,156 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
             const hasMainWhStock = product.mainWarehouseActual > 0;
             const totalCartonsAvailable = Math.max(0, product.branchStockReserved) + Math.max(0, product.mainWarehouseReserved);
             const orderState = getCardState(product.id);
-            const cartonSavings = Math.max(0, (product.piecePrice * product.cartonQuantity) - product.cartonPrice);
 
             return (
               <div
                 key={product.id}
-                className="bg-white rounded-3xl overflow-hidden border border-slate-200 hover:border-amber-400/90 shadow-sm hover:shadow-xl transition-all duration-200 flex flex-col justify-between group relative"
+                className="bg-white rounded-2xl sm:rounded-3xl overflow-hidden border border-slate-200 hover:border-amber-400/90 shadow-2xs hover:shadow-xl transition-all duration-200 flex flex-col justify-between group relative"
               >
                 {/* Top Image & Floating Badges */}
                 <div
-                  className="relative h-48 bg-gradient-to-br from-slate-50 via-slate-100/80 to-amber-50/20 overflow-hidden cursor-pointer flex items-center justify-center border-b border-slate-100"
+                  className="relative h-36 sm:h-48 bg-gradient-to-br from-slate-50 via-slate-100/80 to-amber-50/20 overflow-hidden cursor-pointer flex items-center justify-center border-b border-slate-100"
                   onClick={() => setSelectedProductForModal(product)}
                 >
-                  {/* Google Drive / Cloudinary Compressed Image with parameter s=200 */}
+                  {/* Google Drive / Cloudinary Compressed Image with dynamic thumbnail size */}
                   <ProductImage
                     product={product}
                     cloudinaryConfig={cloudinaryConfig}
-                    targetSize={200}
+                    targetSize={220}
                     sizeVariant="card"
-                    priority={idx < 6}
+                    priority={idx < 4}
                     containerClassName="w-full h-full"
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                   />
 
-                  {/* Amazon Best Seller / Priority Badge */}
-                  <div className="absolute top-2.5 right-2.5 bg-slate-950/90 text-amber-300 text-xs font-black px-2.5 py-1 rounded-xl backdrop-blur-xs shadow-md flex items-center gap-1">
+                  {/* Product Code Badge */}
+                  <div className="absolute top-1.5 right-1.5 sm:top-2.5 sm:right-2.5 bg-slate-950/90 text-amber-300 text-[10px] sm:text-xs font-black px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl backdrop-blur-xs shadow-xs flex items-center gap-1">
                     <span>{product.code}</span>
                   </div>
 
                   {/* Promo Badge */}
                   {isPromo ? (
-                    <div className="absolute top-2.5 left-2.5 bg-rose-600 text-white text-[11px] font-black px-2.5 py-0.5 rounded-lg shadow-md flex items-center gap-1">
-                      <Flame className="w-3.5 h-3.5" />
-                      <span>خصم خاص</span>
+                    <div className="absolute top-1.5 left-1.5 sm:top-2.5 sm:left-2.5 bg-rose-600 text-white text-[9px] sm:text-[11px] font-black px-1.5 py-0.2 sm:px-2.5 sm:py-0.5 rounded-md sm:rounded-lg shadow-xs flex items-center gap-0.5">
+                      <Flame className="w-3 h-3" />
+                      <span>خصم</span>
                     </div>
                   ) : product.salesPriority === 'مرتفع' ? (
-                    <div className="absolute top-2.5 left-2.5 bg-amber-500 text-slate-950 text-[11px] font-black px-2 py-0.5 rounded-lg shadow-md flex items-center gap-1">
-                      <Star className="w-3 h-3 fill-slate-950" />
-                      <span>الأكثر طلباً</span>
+                    <div className="absolute top-1.5 left-1.5 sm:top-2.5 sm:left-2.5 bg-amber-500 text-slate-950 text-[9px] sm:text-[11px] font-black px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-md sm:rounded-lg shadow-xs flex items-center gap-0.5">
+                      <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-slate-950" />
+                      <span className="hidden sm:inline">الأكثر طلباً</span>
+                      <span className="sm:hidden">مطلوب</span>
                     </div>
                   ) : null}
 
-                  {/* Quick Detail Preview Button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedProductForModal(product);
-                    }}
-                    className="absolute bottom-2.5 left-2.5 bg-white/95 hover:bg-white text-slate-900 px-2.5 py-1 rounded-xl shadow-md text-xs font-bold flex items-center gap-1 transition"
-                  >
-                    <Eye className="w-3.5 h-3.5 text-amber-600" />
-                    <span>معاينة</span>
-                  </button>
-
                   {/* Pack Size Pill */}
-                  <div className="absolute bottom-2.5 right-2.5 bg-slate-950/85 text-slate-200 text-[11px] font-bold px-2 py-0.5 rounded-lg backdrop-blur-xs">
-                    شدة الكرتونة: <strong className="text-amber-300">{product.cartonQuantity} ق</strong>
+                  <div className="absolute bottom-1.5 right-1.5 sm:bottom-2.5 sm:right-2.5 bg-slate-950/85 text-slate-200 text-[9px] sm:text-[11px] font-bold px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-md sm:rounded-lg backdrop-blur-xs">
+                    شدة: <strong className="text-amber-300">{product.cartonQuantity} ق</strong>
                   </div>
                 </div>
 
-                {/* Body Details (Amazon / Souq Product Information) */}
-                <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                {/* Body Details */}
+                <div className="p-2.5 sm:p-4 flex-1 flex flex-col justify-between space-y-2 sm:space-y-3">
                   
-                  {/* Category, Rating & Title */}
+                  {/* Category & Title */}
                   <div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1 font-medium">
-                      <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md font-bold">
-                        {product.department || product.category || 'دريم للتوزيع'}
+                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-slate-400 mb-0.5 sm:mb-1 font-medium">
+                      <span className="text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded font-bold truncate max-w-[110px] sm:max-w-none">
+                        {product.department || product.category || 'دريم'}
                       </span>
-                      <div className="flex items-center gap-1 text-amber-500 font-bold">
-                        <Star className="w-3 h-3 fill-amber-400" />
-                        <span>4.9</span>
-                      </div>
                     </div>
 
                     <h3
                       onClick={() => setSelectedProductForModal(product)}
-                      className="font-black text-slate-900 text-sm leading-snug line-clamp-2 hover:text-amber-600 cursor-pointer transition"
+                      className="font-black text-slate-900 text-xs sm:text-sm leading-snug line-clamp-2 hover:text-amber-600 cursor-pointer transition min-h-[32px] sm:min-h-[40px]"
                       title={product.name}
                     >
                       {product.name}
                     </h3>
                   </div>
 
-                  {/* Stock Availability Health Bar */}
-                  <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 space-y-1.5 text-xs">
+                  {/* Stock Availability Health */}
+                  <div className="bg-slate-50 p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl border border-slate-100 space-y-1 text-[10px] sm:text-xs">
                     {/* Low Stock / Out of Stock Visual Warning */}
                     {totalCartonsAvailable <= 0 ? (
-                      <div className="bg-rose-600 text-white text-[10px] font-black px-2.5 py-1 rounded-xl flex items-center justify-center gap-1 shadow-xs">
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                        <span>نفد المخزون بالكامل (0 كرتونة متبقية) 🚫</span>
+                      <div className="bg-rose-600 text-white text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-lg flex items-center justify-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        <span>نفد المخزون 🚫</span>
                       </div>
                     ) : product.branchStockReserved <= 0 && product.mainWarehouseReserved > 0 ? (
-                      <div className="bg-blue-100 text-blue-900 border border-blue-300 text-[10px] font-black px-2 py-1 rounded-xl flex items-center justify-center gap-1">
-                        <Warehouse className="w-3.5 h-3.5 text-blue-700" />
-                        <span>متوفر بالمخزن المركزي فقط ({product.mainWarehouseReserved} كرتونة) 🏢</span>
+                      <div className="bg-blue-100 text-blue-900 border border-blue-200 text-[9px] sm:text-[10px] font-black px-1 py-0.5 rounded-lg flex items-center justify-center gap-1">
+                        <span>بمخزن أكتوبر ({product.mainWarehouseReserved} ك) 🏢</span>
                       </div>
                     ) : product.branchStockReserved <= 5 ? (
-                      <div className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black px-2 py-1 rounded-xl flex items-center justify-center gap-1">
-                        <AlertTriangle className="w-3 h-3 text-amber-700" />
-                        <span>تنبيه: متبقي {product.branchStockReserved} كرتونة فقط بالفرع</span>
+                      <div className="bg-amber-100 text-amber-900 border border-amber-300 text-[9px] sm:text-[10px] font-black px-1 py-0.5 rounded-lg flex items-center justify-center gap-1">
+                        <span>متبقي {product.branchStockReserved} كرتونة فقط</span>
                       </div>
                     ) : null}
 
-                    {/* Branch Stock in Cartons */}
+                    {/* Branch Stock */}
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1 text-slate-700 font-bold">
-                        <Package className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>رصيد الفرع:</span>
-                      </div>
+                      <span className="text-slate-600 font-bold">الفرع:</span>
                       <div className="text-left">
                         {hasBranchStock ? (
                           <span className="text-emerald-800 font-black">
-                            {product.branchStockActual} كرتونة
+                            {product.branchStockActual} ك
                           </span>
                         ) : (
-                          <span className="text-rose-600 font-bold">نفذ بالفرع</span>
+                          <span className="text-rose-600 font-bold">0</span>
                         )}
-                        <span className="text-[10px] text-slate-500 mr-1 font-bold">
-                          (المتاح: {Math.max(0, product.branchStockReserved)} كرتونة)
+                        <span className="text-[9px] sm:text-[10px] text-slate-400 mr-0.5">
+                          ({Math.max(0, product.branchStockReserved)})
                         </span>
                       </div>
                     </div>
 
-                    {/* October Central Warehouse Stock in Cartons */}
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-200/70">
-                      <div className="flex items-center gap-1 text-slate-700 font-bold">
-                        <Warehouse className="w-3.5 h-3.5 text-amber-600" />
-                        <span>مخزن أكتوبر المركزي:</span>
-                      </div>
+                    {/* October Stock */}
+                    <div className="flex items-center justify-between pt-0.5 border-t border-slate-200/60">
+                      <span className="text-slate-600 font-bold">أكتوبر:</span>
                       <div className="text-left">
                         {hasMainWhStock ? (
                           <span className="text-amber-900 font-black">
-                            {product.mainWarehouseActual} كرتونة
+                            {product.mainWarehouseActual} ك
                           </span>
                         ) : (
-                          <span className="text-slate-400 font-medium">غير متوفر</span>
+                          <span className="text-slate-400 font-medium">-</span>
                         )}
-                        <span className="text-[10px] text-slate-500 mr-1 font-bold">
-                          (المتاح: {Math.max(0, product.mainWarehouseReserved)} كرتونة)
+                        <span className="text-[9px] sm:text-[10px] text-slate-400 mr-0.5">
+                          ({Math.max(0, product.mainWarehouseReserved)})
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Pricing Section (Carton Price ONLY) */}
-                  <div className="bg-gradient-to-r from-amber-50 via-amber-100/60 to-yellow-50 p-3 rounded-2xl border border-amber-300 shadow-xs">
+                  {/* Pricing Section (Carton Price) */}
+                  <div className="bg-gradient-to-r from-amber-50 via-amber-100/60 to-yellow-50 p-2 sm:p-2.5 rounded-xl sm:rounded-2xl border border-amber-300 shadow-2xs">
                     <div className="flex items-baseline justify-between">
                       <div>
-                        <div className="text-[10px] text-amber-950 font-black flex items-center gap-1">
-                          <span>سعر الكرتونة بالجملة:</span>
-                        </div>
-                        <div className="text-xl font-black text-amber-950">
+                        <div className="text-[9px] sm:text-[10px] text-amber-950 font-bold">سعر الكرتونة:</div>
+                        <div className="text-sm sm:text-lg font-black text-amber-950">
                           {formatCurrency(product.cartonPrice)}
                         </div>
                       </div>
 
                       <div className="text-left">
-                        <div className="text-[10px] text-slate-500 font-bold">شدة الكرتونة:</div>
-                        <div className="text-xs font-black bg-amber-200/80 text-amber-950 px-2 py-0.5 rounded-lg">
-                          {product.cartonQuantity} قطعة
-                        </div>
+                        <span className="text-[9px] sm:text-xs font-bold text-slate-500">
+                          {product.cartonQuantity} ق/ك
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Quick Carton Quantity Direct Editable Input & Add to Cart Button */}
-                  <div className="flex items-center gap-2 pt-1">
-                    {/* Carton Editable Stepper */}
-                    <div className="flex items-center bg-slate-100 rounded-xl border border-slate-300 p-0.5 shrink-0">
+                  {/* Quick Carton Quantity Input & Add to Cart Button */}
+                  <div className="flex items-center gap-1 sm:gap-2 pt-0.5">
+                    {/* Carton Stepper */}
+                    <div className="flex items-center bg-slate-100 rounded-lg sm:rounded-xl border border-slate-300 p-0.5 shrink-0">
                       <button
                         type="button"
                         disabled={totalCartonsAvailable <= 0 || orderState.quantity <= 1}
                         onClick={() => adjustCardQuantity(product.id, -1)}
-                        className="w-7 h-8 flex items-center justify-center text-slate-700 hover:bg-slate-200 rounded-lg font-black disabled:opacity-30 cursor-pointer"
-                        title="إنقاص كرتونة (-1)"
+                        className="w-6 h-7 sm:w-7 sm:h-8 flex items-center justify-center text-slate-700 hover:bg-slate-200 rounded font-black disabled:opacity-30 cursor-pointer"
+                        title="إنقاص (-1)"
                       >
-                        <Minus className="w-3.5 h-3.5" />
+                        <Minus className="w-3 h-3" />
                       </button>
 
                       <input
@@ -985,39 +996,38 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                           const parsed = parseInt(e.target.value, 10);
                           setCardQuantityDirect(product.id, parsed, totalCartonsAvailable);
                         }}
-                        className="w-12 h-7 text-center font-black text-xs text-slate-900 bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
-                        title="اكتب عدد الكراتين مباشرة"
+                        className="w-8 sm:w-11 h-6 sm:h-7 text-center font-black text-xs text-slate-900 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-amber-500"
                       />
 
                       <button
                         type="button"
                         disabled={totalCartonsAvailable <= 0 || orderState.quantity >= totalCartonsAvailable}
                         onClick={() => adjustCardQuantity(product.id, 1)}
-                        className="w-7 h-8 flex items-center justify-center text-slate-700 hover:bg-slate-200 rounded-lg font-black disabled:opacity-30 cursor-pointer"
-                        title="زيادة كرتونة (+1)"
+                        className="w-6 h-7 sm:w-7 sm:h-8 flex items-center justify-center text-slate-700 hover:bg-slate-200 rounded font-black disabled:opacity-30 cursor-pointer"
+                        title="زيادة (+1)"
                       >
-                        <Plus className="w-3.5 h-3.5" />
+                        <Plus className="w-3 h-3" />
                       </button>
                     </div>
 
-                    {/* Golden "Add to Cart" Button in Cartons */}
+                    {/* Golden "Add to Cart" Button */}
                     {totalCartonsAvailable > 0 ? (
                       <button
                         type="button"
                         onClick={() => handleQuickAddWithState(product)}
-                        className="flex-1 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black py-2.5 px-2 rounded-xl text-xs shadow-md transition transform active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                        className="flex-1 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black py-2 sm:py-2.5 px-1.5 sm:px-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs shadow-sm transition transform active:scale-95 flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap"
                       >
-                        <ShoppingCart className="w-4 h-4 shrink-0" />
-                        <span>أضف {orderState.quantity} كرتونة</span>
+                        <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
+                        <span className="hidden sm:inline">أضف {orderState.quantity} كرتونة</span>
+                        <span className="sm:hidden">+{orderState.quantity} ك</span>
                       </button>
                     ) : (
                       <button
                         type="button"
                         disabled
-                        className="flex-1 bg-slate-100 border border-slate-300 text-slate-500 font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1 cursor-not-allowed opacity-80"
+                        className="flex-1 bg-slate-100 border border-slate-300 text-slate-400 font-bold py-2 px-1 rounded-lg sm:rounded-xl text-[10px] sm:text-xs flex items-center justify-center cursor-not-allowed"
                       >
-                        <XCircle className="w-4 h-4 text-rose-500" />
-                        <span>نفد المخزون</span>
+                        <span>نفد</span>
                       </button>
                     )}
                   </div>
