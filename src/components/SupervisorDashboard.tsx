@@ -160,17 +160,19 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         return false;
       }
 
-      // 2. Role-based scoping
+      // 2. Strict Role-based scoping (Branch Isolation)
       if (currentUser?.role === 'sales_rep') {
         if (inv.repId !== currentUser.id) return false;
       } else if (currentUser?.role === 'supervisor') {
+        // Supervisor STRICTLY sees ONLY his branch and reps under him
         const isSupervisedRep = users.some(
           (u) => u.id === inv.repId && u.supervisorId === currentUser.id
         );
         const isSameBranch = inv.branchName === currentUser.branchName;
-        if (!isSupervisedRep && !isSameBranch && selectedBranchFilter === 'الكل') return false;
+        if (!isSameBranch && !isSupervisedRep) return false;
       } else if (currentUser?.role === 'branch_manager') {
-        if (inv.branchName !== currentUser.branchName && selectedBranchFilter === 'الكل') return false;
+        // Branch Manager STRICTLY sees ONLY his own branch
+        if (inv.branchName !== currentUser.branchName) return false;
       }
 
       // 3. Status filter
@@ -654,83 +656,85 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         </div>
       </div>
 
-      {/* Real-Time Branch Sales Performance Tracker */}
-      <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
-              <Building className="w-4 h-4" />
+      {/* Real-Time Branch Sales Performance Tracker (Admin & Developer Overview) */}
+      {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+        <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
+                <Building className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-black text-sm sm:text-base text-slate-900">
+                  متابعة مبيعات وأداء الفروع لحظياً (Real-Time Branch Performance)
+                </h3>
+                <p className="text-xs text-slate-500">
+                  إجمالي مبيعات كل فرع، عدد الكراتين المحجوزة، ونسبة التنفيذ المباشرة
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-black text-sm sm:text-base text-slate-900">
-                متابعة مبيعات وأداء الفروع لحظياً (Real-Time Branch Performance)
-              </h3>
-              <p className="text-xs text-slate-500">
-                إجمالي مبيعات كل فرع، عدد الكراتين المحجوزة، ونسبة التنفيذ المباشرة
-              </p>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500">إجمالي مبيعات كافة الفروع:</span>
+              <span className="bg-slate-900 text-amber-300 font-black px-3 py-1 rounded-xl text-xs sm:text-sm">
+                {formatCurrency(totalAllBranchSales)}
+              </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500">إجمالي مبيعات كافة الفروع:</span>
-            <span className="bg-slate-900 text-amber-300 font-black px-3 py-1 rounded-xl text-xs sm:text-sm">
-              {formatCurrency(totalAllBranchSales)}
-            </span>
-          </div>
-        </div>
-
-        {/* Branch Interactive Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {branchSalesSummary.map((b) => {
-            const isSelected = selectedBranchFilter === b.name;
-            return (
-              <button
-                key={b.name}
-                onClick={() => setSelectedBranchFilter(isSelected ? 'الكل' : b.name)}
-                className={`text-right p-3.5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
-                  isSelected
-                    ? 'bg-slate-900 text-white border-slate-900 ring-2 ring-amber-400 shadow-md transform scale-[1.01]'
-                    : 'bg-slate-50 hover:bg-slate-100 text-slate-900 border-slate-200'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2 w-full">
-                  <div className="space-y-0.5">
-                    <div className={`text-xs font-black truncate ${isSelected ? 'text-amber-300' : 'text-slate-900'}`}>
-                      {b.name}
+          {/* Branch Interactive Cards Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {branchSalesSummary.map((b) => {
+              const isSelected = selectedBranchFilter === b.name;
+              return (
+                <button
+                  key={b.name}
+                  onClick={() => setSelectedBranchFilter(isSelected ? 'الكل' : b.name)}
+                  className={`text-right p-3.5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+                    isSelected
+                      ? 'bg-slate-900 text-white border-slate-900 ring-2 ring-amber-400 shadow-md transform scale-[1.01]'
+                      : 'bg-slate-50 hover:bg-slate-100 text-slate-900 border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2 w-full">
+                    <div className="space-y-0.5">
+                      <div className={`text-xs font-black truncate ${isSelected ? 'text-amber-300' : 'text-slate-900'}`}>
+                        {b.name}
+                      </div>
+                      <div className={`text-[10px] font-medium ${isSelected ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {b.city || 'الفرع'}
+                      </div>
                     </div>
-                    <div className={`text-[10px] font-medium ${isSelected ? 'text-slate-400' : 'text-slate-500'}`}>
-                      {b.city || 'الفرع'}
-                    </div>
-                  </div>
-                  <span
-                    className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
-                      isSelected
-                        ? 'bg-amber-400 text-slate-950'
-                        : 'bg-slate-200 text-slate-700'
-                    }`}
-                  >
-                    {b.ordersCount} طلبية
-                  </span>
-                </div>
-
-                <div className="pt-3 border-t border-current/10 mt-3 flex items-end justify-between gap-2 w-full">
-                  <div>
-                    <span className={`text-[10px] block font-bold ${isSelected ? 'text-slate-400' : 'text-slate-500'}`}>
-                      إجمالي المبيعات:
+                    <span
+                      className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
+                        isSelected
+                          ? 'bg-amber-400 text-slate-950'
+                          : 'bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {b.ordersCount} طلبية
                     </span>
-                    <strong className={`text-sm sm:text-base font-black ${isSelected ? 'text-white' : 'text-amber-950'}`}>
-                      {formatCurrency(b.totalSales)}
-                    </strong>
                   </div>
-                  <div className={`text-[10px] font-bold text-left ${isSelected ? 'text-emerald-300' : 'text-emerald-700'}`}>
-                    {b.totalCartons} كرتونة
+
+                  <div className="pt-3 border-t border-current/10 mt-3 flex items-end justify-between gap-2 w-full">
+                    <div>
+                      <span className={`text-[10px] block font-bold ${isSelected ? 'text-slate-400' : 'text-slate-500'}`}>
+                        إجمالي المبيعات:
+                      </span>
+                      <strong className={`text-sm sm:text-base font-black ${isSelected ? 'text-white' : 'text-amber-950'}`}>
+                        {formatCurrency(b.totalSales)}
+                      </strong>
+                    </div>
+                    <div className={`text-[10px] font-bold text-left ${isSelected ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                      {b.totalCartons} كرتونة
+                    </div>
                   </div>
-                </div>
-              </button>
-            );
-          })}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Orders Management Table with Delivery & Return Action Controls */}
       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
@@ -760,25 +764,35 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             {/* Dropdown Filters: Branch Filter + Rep Filter */}
             <div className="flex items-center gap-2 flex-wrap text-xs">
               
-              {/* Branch Filter Dropdown with Real-Time Total Sales per Branch */}
-              <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
-                <Building className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                <span className="text-slate-500 font-bold whitespace-nowrap">الفرع:</span>
-                <select
-                  value={selectedBranchFilter}
-                  onChange={(e) => setSelectedBranchFilter(e.target.value)}
-                  className="bg-transparent font-black text-slate-900 focus:outline-none cursor-pointer text-xs"
-                >
-                  <option value="الكل">
-                    🏢 جميع الفروع ({formatCurrency(totalAllBranchSales)})
-                  </option>
-                  {branchSalesSummary.map((b) => (
-                    <option key={b.name} value={b.name}>
-                      📍 {b.name} — ({formatCurrency(b.totalSales)} | {b.totalCartons} كرتونة)
+              {/* Branch Filter Dropdown for Admin/Developer, Fixed Badge for Branch Users */}
+              {(currentUser?.role === 'admin' || currentUser?.role === 'developer') ? (
+                <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+                  <Building className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span className="text-slate-500 font-bold whitespace-nowrap">الفرع:</span>
+                  <select
+                    value={selectedBranchFilter}
+                    onChange={(e) => setSelectedBranchFilter(e.target.value)}
+                    className="bg-transparent font-black text-slate-900 focus:outline-none cursor-pointer text-xs"
+                  >
+                    <option value="الكل">
+                      🏢 جميع الفروع ({formatCurrency(totalAllBranchSales)})
                     </option>
-                  ))}
-                </select>
-              </div>
+                    {branchSalesSummary.map((b) => (
+                      <option key={b.name} value={b.name}>
+                        📍 {b.name} — ({formatCurrency(b.totalSales)} | {b.totalCartons} كرتونة)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 bg-amber-50/60 px-3 py-2 rounded-xl border border-amber-200">
+                  <Building className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                  <span className="text-amber-800 font-bold whitespace-nowrap">فرعك:</span>
+                  <span className="font-black text-amber-950 text-xs">
+                    {currentUser?.branchName || 'الفرع المحدد'}
+                  </span>
+                </div>
+              )}
 
               {/* Rep Filter if Supervisor / Manager */}
               {currentUser?.role !== 'sales_rep' && (

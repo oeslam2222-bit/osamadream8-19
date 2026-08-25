@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { exportElectronicInvoiceToExcel } from '../services/excelService';
+import { exportElectronicInvoiceToExcel, exportInvoiceForERP } from '../services/excelService';
 import { downloadInvoicePDF } from '../services/pdfService';
 import { formatArabicDate, formatCurrency, shareInvoiceViaWhatsApp } from '../services/invoiceService';
 import { Invoice, OrderStatus } from '../types';
@@ -72,30 +72,31 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     if (!currentUser) return [];
 
     return invoices.filter((inv) => {
-      // 1. Role boundaries
+      // 1. Strict Role boundaries & Branch Isolation
       if (currentUser.role === 'sales_rep') {
         // Sales Rep only sees his own invoices (Strict Privacy)
         if (inv.repId !== currentUser.id && inv.repName !== currentUser.name) {
           return false;
         }
       } else if (currentUser.role === 'supervisor') {
-        // Supervisor sees only sales reps assigned under him or matching supervisor name
+        // Supervisor sees ONLY invoices for his branch and reps under his supervision
+        const isSameBranch = !inv.branchName || inv.branchName === currentUser.branchName;
         const myReps = users.filter((u) => u.supervisorId === currentUser.id).map((u) => u.id);
         const myRepNames = users.filter((u) => u.supervisorId === currentUser.id).map((u) => u.name);
         const isMyRep = myReps.includes(inv.repId) || myRepNames.includes(inv.repName);
         const isSelf = inv.repId === currentUser.id || inv.repName === currentUser.name;
         const isMySupervision = inv.supervisorName === currentUser.name;
 
-        if (!isMyRep && !isSelf && !isMySupervision) {
+        if (!isSameBranch || (!isMyRep && !isSelf && !isMySupervision)) {
           return false;
         }
       } else if (currentUser.role === 'branch_manager') {
-        // Branch Manager sees all invoices for his branch
+        // Branch Manager STRICTLY sees only invoices for his own branch
         if (inv.branchName !== currentUser.branchName) {
           return false;
         }
-      } else if (currentUser.role === 'admin') {
-        // Admin sees all, or filters by branch if chosen
+      } else if (currentUser.role === 'admin' || currentUser.role === 'developer') {
+        // Admin & Developer see all, or filter by branch if chosen
         if (selectedBranchFilter !== 'الكل' && inv.branchName !== selectedBranchFilter) {
           return false;
         }
@@ -167,9 +168,11 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
   const repsList = useMemo(() => {
     const set = new Set<string>();
-    invoices.forEach((inv) => set.add(inv.repName));
+    accessibleInvoices.forEach((inv) => {
+      if (inv.repName) set.add(inv.repName);
+    });
     return ['الكل', ...Array.from(set)];
-  }, [invoices]);
+  }, [accessibleInvoices]);
 
   // Paginated Slices
   const totalPages = useMemo(() => {
@@ -306,7 +309,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            كافة الفواتير ({invoices.length})
+            كافة الفواتير ({accessibleInvoices.length})
           </button>
 
           <button
@@ -317,7 +320,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
             }`}
           >
-            معتمدة ومصروفة ✅ ({invoices.filter(i => i.status === 'معتمدة ومصروفة من المخزن' || i.status === 'معتمدة').length})
+            معتمدة ومصروفة ✅ ({accessibleInvoices.filter(i => i.status === 'معتمدة ومصروفة من المخزن' || i.status === 'معتمدة').length})
           </button>
 
           <button
@@ -328,7 +331,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
             }`}
           >
-            بانتظار الاعتماد ⏳ ({invoices.filter(i => i.status === 'قيد مراجعة المشرف' || i.status === 'معلقة بانتظار اعتماد الفرع' || i.status === 'قيد المراجعة').length})
+            بانتظار الاعتماد ⏳ ({accessibleInvoices.filter(i => i.status === 'قيد مراجعة المشرف' || i.status === 'معلقة بانتظار اعتماد الفرع' || i.status === 'قيد المراجعة').length})
           </button>
 
           <button
@@ -339,7 +342,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100'
             }`}
           >
-            فواتير النواقص والتحويل 🚚 ({invoices.filter(i => i.isShortageInvoice || i.hasShortageSplit).length})
+            فواتير النواقص والتحويل 🚚 ({accessibleInvoices.filter(i => i.isShortageInvoice || i.hasShortageSplit).length})
           </button>
 
           <button
@@ -350,7 +353,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 : 'bg-rose-50 text-rose-800 hover:bg-rose-100'
             }`}
           >
-            الملغية والمرفوضة ❌ ({invoices.filter(i => i.status === 'مرفوضة / ملغاة' || i.status === 'ملغاة').length})
+            الملغية والمرفوضة ❌ ({accessibleInvoices.filter(i => i.status === 'مرفوضة / ملغاة' || i.status === 'ملغاة').length})
           </button>
         </div>
 
@@ -581,11 +584,24 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             <Download className="w-3.5 h-3.5" />
                           </button>
 
-                          {/* Export Excel (.xlsx) */}
+                          {/* Export Excel ERP Format */}
+                          <button
+                            onClick={() => {
+                              exportInvoiceForERP(invoice);
+                              setSuccessToast(`تم تصدير ملف إكسل منسق للسيستم الرئيسي (ERP) للفاتورة ${invoice.invoiceNumber}`);
+                              setTimeout(() => setSuccessToast(null), 3000);
+                            }}
+                            className="bg-amber-500 hover:bg-amber-400 text-slate-950 p-1.5 rounded-lg transition cursor-pointer shadow-xs font-bold"
+                            title="تصدير شيت إكسل جاهز للرفع على السيستم الرئيسي (ERP)"
+                          >
+                            <FileSpreadsheet className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Export Standard Excel (.xlsx) */}
                           <button
                             onClick={() => exportElectronicInvoiceToExcel(invoice)}
                             className="bg-emerald-700 hover:bg-emerald-800 text-white p-1.5 rounded-lg transition cursor-pointer"
-                            title="تحميل شيت إكسل رسمي"
+                            title="تحميل شيت إكسل عادي للعميل"
                           >
                             <FileSpreadsheet className="w-3.5 h-3.5" />
                           </button>
@@ -599,16 +615,16 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             <Send className="w-3.5 h-3.5" />
                           </button>
 
-                          {/* Delete (Admin only) */}
-                          {currentUser?.role === 'admin' && (
+                          {/* Delete (Admin & Developer only) */}
+                          {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
                             <button
                               onClick={() => {
-                                if (window.confirm(`هل أنت متأكد من حذف الفاتورة رقم ${invoice.invoiceNumber}؟`)) {
+                                if (window.confirm(`هل أنت متأكد من حذف الفاتورة رقم ${invoice.invoiceNumber} نهائياً؟`)) {
                                   deleteInvoice(invoice.id);
                                 }
                               }}
                               className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg transition cursor-pointer"
-                              title="حذف الفاتورة"
+                              title="حذف الفاتورة نهائياً"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>

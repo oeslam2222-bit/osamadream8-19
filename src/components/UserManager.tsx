@@ -7,6 +7,8 @@ import {
   Cloud,
   CloudDownload,
   CloudUpload,
+  Code,
+  Copy,
   Database,
   Edit2,
   Key,
@@ -47,9 +49,117 @@ export const UserManager: React.FC = () => {
   } = useApp();
 
   const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [showSqlSchemaModal, setShowSqlSchemaModal] = useState(false);
+  const [copiedSql, setCopiedSql] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('الكل');
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+
+  const supabaseSqlScript = `-- ==========================================
+-- كود إنشاء وتجهيز جداول Supabase السحابية
+-- شركة دريم للتجارة والتوزيع (Dream Distribution)
+-- ==========================================
+
+-- 1. جدول المستخدمين والصلاحيات (users)
+CREATE TABLE IF NOT EXISTS public.users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    username TEXT UNIQUE NOT NULL,
+    email TEXT,
+    password TEXT DEFAULT '123',
+    role TEXT DEFAULT 'sales_rep',
+    branch_name TEXT,
+    supervisor_id TEXT,
+    phone TEXT,
+    commission_rate NUMERIC DEFAULT 2.5,
+    is_active BOOLEAN DEFAULT TRUE,
+    approval_status TEXT DEFAULT 'active',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. جدول المنتجات والكتالوج والمخزون (products)
+CREATE TABLE IF NOT EXISTS public.products (
+    id TEXT PRIMARY KEY,
+    code TEXT NOT NULL,
+    name TEXT NOT NULL,
+    sales_priority TEXT DEFAULT 'عادي',
+    status TEXT DEFAULT 'متاح',
+    carton_quantity NUMERIC DEFAULT 1,
+    size TEXT,
+    color TEXT,
+    branch_stock_actual NUMERIC DEFAULT 0,
+    branch_stock_reserved NUMERIC DEFAULT 0,
+    main_warehouse_actual NUMERIC DEFAULT 0,
+    main_warehouse_reserved NUMERIC DEFAULT 0,
+    department TEXT,
+    category TEXT,
+    classification TEXT,
+    piece_price NUMERIC DEFAULT 0,
+    carton_price NUMERIC DEFAULT 0,
+    promo_price NUMERIC,
+    branch_name TEXT,
+    image_url TEXT,
+    cloudinary_public_id TEXT,
+    barcode TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. جدول الفواتير والطلبيات (invoices)
+CREATE TABLE IF NOT EXISTS public.invoices (
+    id TEXT PRIMARY KEY,
+    invoice_number TEXT UNIQUE NOT NULL,
+    customer_name TEXT NOT NULL,
+    customer_code TEXT,
+    customer_phone TEXT,
+    customer_address TEXT,
+    customer_tax_number TEXT,
+    rep_id TEXT,
+    rep_name TEXT,
+    supervisor_name TEXT,
+    branch_name TEXT,
+    status TEXT DEFAULT 'قيد مراجعة المشرف',
+    payment_method TEXT DEFAULT 'نقدي (كاش)',
+    total_cartons NUMERIC DEFAULT 0,
+    total_pieces NUMERIC DEFAULT 0,
+    subtotal NUMERIC DEFAULT 0,
+    discount_percentage NUMERIC DEFAULT 0,
+    discount_amount NUMERIC DEFAULT 0,
+    estimated_grand_total NUMERIC DEFAULT 0,
+    notes TEXT,
+    items JSONB DEFAULT '[]'::jsonb,
+    synced_to_accounting BOOLEAN DEFAULT FALSE,
+    has_shortage_split BOOLEAN DEFAULT FALSE,
+    shortage_invoice_number TEXT,
+    is_shortage_invoice BOOLEAN DEFAULT FALSE,
+    parent_invoice_id TEXT,
+    parent_invoice_number TEXT,
+    qr_payload TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. جدول العملاء (customers)
+CREATE TABLE IF NOT EXISTS public.customers (
+    id TEXT PRIMARY KEY,
+    code TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    phone TEXT,
+    address TEXT,
+    branch_name TEXT,
+    rep_name TEXT,
+    rep_id TEXT,
+    tax_number TEXT,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- تفعيل التحديث اللحظي (Realtime)
+ALTER PUBLICATION supabase_realtime ADD TABLE public.invoices;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.products;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
+
+  const isSuperAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
   const handleSyncSupabase = async (direction: 'fetch' | 'push' | 'both') => {
     setSyncFeedback(null);
@@ -131,14 +241,14 @@ export const UserManager: React.FC = () => {
   };
 
   const handleConfirmApproval = () => {
-    if (!approvingUser) return;
+    if (!approvingUser || !isSuperAdminOrDev) return;
     approveUser(approvingUser.id, approvalSupervisorId || undefined, approvalBranchName, approvalRole);
     setApprovingUser(null);
   };
 
   const handleSaveUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.username) return;
+    if (!formData.name || !formData.username || !isSuperAdminOrDev) return;
 
     if (editingUser) {
       updateUser({ ...editingUser, ...formData } as User);
@@ -183,29 +293,36 @@ export const UserManager: React.FC = () => {
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              setEditingUser(null);
-              setFormData({
-                name: '',
-                username: '',
-                email: '',
-                password: '123',
-                role: 'sales_rep',
-                branchName: 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
-                supervisorId: '',
-                phone: '',
-                commissionRate: 2.5,
-                isActive: true,
-                approvalStatus: 'active',
-              });
-              setShowAddUserModal(true);
-            }}
-            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>إنشاء حساب جديد (مندوب / مشرف / أدمن)</span>
-          </button>
+          {isSuperAdminOrDev ? (
+            <button
+              onClick={() => {
+                setEditingUser(null);
+                setFormData({
+                  name: '',
+                  username: '',
+                  email: '',
+                  password: '123',
+                  role: 'sales_rep',
+                  branchName: 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
+                  supervisorId: '',
+                  phone: '',
+                  commissionRate: 2.5,
+                  isActive: true,
+                  approvalStatus: 'active',
+                });
+                setShowAddUserModal(true);
+              }}
+              className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95 cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>إنشاء حساب جديد (صلاحية الإدارة والمطور)</span>
+            </button>
+          ) : (
+            <div className="bg-amber-50 text-amber-800 border border-amber-200 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2">
+              <Lock className="w-4 h-4 text-amber-600" />
+              <span>إضافة وتعديل المستخدمين مقتصرة على المطور والمدير العام (Admin) فقط</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -218,14 +335,14 @@ export const UserManager: React.FC = () => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-black text-sm">قاعدة بيانات Supabase السحابية (المجانية)</span>
+                <span className="font-black text-sm">قاعدة بيانات Supabase السحابية الرسمية</span>
                 <span className="bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span>متصل بنجاح</span>
+                  <span>متصل ومربوط بنجاح ⚡</span>
                 </span>
               </div>
               <p className="text-[11px] text-emerald-200/80 font-mono pt-0.5">
-                kjdpayvavaarlcochzgt.supabase.co • تم ربط وتفعيل قاعدة البيانات المشتركة لليوزرات والفروع
+                rxthpgmlcsfckstpqhqf.supabase.co • قاعدة بيانات شركة دريم الموحدة (أصناف + فواتير + مستخدمين + عملاء)
               </p>
             </div>
           </div>
@@ -233,9 +350,17 @@ export const UserManager: React.FC = () => {
           {/* Sync Action Buttons */}
           <div className="flex flex-wrap items-center gap-2">
             <button
+              onClick={() => setShowSqlSchemaModal(true)}
+              className="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-300 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
+              title="عرض ونسخ كود SQL لإنشاء وتجهيز الجداول في Supabase"
+            >
+              <Code className="w-3.5 h-3.5" />
+              <span>كود SQL لإنشاء الجداول 📋</span>
+            </button>
+            <button
               onClick={() => handleSyncSupabase('fetch')}
               disabled={isSupabaseSyncing}
-              className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-slate-950 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95"
+              className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-slate-950 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isSupabaseSyncing ? 'animate-spin' : ''}`} />
               <span>جلب ومزامنة اليوزرات</span>
@@ -243,10 +368,10 @@ export const UserManager: React.FC = () => {
             <button
               onClick={() => handleSyncSupabase('push')}
               disabled={isSupabaseSyncing}
-              className="bg-slate-800 hover:bg-slate-700 border border-emerald-500/40 text-emerald-300 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95"
+              className="bg-slate-800 hover:bg-slate-700 border border-emerald-500/40 text-emerald-300 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
             >
               <CloudUpload className="w-3.5 h-3.5" />
-              <span>رفع الحسابات الحالية لـ Supabase</span>
+              <span>رفع الحسابات لـ Supabase</span>
             </button>
           </div>
         </div>
@@ -499,24 +624,30 @@ export const UserManager: React.FC = () => {
                           <span>{isCurrent ? 'الحالي' : 'تجربة'}</span>
                         </button>
 
-                        {/* Edit */}
-                        <button
-                          onClick={() => {
-                            setEditingUser(user);
-                            setFormData(user);
-                            setShowAddUserModal(true);
-                          }}
-                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600"
-                          title="تعديل المستخدم"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-
-                        {/* Delete (if not self) */}
-                        {!isCurrent && (
+                        {/* Edit (Admin & Dev only) */}
+                        {isSuperAdminOrDev && (
                           <button
-                            onClick={() => deleteUser(user.id)}
-                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600"
+                            onClick={() => {
+                              setEditingUser(user);
+                              setFormData(user);
+                              setShowAddUserModal(true);
+                            }}
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer"
+                            title="تعديل المستخدم (صلاحية الإدارة والمطور)"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
+                        {/* Delete (Admin & Dev only, if not self) */}
+                        {isSuperAdminOrDev && !isCurrent && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`هل أنت متأكد من حذف المستخدم "${user.name}"؟`)) {
+                                deleteUser(user.id);
+                              }
+                            }}
+                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 cursor-pointer"
                             title="حذف المستخدم"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -680,13 +811,13 @@ export const UserManager: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">البريد الإلكتروني</label>
+                  <label className="block font-bold text-slate-700 mb-1">البريد الإلكتروني الرسمي (@dream.com)</label>
                   <input
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="name@dream-dist.com"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                    placeholder="osama@dream.com"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-800"
                   />
                 </div>
 
@@ -767,6 +898,51 @@ export const UserManager: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* SQL Schema Preview & Copy Modal */}
+      {showSqlSchemaModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
+          <div className="bg-slate-900 text-white rounded-3xl max-w-2xl w-full p-6 space-y-4 shadow-2xl border border-slate-800 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
+                  <Code className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-slate-100">كود SQL لإنشاء جداول Supabase</h3>
+                  <p className="text-[11px] text-slate-400">انسخ الكود وشغله في محرر SQL بـ Supabase بضغطة واحدة</p>
+                </div>
+              </div>
+              <button onClick={() => setShowSqlSchemaModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 flex-1 overflow-y-auto font-mono text-xs text-emerald-400 dir-ltr text-left select-all">
+              <pre className="whitespace-pre-wrap">{supabaseSqlScript}</pre>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800">
+              <span className="text-xs text-slate-400">
+                الجداول: users, products, invoices, customers
+              </span>
+              <button
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(supabaseSqlScript);
+                    setCopiedSql(true);
+                    setTimeout(() => setCopiedSql(false), 2500);
+                  } catch (e) {}
+                }}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
+              >
+                {copiedSql ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                <span>{copiedSql ? 'تم النسخ بنجاح! ✅' : 'نسخ كود SQL بالكامل 📋'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

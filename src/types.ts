@@ -62,22 +62,27 @@ export type OfficialDepartment = typeof OFFICIAL_DEPARTMENTS[number];
 export interface Product {
   id: string;
   code: string;                      // الكود
-  name: string;                      // اسم الصنف
+  name: string;                      // اسم الصنف (Product name)
   salesPriority: SalesPriority;      // اولوية البيع
-  category: string;                  // التصنيف
+  category: string;                  // التصنيف / المجموعة
   status: ItemStatus;                // حالة الصنف
-  cartonQuantity: number;            // شدة الكرتونة (عدد القطع بالكرتونة - بيان استرشادي)
+  cartonQuantity: number;            // شدة الكرتونة (Factor - عدد القطع بالكرتونة)
+  factor?: number;                   // شدة الكرتونة (Factor)
   size: string;                      // الحجم
   color: string;                     // اللون
-  branchStockActual: number;         // رصيد الفرع بالكراتين - فعلي
-  branchStockReserved: number;       // رصيد الفرع بالكراتين - متاح للطلب
+  branchStockActual: number;         // رصيد الفرع الحالي بالكراتين - فعلي
+  branchStockReserved: number;       // رصيد الفرع الحالي بالكراتين - متاح للطلب
   mainWarehouseActual: number;       // رصيد مخزن أكتوبر بالكراتين - فعلي
   mainWarehouseReserved: number;     // رصيد مخزن أكتوبر بالكراتين - متاح للطلب
-  department: string;                // القسم
-  classification: string;            // الفئة
+  branchStocks?: Record<string, number>; // أرصدة الفروع الفردية (البحيرة، الفيوم، القاهرة، المنيا، ديمشلت، مخزون اكتوبر، منوف، منيا القمح)
+  department: string;                // القسم / Item group
+  itemGroup?: string;                // المجموعة الرئيسية (Item group)
+  classification: string;            // الفئة / Family Name
+  familyName?: string;               // العائلة (Family Name)
   promoPrice?: number;               // سعر العرض للكرتونة (اختياري)
-  piecePrice?: number;               // سعر مرجعي
-  cartonPrice: number;               // سعر الكرتونة بالجملة (السعر الفعلي المعتمد للطلب)
+  piecePrice?: number;               // سعر القطعة (Sales Price)
+  salesPrice?: number;               // سعر القطعة (Sales Price)
+  cartonPrice: number;               // سعر الكرتونة (Factor * Sales Price)
   branchName: string;                // اسم الفرع
   imageUrl?: string;                 // رابط الصورة المباشر
   cloudinaryPublicId?: string;       // معرّف Cloudinary
@@ -86,14 +91,37 @@ export interface Product {
   notes?: string;
 }
 
+export type CustomerTier = 'مميز' | 'راقي' | 'متوسط' | 'عادي';
+
+export interface Customer {
+  id: string;
+  code: string;                      // كود العميل (كود العميل)
+  name: string;                      // اسم العميل / المحل (الاسم)
+  storeName?: string;                // اسم المحل / السوبر ماركت / المعرض
+  tier?: CustomerTier;               // فئة وتصنيف العميل (مميز / راقي / متوسط / عادي)
+  phone: string;                     // رقم الهاتف
+  address?: string;                  // العنوان التفصيلي
+  governorate?: string;              // المحافظة
+  branchName: string;                // اسم الفرع (الفرع)
+  repName?: string;                  // اسم المندوب المسئول (المندوب الحالي)
+  salesRepName?: string;             // المندوب المسئول (alias)
+  repId?: string;                    // كود المندوب
+  taxNumber?: string;                // الرقم الضريبي
+  notes?: string;
+  createdAt?: string;
+}
+
 export interface CartItem {
   product: Product;
-  orderType?: 'carton';
-  cartonCount: number;
-  pieceCount?: number;
-  totalPieces?: number;
+  orderType?: 'carton' | 'piece' | 'mixed';
+  cartonCount: number;               // عدد الكراتين
+  pieceCount: number;                // عدد القطع الفردية
+  cartonQuantity?: number;           // شدة الكرتونة
+  totalPieces: number;               // إجمالي القطع (كراتين * شدة + قطع)
   unitPrice: number;                 // سعر الكرتونة
-  totalPrice: number;                // إجمالي الصنف = عدد الكراتين * سعر الكرتونة
+  pricePerPiece?: number;            // سعر القطعة
+  totalPrice: number;                // إجمالي الصنف = (كراتين * سعر كرتونة) + (قطع * سعر قطعة)
+  quantityDescription?: string;      // وصف الكمية الذكي
   notes?: string;
   fulfillFromMainWarehouse?: boolean; // سحب من المخزن الرئيسي
 }
@@ -136,23 +164,33 @@ export interface InvoiceItem {
   productId: string;
   productCode: string;
   productName: string;
+  product?: Product;                 // Reference to full product if available
+  itemGroup?: string;
+  familyName?: string;
   cartonCount: number;               // عدد الكراتين المطلوبة
-  pieceCount?: number;
+  pieceCount: number;                // عدد القطع الفردية
   cartonQuantity: number;            // شدة الكرتونة (ق/ك)
-  totalUnits?: number;
-  pricePerPiece?: number;
+  totalUnits?: number;               // إجمالي القطع
+  totalPieces?: number;              // إجمالي القطع (alias)
+  quantityDescription?: string;      // وصف الكمية الذكي (مثال: 1 كرتونة و 1 قطعة)
+  pricePerPiece: number;             // سعر القطعة
   pricePerCarton: number;            // سعر الكرتونة
   appliedPrice: number;              // سعر الكرتونة الفعلي
-  totalBeforeTax: number;            // عدد الكراتين * سعر الكرتونة
+  unitPrice?: number;                // سعر الوحدة الفعلي (alias)
+  totalBeforeTax: number;            // (كراتين * سعر كرتونة) + (قطع * سعر قطعة)
   discountAmount: number;            // قيمة الخصم
   taxAmount: number;                 // قيمة الضريبة
   netTotal: number;                  // الإجمالي النهائي
+  totalPrice?: number;               // الإجمالي (alias)
   fulfilledFrom: 'branch' | 'main_warehouse' | 'mixed';
+  fulfillFromMainWarehouse?: boolean; // حجز من المخزن الرئيسي بأكتوبر
+  notes?: string;
 }
 
 export interface Invoice {
   id: string;
   invoiceNumber: string;         // رقم الفاتورة مثل: DRM-2026-0042
+  customerCode?: string;         // كود العميل
   customerName: string;          // اسم العميل
   customerPhone?: string;
   customerAddress?: string;

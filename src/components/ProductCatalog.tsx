@@ -25,6 +25,7 @@ import {
   XCircle,
   Zap,
   DownloadCloud,
+  Download,
   HardDrive,
   CheckCheck,
   Trash2,
@@ -56,6 +57,8 @@ import { formatCurrency } from '../services/invoiceService';
 import { cacheProductImages, getCachedImagesStats, clearCachedImages } from '../services/imageCacheService';
 import { parseExcelProducts, fetchAndParseGoogleSheet, generateSampleExcelTemplate } from '../services/excelService';
 import { ItemStatus, OFFICIAL_DEPARTMENTS, Product, SalesPriority } from '../types';
+import { DepartmentCategorySlicer } from './DepartmentCategorySlicer';
+import { getDepartmentMeta } from '../data/departmentMeta';
 
 interface ProductCatalogProps {
   onOpenCart?: () => void;
@@ -265,6 +268,22 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
     return Array.from(set).filter(Boolean);
   }, [products]);
 
+  // Active branch context for stock resolution: specific user's branch for reps/supervisors, or global filter for admin
+  const currentActiveBranch = useMemo(() => {
+    if (currentUser?.role === 'sales_rep' || currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager') {
+      return currentUser.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)';
+    }
+    return selectedBranchFilter !== 'الكل' ? selectedBranchFilter : (currentUser?.branchName || '');
+  }, [currentUser, selectedBranchFilter]);
+
+  // Helper to get effective branch stock for a product for current viewer
+  const getProductBranchStock = (p: Product) => {
+    if (p.branchStocks && currentActiveBranch && p.branchStocks[currentActiveBranch] !== undefined) {
+      return p.branchStocks[currentActiveBranch];
+    }
+    return p.branchStockActual;
+  };
+
   // Stock Counts for Filtering
   const stockCounts = useMemo(() => {
     let outOfStock = 0;
@@ -274,8 +293,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
     let inWarehouse = 0;
 
     products.forEach((p) => {
-      const branchCartons = Math.floor(p.branchStockReserved / (p.cartonQuantity || 1));
-      const isOut = p.branchStockReserved <= 0 && p.branchStockActual <= 0;
+      const branchStock = p.branchStocks && currentActiveBranch && p.branchStocks[currentActiveBranch] !== undefined
+        ? p.branchStocks[currentActiveBranch]
+        : p.branchStockActual;
+      const branchCartons = branchStock;
+      const isOut = branchStock <= 0 && p.mainWarehouseActual <= 0;
       if (isOut) {
         outOfStock++;
       } else if (branchCartons > 0 && branchCartons <= 5) {
@@ -284,8 +306,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
         highStock++;
       }
 
-      if (p.branchStockReserved > 0 || p.branchStockActual > 0) inBranch++;
-      if (p.mainWarehouseReserved > 0 || p.mainWarehouseActual > 0) inWarehouse++;
+      if (branchStock > 0) inBranch++;
+      if (p.mainWarehouseActual > 0) inWarehouse++;
     });
 
     return {
@@ -296,7 +318,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
       inBranch,
       inWarehouse,
     };
-  }, [products]);
+  }, [products, currentActiveBranch]);
 
   // Filtered & Sorted Products
   const filteredProducts = useMemo(() => {
@@ -340,11 +362,21 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
         if (!match) return false;
       }
 
-      // Sub-category filter
+      // Sub-category / Classification (Power BI Slicer Filter)
       if (selectedSubCategory !== 'الكل') {
-        const matchCat = p.category === selectedSubCategory;
-        const matchClass = p.classification === selectedSubCategory;
-        if (!matchCat && !matchClass) return false;
+        const targetSub = selectedSubCategory.toLowerCase().trim();
+        const pClass = (p.classification || '').toLowerCase().trim();
+        const pCat = (p.category || '').toLowerCase().trim();
+        const pName = (p.name || '').toLowerCase().trim();
+
+        const match =
+          pClass === targetSub ||
+          pCat === targetSub ||
+          pClass.includes(targetSub) ||
+          pCat.includes(targetSub) ||
+          (pName.includes(targetSub) && targetSub.length > 3);
+
+        if (!match) return false;
       }
 
       // Priority filter
@@ -531,6 +563,65 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
         </div>
       )}
 
+      {/* Offline Image Cache & Data-Saver Bar (Works 100% Offline with Zero Data Consumption) */}
+      <div className="bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-slate-100 border border-amber-300/60 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-xs">
+            <Download className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="text-xs sm:text-sm font-black text-slate-900">
+                العمل بدون إنترنت (توفير الباقة وسرعة العرض للمناديب)
+              </h4>
+              <span className="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                Offline Mode ⚡
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-600 mt-0.5">
+              اضغط زر التحميل لحفظ صور الأصناف بضغط فائق (حجم خفيف جداً) لعرضها على العملاء في أي مكان بدون شبكة وبدون استهلاك باقة الإنترنت.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-between sm:justify-end">
+          <div className="text-right sm:text-left text-[11px] font-bold text-slate-700">
+            <span>المحفوظ بالجهاز: </span>
+            <strong className="text-emerald-700 font-black">{cacheStats.count} صورة</strong>
+            {cacheStats.estimatedSizeMB > 0 && (
+              <span className="text-[10px] text-slate-500 block sm:inline"> (~{cacheStats.estimatedSizeMB} ميجابايت فقط)</span>
+            )}
+          </div>
+
+          <button
+            onClick={handleCacheAllImages}
+            disabled={isCaching || products.length === 0}
+            className="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-amber-300 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow transition cursor-pointer active:scale-95"
+            title="تحميل وضغط كل صور الأصناف للعمل بدون إنترنت"
+          >
+            {isCaching ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                <span>جاري الحفظ ({products.length})...</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-3.5 h-3.5 text-amber-400" />
+                <span>تحميل الصور أوفلاين 📲</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Cache Progress Notification */}
+      {cacheProgressText && (
+        <div className="p-3 bg-emerald-500 text-white text-xs rounded-xl font-bold flex items-center gap-2 shadow-md animate-in fade-in">
+          <CheckCheck className="w-4 h-4 text-emerald-200 shrink-0" />
+          <span>{cacheProgressText}</span>
+        </div>
+      )}
+
       {/* Unified, Clean Search & Quick Filters Bar - Simplified for Mobile with high touch targets */}
       <div className="bg-slate-900 text-white rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 shadow-lg border border-slate-800 space-y-2.5 sm:space-y-3">
         
@@ -579,24 +670,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
         </div>
 
         {/* Dropdown Filters Toolbar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-slate-800/80 text-xs">
-          {/* Department Filter Dropdown */}
-          <div className="relative">
-            <select
-              aria-label="اختر القسم"
-              value={selectedOfficialDept}
-              onChange={(e) => setSelectedOfficialDept(e.target.value)}
-              className="w-full h-11 px-2.5 bg-slate-800 text-amber-300 border border-slate-700 rounded-xl font-black focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer text-xs"
-            >
-              <option value="الكل">🏢 كل الأقسام ({products.length})</option>
-              {OFFICIAL_DEPARTMENTS.map((dept) => (
-                <option key={dept} value={dept}>
-                  {dept} ({deptCounts[dept] || 0})
-                </option>
-              ))}
-            </select>
-          </div>
-
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 border-t border-slate-800/80 text-xs">
           {/* Stock Status Dropdown */}
           <div className="relative">
             <select
@@ -679,46 +753,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
           </div>
         </div>
 
-        {/* Mobile Horizontal Quick-Swipe Category Chips (Large Touch Targets >= 40px) */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar pt-1 border-t border-slate-800/80 -mx-1 px-1">
-          <button
-            onClick={() => setSelectedOfficialDept('الكل')}
-            className={`whitespace-nowrap px-3.5 h-10 rounded-xl text-xs font-black shrink-0 transition cursor-pointer flex items-center gap-1.5 active:scale-95 ${
-              selectedOfficialDept === 'الكل'
-                ? 'bg-amber-400 text-slate-950 shadow-xs'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white border border-slate-700'
-            }`}
-          >
-            <span>🏢 الكل</span>
-            <span className="text-[10px] opacity-90">({products.length})</span>
-          </button>
-
-          {OFFICIAL_DEPARTMENTS.map((dept) => {
-            const count = deptCounts[dept] || 0;
-            const isSelected = selectedOfficialDept === dept;
-            return (
-              <button
-                key={dept}
-                onClick={() => setSelectedOfficialDept(dept)}
-                className={`whitespace-nowrap px-3.5 h-10 rounded-xl text-xs font-black shrink-0 transition cursor-pointer flex items-center gap-1.5 active:scale-95 ${
-                  isSelected
-                    ? 'bg-amber-400 text-slate-950 shadow-xs'
-                    : 'bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white border border-slate-700'
-                }`}
-              >
-                <span>{dept}</span>
-                {count > 0 && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${isSelected ? 'bg-slate-950 text-amber-300' : 'bg-slate-700 text-slate-200'}`}>
-                    {count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
         {/* Active Filter Reset Pill if filtered */}
-        {(searchTerm || selectedOfficialDept !== 'الكل' || selectedPriority !== 'الكل' || selectedStatus !== 'الكل' || stockAvailabilityFilter !== 'all' || priceSort !== 'default') && (
+        {(searchTerm || selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل' || selectedPriority !== 'الكل' || selectedStatus !== 'الكل' || stockAvailabilityFilter !== 'all' || priceSort !== 'default') && (
           <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-xs">
             <span className="text-slate-400 text-[11px]">
               النتائج المطابقة: <strong className="text-amber-300 font-bold">{filteredProducts.length}</strong> صنف
@@ -735,12 +771,23 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
               }}
               className="text-amber-400 hover:text-amber-300 font-bold underline cursor-pointer text-xs"
             >
-              إلغاء التصفية
+              إلغاء التصفية الشاملة
             </button>
           </div>
         )}
-
       </div>
+
+      {/* 21 Official Departments & Power BI Subcategories / Classifications Slicer Panel */}
+      <DepartmentCategorySlicer
+        products={products}
+        selectedDepartment={selectedOfficialDept}
+        onSelectDepartment={(dept) => {
+          setSelectedOfficialDept(dept);
+          setSelectedSubCategory('الكل');
+        }}
+        selectedClassification={selectedSubCategory}
+        onSelectClassification={(classification) => setSelectedSubCategory(classification)}
+      />
 
       {/* Fresh Upload / Setup Box (Visible when triggered or when products are empty) */}
       {isUploadBoxOpen && (
@@ -831,9 +878,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
           {displayedProducts.map((product, idx) => {
             const isPromo = product.promoPrice && product.promoPrice > 0;
             const priorityConfig = priorityBadges[product.salesPriority];
-            const hasBranchStock = product.branchStockActual > 0;
+            const activeBranch = selectedBranchFilter !== 'الكل' ? selectedBranchFilter : (currentUser?.branchName || '');
+            const dynamicBranchStock = (product.branchStocks && activeBranch && product.branchStocks[activeBranch] !== undefined)
+              ? product.branchStocks[activeBranch]
+              : product.branchStockActual;
+            const hasBranchStock = dynamicBranchStock > 0;
             const hasMainWhStock = product.mainWarehouseActual > 0;
-            const totalCartonsAvailable = Math.max(0, product.branchStockReserved) + Math.max(0, product.mainWarehouseReserved);
+            const dynamicBranchReserved = Math.max(0, dynamicBranchStock - 5);
+            const totalCartonsAvailable = Math.max(0, dynamicBranchReserved) + Math.max(0, product.mainWarehouseReserved);
             const orderState = getCardState(product.id);
 
             return (
@@ -886,10 +938,35 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                   
                   {/* Category & Title */}
                   <div>
-                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] mb-0.5">
-                      <span className="text-amber-900 bg-amber-100/90 font-black px-1.5 py-0.2 rounded text-[10px] truncate max-w-[120px] sm:max-w-none">
-                        {product.department || product.category || 'دريم'}
-                      </span>
+                    <div className="flex items-center flex-wrap gap-1 text-[10px] sm:text-[11px] mb-1">
+                      {(() => {
+                        const deptMeta = getDepartmentMeta(product.department || product.category);
+                        const DeptIcon = deptMeta.icon;
+                        return (
+                          <span
+                            className="bg-amber-100/90 text-amber-950 font-black px-1.5 py-0.5 rounded-md text-[10px] truncate max-w-[130px] sm:max-w-none flex items-center gap-1 border border-amber-300/60 shadow-2xs"
+                            title={`${deptMeta.nameArabic} - ${product.department || ''}`}
+                          >
+                            <DeptIcon className="w-3 h-3 text-amber-800 shrink-0" />
+                            <span>{product.department || product.category || 'دريم'}</span>
+                          </span>
+                        );
+                      })()}
+                      {product.classification && (
+                        <span className="bg-slate-100 text-slate-800 border border-slate-200 font-bold px-1.5 py-0.5 rounded-md text-[10px] truncate max-w-[110px]">
+                          🏷️ {product.classification}
+                        </span>
+                      )}
+                      {product.color && product.color.trim() && product.color !== 'افتراضي' && (
+                        <span className="bg-indigo-50 text-indigo-900 border border-indigo-200 font-black px-1.5 py-0.2 rounded text-[10px]">
+                          🎨 {product.color}
+                        </span>
+                      )}
+                      {product.size && product.size.trim() && product.size !== 'حجم قياسي' && (
+                        <span className="bg-slate-100 text-slate-700 font-bold px-1.5 py-0.2 rounded text-[10px]">
+                          📐 {product.size}
+                        </span>
+                      )}
                     </div>
 
                     <h3
@@ -921,24 +998,28 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
 
                     {/* Branch Stock */}
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-700">الفرع:</span>
+                      <span className="text-slate-700">الفرع (فعلي/متاح):</span>
                       <div className="text-left font-black">
                         {hasBranchStock ? (
                           <span className="text-emerald-800">
-                            {product.branchStockActual} ك
+                            {dynamicBranchStock} ك
                           </span>
                         ) : (
                           <span className="text-rose-600">0</span>
                         )}
-                        <span className="text-[9px] text-slate-500 mr-0.5">
-                          ({Math.max(0, product.branchStockReserved)})
+                        <span className={`text-[10px] font-black mr-1 px-1 py-0.2 rounded ${
+                          dynamicBranchReserved < dynamicBranchStock 
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300' 
+                            : 'text-slate-600'
+                        }`} title={`الفعلي: ${dynamicBranchStock} | المحجوز: ${Math.max(0, dynamicBranchStock - dynamicBranchReserved)} | الصافي المتاح: ${Math.max(0, dynamicBranchReserved)}`}>
+                          (متاح {Math.max(0, dynamicBranchReserved)})
                         </span>
                       </div>
                     </div>
 
                     {/* October Stock */}
                     <div className="flex items-center justify-between pt-0.5 border-t border-slate-200">
-                      <span className="text-slate-700">أكتوبر:</span>
+                      <span className="text-slate-700">أكتوبر (مركزي):</span>
                       <div className="text-left font-black">
                         {hasMainWhStock ? (
                           <span className="text-slate-900">
@@ -947,34 +1028,70 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                         ) : (
                           <span className="text-slate-400 font-medium">-</span>
                         )}
-                        <span className="text-[9px] text-slate-500 mr-0.5">
-                          ({Math.max(0, product.mainWarehouseReserved)})
+                        <span className="text-[10px] text-slate-600 font-bold mr-1">
+                          (متاح {Math.max(0, product.mainWarehouseReserved)})
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Pricing Section (Carton Price - High Contrast) */}
-                  <div className="bg-gradient-to-r from-amber-100/90 via-amber-100 to-yellow-100/80 p-1.5 sm:p-2 rounded-xl border border-amber-300">
+                  {/* Pricing Section (Piece & Carton Price with Factor Calculation) */}
+                  <div className="bg-gradient-to-r from-amber-100/90 via-amber-100 to-yellow-100/80 p-2 rounded-xl border border-amber-300 space-y-1">
                     <div className="flex items-baseline justify-between">
                       <div>
-                        <div className="text-[9px] sm:text-[10px] text-amber-950 font-bold">سعر الكرتونة:</div>
-                        <div className="text-sm sm:text-base font-black text-slate-950">
-                          {formatCurrency(product.cartonPrice)}
+                        <div className="text-[10px] text-amber-950 font-bold">سعر القطعة (فردي):</div>
+                        <div className="text-sm font-black text-slate-950">
+                          {formatCurrency(product.piecePrice)}
                         </div>
                       </div>
 
                       <div className="text-left">
-                        <span className="text-[9px] sm:text-xs font-black text-amber-900">
-                          {product.cartonQuantity} ق/ك
-                        </span>
+                        <div className="text-[10px] text-amber-900 font-bold">سعر الكرتونة:</div>
+                        <div className="text-xs font-black text-amber-950">
+                          {formatCurrency(product.cartonPrice)}
+                        </div>
                       </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-amber-200/80 text-[10px] font-bold text-amber-900">
+                      <span>الشدة (Factor): <strong className="font-black text-slate-950">{product.cartonQuantity || product.factor || 1} قطعة</strong></span>
+                      <span className="text-[9px] text-slate-600 bg-white/80 px-1.5 py-0.2 rounded font-bold">
+                        {orderState.type === 'carton' 
+                          ? `${orderState.quantity} كرتونة = ${orderState.quantity * (product.cartonQuantity || product.factor || 1)} قطعة` 
+                          : `${orderState.quantity} قطعة`}
+                      </span>
                     </div>
                   </div>
 
-                  {/* Quick Carton Quantity Input & Add to Cart Button (Large Touch Targets >= 40px) */}
+                  {/* Piece vs Carton Order Switcher */}
+                  <div className="flex items-center bg-slate-200 p-0.5 rounded-xl border border-slate-300 text-[11px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => updateCardType(product.id, 'carton')}
+                      className={`flex-1 py-1 rounded-lg transition cursor-pointer flex items-center justify-center gap-1 ${
+                        orderState.type === 'carton'
+                          ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
+                          : 'text-slate-700 hover:text-slate-950'
+                      }`}
+                    >
+                      <span>📦 بالكرتونة</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateCardType(product.id, 'piece')}
+                      className={`flex-1 py-1 rounded-lg transition cursor-pointer flex items-center justify-center gap-1 ${
+                        orderState.type === 'piece'
+                          ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
+                          : 'text-slate-700 hover:text-slate-950'
+                      }`}
+                    >
+                      <span>🏷️ بالقطعة (مفرد)</span>
+                    </button>
+                  </div>
+
+                  {/* Quick Quantity Input & Add to Cart Button (Large Touch Targets >= 40px) */}
                   <div className="flex items-center gap-1 sm:gap-1.5 pt-0.5">
-                    {/* Carton Stepper */}
+                    {/* Stepper */}
                     <div className="flex items-center bg-slate-200 rounded-xl border border-slate-300 p-0.5 shrink-0">
                       <button
                         type="button"
@@ -982,7 +1099,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                         onClick={() => adjustCardQuantity(product.id, -1)}
                         className="w-8 sm:w-8 h-9 sm:h-9 flex items-center justify-center text-slate-900 active:bg-slate-300 rounded-lg font-black disabled:opacity-30 cursor-pointer"
                         title="إنقاص (-1)"
-                        aria-label="إنقاص كرتونة"
+                        aria-label="إنقاص الكمية"
                       >
                         <Minus className="w-3.5 h-3.5 stroke-[2.5]" />
                       </button>
@@ -990,24 +1107,23 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                       <input
                         type="number"
                         min="1"
-                        max={Math.max(1, totalCartonsAvailable)}
                         disabled={totalCartonsAvailable <= 0}
                         value={orderState.quantity}
                         onChange={(e) => {
                           const parsed = parseInt(e.target.value, 10);
-                          setCardQuantityDirect(product.id, parsed, totalCartonsAvailable);
+                          setCardQuantityDirect(product.id, parsed);
                         }}
-                        className="w-8 sm:w-10 h-9 sm:h-9 text-center font-black text-xs sm:text-sm text-slate-950 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
-                        aria-label="عدد الكراتين"
+                        className="w-9 sm:w-11 h-9 sm:h-9 text-center font-black text-xs sm:text-sm text-slate-950 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        aria-label="الكمية المطلوبة"
                       />
 
                       <button
                         type="button"
-                        disabled={totalCartonsAvailable <= 0 || orderState.quantity >= totalCartonsAvailable}
+                        disabled={totalCartonsAvailable <= 0}
                         onClick={() => adjustCardQuantity(product.id, 1)}
                         className="w-8 sm:w-8 h-9 sm:h-9 flex items-center justify-center text-slate-900 active:bg-slate-300 rounded-lg font-black disabled:opacity-30 cursor-pointer"
                         title="زيادة (+1)"
-                        aria-label="زيادة كرتونة"
+                        aria-label="زيادة الكمية"
                       >
                         <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                       </button>
@@ -1019,11 +1135,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                         type="button"
                         onClick={() => handleQuickAddWithState(product)}
                         className="flex-1 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 active:scale-95 text-slate-950 font-black h-10 px-1 sm:px-2 rounded-xl text-xs shadow-sm transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap"
-                        aria-label={`إضافة ${orderState.quantity} كرتونة`}
+                        aria-label={`إضافة ${orderState.quantity} ${orderState.type === 'carton' ? 'كرتونة' : 'قطعة'}`}
                       >
                         <ShoppingCart className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />
-                        <span className="hidden sm:inline font-black">أضف {orderState.quantity} ك</span>
-                        <span className="sm:hidden font-black">+{orderState.quantity} ك</span>
+                        <span className="font-black">
+                          أضف {orderState.quantity} {orderState.type === 'carton' ? 'ك' : 'ق'}
+                        </span>
                       </button>
                     ) : (
                       <button
@@ -1060,8 +1177,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {displayedProducts.map((product) => {
-                  const branchCartons = product.branchStockActual;
-                  const branchReservedCartons = Math.max(0, product.branchStockReserved);
+                  const activeBranch = selectedBranchFilter !== 'الكل' ? selectedBranchFilter : (currentUser?.branchName || '');
+                  const branchCartons = (product.branchStocks && activeBranch && product.branchStocks[activeBranch] !== undefined)
+                    ? product.branchStocks[activeBranch]
+                    : product.branchStockActual;
+                  const branchReservedCartons = Math.max(0, branchCartons - 5);
                   const mainWhCartons = product.mainWarehouseActual;
 
                   return (
@@ -1155,14 +1275,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
             <div className="flex items-center gap-1.5 text-slate-500 font-bold">
               <span>لكل صفحة:</span>
               <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
-                {[16, 24, 48, 'all'].map((size) => (
+                {[24, 48, 100, 250, 500, 'all'].map((size) => (
                   <button
                     key={size}
                     onClick={() => {
                       setItemsPerPage(size as any);
                       setCurrentPage(1);
                     }}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                    className={`px-2 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
                       itemsPerPage === size
                         ? 'bg-amber-400 text-slate-950 shadow-xs'
                         : 'text-slate-600 hover:text-slate-950 hover:bg-slate-200/60'
@@ -1345,9 +1465,21 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                 <span className="bg-slate-950 text-amber-300 font-black text-xs px-2.5 py-1 rounded-xl">
                   {selectedProductForModal.code}
                 </span>
-                <span className="text-xs font-bold text-slate-500">
-                  {selectedProductForModal.department || selectedProductForModal.category}
-                </span>
+                {(() => {
+                  const deptMeta = getDepartmentMeta(selectedProductForModal.department || selectedProductForModal.category);
+                  const DeptIcon = deptMeta.icon;
+                  return (
+                    <span className="text-xs font-bold text-slate-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg flex items-center gap-1.5">
+                      <DeptIcon className="w-3.5 h-3.5 text-amber-700" />
+                      <span>{deptMeta.nameArabic} ({selectedProductForModal.department || 'عام'})</span>
+                    </span>
+                  );
+                })()}
+                {selectedProductForModal.classification && (
+                  <span className="text-xs font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">
+                    🏷️ {selectedProductForModal.classification}
+                  </span>
+                )}
               </div>
               <button
                 onClick={() => setSelectedProductForModal(null)}

@@ -106,7 +106,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                   type="text"
                   value={loginIdentifier}
                   onChange={(e) => setLoginIdentifier(e.target.value)}
-                  placeholder="مثال: admin أو ahmed.rep@dream-dist.com"
+                  placeholder="مثال: osama@dream.com أو admin"
                   required
                   className="w-full bg-slate-950 border border-slate-750 focus:border-amber-500 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none transition pr-10"
                 />

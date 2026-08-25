@@ -16,7 +16,7 @@ import {
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { COMPANY_INFO } from '../data/mockData';
-import { exportElectronicInvoiceToExcel } from '../services/excelService';
+import { exportElectronicInvoiceToExcel, exportInvoiceForERP } from '../services/excelService';
 import { downloadInvoicePDF } from '../services/pdfService';
 import {
   formatArabicDate,
@@ -111,14 +111,24 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               <span>{isDownloadingPDF ? 'جاري التحميل...' : 'تحميل PDF 📄'}</span>
             </button>
 
-            {/* Excel Download */}
+            {/* Excel Download Standard */}
             <button
               onClick={() => exportElectronicInvoiceToExcel(invoice)}
               className="flex items-center gap-1 bg-emerald-700 hover:bg-emerald-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
               title="تصدير شيت إكسل رسمي"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">إكسل (.xlsx)</span>
+              <span className="hidden sm:inline">إكسل عادي</span>
+            </button>
+
+            {/* Excel Download ERP Format */}
+            <button
+              onClick={() => exportInvoiceForERP(invoice)}
+              className="flex items-center gap-1 bg-amber-500 hover:bg-amber-400 text-slate-950 px-2.5 py-1.5 rounded-lg text-xs font-black transition shadow-xs cursor-pointer"
+              title="تصدير شيت إكسل منسق جاهز للرفع على السيستم الرئيسي (ERP/Accounting)"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>تصدير للسيستم (ERP) ⚡</span>
             </button>
 
             {/* WhatsApp Share */}

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
   INITIAL_AUDIT_LOGS,
   INITIAL_BRANCHES,
+  INITIAL_CUSTOMERS,
   INITIAL_INVOICES,
   INITIAL_PRODUCTS,
   INITIAL_USERS
@@ -9,9 +10,15 @@ import {
 import { DEFAULT_CLOUDINARY_CONFIG } from '../services/cloudinaryService';
 import { clearCachedImages } from '../services/imageCacheService';
 import {
+  fetchCustomersFromSupabase,
+  fetchInvoicesFromSupabase,
+  fetchProductsFromSupabase,
   fetchUsersFromSupabase,
+  saveCustomersToSupabase,
   saveInvoiceToSupabase,
+  saveProductsToSupabase,
   saveUserToSupabase,
+  supabase,
   SupabaseSyncStatus,
   testSupabaseConnection,
 } from '../services/supabaseService';
@@ -21,6 +28,7 @@ import {
   Branch,
   CartItem,
   CloudinaryConfig,
+  Customer,
   InventoryTransaction,
   Invoice,
   OrderStatus,
@@ -36,6 +44,7 @@ interface AppContextType {
   users: User[];
   branches: Branch[];
   products: Product[];
+  customers: Customer[];
   invoices: Invoice[];
   cart: CartItem[];
   cloudinaryConfig: CloudinaryConfig;
@@ -52,7 +61,12 @@ interface AppContextType {
   isSupabaseSyncing: boolean;
   syncWithSupabase: (direction?: 'fetch' | 'push' | 'both') => Promise<{ success: boolean; message: string }>;
 
-  
+  // Customer Management Actions
+  addCustomer: (customer: Customer) => void;
+  updateCustomer: (customer: Customer) => void;
+  deleteCustomer: (customerId: string) => void;
+  importCustomersList: (newCustomers: Customer[], mode?: 'merge' | 'replace') => void;
+
   // Auth actions
   login: (identifier: string, password?: string) => { success: boolean; message: string; user?: User };
   register: (userData: {
@@ -67,8 +81,8 @@ interface AppContextType {
   }) => { success: boolean; message: string };
   logout: () => void;
 
-  // Cart Actions
-  addToCart: (product: Product, orderType?: 'carton' | 'piece', count?: number) => { success: boolean; message?: string };
+  // Cart Actions (Smart Carton & Piece Logic)
+  addToCart: (product: Product, orderType?: 'carton' | 'piece' | 'mixed', count?: number, piecesCount?: number) => { success: boolean; message?: string };
   updateCartItem: (productId: string, updates: Partial<CartItem>) => void;
   removeFromCart: (productId: string) => void;
   clearCart: () => void;
@@ -144,6 +158,7 @@ const STORAGE_KEYS = {
   INVOICES: 'dream_dist_invoices_v9',
   USERS: 'dream_dist_users_v9',
   BRANCHES: 'dream_dist_branches_v9',
+  CUSTOMERS: 'dream_dist_customers_v9',
   CLOUDINARY: 'dream_dist_cloudinary_v9',
   CURRENT_USER_ID: 'dream_dist_current_user_v9',
   IS_AUTH: 'dream_dist_is_auth_v9',
@@ -276,6 +291,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  const [customers, setCustomers] = useState<Customer[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
+    return saved ? JSON.parse(saved) : INITIAL_CUSTOMERS;
+  });
+
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.INVOICES);
     return saved ? JSON.parse(saved) : INITIAL_INVOICES;
@@ -390,20 +410,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const conn = await testSupabaseConnection();
       setSupabaseStatus(conn);
 
-      let fetchedCount = 0;
-      let pushedCount = 0;
+      let fetchedUsersCount = 0;
+      let fetchedInvoicesCount = 0;
+      let pushedUsersCount = 0;
+      let pushedInvoicesCount = 0;
 
-      // 2. Fetch remote users if requested
+      // 2. Fetch remote users and invoices if requested
       if (direction === 'fetch' || direction === 'both') {
         const fetchRes = await fetchUsersFromSupabase();
         if (fetchRes.success && fetchRes.users && fetchRes.users.length > 0) {
-          fetchedCount = fetchRes.users.length;
+          fetchedUsersCount = fetchRes.users.length;
           setUsers((prev) => {
             const mergedMap = new Map<string, User>();
-            // Keep existing
             prev.forEach((u) => mergedMap.set(u.id, u));
             prev.forEach((u) => mergedMap.set(u.username.toLowerCase(), u));
-            // Overwrite with Supabase
             fetchRes.users!.forEach((su) => {
               mergedMap.set(su.id, su);
               mergedMap.set(su.username.toLowerCase(), su);
@@ -411,20 +431,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return Array.from(new Set(mergedMap.values()));
           });
         }
+
+        const invRes = await fetchInvoicesFromSupabase();
+        if (invRes.success && invRes.invoices && invRes.invoices.length > 0) {
+          fetchedInvoicesCount = invRes.invoices.length;
+          setInvoices((prev) => {
+            const invMap = new Map<string, Invoice>();
+            prev.forEach((i) => invMap.set(i.id, i));
+            prev.forEach((i) => invMap.set(i.invoiceNumber, i));
+            invRes.invoices!.forEach((si) => {
+              invMap.set(si.id, si);
+              invMap.set(si.invoiceNumber, si);
+            });
+            return Array.from(new Set(invMap.values()));
+          });
+        }
       }
 
-      // 3. Push local users to Supabase if requested
+      // 3. Push local users, invoices, and products to Supabase if requested
       if (direction === 'push' || direction === 'both') {
         for (const user of users) {
           await saveUserToSupabase(user);
-          pushedCount++;
+          pushedUsersCount++;
+        }
+        for (const inv of invoices) {
+          await saveInvoiceToSupabase(inv);
+          pushedInvoicesCount++;
+        }
+        if (products.length > 0) {
+          await saveProductsToSupabase(products);
         }
       }
 
       const updatedConn = await testSupabaseConnection();
       setSupabaseStatus(updatedConn);
 
-      const msg = `تمت المزامنة بنجاح مع Supabase! (جلب: ${fetchedCount} مستخدم، وتحديث: ${pushedCount} مستخدم سحابياً).`;
+      const msg = `تمت المزامنة السحابية بنجاح مع Supabase! (مستخدمين: ${fetchedUsersCount || pushedUsersCount}، فواتير وطلبيات: ${fetchedInvoicesCount || pushedInvoicesCount}).`;
       return { success: true, message: msg };
     } catch (err: any) {
       return {
@@ -436,11 +478,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Initial Supabase connection check and silent fetch
+  // Initial Supabase connection check, fetch users, products, invoices & real-time sync
   useEffect(() => {
     testSupabaseConnection().then((status) => {
       setSupabaseStatus(status);
       if (status.connected) {
+        // 1. Fetch Users
         fetchUsersFromSupabase().then((res) => {
           if (res.success && res.users && res.users.length > 0) {
             setUsers((prev) => {
@@ -451,14 +494,168 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             });
           }
         });
+
+        // 2. Fetch Central Catalog from Supabase (Propagates Admin/Developer uploads to all reps and supervisors)
+        fetchProductsFromSupabase().then((res) => {
+          if (res.success && res.products && res.products.length > 0) {
+            setProducts((prev) => {
+              // Merge remote products while preserving local reserved counts
+              const localMap = new Map<string, Product>();
+              prev.forEach((p) => localMap.set(p.id, p));
+              const merged = res.products!.map((remoteP) => {
+                const localP = localMap.get(remoteP.id);
+                if (!localP) return remoteP;
+                return {
+                  ...remoteP,
+                  branchStockReserved: localP.branchStockReserved < remoteP.branchStockActual ? localP.branchStockReserved : remoteP.branchStockActual,
+                  mainWarehouseReserved: localP.mainWarehouseReserved < remoteP.mainWarehouseActual ? localP.mainWarehouseReserved : remoteP.mainWarehouseActual,
+                };
+              });
+              return sanitizeProducts(merged);
+            });
+          }
+        });
+
+        // 3. Fetch Invoices
+        fetchInvoicesFromSupabase().then((res) => {
+          if (res.success && res.invoices && res.invoices.length > 0) {
+            setInvoices((prev) => {
+              const map = new Map<string, Invoice>();
+              prev.forEach((i) => map.set(i.id, i));
+              res.invoices!.forEach((si) => map.set(si.id, si));
+              return Array.from(map.values());
+            });
+          }
+        });
       }
     });
+
+    // Setup Supabase Realtime Subscription for Invoices, Orders (Catalog Sync) & Users
+    try {
+      const channel = supabase
+        .channel('schema-db-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, (payload) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const raw = payload.new as any;
+            if (raw && raw.id) {
+              const mappedInv: Invoice = {
+                id: raw.id,
+                invoiceNumber: raw.invoice_number || raw.invoiceNumber || 'DRM-INV',
+                customerName: raw.customer_name || raw.customerName || 'عميل',
+                customerPhone: raw.customer_phone || raw.customerPhone || '',
+                customerAddress: raw.customer_address || raw.customerAddress || '',
+                customerTaxNumber: raw.customer_tax_number || raw.customerTaxNumber || '',
+                date: raw.date || (raw.created_at ? raw.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10)),
+                time: raw.time || (raw.created_at ? raw.created_at.slice(11, 19) : ''),
+                repId: raw.rep_id || raw.repId || 'u-rep',
+                repName: raw.rep_name || raw.repName || 'مندوب المبيعات',
+                supervisorName: raw.supervisor_name || raw.supervisorName || 'مشرف الفرع',
+                branchName: raw.branch_name || raw.branchName || 'الفرع الرئيسي',
+                items: Array.isArray(raw.items) ? raw.items : typeof raw.items === 'string' ? JSON.parse(raw.items) : [],
+                totalCartons: raw.total_cartons || raw.totalCartons || 0,
+                totalPieces: raw.total_pieces || raw.totalPieces || 0,
+                subtotal: raw.subtotal || raw.estimated_grand_total || 0,
+                discountPercentage: raw.discount_percentage || 0,
+                discountAmount: raw.discount_amount || raw.discountAmount || 0,
+                taxPercentage: 0,
+                taxAmount: 0,
+                estimatedGrandTotal: raw.estimated_grand_total || raw.estimatedGrandTotal || 0,
+                paymentMethod: raw.payment_method || raw.paymentMethod || 'نقدي (كاش)',
+                status: raw.status || 'قيد مراجعة المشرف',
+                notes: raw.notes || '',
+                syncedToAccounting: raw.synced_to_accounting || false,
+                hasShortageSplit: raw.has_shortage_split || false,
+                shortageInvoiceNumber: raw.shortage_invoice_number,
+                isShortageInvoice: raw.is_shortage_invoice || false,
+                parentInvoiceId: raw.parent_invoice_id,
+                parentInvoiceNumber: raw.parent_invoice_number,
+                qrPayload: raw.qr_payload,
+              };
+              setInvoices((prev) => {
+                const map = new Map<string, Invoice>();
+                prev.forEach((i) => map.set(i.id, i));
+                map.set(mappedInv.id, mappedInv);
+                return Array.from(map.values());
+              });
+            }
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const raw = payload.new as any;
+            if (raw && raw.id === '00000000-0000-0000-0000-000000000001' && raw.items) {
+              const remoteProducts: Product[] = Array.isArray(raw.items)
+                ? raw.items
+                : typeof raw.items === 'string'
+                ? JSON.parse(raw.items)
+                : [];
+              if (remoteProducts.length > 0) {
+                setProducts(sanitizeProducts(remoteProducts));
+              }
+            }
+          }
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    } catch (e) {
+      console.warn('Realtime channel error:', e);
+    }
   }, []);
+
+  // Customer CRUD Actions
+  const addCustomer = (newCust: Customer) => {
+    setCustomers((prev) => [newCust, ...prev]);
+    saveCustomersToSupabase([newCust]).catch((e) => console.warn('Supabase customer save error:', e));
+    recordAuditLog({
+      userId: currentUser?.id || 'admin',
+      userName: currentUser?.name || 'مستخدم',
+      userRole: currentUser?.role || 'sales_rep',
+      branchName: newCust.branchName || currentUser?.branchName || 'الفرع الرئيسي',
+      action: 'add_customer' as any,
+      actionTitle: `إضافة عميل جديد (${newCust.name})`,
+      details: `تمت إضافة العميل بكود (${newCust.code}) وهاتف (${newCust.phone || '---'}).`,
+      badgeType: 'success',
+    });
+  };
+
+  const updateCustomer = (updatedCust: Customer) => {
+    setCustomers((prev) => prev.map((c) => (c.id === updatedCust.id ? updatedCust : c)));
+    saveCustomersToSupabase([updatedCust]).catch((e) => console.warn('Supabase customer update error:', e));
+  };
+
+  const deleteCustomer = (customerId: string) => {
+    setCustomers((prev) => prev.filter((c) => c.id !== customerId));
+  };
+
+  const importCustomersList = (newCustomers: Customer[], mode: 'merge' | 'replace' = 'merge') => {
+    if (mode === 'replace') {
+      setCustomers(newCustomers);
+    } else {
+      setCustomers((prev) => {
+        const map = new Map<string, Customer>();
+        prev.forEach((c) => map.set(c.id, c));
+        prev.forEach((c) => map.set(c.code.toLowerCase(), c));
+        newCustomers.forEach((c) => {
+          map.set(c.id, c);
+          map.set(c.code.toLowerCase(), c);
+        });
+        return Array.from(new Set(map.values()));
+      });
+    }
+    saveCustomersToSupabase(newCustomers).catch((e) => console.warn('Supabase customer bulk save error:', e));
+  };
 
   // Sync to local storage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
   }, [products]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
+  }, [customers]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.INVOICES, JSON.stringify(invoices));
@@ -675,14 +872,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const prod = products.find((p) => p.id === productId);
     if (!prod) return { available: false, remainingPieces: 0, message: 'الصنف غير موجود بالسيستم' };
 
-    const remaining = Math.max(0, prod.branchStockReserved);
-    const totalAvailable = remaining + Math.max(0, prod.mainWarehouseReserved);
+    const branchActual = prod.branchStockActual || 0;
+    const branchAvailable = Math.max(0, prod.branchStockReserved);
+    const branchReservedCount = Math.max(0, branchActual - branchAvailable);
+
+    const mainActual = prod.mainWarehouseActual || 0;
+    const mainAvailable = Math.max(0, prod.mainWarehouseReserved);
+    const mainReservedCount = Math.max(0, mainActual - mainAvailable);
+
+    const totalAvailable = branchAvailable + mainAvailable;
+    const totalActual = branchActual + mainActual;
+    const totalReserved = branchReservedCount + mainReservedCount;
 
     if (totalAvailable <= 0) {
       return {
         available: false,
         remainingPieces: 0,
-        message: `عفواً، الصنف (${prod.name}) نفذ تماماً من المخزن (0 كرتونة متبقية)! الرصيد محجوز بالكامل.`
+        message: `عفواً، الصنف (${prod.name}) غير متاح للطلب الآن!\n📊 تفاصيل الرصيد: الرصيد الفعلي (${totalActual} كرتونة) - محجوز بفواتير معلقة (${totalReserved} كرتونة) = الرصيد المتاح للبيع (0 كرتونة متبقية).`
       };
     }
 
@@ -690,66 +896,109 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return {
         available: false,
         remainingPieces: totalAvailable,
-        message: `الكمية المطلوبة (${requestedCartons} كرتونة) تتجاوز الرصيد المتاح (${totalAvailable} كرتونة متبقية)!`
+        message: `عفواً، الكمية المطلوبة (${requestedCartons} كرتونة) تتجاوز الرصيد المتاح!\n📊 تفاصيل الرصيد: الفعلي بالمخزن (${totalActual} كرتونة) | محجوز لمناديب آخرين (${totalReserved} كرتونة) ⬅️ المتبقي الصافي المتاح (${totalAvailable} كرتونة فقط).`
       };
     }
 
     return { available: true, remainingPieces: totalAvailable };
   };
 
-  // --- Cart Actions with Concurrency Checks (Pure Carton Logic) ---
+  // --- Smart Cart Actions with Automatic Carton & Piece Conversion ---
   const addToCart = (
     product: Product,
-    orderType: 'carton' | 'piece' = 'carton',
-    count: number = 1
+    orderType: 'carton' | 'piece' | 'mixed' = 'carton',
+    count: number = 1,
+    piecesCount: number = 0
   ): { success: boolean; message?: string } => {
     const latestProd = products.find((p) => p.id === product.id) || product;
-    const cartonsToAdd = Math.max(1, count);
+    const cartonQty = latestProd.cartonQuantity && latestProd.cartonQuantity > 0 ? latestProd.cartonQuantity : 1;
 
-    const existing = cart.find((item) => item.product.id === latestProd.id);
-    const existingCartons = existing ? existing.cartonCount : 0;
-    const totalRequiredCartons = existingCartons + cartonsToAdd;
+    let cartonsToAdd = 0;
+    let piecesToAdd = 0;
 
+    if (orderType === 'piece') {
+      // User entered total pieces -> automatically convert to cartons + pieces!
+      const totalPiecesInput = Math.max(1, count);
+      cartonsToAdd = Math.floor(totalPiecesInput / cartonQty);
+      piecesToAdd = totalPiecesInput % cartonQty;
+    } else if (orderType === 'carton') {
+      cartonsToAdd = Math.max(0, count);
+      piecesToAdd = Math.max(0, piecesCount);
+      // Auto-wrap overflow pieces to cartons if >= cartonQty
+      if (piecesToAdd >= cartonQty) {
+        cartonsToAdd += Math.floor(piecesToAdd / cartonQty);
+        piecesToAdd = piecesToAdd % cartonQty;
+      }
+    } else {
+      cartonsToAdd = Math.max(0, count);
+      piecesToAdd = Math.max(0, piecesCount);
+      if (piecesToAdd >= cartonQty) {
+        cartonsToAdd += Math.floor(piecesToAdd / cartonQty);
+        piecesToAdd = piecesToAdd % cartonQty;
+      }
+    }
+
+    if (cartonsToAdd === 0 && piecesToAdd === 0) {
+      cartonsToAdd = 1;
+    }
+
+    const totalRequiredCartonFraction = cartonsToAdd + (piecesToAdd / cartonQty);
+
+    const branchActual = latestProd.branchStockActual || 0;
     const availableInBranch = Math.max(0, latestProd.branchStockReserved);
+    const branchReservedCount = Math.max(0, branchActual - availableInBranch);
+
+    const mainActual = latestProd.mainWarehouseActual || 0;
     const availableInWarehouse = Math.max(0, latestProd.mainWarehouseReserved);
+    const mainReservedCount = Math.max(0, mainActual - availableInWarehouse);
+
+    const totalActual = branchActual + mainActual;
+    const totalReserved = branchReservedCount + mainReservedCount;
     const totalAvailable = availableInBranch + availableInWarehouse;
 
     if (totalAvailable <= 0) {
       return {
         success: false,
-        message: `عفواً، الصنف (${latestProd.name}) نفذ من المخزن تماماً (0 كرتونة متبقية)! تم حجز كامل الكمية بواسطة مناديب آخرين.`
-      };
-    }
-
-    if (totalRequiredCartons > totalAvailable) {
-      return {
-        success: false,
-        message: `عفواً، الكمية المطلوبة تتجاوز المتاح! المتبقي حالياً بالمخزن (${totalAvailable} كرتونة فقط) بينما طلبت (${totalRequiredCartons} كرتونة).`
+        message: `⚠️ تنبيه رصيد محجوز: الصنف (${latestProd.name}) غير متاح للبيع!\n(الرصيد الفعلي بالمخزن: ${totalActual} كرتونة، ولكن تم حجز ${totalReserved} كرتونة بفواتير قيد المراجعة ⬅️ المتاح الصافي: 0 كرتونة).`
       };
     }
 
     const appliedCartonPrice = latestProd.promoPrice && latestProd.promoPrice > 0 ? latestProd.promoPrice : latestProd.cartonPrice;
+    const piecePrice = latestProd.piecePrice && latestProd.piecePrice > 0 ? latestProd.piecePrice : (cartonQty > 0 ? Math.round((appliedCartonPrice / cartonQty) * 100) / 100 : appliedCartonPrice);
 
     setCart((prev) => {
       const existingInCart = prev.find((item) => item.product.id === latestProd.id);
 
       if (existingInCart) {
-        const newCartonCount = existingInCart.cartonCount + cartonsToAdd;
-        const totalPrice = newCartonCount * appliedCartonPrice;
+        let newCartonCount = existingInCart.cartonCount + cartonsToAdd;
+        let newPieceCount = (existingInCart.pieceCount || 0) + piecesToAdd;
+        if (newPieceCount >= cartonQty) {
+          newCartonCount += Math.floor(newPieceCount / cartonQty);
+          newPieceCount = newPieceCount % cartonQty;
+        }
+
+        const totalPrice = (newCartonCount * appliedCartonPrice) + (newPieceCount * piecePrice);
+        const totalUnits = (newCartonCount * cartonQty) + newPieceCount;
 
         return prev.map((item) =>
           item.product.id === latestProd.id
             ? {
                 ...item,
                 cartonCount: newCartonCount,
+                pieceCount: newPieceCount,
+                totalPieces: totalUnits,
+                cartonQuantity: cartonQty,
                 unitPrice: appliedCartonPrice,
+                pricePerPiece: piecePrice,
                 totalPrice,
                 orderType: 'carton',
+                quantityDescription: newCartonCount > 0 && newPieceCount > 0 ? `${newCartonCount} كرتونة و ${newPieceCount} قطعة` : newCartonCount > 0 ? `${newCartonCount} كرتونة` : `${newPieceCount} قطعة`,
               }
             : item
         );
       } else {
-        const totalPrice = cartonsToAdd * appliedCartonPrice;
+        const totalPrice = (cartonsToAdd * appliedCartonPrice) + (piecesToAdd * piecePrice);
+        const totalUnits = (cartonsToAdd * cartonQty) + piecesToAdd;
 
         return [
           ...prev,
@@ -757,8 +1006,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             product: latestProd,
             orderType: 'carton',
             cartonCount: cartonsToAdd,
+            pieceCount: piecesToAdd,
+            totalPieces: totalUnits,
+            cartonQuantity: cartonQty,
             unitPrice: appliedCartonPrice,
+            pricePerPiece: piecePrice,
             totalPrice,
+            quantityDescription: cartonsToAdd > 0 && piecesToAdd > 0 ? `${cartonsToAdd} كرتونة و ${piecesToAdd} قطعة` : cartonsToAdd > 0 ? `${cartonsToAdd} كرتونة` : `${piecesToAdd} قطعة`,
             fulfillFromMainWarehouse: latestProd.branchStockActual <= 0 && latestProd.mainWarehouseActual > 0,
           },
         ];
@@ -773,19 +1027,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       prev.map((item) => {
         if (item.product.id !== productId) return item;
         const merged = { ...item, ...updates };
+        const cartonQty = merged.product.cartonQuantity && merged.product.cartonQuantity > 0 ? merged.product.cartonQuantity : 1;
         const appliedCartonPrice =
           merged.product.promoPrice && merged.product.promoPrice > 0
             ? merged.product.promoPrice
             : merged.product.cartonPrice;
+        const piecePrice = merged.product.piecePrice && merged.product.piecePrice > 0 ? merged.product.piecePrice : (cartonQty > 0 ? Math.round((appliedCartonPrice / cartonQty) * 100) / 100 : appliedCartonPrice);
 
-        const safeCartonCount = Math.max(1, merged.cartonCount || 1);
-        const totalPrice = safeCartonCount * appliedCartonPrice;
+        let safeCartonCount = Math.max(0, merged.cartonCount ?? 0);
+        let safePieceCount = Math.max(0, merged.pieceCount ?? 0);
+
+        // Auto-wrap overflow pieces into cartons
+        if (safePieceCount >= cartonQty) {
+          safeCartonCount += Math.floor(safePieceCount / cartonQty);
+          safePieceCount = safePieceCount % cartonQty;
+        }
+
+        if (safeCartonCount === 0 && safePieceCount === 0) {
+          safeCartonCount = 1;
+        }
+
+        const totalPrice = (safeCartonCount * appliedCartonPrice) + (safePieceCount * piecePrice);
+        const totalUnits = (safeCartonCount * cartonQty) + safePieceCount;
+
+        const desc = safeCartonCount > 0 && safePieceCount > 0 
+          ? `${safeCartonCount} كرتونة و ${safePieceCount} قطعة` 
+          : safeCartonCount > 0 
+          ? `${safeCartonCount} كرتونة` 
+          : `${safePieceCount} قطعة`;
 
         return {
           ...merged,
           cartonCount: safeCartonCount,
+          pieceCount: safePieceCount,
+          totalPieces: totalUnits,
+          cartonQuantity: cartonQty,
           unitPrice: appliedCartonPrice,
+          pricePerPiece: piecePrice,
           totalPrice,
+          quantityDescription: desc,
           orderType: 'carton',
         };
       })
@@ -800,10 +1080,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const getCartSummary = (customDiscountPercent?: number) => {
     let totalCartons = 0;
+    let totalPieces = 0;
     let subtotal = 0;
 
     cart.forEach((item) => {
+      const cQty = item.product.cartonQuantity || 1;
       totalCartons += item.cartonCount;
+      totalPieces += (item.cartonCount * cQty) + (item.pieceCount || 0);
       subtotal += item.totalPrice;
     });
 
@@ -814,7 +1097,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return {
       totalCartons,
-      totalPieces: totalCartons,
+      totalPieces,
       subtotal,
       discountPercentage,
       discountAmount,
@@ -906,22 +1189,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     };
 
+    const getProductVariantKey = (p: Product): string => {
+      const cCode = (p.code || '').trim().toLowerCase();
+      const cColor = (p.color || '').trim().toLowerCase();
+      const cSize = (p.size || '').trim().toLowerCase();
+      const cBranch = (p.branchName || '').trim().toLowerCase();
+      const cImg = (p.imageUrl || '').trim();
+      const cName = (p.name || '').trim().toLowerCase();
+      return `${cCode}:::${cColor}:::${cSize}:::${cBranch}:::${cImg || cName}`;
+    };
+
+    let finalUpdated: Product[] = [];
     if (mode === 'replace') {
-      setProducts(sanitizeProducts(newProducts.map(protectReserved)));
+      finalUpdated = sanitizeProducts(newProducts.map(protectReserved));
+      setProducts(finalUpdated);
     } else {
-      setProducts((prev) => {
-        const map = new Map<string, Product>();
-        prev.forEach((p) => map.set(p.code, p));
-        newProducts.forEach((p) => {
-          const existing = map.get(p.code);
-          const mergedProd: Product = existing
-            ? { ...existing, ...p, id: existing.id }
-            : p;
-          map.set(p.code, protectReserved(mergedProd));
-        });
-        return sanitizeProducts(Array.from(map.values()));
+      // Merge mode: Preserve all imported rows without collapsing identical codes
+      const idMap = new Map<string, Product>();
+      products.forEach((p) => idMap.set(p.id, p));
+      newProducts.forEach((p) => {
+        idMap.set(p.id, protectReserved(p));
       });
+      finalUpdated = sanitizeProducts(Array.from(idMap.values()));
+      setProducts(finalUpdated);
     }
+
+    // Persist full catalog to Supabase so reps & branch supervisors instantly receive it on all devices
+    saveProductsToSupabase(finalUpdated).catch((err) => {
+      console.warn('Supabase catalog auto-sync warning:', err);
+    });
 
     recordAuditLog({
       userId: currentUser?.id || 'admin',
@@ -930,7 +1226,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: currentUser?.branchName || 'الفرع الرئيسي',
       action: 'import_products',
       actionTitle: `استيراد ومزامنة ${newProducts.length} صنف من شيت الإكسل (${mode === 'replace' ? 'استبدال كامل' : 'دمج وتحديث'})`,
-      details: `تم تحديث بيانات وشدات وأسعار ${newProducts.length} صنف مع الحفاظ على حجوزات المناديب النشطة.`,
+      details: `تم تحديث بيانات وشدات وأسعار ${newProducts.length} صنف مع الحفاظ على حجوزات المناديب النشطة ومزامنتها مع قاعدة البيانات المركزية.`,
       badgeType: 'info',
     });
   };
@@ -1038,19 +1334,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return items.map((item) => {
         const cartonQty = item.product.cartonQuantity || 1;
         const appliedCartonPrice = item.product.promoPrice && item.product.promoPrice > 0 ? item.product.promoPrice : item.product.cartonPrice;
-        const itemSubtotal = item.cartonCount * appliedCartonPrice;
+        const piecePrice = item.product.piecePrice && item.product.piecePrice > 0 ? item.product.piecePrice : (cartonQty > 0 ? Math.round((appliedCartonPrice / cartonQty) * 100) / 100 : appliedCartonPrice);
+        
+        const cCount = item.cartonCount || 0;
+        const pCount = item.pieceCount || 0;
+        const itemSubtotal = (cCount * appliedCartonPrice) + (pCount * piecePrice);
         const itemDiscount = itemSubtotal * (orderDiscountPercent / 100);
         const itemTax = 0;
+        const totalUnits = (cCount * cartonQty) + pCount;
+
+        const smartDesc = cCount > 0 && pCount > 0 
+          ? `${cCount} كرتونة و ${pCount} قطعة` 
+          : cCount > 0 
+          ? `${cCount} كرتونة` 
+          : `${pCount} قطعة`;
 
         return {
           productId: item.product.id,
           productCode: item.product.code,
           productName: item.product.name,
-          cartonCount: item.cartonCount,
-          pieceCount: 0,
+          cartonCount: cCount,
+          pieceCount: pCount,
           cartonQuantity: cartonQty,
-          totalUnits: item.cartonCount,
-          pricePerPiece: item.product.piecePrice || 0,
+          totalUnits,
+          quantityDescription: smartDesc,
+          pricePerPiece: piecePrice,
           pricePerCarton: item.product.cartonPrice,
           appliedPrice: appliedCartonPrice,
           totalBeforeTax: itemSubtotal,
@@ -1065,14 +1373,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const calculateTotals = (items: ReturnType<typeof buildInvoiceItems>) => {
       let subtotal = 0;
       let totalCartons = 0;
+      let totalPieces = 0;
       items.forEach((it) => {
         subtotal += it.totalBeforeTax;
         totalCartons += it.cartonCount;
+        totalPieces += it.totalUnits;
       });
       const discountAmount = subtotal * (orderDiscountPercent / 100);
       const taxAmount = 0;
       const estimatedGrandTotal = Math.max(0, subtotal - discountAmount);
-      return { subtotal, totalCartons, totalPieces: totalCartons, discountAmount, taxAmount, estimatedGrandTotal };
+      return { subtotal, totalCartons, totalPieces, discountAmount, taxAmount, estimatedGrandTotal };
     };
 
     const primaryItems = buildInvoiceItems(primaryCartItems);
@@ -1216,6 +1526,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     });
 
+    // Auto push to Supabase Cloud Database
+    saveInvoiceToSupabase(primaryInvoice).catch((e) => console.warn('Supabase invoice save failed:', e));
+    if (createdShortageInvoice) {
+      saveInvoiceToSupabase(createdShortageInvoice).catch((e) => console.warn('Supabase shortage invoice save failed:', e));
+    }
+
     clearCart();
 
     recordAuditLog({
@@ -1283,15 +1599,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     setInvoices((prev) =>
-      prev.map((i) =>
-        i.id === invoiceId
-          ? {
-              ...i,
-              status: 'معتمدة ومصروفة من المخزن' as OrderStatus,
-              notes: notes ? `${i.notes ? i.notes + ' | ' : ''}ملاحظة الاعتماد: ${notes}` : i.notes,
-            }
-          : i
-      )
+      prev.map((i) => {
+        if (i.id !== invoiceId) return i;
+        const updated: Invoice = {
+          ...i,
+          status: 'معتمدة ومصروفة من المخزن' as OrderStatus,
+          notes: notes ? `${i.notes ? i.notes + ' | ' : ''}ملاحظة الاعتماد: ${notes}` : i.notes,
+        };
+        saveInvoiceToSupabase(updated).catch((e) => console.warn('Supabase invoice update failed:', e));
+        return updated;
+      })
     );
 
     recordAuditLog({
@@ -1319,15 +1636,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!inv) return { success: false, message: 'الطلبية غير موجودة' };
 
     setInvoices((prev) =>
-      prev.map((i) =>
-        i.id === invoiceId
-          ? {
-              ...i,
-              status: 'معلقة بانتظار اعتماد الفرع' as OrderStatus,
-              notes: notes ? `${i.notes ? i.notes + ' | ' : ''}تم التحويل لمدير الفرع: ${notes}` : i.notes,
-            }
-          : i
-      )
+      prev.map((i) => {
+        if (i.id !== invoiceId) return i;
+        const updated: Invoice = {
+          ...i,
+          status: 'معلقة بانتظار اعتماد الفرع' as OrderStatus,
+          notes: notes ? `${i.notes ? i.notes + ' | ' : ''}تم التحويل لمدير الفرع: ${notes}` : i.notes,
+        };
+        saveInvoiceToSupabase(updated).catch((e) => console.warn('Supabase forward update failed:', e));
+        return updated;
+      })
     );
 
     recordAuditLog({
@@ -1391,19 +1709,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     setInvoices((prev) =>
-      prev.map((i) =>
-        i.id === invoiceId
-          ? {
-              ...i,
-              status: 'مرفوضة / ملغاة' as OrderStatus,
-              cancellationReason: reason,
-              cancelledBy: currentUser?.name || 'مشرف المبيعات',
-              cancelledAt: `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true })}`,
-              restoredStockDetails: `تم استرجاع ${inv.totalCartons} كرتونة إلى مخزن الفرع`,
-              notes: `${i.notes ? i.notes + ' | ' : ''}سبب الرفض: ${reason}`,
-            }
-          : i
-      )
+      prev.map((i) => {
+        if (i.id !== invoiceId) return i;
+        const updated: Invoice = {
+          ...i,
+          status: 'مرفوضة / ملغاة' as OrderStatus,
+          cancellationReason: reason,
+          cancelledBy: currentUser?.name || 'مشرف المبيعات',
+          cancelledAt: `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true })}`,
+          restoredStockDetails: `تم استرجاع ${inv.totalCartons} كرتونة إلى مخزن الفرع`,
+          notes: `${i.notes ? i.notes + ' | ' : ''}سبب الرفض: ${reason}`,
+        };
+        saveInvoiceToSupabase(updated).catch((e) => console.warn('Supabase reject update failed:', e));
+        return updated;
+      })
     );
 
     recordAuditLog({
@@ -1533,21 +1852,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     setInvoices((prev) =>
-      prev.map((i) =>
-        i.id === invoiceId
-          ? {
-              ...i,
-              status,
-              cancellationReason: isNowReturnedOrCancelled ? (reason || i.cancellationReason || 'إلغاء الطلبية') : i.cancellationReason,
-              cancelledBy: isNowReturnedOrCancelled ? (currentUser?.name || 'مسؤول النظام') : i.cancelledBy,
-              cancelledAt: isNowReturnedOrCancelled ? `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true })}` : i.cancelledAt,
-              restoredStockDetails: isNowReturnedOrCancelled ? `تم استرجاع ${inv.totalCartons} كرتونة إلى المخزن` : i.restoredStockDetails,
-              notes: reason
-                ? `${i.notes ? i.notes + ' | ' : ''}تحديث الحالة إلى (${status}): ${reason}`
-                : i.notes,
-            }
-          : i
-      )
+      prev.map((i) => {
+        if (i.id !== invoiceId) return i;
+        const updated: Invoice = {
+          ...i,
+          status,
+          cancellationReason: isNowReturnedOrCancelled ? (reason || i.cancellationReason || 'إلغاء الطلبية') : i.cancellationReason,
+          cancelledBy: isNowReturnedOrCancelled ? (currentUser?.name || 'مسؤول النظام') : i.cancelledBy,
+          cancelledAt: isNowReturnedOrCancelled ? `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true })}` : i.cancelledAt,
+          restoredStockDetails: isNowReturnedOrCancelled ? `تم استرجاع ${inv.totalCartons} كرتونة إلى المخزن` : i.restoredStockDetails,
+          notes: reason
+            ? `${i.notes ? i.notes + ' | ' : ''}تحديث الحالة إلى (${status}): ${reason}`
+            : i.notes,
+        };
+        saveInvoiceToSupabase(updated).catch((e) => console.warn('Supabase status update failed:', e));
+        return updated;
+      })
     );
 
     recordAuditLog({
@@ -1761,6 +2081,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         users,
         branches,
         products,
+        customers,
         invoices,
         cart,
         cloudinaryConfig,
@@ -1775,6 +2096,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         supabaseStatus,
         isSupabaseSyncing,
         syncWithSupabase,
+        addCustomer,
+        updateCustomer,
+        deleteCustomer,
+        importCustomersList,
         login,
         register,
         logout,

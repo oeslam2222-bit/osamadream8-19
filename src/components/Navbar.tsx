@@ -88,11 +88,11 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     { id: 'dashboard', label: 'لوحة المشرف والمتابعة 📊', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'invoices', label: 'الفواتير والطلبيات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
     { id: 'inventory', label: 'إدارة المخزون والاعتمادات', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
-    { id: 'excel', label: 'شيتات Google Sheets والإكسل', icon: FileSpreadsheet, roles: ['admin', 'branch_manager', 'supervisor', 'developer'] },
-    { id: 'audit', label: 'سجل العمليات (Audit Log)', icon: ShieldCheck, roles: ['admin', 'branch_manager', 'supervisor', 'developer'] },
+    { id: 'excel', label: 'شيتات Google Sheets والإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },
+    { id: 'audit', label: 'سجل العمليات (Audit Log)', icon: ShieldCheck, roles: ['admin', 'developer'] },
     { id: 'guide', label: 'دليل دورة العمل 📖', icon: BookOpen, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'users', label: 'المستخدمين والصلاحيات', icon: Users, roles: ['admin', 'branch_manager', 'developer'], badge: pendingApprovalsCount },
-    { id: 'accounting', label: 'وحدة المطور والربط (ERP & Supabase)', icon: Server, roles: ['admin', 'branch_manager', 'developer'] },
+    { id: 'users', label: 'المستخدمين والصلاحيات', icon: Users, roles: ['admin', 'developer'], badge: pendingApprovalsCount },
+    { id: 'accounting', label: 'وحدة المطور والربط (ERP & Supabase)', icon: Server, roles: ['admin', 'developer'] },
   ];
 
   const filteredNavItems = navItems.filter((item) => item.roles.includes(currentUser.role));
@@ -181,8 +181,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
               )}
             </div>
 
-            {/* Pending Users Notification for Admin (Hidden for reps) */}
-            {currentUser.role === 'admin' && pendingApprovalsCount > 0 && (
+            {/* Pending Users Notification for Admin / Developer (Hidden for reps/supervisors) */}
+            {(currentUser.role === 'admin' || currentUser.role === 'developer') && pendingApprovalsCount > 0 && (
               <button
                 onClick={() => setActiveTab('users')}
                 className="flex items-center justify-center gap-1 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 px-2.5 h-9 sm:h-10 rounded-xl text-xs font-bold transition animate-pulse"
@@ -193,8 +193,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
               </button>
             )}
 
-            {/* Branch Filter for Admin (Desktop only) */}
-            {currentUser.role === 'admin' && (
+            {/* Branch Filter for Admin & Developer (Desktop only) */}
+            {(currentUser.role === 'admin' || currentUser.role === 'developer') && (
               <div className="relative hidden lg:block">
                 <select
                   aria-label="تصفية الفرع"

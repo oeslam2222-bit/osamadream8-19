@@ -15,24 +15,22 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
-import React, { Component, ErrorInfo, Suspense, lazy, useState } from 'react';
+import React, { Component, ErrorInfo, Suspense, useState } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { ProductCatalog } from './components/ProductCatalog';
+import { SupervisorDashboard } from './components/SupervisorDashboard';
+import { InvoicesManager } from './components/InvoicesManager';
+import { InventoryStockView } from './components/InventoryStockView';
+import { ExcelImportExport } from './components/ExcelImportExport';
+import { AuditLogView } from './components/AuditLogView';
+import { UserManager } from './components/UserManager';
+import { AccountingSyncView } from './components/AccountingSyncView';
+import { SystemWorkflowGuide } from './components/SystemWorkflowGuide';
+import { OrderBuilderModal } from './components/OrderBuilderModal';
+import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
 import { AppProvider, useApp } from './context/AppContext';
 import { Invoice } from './types';
-
-// Lazy-load secondary views and modals to keep initial bundle ultra-lightweight and fast
-const SupervisorDashboard = lazy(() => import('./components/SupervisorDashboard').then(m => ({ default: m.SupervisorDashboard })));
-const InvoicesManager = lazy(() => import('./components/InvoicesManager').then(m => ({ default: m.InvoicesManager })));
-const InventoryStockView = lazy(() => import('./components/InventoryStockView').then(m => ({ default: m.InventoryStockView })));
-const ExcelImportExport = lazy(() => import('./components/ExcelImportExport').then(m => ({ default: m.ExcelImportExport })));
-const AuditLogView = lazy(() => import('./components/AuditLogView').then(m => ({ default: m.AuditLogView })));
-const UserManager = lazy(() => import('./components/UserManager').then(m => ({ default: m.UserManager })));
-const AccountingSyncView = lazy(() => import('./components/AccountingSyncView').then(m => ({ default: m.AccountingSyncView })));
-const SystemWorkflowGuide = lazy(() => import('./components/SystemWorkflowGuide').then(m => ({ default: m.SystemWorkflowGuide })));
-const OrderBuilderModal = lazy(() => import('./components/OrderBuilderModal').then(m => ({ default: m.OrderBuilderModal })));
-const ElectronicInvoiceModal = lazy(() => import('./components/ElectronicInvoiceModal').then(m => ({ default: m.ElectronicInvoiceModal })));
 
 // Lightweight Skeleton for tab transitions
 const TabLoadingSkeleton = () => (
@@ -204,11 +202,14 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class MobileErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public state: ErrorBoundaryState = {
-    hasError: false,
-    error: null,
-  };
+class MobileErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+    };
+  }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };

@@ -35,6 +35,7 @@ import { useApp } from '../context/AppContext';
 import { exportProductsToExcel } from '../services/excelService';
 import { formatCurrency } from '../services/invoiceService';
 import { ItemStatus, Product, SalesPriority } from '../types';
+import { getDepartmentMeta } from '../data/departmentMeta';
 
 export const InventoryStockView: React.FC = () => {
   const {
@@ -475,8 +476,8 @@ export const InventoryStockView: React.FC = () => {
                   <span>تصدير كشف المخزون (Excel)</span>
                 </button>
 
-                {/* Add New Product (Admin / Branch Manager) */}
-                {(currentUser?.role === 'admin' || currentUser?.role === 'branch_manager') && (
+                {/* Add New Product (Admin / Developer Only) */}
+                {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
                   <button
                     onClick={() => {
                       setEditingProduct(null);
@@ -594,8 +595,22 @@ export const InventoryStockView: React.FC = () => {
                         {/* Name */}
                         <td className="p-3">
                           <div className="font-extrabold text-slate-900 text-xs sm:text-sm">{p.name}</div>
-                          <div className="text-[10px] text-slate-400">
-                            {p.category} • {p.department}
+                          <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                            {(() => {
+                              const deptMeta = getDepartmentMeta(p.department || p.category);
+                              const DeptIcon = deptMeta.icon;
+                              return (
+                                <span className="bg-amber-50 text-amber-900 border border-amber-200 px-1.5 py-0.2 rounded font-black flex items-center gap-1">
+                                  <DeptIcon className="w-3 h-3 text-amber-700" />
+                                  <span>{p.department || 'عام'}</span>
+                                </span>
+                              );
+                            })()}
+                            {p.classification && (
+                              <span className="bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-bold">
+                                🏷️ {p.classification}
+                              </span>
+                            )}
                           </div>
                         </td>
 
@@ -732,24 +747,36 @@ export const InventoryStockView: React.FC = () => {
             {filteredProducts.length > 0 && (
               <div className="bg-slate-50 border-t border-slate-200 p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-2 text-slate-600 font-bold">
-                  <span>عرض</span>
+                  <span>عرض:</span>
                   <select
                     value={itemsPerPage}
                     onChange={(e) => {
                       setItemsPerPage(Number(e.target.value));
                       setCurrentPage(1);
                     }}
-                    className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-slate-800 font-black focus:outline-none"
+                    className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-slate-800 font-black focus:outline-none"
                   >
-                    <option value={10}>10 أصناف</option>
                     <option value={20}>20 صنف</option>
-                    <option value={30}>30 صنف</option>
                     <option value={50}>50 صنف</option>
+                    <option value={100}>100 صنف</option>
+                    <option value={250}>250 صنف</option>
+                    <option value={500}>500 صنف</option>
+                    <option value={1000}>1000 صنف</option>
+                    <option value={5000}>عرض الكل ({filteredProducts.length} صنف)</option>
                   </select>
-                  <span>من إجمالي <strong className="text-slate-900">{filteredProducts.length}</strong> صنف</span>
+                  <span>من إجمالي <strong className="text-slate-900">{filteredProducts.length}</strong> صنف مسجل</span>
                 </div>
 
                 <div className="flex items-center gap-1.5">
+                  <button
+                    disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage(1)}
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition font-bold"
+                    title="الصفحة الأولى"
+                  >
+                    الأولى
+                  </button>
+
                   <button
                     disabled={currentPage <= 1}
                     onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
@@ -770,6 +797,15 @@ export const InventoryStockView: React.FC = () => {
                     title="الصفحة التالية"
                   >
                     <ChevronLeft className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage(totalPages)}
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition font-bold"
+                    title="الصفحة الأخيرة"
+                  >
+                    الأخيرة
                   </button>
                 </div>
               </div>

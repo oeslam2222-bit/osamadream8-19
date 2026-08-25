@@ -3,23 +3,29 @@ import {
   Building,
   Calendar,
   CheckCircle2,
+  ChevronDown,
   FileSpreadsheet,
   Minus,
+  Phone,
   Plus,
   Receipt,
+  Search,
   Share2,
   ShoppingCart,
+  Sparkles,
+  Store,
   Trash2,
   User,
   Warehouse,
   X
 } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { ProductImage } from './ProductImage';
 import { exportElectronicInvoiceToExcel } from '../services/excelService';
 import { formatCurrency, shareInvoiceViaWhatsApp } from '../services/invoiceService';
-import { PaymentMethod } from '../types';
+import { Customer, PaymentMethod } from '../types';
+import { getDepartmentMeta } from '../data/departmentMeta';
 
 interface OrderBuilderModalProps {
   isOpen: boolean;
@@ -35,6 +41,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const {
     cart,
     products,
+    customers,
     updateCartItem,
     removeFromCart,
     clearCart,
@@ -44,16 +51,82 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     cloudinaryConfig
   } = useApp();
 
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [selectedCustomerTierFilter, setSelectedCustomerTierFilter] = useState<'all' | 'VIP' | 'A' | 'B' | 'C'>('all');
+  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+
   const [customerName, setCustomerName] = useState('');
+  const [customerCode, setCustomerCode] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [customerTaxNumber, setCustomerTaxNumber] = useState('');
+  const [customerBranch, setCustomerBranch] = useState('');
+  const [customerRep, setCustomerRep] = useState('');
+  const [customerTier, setCustomerTier] = useState<string>('');
+
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('نقدي (كاش)');
   const [orderNotes, setOrderNotes] = useState('');
   const [splitShortagesToBackorder, setSplitShortagesToBackorder] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState<string[]>([]);
+
+  // Filtered customers for search dropdown by search query AND tier (مميز / راقي / متوسط / عادي)
+  const filteredCustomers = useMemo(() => {
+    return customers.filter((c) => {
+      // Tier filter
+      if (selectedCustomerTierFilter !== 'all') {
+        const cTier = (c.tier || '').toUpperCase();
+        if (selectedCustomerTierFilter === 'VIP' && !cTier.includes('VIP') && !cTier.includes('مميز')) return false;
+        if (selectedCustomerTierFilter === 'A' && !cTier.includes('A') && !cTier.includes('راقي')) return false;
+        if (selectedCustomerTierFilter === 'B' && !cTier.includes('B') && !cTier.includes('متوسط')) return false;
+        if (selectedCustomerTierFilter === 'C' && !cTier.includes('C') && !cTier.includes('عادي')) return false;
+      }
+
+      // Search Query
+      if (customerSearchQuery.trim()) {
+        const q = customerSearchQuery.toLowerCase().trim();
+        const matches =
+          c.name.toLowerCase().includes(q) ||
+          (c.code && c.code.toLowerCase().includes(q)) ||
+          (c.phone && c.phone.includes(q)) ||
+          (c.storeName && c.storeName.toLowerCase().includes(q)) ||
+          (c.branchName && c.branchName.toLowerCase().includes(q)) ||
+          (c.salesRepName && c.salesRepName.toLowerCase().includes(q)) ||
+          (c.governorate && c.governorate.toLowerCase().includes(q));
+        if (!matches) return false;
+      }
+
+      return true;
+    }).slice(0, 30);
+  }, [customers, customerSearchQuery, selectedCustomerTierFilter]);
+
+  const handleSelectCustomer = (c: Customer) => {
+    setSelectedCustomerId(c.id);
+    setCustomerName(c.name);
+    setCustomerCode(c.code || '');
+    setCustomerPhone(c.phone || '');
+    setCustomerAddress(c.address || c.governorate || '');
+    setCustomerTaxNumber(c.taxNumber || '');
+    setCustomerBranch(c.branchName || '');
+    setCustomerRep(c.salesRepName || '');
+    setCustomerTier(c.tier || 'عادي');
+    setIsCustomerDropdownOpen(false);
+    setCustomerSearchQuery('');
+  };
+
+  const handleClearSelectedCustomer = () => {
+    setSelectedCustomerId('');
+    setCustomerName('');
+    setCustomerCode('');
+    setCustomerPhone('');
+    setCustomerAddress('');
+    setCustomerTaxNumber('');
+    setCustomerBranch('');
+    setCustomerRep('');
+    setCustomerTier('');
+  };
 
   if (!isOpen) return null;
 
@@ -64,13 +137,13 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const handleSubmitOrder = (andExportExcel = false, andShareWhatsApp = false) => {
     const errors: string[] = [];
     if (!customerName.trim()) {
-      errors.push('يرجى إدخال اسم العميل أو اسم المحل / السوبر ماركت');
+      errors.push('يرجى اختيار عميل من القائمة أو كتابة اسم العميل / المحل');
     }
     if (cart.length === 0) {
       errors.push('الطلبية فارغة! يرجى إضافة أصناف أولاً من الكتالوج');
     }
 
-    // Check if any cart item exceeds available stock across branch + main warehouse
+    // Stock check
     for (const item of cart) {
       const liveProd = products.find((p) => p.id === item.product.id) || item.product;
       const branchAvail = Math.max(0, liveProd.branchStockReserved);
@@ -93,6 +166,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     try {
       const result = createOrder({
         customerName: customerName.trim(),
+        customerCode: customerCode.trim() || undefined,
         customerPhone: customerPhone.trim(),
         customerAddress: customerAddress.trim(),
         customerTaxNumber: customerTaxNumber.trim(),
@@ -132,23 +206,24 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden text-slate-900">
+    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200" id="order-builder-modal-overlay">
+      <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[94vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden text-slate-900" id="order-builder-modal-container">
         
         {/* Header */}
-        <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between border-b border-slate-800">
+        <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between border-b border-slate-800" id="order-builder-header">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-md">
               <Receipt className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-black tracking-tight text-white">إنشاء فاتورة مبيعات جديدة</h2>
+              <h2 className="text-base sm:text-lg font-black tracking-tight text-white">إنشاء فاتورة مبيعات ذكية جديدة</h2>
               <p className="text-xs text-amber-300 font-semibold mt-0.5">
-                شركة دريم للتجارة والتوزيع • نظام فواتير مبسط وسريع مع تأكيد الحجز الفوري
+                شركة دريم للتجارة والتوزيع • حساب ذكي للكراتين والقطع مع قاعدة بيانات العملاء ومخزون الفروع
               </p>
             </div>
           </div>
           <button
+            id="order-builder-close-btn"
             onClick={onClose}
             className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition cursor-pointer"
             title="إغلاق النافذة"
@@ -158,11 +233,11 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         </div>
 
         {/* Modal Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 bg-white">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 bg-white" id="order-builder-body">
           
           {/* Error Banner */}
           {formErrors.length > 0 && (
-            <div className="bg-red-50 border-2 border-red-300 text-red-900 p-4 rounded-2xl text-xs space-y-1.5 shadow-sm">
+            <div className="bg-red-50 border-2 border-red-300 text-red-900 p-4 rounded-2xl text-xs space-y-1.5 shadow-sm" id="order-builder-errors">
               <div className="font-black flex items-center gap-2 text-sm text-red-700">
                 <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
                 <span>يرجى مراجعة الملاحظات التالية قبل الحفظ:</span>
@@ -208,68 +283,270 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
             </div>
           </div>
 
-          {/* Customer Details Form */}
-          <div className="bg-slate-50/70 border border-slate-200 p-4 rounded-2xl space-y-3">
-            <h3 className="text-xs font-black text-slate-900 flex items-center justify-between border-b border-slate-200 pb-2">
-              <span className="flex items-center gap-1.5">
-                <span>1. بيانات العميل والمحل</span>
+          {/* Customer Selection & Details (Smart Searchable Dropdown) */}
+          <div className="bg-slate-50/80 border border-slate-200 p-4 rounded-2xl space-y-3.5" id="customer-selection-section">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+              <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                <span>1. اختيار العميل من قاعدة البيانات (أو إدخال يدوي)</span>
                 <span className="text-rose-600 font-black">*</span>
+              </h3>
+              <span className="text-[10px] text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full font-bold">
+                {customers.length} عميل مسجل
               </span>
-              <span className="text-[10px] text-slate-500 font-bold">الحقول الأساسية لإصدار الفاتورة الإلكترونية</span>
-            </h3>
+            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-              <div>
-                <label className="block text-slate-900 font-black mb-1">اسم العميل / السوبر ماركت <span className="text-rose-600">*</span></label>
-                <input
-                  type="text"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="مثال: سوبر ماركت الأمانة، محل أولاد رجب..."
-                  className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-950 shadow-xs placeholder:text-slate-400"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-900 font-black mb-1">رقم هاتف العميل (لإرسال الفاتورة عبر واتساب)</label>
-                <input
-                  type="tel"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="مثال: 01023456789"
-                  className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-950 shadow-xs placeholder:text-slate-400"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-900 font-black mb-1">عنوان العميل / المنطقة</label>
-                <input
-                  type="text"
-                  value={customerAddress}
-                  onChange={(e) => setCustomerAddress(e.target.value)}
-                  placeholder="مثال: شارع مكرم عبيد، المنطقة السادسة، مدينة نصر"
-                  className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-semibold text-slate-950 shadow-xs placeholder:text-slate-400"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-900 font-black mb-1">الرقم الضريبي للعميل (اختياري)</label>
-                <input
-                  type="text"
-                  value={customerTaxNumber}
-                  onChange={(e) => setCustomerTaxNumber(e.target.value)}
-                  placeholder="مثال: 341-987-123"
-                  className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-semibold text-slate-950 shadow-xs placeholder:text-slate-400"
-                />
+            {/* Tier Filters for Customers (مميز / راقي / متوسط / عادي) */}
+            <div className="space-y-1.5">
+              <label className="block text-slate-700 font-bold text-[11px]">
+                تصفية فئة العملاء:
+              </label>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCustomerTierFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer ${
+                    selectedCustomerTierFilter === 'all'
+                      ? 'bg-slate-900 text-amber-300 shadow-xs'
+                      : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
+                  }`}
+                >
+                  👥 كل العملاء ({customers.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCustomerTierFilter('VIP')}
+                  className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer ${
+                    selectedCustomerTierFilter === 'VIP'
+                      ? 'bg-amber-400 text-slate-950 shadow-xs ring-1 ring-amber-500'
+                      : 'bg-white text-amber-900 border border-amber-300 hover:bg-amber-50'
+                  }`}
+                >
+                  ⭐ مميز (VIP)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCustomerTierFilter('A')}
+                  className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer ${
+                    selectedCustomerTierFilter === 'A'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-50'
+                  }`}
+                >
+                  🏆 راقي (فئة A)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCustomerTierFilter('B')}
+                  className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer ${
+                    selectedCustomerTierFilter === 'B'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-white text-blue-800 border border-blue-300 hover:bg-blue-50'
+                  }`}
+                >
+                  🏬 متوسط (فئة B)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCustomerTierFilter('C')}
+                  className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer ${
+                    selectedCustomerTierFilter === 'C'
+                      ? 'bg-slate-700 text-white shadow-xs'
+                      : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
+                  }`}
+                >
+                  🏪 عادي (فئة C)
+                </button>
               </div>
             </div>
+
+            {/* Searchable Customer Dropdown */}
+            <div className="relative">
+              <label className="block text-slate-900 font-black text-xs mb-1">
+                بحث ذكي في سجل العملاء (بالاسم، الكود، رقم الهاتف، اسم المحل، المندوب):
+              </label>
+              
+              <div className="relative">
+                <input
+                  id="customer-search-input"
+                  type="text"
+                  value={customerSearchQuery}
+                  onFocus={() => setIsCustomerDropdownOpen(true)}
+                  onChange={(e) => {
+                    setCustomerSearchQuery(e.target.value);
+                    setIsCustomerDropdownOpen(true);
+                  }}
+                  placeholder="🔍 اكتب كود العميل أو اسمه أو هاتفه أو منطقته للبحث المباشر..."
+                  className="w-full h-11 pr-10 pl-10 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-950 shadow-xs placeholder:text-slate-400"
+                />
+                <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none" />
+                <button
+                  type="button"
+                  onClick={() => setIsCustomerDropdownOpen(!isCustomerDropdownOpen)}
+                  className="absolute left-2.5 top-2.5 p-1 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+                >
+                  <ChevronDown className={`w-4 h-4 transition-transform ${isCustomerDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
+
+              {/* Customer Dropdown Results */}
+              {isCustomerDropdownOpen && (
+                <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-2xl shadow-xl max-h-64 overflow-y-auto divide-y divide-slate-100">
+                  {filteredCustomers.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-slate-500">
+                      لا يوجد عميل مطابق للبحث والتصفية. يمكنك كتابة بيانات العميل أدناه يدوياً.
+                    </div>
+                  ) : (
+                    filteredCustomers.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => handleSelectCustomer(c)}
+                        className="w-full text-right p-3 hover:bg-amber-50/80 transition flex items-center justify-between gap-3 text-xs cursor-pointer"
+                      >
+                        <div>
+                          <div className="font-black text-slate-900 flex items-center flex-wrap gap-1.5">
+                            <span>{c.name}</span>
+                            {c.storeName && (
+                              <span className="text-slate-500 font-normal">({c.storeName})</span>
+                            )}
+                            {c.code && (
+                              <span className="bg-slate-900 text-amber-300 text-[10px] font-mono px-1.5 py-0.2 rounded">
+                                {c.code}
+                              </span>
+                            )}
+                            {c.tier && (
+                              <span className={`text-[9px] font-black px-1.5 py-0.2 rounded ${
+                                c.tier.includes('VIP') || c.tier.includes('مميز')
+                                  ? 'bg-amber-400 text-slate-950'
+                                  : c.tier.includes('A') || c.tier.includes('راقي')
+                                  ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                                  : 'bg-slate-100 text-slate-700'
+                              }`}>
+                                {c.tier}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
+                            {c.phone && <span>📞 {c.phone}</span>}
+                            {c.branchName && <span>🏢 الفرع: {c.branchName}</span>}
+                            {c.salesRepName && <span>👤 المندوب: {c.salesRepName}</span>}
+                            {c.governorate && <span>📍 {c.governorate}</span>}
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-amber-800 bg-amber-100 hover:bg-amber-200 font-bold px-2.5 py-1 rounded-xl shrink-0 border border-amber-300">
+                          اختيار العميل
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Selected Customer Card or Manual Input */}
+            {selectedCustomerId ? (
+              <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
+                    <Store className="w-5 h-5" />
+                  </div>
+                  <div className="text-xs">
+                    <div className="font-black text-slate-950 text-sm flex items-center flex-wrap gap-2">
+                      <span>{customerName}</span>
+                      {customerCode && (
+                        <span className="bg-slate-900 text-amber-300 text-[10px] font-mono px-1.5 py-0.5 rounded">
+                          كود: {customerCode}
+                        </span>
+                      )}
+                      {customerTier && (
+                        <span className="bg-amber-400 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded">
+                          {customerTier}
+                        </span>
+                      )}
+                      {customerBranch && (
+                        <span className="bg-blue-100 text-blue-900 text-[10px] font-bold px-1.5 py-0.5 rounded border border-blue-200">
+                          🏢 {customerBranch}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-slate-600 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                      {customerPhone && <span>📞 {customerPhone}</span>}
+                      {customerAddress && <span>📍 {customerAddress}</span>}
+                      {customerRep && <span>👤 المندوب المسند: {customerRep}</span>}
+                      {customerTaxNumber && <span>🏛️ ضريبي: {customerTaxNumber}</span>}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearSelectedCustomer}
+                  className="text-xs text-rose-600 hover:text-rose-800 font-bold bg-white px-2.5 py-1.5 rounded-xl border border-rose-200 shadow-xs cursor-pointer shrink-0"
+                >
+                  تغيير العميل
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                <div>
+                  <label className="block text-slate-900 font-black mb-1">
+                    اسم العميل / السوبر ماركت <span className="text-rose-600">*</span>
+                  </label>
+                  <input
+                    id="customer-name-input"
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="مثال: هايبر ماركت التوحيد والنور، محل سنتر شاهين..."
+                    className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-950 shadow-xs placeholder:text-slate-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-900 font-black mb-1">
+                    رقم هاتف العميل (لإرسال الفاتورة عبر واتساب)
+                  </label>
+                  <input
+                    id="customer-phone-input"
+                    type="tel"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="مثال: 01011122233"
+                    className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-950 shadow-xs placeholder:text-slate-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-900 font-black mb-1">عنوان العميل / المنطقة</label>
+                  <input
+                    id="customer-address-input"
+                    type="text"
+                    value={customerAddress}
+                    onChange={(e) => setCustomerAddress(e.target.value)}
+                    placeholder="مثال: شارع مكرم عبيد، المنطقة السادسة، مدينة نصر"
+                    className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-semibold text-slate-950 shadow-xs placeholder:text-slate-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-900 font-black mb-1">الرقم الضريبي للعميل (اختياري)</label>
+                  <input
+                    id="customer-tax-input"
+                    type="text"
+                    value={customerTaxNumber}
+                    onChange={(e) => setCustomerTaxNumber(e.target.value)}
+                    placeholder="مثال: 341-987-123"
+                    className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-semibold text-slate-950 shadow-xs placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Cart Items Table */}
-          <div className="space-y-3">
+          {/* Cart Items Table with Smart Carton & Piece Conversion */}
+          <div className="space-y-3" id="cart-items-section">
             <div className="flex items-center justify-between">
               <h3 className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-2">
-                <span>2. الأصناف المحجوزة في الطلبية</span>
+                <span>2. الأصناف المحجوزة والكميات الذكية (كراتين + قطع)</span>
                 <span className="bg-amber-100 text-amber-950 text-xs px-2.5 py-0.5 rounded-full font-black border border-amber-300">
                   {cart.length} أصناف
                 </span>
@@ -300,28 +577,36 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                 </button>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3.5">
                 {cart.map((item) => {
                   const liveProd = products.find((p) => p.id === item.product.id) || item.product;
                   const p = liveProd;
+                  const cartonQty = p.cartonQuantity && p.cartonQuantity > 0 ? p.cartonQuantity : 1;
 
                   const branchAvail = Math.max(0, p.branchStockReserved);
                   const mainAvail = Math.max(0, p.mainWarehouseReserved);
                   const totalAvail = branchAvail + mainAvail;
 
+                  const currentCarton = item.cartonCount || 0;
+                  const currentPieces = item.pieceCount || 0;
+                  const totalUnits = (currentCarton * cartonQty) + currentPieces;
+
+                  const appliedCartonPrice = p.promoPrice && p.promoPrice > 0 ? p.promoPrice : p.cartonPrice;
+                  const piecePrice = p.piecePrice && p.piecePrice > 0 ? p.piecePrice : Math.round((appliedCartonPrice / cartonQty) * 100) / 100;
+
                   // Stock Fulfillment Allocation Breakdown
-                  const fromBranch = Math.min(item.cartonCount, branchAvail);
-                  const fromMain = Math.max(0, item.cartonCount - fromBranch);
-                  const isOverTotalStock = item.cartonCount > totalAvail;
+                  const fromBranch = Math.min(currentCarton, branchAvail);
+                  const fromMain = Math.max(0, currentCarton - fromBranch);
+                  const isOverTotalStock = currentCarton > totalAvail;
 
                   return (
                     <div
                       key={p.id}
-                      className={`bg-white border rounded-2xl p-3.5 shadow-xs space-y-3 transition ${
+                      className={`bg-white border rounded-2xl p-4 shadow-xs space-y-3.5 transition ${
                         isOverTotalStock ? 'border-red-400 bg-red-50/20' : 'border-slate-200 hover:border-slate-300'
                       }`}
                     >
-                      {/* Product Row Header */}
+                      {/* Product Header */}
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3">
                           <ProductImage
@@ -332,29 +617,47 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                             showBadgeOnFallback={false}
                           />
                           <div>
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="flex items-center flex-wrap gap-1.5 mb-1">
                               <span className="bg-slate-900 text-amber-300 font-mono font-black text-xs px-2 py-0.5 rounded-md">
                                 {p.code}
                               </span>
-                              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                                {p.category}
+                              {(() => {
+                                const deptMeta = getDepartmentMeta(p.department || p.category);
+                                const DeptIcon = deptMeta.icon;
+                                return (
+                                  <span className="bg-amber-100/90 text-amber-950 border border-amber-300/80 text-[10px] font-black px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                                    <DeptIcon className="w-3 h-3 text-amber-800" />
+                                    <span>{p.department || p.category || 'دريم'}</span>
+                                  </span>
+                                );
+                              })()}
+                              {p.classification && (
+                                <span className="bg-slate-100 text-slate-800 border border-slate-200 text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+                                  🏷️ {p.classification}
+                                </span>
+                              )}
+                              {p.color && p.color.trim() && p.color !== 'افتراضي' && (
+                                <span className="bg-indigo-50 text-indigo-900 border border-indigo-200 text-[10px] font-black px-1.5 py-0.5 rounded-md">
+                                  🎨 {p.color}
+                                </span>
+                              )}
+                              {p.size && p.size.trim() && p.size !== 'حجم قياسي' && (
+                                <span className="bg-slate-100 text-slate-700 text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+                                  📐 {p.size}
+                                </span>
+                              )}
+                              <span className="bg-amber-100 text-amber-950 font-black text-[10px] px-2 py-0.5 rounded-md border border-amber-200">
+                                شدة الكرتونة: {cartonQty} ق
                               </span>
                             </div>
                             <h4 className="font-black text-slate-900 text-xs sm:text-sm">{p.name}</h4>
-                            <div className="text-[11px] text-slate-600 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                              <span>شدة الكرتونة: <strong className="text-slate-900 font-bold">{p.cartonQuantity} ق</strong></span>
+                            <div className="text-[11px] text-slate-600 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 mt-0.5">
+                              <span>
+                                سعر الكرتونة: <strong className="text-amber-900 font-black">{formatCurrency(appliedCartonPrice)}</strong>
+                              </span>
                               <span>•</span>
                               <span>
-                                سعر الكرتونة: 
-                                {p.promoPrice && p.promoPrice > 0 ? (
-                                  <>
-                                    <span className="line-through text-slate-400 mr-1 text-[10px]">{formatCurrency(p.cartonPrice)}</span>
-                                    <strong className="text-rose-600 font-black mr-1">{formatCurrency(p.promoPrice)}</strong>
-                                    <span className="bg-rose-100 text-rose-800 text-[10px] font-black px-1.5 py-0.2 rounded-md">عرض خاص</span>
-                                  </>
-                                ) : (
-                                  <strong className="text-amber-900 font-black mr-1">{formatCurrency(p.cartonPrice)}</strong>
-                                )}
+                                سعر القطعة: <strong className="text-blue-900 font-bold">{formatCurrency(piecePrice)}</strong>
                               </span>
                             </div>
                           </div>
@@ -369,20 +672,19 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                         </button>
                       </div>
 
-                      {/* Smart Stock Reservation Breakdown Badge */}
+                      {/* Stock Allocation & Availability */}
                       <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <Warehouse className="w-4 h-4 text-slate-600 shrink-0" />
                           <div className="text-[11px] text-slate-700">
-                            <span>الرصيد المتاح: </span>
+                            <span>المتاح: </span>
                             <strong className="text-emerald-700 font-black">{branchAvail} ك بالفرع</strong>
                             <span> | </span>
-                            <strong className="text-blue-700 font-black">{mainAvail} ك بالمخزن المركزي</strong>
-                            <span> (إجمالي متاح: <strong className="text-slate-950 font-black">{totalAvail} ك</strong>)</span>
+                            <strong className="text-blue-700 font-black">{mainAvail} ك بالمركزي</strong>
+                            <span> (إجمالي: <strong className="text-slate-950 font-black">{totalAvail} ك</strong>)</span>
                           </div>
                         </div>
 
-                        {/* Real-time Allocation Label */}
                         <div className="text-[11px] font-black">
                           {isOverTotalStock ? (
                             <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded-md border border-red-300">
@@ -390,7 +692,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                             </span>
                           ) : fromBranch > 0 && fromMain > 0 ? (
                             <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md border border-amber-300 flex items-center gap-1">
-                              ⚡ حجز مشترك: {fromBranch} ك من الفرع + {fromMain} ك من المخزن المركزي
+                              ⚡ حجز مشترك: {fromBranch} ك فرع + {fromMain} ك مخزن مركزي
                             </span>
                           ) : fromBranch > 0 ? (
                             <span className="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-md border border-emerald-300">
@@ -404,55 +706,98 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                         </div>
                       </div>
 
-                      {/* Quantity Controls & Row Total */}
-                      <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 text-xs">
+                      {/* Smart Quantity Controls: Cartons & Pieces with Automatic Conversion */}
+                      <div className="bg-amber-50/40 border border-amber-200/80 rounded-2xl p-3 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
                         
-                        {/* Carton Counter */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-slate-800 font-black">الكمية بالكرتونة:</span>
-                          <div className="flex items-center bg-slate-100 rounded-xl border border-slate-300 p-0.5">
+                        {/* Cartons Counter */}
+                        <div className="sm:col-span-5 flex items-center gap-2">
+                          <span className="text-slate-900 font-black text-xs shrink-0">الكراتين:</span>
+                          <div className="flex items-center bg-white rounded-xl border border-slate-300 p-0.5 shadow-xs">
                             <button
-                              onClick={() => updateCartItem(p.id, { cartonCount: Math.max(1, item.cartonCount - 1) })}
-                              className="w-8 h-8 flex items-center justify-center text-slate-800 hover:bg-white rounded-lg transition font-black cursor-pointer"
+                              type="button"
+                              onClick={() => updateCartItem(p.id, { cartonCount: Math.max(0, currentCarton - 1) })}
+                              className="w-8 h-8 flex items-center justify-center text-slate-800 hover:bg-slate-100 rounded-lg transition font-black cursor-pointer"
                               title="تقليل كرتونة"
                             >
                               <Minus className="w-3.5 h-3.5" />
                             </button>
                             <input
                               type="number"
-                              min="1"
-                              max={Math.max(1, totalAvail)}
-                              value={item.cartonCount}
+                              min="0"
+                              value={currentCarton}
                               onChange={(e) => {
-                                const val = parseInt(e.target.value) || 1;
-                                const clamped = totalAvail > 0 ? Math.min(val, totalAvail) : Math.max(1, val);
-                                updateCartItem(p.id, { cartonCount: clamped });
+                                const val = parseInt(e.target.value) || 0;
+                                updateCartItem(p.id, { cartonCount: Math.max(0, val) });
                               }}
-                              className="w-14 text-center bg-transparent font-black text-slate-900 focus:outline-none"
+                              className="w-12 text-center bg-transparent font-black text-slate-900 focus:outline-none text-xs"
                             />
                             <button
-                              disabled={item.cartonCount >= totalAvail}
-                              onClick={() => updateCartItem(p.id, { cartonCount: Math.min(totalAvail, item.cartonCount + 1) })}
-                              className="w-8 h-8 flex items-center justify-center text-slate-800 hover:bg-white rounded-lg transition font-black cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                              title={item.cartonCount >= totalAvail ? 'تم الوصول للحد الأقصى المتاح' : 'زيادة كرتونة'}
+                              type="button"
+                              onClick={() => updateCartItem(p.id, { cartonCount: currentCarton + 1 })}
+                              className="w-8 h-8 flex items-center justify-center text-slate-800 hover:bg-slate-100 rounded-lg transition font-black cursor-pointer"
+                              title="زيادة كرتونة"
                             >
                               <Plus className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                          <span className="text-slate-500 text-[11px] font-bold">
-                            ({item.cartonCount * (p.cartonQuantity || 1)} قطعة داخل الكراتين)
-                          </span>
+                          <span className="text-[11px] text-slate-500 font-bold">ك</span>
+                        </div>
+
+                        {/* Pieces Counter (Automatic Conversion) */}
+                        <div className="sm:col-span-4 flex items-center gap-2">
+                          <span className="text-slate-900 font-black text-xs shrink-0">القطع:</span>
+                          <div className="flex items-center bg-white rounded-xl border border-slate-300 p-0.5 shadow-xs">
+                            <button
+                              type="button"
+                              onClick={() => updateCartItem(p.id, { pieceCount: Math.max(0, currentPieces - 1) })}
+                              className="w-8 h-8 flex items-center justify-center text-slate-800 hover:bg-slate-100 rounded-lg transition font-black cursor-pointer"
+                              title="تقليل قطعة"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <input
+                              type="number"
+                              min="0"
+                              value={currentPieces}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value) || 0;
+                                updateCartItem(p.id, { pieceCount: Math.max(0, val) });
+                              }}
+                              className="w-12 text-center bg-transparent font-black text-slate-900 focus:outline-none text-xs"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => updateCartItem(p.id, { pieceCount: currentPieces + 1 })}
+                              className="w-8 h-8 flex items-center justify-center text-slate-800 hover:bg-slate-100 rounded-lg transition font-black cursor-pointer"
+                              title="زيادة قطعة (تتحول لكرتونة تلقائياً عند اكتمال الشدة)"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <span className="text-[11px] text-slate-500 font-bold">ق</span>
                         </div>
 
                         {/* Item Total Price */}
-                        <div className="text-left flex items-center gap-2">
-                          <span className="text-[11px] text-slate-500 font-bold">إجمالي الصنف:</span>
-                          <div className="text-sm font-black text-amber-950 bg-amber-100/70 px-3 py-1.5 rounded-xl border border-amber-300">
+                        <div className="sm:col-span-3 text-left">
+                          <span className="text-[10px] text-slate-500 block font-bold">إجمالي الصنف:</span>
+                          <div className="text-xs sm:text-sm font-black text-amber-950 bg-amber-200/80 px-2.5 py-1 rounded-xl border border-amber-300 inline-block">
                             {formatCurrency(item.totalPrice)}
                           </div>
                         </div>
 
                       </div>
+
+                      {/* Smart Quantity Status Banner */}
+                      <div className="bg-slate-50 rounded-xl p-2 text-[11px] flex flex-wrap items-center justify-between gap-2 text-slate-700">
+                        <div className="flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                          <span>البيان بالفاتورة: <strong className="text-slate-950 font-black">{item.quantityDescription || `${currentCarton} كرتونة`}</strong></span>
+                        </div>
+                        <div className="text-slate-500 font-bold">
+                          إجمالي القطع الكلي: <strong className="text-slate-900">{totalUnits} قطعة</strong>
+                        </div>
+                      </div>
+
                     </div>
                   );
                 })}
@@ -461,7 +806,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
           </div>
 
           {/* Payment Method & Commercial Discount & Notes */}
-          <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200 space-y-3 text-xs">
+          <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200 space-y-3 text-xs" id="payment-and-discount-section">
             <h3 className="text-xs font-black text-slate-900 flex items-center justify-between border-b border-slate-200 pb-2">
               <span className="flex items-center gap-1.5">
                 <span>3. شروط السداد والخصم التجاري</span>
@@ -474,6 +819,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               <div>
                 <label className="block text-slate-800 font-bold mb-1">طريقة سداد الفاتورة</label>
                 <select
+                  id="payment-method-select"
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
                   className="w-full p-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-black text-slate-900 shadow-xs"
@@ -497,6 +843,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                 <div className="flex items-center gap-1.5">
                   <div className="relative flex-1">
                     <input
+                      id="discount-percent-input"
                       type="number"
                       min="0"
                       max="100"
@@ -525,7 +872,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                             : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
                         }`}
                       >
-                        {pct === 0 ? '0% (إلغاء)' : `${pct}%`}
+                        {pct === 0 ? '0%' : `${pct}%`}
                       </button>
                     ))}
                   </div>
@@ -536,6 +883,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               <div>
                 <label className="block text-slate-800 font-bold mb-1">ملاحظات التحميل والتسليم</label>
                 <input
+                  id="order-notes-input"
                   type="text"
                   value={orderNotes}
                   onChange={(e) => setOrderNotes(e.target.value)}
@@ -576,16 +924,21 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
           </div>
 
           {/* Financial Summary Box */}
-          <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-white rounded-3xl p-5 shadow-xl border border-slate-700 space-y-3">
+          <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-white rounded-3xl p-5 shadow-xl border border-slate-700 space-y-3" id="financial-summary-box">
             <div className="flex items-center justify-between border-b border-slate-700 pb-3">
-              <h4 className="font-black text-sm text-amber-300">الملخص المالي للفاتورة</h4>
-              <span className="text-xs text-slate-300 font-bold">شركة دريم • حساب سعر الكرتونة والخصم المباشر</span>
+              <h4 className="font-black text-sm text-amber-300">الملخص المالي للفاتورة الإلكترونية</h4>
+              <span className="text-xs text-slate-300 font-bold">شركة دريم • حساب سعر الكرتونة والقطع والخصم المباشر</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
               <div className="bg-slate-800/90 p-3 rounded-2xl border border-slate-700">
                 <span className="text-slate-400 block text-[10px] font-bold">إجمالي الكراتين</span>
                 <strong className="text-base font-black text-amber-400">{summary.totalCartons} كرتونة</strong>
+              </div>
+
+              <div className="bg-slate-800/90 p-3 rounded-2xl border border-slate-700">
+                <span className="text-slate-400 block text-[10px] font-bold">إجمالي القطع الكلي</span>
+                <strong className="text-sm font-black text-blue-300">{summary.totalPieces} قطعة</strong>
               </div>
 
               <div className="bg-slate-800/90 p-3 rounded-2xl border border-slate-700">
@@ -595,7 +948,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
               <div className="bg-slate-800/90 p-3 rounded-2xl border border-slate-700">
                 <span className="text-slate-400 block text-[10px] font-bold">
-                  الخصم التجاري الممنوح ({discountPercent}%)
+                  الخصم التجاري ({discountPercent}%)
                 </span>
                 <strong className={`text-sm font-black ${discountPercent > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
                   {discountPercent > 0 ? `-${formatCurrency(summary.discountAmount)}` : '0 ج.م'}
@@ -621,7 +974,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         </div>
 
         {/* Modal Actions Footer */}
-        <div className="bg-slate-50 p-3 sm:p-4 border-t border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+        <div className="bg-slate-50 p-3 sm:p-4 border-t border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5" id="order-builder-footer">
           
           <button
             onClick={onClose}
@@ -634,17 +987,19 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
             
             {/* Direct Export to Excel */}
             <button
+              id="export-excel-order-btn"
               disabled={isSubmitting || cart.length === 0}
               onClick={() => handleSubmitOrder(true, false)}
               className="flex items-center justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-black h-11 px-3.5 rounded-xl text-xs shadow-sm transition disabled:opacity-50 cursor-pointer"
-              title="تصدير شيت إكسل رسمي لشركة دريم"
+              title="تصدير شيت إكسل رسمي مع كود العميل والكراتين والقطع"
             >
               <FileSpreadsheet className="w-4 h-4 shrink-0" />
-              <span>حفظ وتصدير إكسل</span>
+              <span>حفظ وتصدير شيت إكسل</span>
             </button>
 
             {/* Direct WhatsApp Share */}
             <button
+              id="share-whatsapp-order-btn"
               disabled={isSubmitting || cart.length === 0}
               onClick={() => handleSubmitOrder(false, true)}
               className="flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 text-white font-black h-11 px-3.5 rounded-xl text-xs shadow-sm transition disabled:opacity-50 cursor-pointer"
