@@ -20,7 +20,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
 
   // Login State - Default clean inputs
   const [loginIdentifier, setLoginIdentifier] = useState('Osama@dream.com');
-  const [loginPassword, setLoginPassword] = useState('123456');
+  const [loginPassword, setLoginPassword] = useState('123');
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -121,7 +121,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                   كلمة المرور
                 </label>
                 <span className="text-[11px] text-slate-400">
-                  (الافتراضي: osama)
+                  (الافتراضي: 123)
                 </span>
               </div>
               <div className="relative">

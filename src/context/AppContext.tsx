@@ -11,6 +11,7 @@ import { DEFAULT_CLOUDINARY_CONFIG } from '../services/cloudinaryService';
 import { clearCachedImages } from '../services/imageCacheService';
 import { idbClear, idbDelete, idbGet, idbSet, safeLocalStorageSet } from '../services/storageService';
 import {
+  deleteUserFromSupabase,
   fetchCustomersFromSupabase,
   fetchInvoicesFromSupabase,
   fetchProductsFromSupabase,
@@ -158,7 +159,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 const STORAGE_KEYS = {
   PRODUCTS: 'dream_dist_products_v9',
   INVOICES: 'dream_dist_invoices_v9',
-  USERS: 'dream_dist_users_v9',
+  USERS: 'dream_dist_users_v10',
   BRANCHES: 'dream_dist_branches_v9',
   CUSTOMERS: 'dream_dist_customers_v9',
   CLOUDINARY: 'dream_dist_cloudinary_v9',
@@ -224,12 +225,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!saved) return INITIAL_USERS;
     try {
       const parsed: User[] = JSON.parse(saved);
-      return parsed.map((u) => ({
-        ...u,
-        name: u.id === 'u-admin-osama' ? 'أسامة إسلام (المطور التقني)' : u.name,
-        branchName: normalizeBranchName(u.branchName),
-        role: u.role === 'developer' || u.role === 'admin' || u.role === 'branch_manager' || u.role === 'supervisor' || u.role === 'sales_rep' ? u.role : 'sales_rep',
-      }));
+      const filtered = parsed
+        .filter((u) => u.id !== 'u-branch-ashraf' && u.id !== 'u-sup-mahmoud' && u.id !== 'u-rep-ahmed')
+        .map((u) => ({
+          ...u,
+          name: u.id === 'u-admin-osama' ? 'أسامة إسلام (المطور التقني والمدير العام)' : u.name,
+          branchName: normalizeBranchName(u.branchName),
+          role: u.role === 'developer' || u.role === 'admin' || u.role === 'branch_manager' || u.role === 'supervisor' || u.role === 'sales_rep' ? u.role : 'sales_rep',
+        }));
+      return filtered.length > 0 ? filtered : INITIAL_USERS;
     } catch {
       return INITIAL_USERS;
     }
@@ -940,6 +944,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteUser = (userId: string) => {
     setUsers((prev) => prev.filter((u) => u.id !== userId));
+    deleteUserFromSupabase(userId).catch((e) => console.warn('Supabase delete user failed:', e));
   };
 
   const assignSupervisor = (repId: string, supervisorId: string) => {

@@ -236,7 +236,8 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       norm === 'أكتوبر' ||
       norm.includes('مخزوناكتوبر') ||
       norm.includes('مخزنالمركزي') ||
-      norm.includes('مخزنمركزي')
+      norm.includes('مخزنمركزي') ||
+      norm.includes('المخزنالمركزي')
     ) {
       colMap.stockOctober = idx;
       colMap.mainWarehouseActual = idx;
@@ -245,7 +246,26 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     } else if (norm === 'منياالقمح' || norm.includes('منياالقمح') || norm.includes('القمح')) {
       colMap.stockMeq = idx;
     }
-    // 2. Factor (شدة الكرتونة)
+    // 2. Code (كود موحد)
+    else if (
+      norm === 'كودموحد' ||
+      norm.includes('كودموحد') ||
+      norm.includes('كود') ||
+      norm.includes('code')
+    ) {
+      colMap.code = idx;
+    }
+    // 3. Product Name (Product name / اسم الصنف)
+    else if (
+      norm === 'productname' ||
+      norm.includes('productname') ||
+      norm.includes('اسمالصنف') ||
+      norm.includes('اسم') ||
+      norm.includes('البيان')
+    ) {
+      colMap.name = idx;
+    }
+    // 4. Factor (شدة الكرتونة / عدد القطع بالكرتونة)
     else if (
       norm === 'factor' ||
       norm.includes('factor') ||
@@ -262,7 +282,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       colMap.factor = idx;
       colMap.cartonQuantity = idx;
     }
-    // 3. Sales Price (سعر القطعة)
+    // 5. Sales Price (سعر القطعة)
     else if (
       norm === 'salesprice' ||
       norm.includes('salesprice') ||
@@ -274,7 +294,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       colMap.salesPrice = idx;
       colMap.piecePrice = idx;
     }
-    // 4. Item group (المجموعة الرئيسية)
+    // 6. Item group (المجموعة الرئيسية)
     else if (
       norm === 'itemgroup' ||
       norm === 'item_group' ||
@@ -286,7 +306,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       colMap.itemGroup = idx;
       colMap.department = idx;
     }
-    // 5. Family Name (العائلة / المجموعة الفرعية)
+    // 7. Family Name (العائلة / المجموعة الفرعية)
     else if (
       norm === 'familyname' ||
       norm === 'family_name' ||
@@ -408,35 +428,54 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const itemGroup = getVal(colMap.itemGroup) || getVal(colMap.department) || getVal(colMap.category) || 'LHLotus';
     const familyName = getVal(colMap.familyName) || getVal(colMap.classification) || 'أصناف عامة';
 
-    // Multi-branch stocks
+    // Multi-branch stocks for all 8 company warehouses
     const stockBeheira = colMap.stockBeheira > -1 ? getNum(colMap.stockBeheira, 0) : 0;
     const stockFayoum = colMap.stockFayoum > -1 ? getNum(colMap.stockFayoum, 0) : 0;
     const stockCairo = colMap.stockCairo > -1 ? getNum(colMap.stockCairo, 0) : 0;
     const stockMinya = colMap.stockMinya > -1 ? getNum(colMap.stockMinya, 0) : 0;
     const stockDimeshalt = colMap.stockDimeshalt > -1 ? getNum(colMap.stockDimeshalt, 0) : 0;
-    const stockOctober = colMap.stockOctober > -1 ? getNum(colMap.stockOctober, 500) : getNum(colMap.mainWarehouseActual, 500);
+    const stockOctober = colMap.stockOctober > -1 ? getNum(colMap.stockOctober, 0) : getNum(colMap.mainWarehouseActual, 0);
     const stockMenouf = colMap.stockMenouf > -1 ? getNum(colMap.stockMenouf, 0) : 0;
     const stockMeq = colMap.stockMeq > -1 ? getNum(colMap.stockMeq, 0) : 0;
 
     const branchStocks: Record<string, number> = {
+      // Beheira
       'فرع البحيرة': stockBeheira,
+      'البحيرة': stockBeheira,
+      // Fayoum
       'فرع الفيوم': stockFayoum,
+      'الفيوم': stockFayoum,
+      // Cairo
       'فرع القاهرة': stockCairo,
+      'القاهرة': stockCairo,
+      // Minya
       'فرع المنيا': stockMinya,
+      'المنيا': stockMinya,
+      // Dimeshalt
       'فرع ديمشلت': stockDimeshalt,
+      'ديمشلت': stockDimeshalt,
+      // October Central Warehouse
+      'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)': stockOctober,
       'مخزون اكتوبر': stockOctober,
+      'مخزون أكتوبر': stockOctober,
+      'فرع أكتوبر': stockOctober,
+      'أكتوبر': stockOctober,
+      // Menouf
       'فرع منوف': stockMenouf,
+      'منوف': stockMenouf,
+      // Minya El Qamh
       'فرع منيا القمح': stockMeq,
+      'منيا القمح': stockMeq,
     };
 
     // Calculate default branch stock if specific branch column was present
-    const rawBranchStock = colMap.branchStockActual > -1 ? getNum(colMap.branchStockActual, 50) : (stockCairo || stockBeheira || 50);
+    const rawBranchStock = colMap.branchStockActual > -1 ? getNum(colMap.branchStockActual, stockCairo || stockBeheira || 0) : (stockCairo || stockBeheira || 0);
 
     const rawImg = cleanGoogleSheetImageUrl(getVal(colMap.imageUrl));
     const sizeVal = getVal(colMap.size) || '';
     const colorVal = getVal(colMap.color) || '';
 
-    // Generate deterministic product ID from Code + Color + Size (or Name if Code is missing)
+    // Generate deterministic product ID from Code + Color + Size + Row to guarantee preservation of all 5500+ items
     const codeSlug = (code || `prd_${r}`).replace(/\s+/g, '_').toLowerCase();
     const colorSlug = colorVal ? `_${colorVal.replace(/\s+/g, '_').toLowerCase()}` : '';
     const sizeSlug = sizeVal ? `_${sizeVal.replace(/\s+/g, '_').toLowerCase()}` : '';

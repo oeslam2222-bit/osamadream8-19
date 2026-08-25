@@ -288,6 +288,18 @@ export async function saveUserToSupabase(user: User): Promise<{ success: boolean
   }
 }
 
+export async function deleteUserFromSupabase(userId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error: err1 } = await supabase.from('users').delete().eq('id', userId);
+    if (!err1) return { success: true };
+    const { error: err2 } = await supabase.from('profiles').delete().eq('id', userId);
+    if (!err2) return { success: true };
+    return { success: false, error: err1.message || err2?.message };
+  } catch (e: any) {
+    return { success: false, error: e?.message };
+  }
+}
+
 /**
  * Save invoice / order into Supabase
  */
@@ -464,9 +476,10 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
     // 2. Also upsert into standard products table
     const payload = products.map((p) => {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p.id);
-      const safeId = isUuid ? p.id : stringToUuid(p.id || p.code);
+      const safeId = isUuid ? p.id : stringToUuid(p.id);
       return {
         id: safeId,
+        code: p.code || null,
         name: p.name,
         category: p.department || p.category || 'LHLotus',
         price: p.cartonPrice || p.piecePrice || 0,
