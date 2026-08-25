@@ -433,9 +433,17 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const rawBranchStock = colMap.branchStockActual > -1 ? getNum(colMap.branchStockActual, 50) : (stockCairo || stockBeheira || 50);
 
     const rawImg = cleanGoogleSheetImageUrl(getVal(colMap.imageUrl));
+    const sizeVal = getVal(colMap.size) || '';
+    const colorVal = getVal(colMap.color) || '';
+
+    // Generate deterministic product ID from Code + Color + Size (or Name if Code is missing)
+    const codeSlug = (code || `prd_${r}`).replace(/\s+/g, '_').toLowerCase();
+    const colorSlug = colorVal ? `_${colorVal.replace(/\s+/g, '_').toLowerCase()}` : '';
+    const sizeSlug = sizeVal ? `_${sizeVal.replace(/\s+/g, '_').toLowerCase()}` : '';
+    const deterministicId = `prod-${codeSlug}${colorSlug}${sizeSlug}`;
 
     const product: Product = {
-      id: `p-${Date.now()}-${r}-${Math.random().toString(36).substring(2, 7)}`,
+      id: deterministicId,
       code: code,
       name: name || `صنف دريم ${code}`,
       salesPriority: salesPriority,
@@ -443,8 +451,8 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       status: status,
       cartonQuantity: cartonQuantity,
       factor: cartonQuantity,
-      size: getVal(colMap.size) || '',
-      color: getVal(colMap.color) || '',
+      size: sizeVal,
+      color: colorVal,
       branchStockActual: rawBranchStock,
       branchStockReserved: Math.max(0, rawBranchStock - 5),
       mainWarehouseActual: stockOctober,
@@ -837,9 +845,24 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
 
   headers.forEach((h, idx) => {
     const norm = normalizeHeader(h);
-    if (norm.includes('كود') || norm.includes('code') || norm.includes('رقم العميل')) {
+    if (
+      norm.includes('كود') ||
+      norm.includes('code') ||
+      norm.includes('رقم العميل') ||
+      norm.includes('كودالعميل') ||
+      norm.includes('cust_id') ||
+      norm.includes('custid')
+    ) {
       if (colMap.code === -1) colMap.code = idx;
-    } else if (norm.includes('اسم') || norm.includes('عميل') || norm.includes('محل') || norm.includes('customer') || norm.includes('name')) {
+    } else if (
+      norm.includes('اسم') ||
+      norm.includes('عميل') ||
+      norm.includes('محل') ||
+      norm.includes('تاجر') ||
+      norm.includes('customer') ||
+      norm.includes('client') ||
+      norm.includes('name')
+    ) {
       if (colMap.name === -1) colMap.name = idx;
     } else if (
       norm.includes('تصنيف') ||
@@ -850,15 +873,30 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('درجه')
     ) {
       if (colMap.tier === -1) colMap.tier = idx;
-    } else if (norm.includes('تليفون') || norm.includes('هاتف') || norm.includes('موبايل') || norm.includes('phone') || norm.includes('mobile')) {
+    } else if (
+      norm.includes('تليفون') ||
+      norm.includes('هاتف') ||
+      norm.includes('موبايل') ||
+      norm.includes('محمول') ||
+      norm.includes('phone') ||
+      norm.includes('mobile') ||
+      norm.includes('tel')
+    ) {
       if (colMap.phone === -1) colMap.phone = idx;
-    } else if (norm.includes('عنوان') || norm.includes('منطقة') || norm.includes('محافظة') || norm.includes('address') || norm.includes('city')) {
+    } else if (
+      norm.includes('عنوان') ||
+      norm.includes('منطقة') ||
+      norm.includes('محافظة') ||
+      norm.includes('مدينة') ||
+      norm.includes('address') ||
+      norm.includes('city')
+    ) {
       if (colMap.address === -1) colMap.address = idx;
     } else if (norm.includes('فرع') || norm.includes('branch')) {
       if (colMap.branchName === -1) colMap.branchName = idx;
     } else if (norm.includes('مندوب') || norm.includes('المندوبالحالي') || norm.includes('rep') || norm.includes('مسؤول')) {
       if (colMap.repName === -1) colMap.repName = idx;
-    } else if (norm.includes('ضريب') || norm.includes('tax')) {
+    } else if (norm.includes('ضريب') || norm.includes('tax') || norm.includes('سجل')) {
       if (colMap.taxNumber === -1) colMap.taxNumber = idx;
     } else if (norm.includes('ملاحظ') || norm.includes('note')) {
       if (colMap.notes === -1) colMap.notes = idx;
@@ -872,15 +910,28 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     return String(val).trim();
   };
 
+  const customerMap = new Map<string, Customer>();
+  let totalRawRowsProcessed = 0;
+
   for (let r = headerRowIndex + 1; r < rawRows.length; r++) {
     const row = rawRows[r];
     if (!row || row.every((c: any) => c === undefined || c === null || String(c).trim() === '')) {
       continue;
     }
 
-    const name = getVal(row, colMap.name);
-    const code = getVal(row, colMap.code, `CUST-${1000 + r}`);
-    if (!name && !code) continue;
+    totalRawRowsProcessed++;
+
+    const rawName = getVal(row, colMap.name);
+    const rawCode = getVal(row, colMap.code);
+    const rawPhone = getVal(row, colMap.phone);
+    const rawAddress = getVal(row, colMap.address);
+    const rawBranch = getVal(row, colMap.branchName);
+    const rawRep = getVal(row, colMap.repName);
+    const rawTax = getVal(row, colMap.taxNumber);
+    const rawNotes = getVal(row, colMap.notes);
+
+    // Skip empty dummy rows
+    if (!rawName && !rawCode && !rawPhone) continue;
 
     const rawTier = getVal(row, colMap.tier);
     let tier: CustomerTier = 'متوسط';
@@ -890,24 +941,69 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       tier = 'راقي';
     }
 
-    const customer: Customer = {
-      id: `cust-${Date.now()}-${r}-${Math.random().toString(36).substring(2, 6)}`,
-      code: code || `CUST-${1000 + r}`,
-      name: name || `عميل رقم ${code}`,
-      tier: tier,
-      phone: getVal(row, colMap.phone),
-      address: getVal(row, colMap.address),
-      branchName: normalizeExcelBranchName(getVal(row, colMap.branchName, 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)')),
-      repName: getVal(row, colMap.repName, 'مندوب المبيعات'),
-      taxNumber: getVal(row, colMap.taxNumber),
-      notes: getVal(row, colMap.notes),
-      createdAt: new Date().toISOString(),
-    };
+    // Determine unique dedup key (normalized code, or normalized name + phone/address)
+    const cleanCode = rawCode.trim().toLowerCase();
+    const cleanName = (rawName || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const cleanPhone = (rawPhone || '').replace(/[^0-9]/g, '');
 
-    customers.push(customer);
+    let dedupKey = '';
+    if (cleanCode && cleanCode !== '---' && !cleanCode.startsWith('cust-row')) {
+      dedupKey = `code:::${cleanCode}`;
+    } else if (cleanName && cleanPhone.length >= 7) {
+      dedupKey = `name_phone:::${cleanName}:::${cleanPhone}`;
+    } else if (cleanName) {
+      dedupKey = `name:::${cleanName}`;
+    } else if (cleanPhone.length >= 8) {
+      dedupKey = `phone:::${cleanPhone}`;
+    } else {
+      dedupKey = `row:::${r}`;
+    }
+
+    const assignedCode = rawCode || `CUST-${1000 + customerMap.size + 1}`;
+    const safeCustId = cleanCode
+      ? `cust-${cleanCode.replace(/\s+/g, '_')}`
+      : `cust-${cleanName.replace(/\s+/g, '_').slice(0, 30)}_${cleanPhone || r}`;
+
+    const existing = customerMap.get(dedupKey);
+
+    if (existing) {
+      // Merge records - keep the richest data available
+      if (!existing.phone && rawPhone) existing.phone = rawPhone;
+      if (!existing.address && rawAddress) existing.address = rawAddress;
+      if (!existing.taxNumber && rawTax) existing.taxNumber = rawTax;
+      if (!existing.notes && rawNotes) existing.notes = rawNotes;
+      if (rawRep && existing.repName === 'مندوب المبيعات') existing.repName = rawRep;
+      if (rawBranch && existing.branchName.includes('المخزن المركزي')) {
+        existing.branchName = normalizeExcelBranchName(rawBranch);
+      }
+      if (tier === 'مميز' || (tier === 'راقي' && existing.tier === 'متوسط')) {
+        existing.tier = tier;
+      }
+    } else {
+      const newCustomer: Customer = {
+        id: safeCustId,
+        code: assignedCode,
+        name: rawName || `عميل رقم ${assignedCode}`,
+        storeName: rawName || `محل / سوبر ماركت ${assignedCode}`,
+        tier: tier,
+        phone: rawPhone,
+        address: rawAddress,
+        branchName: normalizeExcelBranchName(rawBranch || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)'),
+        repName: rawRep || 'مندوب المبيعات',
+        taxNumber: rawTax,
+        notes: rawNotes,
+        createdAt: new Date().toISOString(),
+      };
+      customerMap.set(dedupKey, newCustomer);
+    }
   }
 
-  return { customers, errors, totalRows: customers.length };
+  const uniqueCustomers = Array.from(customerMap.values());
+  return {
+    customers: uniqueCustomers,
+    errors,
+    totalRows: totalRawRowsProcessed,
+  };
 }
 
 /**

@@ -159,29 +159,36 @@ export async function fetchCustomersFromSupabase(): Promise<{ success: boolean; 
  */
 export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ success: boolean; error?: string }> {
   try {
-    const payload = customers.map((c) => ({
-      id: c.id,
-      code: c.code,
-      name: c.name,
-      phone: c.phone,
-      address: c.address,
-      branch_name: c.branchName,
-      rep_name: c.repName,
-      rep_id: c.repId || null,
-      tax_number: c.taxNumber || null,
-      notes: c.notes || null,
-      updated_at: new Date().toISOString(),
-    }));
+    const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+    const payload = customers.map((c) => {
+      const stableSeed = c.code ? `cust-${c.code}` : `cust-${c.name}-${c.phone || ''}`;
+      const safeId = c.id && isUuid(c.id) ? c.id : stringToUuid(stableSeed);
+      return {
+        id: safeId,
+        code: c.code || null,
+        name: c.name || 'عميل بدون اسم',
+        phone: c.phone || '',
+        address: c.address || '',
+        branch_name: c.branchName || 'الفرع الرئيسي',
+        rep_name: c.repName || 'مندوب المبيعات',
+        rep_id: c.repId || null,
+        tax_number: c.taxNumber || null,
+        notes: c.notes || null,
+        updated_at: new Date().toISOString(),
+      };
+    });
 
     for (let i = 0; i < payload.length; i += 100) {
       const chunk = payload.slice(i, i + 100);
       const { error: err1 } = await supabase.from('customers').upsert(chunk);
       if (err1) {
-        await supabase.from('clients').upsert(chunk);
+        console.warn('Supabase customer upsert notice:', err1.message);
       }
     }
     return { success: true };
   } catch (e: any) {
+    console.error('Supabase customer save exception:', e);
     return { success: false, error: e?.message };
   }
 }

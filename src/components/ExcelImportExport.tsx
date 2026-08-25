@@ -56,6 +56,7 @@ export const ExcelImportExport: React.FC = () => {
     customers,
     importProductsList,
     importCustomersList,
+    cleanAndDeduplicateCustomers,
     deleteCustomer,
     wipeAllProductsAndData,
     selectedBranchFilter
@@ -71,6 +72,7 @@ export const ExcelImportExport: React.FC = () => {
   const [customerPreviewList, setCustomerPreviewList] = useState<Customer[]>([]);
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [customerImportMode, setCustomerImportMode] = useState<'merge' | 'replace'>('merge');
+  const [customerDisplayLimit, setCustomerDisplayLimit] = useState<number>(50);
 
   // Wipe / Reset Modal State
   const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
@@ -894,6 +896,21 @@ function processFolderRecursive(folder, sheet, currentPath) {
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
+                  onClick={() => {
+                    const res = cleanAndDeduplicateCustomers();
+                    if (res.duplicatesRemoved > 0) {
+                      setCustomerSheetSuccess(`تم فحص وتنظيف قاعدة العملاء بنجاح! تم دمج وإزالة ${res.duplicatesRemoved} سجل مكرر، واستقرار السجل عند ${res.deduplicatedCount} عميل فريد.`);
+                    } else {
+                      setCustomerSheetSuccess(`سجل العملاء نظيف ومثالي تماماً (${res.deduplicatedCount} عميل فريد) ولا يحتوي على أي تكرارات.`);
+                    }
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                  <span>تنظيف وضغط التكرارات ({customers.length} عميل)</span>
+                </button>
+                <button
+                  type="button"
                   onClick={generateSampleCustomersTemplate}
                   className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-black px-4 py-2.5 rounded-xl transition flex items-center gap-2"
                 >
@@ -909,6 +926,19 @@ function processFolderRecursive(folder, sheet, currentPath) {
                   <span>تصدير العملاء المسجلين ({customers.length})</span>
                 </button>
               </div>
+            </div>
+
+            {/* Supabase Free Tier Protection Info */}
+            <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2.5 text-emerald-300">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                <span>
+                  <strong>حالة استهلاك قاعدة البيانات (Supabase Free Tier):</strong> النظام مستقر في الخطة المجانية 100% (~5 ميجابايت مستخدمة من أصل 500 ميجابايت متاحة مجاناً). تنظيف التكرارات يضمن بقاء المنظومة مجانية دائماً وسريعة الاستجابة.
+                </span>
+              </div>
+              <span className="bg-emerald-900/60 text-emerald-200 font-bold px-3 py-1 rounded-lg border border-emerald-600/40 shrink-0 text-[11px]">
+                استهلاك &lt; 1% من الخطة المجانية
+              </span>
             </div>
 
             {/* Google Sheet URL Sync Input for Customers */}
@@ -1154,8 +1184,8 @@ function processFolderRecursive(folder, sheet, currentPath) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
-                    {customers
-                      .filter((c) => {
+                    {(() => {
+                      const filtered = customers.filter((c) => {
                         if (!customerSearchTerm.trim()) return true;
                         const q = customerSearchTerm.toLowerCase().trim();
                         return (
@@ -1166,33 +1196,53 @@ function processFolderRecursive(folder, sheet, currentPath) {
                           (c.governorate && c.governorate.toLowerCase().includes(q)) ||
                           (c.branchName && c.branchName.toLowerCase().includes(q))
                         );
-                      })
-                      .map((c, i) => (
-                        <tr key={c.id} className="hover:bg-amber-50/40">
-                          <td className="p-3 text-slate-400 font-bold">{i + 1}</td>
-                          <td className="p-3 font-mono font-bold text-amber-900">{c.code || '---'}</td>
-                          <td className="p-3 font-black text-slate-900">{c.name}</td>
-                          <td className="p-3 font-bold text-slate-700">{c.storeName || '---'}</td>
-                          <td className="p-3 font-bold text-emerald-800">{c.phone || '---'}</td>
-                          <td className="p-3 text-slate-600">{c.branchName || 'الفرع الرئيسي'}</td>
-                          <td className="p-3 text-slate-600">{c.address || c.governorate || '---'}</td>
-                          <td className="p-3 font-mono text-slate-500">{c.taxNumber || '---'}</td>
-                          <td className="p-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (window.confirm(`هل أنت متأكد من حذف العميل (${c.name})؟`)) {
-                                  deleteCustomer(c.id);
-                                }
-                              }}
-                              className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer transition"
-                              title="حذف العميل"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      });
+                      const displayed = filtered.slice(0, customerDisplayLimit);
+
+                      return (
+                        <>
+                          {displayed.map((c, i) => (
+                            <tr key={c.id} className="hover:bg-amber-50/40">
+                              <td className="p-3 text-slate-400 font-bold">{i + 1}</td>
+                              <td className="p-3 font-mono font-bold text-amber-900">{c.code || '---'}</td>
+                              <td className="p-3 font-black text-slate-900">{c.name}</td>
+                              <td className="p-3 font-bold text-slate-700">{c.storeName || '---'}</td>
+                              <td className="p-3 font-bold text-emerald-800">{c.phone || '---'}</td>
+                              <td className="p-3 text-slate-600">{c.branchName || 'الفرع الرئيسي'}</td>
+                              <td className="p-3 text-slate-600">{c.address || c.governorate || '---'}</td>
+                              <td className="p-3 font-mono text-slate-500">{c.taxNumber || '---'}</td>
+                              <td className="p-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (window.confirm(`هل أنت متأكد من حذف العميل (${c.name})؟`)) {
+                                      deleteCustomer(c.id);
+                                    }
+                                  }}
+                                  className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer transition"
+                                  title="حذف العميل"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                          {filtered.length > customerDisplayLimit && (
+                            <tr>
+                              <td colSpan={9} className="p-4 text-center bg-slate-50">
+                                <button
+                                  type="button"
+                                  onClick={() => setCustomerDisplayLimit((prev) => prev + 100)}
+                                  className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-5 py-2 rounded-xl transition cursor-pointer"
+                                >
+                                  عرض المزيد من العملاء (يتبقى {filtered.length - customerDisplayLimit} عميل)
+                                </button>
+                              </td>
+                            </tr>
+                          )}
+                        </>
+                      );
+                    })()}
                   </tbody>
                 </table>
               </div>

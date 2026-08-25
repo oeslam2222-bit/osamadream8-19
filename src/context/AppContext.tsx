@@ -67,6 +67,7 @@ interface AppContextType {
   updateCustomer: (customer: Customer) => void;
   deleteCustomer: (customerId: string) => void;
   importCustomersList: (newCustomers: Customer[], mode?: 'merge' | 'replace') => void;
+  cleanAndDeduplicateCustomers: () => { originalCount: number; deduplicatedCount: number; duplicatesRemoved: number };
 
   // Auth actions
   login: (identifier: string, password?: string) => { success: boolean; message: string; user?: User };
@@ -282,6 +283,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const sanitizeCustomers = (list: Customer[]): Customer[] => {
+    if (!Array.isArray(list)) return [];
+    const map = new Map<string, Customer>();
+
+    for (const c of list) {
+      if (!c) continue;
+      const cleanCode = (c.code || '').trim().toLowerCase();
+      const cleanName = (c.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const cleanPhone = (c.phone || '').replace(/[^0-9]/g, '');
+
+      let key = '';
+      if (cleanCode && cleanCode !== '---' && !cleanCode.startsWith('cust-row') && !/^cust-\d+$/i.test(cleanCode)) {
+        key = `code:::${cleanCode}`;
+      } else if (cleanName && cleanPhone.length >= 7) {
+        key = `name_phone:::${cleanName}:::${cleanPhone}`;
+      } else if (cleanName) {
+        key = `name:::${cleanName}`;
+      } else if (cleanPhone.length >= 8) {
+        key = `phone:::${cleanPhone}`;
+      } else {
+        key = `id:::${c.id || Math.random()}`;
+      }
+
+      const existing = map.get(key);
+      if (existing) {
+        // Merge attributes to keep the best data
+        if (!existing.phone && c.phone) existing.phone = c.phone;
+        if (!existing.address && c.address) existing.address = c.address;
+        if (!existing.taxNumber && c.taxNumber) existing.taxNumber = c.taxNumber;
+        if (!existing.notes && c.notes) existing.notes = c.notes;
+        if (c.repName && (!existing.repName || existing.repName === 'مندوب المبيعات')) existing.repName = c.repName;
+        if (c.tier === 'مميز' || (c.tier === 'راقي' && existing.tier === 'متوسط')) {
+          existing.tier = c.tier;
+        }
+      } else {
+        map.set(key, {
+          ...c,
+          name: c.name || `عميل ${c.code || ''}`,
+          branchName: normalizeBranchName(c.branchName || 'الفرع الرئيسي'),
+        });
+      }
+    }
+
+    return Array.from(map.values());
+  };
+
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
     try {
@@ -294,7 +341,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
-    return saved ? JSON.parse(saved) : INITIAL_CUSTOMERS;
+    try {
+      const raw = saved ? JSON.parse(saved) : INITIAL_CUSTOMERS;
+      return sanitizeCustomers(raw);
+    } catch {
+      return INITIAL_CUSTOMERS;
+    }
   });
 
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
@@ -656,22 +708,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCustomers((prev) => prev.filter((c) => c.id !== customerId));
   };
 
-  const importCustomersList = (newCustomers: Customer[], mode: 'merge' | 'replace' = 'merge') => {
-    if (mode === 'replace') {
-      setCustomers(newCustomers);
-    } else {
-      setCustomers((prev) => {
-        const map = new Map<string, Customer>();
-        prev.forEach((c) => map.set(c.id, c));
-        prev.forEach((c) => map.set(c.code.toLowerCase(), c));
-        newCustomers.forEach((c) => {
-          map.set(c.id, c);
-          map.set(c.code.toLowerCase(), c);
-        });
-        return Array.from(new Set(map.values()));
-      });
+  const cleanAndDeduplicateCustomers = () => {
+    const originalCount = customers.length;
+    const cleaned = sanitizeCustomers(customers);
+    const duplicatesRemoved = Math.max(0, originalCount - cleaned.length);
+    if (duplicatesRemoved > 0 || cleaned.length !== originalCount) {
+      setCustomers(cleaned);
+      saveCustomersToSupabase(cleaned).catch((e) => console.warn('Supabase customer clean save error:', e));
     }
-    saveCustomersToSupabase(newCustomers).catch((e) => console.warn('Supabase customer bulk save error:', e));
+    return {
+      originalCount,
+      deduplicatedCount: cleaned.length,
+      duplicatesRemoved,
+    };
+  };
+
+  const importCustomersList = (newCustomers: Customer[], mode: 'merge' | 'replace' = 'merge') => {
+    const sanitizedIncoming = sanitizeCustomers(newCustomers);
+    let finalCustomers: Customer[] = [];
+    if (mode === 'replace') {
+      finalCustomers = sanitizedIncoming;
+      setCustomers(finalCustomers);
+    } else {
+      finalCustomers = sanitizeCustomers([...customers, ...sanitizedIncoming]);
+      setCustomers(finalCustomers);
+    }
+    saveCustomersToSupabase(finalCustomers).catch((e) => console.warn('Supabase customer bulk save error:', e));
   };
 
   // Sync to IndexedDB (unlimited capacity) and safe localStorage (with QuotaExceededError safety)
@@ -2128,6 +2190,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateCustomer,
         deleteCustomer,
         importCustomersList,
+        cleanAndDeduplicateCustomers,
         login,
         register,
         logout,
