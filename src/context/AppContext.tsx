@@ -9,6 +9,7 @@ import {
 } from '../data/mockData';
 import { DEFAULT_CLOUDINARY_CONFIG } from '../services/cloudinaryService';
 import { clearCachedImages } from '../services/imageCacheService';
+import { idbClear, idbDelete, idbGet, idbSet, safeLocalStorageSet } from '../services/storageService';
 import {
   fetchCustomersFromSupabase,
   fetchInvoicesFromSupabase,
@@ -324,7 +325,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   useEffect(() => {
-    localStorage.setItem('dream_dist_audit_logs_v7', JSON.stringify(auditLogs));
+    idbSet('dream_dist_audit_logs_v7', auditLogs);
+    safeLocalStorageSet('dream_dist_audit_logs_v7', JSON.stringify(auditLogs));
   }, [auditLogs]);
 
   const recordAuditLog = (logData: Omit<AuditLog, 'id' | 'timestamp' | 'formattedTime'>) => {
@@ -359,7 +361,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const toggleDataSaverMode = () => {
     setDataSaverMode((prev) => {
       const next = !prev;
-      localStorage.setItem('dream_dist_data_saver', String(next));
+      safeLocalStorageSet('dream_dist_data_saver', String(next));
       return next;
     });
   };
@@ -480,6 +482,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Initial Supabase connection check, fetch users, products, invoices & real-time sync
   useEffect(() => {
+    // 0. Load offline items from IndexedDB if present
+    idbGet<Product[]>(STORAGE_KEYS.PRODUCTS).then((idbProducts) => {
+      if (idbProducts && idbProducts.length > 0) {
+        setProducts((prev) => {
+          if (prev.length <= INITIAL_PRODUCTS.length) {
+            return sanitizeProducts(idbProducts);
+          }
+          return prev;
+        });
+      }
+    });
+
+    idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS).then((idbCustomers) => {
+      if (idbCustomers && idbCustomers.length > 0) {
+        setCustomers(idbCustomers);
+      }
+    });
+
+    idbGet<Invoice[]>(STORAGE_KEYS.INVOICES).then((idbInvoices) => {
+      if (idbInvoices && idbInvoices.length > 0) {
+        setInvoices(idbInvoices);
+      }
+    });
+
     testSupabaseConnection().then((status) => {
       setSupabaseStatus(status);
       if (status.connected) {
@@ -648,42 +674,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveCustomersToSupabase(newCustomers).catch((e) => console.warn('Supabase customer bulk save error:', e));
   };
 
-  // Sync to local storage
+  // Sync to IndexedDB (unlimited capacity) and safe localStorage (with QuotaExceededError safety)
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+    idbSet(STORAGE_KEYS.PRODUCTS, products);
+    safeLocalStorageSet(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
   }, [products]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
+    idbSet(STORAGE_KEYS.CUSTOMERS, customers);
+    safeLocalStorageSet(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
   }, [customers]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.INVOICES, JSON.stringify(invoices));
+    idbSet(STORAGE_KEYS.INVOICES, invoices);
+    safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify(invoices));
   }, [invoices]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    idbSet(STORAGE_KEYS.USERS, users);
+    safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(users));
   }, [users]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CLOUDINARY, JSON.stringify(cloudinaryConfig));
+    safeLocalStorageSet(STORAGE_KEYS.CLOUDINARY, JSON.stringify(cloudinaryConfig));
   }, [cloudinaryConfig]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.ACCOUNTING_LOGS, JSON.stringify(accountingLogs));
+    safeLocalStorageSet(STORAGE_KEYS.ACCOUNTING_LOGS, JSON.stringify(accountingLogs));
   }, [accountingLogs]);
 
   useEffect(() => {
-    localStorage.setItem('dream_dist_inv_logs_v5', JSON.stringify(inventoryLogs));
+    safeLocalStorageSet('dream_dist_inv_logs_v5', JSON.stringify(inventoryLogs));
   }, [inventoryLogs]);
 
   useEffect(() => {
     if (currentUser && isAuthenticated) {
-      localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, currentUser.id);
-      localStorage.setItem(STORAGE_KEYS.IS_AUTH, 'true');
+      safeLocalStorageSet(STORAGE_KEYS.CURRENT_USER_ID, currentUser.id);
+      safeLocalStorageSet(STORAGE_KEYS.IS_AUTH, 'true');
     } else {
       localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
-      localStorage.setItem(STORAGE_KEYS.IS_AUTH, 'false');
+      safeLocalStorageSet(STORAGE_KEYS.IS_AUTH, 'false');
     }
   }, [currentUser, isAuthenticated]);
 
@@ -1956,11 +1986,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return p;
       });
 
-      try {
-        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
-      } catch (e) {
-        console.warn('LocalStorage limit reached while caching images');
-      }
+      idbSet(STORAGE_KEYS.PRODUCTS, updated);
+      safeLocalStorageSet(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
 
       return updated;
     });
@@ -1968,7 +1995,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const clearAllAppData = (mode: 'cache_only' | 'full_reset' = 'cache_only') => {
     if (mode === 'full_reset') {
-      localStorage.clear();
+      try {
+        localStorage.clear();
+      } catch {}
+      idbClear();
       setProducts(INITIAL_PRODUCTS);
       setInvoices(INITIAL_INVOICES);
       setUsers(INITIAL_USERS);
@@ -1981,8 +2011,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCart([]);
       try {
         localStorage.removeItem(STORAGE_KEYS.ACCOUNTING_LOGS);
-        // Force garbage cleanup in storage
-        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+        safeLocalStorageSet(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
       } catch (e) {
         // Safe ignore
       }
@@ -1992,16 +2021,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const wipeAllProductsAndData = async (options?: { wipeInvoices?: boolean }) => {
     setProducts([]);
     setCart([]);
-    try {
-      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify([]));
-      localStorage.setItem(STORAGE_KEYS.CART, JSON.stringify([]));
-    } catch (e) {}
+    idbSet(STORAGE_KEYS.PRODUCTS, []);
+    idbSet(STORAGE_KEYS.CART, []);
+    safeLocalStorageSet(STORAGE_KEYS.PRODUCTS, JSON.stringify([]));
+    safeLocalStorageSet(STORAGE_KEYS.CART, JSON.stringify([]));
 
     if (options?.wipeInvoices) {
       setInvoices([]);
-      try {
-        localStorage.setItem(STORAGE_KEYS.INVOICES, JSON.stringify([]));
-      } catch (e) {}
+      idbSet(STORAGE_KEYS.INVOICES, []);
+      safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify([]));
     }
 
     try {
