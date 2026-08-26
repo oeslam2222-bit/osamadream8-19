@@ -17,6 +17,8 @@ import {
   fetchProductsFromSupabase,
   fetchUsersFromSupabase,
   findUserInSupabase,
+  sanitizeEmail,
+  sanitizeIdentifier,
   saveCustomersToSupabase,
   saveInvoiceToSupabase,
   saveProductsToSupabase,
@@ -415,6 +417,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved === 'true';
   });
 
+  // Hydrate high-capacity collections from IndexedDB seamlessly on startup
+  useEffect(() => {
+    let isMounted = true;
+    async function hydrateFromIndexedDB() {
+      try {
+        // Clean up legacy large keys from localStorage to prevent quota overflow
+        try {
+          localStorage.removeItem(STORAGE_KEYS.PRODUCTS);
+          localStorage.removeItem(STORAGE_KEYS.INVOICES);
+          localStorage.removeItem(STORAGE_KEYS.CUSTOMERS);
+        } catch {
+          // ignore
+        }
+
+        const [idbProducts, idbInvoices, idbCustomers, idbUsers] = await Promise.all([
+          idbGet<Product[]>(STORAGE_KEYS.PRODUCTS),
+          idbGet<Invoice[]>(STORAGE_KEYS.INVOICES),
+          idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS),
+          idbGet<User[]>(STORAGE_KEYS.USERS),
+        ]);
+
+        if (!isMounted) return;
+
+        if (idbProducts && Array.isArray(idbProducts) && idbProducts.length > 0) {
+          setProducts(sanitizeProducts(idbProducts));
+        }
+        if (idbInvoices && Array.isArray(idbInvoices) && idbInvoices.length > 0) {
+          setInvoices(idbInvoices);
+        }
+        if (idbCustomers && Array.isArray(idbCustomers) && idbCustomers.length > 0) {
+          setCustomers(sanitizeCustomers(idbCustomers));
+        }
+        if (idbUsers && Array.isArray(idbUsers) && idbUsers.length > 0) {
+          setUsers((prev) => {
+            const map = new Map<string, User>();
+            prev.forEach((u) => map.set(u.id, u));
+            idbUsers.forEach((u) => map.set(u.id, u));
+            return Array.from(map.values());
+          });
+        }
+      } catch (err) {
+        console.warn('IndexedDB initial hydration notice:', err);
+      }
+    }
+
+    hydrateFromIndexedDB();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const toggleDataSaverMode = () => {
     setDataSaverMode((prev) => {
       const next = !prev;
@@ -741,20 +794,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveCustomersToSupabase(finalCustomers).catch((e) => console.warn('Supabase customer bulk save error:', e));
   };
 
-  // Sync to IndexedDB (unlimited capacity) and safe localStorage (with QuotaExceededError safety)
+  // Sync high-capacity data directly to IndexedDB (preventing LocalStorage quota overflow)
   useEffect(() => {
     idbSet(STORAGE_KEYS.PRODUCTS, products);
-    safeLocalStorageSet(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
   }, [products]);
 
   useEffect(() => {
     idbSet(STORAGE_KEYS.CUSTOMERS, customers);
-    safeLocalStorageSet(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
   }, [customers]);
 
   useEffect(() => {
     idbSet(STORAGE_KEYS.INVOICES, invoices);
-    safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify(invoices));
   }, [invoices]);
 
   useEffect(() => {
@@ -798,21 +848,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // --- Authentication System ---
   const login = async (identifier: string, password?: string): Promise<{ success: boolean; message: string; user?: User }> => {
-    const cleanId = identifier.trim().toLowerCase();
+    const cleanId = sanitizeIdentifier(identifier).toLowerCase();
+    const cleanEmail = sanitizeEmail(identifier);
+    const rawTrim = sanitizeIdentifier(identifier);
     const cleanPass = (password || '').trim();
 
     // 1. Search in local memory first
     let found = users.find(
       (u) =>
-        (u.email && u.email.toLowerCase() === cleanId) ||
-        (u.username && u.username.toLowerCase() === cleanId) ||
-        (u.phone && u.phone.trim() === identifier.trim())
+        (u.email && sanitizeEmail(u.email) === cleanEmail) ||
+        (u.username && sanitizeIdentifier(u.username).toLowerCase() === cleanId) ||
+        (u.phone && sanitizeIdentifier(u.phone) === rawTrim)
     );
 
     // 2. If not found locally, query Supabase directly (essential for new devices like mobile phones)
     if (!found) {
       try {
-        const supRes = await findUserInSupabase(cleanId);
+        const supRes = await findUserInSupabase(cleanEmail.includes('@') ? cleanEmail : cleanId);
         if (supRes.success && supRes.user) {
           found = supRes.user;
           setUsers((prev) => {

@@ -254,69 +254,86 @@ export async function fetchUsersFromSupabase(): Promise<{ success: boolean; user
 }
 
 /**
- * Find a specific user in Supabase by email, username, or phone
+ * Helper to sanitize email and identifier strings by stripping parentheses, brackets, and extra spaces
+ */
+export function sanitizeIdentifier(raw: string): string {
+  if (!raw) return '';
+  return raw.replace(/[()[\]{}<>"'`\\/]/g, '').trim();
+}
+
+export function sanitizeEmail(raw: string): string {
+  if (!raw) return '';
+  return raw.replace(/[()[\]{}<>"'`\\/]/g, '').replace(/\s+/g, '').trim().toLowerCase();
+}
+
+/**
+ * Find a specific user in Supabase by email, username, or phone safely
  */
 export async function findUserInSupabase(identifier: string): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
-    const clean = identifier.trim().toLowerCase();
-    
-    // 1. Check in 'users' table
-    const { data: uData, error: uErr } = await supabase
-      .from('users')
-      .select('*')
-      .or(`email.ilike.${clean},username.ilike.${clean},phone.eq.${identifier.trim()}`)
-      .limit(1);
+    const rawClean = sanitizeIdentifier(identifier);
+    const cleanLower = rawClean.toLowerCase();
+    const cleanEmail = sanitizeEmail(identifier);
 
-    if (!uErr && uData && uData.length > 0) {
-      const u = uData[0];
-      const foundUser: User = {
-        id: u.id || `sup-u-${Date.now()}`,
-        name: u.name || u.full_name || u.username || 'مستخدم',
-        username: u.username || u.email?.split('@')[0] || 'user',
-        email: u.email || '',
-        password: u.password || '',
-        role: normalizeUserRole(u.role, u.is_admin),
-        branchName: u.branch_name || u.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
-        supervisorId: u.supervisor_id || u.supervisorId,
-        phone: u.phone || u.mobile || '',
-        commissionRate: u.commission_rate || u.commissionRate || 2.5,
-        isActive: u.is_active !== undefined ? u.is_active : true,
-        approvalStatus: u.approval_status || u.approvalStatus || 'active',
-        registrationDate: u.created_at || u.registration_date || u.createdAt || new Date().toISOString(),
-      };
-      return { success: true, user: foundUser };
+    if (!rawClean) {
+      return { success: false, error: 'المعرف فارغ' };
     }
 
-    // 2. Check in 'profiles' table
-    const { data: pData, error: pErr } = await supabase
-      .from('profiles')
-      .select('*')
-      .or(`email.ilike.${clean},username.ilike.${clean},phone.eq.${identifier.trim()}`)
-      .limit(1);
+    // 1. Fetch all remote users and match accurately in memory without fragile PostgREST URL syntax errors
+    const remoteRes = await fetchUsersFromSupabase();
+    if (remoteRes.success && remoteRes.users && remoteRes.users.length > 0) {
+      const found = remoteRes.users.find(
+        (u) =>
+          (u.email && sanitizeEmail(u.email) === cleanEmail) ||
+          (u.username && sanitizeIdentifier(u.username).toLowerCase() === cleanLower) ||
+          (u.phone && sanitizeIdentifier(u.phone) === rawClean) ||
+          (u.name && sanitizeIdentifier(u.name).toLowerCase() === cleanLower)
+      );
+      if (found) {
+        return { success: true, user: found };
+      }
+    }
 
-    if (!pErr && pData && pData.length > 0) {
-      const u = pData[0];
-      const foundUser: User = {
-        id: u.id || `sup-p-${Date.now()}`,
-        name: u.name || u.full_name || u.username || 'مستخدم',
-        username: u.username || u.email?.split('@')[0] || 'user',
-        email: u.email || '',
-        password: u.password || '',
-        role: normalizeUserRole(u.role, u.is_admin),
-        branchName: u.branch_name || u.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
-        supervisorId: u.supervisor_id || u.supervisorId,
-        phone: u.phone || u.mobile || '',
-        commissionRate: u.commission_rate || u.commissionRate || 2.5,
-        isActive: u.is_active !== undefined ? u.is_active : true,
-        approvalStatus: u.approval_status || u.approvalStatus || 'active',
-        registrationDate: u.created_at || u.registration_date || u.createdAt || new Date().toISOString(),
-      };
-      return { success: true, user: foundUser };
+    // 2. Direct single lookup fallback on 'users' and 'profiles' table using clean values
+    for (const tableName of ['users', 'profiles']) {
+      try {
+        if (cleanEmail.includes('@')) {
+          const { data: eData, error: eErr } = await supabase
+            .from(tableName)
+            .select('*')
+            .eq('email', cleanEmail)
+            .limit(1);
+
+          if (!eErr && eData && eData.length > 0) {
+            const u = eData[0];
+            return {
+              success: true,
+              user: {
+                id: u.id || `sup-u-${Date.now()}`,
+                name: u.name || u.full_name || u.username || 'مستخدم',
+                username: u.username || u.email?.split('@')[0] || 'user',
+                email: u.email || '',
+                password: u.password || '',
+                role: normalizeUserRole(u.role, u.is_admin),
+                branchName: u.branch_name || u.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+                supervisorId: u.supervisor_id || u.supervisorId,
+                phone: u.phone || u.mobile || '',
+                commissionRate: u.commission_rate || u.commissionRate || 2.5,
+                isActive: u.is_active !== undefined ? u.is_active : true,
+                approvalStatus: u.approval_status || u.approvalStatus || 'active',
+                registrationDate: u.created_at || u.registration_date || u.createdAt || new Date().toISOString(),
+              },
+            };
+          }
+        }
+      } catch {
+        // ignore and continue
+      }
     }
 
     return { success: false, error: 'لم يتم العثور على المستخدم' };
   } catch (err: any) {
-    return { success: false, error: err?.message };
+    return { success: false, error: err?.message || 'تعذر البحث عن المستخدم في السحابة' };
   }
 }
 

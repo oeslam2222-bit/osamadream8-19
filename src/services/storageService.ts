@@ -86,16 +86,16 @@ export async function idbClear(): Promise<boolean> {
 }
 
 /**
- * Safely writes to localStorage with quota protection and auto-cleanup
+ * Safely writes to localStorage with quota protection and auto-cleanup.
+ * Large collections (products, invoices, customers) are stored in IndexedDB.
  */
 export function safeLocalStorageSet(key: string, value: string): void {
   try {
     localStorage.setItem(key, value);
   } catch (err: any) {
-    console.warn(`LocalStorage quota exceeded for key "${key}". Saving to IndexedDB instead.`);
+    // LocalStorage quota exceeded (typical 5MB limit).
+    // The data is safely persisted in IndexedDB, so we clean up the failed large key from localStorage.
     try {
-      // If it is a large items key that failed, clean up the stale key from localStorage
-      // to free up quota for essential session items
       localStorage.removeItem(key);
     } catch {
       // ignore
