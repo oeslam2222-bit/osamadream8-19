@@ -16,6 +16,8 @@ import {
   Store,
   Trash2,
   User,
+  UserCheck,
+  Users,
   Warehouse,
   X
 } from 'lucide-react';
@@ -55,7 +57,11 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [selectedCustomerTierFilter, setSelectedCustomerTierFilter] = useState<'all' | 'VIP' | 'A' | 'B' | 'C'>('all');
+  const [customerRepScope, setCustomerRepScope] = useState<'my_customers' | 'all'>(
+    currentUser?.role === 'sales_rep' ? 'my_customers' : 'all'
+  );
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+  const [isNewCustomerMode, setIsNewCustomerMode] = useState(false);
 
   const [customerName, setCustomerName] = useState('');
   const [customerCode, setCustomerCode] = useState('');
@@ -73,9 +79,37 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState<string[]>([]);
 
-  // Filtered customers for search dropdown by search query AND tier (مميز / راقي / متوسط / عادي)
+  // Check if a customer belongs to the current sales rep
+  const isCustomerBelongingToCurrentRep = (c: Customer) => {
+    if (!currentUser) return true;
+    const currentName = (currentUser.name || '').trim().toLowerCase();
+    const currentUsername = (currentUser.username || '').trim().toLowerCase();
+    const currentId = (currentUser.id || '').trim().toLowerCase();
+
+    const cRepName = (c.salesRepName || c.repName || '').trim().toLowerCase();
+    const cRepId = (c.repId || '').trim().toLowerCase();
+
+    if (!cRepName && !cRepId) return true; // Unassigned customers are accessible
+    return (
+      cRepName === currentName ||
+      cRepName === currentUsername ||
+      cRepName.includes(currentName) ||
+      (cRepId && cRepId === currentId)
+    );
+  };
+
+  const myAssignedCustomersCount = useMemo(() => {
+    return customers.filter(isCustomerBelongingToCurrentRep).length;
+  }, [customers, currentUser]);
+
+  // Filtered customers for search dropdown by search query, rep assignment scope, and tier
   const filteredCustomers = useMemo(() => {
     return customers.filter((c) => {
+      // Rep scope filter (for sales reps)
+      if (customerRepScope === 'my_customers' && currentUser?.role === 'sales_rep') {
+        if (!isCustomerBelongingToCurrentRep(c)) return false;
+      }
+
       // Tier filter
       if (selectedCustomerTierFilter !== 'all') {
         const cTier = (c.tier || '').toUpperCase();
@@ -95,30 +129,49 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
           (c.storeName && c.storeName.toLowerCase().includes(q)) ||
           (c.branchName && c.branchName.toLowerCase().includes(q)) ||
           (c.salesRepName && c.salesRepName.toLowerCase().includes(q)) ||
+          (c.repName && c.repName.toLowerCase().includes(q)) ||
           (c.governorate && c.governorate.toLowerCase().includes(q));
         if (!matches) return false;
       }
 
       return true;
-    }).slice(0, 30);
-  }, [customers, customerSearchQuery, selectedCustomerTierFilter]);
+    }).slice(0, 35);
+  }, [customers, customerSearchQuery, selectedCustomerTierFilter, customerRepScope, currentUser]);
 
   const handleSelectCustomer = (c: Customer) => {
     setSelectedCustomerId(c.id);
+    setIsNewCustomerMode(false);
     setCustomerName(c.name);
     setCustomerCode(c.code || '');
     setCustomerPhone(c.phone || '');
     setCustomerAddress(c.address || c.governorate || '');
     setCustomerTaxNumber(c.taxNumber || '');
-    setCustomerBranch(c.branchName || '');
-    setCustomerRep(c.salesRepName || '');
+    setCustomerBranch(c.branchName || currentUser?.branchName || '');
+    setCustomerRep(c.salesRepName || c.repName || currentUser?.name || '');
     setCustomerTier(c.tier || 'عادي');
+    setIsCustomerDropdownOpen(false);
+    setCustomerSearchQuery('');
+  };
+
+  const handleStartNewCustomer = (customName?: string) => {
+    setSelectedCustomerId('');
+    setIsNewCustomerMode(true);
+    const typedName = customName !== undefined ? customName : customerSearchQuery;
+    setCustomerName(typedName);
+    setCustomerCode(`CUST-${Date.now().toString().slice(-4)}`);
+    setCustomerPhone('');
+    setCustomerAddress('');
+    setCustomerTaxNumber('');
+    setCustomerBranch(currentUser?.branchName || 'الفرع الرئيسي');
+    setCustomerRep(currentUser?.name || 'مندوب المبيعات');
+    setCustomerTier('عادي');
     setIsCustomerDropdownOpen(false);
     setCustomerSearchQuery('');
   };
 
   const handleClearSelectedCustomer = () => {
     setSelectedCustomerId('');
+    setIsNewCustomerMode(false);
     setCustomerName('');
     setCustomerCode('');
     setCustomerPhone('');
@@ -288,35 +341,79 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
           <div className="bg-slate-50/80 border border-slate-200 p-4 rounded-2xl space-y-3.5" id="customer-selection-section">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
               <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                <span>1. اختيار العميل من قاعدة البيانات (أو إدخال يدوي)</span>
+                <span>1. بيانات العميل المسند / تسجيل عميل جديد</span>
                 <span className="text-rose-600 font-black">*</span>
               </h3>
-              <span className="text-[10px] text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full font-bold">
-                {customers.length} عميل مسجل
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleStartNewCustomer('')}
+                  className="text-[11px] font-black text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 px-2.5 py-1 rounded-xl cursor-pointer flex items-center gap-1 transition shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ عميل جديد</span>
+                </button>
+                <span className="text-[10px] text-amber-800 bg-amber-100 px-2 py-1 rounded-xl font-bold">
+                  {customers.length} عميل مسجل
+                </span>
+              </div>
             </div>
 
-            {/* Tier Filters for Customers (مميز / راقي / متوسط / عادي) */}
-            <div className="space-y-1.5">
-              <label className="block text-slate-700 font-bold text-[11px]">
-                تصفية فئة العملاء:
-              </label>
+            {/* Rep Scope Filter & Tier Filters */}
+            <div className="space-y-2">
+              {/* Rep Scope Toggle (Available to Sales Rep & All) */}
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-xl text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setCustomerRepScope('my_customers')}
+                    className={`px-3 py-1.5 rounded-lg font-black transition cursor-pointer flex items-center gap-1.5 ${
+                      customerRepScope === 'my_customers'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-700 hover:text-slate-950'
+                    }`}
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>عملاء المندوب المسندين ({myAssignedCustomersCount})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomerRepScope('all')}
+                    className={`px-3 py-1.5 rounded-lg font-black transition cursor-pointer flex items-center gap-1.5 ${
+                      customerRepScope === 'all'
+                        ? 'bg-slate-900 text-amber-300 shadow-xs'
+                        : 'text-slate-700 hover:text-slate-950'
+                    }`}
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span>كل عملاء الشركة ({customers.length})</span>
+                  </button>
+                </div>
+
+                {customerRepScope === 'my_customers' && (
+                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                    👤 تصفية خاصة بالمندوب: {currentUser?.name || 'الحالي'}
+                  </span>
+                )}
+              </div>
+
+              {/* Tier Filters for Customers */}
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
                 <button
                   type="button"
                   onClick={() => setSelectedCustomerTierFilter('all')}
-                  className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-xl font-black shrink-0 transition cursor-pointer text-[11px] ${
                     selectedCustomerTierFilter === 'all'
-                      ? 'bg-slate-900 text-amber-300 shadow-xs'
+                      ? 'bg-slate-800 text-amber-300 shadow-xs'
                       : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
                   }`}
                 >
-                  👥 كل العملاء ({customers.length})
+                  الكل ({filteredCustomers.length})
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedCustomerTierFilter('VIP')}
-                  className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-xl font-black shrink-0 transition cursor-pointer text-[11px] ${
                     selectedCustomerTierFilter === 'VIP'
                       ? 'bg-amber-400 text-slate-950 shadow-xs ring-1 ring-amber-500'
                       : 'bg-white text-amber-900 border border-amber-300 hover:bg-amber-50'
@@ -327,35 +424,35 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedCustomerTierFilter('A')}
-                  className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-xl font-black shrink-0 transition cursor-pointer text-[11px] ${
                     selectedCustomerTierFilter === 'A'
                       ? 'bg-emerald-600 text-white shadow-xs'
                       : 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-50'
                   }`}
                 >
-                  🏆 راقي (فئة A)
+                  🏆 راقي (A)
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedCustomerTierFilter('B')}
-                  className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-xl font-black shrink-0 transition cursor-pointer text-[11px] ${
                     selectedCustomerTierFilter === 'B'
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'bg-white text-blue-800 border border-blue-300 hover:bg-blue-50'
                   }`}
                 >
-                  🏬 متوسط (فئة B)
+                  🏬 متوسط (B)
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedCustomerTierFilter('C')}
-                  className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-xl font-black shrink-0 transition cursor-pointer text-[11px] ${
                     selectedCustomerTierFilter === 'C'
                       ? 'bg-slate-700 text-white shadow-xs'
                       : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
                   }`}
                 >
-                  🏪 عادي (فئة C)
+                  🏪 عادي (C)
                 </button>
               </div>
             </div>
@@ -363,7 +460,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
             {/* Searchable Customer Dropdown */}
             <div className="relative">
               <label className="block text-slate-900 font-black text-xs mb-1">
-                بحث ذكي في سجل العملاء (بالاسم، الكود، رقم الهاتف، اسم المحل، المندوب):
+                بحث في سجل العملاء (بالاسم، الكود، الهاتف، اسم المحل، المندوب):
               </label>
               
               <div className="relative">
@@ -376,7 +473,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     setCustomerSearchQuery(e.target.value);
                     setIsCustomerDropdownOpen(true);
                   }}
-                  placeholder="🔍 اكتب كود العميل أو اسمه أو هاتفه أو منطقته للبحث المباشر..."
+                  placeholder="🔍 اكتب اسم العميل، الكود، المحافظة أو رقم الهاتف لاختياره مباشرة..."
                   className="w-full h-11 pr-10 pl-10 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-950 shadow-xs placeholder:text-slate-400"
                 />
                 <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none" />
@@ -391,60 +488,102 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
               {/* Customer Dropdown Results */}
               {isCustomerDropdownOpen && (
-                <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-2xl shadow-xl max-h-64 overflow-y-auto divide-y divide-slate-100">
-                  {filteredCustomers.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-slate-500">
-                      لا يوجد عميل مطابق للبحث والتصفية. يمكنك كتابة بيانات العميل أدناه يدوياً.
-                    </div>
-                  ) : (
-                    filteredCustomers.map((c) => (
+                <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-2xl shadow-xl max-h-72 overflow-y-auto divide-y divide-slate-100">
+                  {customerSearchQuery.trim() && (
+                    <div className="p-2.5 bg-emerald-50 border-b border-emerald-200">
                       <button
-                        key={c.id}
                         type="button"
-                        onClick={() => handleSelectCustomer(c)}
-                        className="w-full text-right p-3 hover:bg-amber-50/80 transition flex items-center justify-between gap-3 text-xs cursor-pointer"
+                        onClick={() => handleStartNewCustomer(customerSearchQuery.trim())}
+                        className="w-full text-right p-2.5 bg-white hover:bg-emerald-100/60 rounded-xl border border-emerald-300 text-emerald-950 font-black text-xs flex items-center justify-between gap-2 cursor-pointer shadow-xs transition"
                       >
-                        <div>
-                          <div className="font-black text-slate-900 flex items-center flex-wrap gap-1.5">
-                            <span>{c.name}</span>
-                            {c.storeName && (
-                              <span className="text-slate-500 font-normal">({c.storeName})</span>
-                            )}
-                            {c.code && (
-                              <span className="bg-slate-900 text-amber-300 text-[10px] font-mono px-1.5 py-0.2 rounded">
-                                {c.code}
-                              </span>
-                            )}
-                            {c.tier && (
-                              <span className={`text-[9px] font-black px-1.5 py-0.2 rounded ${
-                                c.tier.includes('VIP') || c.tier.includes('مميز')
-                                  ? 'bg-amber-400 text-slate-950'
-                                  : c.tier.includes('A') || c.tier.includes('راقي')
-                                  ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                                  : 'bg-slate-100 text-slate-700'
-                              }`}>
-                                {c.tier}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
-                            {c.phone && <span>📞 {c.phone}</span>}
-                            {c.branchName && <span>🏢 الفرع: {c.branchName}</span>}
-                            {c.salesRepName && <span>👤 المندوب: {c.salesRepName}</span>}
-                            {c.governorate && <span>📍 {c.governorate}</span>}
-                          </div>
+                        <div className="flex items-center gap-2">
+                          <span className="bg-emerald-600 text-white p-1 rounded-lg">
+                            <Plus className="w-3.5 h-3.5" />
+                          </span>
+                          <span>إضافة "{customerSearchQuery.trim()}" كعميل جديد مسند للمندوب</span>
                         </div>
-                        <span className="text-[10px] text-amber-800 bg-amber-100 hover:bg-amber-200 font-bold px-2.5 py-1 rounded-xl shrink-0 border border-amber-300">
-                          اختيار العميل
+                        <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded font-black">
+                          عميل جديد ✨
                         </span>
                       </button>
-                    ))
+                    </div>
+                  )}
+
+                  {filteredCustomers.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-slate-600 space-y-2">
+                      <p>لا يوجد عميل مطابق لبحثك في القائمة الحالية.</p>
+                      {customerSearchQuery.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => handleStartNewCustomer(customerSearchQuery.trim())}
+                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs cursor-pointer shadow-xs"
+                        >
+                          + إضافة "{customerSearchQuery.trim()}" كعميل جديد
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    filteredCustomers.map((c) => {
+                      const isMyCustomer = isCustomerBelongingToCurrentRep(c);
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => handleSelectCustomer(c)}
+                          className="w-full text-right p-3 hover:bg-amber-50/80 transition flex items-center justify-between gap-3 text-xs cursor-pointer"
+                        >
+                          <div>
+                            <div className="font-black text-slate-900 flex items-center flex-wrap gap-1.5">
+                              <span>{c.name}</span>
+                              {c.storeName && (
+                                <span className="text-slate-500 font-normal">({c.storeName})</span>
+                              )}
+                              {c.code && (
+                                <span className="bg-slate-900 text-amber-300 text-[10px] font-mono px-1.5 py-0.2 rounded">
+                                  {c.code}
+                                </span>
+                              )}
+                              {isMyCustomer ? (
+                                <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 text-[9px] font-black px-1.5 py-0.2 rounded">
+                                  مسند لك ✓
+                                </span>
+                              ) : (
+                                (c.salesRepName || c.repName) && (
+                                  <span className="bg-slate-100 text-slate-700 text-[9px] font-bold px-1.5 py-0.2 rounded">
+                                    المندوب: {c.salesRepName || c.repName}
+                                  </span>
+                                )
+                              )}
+                              {c.tier && (
+                                <span className={`text-[9px] font-black px-1.5 py-0.2 rounded ${
+                                  c.tier.includes('VIP') || c.tier.includes('مميز')
+                                    ? 'bg-amber-400 text-slate-950'
+                                    : c.tier.includes('A') || c.tier.includes('راقي')
+                                    ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                                    : 'bg-slate-100 text-slate-700'
+                                }`}>
+                                  {c.tier}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
+                              {c.phone && <span>📞 {c.phone}</span>}
+                              {c.branchName && <span>🏢 الفرع: {c.branchName}</span>}
+                              {c.governorate && <span>📍 {c.governorate}</span>}
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-amber-800 bg-amber-100 hover:bg-amber-200 font-bold px-2.5 py-1 rounded-xl shrink-0 border border-amber-300">
+                            اختيار العميل
+                          </span>
+                        </button>
+                      );
+                    })
                   )}
                 </div>
               )}
             </div>
 
-            {/* Selected Customer Card or Manual Input */}
+            {/* Selected Customer Card or Manual / New Customer Input */}
             {selectedCustomerId ? (
               <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-3.5 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -473,7 +612,11 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     <div className="text-[11px] text-slate-600 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                       {customerPhone && <span>📞 {customerPhone}</span>}
                       {customerAddress && <span>📍 {customerAddress}</span>}
-                      {customerRep && <span>👤 المندوب المسند: {customerRep}</span>}
+                      {customerRep && (
+                        <span className="bg-amber-100/70 text-amber-900 font-bold px-1.5 py-0.5 rounded">
+                          👤 المندوب المسند: {customerRep}
+                        </span>
+                      )}
                       {customerTaxNumber && <span>🏛️ ضريبي: {customerTaxNumber}</span>}
                     </div>
                   </div>
@@ -487,57 +630,80 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                <div>
-                  <label className="block text-slate-900 font-black mb-1">
-                    اسم العميل / السوبر ماركت <span className="text-rose-600">*</span>
-                  </label>
-                  <input
-                    id="customer-name-input"
-                    type="text"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="مثال: هايبر ماركت التوحيد والنور، محل سنتر شاهين..."
-                    className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-950 shadow-xs placeholder:text-slate-400"
-                  />
+              <div className="space-y-2.5">
+                {/* NEW CUSTOMER NOTIFICATION BADGE */}
+                <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md shrink-0">
+                      عميل جديد ✨
+                    </span>
+                    <span className="font-bold text-emerald-950">
+                      {customerName.trim()
+                        ? `سيتم حفظ وتوثيق العميل (${customerName}) وإسناده تلقائياً للمندوب (${customerRep || currentUser?.name || 'المندوب الحالي'}).`
+                        : `أدخل بيانات العميل الجديد أدناه وسيتم تسجيله وربطه بحساب المندوب تلقائياً فور حفظ الفاتورة.`}
+                    </span>
+                  </div>
+                  {isNewCustomerMode && (
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomerDropdownOpen(true)}
+                      className="text-[11px] text-emerald-800 hover:text-emerald-950 font-black underline cursor-pointer shrink-0"
+                    >
+                      أو اختر من المسجلين
+                    </button>
+                  )}
                 </div>
 
-                <div>
-                  <label className="block text-slate-900 font-black mb-1">
-                    رقم هاتف العميل (لإرسال الفاتورة عبر واتساب)
-                  </label>
-                  <input
-                    id="customer-phone-input"
-                    type="tel"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="مثال: 01011122233"
-                    className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-950 shadow-xs placeholder:text-slate-400"
-                  />
-                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  <div>
+                    <label className="block text-slate-900 font-black mb-1">
+                      اسم العميل / السوبر ماركت <span className="text-rose-600">*</span>
+                    </label>
+                    <input
+                      id="customer-name-input"
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="مثال: هايبر ماركت التوحيد والنور، محل سنتر شاهين..."
+                      className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-950 shadow-xs placeholder:text-slate-400"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-slate-900 font-black mb-1">عنوان العميل / المنطقة</label>
-                  <input
-                    id="customer-address-input"
-                    type="text"
-                    value={customerAddress}
-                    onChange={(e) => setCustomerAddress(e.target.value)}
-                    placeholder="مثال: شارع مكرم عبيد، المنطقة السادسة، مدينة نصر"
-                    className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-semibold text-slate-950 shadow-xs placeholder:text-slate-400"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-slate-900 font-black mb-1">
+                      رقم هاتف العميل (لإرسال الفاتورة عبر واتساب)
+                    </label>
+                    <input
+                      id="customer-phone-input"
+                      type="tel"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      placeholder="مثال: 01011122233"
+                      className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-950 shadow-xs placeholder:text-slate-400"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-slate-900 font-black mb-1">الرقم الضريبي للعميل (اختياري)</label>
-                  <input
-                    id="customer-tax-input"
-                    type="text"
-                    value={customerTaxNumber}
-                    onChange={(e) => setCustomerTaxNumber(e.target.value)}
-                    placeholder="مثال: 341-987-123"
-                    className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-semibold text-slate-950 shadow-xs placeholder:text-slate-400"
-                  />
+                  <div>
+                    <label className="block text-slate-900 font-black mb-1">عنوان العميل / المنطقة</label>
+                    <input
+                      id="customer-address-input"
+                      type="text"
+                      value={customerAddress}
+                      onChange={(e) => setCustomerAddress(e.target.value)}
+                      placeholder="مثال: شارع مكرم عبيد، المنطقة السادسة، مدينة نصر"
+                      className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-semibold text-slate-950 shadow-xs placeholder:text-slate-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-900 font-black mb-1">المندوب المسئول المسند إليه</label>
+                    <input
+                      type="text"
+                      disabled
+                      value={`${currentUser?.name || 'مندوب المبيعات'} (@${currentUser?.username || 'rep'})`}
+                      className="w-full h-11 px-3 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-xs cursor-not-allowed"
+                    />
+                  </div>
                 </div>
               </div>
             )}

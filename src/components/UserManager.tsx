@@ -129,7 +129,7 @@ export const UserManager: React.FC = () => {
       text: 'text-emerald-800',
       activeRing: 'ring-emerald-500 border-emerald-500 bg-emerald-50/50',
       icon: Smartphone,
-      desc: 'مندوب المبيعات الميداني: إنشاء الفواتير وإرسالها بالواتساب، الاطلاع على مخزون فرعه والمخزن المركزي، واحتساب العمولات.'
+      desc: 'مندوب المبيعات الميداني: إنشاء الفواتير وإرسالها بالواتساب، ومتابعة عملاء خط السير ومخزون الفرع.'
     }
   };
 
@@ -825,8 +825,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                               </span>
                             )}
                           </div>
-                          <div className="text-[10px] text-slate-400">
-                            عمولة: {user.commissionRate || 2.5}%
+                          <div className="text-[10px] text-slate-400 font-mono">
+                            كود: {user.id}
                           </div>
                         </div>
                       </div>
@@ -1053,7 +1053,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 {/* Username + Password in responsive grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">اسم المستخدم (Login Username) *</label>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      اسم المستخدم الموحد (Login Username) <span className="text-rose-600">*</span>
+                    </label>
                     <input
                       type="text"
                       required
@@ -1062,6 +1064,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                       placeholder="rep_ahmed"
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 text-xs"
                     />
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      💡 اسم المستخدم موحد لربط حساب المندوب بعملائه وفواتيره في النظام.
+                    </p>
                   </div>
 
                   <div>
@@ -1089,7 +1094,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 {/* Email + Phone */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">البريد الإلكتروني الرسمي</label>
+                    <label className="block font-bold text-slate-700 mb-1">البريد الإلكتروني (اختياري للدخول)</label>
                     <input
                       type="email"
                       value={formData.email || ''}
@@ -1097,10 +1102,13 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                       placeholder="ahmed@dream-dist.com"
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-800 text-xs"
                     />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      يستطيع الموظف تسجيل الدخول باسم المستخدم أو البريد أو الهاتف.
+                    </p>
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">رقم الهاتف (للتواصل والواتساب)</label>
+                    <label className="block font-bold text-slate-700 mb-1">رقم الهاتف (للتواصل والواتساب والدخول)</label>
                     <input
                       type="tel"
                       value={formData.phone || ''}
@@ -1136,7 +1144,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   </div>
 
                   {/* Supervisor Selector (If Sales Rep) */}
-                  {formData.role === 'sales_rep' ? (
+                  {formData.role === 'sales_rep' && (
                     <div>
                       <label className="block font-bold text-slate-700 mb-1">
                         المشرف المباشر للمندوب في هذا الفرع
@@ -1154,60 +1162,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         ))}
                       </select>
                     </div>
-                  ) : (
-                    <div>
-                      <label className="block font-bold text-slate-700 mb-1">نسبة العمولة الافتراضية (%)</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={formData.commissionRate ?? 2.5}
-                          onChange={(e) => setFormData({ ...formData, commissionRate: parseFloat(e.target.value) || 0 })}
-                          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 text-xs font-mono"
-                        />
-                        <div className="flex gap-1">
-                          {[2.0, 2.5, 3.0].map((rate) => (
-                            <button
-                              type="button"
-                              key={rate}
-                              onClick={() => setFormData({ ...formData, commissionRate: rate })}
-                              className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold"
-                            >
-                              {rate}%
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
                   )}
                 </div>
-
-                {formData.role === 'sales_rep' && (
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">نسبة عمولة مبيعات المندوب (%)</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={formData.commissionRate ?? 2.5}
-                        onChange={(e) => setFormData({ ...formData, commissionRate: parseFloat(e.target.value) || 0 })}
-                        className="w-32 p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 text-xs font-mono"
-                      />
-                      <div className="flex gap-1.5">
-                        {[2.0, 2.5, 3.0, 5.0].map((rate) => (
-                          <button
-                            type="button"
-                            key={rate}
-                            onClick={() => setFormData({ ...formData, commissionRate: rate })}
-                            className="px-2.5 py-1.5 bg-amber-50 border border-amber-200 hover:bg-amber-100 text-amber-900 rounded-lg text-[10px] font-black cursor-pointer"
-                          >
-                            {rate}%
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* 4. LIVE EMPLOYEE BADGE PREVIEW */}

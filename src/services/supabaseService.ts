@@ -201,53 +201,47 @@ export async function saveCustomerToSupabase(customer: Customer): Promise<{ succ
 }
 
 /**
- * Fetch all users from Supabase (checking 'users' or 'profiles' or 'app_users')
+ * Fetch all users from Supabase (checking 'users', 'profiles', 'employees', 'app_users')
  */
 export async function fetchUsersFromSupabase(): Promise<{ success: boolean; users?: User[]; error?: string }> {
   try {
-    // Try 'users'
-    const { data: usersData, error: uErr } = await supabase.from('users').select('*');
-    if (!uErr && usersData && usersData.length > 0) {
-      const mapped: User[] = usersData.map((u: any, idx: number) => ({
-        id: u.id || `sup-u-${idx + 1}`,
-        name: u.name || u.full_name || u.username || 'مستخدم',
-        username: u.username || u.email?.split('@')[0] || `user_${idx + 1}`,
-        email: u.email || '',
-        password: u.password || '',
-        role: normalizeUserRole(u.role, u.is_admin),
-        branchName: u.branch_name || u.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
-        supervisorId: u.supervisor_id || u.supervisorId,
-        phone: u.phone || u.mobile || '',
-        commissionRate: u.commission_rate || u.commissionRate || 2.5,
-        isActive: u.is_active !== undefined ? u.is_active : true,
-        approvalStatus: u.approval_status || u.approvalStatus || 'active',
-        createdAt: u.created_at || u.createdAt || new Date().toISOString(),
-      }));
-      return { success: true, users: mapped };
+    const tableCandidates = ['users', 'profiles', 'employees', 'app_users'];
+
+    for (const tbl of tableCandidates) {
+      try {
+        const { data, error } = await supabase.from(tbl).select('*');
+        if (!error && data && data.length > 0) {
+          const mapped: User[] = data.map((u: any, idx: number) => {
+            const rawEmail = u.email || '';
+            const emailPrefix = rawEmail ? rawEmail.split('@')[0] : '';
+            const rawName = u.name || u.full_name || u.display_name || emailPrefix || 'مستخدم';
+            const rawUsername = u.username || u.user_name || emailPrefix || `user_${idx + 1}`;
+            const rawPass = u.password || u.pass || u.code || '';
+
+            return {
+              id: String(u.id || `sup-${tbl}-${idx + 1}`),
+              name: rawName,
+              username: rawUsername.trim().toLowerCase(),
+              email: rawEmail.trim(),
+              password: String(rawPass || '').trim(),
+              role: normalizeUserRole(u.role, u.is_admin),
+              branchName: u.branch_name || u.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+              supervisorId: u.supervisor_id || u.supervisorId,
+              phone: u.phone || u.mobile || u.tel || '',
+              commissionRate: Number(u.commission_rate || u.commissionRate || 2.5),
+              isActive: u.is_active !== undefined ? Boolean(u.is_active) : true,
+              approvalStatus: u.approval_status || u.approvalStatus || 'active',
+              createdAt: u.created_at || u.createdAt || new Date().toISOString(),
+            };
+          });
+          return { success: true, users: mapped };
+        }
+      } catch {
+        // continue to next table
+      }
     }
 
-    // Try 'profiles'
-    const { data: profData, error: pErr } = await supabase.from('profiles').select('*');
-    if (!pErr && profData && profData.length > 0) {
-      const mapped: User[] = profData.map((u: any, idx: number) => ({
-        id: u.id || `sup-p-${idx + 1}`,
-        name: u.name || u.full_name || u.username || 'مستخدم',
-        username: u.username || u.email?.split('@')[0] || `user_${idx + 1}`,
-        email: u.email || '',
-        password: u.password || '',
-        role: normalizeUserRole(u.role, u.is_admin),
-        branchName: u.branch_name || u.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
-        supervisorId: u.supervisor_id || u.supervisorId,
-        phone: u.phone || u.mobile || '',
-        commissionRate: u.commission_rate || u.commissionRate || 2.5,
-        isActive: u.is_active !== undefined ? u.is_active : true,
-        approvalStatus: u.approval_status || u.approvalStatus || 'active',
-        createdAt: u.created_at || u.createdAt || new Date().toISOString(),
-      }));
-      return { success: true, users: mapped };
-    }
-
-    return { success: false, error: 'لم يتم العثور على سجلات في جدول users أو profiles' };
+    return { success: false, error: 'لم يتم العثور على سجلات في جداول المستخدمين بالسحابة' };
   } catch (err: any) {
     return { success: false, error: err?.message || 'خطأ في جلب المستخدمين من Supabase' };
   }

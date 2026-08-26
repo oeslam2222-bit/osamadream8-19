@@ -853,18 +853,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const rawTrim = sanitizeIdentifier(identifier);
     const cleanPass = (password || '').trim();
 
-    // 1. Search in local memory first
+    // 1. Search in local memory first with rich identifier matching
     let found = users.find(
       (u) =>
         (u.email && sanitizeEmail(u.email) === cleanEmail) ||
+        (u.email && u.email.toLowerCase().startsWith(cleanId)) ||
         (u.username && sanitizeIdentifier(u.username).toLowerCase() === cleanId) ||
-        (u.phone && sanitizeIdentifier(u.phone) === rawTrim)
+        (u.name && sanitizeIdentifier(u.name).toLowerCase() === cleanId) ||
+        (u.phone && sanitizeIdentifier(u.phone) === rawTrim) ||
+        (u.id && String(u.id).toLowerCase() === cleanId)
     );
 
-    // 2. If not found locally, query Supabase directly (essential for new devices like mobile phones)
+    // 2. If not found locally, query Supabase directly (essential for fresh sessions and cloud users)
     if (!found) {
       try {
-        const supRes = await findUserInSupabase(cleanEmail.includes('@') ? cleanEmail : cleanId);
+        const lookupQuery = cleanEmail.includes('@') ? cleanEmail : cleanId;
+        const supRes = await findUserInSupabase(lookupQuery);
         if (supRes.success && supRes.user) {
           found = supRes.user;
           setUsers((prev) => {
@@ -1708,6 +1712,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return updated;
     });
+
+    // Auto-detect and register new customer or link to representative
+    if (orderData.customerName && orderData.customerName.trim() !== 'عميل تجزئة عام') {
+      const trimmedCustName = orderData.customerName.trim();
+      const existingCustIndex = customers.findIndex(
+        (c) =>
+          c.name.trim().toLowerCase() === trimmedCustName.toLowerCase() ||
+          (orderData.customerPhone && c.phone && c.phone.trim() === orderData.customerPhone.trim())
+      );
+
+      if (existingCustIndex === -1) {
+        // Create new registered customer bound to current rep
+        const newCustomerObj: Customer = {
+          id: `c-${Date.now()}`,
+          code: `CUST-${String(customers.length + 101).padStart(4, '0')}`,
+          name: trimmedCustName,
+          phone: orderData.customerPhone || '',
+          address: orderData.customerAddress || '',
+          taxNumber: orderData.customerTaxNumber || '',
+          governorate: 'القاهرة والجيزة',
+          branchName: currentUser?.branchName || 'الفرع الرئيسي',
+          salesRepName: currentUser?.name || 'مندوب المبيعات',
+          repName: currentUser?.name || 'مندوب المبيعات',
+          repId: currentUser?.id || 'rep-1',
+          tier: 'عادي',
+          balance: 0,
+          creditLimit: 50000,
+          notes: `تم تسجيل العميل تلقائياً مع الفاتورة #${primaryInvoice.invoiceNumber}`,
+          lastOrderDate: formattedDate,
+          totalOrdersCount: 1,
+          totalSpent: primaryTotals.estimatedGrandTotal,
+        };
+        setCustomers((prev) => [newCustomerObj, ...prev]);
+        saveCustomersToSupabase([newCustomerObj]).catch((e) => console.warn('Supabase customer auto-save failed:', e));
+      } else {
+        // Update stats on existing customer
+        const matched = customers[existingCustIndex];
+        const updatedCust: Customer = {
+          ...matched,
+          phone: orderData.customerPhone || matched.phone,
+          address: orderData.customerAddress || matched.address,
+          salesRepName: matched.salesRepName || currentUser?.name || 'مندوب المبيعات',
+          repName: matched.repName || currentUser?.name || 'مندوب المبيعات',
+          repId: matched.repId || currentUser?.id || 'rep-1',
+          lastOrderDate: formattedDate,
+          totalOrdersCount: (matched.totalOrdersCount || 0) + 1,
+          totalSpent: (matched.totalSpent || 0) + primaryTotals.estimatedGrandTotal,
+        };
+        setCustomers((prev) => prev.map((c) => (c.id === matched.id ? updatedCust : c)));
+        saveCustomersToSupabase([updatedCust]).catch((e) => console.warn('Supabase customer update failed:', e));
+      }
+    }
 
     // Auto push to Supabase Cloud Database
     saveInvoiceToSupabase(primaryInvoice).catch((e) => console.warn('Supabase invoice save failed:', e));

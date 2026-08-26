@@ -107,6 +107,11 @@ export interface Customer {
   salesRepName?: string;             // المندوب المسئول (alias)
   repId?: string;                    // كود المندوب
   taxNumber?: string;                // الرقم الضريبي
+  balance?: number;                  // رصيد الحساب الحالي
+  creditLimit?: number;              // الحد الائتماني
+  lastOrderDate?: string;            // تاريخ آخر طلبية
+  totalOrdersCount?: number;         // إجمالي عدد الطلبيات
+  totalSpent?: number;               // إجمالي المبيعات للعميل
   notes?: string;
   createdAt?: string;
 }
