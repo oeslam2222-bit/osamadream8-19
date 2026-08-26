@@ -149,7 +149,6 @@ CREATE TABLE IF NOT EXISTS public.users (
     branch_name TEXT,
     supervisor_id TEXT,
     phone TEXT,
-    commission_rate NUMERIC DEFAULT 2.5,
     is_active BOOLEAN DEFAULT TRUE,
     approval_status TEXT DEFAULT 'active',
     created_at TIMESTAMPTZ DEFAULT NOW(),

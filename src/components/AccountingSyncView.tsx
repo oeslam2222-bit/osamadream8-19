@@ -76,7 +76,6 @@ CREATE TABLE IF NOT EXISTS public.users (
   branch_name TEXT NOT NULL,
   supervisor_id TEXT REFERENCES public.users(id),
   phone TEXT,
-  commission_rate NUMERIC DEFAULT 2.5,
   is_active BOOLEAN DEFAULT true,
   approval_status TEXT DEFAULT 'active',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
