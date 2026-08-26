@@ -213,7 +213,7 @@ export async function fetchUsersFromSupabase(): Promise<{ success: boolean; user
         name: u.name || u.full_name || u.username || 'مستخدم',
         username: u.username || u.email?.split('@')[0] || `user_${idx + 1}`,
         email: u.email || '',
-        password: u.password || '123',
+        password: u.password || '',
         role: normalizeUserRole(u.role, u.is_admin),
         branchName: u.branch_name || u.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
         supervisorId: u.supervisor_id || u.supervisorId,
@@ -234,7 +234,7 @@ export async function fetchUsersFromSupabase(): Promise<{ success: boolean; user
         name: u.name || u.full_name || u.username || 'مستخدم',
         username: u.username || u.email?.split('@')[0] || `user_${idx + 1}`,
         email: u.email || '',
-        password: u.password || '123',
+        password: u.password || '',
         role: normalizeUserRole(u.role, u.is_admin),
         branchName: u.branch_name || u.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
         supervisorId: u.supervisor_id || u.supervisorId,
@@ -254,35 +254,116 @@ export async function fetchUsersFromSupabase(): Promise<{ success: boolean; user
 }
 
 /**
+ * Find a specific user in Supabase by email, username, or phone
+ */
+export async function findUserInSupabase(identifier: string): Promise<{ success: boolean; user?: User; error?: string }> {
+  try {
+    const clean = identifier.trim().toLowerCase();
+    
+    // 1. Check in 'users' table
+    const { data: uData, error: uErr } = await supabase
+      .from('users')
+      .select('*')
+      .or(`email.ilike.${clean},username.ilike.${clean},phone.eq.${identifier.trim()}`)
+      .limit(1);
+
+    if (!uErr && uData && uData.length > 0) {
+      const u = uData[0];
+      const foundUser: User = {
+        id: u.id || `sup-u-${Date.now()}`,
+        name: u.name || u.full_name || u.username || 'مستخدم',
+        username: u.username || u.email?.split('@')[0] || 'user',
+        email: u.email || '',
+        password: u.password || '',
+        role: normalizeUserRole(u.role, u.is_admin),
+        branchName: u.branch_name || u.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
+        supervisorId: u.supervisor_id || u.supervisorId,
+        phone: u.phone || u.mobile || '',
+        commissionRate: u.commission_rate || u.commissionRate || 2.5,
+        isActive: u.is_active !== undefined ? u.is_active : true,
+        approvalStatus: u.approval_status || u.approvalStatus || 'active',
+        registrationDate: u.created_at || u.registration_date || u.createdAt || new Date().toISOString(),
+      };
+      return { success: true, user: foundUser };
+    }
+
+    // 2. Check in 'profiles' table
+    const { data: pData, error: pErr } = await supabase
+      .from('profiles')
+      .select('*')
+      .or(`email.ilike.${clean},username.ilike.${clean},phone.eq.${identifier.trim()}`)
+      .limit(1);
+
+    if (!pErr && pData && pData.length > 0) {
+      const u = pData[0];
+      const foundUser: User = {
+        id: u.id || `sup-p-${Date.now()}`,
+        name: u.name || u.full_name || u.username || 'مستخدم',
+        username: u.username || u.email?.split('@')[0] || 'user',
+        email: u.email || '',
+        password: u.password || '',
+        role: normalizeUserRole(u.role, u.is_admin),
+        branchName: u.branch_name || u.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
+        supervisorId: u.supervisor_id || u.supervisorId,
+        phone: u.phone || u.mobile || '',
+        commissionRate: u.commission_rate || u.commissionRate || 2.5,
+        isActive: u.is_active !== undefined ? u.is_active : true,
+        approvalStatus: u.approval_status || u.approvalStatus || 'active',
+        registrationDate: u.created_at || u.registration_date || u.createdAt || new Date().toISOString(),
+      };
+      return { success: true, user: foundUser };
+    }
+
+    return { success: false, error: 'لم يتم العثور على المستخدم' };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
+  }
+}
+
+/**
  * Upsert / Save user into Supabase
  */
 export async function saveUserToSupabase(user: User): Promise<{ success: boolean; error?: string }> {
   try {
-    const payload = {
+    const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    const safeUuid = user.id && isUuid(user.id) ? user.id : stringToUuid(user.id || user.username || user.email);
+
+    const payloadRaw = {
       id: user.id,
       name: user.name,
       username: user.username,
       email: user.email,
-      password: user.password,
+      password: user.password || '',
       role: user.role,
       branch_name: user.branchName,
       supervisor_id: user.supervisorId || null,
       phone: user.phone || '',
       commission_rate: user.commissionRate || 2.5,
-      is_active: user.isActive,
-      approval_status: user.approvalStatus,
+      is_active: user.isActive ?? true,
+      approval_status: user.approvalStatus || 'active',
       updated_at: new Date().toISOString(),
     };
 
-    // Try saving to 'users' table
-    const { error: err1 } = await supabase.from('users').upsert(payload);
+    const payloadUuid = {
+      ...payloadRaw,
+      id: safeUuid,
+    };
+
+    // Try saving to 'users' table with raw ID first, then fallback to UUID
+    const { error: err1 } = await supabase.from('users').upsert(payloadRaw);
     if (!err1) return { success: true };
 
+    const { error: errUuid1 } = await supabase.from('users').upsert(payloadUuid);
+    if (!errUuid1) return { success: true };
+
     // Fallback to 'profiles'
-    const { error: err2 } = await supabase.from('profiles').upsert(payload);
+    const { error: err2 } = await supabase.from('profiles').upsert(payloadRaw);
     if (!err2) return { success: true };
 
-    return { success: false, error: err1.message || err2?.message };
+    const { error: errUuid2 } = await supabase.from('profiles').upsert(payloadUuid);
+    if (!errUuid2) return { success: true };
+
+    return { success: false, error: err1.message || errUuid1?.message || err2?.message };
   } catch (e: any) {
     return { success: false, error: e?.message };
   }

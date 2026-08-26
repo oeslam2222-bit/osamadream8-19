@@ -4,13 +4,13 @@ import {
   Calendar,
   CheckCircle2,
   ChevronDown,
+  Download,
   FileSpreadsheet,
   Minus,
   Phone,
   Plus,
   Receipt,
   Search,
-  Share2,
   ShoppingCart,
   Sparkles,
   Store,
@@ -23,7 +23,8 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { ProductImage } from './ProductImage';
 import { exportElectronicInvoiceToExcel } from '../services/excelService';
-import { formatCurrency, shareInvoiceViaWhatsApp } from '../services/invoiceService';
+import { formatCurrency } from '../services/invoiceService';
+import { downloadInvoicePDF } from '../services/pdfService';
 import { Customer, PaymentMethod } from '../types';
 import { getDepartmentMeta } from '../data/departmentMeta';
 
@@ -134,7 +135,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const todayDate = new Date().toISOString().slice(0, 10);
   const hasWarehouseItems = cart.some((c) => c.fulfillFromMainWarehouse);
 
-  const handleSubmitOrder = (andExportExcel = false, andShareWhatsApp = false) => {
+  const handleSubmitOrder = async (andExportExcel = false, andDownloadPDF = false) => {
     const errors: string[] = [];
     if (!customerName.trim()) {
       errors.push('يرجى اختيار عميل من القائمة أو كتابة اسم العميل / المحل');
@@ -191,8 +192,8 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         }
       }
 
-      if (andShareWhatsApp) {
-        shareInvoiceViaWhatsApp(createdInvoice, customerPhone);
+      if (andDownloadPDF) {
+        await downloadInvoicePDF(createdInvoice);
       }
 
       onInvoiceCreated(createdInvoice);
@@ -997,16 +998,16 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               <span>حفظ وتصدير شيت إكسل</span>
             </button>
 
-            {/* Direct WhatsApp Share */}
+            {/* Direct Export to PDF */}
             <button
-              id="share-whatsapp-order-btn"
+              id="export-pdf-order-btn"
               disabled={isSubmitting || cart.length === 0}
               onClick={() => handleSubmitOrder(false, true)}
-              className="flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 text-white font-black h-11 px-3.5 rounded-xl text-xs shadow-sm transition disabled:opacity-50 cursor-pointer"
-              title="مشاركة تفاصيل الفاتورة عبر واتساب"
+              className="flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-black h-11 px-3.5 rounded-xl text-xs shadow-sm transition disabled:opacity-50 cursor-pointer"
+              title="حفظ الطلبية وتحميل فاتورة PDF فورية"
             >
-              <Share2 className="w-4 h-4 shrink-0" />
-              <span>مشاركة واتساب</span>
+              <Download className="w-4 h-4 shrink-0" />
+              <span>حفظ وتحميل PDF 📄</span>
             </button>
 
             {/* Save Order & Open E-Invoice */}

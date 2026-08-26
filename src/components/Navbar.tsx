@@ -60,11 +60,11 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
   if (!currentUser) return null;
 
   const roleNames: Record<UserRole, { label: string; bg: string; text: string }> = {
-    developer: { label: 'المطور التقني (Developer)', bg: 'bg-amber-500/20 border-amber-500/40', text: 'text-amber-300' },
-    admin: { label: 'المطور والمسؤول التقني (Admin)', bg: 'bg-amber-500/20 border-amber-500/40', text: 'text-amber-300' },
-    branch_manager: { label: 'مشرف الفرع (Branch Supervisor)', bg: 'bg-purple-500/20 border-purple-500/40', text: 'text-purple-300' },
-    supervisor: { label: 'مشرف قطاع المناديب (Supervisor)', bg: 'bg-blue-500/20 border-blue-500/40', text: 'text-blue-300' },
-    sales_rep: { label: 'مندوب مبيعات (Sales Rep)', bg: 'bg-emerald-500/20 border-emerald-500/40', text: 'text-emerald-300' },
+    admin: { label: 'الآدمن (الإدارة العامة)', bg: 'bg-rose-500/20 border-rose-500/40', text: 'text-rose-300' },
+    developer: { label: 'المطور (الدعم التقني)', bg: 'bg-amber-500/20 border-amber-500/40', text: 'text-amber-300' },
+    branch_manager: { label: 'مدير الفرع', bg: 'bg-purple-500/20 border-purple-500/40', text: 'text-purple-300' },
+    supervisor: { label: 'مشرف المناديب', bg: 'bg-blue-500/20 border-blue-500/40', text: 'text-blue-300' },
+    sales_rep: { label: 'المندوب', bg: 'bg-emerald-500/20 border-emerald-500/40', text: 'text-emerald-300' },
   };
 
   const pendingApprovalsCount = users.filter((u) => u.approvalStatus === 'pending_approval').length;

@@ -16,6 +16,7 @@ import {
   fetchInvoicesFromSupabase,
   fetchProductsFromSupabase,
   fetchUsersFromSupabase,
+  findUserInSupabase,
   saveCustomersToSupabase,
   saveInvoiceToSupabase,
   saveProductsToSupabase,
@@ -71,7 +72,7 @@ interface AppContextType {
   cleanAndDeduplicateCustomers: () => { originalCount: number; deduplicatedCount: number; duplicatesRemoved: number };
 
   // Auth actions
-  login: (identifier: string, password?: string) => { success: boolean; message: string; user?: User };
+  login: (identifier: string, password?: string) => Promise<{ success: boolean; message: string; user?: User }>;
   register: (userData: {
     name: string;
     username: string;
@@ -229,7 +230,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .filter((u) => u.id !== 'u-branch-ashraf' && u.id !== 'u-sup-mahmoud' && u.id !== 'u-rep-ahmed')
         .map((u) => ({
           ...u,
-          name: u.id === 'u-admin-osama' ? 'أسامة إسلام (المطور التقني والمدير العام)' : u.name,
+          name: u.id === 'u-admin-osama' ? 'أسامة إسلام (المطور التقني)' : u.name,
           branchName: normalizeBranchName(u.branchName),
           role: u.role === 'developer' || u.role === 'admin' || u.role === 'branch_manager' || u.role === 'supervisor' || u.role === 'sales_rep' ? u.role : 'sales_rep',
         }));
@@ -796,17 +797,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   // --- Authentication System ---
-  const login = (identifier: string, password?: string): { success: boolean; message: string; user?: User } => {
+  const login = async (identifier: string, password?: string): Promise<{ success: boolean; message: string; user?: User }> => {
     const cleanId = identifier.trim().toLowerCase();
-    const found = users.find(
+    const cleanPass = (password || '').trim();
+
+    // 1. Search in local memory first
+    let found = users.find(
       (u) =>
-        u.email.toLowerCase() === cleanId ||
-        u.username.toLowerCase() === cleanId ||
-        u.phone === identifier.trim()
+        (u.email && u.email.toLowerCase() === cleanId) ||
+        (u.username && u.username.toLowerCase() === cleanId) ||
+        (u.phone && u.phone.trim() === identifier.trim())
     );
 
+    // 2. If not found locally, query Supabase directly (essential for new devices like mobile phones)
     if (!found) {
-      return { success: false, message: 'اسم المستخدم أو البريد الإلكتروني غير مسجل في النظام' };
+      try {
+        const supRes = await findUserInSupabase(cleanId);
+        if (supRes.success && supRes.user) {
+          found = supRes.user;
+          setUsers((prev) => {
+            const map = new Map<string, User>();
+            prev.forEach((u) => map.set(u.id, u));
+            map.set(found!.id, found!);
+            return Array.from(map.values());
+          });
+        }
+      } catch (e) {
+        console.warn('Direct Supabase login lookup failed:', e);
+      }
+    }
+
+    if (!found) {
+      return {
+        success: false,
+        message: 'اسم المستخدم أو البريد الإلكتروني غير مسجل في النظام. يرجى التأكد من البيانات أو مراجعة إدارة شركة دريم.'
+      };
     }
 
     if (found.approvalStatus === 'pending_approval') {
@@ -816,17 +841,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    if (found.approvalStatus === 'rejected' || !found.isActive) {
+    if (found.approvalStatus === 'rejected' || found.isActive === false) {
       return { success: false, message: 'هذا الحساب موقوف أو تم رفض تفعيله من قبل الإدارة.' };
     }
 
-    // Check password if provided (for demo/admin allow default)
-    if (found.password && password && found.password !== password && password !== 'admin123') {
-      return { success: false, message: 'كلمة المرور غير صحيحة.' };
+    // Check password strictly against database
+    if (found.password && found.password.trim().length > 0) {
+      const dbPass = found.password.trim();
+      if (dbPass !== cleanPass) {
+        return { success: false, message: 'كلمة المرور غير صحيحة. يرجى التأكد من كتابة كلمة المرور بدقة.' };
+      }
+    } else if (cleanPass) {
+      // First-time setup: user sets their password
+      found = { ...found, password: cleanPass };
+      saveUserToSupabase(found).catch((e) => console.warn('Supabase password update failed:', e));
     }
 
     setCurrentUser(found);
     setIsAuthenticated(true);
+    localStorage.setItem(STORAGE_KEYS.IS_AUTH, 'true');
+    localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, found.id);
 
     recordAuditLog({
       userId: found.id,
@@ -835,7 +869,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: found.branchName,
       action: 'user_login',
       actionTitle: `تسجيل دخول (${found.name})`,
-      details: `تم تسجيل الدخول بصلاحية (${found.role === 'admin' ? 'مدير عام' : found.role === 'branch_manager' ? 'مدير فرع' : found.role === 'supervisor' ? 'مشرف مبيعات' : 'مندوب مبيعات'}) لـ ${found.branchName}.`,
+      details: `تم تسجيل الدخول بصلاحية (${found.role === 'admin' ? 'مدير عام' : found.role === 'branch_manager' ? 'مدير فرع' : found.role === 'supervisor' ? 'مشرف مبيعات' : found.role === 'developer' ? 'مطور تقني' : 'مندوب مبيعات'}) لـ ${found.branchName}.`,
       badgeType: 'info',
     });
 
@@ -867,13 +901,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       name: userData.name.trim(),
       username: userData.username.trim().toLowerCase(),
       email: userData.email.trim().toLowerCase(),
-      password: userData.password || '123456',
+      password: (userData.password || '').trim(),
       phone: userData.phone.trim(),
-      branchName: userData.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
+      branchName: userData.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
       role: userData.role || 'sales_rep',
       supervisorId: userData.supervisorId,
       isActive: true,
-      approvalStatus: 'pending_approval', // Requires admin approval
+      approvalStatus: userData.role === 'developer' || userData.role === 'admin' ? 'active' : 'pending_approval', // Requires admin approval for reps
       registrationDate: new Date().toISOString().slice(0, 10),
       avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80`
     };
@@ -1495,7 +1529,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       date: formattedDate,
       time: formattedTime,
       repId: currentUser ? currentUser.id : 'u-admin-1',
-      repName: currentUser ? currentUser.name : 'أسامة إسلام (المطور والمدير العام)',
+      repName: currentUser ? currentUser.name : 'أسامة إسلام (المطور التقني)',
       supervisorName: userSupervisor,
       branchName: currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
       items: primaryItems,
@@ -1533,7 +1567,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         date: formattedDate,
         time: formattedTime,
         repId: currentUser ? currentUser.id : 'u-admin-1',
-        repName: currentUser ? currentUser.name : 'أسامة إسلام (المطور والمدير العام)',
+        repName: currentUser ? currentUser.name : 'أسامة إسلام (المطور التقني)',
         supervisorName: userSupervisor,
         branchName: 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
         items: shortageItems,

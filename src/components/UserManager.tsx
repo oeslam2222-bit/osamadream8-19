@@ -3,6 +3,7 @@ import {
   Building,
   Check,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Cloud,
   CloudDownload,
@@ -11,19 +12,27 @@ import {
   Copy,
   Database,
   Edit2,
+  Eye,
+  EyeOff,
   Key,
   Lock,
+  Percent,
+  Phone,
   Plus,
   RefreshCw,
+  Search,
   Shield,
   ShieldAlert,
   ShieldCheck,
   Smartphone,
+  Sparkles,
   Trash2,
   UserCheck,
+  UserCog,
   UserMinus,
   UserPlus,
   Users,
+  Wrench,
   X
 } from 'lucide-react';
 import React, { useState } from 'react';
@@ -51,9 +60,78 @@ export const UserManager: React.FC = () => {
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showSqlSchemaModal, setShowSqlSchemaModal] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
+  const [copiedCredentials, setCopiedCredentials] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('الكل');
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('الكل');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+
+  const isSuperAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+
+  // Role metadata with updated clean titles requested by the user
+  const roleConfigs: Record<UserRole, {
+    label: string;
+    shortLabel: string;
+    bg: string;
+    border: string;
+    text: string;
+    activeRing: string;
+    icon: any;
+    desc: string;
+  }> = {
+    admin: {
+      label: 'الآدمن (الإدارة العامة)',
+      shortLabel: 'الآدمن',
+      bg: 'bg-rose-50',
+      border: 'border-rose-200',
+      text: 'text-rose-800',
+      activeRing: 'ring-rose-500 border-rose-500 bg-rose-50/50',
+      icon: ShieldAlert,
+      desc: 'صلاحيات الإدارة والرقابة الشاملة: إدارة الموظفين، اعتماد الحسابات، مراجعة فروع الشركة والمخازن، ورفع كشوفات الإكسل.'
+    },
+    developer: {
+      label: 'المطور (الدعم التقني)',
+      shortLabel: 'المطور',
+      bg: 'bg-amber-50',
+      border: 'border-amber-200',
+      text: 'text-amber-800',
+      activeRing: 'ring-amber-500 border-amber-500 bg-amber-50/50',
+      icon: Code,
+      desc: 'صلاحيات الدعم والبرمجة: الربط السحابي مع Supabase، فحص ومزامنة البيانات، وصيانة وتطوير ميزات المنظومة.'
+    },
+    branch_manager: {
+      label: 'مدير الفرع',
+      shortLabel: 'مدير الفرع',
+      bg: 'bg-purple-50',
+      border: 'border-purple-200',
+      text: 'text-purple-800',
+      activeRing: 'ring-purple-500 border-purple-500 bg-purple-50/50',
+      icon: Building,
+      desc: 'إدارة مستودع الفرع، متابعة حركات المخزون، اعتماد وتجهيز طلبيات المناديب الصادرة من مخزن الفرع.'
+    },
+    supervisor: {
+      label: 'مشرف المناديب',
+      shortLabel: 'مشرف المناديب',
+      bg: 'bg-blue-50',
+      border: 'border-blue-200',
+      text: 'text-blue-800',
+      activeRing: 'ring-blue-500 border-blue-500 bg-blue-50/50',
+      icon: UserCheck,
+      desc: 'الإشراف الميداني على المناديب التابعين له بالفرع، مراجعة وتدقيق الفواتير، ومتابعة المستهدفات وعدد الكراتين.'
+    },
+    sales_rep: {
+      label: 'المندوب',
+      shortLabel: 'المندوب',
+      bg: 'bg-emerald-50',
+      border: 'border-emerald-200',
+      text: 'text-emerald-800',
+      activeRing: 'ring-emerald-500 border-emerald-500 bg-emerald-50/50',
+      icon: Smartphone,
+      desc: 'مندوب المبيعات الميداني: إنشاء الفواتير وإرسالها بالواتساب، الاطلاع على مخزون فرعه والمخزن المركزي، واحتساب العمولات.'
+    }
+  };
 
   const supabaseSqlScript = `-- ==========================================
 -- كود إنشاء وتجهيز جداول Supabase السحابية
@@ -66,7 +144,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     name TEXT NOT NULL,
     username TEXT UNIQUE NOT NULL,
     email TEXT,
-    password TEXT DEFAULT '123',
+    password TEXT,
     role TEXT DEFAULT 'sales_rep',
     branch_name TEXT,
     supervisor_id TEXT,
@@ -159,30 +237,23 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.invoices;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.products;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
 
-  const isSuperAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
-
   const handleSyncSupabase = async (direction: 'fetch' | 'push' | 'both') => {
     setSyncFeedback(null);
     const res = await syncWithSupabase(direction);
     setSyncFeedback(res.message);
     setTimeout(() => {
-      setSyncFeedback(null);
-    }, 6000);
+      setSyncFeedback(null), 6000;
+    });
   };
 
-  // Approval modal state
-  const [approvingUser, setApprovingUser] = useState<User | null>(null);
-  const [approvalSupervisorId, setApprovalSupervisorId] = useState<string>('');
-  const [approvalBranchName, setApprovalBranchName] = useState<string>('');
-  const [approvalRole, setApprovalRole] = useState<UserRole>('sales_rep');
-
+  // Form State
   const [formData, setFormData] = useState<Partial<User>>({
     name: '',
     username: '',
     email: '',
-    password: '123',
+    password: '',
     role: 'sales_rep',
-    branchName: 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
+    branchName: 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
     supervisorId: '',
     phone: '',
     commissionRate: 2.5,
@@ -190,38 +261,11 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     approvalStatus: 'active',
   });
 
-  const roleConfigs: Record<UserRole, { label: string; bg: string; text: string; desc: string }> = {
-    developer: {
-      label: 'المطور التقني (Developer)',
-      bg: 'bg-amber-100 border-amber-300',
-      text: 'text-amber-800',
-      desc: 'صلاحيات تقنية وإدارية كاملة: إدارة قاعدة البيانات Supabase، استعلامات SQL، النسخ الاحتياطي، وإدارة المنظومة بالكامل.'
-    },
-    admin: {
-      label: 'المطور التقني والإداري (Developer Admin)',
-      bg: 'bg-rose-100 border-rose-300',
-      text: 'text-rose-800',
-      desc: 'صلاحيات مطلقة: إنشاء وتعديل المستخدمين، رفع شيتات الإكسل، إدارة ربط Cloudinary، والاطلاع على كل الفروع والفواتير ومزامنة الحسابات.'
-    },
-    branch_manager: {
-      label: 'مشرف الفرع (Branch Supervisor)',
-      bg: 'bg-purple-100 border-purple-300',
-      text: 'text-purple-800',
-      desc: 'إدارة مخزون الفرع والطلبيات الواردة من المناديب، اعتماد الفواتير، ومتابعة مبيعات الفرع وطلب تحويلات المخزون من أكتوبر.'
-    },
-    supervisor: {
-      label: 'مشرف قطاع المناديب (Sales Supervisor)',
-      bg: 'bg-blue-100 border-blue-300',
-      text: 'text-blue-800',
-      desc: 'متابعة فريق المناديب المخصصين له فقط، مراقبة أداء الفواتير وإجمالي المبالغ وعدد الكراتين الصادرة لمجموعته لحظياً.'
-    },
-    sales_rep: {
-      label: 'مندوب مبيعات (Field Sales Rep)',
-      bg: 'bg-emerald-100 border-emerald-300',
-      text: 'text-emerald-800',
-      desc: 'سرية تامة: يرى فقط مخزون فرعه والمخزن المركزي، ولا يرى إلا فواتيره وعملاءه فقط. إنشاء الفواتير وإرسالها بالواتساب والإكسل.'
-    }
-  };
+  // Approval modal state
+  const [approvingUser, setApprovingUser] = useState<User | null>(null);
+  const [approvalSupervisorId, setApprovalSupervisorId] = useState<string>('');
+  const [approvalBranchName, setApprovalBranchName] = useState<string>('');
+  const [approvalRole, setApprovalRole] = useState<UserRole>('sales_rep');
 
   // Pending users waiting for approval
   const pendingUsers = users.filter((u) => u.approvalStatus === 'pending_approval');
@@ -230,12 +274,21 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
   const activeUsers = users.filter((u) => {
     if (u.approvalStatus === 'pending_approval') return false;
     if (selectedBranchFilter !== 'الكل' && u.branchName !== selectedBranchFilter) return false;
+    if (selectedRoleFilter !== 'الكل' && u.role !== selectedRoleFilter) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const matchName = u.name.toLowerCase().includes(q);
+      const matchUser = u.username.toLowerCase().includes(q);
+      const matchPhone = (u.phone || '').includes(q);
+      const matchEmail = (u.email || '').toLowerCase().includes(q);
+      if (!matchName && !matchUser && !matchPhone && !matchEmail) return false;
+    }
     return true;
   });
 
   const handleOpenApproveModal = (user: User) => {
     setApprovingUser(user);
-    setApprovalBranchName(user.branchName || branches[0]?.name || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)');
+    setApprovalBranchName(user.branchName || branches[0]?.name || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)');
     setApprovalRole(user.role || 'sales_rep');
     setApprovalSupervisorId(user.supervisorId || '');
   };
@@ -244,6 +297,72 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     if (!approvingUser || !isSuperAdminOrDev) return;
     approveUser(approvingUser.id, approvalSupervisorId || undefined, approvalBranchName, approvalRole);
     setApprovingUser(null);
+  };
+
+  // Smart Auto-Generator for Username & Email based on name
+  const handleAutoGenerateCredentials = (fullName: string, role: UserRole = formData.role || 'sales_rep') => {
+    if (!fullName.trim()) return;
+
+    // Convert Arabic or English name to slug
+    const cleaned = fullName
+      .trim()
+      .toLowerCase()
+      .replace(/[^\w\s\u0600-\u06FF]/g, '')
+      .split(/\s+/)
+      .slice(0, 2);
+
+    let prefix = 'rep';
+    if (role === 'admin') prefix = 'admin';
+    else if (role === 'developer') prefix = 'dev';
+    else if (role === 'branch_manager') prefix = 'mgr';
+    else if (role === 'supervisor') prefix = 'sup';
+
+    let suggestedUsername = '';
+    if (/^[a-zA-Z0-9_]+$/.test(cleaned.join(''))) {
+      suggestedUsername = `${prefix}_${cleaned.join('_')}`;
+    } else {
+      // Romanize or numeric deterministic hash
+      const hash = Math.floor(1000 + Math.random() * 9000);
+      suggestedUsername = `${prefix}_${cleaned[0] || 'user'}_${hash}`;
+    }
+
+    const suggestedEmail = `${suggestedUsername.replace(/[^a-zA-Z0-9_]/g, '')}@dream-dist.com`;
+
+    setFormData((prev) => ({
+      ...prev,
+      username: suggestedUsername,
+      email: suggestedEmail,
+    }));
+  };
+
+  const handleOpenAddModal = () => {
+    setEditingUser(null);
+    setShowPassword(false);
+    setFormData({
+      name: '',
+      username: '',
+      email: '',
+      password: '',
+      role: 'sales_rep',
+      branchName: branches[0]?.name || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+      supervisorId: '',
+      phone: '',
+      commissionRate: 2.5,
+      isActive: true,
+      approvalStatus: 'active',
+    });
+    setShowAddUserModal(true);
+  };
+
+  const handleOpenEditModal = (user: User) => {
+    setEditingUser(user);
+    setShowPassword(false);
+    setFormData({
+      ...user,
+      password: user.password || '',
+      commissionRate: user.commissionRate || 2.5,
+    });
+    setShowAddUserModal(true);
   };
 
   const handleSaveUser = (e: React.FormEvent) => {
@@ -257,16 +376,16 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       const newUser: User = {
         id: `u-${Date.now()}`,
         name: formData.name || '',
-        username: formData.username || '',
+        username: (formData.username || '').trim().toLowerCase(),
         email: formData.email || `${formData.username}@dream-dist.com`,
-        password: formData.password || '123',
+        password: formData.password || '',
         role: formData.role || 'sales_rep',
-        branchName: formData.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
+        branchName: formData.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
         supervisorId: formData.role === 'sales_rep' ? (formData.supervisorId || undefined) : undefined,
         phone: formData.phone || '',
         avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80`,
         commissionRate: formData.commissionRate || 2.5,
-        isActive: true,
+        isActive: formData.isActive ?? true,
         approvalStatus: 'active',
       };
       addUser(newUser);
@@ -275,74 +394,79 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     setShowAddUserModal(false);
   };
 
+  const handleCopyUserCredentials = (user: User) => {
+    const credText = `بيانات الدخول لمنظومة شركة دريم:
+الاسم: ${user.name}
+الصفة: ${roleConfigs[user.role]?.label || user.role}
+الفرع: ${user.branchName}
+اسم المستخدم: ${user.username}
+كلمة المرور: ${user.password || '(كلمة المرور الخاصة بالمستخدم)'}
+رابط التطبيق: ${window.location.origin}`;
+
+    navigator.clipboard.writeText(credText);
+    setCopiedCredentials(user.id);
+    setTimeout(() => setCopiedCredentials(null), 3000);
+  };
+
   return (
-    <div className="space-y-6 pb-16">
+    <div className="space-y-6 pb-20 max-w-7xl mx-auto px-2 sm:px-4">
       
       {/* Header Banner */}
-      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center font-black">
-              <ShieldCheck className="w-6 h-6" />
+      <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-xs border border-slate-200">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/15 text-amber-900 border border-amber-500/30 flex items-center justify-center font-black shrink-0">
+              <ShieldCheck className="w-6 h-6 text-amber-700" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-slate-900">إدارة المستخدمين والصلاحيات وهيكل الإشراف</h2>
-              <p className="text-xs sm:text-sm text-slate-500">
-                تفعيل حسابات المناديب والمشرفين • تقسيم المناديب على المشرفين في كل فرع • سرية تامة للبيانات
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg sm:text-xl font-black text-slate-900">
+                  إدارة الموظفين والصلاحيات والهيكل الإداري
+                </h2>
+                <span className="bg-slate-100 text-slate-700 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-slate-200">
+                  {users.length} موظف مسجل
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
+                إضافة المناديب والمشرفين • توزيع المناديب على المشرفين في كل فرع • سرية تامة وتحديد الصلاحيات
               </p>
             </div>
           </div>
 
           {isSuperAdminOrDev ? (
             <button
-              onClick={() => {
-                setEditingUser(null);
-                setFormData({
-                  name: '',
-                  username: '',
-                  email: '',
-                  password: '123',
-                  role: 'sales_rep',
-                  branchName: 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
-                  supervisorId: '',
-                  phone: '',
-                  commissionRate: 2.5,
-                  isActive: true,
-                  approvalStatus: 'active',
-                });
-                setShowAddUserModal(true);
-              }}
-              className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95 cursor-pointer"
+              onClick={handleOpenAddModal}
+              className="flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black px-5 py-3 rounded-2xl text-xs sm:text-sm shadow-md transition transform active:scale-95 cursor-pointer"
             >
               <UserPlus className="w-4 h-4" />
-              <span>إنشاء حساب جديد (صلاحية الإدارة والمطور)</span>
+              <span>إضافة موظف جديد +</span>
             </button>
           ) : (
-            <div className="bg-amber-50 text-amber-800 border border-amber-200 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2">
-              <Lock className="w-4 h-4 text-amber-600" />
-              <span>إضافة وتعديل المستخدمين مقتصرة على المطور والمدير العام (Admin) فقط</span>
+            <div className="bg-amber-50 text-amber-800 border border-amber-200 px-3.5 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2">
+              <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>إضافة وتعديل الموظفين مقتصرة على الآدمن والمطور فقط</span>
             </div>
           )}
         </div>
       </div>
 
       {/* Supabase Database Connection & Cloud Sync Card */}
-      <div className="bg-gradient-to-br from-emerald-900 via-slate-900 to-slate-950 text-white rounded-3xl p-5 shadow-lg border border-emerald-500/30 space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white rounded-3xl p-5 shadow-lg border border-slate-800 space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-400">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
               <Database className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-black text-sm">قاعدة بيانات Supabase السحابية الرسمية</span>
-                <span className="bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                <span className="font-black text-sm text-slate-100">قاعدة بيانات Supabase السحابية الموحدة</span>
+                <span className="bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span>متصل ومربوط بنجاح ⚡</span>
+                  <span>متصل لحظياً</span>
                 </span>
               </div>
-              <p className="text-[11px] text-emerald-200/80 font-mono pt-0.5">
-                rxthpgmlcsfckstpqhqf.supabase.co • قاعدة بيانات شركة دريم الموحدة (أصناف + فواتير + مستخدمين + عملاء)
+              <p className="text-[11px] text-slate-400 font-mono pt-1">
+                rxthpgmlcsfckstpqhqf.supabase.co • جداول الموظفين، الفواتير، الأصناف، والعملاء
               </p>
             </div>
           </div>
@@ -351,27 +475,27 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setShowSqlSchemaModal(true)}
-              className="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-300 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
+              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
               title="عرض ونسخ كود SQL لإنشاء وتجهيز الجداول في Supabase"
             >
-              <Code className="w-3.5 h-3.5" />
-              <span>كود SQL لإنشاء الجداول 📋</span>
+              <Code className="w-3.5 h-3.5 text-amber-400" />
+              <span>كود SQL للجداول 📋</span>
             </button>
             <button
               onClick={() => handleSyncSupabase('fetch')}
               disabled={isSupabaseSyncing}
-              className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-slate-950 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
+              className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isSupabaseSyncing ? 'animate-spin' : ''}`} />
-              <span>جلب ومزامنة اليوزرات</span>
+              <span>مزامنة الموظفين من السحابة</span>
             </button>
             <button
               onClick={() => handleSyncSupabase('push')}
               disabled={isSupabaseSyncing}
-              className="bg-slate-800 hover:bg-slate-700 border border-emerald-500/40 text-emerald-300 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
+              className="bg-slate-800 hover:bg-slate-700 border border-emerald-500/40 text-emerald-300 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
             >
               <CloudUpload className="w-3.5 h-3.5" />
-              <span>رفع الحسابات لـ Supabase</span>
+              <span>حفظ التعديلات بالسحابة</span>
             </button>
           </div>
         </div>
@@ -385,25 +509,24 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
         )}
       </div>
 
-      {/* PENDING APPROVALS SECTION (Requests from login/register page) */}
+      {/* PENDING APPROVALS SECTION (Requests from register page) */}
       {pendingUsers.length > 0 && (
-        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent rounded-3xl p-5 border-2 border-amber-500/30 shadow-sm space-y-3 animate-in fade-in">
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent rounded-3xl p-5 border-2 border-amber-500/30 shadow-xs space-y-3 animate-in fade-in">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-amber-500 animate-ping"></span>
               <h3 className="font-black text-sm text-slate-900 flex items-center gap-1.5">
                 <Clock className="w-4 h-4 text-amber-600" />
-                <span>طلبات تسجيل الحسابات الجديدة بانتظار تفعيل الإدارة ({pendingUsers.length})</span>
+                <span>طلبات تسجيل الحسابات بانتظار تفعيل الإدارة ({pendingUsers.length})</span>
               </h3>
             </div>
             <span className="text-xs text-amber-800 font-bold bg-amber-100 px-2.5 py-1 rounded-full border border-amber-300">
-              تفعيل مباشر بدون تأكيد بريد
+              تفعيل واعتماد مباشر
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
             {pendingUsers.map((pUser) => {
-              const branchSupervisors = getSupervisorsInBranch(pUser.branchName);
               return (
                 <div
                   key={pUser.id}
@@ -416,7 +539,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         <div className="text-[11px] text-slate-500 font-mono">@{pUser.username} • {pUser.email}</div>
                       </div>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
-                        {pUser.role === 'supervisor' ? 'مشرف' : pUser.role === 'branch_manager' ? 'مدير فرع' : 'مندوب'}
+                        {roleConfigs[pUser.role]?.shortLabel || pUser.role}
                       </span>
                     </div>
 
@@ -429,24 +552,20 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         <span className="text-slate-400">الهاتف:</span>
                         <span className="font-mono text-slate-800">{pUser.phone}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">تاريخ الطلب:</span>
-                        <span>{pUser.registrationDate || 'اليوم'}</span>
-                      </div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
                     <button
                       onClick={() => handleOpenApproveModal(pUser)}
-                      className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-1 shadow-xs"
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-1 shadow-xs cursor-pointer"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>تفعيل وتخصيص المشرف</span>
+                      <span>اعتماد وتخصيص المشرف</span>
                     </button>
                     <button
                       onClick={() => rejectUser(pUser.id)}
-                      className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold p-2 rounded-xl text-xs transition border border-rose-200"
+                      className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold p-2 rounded-xl text-xs transition border border-rose-200 cursor-pointer"
                       title="رفض الطلب"
                     >
                       <X className="w-4 h-4" />
@@ -459,63 +578,220 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
         </div>
       )}
 
-      {/* Role Hierarchy Matrix Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* 5 Official Roles Matrix Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         {(Object.keys(roleConfigs) as UserRole[]).map((roleKey) => {
-          const cfg = roleConfigs[roleKey] || {
-            label: roleKey,
-            bg: 'bg-slate-100 border-slate-300',
-            text: 'text-slate-800',
-            desc: ''
-          };
+          const cfg = roleConfigs[roleKey];
           const count = users.filter((u) => u.role === roleKey && u.approvalStatus === 'active').length;
+          const RoleIcon = cfg.icon;
 
           return (
-            <div key={roleKey} className="bg-white rounded-3xl p-4 border border-slate-200 shadow-xs space-y-2 flex flex-col justify-between">
+            <div
+              key={roleKey}
+              onClick={() => setSelectedRoleFilter(selectedRoleFilter === roleKey ? 'الكل' : roleKey)}
+              className={`bg-white rounded-3xl p-4 border transition-all cursor-pointer shadow-xs flex flex-col justify-between ${
+                selectedRoleFilter === roleKey
+                  ? 'border-slate-900 ring-2 ring-slate-900 bg-slate-50/70'
+                  : 'border-slate-200 hover:border-slate-300'
+              }`}
+            >
               <div>
                 <div className="flex items-center justify-between">
-                  <span className={`text-[11px] font-black px-2 py-0.5 rounded-md border ${cfg.bg} ${cfg.text}`}>
-                    {cfg.label.split('(')[0]}
-                  </span>
-                  <span className="font-extrabold text-xs text-slate-900">{count} مستخدم</span>
+                  <div className={`w-8 h-8 rounded-xl ${cfg.bg} ${cfg.border} border flex items-center justify-center`}>
+                    <RoleIcon className={`w-4 h-4 ${cfg.text}`} />
+                  </div>
+                  <span className="font-black text-sm text-slate-900">{count} موظف</span>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+                <div className="mt-2.5 font-black text-xs text-slate-900">{cfg.label}</div>
+                <p className="text-[11px] text-slate-500 mt-1 leading-relaxed line-clamp-2">
                   {cfg.desc}
                 </p>
+              </div>
+
+              <div className="pt-2 mt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-bold">
+                <span>{selectedRoleFilter === roleKey ? 'تصفية مفعلة ✓' : 'انقر للتصفية'}</span>
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Active Users List Table with Supervisor & Branch Assignment */}
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="font-black text-sm text-slate-900 flex items-center gap-2">
-            <Users className="w-4 h-4 text-slate-700" />
-            <span>المستخدمين والمناديب المفعلين في المنظومة ({activeUsers.length})</span>
-          </h3>
+      {/* Employees Directory: Filter Bar + Card / Table Views */}
+      <div className="bg-white rounded-3xl shadow-xs border border-slate-200 overflow-hidden">
+        
+        {/* Top Control Bar */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-slate-700" />
+              <h3 className="font-black text-sm sm:text-base text-slate-900">
+                قائمة الموظفين المفعلين في المنظومة
+              </h3>
+              <span className="bg-amber-100 text-amber-900 text-xs font-black px-2.5 py-0.5 rounded-full">
+                {activeUsers.length}
+              </span>
+            </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 font-bold">تصفية الفرع:</span>
-            <select
-              value={selectedBranchFilter}
-              onChange={(e) => setSelectedBranchFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none"
-            >
-              <option value="الكل">كل الفروع</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.name}>{b.name}</option>
-              ))}
-            </select>
+            {/* Filters Row */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Branch Filter */}
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs">
+                <span className="text-slate-400 font-bold">الفرع:</span>
+                <select
+                  value={selectedBranchFilter}
+                  onChange={(e) => setSelectedBranchFilter(e.target.value)}
+                  className="bg-transparent font-black text-slate-800 focus:outline-none cursor-pointer"
+                >
+                  <option value="الكل">جميع الفروع ({branches.length})</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.name}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Role Filter */}
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs">
+                <span className="text-slate-400 font-bold">الصلاحية:</span>
+                <select
+                  value={selectedRoleFilter}
+                  onChange={(e) => setSelectedRoleFilter(e.target.value)}
+                  className="bg-transparent font-black text-slate-800 focus:outline-none cursor-pointer"
+                >
+                  <option value="الكل">كل الصلاحيات</option>
+                  <option value="admin">الآدمن (الإدارة العامة)</option>
+                  <option value="developer">المطور (الدعم التقني)</option>
+                  <option value="branch_manager">مدير الفرع</option>
+                  <option value="supervisor">مشرف المناديب</option>
+                  <option value="sales_rep">المندوب</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Search input */}
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="ابحث بالاسم، اسم المستخدم، رقم الهاتف، أو البريد..."
+              className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs focus:ring-2 focus:ring-amber-400 focus:bg-white transition"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+              >
+                مسح
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* 1. Mobile Cards View (Hidden on Tablet / Desktop) */}
+        <div className="block sm:hidden divide-y divide-slate-100">
+          {activeUsers.map((user) => {
+            const cfg = roleConfigs[user.role] || roleConfigs.sales_rep;
+            const isCurrent = currentUser?.id === user.id;
+            const branchSupervisors = getSupervisorsInBranch(user.branchName);
+            const RoleIcon = cfg.icon;
+
+            return (
+              <div key={user.id} className={`p-4 space-y-3 ${isCurrent ? 'bg-amber-50/40' : ''}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-2xl bg-slate-900 text-amber-400 flex items-center justify-center font-black text-sm shrink-0 shadow-xs">
+                      {user.name.charAt(0)}
+                    </div>
+                    <div>
+                      <div className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                        <span>{user.name}</span>
+                        {isCurrent && (
+                          <span className="bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.2 rounded">
+                            أنت
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-400 font-mono">@{user.username}</div>
+                    </div>
+                  </div>
+
+                  <span className={`px-2.5 py-1 rounded-xl text-[10px] font-black border ${cfg.bg} ${cfg.border} ${cfg.text} flex items-center gap-1`}>
+                    <RoleIcon className="w-3 h-3" />
+                    <span>{cfg.label}</span>
+                  </span>
+                </div>
+
+                {/* Details Grid */}
+                <div className="bg-slate-50 p-2.5 rounded-2xl text-xs space-y-1.5 border border-slate-100">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">الفرع:</span>
+                    <span className="font-bold text-slate-800">{user.branchName}</span>
+                  </div>
+                  {user.role === 'sales_rep' && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">المشرف:</span>
+                      <select
+                        value={user.supervisorId || ''}
+                        onChange={(e) => assignSupervisor(user.id, e.target.value)}
+                        className="bg-white border border-slate-200 rounded-lg px-2 py-0.5 text-xs font-bold text-slate-800 focus:outline-none"
+                      >
+                        <option value="">بدون مشرف مباشر</option>
+                        {branchSupervisors.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {user.phone && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">الهاتف:</span>
+                      <span className="font-mono text-slate-800">{user.phone}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions Footer */}
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <button
+                    onClick={() => handleCopyUserCredentials(user)}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 transition"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{copiedCredentials === user.id ? 'تم النسخ! ✓' : 'نسخ بيانات الدخول'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => loginAs(user.id)}
+                    className={`px-3 py-2 rounded-xl text-xs font-black transition flex items-center gap-1 ${
+                      isCurrent ? 'bg-amber-500 text-slate-950' : 'bg-slate-900 text-white'
+                    }`}
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>{isCurrent ? 'حسابك الحالي' : 'تبديل الحساب'}</span>
+                  </button>
+
+                  {isSuperAdminOrDev && (
+                    <button
+                      onClick={() => handleOpenEditModal(user)}
+                      className="p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 2. Desktop Full Table View (Hidden on Mobile) */}
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-right text-xs">
             <thead className="bg-slate-900 text-white font-bold">
               <tr>
-                <th className="p-3.5">المستخدم</th>
+                <th className="p-3.5">الموظف</th>
                 <th className="p-3.5">اسم الدخول / البريد</th>
                 <th className="p-3.5">الدور والصلاحية</th>
                 <th className="p-3.5">الفرع المرتبط</th>
@@ -526,26 +802,20 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             </thead>
             <tbody className="divide-y divide-slate-100">
               {activeUsers.map((user) => {
-                const cfg = roleConfigs[user.role] || {
-                  label: user.role || 'مندوب مبيعات',
-                  bg: 'bg-emerald-100 border-emerald-300',
-                  text: 'text-emerald-800',
-                  desc: ''
-                };
+                const cfg = roleConfigs[user.role] || roleConfigs.sales_rep;
                 const isCurrent = currentUser?.id === user.id;
                 const branchSupervisors = getSupervisorsInBranch(user.branchName);
+                const RoleIcon = cfg.icon;
 
                 return (
-                  <tr key={user.id} className={`hover:bg-amber-50/30 transition ${isCurrent ? 'bg-amber-50/60 font-medium' : ''}`}>
+                  <tr key={user.id} className={`hover:bg-amber-50/25 transition ${isCurrent ? 'bg-amber-50/60 font-medium' : ''}`}>
                     
                     {/* Name & Avatar */}
                     <td className="p-3.5">
                       <div className="flex items-center gap-2.5">
-                        <img
-                          src={user.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&auto=format&fit=crop&q=80'}
-                          alt={user.name}
-                          className="w-8 h-8 rounded-full object-cover border border-slate-300"
-                        />
+                        <div className="w-9 h-9 rounded-2xl bg-slate-900 text-amber-400 flex items-center justify-center font-black text-sm shrink-0 border border-slate-700">
+                          {user.name.charAt(0)}
+                        </div>
                         <div>
                           <div className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
                             <span>{user.name}</span>
@@ -555,6 +825,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                               </span>
                             )}
                           </div>
+                          <div className="text-[10px] text-slate-400">
+                            عمولة: {user.commissionRate || 2.5}%
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -562,13 +835,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     {/* Username & Email */}
                     <td className="p-3.5">
                       <div className="font-bold text-slate-800 font-mono">{user.username}</div>
-                      <div className="text-[10px] text-slate-400">{user.email}</div>
+                      <div className="text-[10px] text-slate-400 font-mono">{user.email}</div>
                     </td>
 
                     {/* Role Badge */}
                     <td className="p-3.5">
-                      <span className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-black border ${cfg.bg} ${cfg.text}`}>
-                        {cfg.label.split('(')[0]}
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-black border ${cfg.bg} ${cfg.border} ${cfg.text}`}>
+                        <RoleIcon className="w-3.5 h-3.5" />
+                        <span>{cfg.label}</span>
                       </span>
                     </td>
 
@@ -583,7 +857,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         <select
                           value={user.supervisorId || ''}
                           onChange={(e) => assignSupervisor(user.id, e.target.value)}
-                          className="bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-500"
+                          className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-500"
                         >
                           <option value="">-- بدون مشرف محدد --</option>
                           {branchSupervisors.map((s) => (
@@ -593,8 +867,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                           ))}
                         </select>
                       ) : user.role === 'supervisor' ? (
-                        <span className="text-[11px] text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded">
-                          مشرف فرع ({users.filter((u) => u.supervisorId === user.id).length} مناديب)
+                        <span className="text-[11px] text-blue-700 font-bold bg-blue-50 px-2.5 py-1 rounded-lg">
+                          مشرف قطاع ({users.filter((u) => u.supervisorId === user.id).length} مناديب)
                         </span>
                       ) : (
                         <span className="text-slate-400">---</span>
@@ -610,15 +884,24 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     <td className="p-3.5 text-center">
                       <div className="flex items-center justify-center gap-1.5">
                         
+                        {/* Copy Credentials */}
+                        <button
+                          onClick={() => handleCopyUserCredentials(user)}
+                          className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                          title="نسخ بيانات تسجيل الدخول للموظف"
+                        >
+                          {copiedCredentials === user.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+
                         {/* Switch account for testing */}
                         <button
                           onClick={() => loginAs(user.id)}
-                          className={`px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                          className={`px-2.5 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
                             isCurrent
                               ? 'bg-amber-500 text-slate-950 font-black'
                               : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                           }`}
-                          title="تجربة بيئة وصلاحيات هذا المستخدم"
+                          title="تجربة بيئة وصلاحيات هذا الموظف"
                         >
                           <UserCheck className="w-3.5 h-3.5" />
                           <span>{isCurrent ? 'الحالي' : 'تجربة'}</span>
@@ -627,13 +910,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         {/* Edit (Admin & Dev only) */}
                         {isSuperAdminOrDev && (
                           <button
-                            onClick={() => {
-                              setEditingUser(user);
-                              setFormData(user);
-                              setShowAddUserModal(true);
-                            }}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer"
-                            title="تعديل المستخدم (صلاحية الإدارة والمطور)"
+                            onClick={() => handleOpenEditModal(user)}
+                            className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                            title="تعديل بيانات الموظف"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
@@ -643,12 +922,12 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         {isSuperAdminOrDev && !isCurrent && (
                           <button
                             onClick={() => {
-                              if (window.confirm(`هل أنت متأكد من حذف المستخدم "${user.name}"؟`)) {
+                              if (window.confirm(`هل أنت متأكد من حذف حساب "${user.name}"؟`)) {
                                 deleteUser(user.id);
                               }
                             }}
-                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 cursor-pointer"
-                            title="حذف المستخدم"
+                            className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 cursor-pointer"
+                            title="حذف الحساب"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -663,6 +942,316 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
           </table>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* MODERN RESPONSIVE ADD / EDIT EMPLOYEE MODAL (متناسق مع كافة الشاشات) */}
+      {/* ========================================================================= */}
+      {showAddUserModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-2xl w-full p-5 sm:p-7 space-y-5 shadow-2xl border border-slate-200 max-h-[92vh] sm:max-h-[90vh] overflow-y-auto flex flex-col">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/15 text-amber-900 border border-amber-500/30 flex items-center justify-center font-black shrink-0">
+                  <UserPlus className="w-5 h-5 text-amber-700" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base sm:text-lg text-slate-900">
+                    {editingUser ? 'تعديل بيانات الموظف' : 'إضافة موظف جديد لهيكل الشركة'}
+                  </h3>
+                  <p className="text-[11px] sm:text-xs text-slate-500">
+                    تحديد الصلاحية، ربط الفرع، وتعيين المشرف المباشر للتحكم التام
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAddUserModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUser} className="space-y-4 text-xs">
+              
+              {/* 1. VISUAL ROLE SELECTOR CARDS */}
+              <div className="space-y-2">
+                <label className="block font-black text-slate-800 text-xs sm:text-sm">
+                  1. اختر الدور والصلاحية الرسمية *
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {(Object.keys(roleConfigs) as UserRole[]).map((rKey) => {
+                    const cfg = roleConfigs[rKey];
+                    const isSelected = formData.role === rKey;
+                    const RoleIcon = cfg.icon;
+
+                    return (
+                      <button
+                        type="button"
+                        key={rKey}
+                        onClick={() => {
+                          setFormData((prev) => ({ ...prev, role: rKey }));
+                          if (formData.name) handleAutoGenerateCredentials(formData.name, rKey);
+                        }}
+                        className={`p-3 rounded-2xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
+                          isSelected
+                            ? `border-slate-900 ring-2 ring-slate-900 bg-slate-900 text-white shadow-md`
+                            : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full mb-1">
+                          <RoleIcon className={`w-4 h-4 ${isSelected ? 'text-amber-400' : 'text-slate-600'}`} />
+                          {isSelected && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                        </div>
+                        <div className="font-black text-xs">{cfg.shortLabel}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* Active Role Description */}
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-slate-600 text-[11px] flex items-center gap-2">
+                  <span className="font-bold text-slate-900 shrink-0">مهام الصلاحية:</span>
+                  <span>{roleConfigs[formData.role || 'sales_rep']?.desc}</span>
+                </div>
+              </div>
+
+              {/* 2. EMPLOYEE DETAILS (Name, Auto Generator) */}
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <label className="font-black text-slate-800 text-xs sm:text-sm">
+                    2. البيانات الشخصية وبيانات الدخول *
+                  </label>
+                  {formData.name && (
+                    <button
+                      type="button"
+                      onClick={() => handleAutoGenerateCredentials(formData.name || '', formData.role)}
+                      className="text-amber-700 hover:text-amber-800 font-black text-[11px] flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200 cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3 text-amber-600" />
+                      <span>توليد تلقائي للاسم والبريد</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Full Name */}
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">الاسم بالكامل *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name || ''}
+                    onChange={(e) => {
+                      const newName = e.target.value;
+                      setFormData({ ...formData, name: newName });
+                    }}
+                    placeholder="مثال: أحمد عبد الله الشناوي"
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-amber-400 focus:bg-white transition text-xs sm:text-sm"
+                  />
+                </div>
+
+                {/* Username + Password in responsive grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">اسم المستخدم (Login Username) *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.username || ''}
+                      onChange={(e) => setFormData({ ...formData, username: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
+                      placeholder="rep_ahmed"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="font-bold text-slate-700">كلمة المرور *</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="text-[10px] text-slate-500 hover:text-slate-800 font-bold flex items-center gap-0.5"
+                      >
+                        {showPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                        <span>{showPassword ? 'إخفاء' : 'إظهار'}</span>
+                      </button>
+                    </div>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={formData.password || ''}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="أدخل كلمة مرور قوية"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Email + Phone */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">البريد الإلكتروني الرسمي</label>
+                    <input
+                      type="email"
+                      value={formData.email || ''}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      placeholder="ahmed@dream-dist.com"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-800 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">رقم الهاتف (للتواصل والواتساب)</label>
+                    <input
+                      type="tel"
+                      value={formData.phone || ''}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      placeholder="010XXXXXXXX"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. BRANCH & SUPERVISOR ASSIGNMENT */}
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <label className="block font-black text-slate-800 text-xs sm:text-sm">
+                  3. التوزيع الجغرافي والفرع والمشرف المباشر *
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Branch Selector */}
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">الفرع التابع له *</label>
+                    <select
+                      value={formData.branchName}
+                      onChange={(e) => setFormData({ ...formData, branchName: e.target.value, supervisorId: '' })}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-xs cursor-pointer"
+                    >
+                      {branches.map((b) => (
+                        <option key={b.id} value={b.name}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Supervisor Selector (If Sales Rep) */}
+                  {formData.role === 'sales_rep' ? (
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">
+                        المشرف المباشر للمندوب في هذا الفرع
+                      </label>
+                      <select
+                        value={formData.supervisorId || ''}
+                        onChange={(e) => setFormData({ ...formData, supervisorId: e.target.value })}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-xs cursor-pointer"
+                      >
+                        <option value="">بدون مشرف مباشر (عام على الفرع)</option>
+                        {getSupervisorsInBranch(formData.branchName || '').map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({s.branchName})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">نسبة العمولة الافتراضية (%)</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={formData.commissionRate ?? 2.5}
+                          onChange={(e) => setFormData({ ...formData, commissionRate: parseFloat(e.target.value) || 0 })}
+                          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 text-xs font-mono"
+                        />
+                        <div className="flex gap-1">
+                          {[2.0, 2.5, 3.0].map((rate) => (
+                            <button
+                              type="button"
+                              key={rate}
+                              onClick={() => setFormData({ ...formData, commissionRate: rate })}
+                              className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold"
+                            >
+                              {rate}%
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {formData.role === 'sales_rep' && (
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">نسبة عمولة مبيعات المندوب (%)</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={formData.commissionRate ?? 2.5}
+                        onChange={(e) => setFormData({ ...formData, commissionRate: parseFloat(e.target.value) || 0 })}
+                        className="w-32 p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 text-xs font-mono"
+                      />
+                      <div className="flex gap-1.5">
+                        {[2.0, 2.5, 3.0, 5.0].map((rate) => (
+                          <button
+                            type="button"
+                            key={rate}
+                            onClick={() => setFormData({ ...formData, commissionRate: rate })}
+                            className="px-2.5 py-1.5 bg-amber-50 border border-amber-200 hover:bg-amber-100 text-amber-900 rounded-lg text-[10px] font-black cursor-pointer"
+                          >
+                            {rate}%
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 4. LIVE EMPLOYEE BADGE PREVIEW */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block font-black text-slate-800 text-[11px] mb-2 text-slate-500">
+                  معاينة بطاقة الموظف المباشرة:
+                </label>
+                <div className="bg-slate-900 text-white p-3.5 rounded-2xl border border-slate-800 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 font-black flex items-center justify-center text-sm shrink-0">
+                      {formData.name?.charAt(0) || '؟'}
+                    </div>
+                    <div>
+                      <div className="font-black text-sm text-slate-100">{formData.name || 'اسم الموظف'}</div>
+                      <div className="text-[10px] text-amber-300 font-mono">@{formData.username || 'username'} • {formData.branchName}</div>
+                    </div>
+                  </div>
+                  <span className="bg-amber-500/20 border border-amber-400 text-amber-300 text-[10px] font-black px-2.5 py-1 rounded-xl">
+                    {roleConfigs[formData.role || 'sales_rep']?.label}
+                  </span>
+                </div>
+              </div>
+
+              {/* Modal Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddUserModal(false)}
+                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-xs cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className="px-7 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-2xl font-black shadow-md text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{editingUser ? 'حفظ التعديلات' : 'إنشاء وحفظ الحساب سحابياً'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* APPROVAL & SUPERVISOR ASSIGNMENT MODAL */}
       {approvingUser && (
@@ -707,11 +1296,11 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   onChange={(e) => setApprovalRole(e.target.value as UserRole)}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold"
                 >
-                  <option value="sales_rep">مندوب مبيعات وتوزيع</option>
-                  <option value="supervisor">مشرف قطاع المناديب</option>
-                  <option value="branch_manager">مشرف الفرع والمخزن</option>
-                  <option value="developer">المطور التقني (Developer)</option>
-                  <option value="admin">المطور والمسؤول التقني (Admin)</option>
+                  <option value="sales_rep">المندوب (مندوب مبيعات وتوزيع)</option>
+                  <option value="supervisor">مشرف المناديب</option>
+                  <option value="branch_manager">مدير الفرع</option>
+                  <option value="developer">المطور (الدعم التقني)</option>
+                  <option value="admin">الآدمن (الإدارة العامة)</option>
                 </select>
               </div>
 
@@ -748,156 +1337,12 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               <button
                 type="button"
                 onClick={handleConfirmApproval}
-                className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black shadow text-xs flex items-center gap-1.5"
+                className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black shadow text-xs flex items-center gap-1.5 cursor-pointer"
               >
                 <Check className="w-4 h-4" />
                 <span>اعتماد وتفعيل الحساب فوراً</span>
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add / Edit User Modal */}
-      {showAddUserModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-black text-base text-slate-900">
-                {editingUser ? 'تعديل بيانات المستخدم' : 'إنشاء حساب جديد لمنظومة دريم'}
-              </h3>
-              <button onClick={() => setShowAddUserModal(false)}>
-                <X className="w-5 h-5 text-slate-400" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveUser} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">الاسم بالكامل *</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="مثال: أحمد سامي الشناوي"
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-400"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">اسم المستخدم (Login) *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.username}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                    placeholder="rep_ahmed"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">كلمة المرور</label>
-                  <input
-                    type="text"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    placeholder="123"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">البريد الإلكتروني الرسمي (@dream.com)</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="osama@dream.com"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-800"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">رقم الهاتف</label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="010XXXXXXXX"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">الدور والصلاحية *</label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold"
-                  >
-                    <option value="sales_rep">مندوب مبيعات وتوزيع</option>
-                    <option value="supervisor">مشرف قطاع المناديب</option>
-                    <option value="branch_manager">مشرف الفرع والمخزن</option>
-                    <option value="developer">المطور التقني (Developer)</option>
-                    <option value="admin">المطور والمسؤول التقني (Admin كامل)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">الفرع المرتبط به *</label>
-                  <select
-                    value={formData.branchName}
-                    onChange={(e) => setFormData({ ...formData, branchName: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold"
-                  >
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.name}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* If sales rep, supervisor selector */}
-              {formData.role === 'sales_rep' && (
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">المشرف المباشر للمندوب</label>
-                  <select
-                    value={formData.supervisorId || ''}
-                    onChange={(e) => setFormData({ ...formData, supervisorId: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold"
-                  >
-                    <option value="">بدون مشرف (عام)</option>
-                    {getSupervisorsInBranch(formData.branchName).map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowAddUserModal(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-black shadow"
-                >
-                  حفظ المستخدم
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

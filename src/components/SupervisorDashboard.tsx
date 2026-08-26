@@ -10,6 +10,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Clock,
+  Download,
   Eye,
   FileSpreadsheet,
   Filter,
@@ -20,7 +21,6 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
-  Send,
   ShieldAlert,
   ShieldCheck,
   ShoppingCart,
@@ -35,7 +35,8 @@ import {
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { exportElectronicInvoiceToExcel } from '../services/excelService';
-import { formatCurrency, shareInvoiceViaWhatsApp } from '../services/invoiceService';
+import { formatCurrency } from '../services/invoiceService';
+import { downloadInvoicePDF } from '../services/pdfService';
 import { Invoice, OrderStatus } from '../types';
 
 interface SupervisorDashboardProps {
@@ -1045,17 +1046,17 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                           <button
                             onClick={() => exportElectronicInvoiceToExcel(inv)}
                             className="bg-emerald-700 hover:bg-emerald-800 text-white p-1.5 rounded-lg transition cursor-pointer"
-                            title="تصدير شيت إكسل"
+                            title="تصدير شيت إكسل منسق"
                           >
                             <FileSpreadsheet className="w-3.5 h-3.5" />
                           </button>
 
                           <button
-                            onClick={() => shareInvoiceViaWhatsApp(inv)}
-                            className="bg-green-600 hover:bg-green-700 text-white p-1.5 rounded-lg transition cursor-pointer"
-                            title="مشاركة عبر واتساب"
+                            onClick={() => downloadInvoicePDF(inv)}
+                            className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded-lg transition cursor-pointer"
+                            title="تحميل فاتورة PDF رسمية"
                           >
-                            <Send className="w-3.5 h-3.5" />
+                            <Download className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>

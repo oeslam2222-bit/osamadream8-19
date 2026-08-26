@@ -28,7 +28,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { exportElectronicInvoiceToExcel, exportInvoiceForERP } from '../services/excelService';
 import { downloadInvoicePDF } from '../services/pdfService';
-import { formatArabicDate, formatCurrency, shareInvoiceViaWhatsApp } from '../services/invoiceService';
+import { formatArabicDate, formatCurrency } from '../services/invoiceService';
 import { Invoice, OrderStatus } from '../types';
 
 interface InvoicesManagerProps {
@@ -601,18 +601,9 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           <button
                             onClick={() => exportElectronicInvoiceToExcel(invoice)}
                             className="bg-emerald-700 hover:bg-emerald-800 text-white p-1.5 rounded-lg transition cursor-pointer"
-                            title="تحميل شيت إكسل عادي للعميل"
+                            title="تحميل شيت إكسل منسق لشركة دريم"
                           >
                             <FileSpreadsheet className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Share WhatsApp */}
-                          <button
-                            onClick={() => shareInvoiceViaWhatsApp(invoice)}
-                            className="bg-green-600 hover:bg-green-700 text-white p-1.5 rounded-lg transition cursor-pointer"
-                            title="مشاركة تفاصيل الفاتورة عبر واتساب"
-                          >
-                            <Send className="w-3.5 h-3.5" />
                           </button>
 
                           {/* Delete (Admin & Developer only) */}

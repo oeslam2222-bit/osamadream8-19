@@ -367,6 +367,9 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     }
   });
 
+  // Track code occurrences to ensure 100% of rows (all 5500+) get unique IDs without overwriting
+  const codeOccurrences: Record<string, number> = {};
+
   // Loop rows
   for (let r = headerRowIndex + 1; r < rawRows.length; r++) {
     const row = rawRows[r];
@@ -475,11 +478,14 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const sizeVal = getVal(colMap.size) || '';
     const colorVal = getVal(colMap.color) || '';
 
-    // Generate deterministic product ID from Code + Color + Size + Row to guarantee preservation of all 5500+ items
-    const codeSlug = (code || `prd_${r}`).replace(/\s+/g, '_').toLowerCase();
+    // Generate deterministic product ID from Code + Color + Size + Occurrence count to guarantee preservation of all 5500+ items
+    const baseCode = (code || `prd_${r}`).replace(/\s+/g, '_').toLowerCase();
+    codeOccurrences[baseCode] = (codeOccurrences[baseCode] || 0) + 1;
+    const occSuffix = codeOccurrences[baseCode] > 1 ? `_v${codeOccurrences[baseCode]}` : '';
+
     const colorSlug = colorVal ? `_${colorVal.replace(/\s+/g, '_').toLowerCase()}` : '';
     const sizeSlug = sizeVal ? `_${sizeVal.replace(/\s+/g, '_').toLowerCase()}` : '';
-    const deterministicId = `prod-${codeSlug}${colorSlug}${sizeSlug}`;
+    const deterministicId = `prod-${baseCode}${colorSlug}${sizeSlug}${occSuffix}`;
 
     const product: Product = {
       id: deterministicId,

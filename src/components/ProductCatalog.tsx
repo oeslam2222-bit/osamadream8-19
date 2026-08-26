@@ -343,38 +343,37 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
         }
       }
 
-      // Official 22 Departments Filter
+      // Official Brand / Item Group Filter (أقسام الشركة الرئيسية)
       if (selectedOfficialDept !== 'الكل') {
         const target = selectedOfficialDept.toLowerCase().trim();
-        const pDept = (p.department || '').toLowerCase().trim();
+        const pDept = (p.itemGroup || p.department || '').toLowerCase().trim();
         const pCat = (p.category || '').toLowerCase().trim();
-        const pName = (p.name || '').toLowerCase().trim();
-        const pCode = (p.code || '').toLowerCase().trim();
 
         const match =
           pDept === target ||
           pCat === target ||
           pDept.includes(target) ||
           pCat.includes(target) ||
-          pName.includes(target) ||
-          pCode.startsWith(selectedOfficialDept.slice(0, 3).toLowerCase());
+          (target.length >= 3 && pDept.startsWith(target.slice(0, 3))) ||
+          (target.length >= 3 && pCat.startsWith(target.slice(0, 3)));
 
         if (!match) return false;
       }
 
-      // Sub-category / Classification (Power BI Slicer Filter)
+      // Sub-category / Family Name Filter (Power BI Slicer Filter)
       if (selectedSubCategory !== 'الكل') {
         const targetSub = selectedSubCategory.toLowerCase().trim();
+        const pFamily = (p.familyName || '').toLowerCase().trim();
         const pClass = (p.classification || '').toLowerCase().trim();
         const pCat = (p.category || '').toLowerCase().trim();
-        const pName = (p.name || '').toLowerCase().trim();
 
+        // Exact match with familyName, classification, or category (strictly matching slicer cards)
         const match =
+          pFamily === targetSub ||
           pClass === targetSub ||
-          pCat === targetSub ||
-          pClass.includes(targetSub) ||
-          pCat.includes(targetSub) ||
-          (pName.includes(targetSub) && targetSub.length > 3);
+          (pCat === targetSub && !pFamily && !pClass) ||
+          (pFamily && pFamily === targetSub) ||
+          (pClass && pClass === targetSub);
 
         if (!match) return false;
       }
