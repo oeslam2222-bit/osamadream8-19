@@ -405,18 +405,31 @@ export function getBranchStockForProduct(product: Product, targetBranch?: string
 
   const targetKey = normalizeBranchKey(targetBranch);
 
-  // 1. Direct branchStocks map lookup by normalized keys
-  if (product.branchStocks && typeof product.branchStocks === 'object') {
+  // 1. If querying October Central Warehouse
+  if (targetKey === 'main') {
+    if (typeof product.mainWarehouseActual === 'number') {
+      return product.mainWarehouseActual;
+    }
+  }
+
+  // 2. Direct branchStocks map lookup by normalized keys
+  if (product.branchStocks && typeof product.branchStocks === 'object' && Object.keys(product.branchStocks).length > 0) {
+    let hasBranchKey = false;
     for (const [key, stock] of Object.entries(product.branchStocks)) {
       if (typeof stock === 'number' && !isNaN(stock)) {
+        hasBranchKey = true;
         if (normalizeBranchKey(key) === targetKey) {
           return stock;
         }
       }
     }
+    // If the product has explicit branch-specific stock map but the requested branch is not present
+    if (hasBranchKey) {
+      return 0;
+    }
   }
 
-  // 2. If product has a single branchName assigned, verify branch match
+  // 3. If product has a single branchName assigned, verify branch match
   if (product.branchName) {
     if (normalizeBranchKey(product.branchName) === targetKey) {
       return product.branchStockActual || 0;
@@ -424,7 +437,7 @@ export function getBranchStockForProduct(product: Product, targetBranch?: string
     return 0;
   }
 
-  // 3. Fallback to product.branchStockActual
+  // 4. Fallback to product.branchStockActual if unassigned
   return product.branchStockActual || 0;
 }
 

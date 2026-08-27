@@ -38,6 +38,7 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { exportProductsToExcel } from '../services/excelService';
 import { formatCurrency } from '../services/invoiceService';
+import { getBranchStockForProduct } from '../services/arabicMatchingService';
 import { ItemStatus, Product, SalesPriority } from '../types';
 import { getDepartmentMeta } from '../data/departmentMeta';
 
@@ -117,6 +118,19 @@ export const InventoryStockView: React.FC = () => {
     return ['الكل', ...Array.from(set)];
   }, [products]);
 
+  // Active branch context for stock resolution: specific user's branch for reps/supervisors/managers, or global filter for admin
+  const currentActiveBranch = useMemo(() => {
+    if (currentUser?.role === 'sales_rep' || currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager') {
+      return currentUser.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)';
+    }
+    return selectedBranchFilter !== 'الكل' ? selectedBranchFilter : (currentUser?.branchName || '');
+  }, [currentUser, selectedBranchFilter]);
+
+  // Helper to get effective branch stock for a product for current viewer's branch
+  const getProductBranchStock = (p: Product) => {
+    return getBranchStockForProduct(p, currentActiveBranch);
+  };
+
   // Filtered Products Matrix
   const visibleBranch = currentUser && currentUser.role !== 'admin' && currentUser.role !== 'developer'
     ? currentUser.branchName
@@ -124,7 +138,7 @@ export const InventoryStockView: React.FC = () => {
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
-  // Operating-branch stock is scoped to the user's branch. October's central
+      // Operating-branch stock is scoped to the user's branch. October's central
       // warehouse balance remains visible to everyone for availability and booking.
       if (
         visibleBranch !== 'الكل' &&
@@ -150,19 +164,22 @@ export const InventoryStockView: React.FC = () => {
         return false;
       }
 
+      const bStock = getProductBranchStock(p);
+      const oStock = p.mainWarehouseActual || 0;
+
       if (stockLevelFilter === 'in_branch') {
-        if (p.branchStockReserved <= 0) return false;
+        if (bStock <= 0) return false;
       } else if (stockLevelFilter === 'needs_transfer') {
-        if (p.branchStockReserved > 0 || p.mainWarehouseActual <= 0) return false;
+        if (bStock > 0 || oStock <= 0) return false;
       } else if (stockLevelFilter === 'low_stock') {
-        if (p.branchStockReserved <= 0 || p.branchStockReserved > 25) return false;
+        if (bStock <= 0 || bStock > 25) return false;
       } else if (stockLevelFilter === 'out_of_stock') {
-        if (p.branchStockReserved > 0 || p.mainWarehouseActual > 0) return false;
+        if (bStock > 0 || oStock > 0) return false;
       }
 
       return true;
     });
-  }, [products, searchTerm, selectedCategory, stockLevelFilter, selectedBranchFilter]);
+  }, [products, searchTerm, selectedCategory, stockLevelFilter, visibleBranch, currentActiveBranch]);
 
   // Paginated products
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
@@ -207,18 +224,21 @@ export const InventoryStockView: React.FC = () => {
     let totalCartonsReserved = 0;
 
     products.forEach((p) => {
-      if (p.branchStockReserved > 0) {
+      const bStock = getProductBranchStock(p);
+      const oStock = p.mainWarehouseActual || 0;
+
+      if (bStock > 0) {
         inBranchCount++;
-        if (p.branchStockReserved <= 10) {
+        if (bStock <= 10) {
           lowStockCount++;
         }
-      } else if (p.mainWarehouseActual > 0) {
+      } else if (oStock > 0) {
         needsTransferCount++;
       } else {
         outOfStockCount++;
       }
-      totalCartonsActual += p.branchStockActual;
-      totalCartonsReserved += p.branchStockReserved;
+      totalCartonsActual += bStock;
+      totalCartonsReserved += Math.max(0, bStock - 5);
     });
 
     return {
@@ -230,7 +250,7 @@ export const InventoryStockView: React.FC = () => {
       totalCartonsReserved,
       pendingApprovalsCount: pendingInvoices.length
     };
-  }, [products, pendingInvoices]);
+  }, [products, pendingInvoices, currentActiveBranch]);
 
   // Logs Tab Pagination
   const logsTotalPages = useMemo(() => {
@@ -737,9 +757,10 @@ export const InventoryStockView: React.FC = () => {
           {viewLayout === 'cards' && (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
               {paginatedProducts.map((p) => {
-                const isAvailableInBranch = p.branchStockReserved > 0;
+                const branchActual = getProductBranchStock(p);
+                const isAvailableInBranch = branchActual > 0;
                 const isAvailableInOctober = p.mainWarehouseActual > 0;
-                const isLowStock = isAvailableInBranch && p.branchStockReserved <= 10;
+                const isLowStock = isAvailableInBranch && branchActual <= 10;
                 const needsTransfer = !isAvailableInBranch && isAvailableInOctober;
                 const isTotallyOut = !isAvailableInBranch && !isAvailableInOctober;
 
@@ -811,10 +832,10 @@ export const InventoryStockView: React.FC = () => {
                         <div className="flex items-center justify-between font-bold mb-1">
                           <span className="flex items-center gap-1">
                             <Building className="w-3.5 h-3.5" />
-                            <span>مخزون الفرع الحالي:</span>
+                            <span>مخزون الفرع الحالي ({currentActiveBranch || 'الفرع'}):</span>
                           </span>
                           <span className="text-sm font-black">
-                            {p.branchStockReserved} كرتونة
+                            {branchActual} كرتونة
                           </span>
                         </div>
 
@@ -943,9 +964,10 @@ export const InventoryStockView: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {paginatedProducts.map((p) => {
-                      const isAvailableInBranch = p.branchStockReserved > 0;
+                      const branchActual = getProductBranchStock(p);
+                      const isAvailableInBranch = branchActual > 0;
                       const isAvailableInOctober = p.mainWarehouseActual > 0;
-                      const isLowStock = isAvailableInBranch && p.branchStockReserved <= 10;
+                      const isLowStock = isAvailableInBranch && branchActual <= 10;
                       const needsTransfer = !isAvailableInBranch && isAvailableInOctober;
                       const isTotallyOut = !isAvailableInBranch && !isAvailableInOctober;
 
@@ -1002,10 +1024,10 @@ export const InventoryStockView: React.FC = () => {
                                   : 'text-rose-600 font-black'
                               }`}
                             >
-                              {p.branchStockReserved} كرتونة
+                              {branchActual} كرتونة
                             </span>
                             <div className="text-[10px] text-slate-400 font-normal">
-                              ({p.branchStockActual * (p.cartonQuantity || 1)} ق)
+                              ({branchActual * (p.cartonQuantity || 1)} ق)
                             </div>
                           </td>
 
@@ -1577,8 +1599,8 @@ export const InventoryStockView: React.FC = () => {
                   <strong className="text-amber-900 font-bold text-sm">{stockTransferModal.mainWarehouseActual} كرتونة</strong>
                 </div>
                 <div className="bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
-                  <div className="text-slate-500">مخزون الفرع الحالي:</div>
-                  <strong className="text-emerald-900 font-bold text-sm">{stockTransferModal.branchStockActual} كرتونة</strong>
+                  <div className="text-slate-500">مخزون الفرع الحالي ({currentActiveBranch || 'الفرع'}):</div>
+                  <strong className="text-emerald-900 font-bold text-sm">{getProductBranchStock(stockTransferModal)} كرتونة</strong>
                 </div>
               </div>
 
