@@ -263,11 +263,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
   const subCategories = useMemo(() => {
     const set = new Set<string>();
     products.forEach((p) => {
-      if (p.category && !OFFICIAL_DEPARTMENTS.includes(p.category as any)) {
-        set.add(p.category.trim());
-      }
-      if (p.classification && p.classification !== 'فئة A' && !OFFICIAL_DEPARTMENTS.includes(p.classification as any)) {
-        set.add(p.classification.trim());
+      // Prefer the values imported from Item Group and Family Name columns.
+      // Keep the older category/classification fields as backwards-compatible fallbacks.
+      [p.familyName, p.classification, p.category].forEach((value) => {
+        if (value && value !== 'فئة A' && !OFFICIAL_DEPARTMENTS.includes(value as any)) {
+          set.add(value.trim());
+        }
+      });
+      if (p.itemGroup && !OFFICIAL_DEPARTMENTS.includes(p.itemGroup as any)) {
+        set.add(p.itemGroup.trim());
       }
     });
     return Array.from(set).filter(Boolean);
@@ -331,9 +335,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
   // Filtered & Sorted Products
   const filteredProducts = useMemo(() => {
     let result = products.filter((p) => {
-      // Branch filter if not 'الكل'
-      if (selectedBranchFilter !== 'الكل' && p.branchName && p.branchName !== selectedBranchFilter) {
-        if (p.mainWarehouseActual <= 0 && p.branchStockActual <= 0) return false;
+      // Branch filter: resolve the selected branch from the dedicated Excel stock column.
+      // Do not compare p.branchName here because imported sheets usually contain one
+      // default branch name even when the row has stock for all seven branches.
+      if (selectedBranchFilter !== 'الكل') {
+        const selectedBranchStock = getBranchStockForProduct(p, selectedBranchFilter);
+        if (selectedBranchStock <= 0 && (p.mainWarehouseActual || 0) <= 0) return false;
       }
 
       // Search match
@@ -1575,7 +1582,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
             </div>
 
             <div className="text-center space-y-1">
-              <h3 className="text-lg font-black text-slate-900">هل تريد مسح وتصفير كافة البيانات؟</h3>
+              <h3 className="text-lg font-black text-slate-900">هل تريد مسح وتصفير كافة ا��بيانات؟</h3>
               <p className="text-xs text-slate-500 leading-relaxed">
                 هذا الإجراء سيقوم بمسح جميع أصناف الكتالوج التجريبية والصور المخزنة، لتتمكن من رفع شيت الأصناف الخاص بك وصور جوجل درايف من البداية بدون أي تداخل.
               </p>

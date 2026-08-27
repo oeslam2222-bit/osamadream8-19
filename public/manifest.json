@@ -11,9 +11,9 @@
   "lang": "ar",
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-WavIU5PYnfoA1PLyoxv1tgbH0nORpf.png",
       "sizes": "192x192 512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ],
