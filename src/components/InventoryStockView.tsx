@@ -123,7 +123,9 @@ export const InventoryStockView: React.FC = () => {
     if (currentUser?.role === 'sales_rep' || currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager') {
       return currentUser.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)';
     }
-    return selectedBranchFilter !== 'الكل' ? selectedBranchFilter : (currentUser?.branchName || '');
+    // Admin/developer: "الكل" means the product's aggregate/default branch stock;
+    // selecting a branch resolves the exact branch column from the imported sheets.
+    return selectedBranchFilter;
   }, [currentUser, selectedBranchFilter]);
 
   // Helper to get effective branch stock for a product for current viewer's branch
@@ -138,18 +140,6 @@ export const InventoryStockView: React.FC = () => {
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
-      // Operating-branch stock is scoped to the user's branch. October's central
-      // warehouse balance remains visible to everyone for availability and booking.
-      if (
-        visibleBranch !== 'الكل' &&
-        visibleBranch &&
-        p.branchName &&
-        p.branchName !== visibleBranch &&
-        p.mainWarehouseActual <= 0
-      ) {
-        return false;
-      }
-
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase().trim();
         const match =
