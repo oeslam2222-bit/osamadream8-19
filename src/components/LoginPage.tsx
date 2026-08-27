@@ -70,7 +70,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center size-20 overflow-hidden rounded-2xl bg-white shadow-xl shadow-amber-500/20 mb-3 border border-amber-300/40">
             <img
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-WavIU5PYnfoA1PLyoxv1tgbH0nORpf.png"
+              src="/tantawy-group-logo.png"
               alt="شعار Tantawy Group"
               className="size-full object-cover"
             />
