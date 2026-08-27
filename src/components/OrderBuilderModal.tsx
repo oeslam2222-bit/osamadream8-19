@@ -29,6 +29,14 @@ import { formatCurrency } from '../services/invoiceService';
 import { downloadInvoicePDF } from '../services/pdfService';
 import { Customer, PaymentMethod } from '../types';
 import { getDepartmentMeta } from '../data/departmentMeta';
+import {
+  doesCustomerBelongToBranch,
+  doesCustomerBelongToRep,
+  doesCustomerBelongToSupervisor,
+  isArabicNameMatch,
+  isBranchMatch,
+  getBranchStockForProduct,
+} from '../services/arabicMatchingService';
 
 interface OrderBuilderModalProps {
   isOpen: boolean;
@@ -45,6 +53,8 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     cart,
     products,
     customers,
+    users,
+    getVisibleCustomers,
     updateCartItem,
     removeFromCart,
     clearCart,
@@ -57,9 +67,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [selectedCustomerTierFilter, setSelectedCustomerTierFilter] = useState<'all' | 'VIP' | 'A' | 'B' | 'C'>('all');
-  const [customerRepScope, setCustomerRepScope] = useState<'my_customers' | 'all'>(
-    currentUser?.role === 'sales_rep' ? 'my_customers' : 'all'
-  );
+  const [selectedSupervisorRepFilter, setSelectedSupervisorRepFilter] = useState<string>('all');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [isNewCustomerMode, setIsNewCustomerMode] = useState(false);
 
@@ -79,35 +87,37 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState<string[]>([]);
 
-  // Check if a customer belongs to the current sales rep
-  const isCustomerBelongingToCurrentRep = (c: Customer) => {
-    if (!currentUser) return true;
-    const currentName = (currentUser.name || '').trim().toLowerCase();
-    const currentUsername = (currentUser.username || '').trim().toLowerCase();
-    const currentId = (currentUser.id || '').trim().toLowerCase();
+  // Supervised reps for supervisor or branch manager
+  const supervisedReps = useMemo(() => {
+    if (!currentUser || !users) return [];
+    if (currentUser.role === 'supervisor') {
+      return users.filter(
+        (u) =>
+          u.supervisorId === currentUser.id ||
+          (u.role === 'sales_rep' && isBranchMatch(u.branchName, currentUser.branchName))
+      );
+    }
+    if (currentUser.role === 'branch_manager') {
+      return users.filter(
+        (u) => u.role === 'sales_rep' && isBranchMatch(u.branchName, currentUser.branchName)
+      );
+    }
+    return [];
+  }, [users, currentUser]);
 
-    const cRepName = (c.salesRepName || c.repName || '').trim().toLowerCase();
-    const cRepId = (c.repId || '').trim().toLowerCase();
+  const visibleCustomers = useMemo(() => {
+    return (typeof getVisibleCustomers === 'function' ? getVisibleCustomers() : customers) || [];
+  }, [getVisibleCustomers, customers, currentUser]);
 
-    if (!cRepName && !cRepId) return true; // Unassigned customers are accessible
-    return (
-      cRepName === currentName ||
-      cRepName === currentUsername ||
-      cRepName.includes(currentName) ||
-      (cRepId && cRepId === currentId)
-    );
-  };
-
-  const myAssignedCustomersCount = useMemo(() => {
-    return customers.filter(isCustomerBelongingToCurrentRep).length;
-  }, [customers, currentUser]);
-
-  // Filtered customers for search dropdown by search query, rep assignment scope, and tier
+  // Filtered customers for search dropdown by search query, rep filter, and tier
   const filteredCustomers = useMemo(() => {
-    return customers.filter((c) => {
-      // Rep scope filter (for sales reps)
-      if (customerRepScope === 'my_customers' && currentUser?.role === 'sales_rep') {
-        if (!isCustomerBelongingToCurrentRep(c)) return false;
+    return visibleCustomers.filter((c) => {
+      // Supervisor rep-level filter
+      if (selectedSupervisorRepFilter !== 'all' && (currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager')) {
+        const targetRep = supervisedReps.find((r) => r.id === selectedSupervisorRepFilter);
+        if (targetRep && !doesCustomerBelongToRep(c, targetRep)) {
+          return false;
+        }
       }
 
       // Tier filter
@@ -123,6 +133,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
       if (customerSearchQuery.trim()) {
         const q = customerSearchQuery.toLowerCase().trim();
         const matches =
+          (c.name && isArabicNameMatch(c.name, q)) ||
           c.name.toLowerCase().includes(q) ||
           (c.code && c.code.toLowerCase().includes(q)) ||
           (c.phone && c.phone.includes(q)) ||
@@ -135,8 +146,8 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
       }
 
       return true;
-    }).slice(0, 35);
-  }, [customers, customerSearchQuery, selectedCustomerTierFilter, customerRepScope, currentUser]);
+    }).slice(0, 40);
+  }, [visibleCustomers, customerSearchQuery, selectedCustomerTierFilter, selectedSupervisorRepFilter, supervisedReps, currentUser]);
 
   const handleSelectCustomer = (c: Customer) => {
     setSelectedCustomerId(c.id);
@@ -147,7 +158,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     setCustomerAddress(c.address || c.governorate || '');
     setCustomerTaxNumber(c.taxNumber || '');
     setCustomerBranch(c.branchName || currentUser?.branchName || '');
-    setCustomerRep(c.salesRepName || c.repName || currentUser?.name || '');
+    setCustomerRep(c.salesRepName || c.repName || (currentUser?.role === 'sales_rep' ? currentUser.name : ''));
     setCustomerTier(c.tier || 'عادي');
     setIsCustomerDropdownOpen(false);
     setCustomerSearchQuery('');
@@ -163,7 +174,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     setCustomerAddress('');
     setCustomerTaxNumber('');
     setCustomerBranch(currentUser?.branchName || 'الفرع الرئيسي');
-    setCustomerRep(currentUser?.name || 'مندوب المبيعات');
+    setCustomerRep(currentUser?.role === 'sales_rep' ? currentUser.name : '');
     setCustomerTier('عادي');
     setIsCustomerDropdownOpen(false);
     setCustomerSearchQuery('');
@@ -224,6 +235,8 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         customerPhone: customerPhone.trim(),
         customerAddress: customerAddress.trim(),
         customerTaxNumber: customerTaxNumber.trim(),
+        repName: customerRep.trim() || (currentUser?.role === 'sales_rep' ? currentUser.name : undefined),
+        branchName: customerBranch.trim() || currentUser?.branchName,
         paymentMethod: paymentMethod,
         discountPercentage: discountPercent,
         notes: orderNotes.trim(),
@@ -353,49 +366,86 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   <Plus className="w-3.5 h-3.5" />
                   <span>+ عميل جديد</span>
                 </button>
-                <span className="text-[10px] text-amber-800 bg-amber-100 px-2 py-1 rounded-xl font-bold">
-                  {customers.length} عميل مسجل
+                <span className="text-[10px] text-amber-800 bg-amber-100 px-2.5 py-1 rounded-xl font-bold">
+                  {visibleCustomers.length} عميل متاح
                 </span>
               </div>
             </div>
 
-            {/* Rep Scope Filter & Tier Filters */}
+            {/* Role-Specific Customer Filter & Security Banner */}
             <div className="space-y-2">
-              {/* Rep Scope Toggle (Available to Sales Rep & All) */}
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-xl text-xs font-bold">
-                  <button
-                    type="button"
-                    onClick={() => setCustomerRepScope('my_customers')}
-                    className={`px-3 py-1.5 rounded-lg font-black transition cursor-pointer flex items-center gap-1.5 ${
-                      customerRepScope === 'my_customers'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'text-slate-700 hover:text-slate-950'
-                    }`}
-                  >
-                    <UserCheck className="w-3.5 h-3.5" />
-                    <span>عملاء المندوب المسندين ({myAssignedCustomersCount})</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCustomerRepScope('all')}
-                    className={`px-3 py-1.5 rounded-lg font-black transition cursor-pointer flex items-center gap-1.5 ${
-                      customerRepScope === 'all'
-                        ? 'bg-slate-900 text-amber-300 shadow-xs'
-                        : 'text-slate-700 hover:text-slate-950'
-                    }`}
-                  >
-                    <Users className="w-3.5 h-3.5" />
-                    <span>كل عملاء الشركة ({customers.length})</span>
-                  </button>
-                </div>
-
-                {customerRepScope === 'my_customers' && (
-                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                    👤 تصفية خاصة بالمندوب: {currentUser?.name || 'الحالي'}
+              {currentUser?.role === 'sales_rep' && (
+                <div className="flex items-center justify-between flex-wrap gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+                  <div className="flex items-center gap-2 text-xs font-black text-emerald-950">
+                    <UserCheck className="w-4 h-4 text-emerald-700" />
+                    <span>🔒 قائمة عملائك المسندين بالفرع ({visibleCustomers.length} عميل)</span>
+                  </div>
+                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-lg border border-emerald-300">
+                    👤 المندوب: {currentUser.name} | {currentUser.branchName || 'فرعك'}
                   </span>
-                )}
-              </div>
+                </div>
+              )}
+
+              {currentUser?.role === 'supervisor' && (
+                <div className="flex items-center justify-between flex-wrap gap-2 p-2 bg-blue-50 border border-blue-200 rounded-xl">
+                  <div className="flex items-center gap-2 text-xs font-black text-blue-950">
+                    <Users className="w-4 h-4 text-blue-700" />
+                    <span>👥 عملاء فريق الإشراف بالفرع ({visibleCustomers.length} عميل)</span>
+                  </div>
+                  {supervisedReps.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <span className="font-bold text-slate-700">تصفية بالمندوب:</span>
+                      <select
+                        value={selectedSupervisorRepFilter}
+                        onChange={(e) => setSelectedSupervisorRepFilter(e.target.value)}
+                        className="bg-white border border-blue-300 text-slate-900 rounded-lg px-2.5 py-1 font-bold text-xs focus:ring-1 focus:ring-blue-500 shadow-2xs"
+                      >
+                        <option value="all">كل مناديب الإشراف ({supervisedReps.length})</option>
+                        {supervisedReps.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {currentUser?.role === 'branch_manager' && (
+                <div className="flex items-center justify-between flex-wrap gap-2 p-2 bg-amber-50 border border-amber-200 rounded-xl">
+                  <div className="flex items-center gap-2 text-xs font-black text-amber-950">
+                    <Building className="w-4 h-4 text-amber-700" />
+                    <span>🏢 عملاء فرع {currentUser.branchName || ''} ({visibleCustomers.length} عميل)</span>
+                  </div>
+                  {supervisedReps.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <span className="font-bold text-slate-700">مندوب الفرع:</span>
+                      <select
+                        value={selectedSupervisorRepFilter}
+                        onChange={(e) => setSelectedSupervisorRepFilter(e.target.value)}
+                        className="bg-white border border-amber-300 text-slate-900 rounded-lg px-2.5 py-1 font-bold text-xs"
+                      >
+                        <option value="all">كل مناديب الفرع</option>
+                        {supervisedReps.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+                <div className="flex items-center justify-between flex-wrap gap-2 p-2 bg-slate-100 border border-slate-300 rounded-xl">
+                  <div className="flex items-center gap-2 text-xs font-black text-slate-950">
+                    <Users className="w-4 h-4 text-slate-800" />
+                    <span>🌐 إدارة العملاء العامة ({customers.length} عميل مسجل)</span>
+                  </div>
+                </div>
+              )}
 
               {/* Tier Filters for Customers */}
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
@@ -524,7 +574,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     </div>
                   ) : (
                     filteredCustomers.map((c) => {
-                      const isMyCustomer = isCustomerBelongingToCurrentRep(c);
+                      const isMyCustomer = currentUser ? doesCustomerBelongToRep(c, currentUser) : true;
                       return (
                         <button
                           key={c.id}
@@ -639,7 +689,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     </span>
                     <span className="font-bold text-emerald-950">
                       {customerName.trim()
-                        ? `سيتم حفظ وتوثيق العميل (${customerName}) وإسناده تلقائياً للمندوب (${customerRep || currentUser?.name || 'المندوب الحالي'}).`
+                        ? `سيتم حفظ وتوثيق العميل (${customerName}) وإسناده تلقا��ياً للمندوب (${customerRep || currentUser?.name || 'المندوب الحالي'}).`
                         : `أدخل بيانات العميل الجديد أدناه وسيتم تسجيله وربطه بحساب المندوب تلقائياً فور حفظ الفاتورة.`}
                     </span>
                   </div>
@@ -750,8 +800,10 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   const p = liveProd;
                   const cartonQty = p.cartonQuantity && p.cartonQuantity > 0 ? p.cartonQuantity : 1;
 
-                  const branchAvail = Math.max(0, p.branchStockReserved);
-                  const mainAvail = Math.max(0, p.mainWarehouseReserved);
+                  const targetBranchForStock = customerBranch || currentUser?.branchName || '';
+                  const branchActual = getBranchStockForProduct(p, targetBranchForStock);
+                  const branchAvail = Math.max(0, branchActual - 5);
+                  const mainAvail = Math.max(0, p.mainWarehouseReserved || (p.mainWarehouseActual - 20));
                   const totalAvail = branchAvail + mainAvail;
 
                   const currentCarton = item.cartonCount || 0;

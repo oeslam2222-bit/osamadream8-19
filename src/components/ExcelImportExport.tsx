@@ -54,10 +54,15 @@ export const ExcelImportExport: React.FC = () => {
   const {
     products,
     customers,
+    users,
+    currentUser,
+    branches,
     importProductsList,
     importCustomersList,
     cleanAndDeduplicateCustomers,
+    updateCustomer,
     deleteCustomer,
+    refreshCustomerRepLinks,
     wipeAllProductsAndData,
     selectedBranchFilter
   } = useApp();
@@ -71,6 +76,8 @@ export const ExcelImportExport: React.FC = () => {
   const [customerSheetError, setCustomerSheetError] = useState<string | null>(null);
   const [customerPreviewList, setCustomerPreviewList] = useState<Customer[]>([]);
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [customerSelectedRepFilter, setCustomerSelectedRepFilter] = useState<string>('all');
+  const [customerSelectedBranchFilter, setCustomerSelectedBranchFilter] = useState<string>('all');
   const [customerImportMode, setCustomerImportMode] = useState<'merge' | 'replace'>('merge');
   const [customerDisplayLimit, setCustomerDisplayLimit] = useState<number>(50);
 
@@ -525,32 +532,73 @@ function onEdit(e) {
                   onClick={() => {
                     const scriptCode = `/**
  * سكريبت قراءة جميع الصور من المجلد الرئيسي والمجلدات الفرعية
+ * يدعم آلاف الصور باستخدام Pagination لتجنب انتهاء المهلة (6 دقائق)
  * وربط اسم/كود الصورة برابط مباشر خفيف ومناسب للكتالوج
+ *
+ * طريقة الاستخدام:
+ * 1. ضع MAIN_FOLDER_ID
+ * 2. شغل syncDriveFolderWithSheet — سيبدأ من حيث توقف تلقائياً
+ * 3. أعد تشغيله حتى ترى رسالة "اكتمل المسح"
  */
 function syncDriveFolderWithSheet() {
-  // 🔴 ضع هنا الـ ID الخاص بالمجلد الرئيسي فقط (الموجود في رابط الفولدر على درايف)
+  // 🔴 ضع هنا الـ ID الخاص بالمجلد الرئيسي فقط
   var MAIN_FOLDER_ID = "ضع_ID_المجلد_الرئيسي_هنا";
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getActiveSheet();
-  
+  var sheet = ss.getSheetByName("Sheet_Images") || ss.insertSheet("Sheet_Images");
+
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(["كود / اسم الصنف", "مسار المجلد الفرعي", "رابط الصورة المباشر", "File ID"]);
     sheet.getRange("1:1").setFontWeight("bold").setBackground("#0284c7").setFontColor("#ffffff");
   }
 
-  var rootFolder = DriveApp.getFolderById(MAIN_FOLDER_ID);
-  
-  try {
-    rootFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  } catch(e) {}
+  // قراءة علامة التوقف من الخلية E1 (تستخدم لاستئناف المسح)
+  var props = PropertiesService.getScriptProperties();
+  var resumeFolderId = props.getProperty("RESUME_FOLDER_ID");
+  var resumePath = props.getProperty("RESUME_PATH") || "";
+  var totalProcessed = parseInt(props.getProperty("TOTAL_PROCESSED") || "0", 10);
 
-  Logger.log("بدء المسح الشامل للمجلدات...");
-  processFolderRecursive(rootFolder, sheet, "");
-  SpreadsheetApp.getUi().alert("✅ تم جلب جميع الصور من كافة المجلدات الفرعية بنجاح!");
+  var startFolder = resumeFolderId
+    ? DriveApp.getFolderById(resumeFolderId)
+    : DriveApp.getFolderById(MAIN_FOLDER_ID);
+
+  if (!resumeFolderId) {
+    try {
+      startFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (e) {}
+  }
+
+  var startTime = new Date().getTime();
+  var TIME_LIMIT_MS = 5 * 60 * 1000; // 5 دقائق (هامش أمان قبل انتهاء المهلة)
+
+  Logger.log("بدء/استئناف المسح الشامل... (تم معالجة " + totalProcessed + " صورة حتى الآن)");
+  var result = processFolderRecursive(startFolder, sheet, resumePath, startTime, TIME_LIMIT_MS, { count: 0 });
+
+  totalProcessed += result.count;
+  props.setProperty("TOTAL_PROCESSED", String(totalProcessed));
+
+  if (result.timedOut) {
+    // حفظ علامة التوقف لاستئناف لاحقاً
+    if (result.nextFolderId) {
+      props.setProperty("RESUME_FOLDER_ID", result.nextFolderId);
+      props.setProperty("RESUME_PATH", result.nextPath || "");
+    }
+    SpreadsheetApp.getUi().alert(
+      "⏱️ تمت معالجة " + totalProcessed + " صورة.\n" +
+      "اقترب الوقت من الانتهاء. أعد تشغيل السكريبت لمتابعة المسح من حيث توقف."
+    );
+  } else {
+    // اكتمل المسح — تنظيف علامات التوقف
+    props.deleteProperty("RESUME_FOLDER_ID");
+    props.deleteProperty("RESUME_PATH");
+    props.deleteProperty("TOTAL_PROCESSED");
+    SpreadsheetApp.getUi().alert(
+      "✅ اكتمل المسح! تم جلب " + totalProcessed + " صورة من كافة المجلدات الفرعية بنجاح!"
+    );
+  }
 }
 
-function processFolderRecursive(folder, sheet, currentPath) {
+function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimitMs, state) {
   var rows = [];
   var folderName = folder.getName();
   var fullPath = currentPath ? (currentPath + " > " + folderName) : folderName;
@@ -559,7 +607,7 @@ function processFolderRecursive(folder, sheet, currentPath) {
   while (files.hasNext()) {
     var file = files.next();
     var mimeType = file.getMimeType();
-    
+
     if (mimeType.indexOf("image") !== -1 || file.getName().match(/\\.(jpg|jpeg|png|webp)$/i)) {
       var itemCodeOrName = file.getName().replace(/\\.[^/.]+$/, "").trim();
       var catalogImageUrl = "https://lh3.googleusercontent.com/d/" + file.getId() + "=w800";
@@ -570,6 +618,7 @@ function processFolderRecursive(folder, sheet, currentPath) {
         catalogImageUrl,
         file.getId()
       ]);
+      state.count++;
     }
   }
 
@@ -578,10 +627,34 @@ function processFolderRecursive(folder, sheet, currentPath) {
   }
 
   var subFolders = folder.getFolders();
+  var subFolderList = [];
   while (subFolders.hasNext()) {
-    var sub = subFolders.next();
-    processFolderRecursive(sub, sheet, fullPath);
+    subFolderList.push(subFolders.next());
   }
+
+  for (var i = 0; i < subFolderList.length; i++) {
+    // فحص الوقت قبل كل مجلد فرعي
+    if (new Date().getTime() - startTime > timeLimitMs) {
+      return {
+        timedOut: true,
+        count: state.count,
+        nextFolderId: subFolderList[i].getId(),
+        nextPath: fullPath
+      };
+    }
+
+    // التأكد من أن المجلد الفرعي متاح للجميع بالرابط
+    try {
+      subFolderList[i].setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (e) {}
+
+    var subResult = processFolderRecursive(subFolderList[i], sheet, fullPath, startTime, timeLimitMs, state);
+    if (subResult.timedOut) {
+      return subResult;
+    }
+  }
+
+  return { timedOut: false, count: state.count };
 }`;
                     navigator.clipboard.writeText(scriptCode);
                     setCopiedScript(true);
@@ -730,6 +803,8 @@ function processFolderRecursive(folder, sheet, currentPath) {
                   <option value={250}>250 صنف</option>
                   <option value={500}>500 صنف</option>
                   <option value={1000}>1000 صنف</option>
+                  <option value={2000}>2000 صنف</option>
+                  <option value={5000}>5000 صنف</option>
                   <option value="all">عرض الكل ({previewProducts.length} صنف)</option>
                 </select>
               </div>
@@ -894,6 +969,18 @@ function processFolderRecursive(folder, sheet, currentPath) {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const res = refreshCustomerRepLinks();
+                    setCustomerSheetSuccess(`تمت إعادة فحص وتحديث مطابقة المناديب والفروع لجميع العملاء (${res.updatedCount} عميل تم تحديث ارتباطهم بالمناديب).`);
+                  }}
+                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-black px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer"
+                  title="إعادة ربط العملاء بحسابات المناديب الحالية والفروع"
+                >
+                  <RefreshCw className="w-4 h-4 text-white" />
+                  <span>ربط العملاء بالمناديب ({users.filter(u => u.role === 'sales_rep').length} مندوب)</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -1107,11 +1194,8 @@ function processFolderRecursive(folder, sheet, currentPath) {
                       <th className="p-3">#</th>
                       <th className="p-3">كود العميل</th>
                       <th className="p-3">اسم العميل</th>
-                      <th className="p-3">اسم المحل / السوبر ماركت</th>
-                      <th className="p-3">رقم الهاتف</th>
-                      <th className="p-3">الفرع</th>
-                      <th className="p-3">المحافظة / العنوان</th>
-                      <th className="p-3">الرقم الضريبي</th>
+                      <th className="p-3">الفرع التابع له</th>
+                      <th className="p-3">اسم المندوب</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-800">
@@ -1120,11 +1204,8 @@ function processFolderRecursive(folder, sheet, currentPath) {
                         <td className="p-3 text-slate-400">{i + 1}</td>
                         <td className="p-3 font-mono font-bold text-amber-800">{c.code}</td>
                         <td className="p-3 font-bold text-slate-950">{c.name}</td>
-                        <td className="p-3">{c.storeName || '---'}</td>
-                        <td className="p-3">{c.phone || '---'}</td>
                         <td className="p-3">{c.branchName || 'الفرع الرئيسي'}</td>
-                        <td className="p-3">{c.address || c.governorate || '---'}</td>
-                        <td className="p-3">{c.taxNumber || '---'}</td>
+                        <td className="p-3 font-bold text-emerald-700">{c.repName || c.salesRepName || 'غير مرتبط'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1135,7 +1216,7 @@ function processFolderRecursive(folder, sheet, currentPath) {
 
           {/* Current Saved Customers Table */}
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-black">
                   <Users className="w-5 h-5" />
@@ -1150,16 +1231,61 @@ function processFolderRecursive(folder, sheet, currentPath) {
                 </div>
               </div>
 
-              {/* Search Bar for current customers */}
-              <div className="relative w-full sm:w-72">
-                <input
-                  type="text"
-                  value={customerSearchTerm}
-                  onChange={(e) => setCustomerSearchTerm(e.target.value)}
-                  placeholder="بحث بالاسم، الكود، الهاتف، المحل..."
-                  className="w-full h-10 pr-9 pl-4 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold"
-                />
-                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+              {/* Filters Bar: Rep Filter, Branch Filter, and Search */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Rep Filter Dropdown */}
+                <select
+                  value={customerSelectedRepFilter}
+                  onChange={(e) => setCustomerSelectedRepFilter(e.target.value)}
+                  aria-label="تصفية حسب المندوب المسؤول"
+                  className="h-10 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="all">جميع المناديب ({customers.length} عميل)</option>
+                  {users
+                    .filter((u) => u.role === 'sales_rep' || u.role === 'supervisor')
+                    .map((rep) => {
+                      const repCustomerCount = customers.filter(
+                        (c) =>
+                          c.repId === rep.id ||
+                          c.salesRepName === rep.name ||
+                          c.repName === rep.name ||
+                          (c.salesRepName && c.salesRepName.includes(rep.name))
+                      ).length;
+                      return (
+                        <option key={rep.id} value={rep.name}>
+                          مندوب: {rep.name} {rep.branchName ? `(${rep.branchName})` : ''} - [{repCustomerCount} عميل]
+                        </option>
+                      );
+                    })}
+                  <option value="unassigned">عملاء غير مسندين لمندوب</option>
+                </select>
+
+                {/* Branch Filter Dropdown */}
+                <select
+                  value={customerSelectedBranchFilter}
+                  onChange={(e) => setCustomerSelectedBranchFilter(e.target.value)}
+                  aria-label="تصفية حسب الفرع"
+                  className="h-10 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="all">جميع الفروع</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.name}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Search Bar */}
+                <div className="relative w-full sm:w-60">
+                  <input
+                    type="text"
+                    value={customerSearchTerm}
+                    onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                    placeholder="بحث بالاسم، الكود، الهاتف، المحل..."
+                    className="w-full h-10 pr-9 pl-4 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold"
+                  />
+                  <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+                </div>
               </div>
             </div>
 
@@ -1178,6 +1304,7 @@ function processFolderRecursive(folder, sheet, currentPath) {
                       <th className="p-3">اسم المحل / المعرض</th>
                       <th className="p-3">رقم الهاتف</th>
                       <th className="p-3">الفرع التابع له</th>
+                      <th className="p-3">المندوب المسؤول</th>
                       <th className="p-3">العنوان والمحافظة</th>
                       <th className="p-3">الرقم الضريبي</th>
                       <th className="p-3 text-center">إجراءات</th>
@@ -1186,6 +1313,28 @@ function processFolderRecursive(folder, sheet, currentPath) {
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
                     {(() => {
                       const filtered = customers.filter((c) => {
+                        // Rep Filter
+                        if (customerSelectedRepFilter !== 'all') {
+                          if (customerSelectedRepFilter === 'unassigned') {
+                            if (c.repId || c.salesRepName || c.repName) return false;
+                          } else {
+                            const repMatch =
+                              c.repName === customerSelectedRepFilter ||
+                              c.salesRepName === customerSelectedRepFilter ||
+                              (c.salesRepName && c.salesRepName.includes(customerSelectedRepFilter)) ||
+                              (c.repName && c.repName.includes(customerSelectedRepFilter));
+                            if (!repMatch) return false;
+                          }
+                        }
+
+                        // Branch Filter
+                        if (customerSelectedBranchFilter !== 'all') {
+                          if (c.branchName && !c.branchName.includes(customerSelectedBranchFilter) && !customerSelectedBranchFilter.includes(c.branchName)) {
+                            return false;
+                          }
+                        }
+
+                        // Search Term
                         if (!customerSearchTerm.trim()) return true;
                         const q = customerSearchTerm.toLowerCase().trim();
                         return (
@@ -1194,7 +1343,9 @@ function processFolderRecursive(folder, sheet, currentPath) {
                           (c.phone && c.phone.includes(q)) ||
                           (c.storeName && c.storeName.toLowerCase().includes(q)) ||
                           (c.governorate && c.governorate.toLowerCase().includes(q)) ||
-                          (c.branchName && c.branchName.toLowerCase().includes(q))
+                          (c.branchName && c.branchName.toLowerCase().includes(q)) ||
+                          (c.salesRepName && c.salesRepName.toLowerCase().includes(q)) ||
+                          (c.repName && c.repName.toLowerCase().includes(q))
                         );
                       });
                       const displayed = filtered.slice(0, customerDisplayLimit);
@@ -1208,7 +1359,39 @@ function processFolderRecursive(folder, sheet, currentPath) {
                               <td className="p-3 font-black text-slate-900">{c.name}</td>
                               <td className="p-3 font-bold text-slate-700">{c.storeName || '---'}</td>
                               <td className="p-3 font-bold text-emerald-800">{c.phone || '---'}</td>
-                              <td className="p-3 text-slate-600">{c.branchName || 'الفرع الرئيسي'}</td>
+                              <td className="p-3 text-slate-600">
+                                <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[11px]">
+                                  {c.branchName || 'الفرع الرئيسي'}
+                                </span>
+                              </td>
+                              <td className="p-3">
+                                {/* Inline Rep Selector */}
+                                <select
+                                  value={c.salesRepName || c.repName || ''}
+                                  onChange={(e) => {
+                                    const selectedRepName = e.target.value;
+                                    const matchedUser = users.find((u) => u.name === selectedRepName);
+                                    updateCustomer({
+                                      ...c,
+                                      salesRepName: selectedRepName || undefined,
+                                      repName: selectedRepName || undefined,
+                                      repId: matchedUser ? matchedUser.id : undefined,
+                                      branchName: c.branchName || matchedUser?.branchName || undefined,
+                                    });
+                                  }}
+                                  aria-label={`تحديد مندوب العميل ${c.name}`}
+                                  className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                >
+                                  <option value="">-- غير محدد --</option>
+                                  {users
+                                    .filter((u) => u.role === 'sales_rep' || u.role === 'supervisor')
+                                    .map((u) => (
+                                      <option key={u.id} value={u.name}>
+                                        {u.name} {u.branchName ? `(${u.branchName})` : ''}
+                                      </option>
+                                    ))}
+                                </select>
+                              </td>
                               <td className="p-3 text-slate-600">{c.address || c.governorate || '---'}</td>
                               <td className="p-3 font-mono text-slate-500">{c.taxNumber || '---'}</td>
                               <td className="p-3 text-center">
@@ -1229,7 +1412,7 @@ function processFolderRecursive(folder, sheet, currentPath) {
                           ))}
                           {filtered.length > customerDisplayLimit && (
                             <tr>
-                              <td colSpan={9} className="p-4 text-center bg-slate-50">
+                              <td colSpan={10} className="p-4 text-center bg-slate-50">
                                 <button
                                   type="button"
                                   onClick={() => setCustomerDisplayLimit((prev) => prev + 100)}
@@ -1262,7 +1445,10 @@ function processFolderRecursive(folder, sheet, currentPath) {
 
         <div className="flex flex-wrap gap-1.5 text-[11px]">
           {[
-            'الكود',
+            'كود العميل',
+            'اسم العميل',
+            'الفرع التابع له',
+            'اسم المندوب',
             'اسم الصنف',
             'اولوية البيع',
             'التصنيف',

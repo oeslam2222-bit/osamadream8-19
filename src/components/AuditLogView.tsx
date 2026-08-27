@@ -270,7 +270,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ onViewInvoice }) => 
               <span>تصدير إكسل ({filteredLogs.length})</span>
             </button>
 
-            {currentUser?.role === 'admin' && (
+            {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
               <button
                 onClick={() => {
                   if (window.confirm('هل أنت متأكد من مسح جميع سجلات العمليات؟ لا يمكن التراجع عن هذا الإجراء.')) {

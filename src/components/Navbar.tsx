@@ -92,7 +92,6 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     { id: 'audit', label: 'سجل العمليات (Audit Log)', icon: ShieldCheck, roles: ['admin', 'developer'] },
     { id: 'guide', label: 'دليل دورة العمل 📖', icon: BookOpen, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'users', label: 'المستخدمين والصلاحيات', icon: Users, roles: ['admin', 'developer'], badge: pendingApprovalsCount },
-    { id: 'accounting', label: 'وحدة المطور والربط (ERP & Supabase)', icon: Server, roles: ['admin', 'developer'] },
   ];
 
   const filteredNavItems = navItems.filter((item) => item.roles.includes(currentUser.role));

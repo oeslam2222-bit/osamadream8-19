@@ -165,7 +165,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
         productsCount: products.length,
         invoicesCount: invoices.length,
         usersCount: users.length,
-        branchesCount: branches.length,
+        branchesCount: branches.filter((branch) => !branch.isMainWarehouse).length,
       },
       products,
       invoices,

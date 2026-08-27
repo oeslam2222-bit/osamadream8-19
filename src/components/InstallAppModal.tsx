@@ -47,12 +47,16 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
   if (!isOpen) return null;
 
   const handleNativeInstall = async () => {
-    if (installPromptEvent) {
-      installPromptEvent.prompt();
-      const choice = await installPromptEvent.userChoice;
-      if (choice.outcome === 'accepted') {
-        setIsInstalled(true);
-        setTimeout(() => onClose(), 2000);
+    if (installPromptEvent && typeof installPromptEvent.prompt === 'function') {
+      try {
+        await installPromptEvent.prompt();
+        const choice = await installPromptEvent.userChoice;
+        if (choice?.outcome === 'accepted') {
+          setIsInstalled(true);
+          setTimeout(() => onClose(), 2000);
+        }
+      } catch (err) {
+        console.warn('Native install prompt notice:', err);
       }
     }
   };

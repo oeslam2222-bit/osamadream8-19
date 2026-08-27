@@ -55,7 +55,34 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   };
 
   const handlePrint = () => {
+    const source = document.getElementById('printable-invoice');
+    if (!source) {
+      window.print();
+      return;
+    }
+
+    const printRoot = document.createElement('div');
+    printRoot.id = 'invoice-print-root';
+    [
+      { label: 'نسخة العميل', internal: false },
+      { label: 'نسخة المندوب', internal: true },
+    ].forEach(({ label, internal }) => {
+      const copy = source.cloneNode(true) as HTMLElement;
+      copy.removeAttribute('id');
+      copy.classList.add('invoice-print-copy');
+      copy.dataset.copyLabel = label;
+      if (!internal) copy.querySelectorAll('[data-internal-only]').forEach((node) => node.remove());
+      printRoot.appendChild(copy);
+    });
+
+    document.body.appendChild(printRoot);
+    const cleanup = () => {
+      printRoot.remove();
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
     window.print();
+    window.setTimeout(cleanup, 1000);
   };
 
   const handleCopyInvoiceNumber = () => {

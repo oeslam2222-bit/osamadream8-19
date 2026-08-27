@@ -1,0 +1,430 @@
+import { Customer, Product, User } from '../types';
+
+/**
+ * Universal Arabic Text Normalizer
+ * Cleans diacritics (tashkeel), tatweel/kashida, non-breaking spaces,
+ * normalizes alif variants, taa marbuta, alef maqsura, and punctuation.
+ */
+export function normalizeArabicText(str?: string): string {
+  if (!str) return '';
+  return str
+    .toString()
+    // 1. Remove non-breaking spaces, zero-width chars, tabs
+    .replace(/[\u00A0\u1680\u180E\u2000-\u200B\u202F\u205F\u3000\uFEFF]/g, ' ')
+    // 2. Remove Arabic Tashkeel / Harakat (Fatha, Damma, Kasra, Shadda, Sukun, Tanween...)
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    // 3. Remove Arabic Tatweel / Kashida (ـ)
+    .replace(/\u0640/g, '')
+    // 4. Normalize all forms of Alif (أ, إ, آ, ٱ, ٵ, ٲ) -> ا
+    .replace(/[أإآٱٵٲ]/g, 'ا')
+    // 5. Normalize Taa Marbuta (ة) -> ه
+    .replace(/ة/g, 'ه')
+    // 6. Normalize Alef Maqsura (ى) -> ي
+    .replace(/ى/g, 'ي')
+    // 7. Normalize Hamzas (ؤ, ئ, ء)
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ي')
+    .replace(/ء/g, '')
+    // 8. Replace punctuation and separators with spaces
+    .replace(/[\-_/\\()\[\]+.,:;*&^%$#@!~"'{}`|]/g, ' ')
+    // 9. Collapse multiple spaces into single space and trim
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Extract meaningful Arabic name tokens, filtering out common noise titles
+ */
+export function getArabicTokens(str?: string): string[] {
+  const norm = normalizeArabicText(str);
+  if (!norm) return [];
+
+  const ignoreWords = new Set([
+    'المندوب',
+    'مندوب',
+    'استاذ',
+    'استاذة',
+    'كابتن',
+    'فرع',
+    'المبيعات',
+    'مبيعات',
+    'مسؤول',
+    'مسئول',
+    'مسوول',
+    'السيد',
+    'السيده',
+    'محل',
+    'شركة',
+    'شركه',
+    'م',
+    'أ',
+    'ا',
+    'د',
+    'دكتور',
+    'مهندس',
+    'حساب',
+    'توزيع',
+  ]);
+
+  return norm
+    .split(' ')
+    .map((t) => t.trim())
+    .filter((token) => token.length >= 2 && !ignoreWords.has(token));
+}
+
+/**
+ * Intelligent Arabic Name Matcher
+ * Handles exact matches, token overlap, prefix/suffix names (e.g. "حسن محمد" vs "حسن محمد أحمد"),
+ * and fuzzy Arabic variations, ensuring the primary name token sequence aligns.
+ */
+export function isArabicNameMatch(nameA?: string, nameB?: string): boolean {
+  if (!nameA || !nameB) return false;
+  const normA = normalizeArabicText(nameA);
+  const normB = normalizeArabicText(nameB);
+  if (!normA || !normB) return false;
+  if (normA === normB) return true;
+
+  const tokensA = getArabicTokens(nameA);
+  const tokensB = getArabicTokens(nameB);
+  if (tokensA.length === 0 || tokensB.length === 0) return false;
+
+  const joinedA = tokensA.join(' ');
+  const joinedB = tokensB.join(' ');
+  if (joinedA === joinedB) return true;
+
+  // If one full string starts with the other
+  if (joinedA.length >= 4 && joinedB.length >= 4) {
+    if (joinedA.startsWith(joinedB) || joinedB.startsWith(joinedA)) {
+      return true;
+    }
+  }
+
+  // First token MUST match to ensure first name is identical
+  if (tokensA[0] !== tokensB[0]) {
+    return false;
+  }
+
+  // If both have at least 2 tokens, second token must match as well
+  if (tokensA.length >= 2 && tokensB.length >= 2) {
+    if (tokensA[1] !== tokensB[1]) {
+      return false;
+    }
+  }
+
+  const [shorter, longer] = tokensA.length <= tokensB.length ? [tokensA, tokensB] : [tokensB, tokensA];
+  const longerSet = new Set(longer);
+
+  // Check if all tokens of the shorter name exist in the longer name
+  const allShorterMatch = shorter.every((t) => longerSet.has(t));
+  if (allShorterMatch && shorter.length >= 2) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Branch canonical identifier
+ */
+export function normalizeBranchKey(branch?: string): string {
+  if (!branch) return '';
+  const norm = normalizeArabicText(branch);
+
+  if (
+    norm.includes('اكتوبر') ||
+    norm.includes('مركزي') ||
+    norm.includes('رئيسي') ||
+    norm.includes('الجيزه') ||
+    norm.includes('جيزه') ||
+    norm.includes('october') ||
+    norm.includes('giza') ||
+    norm.includes('main')
+  ) {
+    return 'main';
+  }
+
+  // Minya El-Qamh (Sharqia) - Must be evaluated before general Minya
+  if (
+    norm.includes('منيا القمح') ||
+    norm.includes('القمح') ||
+    norm.includes('meq') ||
+    norm.includes('شرقيه') ||
+    norm.includes('زقازيق')
+  ) {
+    return 'meq';
+  }
+
+  // Minya (Upper Egypt) - All centers & districts
+  if (
+    norm.includes('المنيا') ||
+    norm.includes('منيا') ||
+    norm.includes('ملوي') ||
+    norm.includes('ملوى') ||
+    norm.includes('بني مزار') ||
+    norm.includes('بنى مزار') ||
+    norm.includes('مغاغة') ||
+    norm.includes('مغاغه') ||
+    norm.includes('سمالوط') ||
+    norm.includes('ابوقرقاص') ||
+    norm.includes('ابو قرقاص') ||
+    norm.includes('دير مواس') ||
+    norm.includes('ديرمواس') ||
+    norm.includes('مطاي') ||
+    norm.includes('مطاى') ||
+    norm.includes('العدوة') ||
+    norm.includes('العدوه') ||
+    norm.includes('عروس الصعيد') ||
+    norm.includes('طه حسين') ||
+    norm.includes('minya') ||
+    norm.includes('min')
+  ) {
+    return 'minya';
+  }
+
+  // Dimeshalt (Dakahlia / Mansoura)
+  if (
+    norm.includes('ديمشلت') ||
+    norm.includes('دكرنس') ||
+    norm.includes('منصوره') ||
+    norm.includes('المنصوره') ||
+    norm.includes('دقهليه') ||
+    norm.includes('الدقهليه') ||
+    norm.includes('ميت غمر') ||
+    norm.includes('شربين') ||
+    norm.includes('السنبلاوين') ||
+    norm.includes('سنبلاوين') ||
+    norm.includes('بلقاس') ||
+    norm.includes('اجا') ||
+    norm.includes('طلخا') ||
+    norm.includes('المنزله') ||
+    norm.includes('dimeshalt') ||
+    norm.includes('dim')
+  ) {
+    return 'dimeshalt';
+  }
+
+  // Fayoum
+  if (
+    norm.includes('فيوم') ||
+    norm.includes('الفيوم') ||
+    norm.includes('اطسا') ||
+    norm.includes('سنورس') ||
+    norm.includes('طاميه') ||
+    norm.includes('ابشواي') ||
+    norm.includes('يوسف الصديق') ||
+    norm.includes('fayoum') ||
+    norm.includes('fay')
+  ) {
+    return 'fayoum';
+  }
+
+  // Cairo
+  if (
+    norm.includes('قاهره') ||
+    norm.includes('القاهره') ||
+    norm.includes('مدينة نصر') ||
+    norm.includes('وسط البلد') ||
+    norm.includes('المعادي') ||
+    norm.includes('شبرا') ||
+    norm.includes('عين شمس') ||
+    norm.includes('حلوان') ||
+    norm.includes('cairo') ||
+    norm.includes('cai')
+  ) {
+    return 'cairo';
+  }
+
+  // Beheira / Damanhour
+  if (
+    norm.includes('بحيره') ||
+    norm.includes('البحيره') ||
+    norm.includes('دمنهور') ||
+    norm.includes('كفر الدوار') ||
+    norm.includes('ايتاي البارود') ||
+    norm.includes('ابو حمص') ||
+    norm.includes('حوش عيسى') ||
+    norm.includes('شبراخيت') ||
+    norm.includes('كوم حماده') ||
+    norm.includes('رشيد') ||
+    norm.includes('الدلنجات') ||
+    norm.includes('beheira') ||
+    norm.includes('damanhour') ||
+    norm.includes('beh')
+  ) {
+    return 'beheira';
+  }
+
+  // Menouf / Menoufia
+  if (
+    norm.includes('منوف') ||
+    norm.includes('المنوفيه') ||
+    norm.includes('شبين') ||
+    norm.includes('اشمون') ||
+    norm.includes('الباجور') ||
+    norm.includes('قويسنا') ||
+    norm.includes('بركة السبع') ||
+    norm.includes('بركه السبع') ||
+    norm.includes('تلا') ||
+    norm.includes('الشهداء') ||
+    norm.includes('السادات') ||
+    norm.includes('menouf') ||
+    norm.includes('mnf')
+  ) {
+    return 'menouf';
+  }
+
+  return norm;
+}
+
+/**
+ * Check if two branch references match
+ */
+export function isBranchMatch(
+  branchA?: string,
+  branchB?: string,
+  options: { allowUnassigned?: boolean } = { allowUnassigned: true }
+): boolean {
+  const normA = (branchA || '').trim();
+  const normB = (branchB || '').trim();
+
+  if (!normA && !normB) return true;
+
+  if (!normA || !normB) {
+    return options.allowUnassigned !== false;
+  }
+
+  const keyA = normalizeBranchKey(normA);
+  const keyB = normalizeBranchKey(normB);
+
+  if (!keyA || !keyB) {
+    return options.allowUnassigned !== false;
+  }
+
+  return keyA === keyB;
+}
+
+/**
+ * Check if a customer strictly belongs to a specific sales rep
+ * Enforces strict branch boundary first, then verifies identity.
+ */
+export function doesCustomerBelongToRep(customer: Customer, repUser: User): boolean {
+  if (!repUser) return false;
+
+  // 1. Direct ID match
+  if (customer.repId && customer.repId === repUser.id) {
+    return true;
+  }
+
+  // 2. Branch Compatibility Check (if customer has an explicit branch specified)
+  const customerBranch = customer.branchName?.trim();
+  const repBranch = repUser.branchName?.trim();
+  if (customerBranch && repBranch) {
+    if (!isBranchMatch(customerBranch, repBranch, { allowUnassigned: false })) {
+      return false;
+    }
+  }
+
+  // 3. Match by Name / Username / Phone on the customer's rep field
+  const repField = (customer.salesRepName || customer.repName || '').trim();
+  if (repField) {
+    if (isArabicNameMatch(repField, repUser.name)) return true;
+    if (repUser.username && isArabicNameMatch(repField, repUser.username)) return true;
+    if (repUser.phone && (repField.includes(repUser.phone) || repUser.phone.includes(repField))) return true;
+    
+    // Normalized direct containment (e.g. "حسن محمد" in "مندوب حسن محمد - المنيا")
+    const normRepField = normalizeArabicText(repField);
+    const normUserName = normalizeArabicText(repUser.name);
+    if (normRepField && normUserName) {
+      if (normRepField.includes(normUserName) || normUserName.includes(normRepField)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // 4. If customer has NO assigned rep at all, but belongs to the exact same branch as this sales rep
+  if (!repField && customerBranch && repBranch && isBranchMatch(customerBranch, repBranch, { allowUnassigned: false })) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Check if a customer belongs to a supervisor's supervised team
+ */
+export function doesCustomerBelongToSupervisor(
+  customer: Customer,
+  supervisorUser: User,
+  allUsers: User[]
+): boolean {
+  if (!supervisorUser) return false;
+
+  // 1. STRICT Branch Verification
+  if (supervisorUser.branchName && customer.branchName) {
+    if (!isBranchMatch(customer.branchName, supervisorUser.branchName, { allowUnassigned: false })) {
+      return false;
+    }
+  }
+
+  // 2. Check if assigned directly to the supervisor
+  if (doesCustomerBelongToRep(customer, supervisorUser)) {
+    return true;
+  }
+
+  // 3. Find all sales reps belonging to this supervisor in the same branch
+  const supervisedReps = allUsers.filter(
+    (u) =>
+      u.supervisorId === supervisorUser.id ||
+      (u.role === 'sales_rep' &&
+        isBranchMatch(u.branchName, supervisorUser.branchName, { allowUnassigned: false }))
+  );
+
+  // 4. Check if customer belongs to any of these reps
+  return supervisedReps.some((rep) => doesCustomerBelongToRep(customer, rep));
+}
+
+/**
+ * Check if a customer belongs to a branch manager's branch
+ */
+export function doesCustomerBelongToBranch(customer: Customer, branchName?: string): boolean {
+  if (!branchName) return true;
+  if (!customer.branchName) return true;
+  return isBranchMatch(customer.branchName, branchName, { allowUnassigned: false });
+}
+
+/**
+ * Robustly resolve product branch stock in cartons for a target branch using normalized matching
+ */
+export function getBranchStockForProduct(product: Product, targetBranch?: string): number {
+  if (!product) return 0;
+  if (!targetBranch || targetBranch === 'الكل') {
+    return product.branchStockActual || 0;
+  }
+
+  const targetKey = normalizeBranchKey(targetBranch);
+
+  // 1. Direct branchStocks map lookup by normalized keys
+  if (product.branchStocks && typeof product.branchStocks === 'object') {
+    for (const [key, stock] of Object.entries(product.branchStocks)) {
+      if (typeof stock === 'number' && !isNaN(stock)) {
+        if (normalizeBranchKey(key) === targetKey) {
+          return stock;
+        }
+      }
+    }
+  }
+
+  // 2. If product has a single branchName assigned, verify branch match
+  if (product.branchName) {
+    if (normalizeBranchKey(product.branchName) === targetKey) {
+      return product.branchStockActual || 0;
+    }
+    return 0;
+  }
+
+  // 3. Fallback to product.branchStockActual
+  return product.branchStockActual || 0;
+}
+

@@ -8,7 +8,7 @@ import { Customer, CustomerTier, Invoice, ItemStatus, Product, SalesPriority } f
  */
 export function normalizeExcelBranchName(rawBranch?: string): string {
   if (!rawBranch || !rawBranch.trim()) {
-    return 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+    return '';
   }
   const clean = rawBranch.trim();
   const lower = clean.toLowerCase();
@@ -16,7 +16,6 @@ export function normalizeExcelBranchName(rawBranch?: string): string {
   if (
     lower.includes('أكتوبر') ||
     lower.includes('اكتوبر') ||
-    lower.includes('مركزي') ||
     lower.includes('مركزي') ||
     lower.includes('رئيسي') ||
     lower.includes('october') ||
@@ -61,7 +60,7 @@ export function normalizeExcelBranchName(rawBranch?: string): string {
 
 /**
  * Clean and extract raw Image URL from Google Sheets cells
- * Handles =IMAGE("..."), =HYPERLINK("...", "..."), quotes, and drive links
+ * Handles =IMAGE("..."), =HYPERLINK("...", "..."), Drive file sharing links, Google UserContent thumbnails, raw IDs with =w800, and standard web links.
  */
 export function cleanGoogleSheetImageUrl(raw: string): string {
   if (!raw) return '';
@@ -82,7 +81,32 @@ export function cleanGoogleSheetImageUrl(raw: string): string {
   // 3. Strip enclosing single or double quotes
   clean = clean.replace(/^["']+|["']+$/g, '').trim();
 
-  // 4. If someone has multiple space-separated or comma-separated URLs, take the first valid one
+  // 4. Drive sharing URLs: drive.google.com/file/d/{ID}/view -> Google Direct CDN Thumbnail
+  const driveFileMatch = clean.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
+  if (driveFileMatch) {
+    return `https://lh3.googleusercontent.com/d/${driveFileMatch[1]}=w800`;
+  }
+
+  // 5. Drive open?id={ID} or uc?id={ID} or thumbnail?id={ID}
+  const driveIdMatch = clean.match(/[?&]id=([a-zA-Z0-9_-]+)/i);
+  if (driveIdMatch) {
+    return `https://lh3.googleusercontent.com/d/${driveIdMatch[1]}=w800`;
+  }
+
+  // 6. If raw already contains googleusercontent /d/{ID}
+  const lhMatch = clean.match(/googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/i);
+  if (lhMatch) {
+    return `https://lh3.googleusercontent.com/d/${lhMatch[1]}=w800`;
+  }
+
+  // 7. If raw is a naked Google ID (with or without leading slash or =w800 parameter)
+  // e.g. "m6Z0e9dq9HwKa_AkEBbVhO0=w800" or "/dMJZNZDpeeZC1UcU19OX0zcdQ=w800"
+  const nakedIdMatch = clean.match(/^(\/)?([a-zA-Z0-9_-]{20,})(=w\d+)?$/i);
+  if (nakedIdMatch) {
+    return `https://lh3.googleusercontent.com/d/${nakedIdMatch[2]}=w800`;
+  }
+
+  // 8. If someone has multiple space-separated or comma-separated URLs, take the first valid one
   if (clean.includes(' ') && (clean.startsWith('http://') || clean.startsWith('https://'))) {
     const parts = clean.split(/\s+/);
     if (parts[0] && parts[0].startsWith('http')) {
@@ -695,21 +719,38 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
 
   const fullSheetData = [...titleRows, tableHeaders, ...itemRows, ...summaryRows];
   const ws = XLSX.utils.aoa_to_sheet(fullSheetData);
+  const lastColumn = tableHeaders.length - 1;
+  const lastRow = fullSheetData.length - 1;
+
+  // Professional, editable invoice layout: merged title, clear sections, RTL-friendly alignment.
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: lastColumn } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: lastColumn } },
+  ];
+  ws['!freeze'] = { xSplit: 0, ySplit: titleRows.length + 1 };
+  ws['!autofilter'] = { ref: `A${titleRows.length + 1}:M${titleRows.length + 1 + itemRows.length}` };
+  ws['!sheetView'] = [{ rightToLeft: true }];
+  ws['!rows'] = fullSheetData.map((_, rowIndex) => ({
+    hpt: rowIndex === 0 ? 30 : rowIndex === 1 ? 22 : rowIndex === titleRows.length ? 28 : 20,
+  }));
+
+  const applyRangeStyle = (range: string, style: Record<string, unknown>) => {
+    const decoded = XLSX.utils.decode_range(range);
+    for (let row = decoded.s.r; row <= decoded.e.r; row += 1) {
+      for (let col = decoded.s.c; col <= decoded.e.c; col += 1) {
+        const cell = ws[XLSX.utils.encode_cell({ r: row, c: col })];
+        if (cell) cell.s = { ...(cell.s || {}), ...style };
+      }
+    }
+  };
+  applyRangeStyle(`A1:M2`, { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 15 }, fill: { fgColor: { rgb: '0F172A' } }, alignment: { horizontal: 'center', vertical: 'center' } });
+  applyRangeStyle(`A${titleRows.length + 1}:M${titleRows.length + 1}`, { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: 'D97706' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: { top: { style: 'thin', color: { rgb: '94A3B8' } }, bottom: { style: 'thin', color: { rgb: '94A3B8' } } } });
+  applyRangeStyle(`A${titleRows.length + 2}:M${titleRows.length + 1 + itemRows.length}`, { alignment: { vertical: 'center', wrapText: true }, border: { top: { style: 'thin', color: { rgb: 'CBD5E1' } }, bottom: { style: 'thin', color: { rgb: 'CBD5E1' } }, left: { style: 'thin', color: { rgb: 'CBD5E1' } }, right: { style: 'thin', color: { rgb: 'CBD5E1' } } } });
+  applyRangeStyle(`J${titleRows.length + 2}:M${lastRow + 1}`, { alignment: { horizontal: 'right', vertical: 'center', wrapText: true } });
 
   ws['!cols'] = [
-    { wch: 6 },
-    { wch: 14 },
-    { wch: 38 },
-    { wch: 14 },
-    { wch: 22 },
-    { wch: 14 },
-    { wch: 12 },
-    { wch: 14 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 18 },
-    { wch: 14 },
-    { wch: 18 }
+    { wch: 6 }, { wch: 14 }, { wch: 38 }, { wch: 14 }, { wch: 22 }, { wch: 14 },
+    { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 14 }, { wch: 18 }
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, `فاتورة_${invoice.invoiceNumber}`);
@@ -876,21 +917,42 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
   const errors: string[] = [];
   const customers: Customer[] = [];
 
+  // Customer sheet priority columns: كود العميل | اسم العميل | الفرع التابع له | اسم المندوب
   const colMap: Record<string, number> = {
     code: -1,
     name: -1,
-    tier: -1,
-    phone: -1,
-    address: -1,
     branchName: -1,
     repName: -1,
+    phone: -1,
+    address: -1,
     taxNumber: -1,
+    tier: -1,
     notes: -1,
   };
 
   headers.forEach((h, idx) => {
     const norm = normalizeHeader(h);
+    
+    // 1. Check Sales Rep first (to prevent "اسم المندوب" from being captured as customer name)
     if (
+      norm.includes('مندوب') ||
+      norm.includes('المندوب') ||
+      norm.includes('rep') ||
+      norm.includes('sales') ||
+      norm.includes('بائع') ||
+      norm.includes('مسؤول') ||
+      norm.includes('مسئول') ||
+      norm.includes('مسوول') ||
+      norm.includes('اسمالمندوب')
+    ) {
+      if (colMap.repName === -1) colMap.repName = idx;
+    }
+    // 2. Check Branch
+    else if (norm.includes('فرع') || norm.includes('branch')) {
+      if (colMap.branchName === -1) colMap.branchName = idx;
+    }
+    // 3. Check Customer Code
+    else if (
       norm.includes('كود') ||
       norm.includes('code') ||
       norm.includes('رقم العميل') ||
@@ -899,26 +961,22 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('custid')
     ) {
       if (colMap.code === -1) colMap.code = idx;
-    } else if (
-      norm.includes('اسم') ||
+    }
+    // 4. Check Customer Name
+    else if (
       norm.includes('عميل') ||
       norm.includes('محل') ||
       norm.includes('تاجر') ||
+      norm.includes('زبون') ||
       norm.includes('customer') ||
       norm.includes('client') ||
+      norm.includes('اسم') ||
       norm.includes('name')
     ) {
       if (colMap.name === -1) colMap.name = idx;
-    } else if (
-      norm.includes('تصنيف') ||
-      norm.includes('فئة') ||
-      norm.includes('فئه') ||
-      norm.includes('tier') ||
-      norm.includes('درجة') ||
-      norm.includes('درجه')
-    ) {
-      if (colMap.tier === -1) colMap.tier = idx;
-    } else if (
+    }
+    // 5. Optional extra fields
+    else if (
       norm.includes('تليفون') ||
       norm.includes('هاتف') ||
       norm.includes('موبايل') ||
@@ -937,16 +995,29 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('city')
     ) {
       if (colMap.address === -1) colMap.address = idx;
-    } else if (norm.includes('فرع') || norm.includes('branch')) {
-      if (colMap.branchName === -1) colMap.branchName = idx;
-    } else if (norm.includes('مندوب') || norm.includes('المندوبالحالي') || norm.includes('rep') || norm.includes('مسؤول')) {
-      if (colMap.repName === -1) colMap.repName = idx;
+    } else if (
+      norm.includes('تصنيف') ||
+      norm.includes('فئة') ||
+      norm.includes('فئه') ||
+      norm.includes('tier') ||
+      norm.includes('درجة') ||
+      norm.includes('درجه')
+    ) {
+      if (colMap.tier === -1) colMap.tier = idx;
     } else if (norm.includes('ضريب') || norm.includes('tax') || norm.includes('سجل')) {
       if (colMap.taxNumber === -1) colMap.taxNumber = idx;
     } else if (norm.includes('ملاحظ') || norm.includes('note')) {
       if (colMap.notes === -1) colMap.notes = idx;
     }
   });
+
+  // Positional fallback if standard 4-column format without specific header keywords
+  if (colMap.code === -1 && colMap.name === -1 && headers.length >= 4) {
+    colMap.code = 0;
+    colMap.name = 1;
+    colMap.branchName = 2;
+    colMap.repName = 3;
+  }
 
   const getVal = (row: any[], colIdx: number, def = ''): string => {
     if (colIdx === -1 || colIdx >= row.length) return def;
@@ -1017,8 +1088,11 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       if (!existing.address && rawAddress) existing.address = rawAddress;
       if (!existing.taxNumber && rawTax) existing.taxNumber = rawTax;
       if (!existing.notes && rawNotes) existing.notes = rawNotes;
-      if (rawRep && existing.repName === 'مندوب المبيعات') existing.repName = rawRep;
-      if (rawBranch && existing.branchName.includes('المخزن المركزي')) {
+      if (rawRep) {
+        existing.repName = rawRep;
+        existing.salesRepName = rawRep;
+      }
+      if (rawBranch) {
         existing.branchName = normalizeExcelBranchName(rawBranch);
       }
       if (tier === 'مميز' || (tier === 'راقي' && existing.tier === 'متوسط')) {
@@ -1033,8 +1107,9 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
         tier: tier,
         phone: rawPhone,
         address: rawAddress,
-        branchName: normalizeExcelBranchName(rawBranch || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)'),
-        repName: rawRep || 'مندوب المبيعات',
+        branchName: normalizeExcelBranchName(rawBranch),
+        repName: rawRep || '',
+        salesRepName: rawRep || '',
         taxNumber: rawTax,
         notes: rawNotes,
         createdAt: new Date().toISOString(),
@@ -1261,28 +1336,34 @@ export function generateSampleCustomersTemplate(): void {
   const sampleCustomers: Customer[] = [
     {
       id: 'sample-cust-1',
-      code: 'CUST-001',
-      name: 'هايبر ماركت التوحيد والنور',
-      storeName: 'هايبر ماركت التوحيد والنور',
+      code: 'CUST-101',
+      name: 'سنتر الأمل للتجارة',
+      storeName: 'سنتر الأمل للتجارة',
       phone: '01011122233',
-      branchName: 'فرع القاهرة (المعادي ومدينة نصر والتجمع)',
-      governorate: 'القاهرة',
-      address: 'شارع مكرم عبيد، مدينة نصر',
-      taxNumber: '341-987-123',
-      notes: 'عميل مميز - خصم خاص'
+      branchName: 'فرع القاهرة',
+      repName: 'أحمد محمود',
+      salesRepName: 'أحمد محمود',
     },
     {
       id: 'sample-cust-2',
-      code: 'CUST-002',
-      name: 'سلسلة محلات سنتر شاهين',
-      storeName: 'سلسلة محلات سنتر شاهين',
-      phone: '01244455566',
-      branchName: 'فرع الجيزة (الهرم وفيصل والدقي)',
-      governorate: 'الجيزة',
-      address: 'شارع فيصل الرئيسي، الجيزة',
-      taxNumber: '552-881-440',
-      notes: 'دفع آجل 30 يوم'
-    }
+      code: 'CUST-102',
+      name: 'معرض النور للأدوات المنزلية',
+      storeName: 'معرض النور للأدوات المنزلية',
+      phone: '01122233344',
+      branchName: 'فرع الفيوم',
+      repName: 'محمود عبد الرحيم',
+      salesRepName: 'محمود عبد الرحيم',
+    },
+    {
+      id: 'sample-cust-3',
+      code: 'CUST-103',
+      name: 'محلات الهلال والنجمة',
+      storeName: 'محلات الهلال والنجمة',
+      phone: '01233344455',
+      branchName: 'فرع المنيا',
+      repName: 'مصطفى القوصي',
+      salesRepName: 'مصطفى القوصي',
+    },
   ];
 
   exportCustomersToExcel(sampleCustomers);
@@ -1294,26 +1375,13 @@ export function generateSampleCustomersTemplate(): void {
 export function exportCustomersToExcel(customers: Customer[]): void {
   const wb = XLSX.utils.book_new();
 
-  const headers = [
-    'كود العميل',
-    'اسم العميل / المحل',
-    'رقم الهاتف',
-    'العنوان / المنطقة',
-    'الفرع التابع له',
-    'المندوب المسئول',
-    'الرقم الضريبي',
-    'ملاحظات'
-  ];
+  const headers = ['كود العميل', 'اسم العميل', 'الفرع التابع له', 'اسم المندوب'];
 
   const rows = customers.map(c => [
     c.code,
     c.name,
-    c.phone,
-    c.address,
     c.branchName,
-    c.repName,
-    c.taxNumber || '',
-    c.notes || ''
+    c.repName || c.salesRepName || ''
   ]);
 
   const data = [headers, ...rows];

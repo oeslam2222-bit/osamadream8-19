@@ -1,8 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { Branch, Customer, Invoice, Product, User, UserRole } from '../types';
 
-export const SUPABASE_URL = 'https://rxthpgmlcsfckstpqhqf.supabase.co';
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://rxthpgmlcsfckstpqhqf.supabase.co';
 export const SUPABASE_ANON_KEY =
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4dGhwZ21sY3NmY2tzdHBxaHFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2NDIwMzgsImV4cCI6MjEwMzIxODAzOH0.2v4eRUKQjLM0xDomaE9HAiy_qTJ6NoijNuwC3JV1ZUA';
 
 // Helper to normalize Supabase role strings to supported UserRole
@@ -200,48 +201,67 @@ export async function saveCustomerToSupabase(customer: Customer): Promise<{ succ
   return saveCustomersToSupabase([customer]);
 }
 
+const CATALOG_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000001';
+export const USER_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000002';
+
 /**
- * Fetch all users from Supabase (checking 'users', 'profiles', 'employees', 'app_users')
+ * Fetch all users from Supabase (checking 'users', 'app_users', 'profiles' and central snapshot)
  */
 export async function fetchUsersFromSupabase(): Promise<{ success: boolean; users?: User[]; error?: string }> {
   try {
-    const tableCandidates = ['users', 'profiles', 'employees', 'app_users'];
+    const byId = new Map<string, User>();
+    const byEmail = new Map<string, User>();
+    const tableCandidates = ['users', 'app_users', 'profiles'];
+
+    const mapUser = (u: any, tbl: string, idx: number): User => {
+      const rawEmail = String(u.email || '').trim();
+      const emailPrefix = rawEmail ? rawEmail.split('@')[0] : '';
+      return {
+        id: String(u.id || `sup-${tbl}-${idx + 1}`),
+        name: u.name || u.full_name || u.display_name || emailPrefix || 'مستخدم',
+        username: String(u.username || u.user_name || emailPrefix || `user_${idx + 1}`).trim().toLowerCase(),
+        email: rawEmail,
+        password: String(u.password || u.pass || '').trim(),
+        role: normalizeUserRole(u.role, u.is_admin),
+        branchName: u.branch_name || u.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+        supervisorId: u.supervisor_id || u.supervisorId,
+        phone: u.phone || u.mobile || u.tel || '',
+        commissionRate: Number(u.commission_rate || u.commissionRate || 2.5),
+        isActive: u.is_active !== undefined ? Boolean(u.is_active) : true,
+        approvalStatus: u.approval_status || u.approvalStatus || 'active',
+      };
+    };
 
     for (const tbl of tableCandidates) {
       try {
         const { data, error } = await supabase.from(tbl).select('*');
-        if (!error && data && data.length > 0) {
-          const mapped: User[] = data.map((u: any, idx: number) => {
-            const rawEmail = u.email || '';
-            const emailPrefix = rawEmail ? rawEmail.split('@')[0] : '';
-            const rawName = u.name || u.full_name || u.display_name || emailPrefix || 'مستخدم';
-            const rawUsername = u.username || u.user_name || emailPrefix || `user_${idx + 1}`;
-            const rawPass = u.password || u.pass || u.code || '';
-
-            return {
-              id: String(u.id || `sup-${tbl}-${idx + 1}`),
-              name: rawName,
-              username: rawUsername.trim().toLowerCase(),
-              email: rawEmail.trim(),
-              password: String(rawPass || '').trim(),
-              role: normalizeUserRole(u.role, u.is_admin),
-              branchName: u.branch_name || u.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
-              supervisorId: u.supervisor_id || u.supervisorId,
-              phone: u.phone || u.mobile || u.tel || '',
-              commissionRate: Number(u.commission_rate || u.commissionRate || 2.5),
-              isActive: u.is_active !== undefined ? Boolean(u.is_active) : true,
-              approvalStatus: u.approval_status || u.approvalStatus || 'active',
-              createdAt: u.created_at || u.createdAt || new Date().toISOString(),
-            };
-          });
-          return { success: true, users: mapped };
-        }
+        if (error || !data) continue;
+        data.forEach((row: any, idx: number) => {
+          const user = mapUser(row, tbl, idx);
+          const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
+          byId.set(user.id, { ...existing, ...user });
+          if (user.email) byEmail.set(user.email.toLowerCase(), { ...existing, ...user });
+        });
       } catch {
-        // continue to next table
+        // Continue to other candidate tables
       }
     }
 
-    return { success: false, error: 'لم يتم العثور على سجلات في جداول المستخدمين بالسحابة' };
+    // Check central snapshot as fallback
+    try {
+      const { data } = await supabase.from('orders').select('items').eq('id', USER_SYNC_STORE_ID).limit(1);
+      const items = data?.[0]?.items;
+      const snapshot = Array.isArray(items) ? items : typeof items === 'string' ? JSON.parse(items) : [];
+      snapshot.forEach((row: any, idx: number) => {
+        const user = mapUser(row, 'snapshot', idx);
+        if (!byId.has(user.id) && (!user.email || !byEmail.has(user.email.toLowerCase()))) byId.set(user.id, user);
+      });
+    } catch {
+      // snapshot optional
+    }
+
+    const users = Array.from(byId.values());
+    return users.length > 0 ? { success: true, users } : { success: false, error: 'لم يتم العثور على مستخدمين' };
   } catch (err: any) {
     return { success: false, error: err?.message || 'خطأ في جلب المستخدمين من Supabase' };
   }
@@ -273,7 +293,7 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
       return { success: false, error: 'المعرف فارغ' };
     }
 
-    // 1. Fetch all remote users and match accurately in memory without fragile PostgREST URL syntax errors
+    // Fetch remote users and match accurately in memory without fragile PostgREST URL syntax errors
     const remoteRes = await fetchUsersFromSupabase();
     if (remoteRes.success && remoteRes.users && remoteRes.users.length > 0) {
       const found = remoteRes.users.find(
@@ -288,43 +308,6 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
       }
     }
 
-    // 2. Direct single lookup fallback on 'users' and 'profiles' table using clean values
-    for (const tableName of ['users', 'profiles']) {
-      try {
-        if (cleanEmail.includes('@')) {
-          const { data: eData, error: eErr } = await supabase
-            .from(tableName)
-            .select('*')
-            .eq('email', cleanEmail)
-            .limit(1);
-
-          if (!eErr && eData && eData.length > 0) {
-            const u = eData[0];
-            return {
-              success: true,
-              user: {
-                id: u.id || `sup-u-${Date.now()}`,
-                name: u.name || u.full_name || u.username || 'مستخدم',
-                username: u.username || u.email?.split('@')[0] || 'user',
-                email: u.email || '',
-                password: u.password || '',
-                role: normalizeUserRole(u.role, u.is_admin),
-                branchName: u.branch_name || u.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
-                supervisorId: u.supervisor_id || u.supervisorId,
-                phone: u.phone || u.mobile || '',
-                commissionRate: u.commission_rate || u.commissionRate || 2.5,
-                isActive: u.is_active !== undefined ? u.is_active : true,
-                approvalStatus: u.approval_status || u.approvalStatus || 'active',
-                registrationDate: u.created_at || u.registration_date || u.createdAt || new Date().toISOString(),
-              },
-            };
-          }
-        }
-      } catch {
-        // ignore and continue
-      }
-    }
-
     return { success: false, error: 'لم يتم العثور على المستخدم' };
   } catch (err: any) {
     return { success: false, error: err?.message || 'تعذر البحث عن المستخدم في السحابة' };
@@ -332,68 +315,178 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
 }
 
 /**
- * Upsert / Save user into Supabase
+ * Save all users into Supabase central store snapshot and tables safely
  */
-export async function saveUserToSupabase(user: User): Promise<{ success: boolean; error?: string }> {
+export async function saveUsersToSupabase(users: User[]): Promise<{ success: boolean; error?: string }> {
   try {
-    const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-    const safeUuid = user.id && isUuid(user.id) ? user.id : stringToUuid(user.id || user.username || user.email);
+    const usersPayload = users.map((u) => ({
+      id: u.id,
+      name: u.name,
+      username: u.username,
+      email: u.email,
+      password: u.password || '',
+      role: u.role,
+      branch_name: u.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+      supervisor_id: u.supervisorId || null,
+      phone: u.phone || '',
+      commission_rate: u.commissionRate || 2.5,
+      is_active: u.isActive ?? true,
+      approval_status: u.approvalStatus || 'active',
+      created_at: u.registrationDate || new Date().toISOString(),
+    }));
 
-    const payloadRaw = {
-      id: user.id,
-      name: user.name,
-      username: user.username,
-      email: user.email,
-      password: user.password || '',
-      role: user.role,
-      branch_name: user.branchName,
-      supervisor_id: user.supervisorId || null,
-      phone: user.phone || '',
-      commission_rate: user.commissionRate || 2.5,
-      is_active: user.isActive ?? true,
-      approval_status: user.approvalStatus || 'active',
-      updated_at: new Date().toISOString(),
-    };
+    // 1. Upsert into 'users' table directly
+    for (let i = 0; i < usersPayload.length; i += 50) {
+      const chunk = usersPayload.slice(i, i + 50);
+      try {
+        const { error: uErr } = await supabase.from('users').upsert(chunk);
+        if (uErr) {
+          const minChunk = chunk.map((c) => ({
+            id: c.id,
+            name: c.name,
+            username: c.username,
+            email: c.email,
+            password: c.password,
+            role: c.role,
+            branch_name: c.branch_name,
+          }));
+          await supabase.from('users').upsert(minChunk);
+        }
+      } catch (err) {
+        console.warn('Upsert chunk into users note:', err);
+      }
+    }
 
-    const payloadUuid = {
-      ...payloadRaw,
-      id: safeUuid,
-    };
+    // 2. Also update snapshot in orders table
+    try {
+      await supabase.from('orders').upsert({
+        id: USER_SYNC_STORE_ID,
+        status: 'users_sync_snapshot',
+        total: users.length,
+        items: users as any,
+      });
+    } catch (storeErr) {
+      console.warn('Users snapshot save note:', storeErr);
+    }
 
-    // Try saving to 'users' table with raw ID first, then fallback to UUID
-    const { error: err1 } = await supabase.from('users').upsert(payloadRaw);
-    if (!err1) return { success: true };
-
-    const { error: errUuid1 } = await supabase.from('users').upsert(payloadUuid);
-    if (!errUuid1) return { success: true };
-
-    // Fallback to 'profiles'
-    const { error: err2 } = await supabase.from('profiles').upsert(payloadRaw);
-    if (!err2) return { success: true };
-
-    const { error: errUuid2 } = await supabase.from('profiles').upsert(payloadUuid);
-    if (!errUuid2) return { success: true };
-
-    return { success: false, error: err1.message || errUuid1?.message || err2?.message };
-  } catch (e: any) {
-    return { success: false, error: e?.message };
-  }
-}
-
-export async function deleteUserFromSupabase(userId: string): Promise<{ success: boolean; error?: string }> {
-  try {
-    const { error: err1 } = await supabase.from('users').delete().eq('id', userId);
-    if (!err1) return { success: true };
-    const { error: err2 } = await supabase.from('profiles').delete().eq('id', userId);
-    if (!err2) return { success: true };
-    return { success: false, error: err1.message || err2?.message };
+    return { success: true };
   } catch (e: any) {
     return { success: false, error: e?.message };
   }
 }
 
 /**
- * Save invoice / order into Supabase
+ * Upsert / Save single user into Supabase directly
+ */
+export async function saveUserToSupabase(user: User): Promise<{ success: boolean; error?: string }> {
+  try {
+    const userPayload = {
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      password: user.password || '',
+      role: user.role,
+      branch_name: user.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+      supervisor_id: user.supervisorId || null,
+      phone: user.phone || '',
+      commission_rate: user.commissionRate || 2.5,
+      is_active: user.isActive ?? true,
+      approval_status: user.approvalStatus || 'active',
+      created_at: user.registrationDate || new Date().toISOString(),
+    };
+
+    // 1. Upsert directly to 'users' table
+    try {
+      const { error: uErr } = await supabase.from('users').upsert(userPayload);
+      if (uErr) {
+        const minPayload = {
+          id: user.id,
+          name: user.name,
+          username: user.username,
+          email: user.email,
+          password: user.password || '',
+          role: user.role,
+          branch_name: user.branchName || 'الفرع الرئيسي',
+        };
+        await supabase.from('users').upsert(minPayload);
+      }
+    } catch (e) {
+      console.warn('Users table upsert notice:', e);
+    }
+
+    // 2. Also try 'profiles' table
+    try {
+      await supabase.from('profiles').upsert({
+        id: user.id,
+        full_name: user.name,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        branch_name: user.branchName,
+        phone: user.phone,
+      });
+    } catch {}
+
+    // 3. Update snapshot store
+    const current = await fetchUsersFromSupabase();
+    let updatedList: User[] = [user];
+    if (current.success && current.users) {
+      const map = new Map<string, User>();
+      current.users.forEach((u) => map.set(u.id, u));
+      map.set(user.id, user);
+      updatedList = Array.from(map.values());
+    }
+    await saveUsersToSupabase(updatedList);
+
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message };
+  }
+}
+
+/**
+ * Delete a user from Supabase tables and snapshot permanently
+ */
+export async function deleteUserFromSupabase(userId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    // 1. Delete directly from tables
+    try {
+      await supabase.from('users').delete().eq('id', userId);
+    } catch (e) {
+      console.warn('Delete from users table notice:', e);
+    }
+    try {
+      await supabase.from('profiles').delete().eq('id', userId);
+    } catch (e) {}
+    try {
+      await supabase.from('app_users').delete().eq('id', userId);
+    } catch (e) {}
+
+    // 2. Update snapshot store so user doesn't reappear on refresh
+    try {
+      const current = await fetchUsersFromSupabase();
+      if (current.success && current.users) {
+        const filtered = current.users.filter((u) => u.id !== userId);
+        await supabase.from('orders').upsert({
+          id: USER_SYNC_STORE_ID,
+          status: 'users_sync_snapshot',
+          total: filtered.length,
+          items: filtered as any,
+        });
+      }
+    } catch (e) {
+      console.warn('Snapshot delete notice:', e);
+    }
+
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message };
+  }
+}
+
+/**
+ * Save invoice / order into Supabase with automatic schema tolerance
  */
 export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success: boolean; error?: string }> {
   try {
@@ -402,8 +495,8 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
       invoice_number: invoice.invoiceNumber,
       customer_name: invoice.customerName,
       customer_code: invoice.customerCode || null,
-      customer_phone: invoice.customerPhone,
-      customer_address: invoice.customerAddress,
+      customer_phone: invoice.customerPhone || '',
+      customer_address: invoice.customerAddress || '',
       customer_tax_number: invoice.customerTaxNumber || null,
       rep_id: invoice.repId,
       rep_name: invoice.repName,
@@ -429,20 +522,40 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
       created_at: invoice.date ? `${invoice.date} ${invoice.time || ''}`.trim() : new Date().toISOString(),
     };
 
-    // 1. Try upserting to 'invoices' table
+    // 1. Try upserting full payload to 'invoices' table
     const { error: invErr } = await supabase.from('invoices').upsert(payload);
     if (!invErr) return { success: true };
 
-    // 2. Try upserting to 'orders' table
-    const { error: ordErr } = await supabase.from('orders').upsert(payload);
-    if (!ordErr) return { success: true };
-
-    // 3. Fallback: Try simplified payload if tables have fewer columns
-    const simplePayload = {
+    // 2. Try standard core payload (omitting newer extra columns that may not be in older schema cache)
+    const corePayload = {
       id: invoice.id,
       invoice_number: invoice.invoiceNumber,
       customer_name: invoice.customerName,
-      customer_phone: invoice.customerPhone,
+      customer_phone: invoice.customerPhone || '',
+      customer_address: invoice.customerAddress || '',
+      rep_name: invoice.repName,
+      branch_name: invoice.branchName,
+      status: invoice.status,
+      total_cartons: invoice.totalCartons,
+      total_pieces: invoice.totalPieces,
+      subtotal: invoice.subtotal,
+      discount_percentage: invoice.discountPercentage,
+      discount_amount: invoice.discountAmount,
+      estimated_grand_total: invoice.estimatedGrandTotal,
+      notes: invoice.notes || '',
+      items: invoice.items,
+      created_at: invoice.date ? `${invoice.date} ${invoice.time || ''}`.trim() : new Date().toISOString(),
+    };
+
+    const { error: coreInvErr } = await supabase.from('invoices').upsert(corePayload);
+    if (!coreInvErr) return { success: true };
+
+    // 3. Try minimal payload
+    const minimalPayload = {
+      id: invoice.id,
+      invoice_number: invoice.invoiceNumber,
+      customer_name: invoice.customerName,
+      customer_phone: invoice.customerPhone || '',
       rep_name: invoice.repName,
       branch_name: invoice.branchName,
       status: invoice.status,
@@ -453,14 +566,15 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
       created_at: invoice.date ? `${invoice.date} ${invoice.time || ''}`.trim() : new Date().toISOString(),
     };
 
-    const { error: simpleInvErr } = await supabase.from('invoices').upsert(simplePayload);
-    if (!simpleInvErr) return { success: true };
+    const { error: minInvErr } = await supabase.from('invoices').upsert(minimalPayload);
+    if (!minInvErr) return { success: true };
 
-    const { error: simpleOrdErr } = await supabase.from('orders').upsert(simplePayload);
-    if (!simpleOrdErr) return { success: true };
+    // 4. Try 'orders' table as fallback
+    const { error: ordErr } = await supabase.from('orders').upsert(minimalPayload);
+    if (!ordErr) return { success: true };
 
-    console.warn('Supabase Invoice Save Error:', invErr?.message || ordErr?.message || simpleInvErr?.message);
-    return { success: false, error: invErr?.message || ordErr?.message || 'فشل حفظ الفاتورة في Supabase' };
+    console.warn('Supabase Invoice Save Notice:', invErr?.message || coreInvErr?.message || minInvErr?.message);
+    return { success: false, error: invErr?.message || coreInvErr?.message || minInvErr?.message };
   } catch (e: any) {
     console.warn('Supabase Invoice Save Exception:', e);
     return { success: false, error: e?.message };
@@ -544,8 +658,6 @@ function stringToUuid(str: string): string {
   const part5 = Math.abs((hash * 7) | 0).toString(16).padStart(12, '0').slice(-12);
   return `${hex}-${part2}-${part3}-${part4}-${part5}`;
 }
-
-const CATALOG_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000001';
 
 /**
  * Save / Upsert full products catalog into Supabase

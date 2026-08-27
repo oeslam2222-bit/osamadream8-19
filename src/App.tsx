@@ -25,7 +25,6 @@ import { InventoryStockView } from './components/InventoryStockView';
 import { ExcelImportExport } from './components/ExcelImportExport';
 import { AuditLogView } from './components/AuditLogView';
 import { UserManager } from './components/UserManager';
-import { AccountingSyncView } from './components/AccountingSyncView';
 import { SystemWorkflowGuide } from './components/SystemWorkflowGuide';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
@@ -117,7 +116,6 @@ const MainLayout: React.FC = () => {
             <SystemWorkflowGuide onNavigateToTab={(tab) => setActiveTab(tab)} />
           )}
 
-          {activeTab === 'accounting' && <AccountingSyncView />}
         </Suspense>
       </main>
 

@@ -30,7 +30,8 @@ import {
   Users,
   Warehouse,
   X,
-  XCircle
+  XCircle,
+  Trash2
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -60,6 +61,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     approveOrder,
     forwardOrderToManager,
     rejectOrder,
+    deleteInvoice,
   } = useApp();
 
   const [activeStatusTab, setActiveStatusTab] = useState<string>('الكل');
@@ -898,6 +900,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
                   const canManage =
                     currentUser?.role === 'admin' ||
+                    currentUser?.role === 'developer' ||
                     currentUser?.role === 'branch_manager' ||
                     currentUser?.role === 'supervisor';
 
@@ -1058,6 +1061,21 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                           >
                             <Download className="w-3.5 h-3.5" />
                           </button>
+
+                          {/* Delete (Admin & Developer only) */}
+                          {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`هل أنت متأكد من حذف الفاتورة رقم ${inv.invoiceNumber} نهائياً؟`)) {
+                                  deleteInvoice(inv.id);
+                                }
+                              }}
+                              className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg transition cursor-pointer"
+                              title="حذف الفاتورة نهائياً"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
 

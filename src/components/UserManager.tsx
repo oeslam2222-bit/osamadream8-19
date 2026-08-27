@@ -15,6 +15,7 @@ import {
   Eye,
   EyeOff,
   Key,
+  Link,
   Lock,
   Percent,
   Phone,
@@ -35,14 +36,16 @@ import {
   Wrench,
   X
 } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { doesCustomerBelongToRep } from '../services/arabicMatchingService';
 import { User, UserApprovalStatus, UserRole } from '../types';
 
 export const UserManager: React.FC = () => {
   const {
     users,
     branches,
+    customers,
     currentUser,
     addUser,
     updateUser,
@@ -52,21 +55,17 @@ export const UserManager: React.FC = () => {
     assignSupervisor,
     getSupervisorsInBranch,
     loginAs,
-    supabaseStatus,
-    isSupabaseSyncing,
-    syncWithSupabase,
+    refreshCustomerRepLinks,
   } = useApp();
 
   const [showAddUserModal, setShowAddUserModal] = useState(false);
-  const [showSqlSchemaModal, setShowSqlSchemaModal] = useState(false);
-  const [copiedSql, setCopiedSql] = useState(false);
   const [copiedCredentials, setCopiedCredentials] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('الكل');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('الكل');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [syncToast, setSyncToast] = useState<string | null>(null);
 
   const isSuperAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
@@ -89,7 +88,7 @@ export const UserManager: React.FC = () => {
       text: 'text-rose-800',
       activeRing: 'ring-rose-500 border-rose-500 bg-rose-50/50',
       icon: ShieldAlert,
-      desc: 'صلاحيات الإدارة والرقابة الشاملة: إدارة الموظفين، اعتماد الحسابات، مراجعة فروع الشركة والمخازن، ورفع كشوفات الإكسل.'
+      desc: 'صلاحيات الإدارة والرقابة الشاملة الكاملة: حذف وتعديل أي فواتير نهائياً، تعديل وحذف الأصناف والعملاء، إدارة الموظفين، والتحكم بالفروع والمخازن.'
     },
     developer: {
       label: 'المطور (الدعم التقني)',
@@ -99,7 +98,7 @@ export const UserManager: React.FC = () => {
       text: 'text-amber-800',
       activeRing: 'ring-amber-500 border-amber-500 bg-amber-50/50',
       icon: Code,
-      desc: 'صلاحيات الدعم والبرمجة: الربط السحابي مع Supabase، فحص ومزامنة البيانات، وصيانة وتطوير ميزات المنظومة.'
+      desc: 'صلاحيات برمجية وإدارية شاملة (مطابقة للآدمن): حذف وتعديل أي فواتير أو أصناف نهائياً، الربط السحابي، فحص وتطوير المنظومة بالكامل.'
     },
     branch_manager: {
       label: 'مدير الفرع',
@@ -109,7 +108,7 @@ export const UserManager: React.FC = () => {
       text: 'text-purple-800',
       activeRing: 'ring-purple-500 border-purple-500 bg-purple-50/50',
       icon: Building,
-      desc: 'إدارة مستودع الفرع، متابعة حركات المخزون، اعتماد وتجهيز طلبيات المناديب الصادرة من مخزن الفرع.'
+      desc: 'إدارة كاملة لمخزن الفرع: طلب تحويلات بضاعة من مخزن أكتوبر، اعتماد وصرف وتجهيز طلبيات المناديب بالفرع، ومتابعة حركات التوريد والمخزون.'
     },
     supervisor: {
       label: 'مشرف المناديب',
@@ -119,7 +118,7 @@ export const UserManager: React.FC = () => {
       text: 'text-blue-800',
       activeRing: 'ring-blue-500 border-blue-500 bg-blue-50/50',
       icon: UserCheck,
-      desc: 'الإشراف الميداني على المناديب التابعين له بالفرع، مراجعة وتدقيق الفواتير، ومتابعة المستهدفات وعدد الكراتين.'
+      desc: 'الإشراف على مناديب الفرع: مراجعة وتدقيق واعتماد الطلبيات أو إرسالها لمدير الفرع، طلب تحويلات من أكتوبر، ومتابعة المستهدفات وعدد الكراتين.'
     },
     sales_rep: {
       label: 'المندوب',
@@ -129,7 +128,7 @@ export const UserManager: React.FC = () => {
       text: 'text-emerald-800',
       activeRing: 'ring-emerald-500 border-emerald-500 bg-emerald-50/50',
       icon: Smartphone,
-      desc: 'مندوب المبيعات الميداني: إنشاء الفواتير وإرسالها بالواتساب، ومتابعة عملاء خط السير ومخزون الفرع.'
+      desc: 'مندوب مبيعات ميداني: إنشاء وتجهيز طلبيات البيع لعملائه المسجلين وإرسالها (لا يوافق على الطلبيات ولا ينفذ تحويلات مخزنية بنفسه).'
     }
   };
 
@@ -236,15 +235,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.invoices;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.products;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
 
-  const handleSyncSupabase = async (direction: 'fetch' | 'push' | 'both') => {
-    setSyncFeedback(null);
-    const res = await syncWithSupabase(direction);
-    setSyncFeedback(res.message);
-    setTimeout(() => {
-      setSyncFeedback(null), 6000;
-    });
-  };
-
   // Form State
   const [formData, setFormData] = useState<Partial<User>>({
     name: '',
@@ -260,6 +250,22 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     approvalStatus: 'active',
   });
 
+  const matchingCustomerCount = useMemo(() => {
+    if (!formData.name?.trim()) return 0;
+    const tempUser: User = {
+      id: editingUser?.id || 'temp-id',
+      name: formData.name.trim(),
+      username: formData.username?.trim() || '',
+      email: formData.email || '',
+      phone: formData.phone || '',
+      branchName: formData.branchName || '',
+      role: formData.role || 'sales_rep',
+      approvalStatus: 'active',
+      isActive: true,
+    };
+    return customers.filter((c) => doesCustomerBelongToRep(c, tempUser)).length;
+  }, [formData.name, formData.username, formData.email, formData.phone, formData.branchName, formData.role, editingUser, customers]);
+
   // Approval modal state
   const [approvingUser, setApprovingUser] = useState<User | null>(null);
   const [approvalSupervisorId, setApprovalSupervisorId] = useState<string>('');
@@ -272,7 +278,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
   // Active users filtered
   const activeUsers = users.filter((u) => {
     if (u.approvalStatus === 'pending_approval') return false;
-    if (selectedBranchFilter !== 'الكل' && u.branchName !== selectedBranchFilter) return false;
+
+    // Strict Branch Filter: Admin & Dev can see all branches, while Supervisor / Branch Manager / Rep only see their own branch
+    if (!isSuperAdminOrDev) {
+      if (u.branchName !== currentUser?.branchName) return false;
+    } else {
+      if (selectedBranchFilter !== 'الكل' && u.branchName !== selectedBranchFilter) return false;
+    }
+
     if (selectedRoleFilter !== 'الكل' && u.role !== selectedRoleFilter) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
@@ -298,42 +311,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     setApprovingUser(null);
   };
 
-  // Smart Auto-Generator for Username & Email based on name
-  const handleAutoGenerateCredentials = (fullName: string, role: UserRole = formData.role || 'sales_rep') => {
-    if (!fullName.trim()) return;
-
-    // Convert Arabic or English name to slug
-    const cleaned = fullName
-      .trim()
-      .toLowerCase()
-      .replace(/[^\w\s\u0600-\u06FF]/g, '')
-      .split(/\s+/)
-      .slice(0, 2);
-
-    let prefix = 'rep';
-    if (role === 'admin') prefix = 'admin';
-    else if (role === 'developer') prefix = 'dev';
-    else if (role === 'branch_manager') prefix = 'mgr';
-    else if (role === 'supervisor') prefix = 'sup';
-
-    let suggestedUsername = '';
-    if (/^[a-zA-Z0-9_]+$/.test(cleaned.join(''))) {
-      suggestedUsername = `${prefix}_${cleaned.join('_')}`;
-    } else {
-      // Romanize or numeric deterministic hash
-      const hash = Math.floor(1000 + Math.random() * 9000);
-      suggestedUsername = `${prefix}_${cleaned[0] || 'user'}_${hash}`;
-    }
-
-    const suggestedEmail = `${suggestedUsername.replace(/[^a-zA-Z0-9_]/g, '')}@dream-dist.com`;
-
-    setFormData((prev) => ({
-      ...prev,
-      username: suggestedUsername,
-      email: suggestedEmail,
-    }));
-  };
-
   const handleOpenAddModal = () => {
     setEditingUser(null);
     setShowPassword(false);
@@ -343,7 +320,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       email: '',
       password: '',
       role: 'sales_rep',
-      branchName: branches[0]?.name || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+      branchName: isSuperAdminOrDev ? (branches[0]?.name || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)') : (currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)'),
       supervisorId: '',
       phone: '',
       commissionRate: 2.5,
@@ -366,20 +343,29 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
 
   const handleSaveUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.username || !isSuperAdminOrDev) return;
+    if (!formData.name?.trim() || !formData.email?.trim() || !isSuperAdminOrDev) return;
+
+    const cleanEmail = formData.email.trim().toLowerCase();
+    const cleanUsername = cleanEmail.includes('@') ? cleanEmail.split('@')[0] : cleanEmail;
 
     if (editingUser) {
-      updateUser({ ...editingUser, ...formData } as User);
+      updateUser({
+        ...editingUser,
+        ...formData,
+        name: formData.name.trim(),
+        email: cleanEmail,
+        username: formData.username?.trim() || cleanUsername,
+      } as User);
       setEditingUser(null);
     } else {
       const newUser: User = {
         id: `u-${Date.now()}`,
-        name: formData.name || '',
-        username: (formData.username || '').trim().toLowerCase(),
-        email: formData.email || `${formData.username}@dream-dist.com`,
+        name: formData.name.trim(),
+        username: cleanUsername,
+        email: cleanEmail,
         password: formData.password || '',
         role: formData.role || 'sales_rep',
-        branchName: formData.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+        branchName: formData.branchName || currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
         supervisorId: formData.role === 'sales_rep' ? (formData.supervisorId || undefined) : undefined,
         phone: formData.phone || '',
         avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80`,
@@ -394,13 +380,13 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
   };
 
   const handleCopyUserCredentials = (user: User) => {
-    const credText = `بيانات الدخول لمنظومة شركة دريم:
-الاسم: ${user.name}
+    const credText = `بيانات الدخول لمنظومة شركة دريم للتجارة والتوزيع:
+الاسم المعتمد: ${user.name}
 الصفة: ${roleConfigs[user.role]?.label || user.role}
 الفرع: ${user.branchName}
-اسم المستخدم: ${user.username}
+البريد الإلكتروني لتسجيل الدخول: ${user.email}
 كلمة المرور: ${user.password || '(كلمة المرور الخاصة بالمستخدم)'}
-رابط التطبيق: ${window.location.origin}`;
+رابط المنظومة: ${window.location.origin}`;
 
     navigator.clipboard.writeText(credText);
     setCopiedCredentials(user.id);
@@ -432,81 +418,47 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             </div>
           </div>
 
-          {isSuperAdminOrDev ? (
-            <button
-              onClick={handleOpenAddModal}
-              className="flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black px-5 py-3 rounded-2xl text-xs sm:text-sm shadow-md transition transform active:scale-95 cursor-pointer"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>إضافة موظف جديد +</span>
-            </button>
-          ) : (
-            <div className="bg-amber-50 text-amber-800 border border-amber-200 px-3.5 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2">
-              <Lock className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>إضافة وتعديل الموظفين مقتصرة على الآدمن والمطور فقط</span>
-            </div>
-          )}
-        </div>
-      </div>
+          <div className="flex items-center flex-wrap gap-2">
+            {isSuperAdminOrDev && (
+              <button
+                onClick={() => {
+                  const res = refreshCustomerRepLinks();
+                  setSyncToast(`تم فحص ومزامنة العملاء بنجاح! تم تحديث وربط ${res.updatedCount} عميل بالمناديب.`);
+                  setTimeout(() => setSyncToast(null), 4000);
+                }}
+                className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3.5 py-3 rounded-2xl text-xs shadow-xs transition active:scale-95 cursor-pointer border border-slate-300"
+                title="إعادة فحص وربط العملاء بالمناديب وفقاً للأسماء والفروع"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-slate-600" />
+                <span>مزامنة وربط العملاء بالمناديب</span>
+              </button>
+            )}
 
-      {/* Supabase Database Connection & Cloud Sync Card */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white rounded-3xl p-5 shadow-lg border border-slate-800 space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
-              <Database className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-black text-sm text-slate-100">قاعدة بيانات Supabase السحابية الموحدة</span>
-                <span className="bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span>متصل لحظياً</span>
-                </span>
+            {isSuperAdminOrDev ? (
+              <button
+                onClick={handleOpenAddModal}
+                className="flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black px-5 py-3 rounded-2xl text-xs sm:text-sm shadow-md transition transform active:scale-95 cursor-pointer"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>إضافة موظف جديد +</span>
+              </button>
+            ) : (
+              <div className="bg-amber-50 text-amber-800 border border-amber-200 px-3.5 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2">
+                <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>إضافة وتعديل الموظفين مقتصرة على الآدمن والمطور فقط</span>
               </div>
-              <p className="text-[11px] text-slate-400 font-mono pt-1">
-                rxthpgmlcsfckstpqhqf.supabase.co • جداول الموظفين، الفواتير، الأصناف، والعملاء
-              </p>
-            </div>
-          </div>
-
-          {/* Sync Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setShowSqlSchemaModal(true)}
-              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
-              title="عرض ونسخ كود SQL لإنشاء وتجهيز الجداول في Supabase"
-            >
-              <Code className="w-3.5 h-3.5 text-amber-400" />
-              <span>كود SQL للجداول 📋</span>
-            </button>
-            <button
-              onClick={() => handleSyncSupabase('fetch')}
-              disabled={isSupabaseSyncing}
-              className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isSupabaseSyncing ? 'animate-spin' : ''}`} />
-              <span>مزامنة الموظفين من السحابة</span>
-            </button>
-            <button
-              onClick={() => handleSyncSupabase('push')}
-              disabled={isSupabaseSyncing}
-              className="bg-slate-800 hover:bg-slate-700 border border-emerald-500/40 text-emerald-300 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
-            >
-              <CloudUpload className="w-3.5 h-3.5" />
-              <span>حفظ التعديلات بالسحابة</span>
-            </button>
+            )}
           </div>
         </div>
 
-        {/* Sync Toast Feedback */}
-        {syncFeedback && (
-          <div className="bg-emerald-500/20 border border-emerald-400/50 text-emerald-200 text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-2 animate-in fade-in">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>{syncFeedback}</span>
+        {syncToast && (
+          <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 text-emerald-950 rounded-2xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{syncToast}</span>
           </div>
         )}
       </div>
+
 
       {/* PENDING APPROVALS SECTION (Requests from register page) */}
       {pendingUsers.length > 0 && (
@@ -641,8 +593,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   onChange={(e) => setSelectedBranchFilter(e.target.value)}
                   className="bg-transparent font-black text-slate-800 focus:outline-none cursor-pointer"
                 >
-                  <option value="الكل">جميع الفروع ({branches.length})</option>
-                  {branches.map((b) => (
+                  <option value="الكل">الفروع التشغيلية (7)</option>
+                  {branches.filter((b) => !b.isMainWarehouse).map((b) => (
                     <option key={b.id} value={b.name}>{b.name}</option>
                   ))}
                 </select>
@@ -728,6 +680,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     <span className="text-slate-400">الفرع:</span>
                     <span className="font-bold text-slate-800">{user.branchName}</span>
                   </div>
+                  {user.role === 'sales_rep' && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">العملاء المسندين:</span>
+                      <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold px-2 py-0.5 rounded text-[10px]">
+                        👥 {customers.filter((c) => doesCustomerBelongToRep(c, user)).length} عميل
+                      </span>
+                    </div>
+                  )}
                   {user.role === 'sales_rep' && (
                     <div className="flex justify-between items-center">
                       <span className="text-slate-400">المشرف:</span>
@@ -845,9 +805,16 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                       </span>
                     </td>
 
-                    {/* Branch */}
-                    <td className="p-3.5 font-bold text-slate-800">
-                      {user.branchName}
+                    {/* Branch & Assigned Customers */}
+                    <td className="p-3.5">
+                      <div className="font-bold text-slate-800">{user.branchName}</div>
+                      {user.role === 'sales_rep' && (
+                        <div className="mt-1">
+                          <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-850 border border-emerald-200 px-2 py-0.5 rounded-lg text-[10px] font-bold">
+                            👥 {customers.filter((c) => doesCustomerBelongToRep(c, user)).length} عميل مسند
+                          </span>
+                        </div>
+                      )}
                     </td>
 
                     {/* Supervisor Assignment Dropdown */}
@@ -989,10 +956,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                       <button
                         type="button"
                         key={rKey}
-                        onClick={() => {
-                          setFormData((prev) => ({ ...prev, role: rKey }));
-                          if (formData.name) handleAutoGenerateCredentials(formData.name, rKey);
-                        }}
+                        onClick={() => setFormData((prev) => ({ ...prev, role: rKey }))}
                         className={`p-3 rounded-2xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
                           isSelected
                             ? `border-slate-900 ring-2 ring-slate-900 bg-slate-900 text-white shadow-md`
@@ -1015,56 +979,46 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 </div>
               </div>
 
-              {/* 2. EMPLOYEE DETAILS (Name, Auto Generator) */}
+              {/* 2. EMPLOYEE DETAILS (Name, Login Email, Password) */}
               <div className="space-y-3 pt-2 border-t border-slate-100">
-                <div className="flex items-center justify-between">
-                  <label className="font-black text-slate-800 text-xs sm:text-sm">
-                    2. البيانات الشخصية وبيانات الدخول *
-                  </label>
-                  {formData.name && (
-                    <button
-                      type="button"
-                      onClick={() => handleAutoGenerateCredentials(formData.name || '', formData.role)}
-                      className="text-amber-700 hover:text-amber-800 font-black text-[11px] flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200 cursor-pointer"
-                    >
-                      <Sparkles className="w-3 h-3 text-amber-600" />
-                      <span>توليد تلقائي للاسم والبريد</span>
-                    </button>
-                  )}
-                </div>
+                <label className="block font-black text-slate-800 text-xs sm:text-sm">
+                  2. البيانات الشخصية وبيانات الدخول *
+                </label>
 
                 {/* Full Name */}
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">الاسم بالكامل *</label>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    الاسم بالكامل (اسم المندوب / الموظف المربوط بالعملاء وفواتير البيع) <span className="text-rose-600">*</span>
+                  </label>
                   <input
                     type="text"
                     required
                     value={formData.name || ''}
-                    onChange={(e) => {
-                      const newName = e.target.value;
-                      setFormData({ ...formData, name: newName });
-                    }}
-                    placeholder="مثال: أحمد عبد الله الشناوي"
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="مثال: أسامة الشناوي"
                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-amber-400 focus:bg-white transition text-xs sm:text-sm"
                   />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    💡 هذا الاسم سيظهر تلقائياً للعملاء على الفواتير وشيتات الإكسل وأوامر الشغل.
+                  </p>
                 </div>
 
-                {/* Username + Password in responsive grid */}
+                {/* Email (Primary Login) & Password */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">
-                      اسم المستخدم الموحد (Login Username) <span className="text-rose-600">*</span>
+                      البريد الإلكتروني لتسجيل الدخول (Login Email) <span className="text-rose-600">*</span>
                     </label>
                     <input
-                      type="text"
+                      type="email"
                       required
-                      value={formData.username || ''}
-                      onChange={(e) => setFormData({ ...formData, username: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
-                      placeholder="rep_ahmed"
+                      value={formData.email || ''}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      placeholder="مثال: osama@dream.com"
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 text-xs"
                     />
                     <p className="text-[10px] text-slate-500 mt-1">
-                      💡 اسم المستخدم موحد لربط حساب المندوب بعملائه وفواتيره في النظام.
+                      🔐 يستخدمه الموظف لتسجيل الدخول في النظام مباشرة.
                     </p>
                   </div>
 
@@ -1084,38 +1038,22 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                       type={showPassword ? 'text' : 'password'}
                       value={formData.password || ''}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      placeholder="أدخل كلمة مرور قوية"
+                      placeholder="أدخل كلمة مرور الحساب"
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 text-xs"
                     />
                   </div>
                 </div>
 
-                {/* Email + Phone */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">البريد الإلكتروني (اختياري للدخول)</label>
-                    <input
-                      type="email"
-                      value={formData.email || ''}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      placeholder="ahmed@dream-dist.com"
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-800 text-xs"
-                    />
-                    <p className="text-[10px] text-slate-400 mt-1">
-                      يستطيع الموظف تسجيل الدخول باسم المستخدم أو البريد أو الهاتف.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">رقم الهاتف (للتواصل والواتساب والدخول)</label>
-                    <input
-                      type="tel"
-                      value={formData.phone || ''}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      placeholder="010XXXXXXXX"
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs"
-                    />
-                  </div>
+                {/* Phone */}
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">رقم الهاتف / الواتساب</label>
+                  <input
+                    type="tel"
+                    value={formData.phone || ''}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="مثال: 010XXXXXXXX"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs"
+                  />
                 </div>
               </div>
 
@@ -1132,9 +1070,10 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     <select
                       value={formData.branchName}
                       onChange={(e) => setFormData({ ...formData, branchName: e.target.value, supervisorId: '' })}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-xs cursor-pointer"
+                      disabled={!isSuperAdminOrDev}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-xs cursor-pointer disabled:opacity-70 disabled:bg-slate-100"
                     >
-                      {branches.map((b) => (
+                      {branches.filter((b) => !b.isMainWarehouse).map((b) => (
                         <option key={b.id} value={b.name}>
                           {b.name}
                         </option>
@@ -1165,10 +1104,10 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 </div>
               </div>
 
-              {/* 4. LIVE EMPLOYEE BADGE PREVIEW */}
-              <div className="pt-2 border-t border-slate-100">
-                <label className="block font-black text-slate-800 text-[11px] mb-2 text-slate-500">
-                  معاينة بطاقة الموظف المباشرة:
+              {/* 4. LIVE EMPLOYEE BADGE & MATCHED CUSTOMER PREVIEW */}
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                <label className="block font-black text-slate-800 text-[11px] text-slate-500">
+                  معاينة بطاقة الموظف والعملاء المرتبطين به:
                 </label>
                 <div className="bg-slate-900 text-white p-3.5 rounded-2xl border border-slate-800 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
@@ -1177,13 +1116,27 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     </div>
                     <div>
                       <div className="font-black text-sm text-slate-100">{formData.name || 'اسم الموظف'}</div>
-                      <div className="text-[10px] text-amber-300 font-mono">@{formData.username || 'username'} • {formData.branchName}</div>
+                      <div className="text-[10px] text-amber-300 font-mono">{formData.email || 'user@dream.com'} • {formData.branchName}</div>
                     </div>
                   </div>
                   <span className="bg-amber-500/20 border border-amber-400 text-amber-300 text-[10px] font-black px-2.5 py-1 rounded-xl">
                     {roleConfigs[formData.role || 'sales_rep']?.label}
                   </span>
                 </div>
+
+                {formData.role === 'sales_rep' && formData.name?.trim() && (
+                  <div className="bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl text-emerald-950 text-xs flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>
+                        قاعدة بيانات العملاء: تم رصد <strong>{matchingCustomerCount} عميل</strong> مسجل باسم ({formData.name}) في ({formData.branchName || 'الفرع'})
+                      </span>
+                    </div>
+                    <span className="bg-emerald-200 text-emerald-900 text-[10px] font-black px-2 py-0.5 rounded-md shrink-0">
+                      ربط تلقائي بالسيستم
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Modal Buttons */}
@@ -1237,7 +1190,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   onChange={(e) => setApprovalBranchName(e.target.value)}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold"
                 >
-                  {branches.map((b) => (
+                  {branches.filter((b) => !b.isMainWarehouse).map((b) => (
                     <option key={b.id} value={b.name}>{b.name}</option>
                   ))}
                 </select>
@@ -1296,51 +1249,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               >
                 <Check className="w-4 h-4" />
                 <span>اعتماد وتفعيل الحساب فوراً</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* SQL Schema Preview & Copy Modal */}
-      {showSqlSchemaModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
-          <div className="bg-slate-900 text-white rounded-3xl max-w-2xl w-full p-6 space-y-4 shadow-2xl border border-slate-800 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
-                  <Code className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-black text-base text-slate-100">كود SQL لإنشاء جداول Supabase</h3>
-                  <p className="text-[11px] text-slate-400">انسخ الكود وشغله في محرر SQL بـ Supabase بضغطة واحدة</p>
-                </div>
-              </div>
-              <button onClick={() => setShowSqlSchemaModal(false)} className="text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 flex-1 overflow-y-auto font-mono text-xs text-emerald-400 dir-ltr text-left select-all">
-              <pre className="whitespace-pre-wrap">{supabaseSqlScript}</pre>
-            </div>
-
-            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800">
-              <span className="text-xs text-slate-400">
-                الجداول: users, products, invoices, customers
-              </span>
-              <button
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(supabaseSqlScript);
-                    setCopiedSql(true);
-                    setTimeout(() => setCopiedSql(false), 2500);
-                  } catch (e) {}
-                }}
-                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
-              >
-                {copiedSql ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                <span>{copiedSql ? 'تم النسخ بنجاح! ✅' : 'نسخ كود SQL بالكامل 📋'}</span>
               </button>
             </div>
           </div>
