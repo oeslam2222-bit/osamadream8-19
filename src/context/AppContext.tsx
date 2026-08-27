@@ -806,12 +806,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       const rawRep = (updated.salesRepName || updated.repName || '').trim();
-      if (!rawRep || rawRep === 'مندوب المبيعات' || rawRep === 'المندوب') {
+      if ((!rawRep || rawRep === 'مندوب المبيعات' || rawRep === 'المندوب') && !updated.repId) {
         return updated;
       }
 
       // Check if candidate matches rep in same branch, or overall
       const matchFn = (u: User) =>
+        (updated.repId && u.id === updated.repId) ||
         isArabicNameMatch(rawRep, u.name) ||
         (u.username && isArabicNameMatch(rawRep, u.username)) ||
         (u.phone && (rawRep.includes(u.phone) || u.phone.includes(rawRep))) ||
@@ -833,9 +834,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           repName: matched.name,
           repId: matched.id,
           salesRepName: matched.name,
-          branchName: updated.branchName && updated.branchName !== 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)'
-            ? updated.branchName
-            : (matched.branchName || updated.branchName),
+          branchName: matched.branchName || updated.branchName || 'الفرع الرئيسي',
         };
       }
       return updated;
