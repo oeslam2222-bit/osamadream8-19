@@ -125,10 +125,202 @@ export function isArabicNameMatch(nameA?: string, nameB?: string): boolean {
 }
 
 /**
+ * Canonical Branch Names in Dream Distribution
+ */
+export const CANONICAL_BRANCHES = [
+  'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+  'فرع المنيا',
+  'فرع منيا القمح',
+  'فرع القاهرة',
+  'فرع الفيوم',
+  'فرع البحيرة',
+  'فرع ديمشلت',
+  'فرع منوف',
+] as const;
+
+/**
+ * Infer exact branch name from text (address, customer name, notes, governorate, or branch string)
+ * Distinguishes Upper Egypt Minya (بني مزار، ملوي، سمالوط، مغاغة) from Sharqia Minya El-Qamh (منيا القمح، الزقازيق، بلبيس)
+ */
+export function inferBranchFromText(text?: string): string {
+  if (!text) return '';
+  const norm = normalizeArabicText(text);
+  if (!norm) return '';
+
+  // 1. Minya (Upper Egypt) specific centers & districts - Check first for unambiguous Minya locations
+  if (
+    norm.includes('بني مزار') ||
+    norm.includes('بنى مزار') ||
+    norm.includes('ملوي') ||
+    norm.includes('ملوى') ||
+    norm.includes('مغاغة') ||
+    norm.includes('مغاغه') ||
+    norm.includes('سمالوط') ||
+    norm.includes('ابوقرقاص') ||
+    norm.includes('ابو قرقاص') ||
+    norm.includes('دير مواس') ||
+    norm.includes('ديرمواس') ||
+    norm.includes('مطاي') ||
+    norm.includes('مطاى') ||
+    norm.includes('العدوة') ||
+    norm.includes('العدوه') ||
+    norm.includes('عروس الصعيد') ||
+    norm.includes('طه حسين')
+  ) {
+    return 'فرع المنيا';
+  }
+
+  // 2. Minya El-Qamh (Sharqia) - Must be checked before generic "منيا"
+  if (
+    norm.includes('منيا القمح') ||
+    norm.includes('القمح') ||
+    norm.includes('meq') ||
+    norm.includes('شرقيه') ||
+    norm.includes('الشرقيه') ||
+    norm.includes('زقازيق') ||
+    norm.includes('الزقازيق') ||
+    norm.includes('بلبيس') ||
+    norm.includes('فاقوس') ||
+    norm.includes('مشتول') ||
+    norm.includes('ابو حماد') ||
+    norm.includes('ابوحماد') ||
+    norm.includes('ديرب نجم') ||
+    norm.includes('العاشر من رمضان')
+  ) {
+    return 'فرع منيا القمح';
+  }
+
+  // 3. Minya (Upper Egypt) general
+  if (norm.includes('المنيا') || norm.includes('منيا') || norm.includes('minya') || norm.includes('min')) {
+    return 'فرع المنيا';
+  }
+
+  // 4. Central October
+  if (
+    norm.includes('اكتوبر') ||
+    norm.includes('مركزي') ||
+    norm.includes('رئيسي') ||
+    norm.includes('الجيزه') ||
+    norm.includes('جيزه') ||
+    norm.includes('october') ||
+    norm.includes('giza') ||
+    norm.includes('main')
+  ) {
+    return 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+  }
+
+  // 5. Dimeshalt (Dakahlia / Mansoura)
+  if (
+    norm.includes('ديمشلت') ||
+    norm.includes('دكرنس') ||
+    norm.includes('منصوره') ||
+    norm.includes('المنصوره') ||
+    norm.includes('دقهليه') ||
+    norm.includes('الدقهليه') ||
+    norm.includes('ميت غمر') ||
+    norm.includes('شربين') ||
+    norm.includes('السنبلاوين') ||
+    norm.includes('سنبلاوين') ||
+    norm.includes('بلقاس') ||
+    norm.includes('اجا') ||
+    norm.includes('طلخا') ||
+    norm.includes('المنزله') ||
+    norm.includes('dimeshalt') ||
+    norm.includes('dim')
+  ) {
+    return 'فرع ديمشلت';
+  }
+
+  // 6. Fayoum
+  if (
+    norm.includes('فيوم') ||
+    norm.includes('الفيوم') ||
+    norm.includes('اطسا') ||
+    norm.includes('سنورس') ||
+    norm.includes('طاميه') ||
+    norm.includes('ابشواي') ||
+    norm.includes('يوسف الصديق') ||
+    norm.includes('fayoum') ||
+    norm.includes('fay')
+  ) {
+    return 'فرع الفيوم';
+  }
+
+  // 7. Cairo
+  if (
+    norm.includes('قاهره') ||
+    norm.includes('القاهره') ||
+    norm.includes('مدينة نصر') ||
+    norm.includes('وسط البلد') ||
+    norm.includes('المعادي') ||
+    norm.includes('شبرا') ||
+    norm.includes('عين شمس') ||
+    norm.includes('حلوان') ||
+    norm.includes('cairo') ||
+    norm.includes('cai')
+  ) {
+    return 'فرع القاهرة';
+  }
+
+  // 8. Beheira / Damanhour
+  if (
+    norm.includes('بحيره') ||
+    norm.includes('البحيره') ||
+    norm.includes('دمنهور') ||
+    norm.includes('كفر الدوار') ||
+    norm.includes('ايتاي البارود') ||
+    norm.includes('ابو حمص') ||
+    norm.includes('حوش عيسى') ||
+    norm.includes('شبراخيت') ||
+    norm.includes('كوم حماده') ||
+    norm.includes('رشيد') ||
+    norm.includes('الدلنجات') ||
+    norm.includes('beheira') ||
+    norm.includes('damanhour') ||
+    norm.includes('beh')
+  ) {
+    return 'فرع البحيرة';
+  }
+
+  // 9. Menouf / Menoufia
+  if (
+    norm.includes('منوف') ||
+    norm.includes('المنوفيه') ||
+    norm.includes('شبين') ||
+    norm.includes('اشمون') ||
+    norm.includes('الباجور') ||
+    norm.includes('قويسنا') ||
+    norm.includes('بركة السبع') ||
+    norm.includes('بركه السبع') ||
+    norm.includes('تلا') ||
+    norm.includes('الشهداء') ||
+    norm.includes('السادات') ||
+    norm.includes('menouf') ||
+    norm.includes('mnf')
+  ) {
+    return 'فرع منوف';
+  }
+
+  return '';
+}
+
+/**
  * Branch canonical identifier
  */
 export function normalizeBranchKey(branch?: string): string {
   if (!branch) return '';
+  const inferred = inferBranchFromText(branch);
+  if (inferred) {
+    if (inferred.includes('أكتوبر') || inferred.includes('اكتوبر') || inferred.includes('مركزي')) return 'main';
+    if (inferred.includes('منيا القمح')) return 'meq';
+    if (inferred.includes('المنيا')) return 'minya';
+    if (inferred.includes('ديمشلت')) return 'dimeshalt';
+    if (inferred.includes('الفيوم') || inferred.includes('فيوم')) return 'fayoum';
+    if (inferred.includes('القاهرة') || inferred.includes('قاهرة')) return 'cairo';
+    if (inferred.includes('البحيرة') || inferred.includes('بحيرة')) return 'beheira';
+    if (inferred.includes('منوف')) return 'menouf';
+  }
+
   const norm = normalizeArabicText(branch);
 
   if (
@@ -150,7 +342,9 @@ export function normalizeBranchKey(branch?: string): string {
     norm.includes('القمح') ||
     norm.includes('meq') ||
     norm.includes('شرقيه') ||
-    norm.includes('زقازيق')
+    norm.includes('زقازيق') ||
+    norm.includes('بلبيس') ||
+    norm.includes('فاقوس')
   ) {
     return 'meq';
   }
@@ -311,18 +505,29 @@ export function isBranchMatch(
 export function doesCustomerBelongToRep(customer: Customer, repUser: User): boolean {
   if (!repUser) return false;
 
-  // 1. Direct ID match
-  if (customer.repId && customer.repId === repUser.id) {
-    return true;
+  const repBranch = repUser.branchName?.trim();
+  
+  // Resolve customer branch directly or from town/district keywords
+  let customerBranch = customer.branchName?.trim();
+  if (!customerBranch || customerBranch === 'الفرع الرئيسي') {
+    const inferred = inferBranchFromText(`${customer.name || ''} ${customer.address || ''} ${customer.governorate || ''} ${customer.notes || ''}`);
+    if (inferred) {
+      customerBranch = inferred;
+    }
   }
 
-  // 2. Branch Compatibility Check (if customer has an explicit branch specified)
-  const customerBranch = customer.branchName?.trim();
-  const repBranch = repUser.branchName?.trim();
+  // 1. STRICT BRANCH BOUNDARY CHECK
+  // If customer has a specific branch and rep has a branch, they MUST match.
+  // A sales rep in Minya ('minya') can NEVER view customers in Minya El-Qamh ('meq') and vice versa!
   if (customerBranch && repBranch) {
     if (!isBranchMatch(customerBranch, repBranch, { allowUnassigned: false })) {
       return false;
     }
+  }
+
+  // 2. Direct ID match (Valid only if branch is compatible)
+  if (customer.repId && customer.repId === repUser.id) {
+    return true;
   }
 
   // 3. Match by Name / Username / Phone on the customer's rep field

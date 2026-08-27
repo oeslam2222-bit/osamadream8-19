@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { COMPANY_INFO } from '../data/mockData';
 import { Customer, CustomerTier, Invoice, ItemStatus, Product, SalesPriority } from '../types';
+import { inferBranchFromText } from './arabicMatchingService';
 
 /**
  * Smart Branch Name normalizer for Excel input
@@ -11,44 +12,9 @@ export function normalizeExcelBranchName(rawBranch?: string): string {
     return '';
   }
   const clean = rawBranch.trim();
-  const lower = clean.toLowerCase();
-
-  if (
-    lower.includes('أكتوبر') ||
-    lower.includes('اكتوبر') ||
-    lower.includes('مركزي') ||
-    lower.includes('رئيسي') ||
-    lower.includes('october') ||
-    lower.includes('main')
-  ) {
-    return 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
-  }
-  if (
-    lower.includes('بحيرة') ||
-    lower.includes('بحيره') ||
-    lower.includes('دمنهور') ||
-    lower.includes('beheira') ||
-    lower.includes('damanhour')
-  ) {
-    return 'فرع البحيرة';
-  }
-  if (lower.includes('قاهرة') || lower.includes('قاهره') || lower.includes('cairo')) {
-    return 'فرع القاهرة';
-  }
-  if (lower.includes('فيوم') || lower.includes('fayoum')) {
-    return 'فرع الفيوم';
-  }
-  if (lower.includes('منيا القمح') || lower.includes('القمح') || lower.includes('meq')) {
-    return 'فرع منيا القمح';
-  }
-  if (lower.includes('منيا') || lower.includes('minya')) {
-    return 'فرع المنيا';
-  }
-  if (lower.includes('ديمشلت') || lower.includes('dimeshalt')) {
-    return 'فرع ديمشلت';
-  }
-  if (lower.includes('منوف') || lower.includes('menouf')) {
-    return 'فرع منوف';
+  const inferred = inferBranchFromText(clean);
+  if (inferred) {
+    return inferred;
   }
 
   // If user provided a specific branch name, format nicely
