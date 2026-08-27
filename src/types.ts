@@ -62,6 +62,7 @@ export type OfficialDepartment = typeof OFFICIAL_DEPARTMENTS[number];
 export interface Product {
   id: string;
   code: string;                      // الكود
+  unifiedCode?: string;              // الكود الموحد
   name: string;                      // اسم الصنف (Product name)
   salesPriority: SalesPriority;      // اولوية البيع
   category: string;                  // التصنيف / المجموعة

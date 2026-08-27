@@ -236,10 +236,10 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     } else if (norm === 'منياالقمح' || norm.includes('منياالقمح') || norm.includes('القمح')) {
       colMap.stockMeq = idx;
     }
-    // 2. Code (كود موحد)
-    else if (
-      norm === 'كودموحد' ||
-      norm.includes('كودموحد') ||
+    // 2. Product code and unified code
+    else if (norm.includes('الكودالموحد') || norm.includes('كودموحد') || norm.includes('unifiedcode')) {
+      colMap.unifiedCode = idx;
+    } else if (
       norm.includes('كود') ||
       norm.includes('code')
     ) {
@@ -480,6 +480,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const product: Product = {
       id: deterministicId,
       code: code,
+      unifiedCode: getVal(colMap.unifiedCode) || undefined,
       name: name || `صنف دريم ${code}`,
       salesPriority: salesPriority,
       category: itemGroup,
@@ -811,7 +812,7 @@ export function exportInvoiceForERP(invoice: Invoice): void {
     { wch: 12 }, // قطع فردية
     { wch: 14 }, // إجمالي القطع
     { wch: 14 }, // سعر الكرتونة
-    { wch: 14 }, // سعر القطعة
+    { wch: 14 }, // ��عر القطعة
     { wch: 16 }, // الإجمالي قبل الخصم
     { wch: 16 }, // نسبة الخصم
     { wch: 16 }, // قيمة الخصم

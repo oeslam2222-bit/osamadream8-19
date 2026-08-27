@@ -85,11 +85,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('الكل');
   const [selectedPriority, setSelectedPriority] = useState<string>('الكل');
   const [selectedStatus, setSelectedStatus] = useState<string>('الكل');
+  const [selectedOfferFilter, setSelectedOfferFilter] = useState<'all' | 'offers' | 'regular'>('all');
   const [stockAvailabilityFilter, setStockAvailabilityFilter] = useState<
     'all' | 'in_branch' | 'in_warehouse' | 'low_stock' | 'out_of_stock' | 'out_of_branch_only' | 'high_stock'
   >('all');
   const [sortBy, setSortBy] = useState<
-    'default' | 'branch_stock_desc' | 'branch_stock_asc' | 'october_stock_desc' | 'october_stock_asc' | 'total_stock_desc' | 'priority' | 'price_asc' | 'price_desc' | 'name_asc'
+    'default' | 'warehouse_first' | 'branch_stock_desc' | 'branch_stock_asc' | 'october_stock_desc' | 'october_stock_asc' | 'total_stock_desc' | 'priority' | 'price_asc' | 'price_desc' | 'name_asc'
   >('default');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
@@ -342,10 +343,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
         const nameMatch = p.name.toLowerCase().includes(query);
         const catMatch = p.category?.toLowerCase().includes(query);
         const deptMatch = p.department?.toLowerCase().includes(query);
+        const unifiedCodeMatch = p.unifiedCode?.toLowerCase().includes(query);
         const colorMatch = p.color?.toLowerCase().includes(query);
+        const sizeMatch = p.size?.toLowerCase().includes(query);
         const barcodeMatch = p.barcode?.includes(query);
 
-        if (!codeMatch && !nameMatch && !catMatch && !deptMatch && !colorMatch && !barcodeMatch) {
+        if (!codeMatch && !unifiedCodeMatch && !nameMatch && !catMatch && !deptMatch && !colorMatch && !sizeMatch && !barcodeMatch) {
           return false;
         }
       }
@@ -395,6 +398,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
         return false;
       }
 
+      // Offer filter: promoPrice is always the carton offer price
+      const hasOffer = typeof p.promoPrice === 'number' && p.promoPrice > 0 && p.promoPrice < p.cartonPrice;
+      if (selectedOfferFilter === 'offers' && !hasOffer) return false;
+      if (selectedOfferFilter === 'regular' && hasOffer) return false;
+
       // Stock Filters (المنتهية، قاربت على النفاذ، المتوفرة بكثرة، متاح بأكتوبر، إلخ)
       const bStock = getProductBranchStock(p);
       const oStock = p.mainWarehouseActual || 0;
@@ -419,7 +427,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
     });
 
     // Sorting by branch stock, October warehouse stock, total stock, priority, price, name
-    if (sortBy === 'branch_stock_desc') {
+    if (sortBy === 'warehouse_first') {
+      result.sort((a, b) => {
+        const aNeedsWarehouse = getProductBranchStock(a) <= 0 && (a.mainWarehouseActual || 0) > 0 ? 1 : 0;
+        const bNeedsWarehouse = getProductBranchStock(b) <= 0 && (b.mainWarehouseActual || 0) > 0 ? 1 : 0;
+        return bNeedsWarehouse - aNeedsWarehouse;
+      });
+    } else if (sortBy === 'branch_stock_desc') {
       result.sort((a, b) => getProductBranchStock(b) - getProductBranchStock(a));
     } else if (sortBy === 'branch_stock_asc') {
       result.sort((a, b) => getProductBranchStock(a) - getProductBranchStock(b));
@@ -738,6 +752,20 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
             </select>
           </div>
 
+          {/* Offers Filter */}
+          <div className="relative">
+            <select
+              aria-label="تصفية العروض"
+              value={selectedOfferFilter}
+              onChange={(e) => setSelectedOfferFilter(e.target.value as 'all' | 'offers' | 'regular')}
+              className="w-full h-11 px-2.5 bg-slate-800 text-slate-100 border border-slate-700 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer text-xs"
+            >
+              <option value="all">كل الأسعار</option>
+              <option value="offers">عروض خاصة فقط</option>
+              <option value="regular">بدون عروض</option>
+            </select>
+          </div>
+
           {/* Priority & Offers Dropdown */}
           <div className="relative">
             <select
@@ -775,6 +803,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
               className="flex-1 h-11 px-2.5 bg-slate-800 text-slate-100 border border-slate-700 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer text-xs"
             >
               <option value="default">الترتيب: الافتراضي</option>
+              <option value="warehouse_first">غير متوفر بالفرع وأولوية مخزن أكتوبر</option>
               <option value="branch_stock_desc">🏢 مخزون الفرع: الأكثر ⬇️ للأقل</option>
               <option value="branch_stock_asc">🏢 مخزون الفرع: الأقل ⬆️ للأكثر</option>
               <option value="october_stock_desc">🏬 مخزن أكتوبر: الأكثر ⬇️ للأقل</option>
@@ -879,7 +908,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
         </div>
 
         {/* Active Filter Reset Pill if filtered */}
-        {(searchTerm || selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل' || selectedPriority !== 'الكل' || selectedStatus !== 'الكل' || stockAvailabilityFilter !== 'all' || sortBy !== 'default') && (
+        {(searchTerm || selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل' || selectedPriority !== 'الكل' || selectedStatus !== 'الكل' || selectedOfferFilter !== 'all' || stockAvailabilityFilter !== 'all' || sortBy !== 'default') && (
           <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-xs">
             <span className="text-slate-400 text-[11px]">
               النتائج المطابقة: <strong className="text-amber-300 font-bold">{filteredProducts.length}</strong> صنف
@@ -891,6 +920,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                 setSelectedSubCategory('الكل');
                 setSelectedPriority('الكل');
                 setSelectedStatus('الكل');
+                setSelectedOfferFilter('all');
                 setStockAvailabilityFilter('all');
                 setSortBy('default');
               }}
@@ -1176,9 +1206,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
 
                       <div className="text-left">
                         <div className="text-[10px] text-amber-900 font-bold">سعر الكرتونة:</div>
-                        <div className="text-xs font-black text-amber-950">
-                          {formatCurrency(product.cartonPrice)}
-                        </div>
+  <div className="text-xs font-black text-amber-950">
+                  {typeof product.promoPrice === 'number' && product.promoPrice > 0 && product.promoPrice < product.cartonPrice ? (
+                    <span className="flex flex-col items-end gap-0.5">
+                      <span className="text-rose-700">عرض خاص: {formatCurrency(product.promoPrice)}</span>
+                      <span className="text-[9px] text-slate-500 line-through">السعر الأساسي: {formatCurrency(product.cartonPrice)}</span>
+                      <span className="text-[9px] text-rose-700">قطعة العرض: {formatCurrency(product.promoPrice / (product.cartonQuantity || 1))}</span>
+                    </span>
+                  ) : formatCurrency(product.cartonPrice)}
+                </div>
                       </div>
                     </div>
 

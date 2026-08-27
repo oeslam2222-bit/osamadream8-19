@@ -305,7 +305,9 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     let lowStockCount = 0;
 
     products.forEach((p) => {
-      const branchUnits = p.branchStockActual || 0;
+      const branchUnits = selectedBranchFilter !== 'الكل'
+        ? (p.branchStocks?.[selectedBranchFilter] ?? 0)
+        : (p.branchStockActual || 0);
       const mainUnits = p.mainWarehouseActual || 0;
       const totalUnits = branchUnits + mainUnits;
       const cartonUnits = p.cartonQuantity || 1;
@@ -473,7 +475,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700/80 space-y-1">
             <div className="text-[11px] text-slate-400 font-bold flex items-center gap-1">
               <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
-              <span>إجمالي المبيعات</span>
+              <span>قيمة الطلبات المعتمدة</span>
             </div>
             <div className="text-base sm:text-lg font-black text-amber-300">
               {formatCurrency(metrics.totalRevenue)}
@@ -487,7 +489,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           <div className="bg-emerald-500/10 p-3.5 rounded-2xl border border-emerald-500/30 space-y-1">
             <div className="text-[11px] text-emerald-300 font-bold flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>الفواتير المكتملة</span>
+              <span>الفواتير المنفذة</span>
             </div>
             <div className="text-base sm:text-lg font-black text-emerald-400">
               {metrics.completedInvoices} فاتورة
@@ -501,7 +503,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           <div className="bg-cyan-500/10 p-3.5 rounded-2xl border border-cyan-500/30 space-y-1">
             <div className="text-[11px] text-cyan-300 font-bold flex items-center gap-1">
               <Truck className="w-3.5 h-3.5 text-cyan-400" />
-              <span>قيد التحضير والتنفيذ</span>
+              <span>قيد التجهيز والتوصيل</span>
             </div>
             <div className="text-base sm:text-lg font-black text-cyan-300">
               {metrics.inProgressInvoices} طلبية
@@ -543,7 +545,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           <div className="bg-purple-500/10 p-3.5 rounded-2xl border border-purple-500/30 space-y-1">
             <div className="text-[11px] text-purple-300 font-bold flex items-center gap-1">
               <RotateCcw className="w-3.5 h-3.5 text-purple-400" />
-              <span>المرتجعات (المستردة)</span>
+              <span>مرتجعات أعادت المخزون</span>
             </div>
             <div className="text-base sm:text-lg font-black text-purple-300">
               {metrics.returnedCount} طلبية
