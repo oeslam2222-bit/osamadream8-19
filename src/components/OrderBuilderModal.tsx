@@ -146,7 +146,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
       }
 
       return true;
-    }).slice(0, 40);
+    }).slice(0, 200);
   }, [visibleCustomers, customerSearchQuery, selectedCustomerTierFilter, selectedSupervisorRepFilter, supervisedReps, currentUser]);
 
   const handleSelectCustomer = (c: Customer) => {

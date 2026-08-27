@@ -500,43 +500,24 @@ export function isBranchMatch(
 
 /**
  * Check if a customer strictly belongs to a specific sales rep
- * Enforces strict branch boundary first, then verifies identity.
+ * Direct rep assignment (by repId or salesRepName/repName) takes top priority,
+ * followed by fallback branch matching for unassigned customers.
  */
 export function doesCustomerBelongToRep(customer: Customer, repUser: User): boolean {
   if (!repUser) return false;
 
-  const repBranch = repUser.branchName?.trim();
-  
-  // Resolve customer branch directly or from town/district keywords
-  let customerBranch = customer.branchName?.trim();
-  if (!customerBranch || customerBranch === 'الفرع الرئيسي') {
-    const inferred = inferBranchFromText(`${customer.name || ''} ${customer.address || ''} ${customer.governorate || ''} ${customer.notes || ''}`);
-    if (inferred) {
-      customerBranch = inferred;
-    }
-  }
-
-  // 1. STRICT BRANCH BOUNDARY CHECK
-  // If customer has a specific branch and rep has a branch, they MUST match.
-  // A sales rep in Minya ('minya') can NEVER view customers in Minya El-Qamh ('meq') and vice versa!
-  if (customerBranch && repBranch) {
-    if (!isBranchMatch(customerBranch, repBranch, { allowUnassigned: false })) {
-      return false;
-    }
-  }
-
-  // 2. Direct ID match (Valid only if branch is compatible)
+  // 1. Direct ID match (Highest authority)
   if (customer.repId && customer.repId === repUser.id) {
     return true;
   }
 
-  // 3. Match by Name / Username / Phone on the customer's rep field
+  // 2. Direct Match by Name / Username / Phone on the customer's rep field
   const repField = (customer.salesRepName || customer.repName || '').trim();
-  if (repField) {
+  if (repField && repField !== 'مندوب المبيعات' && repField !== 'المندوب') {
     if (isArabicNameMatch(repField, repUser.name)) return true;
     if (repUser.username && isArabicNameMatch(repField, repUser.username)) return true;
     if (repUser.phone && (repField.includes(repUser.phone) || repUser.phone.includes(repField))) return true;
-    
+
     // Normalized direct containment (e.g. "حسن محمد" in "مندوب حسن محمد - المنيا")
     const normRepField = normalizeArabicText(repField);
     const normUserName = normalizeArabicText(repUser.name);
@@ -545,11 +526,21 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
         return true;
       }
     }
+    // If the customer has an explicit other rep name that doesn't match this repUser, return false
     return false;
   }
 
-  // 4. If customer has NO assigned rep at all, but belongs to the exact same branch as this sales rep
-  if (!repField && customerBranch && repBranch && isBranchMatch(customerBranch, repBranch, { allowUnassigned: false })) {
+  // 3. Fallback: If customer has NO assigned rep at all, check if customer belongs to the exact same branch
+  const repBranch = repUser.branchName?.trim();
+  let customerBranch = customer.branchName?.trim();
+  if (!customerBranch || customerBranch === 'الفرع الرئيسي') {
+    const inferred = inferBranchFromText(`${customer.name || ''} ${customer.address || ''} ${customer.governorate || ''} ${customer.notes || ''}`);
+    if (inferred) {
+      customerBranch = inferred;
+    }
+  }
+
+  if (!repField && !customer.repId && customerBranch && repBranch && isBranchMatch(customerBranch, repBranch, { allowUnassigned: false })) {
     return true;
   }
 

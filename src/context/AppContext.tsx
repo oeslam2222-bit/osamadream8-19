@@ -805,42 +805,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updated.branchName = normalizeBranchName(updated.branchName);
       }
 
-      // 1. If customer has an existing repId, verify that the assigned rep's branch strictly matches the customer's branch!
-      if (updated.repId && updated.branchName) {
-        const currentLinkedUser = userList.find((u) => u.id === updated.repId);
-        if (
-          currentLinkedUser?.branchName &&
-          !isBranchMatch(updated.branchName, currentLinkedUser.branchName, { allowUnassigned: false })
-        ) {
-          // Cross-branch mismatch (e.g. rep in Minya vs customer in Minya El-Qamh): unlink invalid repId
-          updated = { ...updated, repId: undefined };
-        }
-      }
-
       const rawRep = (updated.salesRepName || updated.repName || '').trim();
       if (!rawRep || rawRep === 'مندوب المبيعات' || rawRep === 'المندوب') {
         return updated;
       }
 
-      // 2. STRICTLY filter candidates to reps in the same branch
+      // Check if candidate matches rep in same branch, or overall
+      const matchFn = (u: User) =>
+        isArabicNameMatch(rawRep, u.name) ||
+        (u.username && isArabicNameMatch(rawRep, u.username)) ||
+        (u.phone && (rawRep.includes(u.phone) || u.phone.includes(rawRep))) ||
+        normalizeArabicText(rawRep).includes(normalizeArabicText(u.name)) ||
+        normalizeArabicText(u.name).includes(normalizeArabicText(rawRep));
+
       const branchCompatibleReps = updated.branchName
         ? reps.filter((u) => u.branchName && isBranchMatch(updated.branchName, u.branchName, { allowUnassigned: false }))
-        : reps;
+        : [];
 
-      // CRITICAL: If no reps exist in this customer's branch, NEVER assign a rep from another branch!
-      if (branchCompatibleReps.length === 0) {
-        return updated;
+      let matched = branchCompatibleReps.find(matchFn);
+      if (!matched) {
+        matched = reps.find(matchFn);
       }
-
-      // 3. Find matched rep within the same branch
-      const matched = branchCompatibleReps.find(
-        (u) =>
-          isArabicNameMatch(rawRep, u.name) ||
-          (u.username && isArabicNameMatch(rawRep, u.username)) ||
-          (u.phone && (rawRep.includes(u.phone) || u.phone.includes(rawRep))) ||
-          normalizeArabicText(rawRep).includes(normalizeArabicText(u.name)) ||
-          normalizeArabicText(u.name).includes(normalizeArabicText(rawRep))
-      );
 
       if (matched) {
         return {
@@ -848,7 +833,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           repName: matched.name,
           repId: matched.id,
           salesRepName: matched.name,
-          branchName: updated.branchName || matched.branchName,
+          branchName: updated.branchName && updated.branchName !== 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)'
+            ? updated.branchName
+            : (matched.branchName || updated.branchName),
         };
       }
       return updated;
