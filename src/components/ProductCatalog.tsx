@@ -303,7 +303,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
       const octoberStock = p.mainWarehouseActual || 0;
       const isCompletelyOut = branchStock <= 0 && octoberStock <= 0;
       
-      if (p.promoPrice || p.promoPiecePrice || p.offerPrice) {
+      const isAnOffer = Boolean(
+        (p.promoPrice && p.promoPrice > 0 && p.promoPrice < p.cartonPrice) ||
+        (p.promoPiecePrice && p.promoPiecePrice > 0) ||
+        (p.offerPrice && p.offerPrice > 0) ||
+        p.status === 'عرض ترويجي' ||
+        (p.discountPercent && p.discountPercent > 0) ||
+        (p.salesPriority && p.salesPriority.includes('عرض'))
+      );
+      if (isAnOffer) {
         offers++;
       }
 
@@ -409,7 +417,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
       const oStock = p.mainWarehouseActual || 0;
 
       if (stockAvailabilityFilter === 'offers') {
-        if (!p.promoPrice && !p.promoPiecePrice && !p.offerPrice) return false;
+        const isOffer = Boolean(
+          (p.promoPrice && p.promoPrice > 0 && p.promoPrice < p.cartonPrice) ||
+          (p.promoPiecePrice && p.promoPiecePrice > 0) ||
+          (p.offerPrice && p.offerPrice > 0) ||
+          p.status === 'عرض ترويجي' ||
+          (p.discountPercent && p.discountPercent > 0) ||
+          (p.salesPriority && p.salesPriority.includes('عرض'))
+        );
+        if (!isOffer) return false;
       } else if (stockAvailabilityFilter === 'out_of_stock') {
         // بدون مخزون: الصنف منتهي تماماً (رصيد الفرع 0 ورصيد أكتوبر 0)
         if (bStock > 0 || oStock > 0) return false;
@@ -672,11 +688,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold text-slate-500">الفرع المعروض أرصدته حالياً:</span>
               <span className="bg-amber-400 text-slate-950 text-xs font-black px-2.5 py-0.5 rounded-lg shadow-2xs">
-                {currentActiveBranch || 'كل الفروع والمخزن الرئيسي'}
+                {currentActiveBranch || 'الفرع الرئيسي (كل الفروع)'}
               </span>
             </div>
             <p className="text-[11px] text-slate-600 mt-0.5">
-              مخزن أكتوبر هو المخزن المركزي الرئيسي لكافة الفروع الـ 7.
+              كل مشرف ومندوب ومدير فرع يستعرض مخزون فرعه المسند إليه.
             </p>
           </div>
         </div>
@@ -692,12 +708,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
               onChange={(e) => setSelectedBranchFilter(e.target.value)}
               className="bg-white border border-slate-300 text-slate-900 font-black rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-amber-400 focus:outline-none shadow-2xs"
             >
-              <option value="الكل">كل الفروع (أكتوبر المركزي)</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.name}>
-                  {b.name}
-                </option>
-              ))}
+              <option value="الكل">الفرع الرئيسي (كل الفروع)</option>
+              {branches
+                .filter((b) => !b.isMainWarehouse && !b.name.includes('المخزن المركزي'))
+                .map((b) => (
+                  <option key={b.id} value={b.name}>
+                    {b.name}
+                  </option>
+                ))}
             </select>
           </div>
         )}
@@ -873,6 +891,22 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
             }`}
           >
             الكل ({stockCounts.all})
+          </button>
+          <button
+            id="filter-offers-pill-btn"
+            onClick={() => setStockAvailabilityFilter('offers')}
+            className={`px-3 py-1 rounded-lg text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
+              stockAvailabilityFilter === 'offers'
+                ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 text-slate-950 shadow-md ring-2 ring-amber-300'
+                : 'bg-amber-950/50 text-amber-300 border border-amber-500/50 hover:bg-amber-900/70'
+            }`}
+          >
+            <span>🏷️ عروض وتخفيضات</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
+              stockAvailabilityFilter === 'offers' ? 'bg-slate-950 text-amber-300' : 'bg-amber-400/20 text-amber-200'
+            }`}>
+              {stockCounts.offers}
+            </span>
           </button>
           <button
             onClick={() => setStockAvailabilityFilter('in_branch')}

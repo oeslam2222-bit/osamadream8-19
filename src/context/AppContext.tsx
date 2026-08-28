@@ -1709,14 +1709,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const orderFinalNotes = [orderData.notes, creatorAuditNote].filter(Boolean).join('\n');
     const orderBranch = orderData.branchName || currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
 
+    // Match customer for credit limit & debt validation
+    const matchedCustomer = customers.find(
+      (c) =>
+        (orderData.customerCode && c.code === orderData.customerCode) ||
+        (orderData.customerName && c.name.trim().toLowerCase() === orderData.customerName.trim().toLowerCase()) ||
+        (orderData.customerPhone && c.phone && c.phone.trim() === orderData.customerPhone.trim())
+    );
+
+    const custBalanceBefore = Number(matchedCustomer?.balance || 0);
+    const custCreditLimit = Number(matchedCustomer?.creditLimit !== undefined ? matchedCustomer.creditLimit : 50000);
+    const custBalanceAfter = custBalanceBefore + primaryTotals.estimatedGrandTotal;
+    const isCreditExceeded = custCreditLimit > 0 && custBalanceAfter > custCreditLimit;
+    const reqPayment = isCreditExceeded ? Math.max(0, custBalanceAfter - custCreditLimit) : 0;
+
     const primaryInvoice: Invoice = {
       id: `inv-${Date.now()}`,
       invoiceNumber: newInvoiceNumber,
       customerName: orderData.customerName || 'عميل تجزئة عام',
-      customerCode: orderData.customerCode || undefined,
-      customerPhone: orderData.customerPhone || '',
-      customerAddress: orderData.customerAddress || '',
-      customerTaxNumber: orderData.customerTaxNumber || '',
+      customerCode: orderData.customerCode || (matchedCustomer ? matchedCustomer.code : undefined),
+      customerPhone: orderData.customerPhone || (matchedCustomer ? matchedCustomer.phone : ''),
+      customerAddress: orderData.customerAddress || (matchedCustomer ? matchedCustomer.address : ''),
+      customerTaxNumber: orderData.customerTaxNumber || (matchedCustomer ? matchedCustomer.taxNumber : ''),
       date: formattedDate,
       time: formattedTime,
       repId: assignedRepId,
@@ -1738,6 +1752,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       syncedToAccounting: false,
       hasShortageSplit: shouldSplit,
       shortageInvoiceNumber: shouldSplit ? `${newInvoiceNumber}-NQ` : undefined,
+      customerBalanceBefore: custBalanceBefore,
+      customerCreditLimit: custCreditLimit,
+      customerBalanceAfter: custBalanceAfter,
+      creditLimitExceeded: isCreditExceeded,
+      requiredDownPayment: reqPayment,
       qrPayload: `DREAM-EINV-${newInvoiceNumber}|${orderData.customerTaxNumber || 'GEN'}|${primaryTotals.estimatedGrandTotal.toFixed(2)}|${primaryTotals.taxAmount.toFixed(2)}|${formattedDate}`,
     };
 
@@ -1781,9 +1800,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    // A sales rep submission must not reserve, transfer, or deduct stock.
-    // Stock is changed only when an authorized supervisor/manager approves the order.
-    if (isDirectManager) {
+    // Reserve stock immediately to prevent double-booking by multiple sales reps.
+    // Physical actual stock is deducted only upon supervisor/manager approval.
     setProducts((prev) => {
       return prev.map((p) => {
         const cartItem = cart.find((c) => c.product.id === p.id);
@@ -1814,10 +1832,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       });
     });
-    }
 
-    // Only authorized approval actions create inventory audit movements.
-    if (isDirectManager) cart.forEach((item) => {
+    cart.forEach((item) => {
       const prod = products.find((p) => p.id === item.product.id);
       const isFromMain = item.fulfillFromMainWarehouse;
       const beforeReserved = prod ? (isFromMain ? prod.mainWarehouseReserved : prod.branchStockReserved) : 0;
@@ -1839,7 +1855,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? `حجز صنف نواقص من المخزن المركزي بأكتوبر للطلبية #${newInvoiceNumber}`
           : isDirectManager
           ? `اعتماد وصرف فوري للطلبية #${newInvoiceNumber}`
-          : `حجز رصيد للطلبية #${newInvoiceNumber} قيد مراجعة واعتماد المشرف`,
+          : `حجز رصيد للطلبية #${newInvoiceNumber} لمنع تكرار الحجز (قيد مراجعة واعتماد المشرف)`,
       });
     });
 
@@ -1972,9 +1988,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return {
         ...p,
         branchStockActual: Math.max(0, p.branchStockActual - allocation.branch),
-        branchStockReserved: Math.max(0, p.branchStockReserved - allocation.branch),
         mainWarehouseActual: Math.max(0, p.mainWarehouseActual - allocation.main),
-        mainWarehouseReserved: Math.max(0, p.mainWarehouseReserved - allocation.main),
       };
     }));
 
@@ -2084,10 +2098,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return prev.map((p) => {
         const invItem = inv.items.find((it) => it.productId === p.id);
         if (!invItem) return p;
-        return {
-          ...p,
-          branchStockReserved: p.branchStockReserved + invItem.cartonCount,
-        };
+        if (invItem.fulfilledFrom === 'main_warehouse') {
+          return {
+            ...p,
+            mainWarehouseReserved: p.mainWarehouseReserved + invItem.cartonCount,
+          };
+        } else {
+          return {
+            ...p,
+            branchStockReserved: p.branchStockReserved + invItem.cartonCount,
+          };
+        }
       });
     });
 

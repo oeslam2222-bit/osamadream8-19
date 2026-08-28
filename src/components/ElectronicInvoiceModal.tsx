@@ -417,10 +417,39 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               </div>
 
               <div className="pt-2 border-t border-slate-700 flex justify-between items-center">
-                <span className="font-bold text-slate-200 text-xs">إجمالي الفاتورة الصافي النهائي:</span>
-                <div className="text-xl font-black text-amber-400 font-mono">
+                <span className="font-bold text-slate-200 text-xs">إجمالي الفاتورة الصافي:</span>
+                <div className="text-lg font-black text-amber-400 font-mono">
                   {formatCurrency(invoice.estimatedGrandTotal)}
                 </div>
+              </div>
+
+              {/* Customer Debt & Credit Limit Breakdown */}
+              <div className="pt-2 border-t border-slate-700/80 space-y-1.5 text-[11px]">
+                <div className="flex justify-between items-center text-slate-300">
+                  <span>مديونية العميل السابقة:</span>
+                  <span className="font-bold font-mono">{formatCurrency(invoice.customerBalanceBefore || 0)}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-300">
+                  <span>المديونية الإجمالية بعد الفاتورة:</span>
+                  <span className={`font-black font-mono ${invoice.creditLimitExceeded ? 'text-rose-400' : 'text-emerald-400'}`}>
+                    {formatCurrency(invoice.customerBalanceAfter || ((invoice.customerBalanceBefore || 0) + invoice.estimatedGrandTotal))}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-slate-400">
+                  <span>الحد الائتماني المعتمد:</span>
+                  <span className="font-bold font-mono text-blue-300">{formatCurrency(invoice.customerCreditLimit || 50000)}</span>
+                </div>
+                {invoice.creditLimitExceeded && (
+                  <div className="bg-rose-950/90 border border-rose-500/80 p-2 rounded-xl text-rose-200 text-[10px] space-y-0.5 mt-1">
+                    <div className="font-black text-rose-300 flex items-center gap-1">
+                      <span>⚠️ تم تجاوز الحد الائتماني للعميل</span>
+                    </div>
+                    <div>
+                      مبلغ السداد النقدي المطلوب فوراً:{' '}
+                      <strong className="text-amber-300 font-mono font-black">{formatCurrency(invoice.requiredDownPayment || 0)}</strong>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

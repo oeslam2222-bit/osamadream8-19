@@ -413,9 +413,12 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   const statusBadges: Record<string, { bg: string; text: string; label: string }> = {
     'قيد مراجعة المشرف': { bg: 'bg-amber-100 border-amber-300', text: 'text-amber-900', label: 'قيد مراجعة المشرف ⏳' },
     'معلقة بانتظار اعتماد الفرع': { bg: 'bg-blue-100 border-blue-300', text: 'text-blue-900', label: 'بانتظار مدير الفرع 🏛️' },
+    'جاري تحضير المنتجات': { bg: 'bg-orange-100 border-orange-300', text: 'text-orange-900', label: 'جاري تحضير المنتجات 📦' },
+    'تم وصول المنتجات': { bg: 'bg-teal-100 border-teal-300', text: 'text-teal-900', label: 'تم وصول المنتجات 🏢' },
     'معتمدة ومصروفة من المخزن': { bg: 'bg-indigo-100 border-indigo-300', text: 'text-indigo-900', label: 'معتمدة ومصروفة 📦' },
     'قيد التوصيل': { bg: 'bg-cyan-100 border-cyan-300', text: 'text-cyan-900', label: 'قيد التوصيل 🚚' },
     'تم التسليم': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-900', label: 'تم التسليم بنجاح ✅' },
+    'إغلاق الطلبية': { bg: 'bg-slate-200 border-slate-400', text: 'text-slate-900', label: 'تم إغلاق الطلبية 🔒' },
     'مرتجع': { bg: 'bg-purple-100 border-purple-300', text: 'text-purple-900', label: 'مرتجع للمخزن ↩️' },
     'مرفوضة / ملغاة': { bg: 'bg-rose-100 border-rose-300', text: 'text-rose-900', label: 'ملغاة / مرفوضة ❌' },
   };
@@ -825,9 +828,12 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               { id: 'الكل', label: 'جميع الحالات', count: invoices.length },
               { id: 'قيد مراجعة المشرف', label: '⏳ مراجعة المشرف', count: invoices.filter((i) => i.status === 'قيد مراجعة المشرف').length },
               { id: 'معلقة بانتظار اعتماد الفرع', label: '🏛️ اعتماد الفرع', count: invoices.filter((i) => i.status === 'معلقة بانتظار اعتماد الفرع').length },
-              { id: 'معتمدة ومصروفة من المخزن', label: '📦 معتمدة ومصروفة', count: invoices.filter((i) => i.status === 'معتمدة ومصروفة من المخزن').length },
+              { id: 'جاري تحضير المنتجات', label: '📦 جاري التحضير', count: invoices.filter((i) => i.status === 'جاري تحضير المنتجات').length },
+              { id: 'تم وصول المنتجات', label: '🏢 وصول المنتجات', count: invoices.filter((i) => i.status === 'تم وصول المنتجات').length },
+              { id: 'معتمدة ومصروفة من المخزن', label: '✨ معتمدة ومصروفة', count: invoices.filter((i) => i.status === 'معتمدة ومصروفة من المخزن').length },
               { id: 'قيد التوصيل', label: '🚚 قيد التوصيل', count: invoices.filter((i) => i.status === 'قيد التوصيل').length },
               { id: 'تم التسليم', label: '✅ تم التسليم', count: invoices.filter((i) => i.status === 'تم التسليم').length },
+              { id: 'إغلاق الطلبية', label: '🔒 إغلاق الطلبية', count: invoices.filter((i) => i.status === 'إغلاق الطلبية').length },
               { id: 'مرتجع', label: '↩️ مرتجع', count: invoices.filter((i) => i.status === 'مرتجع').length },
               { id: 'مرفوضة / ملغاة', label: '❌ ملغاة', count: invoices.filter((i) => i.status === 'مرفوضة / ملغاة').length },
             ].map((tab) => (
@@ -876,12 +882,12 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               <thead className="bg-slate-900 text-slate-200 font-bold">
                 <tr>
                   <th className="p-3.5">رقم الطلبية</th>
-                  <th className="p-3.5">العميل / المحل</th>
+                  <th className="p-3.5">العميل وموقف المديونية</th>
                   <th className="p-3.5">المندوب والفرع</th>
                   <th className="p-3.5 text-center">الكمية (كراتين)</th>
                   <th className="p-3.5 text-left">قيمة الفاتورة</th>
                   <th className="p-3.5 text-center">حالة الطلبية</th>
-                  <th className="p-3.5 text-center">متابعة التسليم والمرتجعات</th>
+                  <th className="p-3.5 text-center">متابعة مسار ودورة الطلبية</th>
                   <th className="p-3.5 text-center">الإجراءات</th>
                 </tr>
               </thead>
@@ -904,6 +910,11 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                     currentUser?.role === 'branch_manager' ||
                     currentUser?.role === 'supervisor';
 
+                  const debtBefore = inv.customerBalanceBefore || 0;
+                  const debtAfter = inv.customerBalanceAfter || (debtBefore + inv.estimatedGrandTotal);
+                  const creditLimit = inv.customerCreditLimit || 50000;
+                  const isExceeded = inv.creditLimitExceeded ?? (debtAfter > creditLimit);
+
                   return (
                     <tr key={inv.id} className="hover:bg-amber-50/30 transition">
                       
@@ -915,10 +926,30 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                         <div className="text-[10px] text-slate-400 mt-0.5">{inv.date}</div>
                       </td>
 
-                      {/* Customer */}
+                      {/* Customer & Debt Breakdown */}
                       <td className="p-3">
                         <div className="font-black text-slate-900 text-xs sm:text-sm">{inv.customerName}</div>
                         <div className="text-[10px] text-slate-400">{inv.customerPhone || '---'}</div>
+                        
+                        {/* Financial Snapshot Badges */}
+                        <div className="mt-1 flex flex-col gap-0.5 text-[10px]">
+                          <div className="text-slate-600 flex items-center gap-1">
+                            <span>المديونية الحالية:</span>
+                            <strong className="font-mono text-slate-800">{debtBefore.toLocaleString()} ج.م</strong>
+                          </div>
+                          <div className="text-slate-600 flex items-center gap-1">
+                            <span>بعد الفاتورة:</span>
+                            <strong className={`font-mono font-black ${isExceeded ? 'text-rose-600' : 'text-emerald-700'}`}>
+                              {debtAfter.toLocaleString()} ج.م
+                            </strong>
+                            <span className="text-[9px] text-slate-400">(حد: {creditLimit.toLocaleString()})</span>
+                          </div>
+                          {isExceeded && (
+                            <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 font-bold px-1.5 py-0.5 rounded border border-rose-300 w-fit text-[9px] mt-0.5">
+                              ⚠️ تجاوز حد (مطلوب: {(inv.requiredDownPayment || (debtAfter - creditLimit)).toLocaleString()} ج.م)
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Rep & Branch */}
@@ -948,20 +979,25 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                         </span>
                       </td>
 
-                      {/* Delivery & Return Quick Controls */}
+                      {/* Delivery & Workflow Action Controls */}
                       <td className="p-3 text-center">
                         <div className="flex items-center justify-center gap-1.5 flex-wrap">
                           
-                          {/* If pending approval: Show Approve / Forward / Reject */}
+                          {/* 1. If Pending Approval: Approve -> (جاري تحضير المنتجات) or Reject */}
                           {isPendingApproval && canManage && (
                             <>
                               <button
-                                onClick={() => handleApprove(inv.id)}
+                                onClick={() => {
+                                  approveOrder(inv.id);
+                                  updateOrderStatus(inv.id, 'جاري تحضير المنتجات');
+                                  setSuccessToast(`تم اعتماد الطلبية رقم ${inv.invoiceNumber} وبدء تحضير المنتجات 📦`);
+                                  setTimeout(() => setSuccessToast(null), 4000);
+                                }}
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
-                                title="اعتماد وصرف المخزون"
+                                title="اعتماد وبدء تحضير المنتجات"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>اعتماد</span>
+                                <span>اعتماد وتحضير</span>
                               </button>
 
                               <button
@@ -975,20 +1011,60 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                             </>
                           )}
 
-                          {/* If approved/dispatched: Show Out for Delivery */}
-                          {inv.status === 'معتمدة ومصروفة من المخزن' && (
-                            <button
-                              onClick={() => handleSetOutForDelivery(inv)}
-                              className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
-                              title="تسليم للسائق / بدء التوصيل"
-                            >
-                              <Truck className="w-3.5 h-3.5" />
-                              <span>قيد التوصيل</span>
-                            </button>
+                          {/* 2. If In Preparation or Approved: Move to (تم وصول المنتجات) or (قيد التوصيل) */}
+                          {(inv.status === 'جاري تحضير المنتجات' || inv.status === 'معتمدة ومصروفة من المخزن') && canManage && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  const res = updateOrderStatus(inv.id, 'تم وصول المنتجات');
+                                  if (res.success) {
+                                    setSuccessToast(`تم تسجيل وصول منتجات الطلبية ${inv.invoiceNumber} 🏢`);
+                                    setTimeout(() => setSuccessToast(null), 4000);
+                                  }
+                                }}
+                                className="bg-teal-600 hover:bg-teal-700 text-white font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                title="تأكيد وصول المنتجات للفرع/المنطقة"
+                              >
+                                <Building className="w-3.5 h-3.5" />
+                                <span>وصول المنتجات</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleSetOutForDelivery(inv)}
+                                className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                title="تسليم للسائق / بدء التوصيل"
+                              >
+                                <Truck className="w-3.5 h-3.5" />
+                                <span>قيد التوصيل</span>
+                              </button>
+                            </>
                           )}
 
-                          {/* If Out for Delivery: Show Delivered or Returned */}
-                          {(inv.status === 'قيد التوصيل' || inv.status === 'معتمدة ومصروفة من المخزن') && (
+                          {/* 3. If Arrived: Move to Out for Delivery or Direct Delivery */}
+                          {inv.status === 'تم وصول المنتجات' && canManage && (
+                            <>
+                              <button
+                                onClick={() => handleSetOutForDelivery(inv)}
+                                className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                title="تسليم للسائق / بدء التوصيل"
+                              >
+                                <Truck className="w-3.5 h-3.5" />
+                                <span>قيد التوصيل</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleSetDelivered(inv)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                title="تأكيد تسليم الطلبية للعميل"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>تم التسليم ✅</span>
+                              </button>
+                            </>
+                          )}
+
+                          {/* 4. If Out for Delivery: Show Delivered or Returned */}
+                          {inv.status === 'قيد التوصيل' && (
                             <>
                               <button
                                 onClick={() => handleSetDelivered(inv)}
@@ -1010,16 +1086,41 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                             </>
                           )}
 
-                          {/* If Delivered: Allow Return in case customer returned later */}
+                          {/* 5. If Delivered: Close Order or Return */}
                           {inv.status === 'تم التسليم' && (
-                            <button
-                              onClick={() => setReturnModalInvoice(inv)}
-                              className="bg-slate-100 hover:bg-purple-100 text-slate-700 hover:text-purple-900 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer border border-slate-200"
-                              title="تسجيل مرتجع بعد الاستلام"
-                            >
-                              <RotateCcw className="w-3.5 h-3.5 text-purple-600" />
-                              <span>مرتجع لاحق</span>
-                            </button>
+                            <>
+                              {canManage && (
+                                <button
+                                  onClick={() => {
+                                    const res = updateOrderStatus(inv.id, 'إغلاق الطلبية');
+                                    if (res.success) {
+                                      setSuccessToast(`تم إغلاق وتسوية الطلبية ${inv.invoiceNumber} بنجاح 🔒`);
+                                      setTimeout(() => setSuccessToast(null), 4000);
+                                    }
+                                  }}
+                                  className="bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                  title="إغلاق وتسوية الطلبية نهائياً"
+                                >
+                                  <span>إغلاق الطلبية 🔒</span>
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => setReturnModalInvoice(inv)}
+                                className="bg-slate-100 hover:bg-purple-100 text-slate-700 hover:text-purple-900 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer border border-slate-200"
+                                title="تسجيل مرتجع بعد الاستلام"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5 text-purple-600" />
+                                <span>مرتجع لاحق</span>
+                              </button>
+                            </>
+                          )}
+
+                          {/* 6. If Closed: Display Final Closed Badge */}
+                          {inv.status === 'إغلاق الطلبية' && (
+                            <span className="text-[10px] bg-slate-100 text-slate-800 font-black px-2 py-0.5 rounded-md border border-slate-300">
+                              🔒 مغلقة ومكتملة
+                            </span>
                           )}
 
                           {/* If Returned: Indicate restored */}

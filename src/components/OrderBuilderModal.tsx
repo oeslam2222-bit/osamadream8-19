@@ -1,9 +1,11 @@
 import {
   AlertCircle,
+  AlertTriangle,
   Building,
   Calendar,
   CheckCircle2,
   ChevronDown,
+  CreditCard,
   Download,
   FileSpreadsheet,
   Minus,
@@ -199,6 +201,24 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const todayDate = new Date().toISOString().slice(0, 10);
   const hasWarehouseItems = cart.some((c) => c.fulfillFromMainWarehouse);
 
+  const activeCustomer = useMemo(() => {
+    return (
+      customers.find(
+        (c) =>
+          (selectedCustomerId && c.id === selectedCustomerId) ||
+          (customerCode && c.code === customerCode) ||
+          (customerName && c.name.trim().toLowerCase() === customerName.trim().toLowerCase())
+      ) || null
+    );
+  }, [customers, selectedCustomerId, customerCode, customerName]);
+
+  const customerCurrentBalance = Number(activeCustomer?.balance ?? activeCustomer?.currentBalance ?? 0);
+  const customerCreditLimit = Number(activeCustomer?.creditLimit !== undefined ? activeCustomer.creditLimit : 50000);
+  const orderGrandTotal = summary.grandTotal;
+  const balanceAfterInvoice = customerCurrentBalance + orderGrandTotal;
+  const isCreditLimitExceeded = customerCreditLimit > 0 && balanceAfterInvoice > customerCreditLimit;
+  const requiredDownPayment = isCreditLimitExceeded ? Math.max(0, balanceAfterInvoice - customerCreditLimit) : 0;
+
   const handleSubmitOrder = async (andExportExcel = false, andDownloadPDF = false) => {
     const errors: string[] = [];
     if (!customerName.trim()) {
@@ -222,6 +242,17 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
       }
     }
 
+    // Credit limit exceeded warning note validation
+    let effectiveNotes = orderNotes.trim();
+    if (isCreditLimitExceeded) {
+      const downPaymentClarification = `[توضيح الدفعة المقدمة]: سيتم تحصيل دفعة نقدية بقيمة (${requiredDownPayment.toLocaleString('ar-EG')} ج.م) لتنزيل المديونية دون الحد الائتماني المسموح به (${customerCreditLimit.toLocaleString('ar-EG')} ج.م).`;
+      if (!effectiveNotes) {
+        effectiveNotes = downPaymentClarification;
+      } else if (!effectiveNotes.includes('الدفعة المقدمة') && !effectiveNotes.includes('دفعة')) {
+        effectiveNotes = `${effectiveNotes} | ${downPaymentClarification}`;
+      }
+    }
+
     if (errors.length > 0) {
       setFormErrors(errors);
       return;
@@ -239,7 +270,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         branchName: customerBranch.trim() || currentUser?.branchName,
         paymentMethod: paymentMethod,
         discountPercentage: discountPercent,
-        notes: orderNotes.trim(),
+        notes: effectiveNotes,
         splitShortagesToBackorder: splitShortagesToBackorder,
       });
 
@@ -757,6 +788,73 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Customer Financial Profile & Credit Limit Analysis */}
+            {(customerName.trim() || selectedCustomerId) && (
+              <div className="bg-slate-900 text-white rounded-2xl p-3.5 sm:p-4 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-amber-400 text-slate-950 rounded-lg">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-black text-amber-300">
+                      موقف حساب ومديونية العميل والحد الائتماني
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-bold text-slate-400">
+                    {activeCustomer ? `العميل: ${activeCustomer.name}` : 'عميل جديد'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                  <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
+                    <span className="text-[10px] text-slate-400 block font-bold">المديونية الحالية (الرصيد السابق):</span>
+                    <strong className="text-sm font-black text-slate-100">{customerCurrentBalance.toLocaleString()} ج.م</strong>
+                  </div>
+                  <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
+                    <span className="text-[10px] text-amber-300/80 block font-bold">قيمة الفاتورة الحالية:</span>
+                    <strong className="text-sm font-black text-amber-400">{orderGrandTotal.toLocaleString()} ج.م</strong>
+                  </div>
+                  <div className={`p-2.5 rounded-xl border ${isCreditLimitExceeded ? 'bg-rose-950/80 border-rose-600 text-rose-200' : 'bg-slate-800/80 border-slate-700 text-slate-100'}`}>
+                    <span className="text-[10px] block font-bold">إجمالي المديونية بعد الفاتورة:</span>
+                    <strong className={`text-sm font-black ${isCreditLimitExceeded ? 'text-rose-400' : 'text-emerald-400'}`}>
+                      {balanceAfterInvoice.toLocaleString()} ج.م
+                    </strong>
+                  </div>
+                  <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
+                    <span className="text-[10px] text-slate-400 block font-bold">الحد الائتماني المعتمد:</span>
+                    <strong className="text-sm font-black text-blue-400">{customerCreditLimit.toLocaleString()} ج.م</strong>
+                  </div>
+                </div>
+
+                {isCreditLimitExceeded && (
+                  <div className="p-3 bg-rose-500/15 border-2 border-rose-500 rounded-xl text-xs space-y-2 text-rose-200">
+                    <div className="flex items-center gap-2 text-rose-400 font-black text-xs sm:text-sm">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      <span>تنبيه هام للمندوب: تم تجاوز الحد الائتماني للعميل بمقدار ({requiredDownPayment.toLocaleString()} ج.م)!</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 font-medium leading-relaxed">
+                      إجمالي مديونية العميل بعد إصدار الفاتورة ({balanceAfterInvoice.toLocaleString()} ج.م) ستتجاوز الحد الائتماني المسموح به ({customerCreditLimit.toLocaleString()} ج.م). 
+                      <strong className="text-amber-300 font-black"> لابد من تحصيل مبلغ نقدي لا يقل عن ({requiredDownPayment.toLocaleString()} ج.م) </strong>
+                      لتصبح المديونية أقل من الحد الائتماني ويتمكن المشرف ومدير الفرع من اعتماد وصرف الطلبية.
+                    </p>
+                    <div className="pt-1 flex items-center flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const noteText = `توضيح الدفعة المقدمة: سيتم تحصيل دفعة نقدية بقيمة (${requiredDownPayment.toLocaleString()} ج.م) لتنزيل المديونية دون الحد الائتماني (${customerCreditLimit.toLocaleString()} ج.م).`;
+                          setOrderNotes((prev) => (prev && prev.includes('توضيح الدفعة المقدمة') ? prev : prev ? `${prev} | ${noteText}` : noteText));
+                        }}
+                        className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm cursor-pointer transition transform active:scale-95"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>📝 إدراج بيان الدفعة المقدمة تلقائياً في بند الملاحظات</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Cart Items Table with Smart Carton & Piece Conversion */}
@@ -1100,14 +1198,29 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
               {/* Notes */}
               <div>
-                <label className="block text-slate-800 font-bold mb-1">ملاحظات التحميل والتسليم</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-800 font-bold">ملاحظات التحميل والتسليم</label>
+                  {isCreditLimitExceeded && (
+                    <span className="text-[10px] font-black text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">
+                      ⚠️ مطلوب توضيح الدفعة المقدمة
+                    </span>
+                  )}
+                </div>
                 <input
                   id="order-notes-input"
                   type="text"
                   value={orderNotes}
                   onChange={(e) => setOrderNotes(e.target.value)}
-                  placeholder="مثال: تسليم صباحاً، إرفاق إشعار الخصم..."
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-semibold text-slate-900 shadow-xs placeholder:text-slate-400"
+                  placeholder={
+                    isCreditLimitExceeded
+                      ? `مثال: سيتم تحصيل دفعة مقدمة بقيمة ${requiredDownPayment.toLocaleString()} ج.م عند الاستلام...`
+                      : 'مثال: تسليم صباحاً، إرفاق إشعار الخصم...'
+                  }
+                  className={`w-full p-2.5 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-semibold text-slate-900 shadow-xs placeholder:text-slate-400 ${
+                    isCreditLimitExceeded
+                      ? 'border-2 border-amber-400 bg-amber-50/20'
+                      : 'border border-slate-300'
+                  }`}
                 />
               </div>
             </div>
