@@ -16,7 +16,6 @@ import {
   Filter,
   Layers,
   Package,
-  Plus,
   Receipt,
   RefreshCw,
   RotateCcw,
@@ -41,12 +40,10 @@ import { downloadInvoicePDF } from '../services/pdfService';
 import { Invoice, OrderStatus } from '../types';
 
 interface SupervisorDashboardProps {
-  onOpenNewOrder?: () => void;
   onViewInvoice?: (invoice: Invoice) => void;
 }
 
 export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
-  onOpenNewOrder,
   onViewInvoice,
 }) => {
   const {
@@ -501,17 +498,6 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            {onOpenNewOrder && (
-              <button
-                onClick={onOpenNewOrder}
-                className="flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>إنشاء طلبية جديدة</span>
-              </button>
-            )}
-          </div>
         </div>
 
         {/* Organizational Leadership & Team Hierarchy Card (الهيكل الإداري وفريق العمل) */}
@@ -609,7 +595,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               {metrics.inProgressInvoices} طلبية
             </div>
             <div className="text-[10px] text-cyan-300/70 font-medium">
-              {metrics.outForDelivery} توصيل • {metrics.preparingCount} تجهيز
+              {metrics.outForDelivery} توصيل • {metrics.preparingCount} ��جهيز
             </div>
           </div>
 

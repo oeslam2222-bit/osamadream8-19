@@ -85,7 +85,6 @@ const MainLayout: React.FC = () => {
 
           {activeTab === 'dashboard' && (
             <SupervisorDashboard
-              onOpenNewOrder={() => setIsOrderModalOpen(true)}
               onViewInvoice={(inv) => setViewingInvoice(inv)}
             />
           )}
