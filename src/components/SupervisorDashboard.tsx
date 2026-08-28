@@ -21,7 +21,6 @@ import {
   RotateCcw,
   Search,
   ShieldAlert,
-  ShieldCheck,
   ShoppingCart,
   TrendingUp,
   Truck,
@@ -407,31 +406,6 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     }
   };
 
-  // Organizational Hierarchy Info for Rep, Supervisor, Manager, Admin, Developer
-  const mySupervisor = useMemo(() => {
-    return (
-      users.find((u) => u.id === currentUser?.supervisorId) ||
-      users.find((u) => u.role === 'supervisor' && u.branchName === currentUser?.branchName) ||
-      null
-    );
-  }, [users, currentUser]);
-
-  const currentBranchObj = useMemo(() => {
-    return branches.find((b) => b.name === currentUser?.branchName) || null;
-  }, [branches, currentUser]);
-
-  const myBranchManager = useMemo(() => {
-    const mgrUser = users.find((u) => u.role === 'branch_manager' && u.branchName === currentUser?.branchName);
-    return mgrUser ? mgrUser.name : (currentBranchObj?.managerName || 'أشرف عبد العزيز');
-  }, [users, currentUser, currentBranchObj]);
-
-  const systemAdminName = useMemo(() => {
-    const adminUser = users.find((u) => u.role === 'admin');
-    return adminUser ? `${adminUser.name}` : 'محمد طنطاوي / الإدارة العامة';
-  }, [users]);
-
-  const developerName = 'أسامة إسلام (المطور التقني)';
-
   const getStageNumber = (status: OrderStatus): number => {
     if (status === 'قيد مراجعة المشرف' || status === 'معلقة بانتظار اعتماد الفرع' || status === 'قيد المراجعة') return 1;
     if (status === 'جاري تحضير المنتجات' || status === 'معتمدة ومصروفة من المخزن' || status === 'معتمدة') return 2;
@@ -446,7 +420,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     'قيد مراجعة المشرف': { bg: 'bg-amber-100 border-amber-300', text: 'text-amber-900', label: 'قيد مراجعة المشرف ⏳' },
     'معلقة بانتظار اعتماد الفرع': { bg: 'bg-blue-100 border-blue-300', text: 'text-blue-900', label: 'بانتظار مدير الفرع 🏛️' },
     'جاري تحضير المنتجات': { bg: 'bg-orange-100 border-orange-300', text: 'text-orange-900', label: 'جاري تحضير المنتجات 📦' },
-    'تم وصول المنتجات': { bg: 'bg-teal-100 border-teal-300', text: 'text-teal-900', label: 'تم وصول المنتجات 🏢' },
+    'تم وصول المنتجات': { bg: 'bg-teal-100 border-teal-300', text: 'text-teal-900', label: '��م وصول المنتجات 🏢' },
     'معتمدة ومصروفة من المخزن': { bg: 'bg-indigo-100 border-indigo-300', text: 'text-indigo-900', label: 'معتمدة ومصروفة 📦' },
     'قيد التوصيل': { bg: 'bg-cyan-100 border-cyan-300', text: 'text-cyan-900', label: 'قيد التوصيل 🚚' },
     'تم التسليم': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-900', label: 'تم التسليم بنجاح ✅' },
@@ -500,60 +474,6 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
         </div>
 
-        {/* Organizational Leadership & Team Hierarchy Card (الهيكل الإداري وفريق العمل) */}
-        <div className="bg-slate-800/90 rounded-2xl p-4 border border-slate-700/80 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-700 pb-2.5">
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-amber-400" />
-              <span className="text-xs font-black text-slate-200">
-                الهيكل الإداري والمسئولين عن الفرع والطلبيات (Organizational Team)
-              </span>
-            </div>
-            {/* Privacy Shield Badge */}
-            <div className="flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-1 rounded-xl text-[11px] font-bold">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>🔐 سرية تامة: كل مستخدم يرى بياناته المصرح له بها فقط</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 text-xs">
-            {/* 1. Current Rep / User */}
-            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-700/80 space-y-0.5">
-              <span className="text-[10px] text-amber-400 font-bold block">👤 المندوب (المستخدم الحالي):</span>
-              <strong className="text-xs font-black text-white block truncate">{currentUser?.name || 'مندوب المبيعات'}</strong>
-              <span className="text-[10px] text-slate-400 block font-mono">@{currentUser?.username || 'rep'} ({currentUser?.phone || 'مفعل'})</span>
-            </div>
-
-            {/* 2. Direct Supervisor */}
-            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-700/80 space-y-0.5">
-              <span className="text-[10px] text-blue-400 font-bold block">👔 المشرف المباشر:</span>
-              <strong className="text-xs font-black text-slate-100 block truncate">{mySupervisor ? mySupervisor.name : 'مشرف مبيعات الفرع'}</strong>
-              <span className="text-[10px] text-slate-400 block">{mySupervisor?.phone || '01012345678'}</span>
-            </div>
-
-            {/* 3. Branch Manager */}
-            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-700/80 space-y-0.5">
-              <span className="text-[10px] text-teal-400 font-bold block">🏛️ مدير الفرع:</span>
-              <strong className="text-xs font-black text-slate-100 block truncate">{myBranchManager}</strong>
-              <span className="text-[10px] text-slate-400 block truncate">{currentUser?.branchName || 'الفرع الرئيسي'}</span>
-            </div>
-
-            {/* 4. System Admin */}
-            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-700/80 space-y-0.5">
-              <span className="text-[10px] text-rose-400 font-bold block">🛡️ مدير النظام (Admin):</span>
-              <strong className="text-xs font-black text-slate-100 block truncate">{systemAdminName}</strong>
-              <span className="text-[10px] text-slate-400 block">الإدارة العامة لشركة دريم</span>
-            </div>
-
-            {/* 5. Tech Developer */}
-            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-700/80 space-y-0.5 col-span-2 sm:col-span-1">
-              <span className="text-[10px] text-purple-400 font-bold block">💻 المطور والدعم التقني:</span>
-              <strong className="text-xs font-black text-slate-100 block truncate">{developerName}</strong>
-              <span className="text-[10px] text-slate-400 block font-mono">01000000001</span>
-            </div>
-          </div>
-        </div>
-
         {/* Aggregate KPI Stats Grid - Top Row: Orders Workflow */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
           
@@ -561,13 +481,13 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700/80 space-y-1">
             <div className="text-[11px] text-slate-400 font-bold flex items-center gap-1">
               <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
-              <span>{currentUser?.role === 'sales_rep' ? 'إجمالي مبيعاتي' : 'إجمالي المبيعات'}</span>
+              <span>{currentUser?.role === 'sales_rep' ? 'قيمة طلبياتي النشطة' : 'قيمة الطلبيات النشطة'}</span>
             </div>
             <div className="text-base sm:text-lg font-black text-amber-300">
               {formatCurrency(metrics.totalRevenue)}
             </div>
             <div className="text-[10px] text-slate-400 font-medium">
-              {metrics.totalCartons} كرتونة مباعة
+              قيمة الفواتير المعتمدة والنشطة، باستثناء الملغاة والمرتجعات
             </div>
           </div>
 
@@ -654,8 +574,9 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             {/* Total Products */}
             <div className="bg-slate-800/60 p-3 rounded-2xl border border-slate-700/60 flex items-center justify-between">
               <div>
-                <div className="text-[11px] text-slate-400 font-bold">إجمالي الأصناف</div>
+                <div className="text-[11px] text-slate-400 font-bold">كل أصناف الكتالوج</div>
                 <div className="text-lg font-black text-white">{productMetrics.total} صنف</div>
+                <div className="text-[10px] text-slate-500">عدد المنتجات المسجلة</div>
               </div>
               <div className="w-9 h-9 rounded-xl bg-slate-700/60 text-slate-300 flex items-center justify-center font-bold">
                 <Package className="w-4 h-4" />
@@ -665,8 +586,9 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             {/* Available In Stock */}
             <div className="bg-emerald-500/10 p-3 rounded-2xl border border-emerald-500/30 flex items-center justify-between">
               <div>
-                <div className="text-[11px] text-emerald-300 font-bold">متوفر بالمخازن</div>
+                <div className="text-[11px] text-emerald-300 font-bold">متوفر في أي مخزن</div>
                 <div className="text-lg font-black text-emerald-400">{productMetrics.availableCount} صنف</div>
+                <div className="text-[10px] text-emerald-300/70">رصيد الفرع + المخزن المركزي أكبر من صفر</div>
               </div>
               <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center font-bold">
                 <CheckCircle2 className="w-4 h-4" />
@@ -676,8 +598,9 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             {/* Out of Stock (0 units) */}
             <div className="bg-rose-500/10 p-3 rounded-2xl border border-rose-500/30 flex items-center justify-between">
               <div>
-                <div className="text-[11px] text-rose-300 font-bold">غير متوفر (0 رصيد)</div>
+                <div className="text-[11px] text-rose-300 font-bold">غير متوفر في المخازن</div>
                 <div className="text-lg font-black text-rose-400">{productMetrics.outOfStockCount} صنف</div>
+                <div className="text-[10px] text-rose-300/70">إجمالي رصيد الفرع والمركزي = صفر</div>
               </div>
               <div className="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-300 flex items-center justify-center font-bold">
                 <XCircle className="w-4 h-4" />
@@ -687,8 +610,9 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             {/* Low Stock Alerts */}
             <div className="bg-amber-500/10 p-3 rounded-2xl border border-amber-500/30 flex items-center justify-between">
               <div>
-                <div className="text-[11px] text-amber-300 font-bold">رصيد حرج (قرب النفاذ)</div>
+                <div className="text-[11px] text-amber-300 font-bold">مخزون منخفض (رصيد حرج)</div>
                 <div className="text-lg font-black text-amber-400">{productMetrics.lowStockCount} صنف</div>
+                <div className="text-[10px] text-amber-300/70">أكثر من صفر وحتى 5 كراتين</div>
               </div>
               <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center font-bold">
                 <AlertTriangle className="w-4 h-4" />
