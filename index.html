@@ -3,15 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>دريم طنطاوي | منظومة المبيعات والمخزون</title>
-    <meta name="description" content="منظومة متكاملة لشركة دريم طنطاوي للتجارة والتوزيع: عرض الكتالوج، ربط سحابي لصور Cloudinary وجوجل درايف، إدارة مخزون الفروع، والفواتير الإلكترونية" />
-    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <link rel="apple-touch-icon" href="/icon.svg" />
-    <link rel="manifest" href="/manifest.json" />
+    <title>مجموعة الطنطاوي للتجارة والتوزيع | TANTAWY GROUP</title>
+    <meta name="description" content="منظومة متكاملة لمجموعة الطنطاوي للتجارة والتوزيع: عرض الكتالوج مع ضغط صور جوجل درايف وتوفير الباقة، إدارة المخزون ومنع الحجز المزدوج للمناديب، دورة اعتماد وصرف الطلبيات من المشرف ومدير الفرع، إنشاء فواتير إلكترونية، وتصدير إكسل وتثبيت التطبيق على الموبايل." />
+    <link rel="icon" type="image/svg+xml" href="/tantawy-brand-logo.svg?v=3.1" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=3.1" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3.1" />
+    <link rel="manifest" href="/manifest.json?v=3.1" />
     <meta name="theme-color" content="#0f172a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="دريم طنطاوي" />
+    <meta name="apple-mobile-web-app-title" content="مجموعة الطنطاوي - TANTAWY GROUP" />
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,13 +21,11 @@
   <body class="bg-slate-50 text-slate-900 font-['Cairo',sans-serif] antialiased selection:bg-amber-500 selection:text-white min-h-screen">
     <div id="root">
       <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0f172a; color: #f8fafc; font-family: 'Cairo', system-ui, -apple-system, sans-serif; text-align: center; padding: 20px;">
-        <div style="width: 72px; height: 72px; border-radius: 22px; background: linear-gradient(135deg, #f59e0b, #d97706); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px -5px rgba(245, 158, 11, 0.4); margin-bottom: 20px; animation: pulse 2s infinite;">
-          <svg style="width: 40px; height: 40px; color: #0f172a;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-          </svg>
+        <div style="width: 96px; height: 96px; border-radius: 50%; background: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5); margin-bottom: 20px; animation: pulse 2s infinite; overflow: hidden; padding: 4px; border: 3px solid #f59e0b;">
+          <img src="/tantawy-brand-logo.svg?v=3.1" alt="مجموعة الطنطاوي" style="width: 100%; height: 100%; object-fit: contain;" />
         </div>
-        <h2 style="font-size: 20px; font-weight: 900; margin: 0 0 8px 0; color: #fbbf24; letter-spacing: -0.5px;">دريم طنطاوي للتجارة والتوزيع</h2>
-        <p style="font-size: 13px; color: #94a3b8; margin: 0 0 24px 0; font-weight: 600;">جاري تشغيل المنظومة وتجهيز الكتالوج بأعلى سرعة...</p>
+        <h2 style="font-size: 20px; font-weight: 900; margin: 0 0 8px 0; color: #fbbf24; letter-spacing: -0.5px;">مجموعة الطنطاوي | TANTAWY GROUP</h2>
+        <p style="font-size: 13px; color: #94a3b8; margin: 0 0 24px 0; font-weight: 600;">جاري تحميل منظومة المبيعات والكتالوج والمخازن...</p>
         <div style="width: 160px; height: 4px; background: #1e293b; border-radius: 999px; overflow: hidden;">
           <div style="width: 100%; height: 100%; background: linear-gradient(90deg, transparent, #fbbf24, transparent); animation: loading 1.5s infinite linear;"></div>
         </div>
@@ -44,9 +43,21 @@
     </div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
+      // Clear legacy cache storage keys
+      if ('caches' in window) {
+        caches.keys().then(function(keys) {
+          keys.forEach(function(key) {
+            if (key.indexOf('dream-tantawy') !== -1 || key.indexOf('v1') !== -1 || key.indexOf('v2') !== -1) {
+              caches.delete(key);
+            }
+          });
+        });
+      }
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {});
+          navigator.serviceWorker.register('/sw.js?v=3.1').then(function(reg) {
+            reg.update();
+          }).catch(() => {});
         });
       }
     </script>

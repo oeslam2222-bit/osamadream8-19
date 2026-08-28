@@ -176,7 +176,7 @@ const MainLayout: React.FC = () => {
       <footer className="bg-white border-t border-slate-200 py-4 px-4 text-center text-xs text-slate-500 print:hidden mb-16 md:mb-0">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="font-black text-slate-900">شركة دريم طنطاوي للتجارة والتوزيع</span>
+            <span className="font-black text-slate-900">مجموعة الطنطاوي للتجارة والتوزيع (TANTAWY GROUP)</span>
             <span className="text-slate-300">|</span>
             <span>نظام إدارة المبيعات والمخازن والربط السحابي وتوفير الباقة</span>
           </div>

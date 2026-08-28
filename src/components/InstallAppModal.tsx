@@ -77,13 +77,13 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
           </button>
 
           {/* Luxury App Icon Preview */}
-          <div className="w-20 h-20 mx-auto rounded-2xl bg-slate-950 border-2 border-amber-400 p-1.5 shadow-xl shadow-amber-500/10 mb-3 flex items-center justify-center">
-            <img src="/icon.svg" alt="دريم طنطاوي" className="w-full h-full object-contain" />
+          <div className="w-20 h-20 mx-auto rounded-2xl bg-white border-2 border-amber-400 p-1 shadow-xl shadow-amber-500/10 mb-3 flex items-center justify-center overflow-hidden">
+            <img src="/tantawy-brand-logo.svg?v=3.1" alt="مجموعة الطنطاوي" className="w-full h-full object-contain" />
           </div>
 
           <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-400/10 border border-amber-400/30 text-amber-300 text-[11px] font-bold mb-1">
             <Sparkles className="w-3 h-3 text-amber-400" />
-            <span>تطبيق دريم طنطاوي الرسمي</span>
+            <span>تطبيق مجموعة الطنطاوي الرسمي</span>
           </div>
 
           <h3 className="text-xl font-black text-white">تثبيت التطبيق على الشاشة الرئيسية</h3>
@@ -148,7 +148,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
                   </div>
                   <div className="flex items-center gap-2.5">
                     <span className="w-5 h-5 rounded-full bg-amber-400 text-slate-950 font-bold flex items-center justify-center text-[10px] shrink-0">3</span>
-                    <span>اضغط على <strong>إضافة (Add)</strong> في أعلى الزاوية. سيظهر رمز تطبيق دريم طنطاوي الفاخر على شاشتك فوراً.</span>
+                    <span>اضغط على <strong>إضافة (Add)</strong> في أعلى الزاوية. سيظهر رمز تطبيق مجموعة الطنطاوي على شاشتك فوراً.</span>
                   </div>
                 </div>
               </div>
@@ -172,7 +172,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
                   </div>
                   <div className="flex items-center gap-2.5">
                     <span className="w-5 h-5 rounded-full bg-amber-400 text-slate-950 font-bold flex items-center justify-center text-[10px] shrink-0">3</span>
-                    <span>اضغط تأكيد، وسيتم تثبيته كتطبيق مستقل بأيقونة دريم طنطاوي.</span>
+                    <span>اضغط تأكيد، وسيتم تثبيته كتطبيق مستقل بأيقونة مجموعة الطنطاوي.</span>
                   </div>
                 </div>
               </div>

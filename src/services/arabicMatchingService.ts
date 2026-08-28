@@ -47,6 +47,7 @@ export function getArabicTokens(str?: string): string[] {
     'استاذة',
     'كابتن',
     'فرع',
+    'فروع',
     'المبيعات',
     'مبيعات',
     'مسؤول',
@@ -65,6 +66,33 @@ export function getArabicTokens(str?: string): string[] {
     'مهندس',
     'حساب',
     'توزيع',
+    'خط',
+    'منطقة',
+    'محافظة',
+    // Common branch tokens when embedded in rep column
+    'المنيا',
+    'منيا',
+    'الفيوم',
+    'فيوم',
+    'القاهرة',
+    'قاهرة',
+    'ديمشلت',
+    'دكرنس',
+    'البحيرة',
+    'بحيرة',
+    'دمنهور',
+    'منوف',
+    'المنوفية',
+    'منوفية',
+    'اكتوبر',
+    'أكتوبر',
+    'المركزي',
+    'مركزي',
+    'رئيسي',
+    'الرئيسي',
+    'طنطا',
+    'اسكندرية',
+    'الاسكندرية',
   ]);
 
   return norm
@@ -85,6 +113,11 @@ export function isArabicNameMatch(nameA?: string, nameB?: string): boolean {
   if (!normA || !normB) return false;
   if (normA === normB) return true;
 
+  // Direct containment check (e.g. "حسن محمد" inside "مندوب حسن محمد المنيا")
+  if (normA.includes(normB) || normB.includes(normA)) {
+    return true;
+  }
+
   const tokensA = getArabicTokens(nameA);
   const tokensB = getArabicTokens(nameB);
   if (tokensA.length === 0 || tokensB.length === 0) return false;
@@ -93,9 +126,9 @@ export function isArabicNameMatch(nameA?: string, nameB?: string): boolean {
   const joinedB = tokensB.join(' ');
   if (joinedA === joinedB) return true;
 
-  // If one full string starts with the other
-  if (joinedA.length >= 4 && joinedB.length >= 4) {
-    if (joinedA.startsWith(joinedB) || joinedB.startsWith(joinedA)) {
+  // If one full tokenized string starts with or contains the other
+  if (joinedA.length >= 3 && joinedB.length >= 3) {
+    if (joinedA.startsWith(joinedB) || joinedB.startsWith(joinedA) || joinedA.includes(joinedB) || joinedB.includes(joinedA)) {
       return true;
     }
   }
@@ -117,7 +150,7 @@ export function isArabicNameMatch(nameA?: string, nameB?: string): boolean {
 
   // Check if all tokens of the shorter name exist in the longer name
   const allShorterMatch = shorter.every((t) => longerSet.has(t));
-  if (allShorterMatch && shorter.length >= 2) {
+  if (allShorterMatch) {
     return true;
   }
 
@@ -513,7 +546,18 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
 
   // 2. Direct Match by Name / Username / Phone on the customer's rep field
   const repField = (customer.salesRepName || customer.repName || '').trim();
-  if (repField && repField !== 'مندوب المبيعات' && repField !== 'المندوب') {
+  const isGenericRep =
+    !repField ||
+    repField === 'مندوب المبيعات' ||
+    repField === 'المندوب' ||
+    repField === 'مندوب' ||
+    repField === 'مبيعات' ||
+    repField === '---' ||
+    repField === '..' ||
+    repField.toLowerCase() === 'unassigned' ||
+    repField.toLowerCase() === 'none';
+
+  if (!isGenericRep) {
     if (isArabicNameMatch(repField, repUser.name)) return true;
     if (repUser.username && isArabicNameMatch(repField, repUser.username)) return true;
     if (repUser.phone && (repField.includes(repUser.phone) || repUser.phone.includes(repField))) return true;
@@ -530,17 +574,17 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
     return false;
   }
 
-  // 3. Fallback: If customer has NO assigned rep at all, check if customer belongs to the exact same branch
+  // 3. Fallback: If customer has NO assigned rep (or generic rep name), check if customer belongs to the exact same branch
   const repBranch = repUser.branchName?.trim();
   let customerBranch = customer.branchName?.trim();
-  if (!customerBranch || customerBranch === 'الفرع الرئيسي') {
+  if (!customerBranch || customerBranch.includes('الفرع الرئيسي') || customerBranch.includes('المخزن المركزي')) {
     const inferred = inferBranchFromText(`${customer.name || ''} ${customer.address || ''} ${customer.governorate || ''} ${customer.notes || ''}`);
     if (inferred) {
       customerBranch = inferred;
     }
   }
 
-  if (!repField && !customer.repId && customerBranch && repBranch && isBranchMatch(customerBranch, repBranch, { allowUnassigned: false })) {
+  if (isGenericRep && !customer.repId && customerBranch && repBranch && isBranchMatch(customerBranch, repBranch, { allowUnassigned: false })) {
     return true;
   }
 

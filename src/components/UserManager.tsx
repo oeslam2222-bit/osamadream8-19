@@ -348,6 +348,10 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     const cleanEmail = formData.email.trim().toLowerCase();
     const cleanUsername = cleanEmail.includes('@') ? cleanEmail.split('@')[0] : cleanEmail;
 
+    const assignedBranch = (formData.role === 'admin' || formData.role === 'developer')
+      ? 'جميع الفروع والمخزن المركزي (6 أكتوبر)'
+      : (formData.branchName || currentUser?.branchName || 'فرع القاهرة');
+
     if (editingUser) {
       updateUser({
         ...editingUser,
@@ -355,6 +359,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
         name: formData.name.trim(),
         email: cleanEmail,
         username: formData.username?.trim() || cleanUsername,
+        branchName: assignedBranch,
       } as User);
       setEditingUser(null);
     } else {
@@ -365,7 +370,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
         email: cleanEmail,
         password: formData.password || '',
         role: formData.role || 'sales_rep',
-        branchName: formData.branchName || currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+        branchName: assignedBranch,
         supervisorId: formData.role === 'sales_rep' ? (formData.supervisorId || undefined) : undefined,
         phone: formData.phone || '',
         avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80`,
@@ -375,6 +380,11 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       };
       addUser(newUser);
     }
+
+    // Immediately trigger rep linking
+    setTimeout(() => {
+      refreshCustomerRepLinks();
+    }, 100);
 
     setShowAddUserModal(false);
   };
@@ -1066,19 +1076,30 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Branch Selector */}
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">الفرع التابع له *</label>
-                    <select
-                      value={formData.branchName}
-                      onChange={(e) => setFormData({ ...formData, branchName: e.target.value, supervisorId: '' })}
-                      disabled={!isSuperAdminOrDev}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-xs cursor-pointer disabled:opacity-70 disabled:bg-slate-100"
-                    >
-                      {branches.filter((b) => !b.isMainWarehouse).map((b) => (
-                        <option key={b.id} value={b.name}>
-                          {b.name}
-                        </option>
-                      ))}
-                    </select>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      {formData.role === 'admin' || formData.role === 'developer'
+                        ? 'نطاق الصلاحية الجغرافية'
+                        : 'الفرع التابع له *'}
+                    </label>
+                    {formData.role === 'admin' || formData.role === 'developer' ? (
+                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl font-black text-amber-950 text-xs flex items-center gap-2">
+                        <span>🌐</span>
+                        <span>جميع الفروع (7) + المخزن المركزي (6 أكتوبر)</span>
+                      </div>
+                    ) : (
+                      <select
+                        value={formData.branchName}
+                        onChange={(e) => setFormData({ ...formData, branchName: e.target.value, supervisorId: '' })}
+                        disabled={!isSuperAdminOrDev}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-xs cursor-pointer disabled:opacity-70 disabled:bg-slate-100"
+                      >
+                        {branches.filter((b) => !b.isMainWarehouse).map((b) => (
+                          <option key={b.id} value={b.name}>
+                            {b.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
 
                   {/* Supervisor Selector (If Sales Rep) */}

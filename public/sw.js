@@ -1,6 +1,6 @@
-// Service Worker for Dream Tantawy - Mobile Data Saver & Offline Image Caching
-const CACHE_NAME = 'dream-tantawy-cache-v1';
-const IMAGE_CACHE_NAME = 'dream-tantawy-images-v1';
+// Service Worker for Tantawy Group - Mobile Data Saver & Offline Image Caching
+const CACHE_NAME = 'tantawy-group-cache-v3';
+const IMAGE_CACHE_NAME = 'tantawy-group-images-v3';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -24,7 +24,21 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  // Cache-First strategy for images (Cloudinary, Google Drive CDN, Unsplash, and local assets)
+  // For app branding icons, always prefer network first or bypass stale caches
+  if (url.pathname.includes('icon') || url.pathname.includes('tantawy') || url.pathname.includes('logo') || url.pathname.includes('favicon')) {
+    event.respondWith(
+      fetch(request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const clone = networkResponse.clone();
+          caches.open(IMAGE_CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return networkResponse;
+      }).catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Cache-First strategy for product images (Cloudinary, Google Drive CDN, Unsplash)
   if (
     request.destination === 'image' ||
     url.hostname.includes('cloudinary.com') ||

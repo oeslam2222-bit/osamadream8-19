@@ -104,21 +104,21 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
           
           {/* Brand & Logo */}
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-slate-950 p-1 border-2 border-amber-400 shadow-md shadow-amber-500/20 flex items-center justify-center shrink-0">
-              <img src="/icon.svg" alt="دريم طنطاوي" className="h-full w-full object-contain" />
+            <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-full bg-white p-0.5 border-2 border-amber-400 shadow-md shadow-amber-500/20 flex items-center justify-center shrink-0 overflow-hidden">
+              <img src="/tantawy-brand-logo.svg?v=3.1" alt="مجموعة الطنطاوي - TANTAWY GROUP" className="h-full w-full object-contain" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
                 <h1 className="font-black text-sm sm:text-lg tracking-tight text-white flex items-center gap-1">
-                  <span>دريم طنطاوي</span>
-                  <span className="text-amber-400 text-xs sm:text-sm font-bold hidden xs:inline">للتوزيع</span>
+                  <span>مجموعة الطنطاوي</span>
+                  <span className="text-amber-400 text-xs sm:text-sm font-bold hidden xs:inline">للتجارة والتوزيع</span>
                 </h1>
                 <span className="hidden md:inline-block px-2 py-0.5 text-[10px] font-extrabold bg-amber-400/20 text-amber-300 rounded-md border border-amber-400/30">
-                  DREAM TANTAWY
+                  TANTAWY GROUP
                 </span>
               </div>
               <p className="text-[10px] sm:text-[11px] text-slate-300 hidden sm:block">
-                المنظومة الذكية للمبيعات والمخزون والفواتير
+                المنظومة الذكية لإدارة المبيعات والفروع الـ 7 ومخزن أكتوبر المركزي
               </p>
             </div>
           </div>

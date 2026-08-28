@@ -14,6 +14,7 @@ import {
   Edit2,
   FileSpreadsheet,
   Filter,
+  Flame,
   History,
   Layers,
   LayoutGrid,
@@ -63,7 +64,7 @@ export const InventoryStockView: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<'matrix' | 'pending_approvals' | 'audit_logs'>('matrix');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('الكل');
-  const [stockLevelFilter, setStockLevelFilter] = useState<'all' | 'in_branch' | 'needs_transfer' | 'low_stock' | 'out_of_stock'>('all');
+  const [stockLevelFilter, setStockLevelFilter] = useState<'all' | 'offers' | 'in_branch' | 'needs_transfer' | 'low_stock' | 'out_of_stock'>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewLayout, setViewLayout] = useState<'table' | 'cards'>('cards');
@@ -167,7 +168,9 @@ export const InventoryStockView: React.FC = () => {
       const bStock = getProductBranchStock(p);
       const oStock = p.mainWarehouseActual || 0;
 
-      if (stockLevelFilter === 'in_branch') {
+      if (stockLevelFilter === 'offers') {
+        if (!p.promoPrice && !p.promoPiecePrice && !p.offerPrice) return false;
+      } else if (stockLevelFilter === 'in_branch') {
         if (bStock <= 0) return false;
       } else if (stockLevelFilter === 'needs_transfer') {
         if (bStock > 0 || oStock <= 0) return false;
@@ -220,12 +223,17 @@ export const InventoryStockView: React.FC = () => {
     let needsTransferCount = 0;
     let outOfStockCount = 0;
     let lowStockCount = 0;
+    let offersCount = 0;
     let totalCartonsActual = 0;
     let totalCartonsReserved = 0;
 
     products.forEach((p) => {
       const bStock = getProductBranchStock(p);
       const oStock = p.mainWarehouseActual || 0;
+
+      if (p.promoPrice || p.promoPiecePrice || p.offerPrice) {
+        offersCount++;
+      }
 
       if (bStock > 0) {
         inBranchCount++;
@@ -246,6 +254,7 @@ export const InventoryStockView: React.FC = () => {
       needsTransferCount,
       outOfStockCount,
       lowStockCount,
+      offersCount,
       totalCartonsActual,
       totalCartonsReserved,
       pendingApprovalsCount: pendingInvoices.length
@@ -304,6 +313,11 @@ export const InventoryStockView: React.FC = () => {
 
   const handleExecuteTransfer = () => {
     if (!stockTransferModal || transferAmount <= 0) return;
+
+    if (currentUser?.role === 'sales_rep') {
+      alert('عذراً، طلبات التحويل من مخزن أكتوبر هي مسؤولية مدير الفرع ومشرف المناديب فقط.');
+      return;
+    }
 
     if (stockTransferModal.mainWarehouseActual < transferAmount) {
       alert('الكمية المطلوبة تتجاوز مخزون الكراتين الفعلي المتاح بالمخزن المركزي!');
@@ -678,6 +692,17 @@ export const InventoryStockView: React.FC = () => {
                 الكل ({products.length})
               </button>
               <button
+                onClick={() => setStockLevelFilter('offers')}
+                className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
+                  stockLevelFilter === 'offers'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'bg-rose-50 text-rose-900 hover:bg-rose-100 border border-rose-200'
+                }`}
+              >
+                <Flame className="w-3.5 h-3.5 text-rose-500" />
+                <span>عروض وخصومات ({stockMetrics.offersCount})</span>
+              </button>
+              <button
                 onClick={() => setStockLevelFilter('in_branch')}
                 className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
                   stockLevelFilter === 'in_branch'
@@ -815,10 +840,16 @@ export const InventoryStockView: React.FC = () => {
                         {p.name}
                       </h3>
 
-                      <div className="text-xs text-slate-500 mb-3 flex items-center gap-2">
+                      <div className="text-xs text-slate-500 mb-3 flex flex-wrap items-center gap-2">
                         <span>شدة الكرتونة: <strong className="text-slate-800">{p.cartonQuantity} قطعة</strong></span>
                         <span>•</span>
                         <span>سعر الكرتونة: <strong className="text-amber-900 font-bold">{formatCurrency(p.cartonPrice)}</strong></span>
+                        {p.promoPrice ? (
+                          <span className="bg-rose-100 text-rose-800 border border-rose-200 px-2 py-0.5 rounded-lg font-black text-[11px] flex items-center gap-1">
+                            <Flame className="w-3 h-3 text-rose-600" />
+                            <span>سعر العرض: {formatCurrency(p.promoPrice)}</span>
+                          </span>
+                        ) : null}
                       </div>
 
                       {/* Stock Level Banner */}
@@ -959,6 +990,7 @@ export const InventoryStockView: React.FC = () => {
                       <th className="p-3 text-center">حالة التوافر والإجراء</th>
                       <th className="p-3 text-center">المخزن الرئيسي (أكتوبر)</th>
                       <th className="p-3 text-left">سعر الكرتونة</th>
+                      <th className="p-3 text-center">سعر العرض</th>
                       <th className="p-3 text-center">الإجراءات</th>
                     </tr>
                   </thead>
@@ -1060,6 +1092,20 @@ export const InventoryStockView: React.FC = () => {
                           {/* Carton Price */}
                           <td className="p-3 text-left font-black text-amber-900">
                             {formatCurrency(p.cartonPrice)}
+                          </td>
+
+                          {/* Promo / Offer Price */}
+                          <td className="p-3 text-center font-black">
+                            {p.promoPrice ? (
+                              <div className="inline-flex flex-col items-center bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-lg">
+                                <span className="text-rose-700 font-black text-xs">{formatCurrency(p.promoPrice)}</span>
+                                <span className="text-[9px] text-rose-500 font-bold">
+                                  ({formatCurrency(p.promoPiecePrice || (p.cartonQuantity ? p.promoPrice / p.cartonQuantity : p.promoPrice))} ق)
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-300 font-medium">---</span>
+                            )}
                           </td>
 
                           {/* Actions */}

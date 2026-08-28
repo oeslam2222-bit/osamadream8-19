@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   ArrowUpDown,
   Boxes,
+  Building,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -69,11 +70,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
   const {
     products,
     currentUser,
+    branches,
     addToCart,
     importProductsList,
     wipeAllProductsAndData,
     cloudinaryConfig,
     selectedBranchFilter,
+    setSelectedBranchFilter,
     dataSaverMode,
     toggleDataSaverMode,
     setIsInstallModalOpen
@@ -86,7 +89,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
   const [selectedPriority, setSelectedPriority] = useState<string>('الكل');
   const [selectedStatus, setSelectedStatus] = useState<string>('الكل');
   const [stockAvailabilityFilter, setStockAvailabilityFilter] = useState<
-    'all' | 'in_branch' | 'in_warehouse' | 'low_stock' | 'out_of_stock' | 'out_of_branch_only' | 'high_stock'
+    'all' | 'offers' | 'in_branch' | 'in_warehouse' | 'low_stock' | 'out_of_stock' | 'out_of_branch_only' | 'high_stock'
   >('all');
   const [sortBy, setSortBy] = useState<
     'default' | 'branch_stock_desc' | 'branch_stock_asc' | 'october_stock_desc' | 'october_stock_asc' | 'total_stock_desc' | 'priority' | 'price_asc' | 'price_desc' | 'name_asc'
@@ -293,12 +296,17 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
     let highStock = 0;
     let inBranch = 0;
     let inWarehouse = 0;
+    let offers = 0;
 
     products.forEach((p) => {
       const branchStock = getProductBranchStock(p);
       const octoberStock = p.mainWarehouseActual || 0;
       const isCompletelyOut = branchStock <= 0 && octoberStock <= 0;
       
+      if (p.promoPrice || p.promoPiecePrice || p.offerPrice) {
+        offers++;
+      }
+
       if (isCompletelyOut) {
         outOfStock++;
       } else {
@@ -318,6 +326,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
 
     return {
       all: products.length,
+      offers,
       outOfStock,
       outOfBranchOnly,
       lowStock,
@@ -399,7 +408,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
       const bStock = getProductBranchStock(p);
       const oStock = p.mainWarehouseActual || 0;
 
-      if (stockAvailabilityFilter === 'out_of_stock') {
+      if (stockAvailabilityFilter === 'offers') {
+        if (!p.promoPrice && !p.promoPiecePrice && !p.offerPrice) return false;
+      } else if (stockAvailabilityFilter === 'out_of_stock') {
         // بدون مخزون: الصنف منتهي تماماً (رصيد الفرع 0 ورصيد أكتوبر 0)
         if (bStock > 0 || oStock > 0) return false;
       } else if (stockAvailabilityFilter === 'out_of_branch_only') {
@@ -651,6 +662,47 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
         </div>
       )}
 
+      {/* Active Branch Scope Indicator & Switcher for Admin / Developer / Sales Reps */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-slate-100 border border-slate-300/80 rounded-2xl p-3 sm:p-3.5 shadow-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-xs">
+            <Building className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-500">الفرع المعروض أرصدته حالياً:</span>
+              <span className="bg-amber-400 text-slate-950 text-xs font-black px-2.5 py-0.5 rounded-lg shadow-2xs">
+                {currentActiveBranch || 'كل الفروع والمخزن الرئيسي'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-600 mt-0.5">
+              مخزن أكتوبر هو المخزن المركزي الرئيسي لكافة الفروع الـ 7.
+            </p>
+          </div>
+        </div>
+
+        {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+          <div className="flex items-center gap-2">
+            <label htmlFor="catalog-branch-select" className="text-xs font-bold text-slate-700 shrink-0">
+              تبديل فرع العرض:
+            </label>
+            <select
+              id="catalog-branch-select"
+              value={selectedBranchFilter}
+              onChange={(e) => setSelectedBranchFilter(e.target.value)}
+              className="bg-white border border-slate-300 text-slate-900 font-black rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-amber-400 focus:outline-none shadow-2xs"
+            >
+              <option value="الكل">كل الفروع (أكتوبر المركزي)</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.name}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
       {/* Unified, Clean Search & Quick Filters Bar - Simplified for Mobile with high touch targets */}
       <div className="bg-slate-900 text-white rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 shadow-lg border border-slate-800 space-y-2.5 sm:space-y-3">
         <div className="flex items-center justify-between gap-2 md:hidden">
@@ -729,6 +781,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
               className="w-full h-11 px-2.5 bg-slate-800 text-slate-100 border border-slate-700 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer text-xs"
             >
               <option value="all">📦 كل حالات المخزون ({stockCounts.all})</option>
+              <option value="offers">🏷️ عروض وتخفيضات خاصة ({stockCounts.offers})</option>
               <option value="in_branch">🏢 متوفر بالفرع ({stockCounts.inBranch})</option>
               <option value="in_warehouse">🏬 مخزن أكتوبر المركزي ({stockCounts.inWarehouse})</option>
               <option value="out_of_branch_only">🚚 متاح بأكتوبر فقط ({stockCounts.outOfBranchOnly})</option>
@@ -1123,8 +1176,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
 
                     {/* Branch Stock */}
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-700">🏢 رصيد الفرع:</span>
-                      <div className="text-left font-black">
+                      <span className="text-slate-700 font-bold truncate max-w-[130px]" title={currentActiveBranch ? `رصيد ${currentActiveBranch}` : 'رصيد الفرع'}>
+                        🏢 {currentActiveBranch ? `رصيد ${currentActiveBranch.replace('فرع ', '')}:` : 'رصيد الفرع:'}
+                      </span>
+                      <div className="text-left font-black shrink-0">
                         {hasBranchStock ? (
                           <span className="text-emerald-800 font-black">
                             {dynamicBranchStock} ك
@@ -1190,6 +1245,21 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                           : `${orderState.quantity} قطعة`}
                       </span>
                     </div>
+                    {/* Promo Offer Price Banner if available */}
+                    {product.promoPrice ? (
+                      <div className="bg-rose-50 border border-rose-200 p-1.5 rounded-lg flex items-center justify-between text-xs">
+                        <span className="text-rose-800 font-bold flex items-center gap-1 text-[11px]">
+                          <Flame className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                          <span>سعر العرض للكرتونة:</span>
+                        </span>
+                        <div className="text-left font-black text-rose-950">
+                          <span>{formatCurrency(product.promoPrice)}</span>
+                          <span className="text-[9px] text-rose-600 font-bold block">
+                            ({formatCurrency(product.promoPiecePrice || (product.cartonQuantity ? product.promoPrice / product.cartonQuantity : product.promoPrice))} / ق)
+                          </span>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
 
                   {/* Piece vs Carton Order Switcher */}
@@ -1298,9 +1368,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                   <th className="p-3">اسم الصنف والبيان</th>
                   <th className="p-3">القسم والتصنيف</th>
                   <th className="p-3 text-center">شدة الكرتونة</th>
-                  <th className="p-3 text-center">مخزون الفرع (كرتونة)</th>
+                  <th className="p-3 text-center">
+                    {currentActiveBranch ? `مخزون ${currentActiveBranch.replace('فرع ', '')} (كرتونة)` : 'مخزون الفرع (كرتونة)'}
+                  </th>
                   <th className="p-3 text-center">مخزن أكتوبر (كرتونة)</th>
                   <th className="p-3 text-left">سعر الكرتونة بالجملة</th>
+                  <th className="p-3 text-center">سعر العرض (الكرتونة)</th>
                   <th className="p-3 text-center">إضافة كرتونة للطلبية</th>
                 </tr>
               </thead>
@@ -1357,6 +1430,18 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                       </td>
                       <td className="p-2.5 text-left font-black text-amber-950 text-sm">
                         {formatCurrency(product.cartonPrice)}
+                      </td>
+                      <td className="p-2.5 text-center">
+                        {product.promoPrice ? (
+                          <div className="inline-flex flex-col items-center bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-lg">
+                            <span className="text-rose-700 font-black text-xs">{formatCurrency(product.promoPrice)}</span>
+                            <span className="text-[9px] text-rose-500 font-bold">
+                              ({formatCurrency(product.promoPiecePrice || (product.cartonQuantity ? product.promoPrice / product.cartonQuantity : product.promoPrice))} ق)
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-300 font-medium">---</span>
+                        )}
                       </td>
                       <td className="p-2.5 text-center">
                         {(branchReservedCartons + mainWhCartons) > 0 ? (
@@ -1659,8 +1744,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                   const octoberReserved = Math.max(0, selectedProductForModal.mainWarehouseReserved || 0);
 
                   return (
-                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2">
-                      <div className="font-bold text-slate-900 text-xs">مستويات المخزون بالكراتين ({activeBranchLabel}):</div>
+                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="font-bold text-slate-900 text-xs">مستويات المخزون بالكراتين ({activeBranchLabel}):</div>
+                        <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-md">
+                          أكتوبر: المخزن الرئيسي
+                        </span>
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div className="bg-white p-2.5 rounded-xl border border-slate-100">
                           <div className="text-[10px] text-slate-400">رصيد {activeBranchLabel}:</div>
@@ -1681,6 +1771,40 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
                           </div>
                         </div>
                       </div>
+
+                      {/* All 7 Branches stock details table for Developer / Admin */}
+                      {(currentUser?.role === 'developer' || currentUser?.role === 'admin') && (
+                        <div className="pt-2 border-t border-slate-200/80">
+                          <div className="text-[11px] font-black text-slate-800 mb-1.5 flex items-center gap-1">
+                            <span>🏢 تفصيل أرصدة الفروع الـ 7 والمخزن المركزي:</span>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
+                            {branches.map((b) => {
+                              const bStock = getBranchStockForProduct(selectedProductForModal, b.name);
+                              const isOctober = b.name.includes('أكتوبر');
+                              return (
+                                <div
+                                  key={b.id}
+                                  className={`p-1.5 rounded-lg border ${
+                                    isOctober
+                                      ? 'bg-amber-50/80 border-amber-200 text-amber-950 font-black'
+                                      : bStock > 0
+                                      ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950'
+                                      : 'bg-white border-slate-200 text-slate-500'
+                                  }`}
+                                >
+                                  <div className="truncate font-bold" title={b.name}>
+                                    {b.name.replace('فرع ', '')}
+                                  </div>
+                                  <div className="font-black text-xs">
+                                    {bStock} ك
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}

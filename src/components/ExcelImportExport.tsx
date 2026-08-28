@@ -411,7 +411,7 @@ function onEdit(e) {
                 <div className="w-7 h-7 rounded-full bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-xs mb-2">1</div>
                 <h4 className="font-black text-sm text-white mb-1">افتح شيت جوجل شيت</h4>
                 <p className="text-xs text-slate-400">
-                  أنشئ جدولك على Google Sheets بنفس الأعمدة (الكود، اسم الصنف، السعر، المخزون، القسم).
+                  أنشئ جدولك على Google Sheets بالأعمدة الرئيسية المعتمدة لمجموعة دريم.
                 </p>
               </div>
 
@@ -429,6 +429,90 @@ function onEdit(e) {
                 <p className="text-xs text-slate-400">
                   الصق الرابط هنا واضغط "جلب وتحديث"، سيتم تحديث كامل فروع ومناديب دريم فوراً!
                 </p>
+              </div>
+            </div>
+
+            {/* Official Columns Reference Table (Matching exact User Google Sheet Screenshot) */}
+            <div className="bg-slate-950/80 rounded-2xl p-4 sm:p-5 border border-emerald-500/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                  <h4 className="text-xs sm:text-sm font-black text-white">
+                    الأعمدة الرئيسية المعتمدة في الشيت (مطابقة 100% لجدولك):
+                  </h4>
+                </div>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-md border border-emerald-500/30">
+                  محدث وفقاً للشيت الرسمي
+                </span>
+              </div>
+
+              <div className="overflow-x-auto text-[11px]">
+                <table className="w-full text-right border-collapse">
+                  <thead>
+                    <tr className="bg-slate-800 text-slate-200 border-b border-slate-700 font-bold">
+                      <th className="p-2 whitespace-nowrap">اسم العمود بالشيت</th>
+                      <th className="p-2 whitespace-nowrap">البيان والوظيفة في النظام</th>
+                      <th className="p-2 whitespace-nowrap text-left">مثال توضيحي</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 text-slate-300">
+                    <tr>
+                      <td className="p-2 font-mono font-black text-amber-300">كود موحد / كود المنتج</td>
+                      <td className="p-2">الكود الفريد للصنف في الكتالوج والفواتير</td>
+                      <td className="p-2 text-left font-mono text-slate-400">1000061</td>
+                    </tr>
+                    <tr>
+                      <td className="p-2 font-black text-white">اسم المنتج / البيان</td>
+                      <td className="p-2">الاسم الكامل للصنف في الكتالوج وفواتير البيع</td>
+                      <td className="p-2 text-left text-slate-400">بمبونيرة 15010 جليز الوان</td>
+                    </tr>
+                    <tr>
+                      <td className="p-2 font-black text-slate-200">الحجم / الوزن</td>
+                      <td className="p-2">مقاس وحجم الصنف (اختياري)</td>
+                      <td className="p-2 text-left text-slate-400">كبير / 24 سم</td>
+                    </tr>
+                    <tr>
+                      <td className="p-2 font-black text-amber-400">عدد القطع (Factor)</td>
+                      <td className="p-2">شدة الكرتونة (عدد القطع الفردية داخل الكرتونة)</td>
+                      <td className="p-2 text-left font-mono text-amber-300">6</td>
+                    </tr>
+                    <tr>
+                      <td className="p-2 font-black text-emerald-400">سعر الكرتونة</td>
+                      <td className="p-2">سعر البيع الإجمالي للكرتونة بالجملة</td>
+                      <td className="p-2 text-left font-mono text-emerald-300">350 ج.م</td>
+                    </tr>
+                    <tr>
+                      <td className="p-2 font-black text-cyan-300">Item group</td>
+                      <td className="p-2">المجموعة الرئيسية / القسم للفلترة والتصنيف</td>
+                      <td className="p-2 text-left font-mono text-cyan-200">LHLotus / Philips</td>
+                    </tr>
+                    <tr>
+                      <td className="p-2 font-black text-purple-300">Family Name</td>
+                      <td className="p-2">اسم العائلة / التصنيف الفرعي</td>
+                      <td className="p-2 text-left text-purple-200">بمبونيرة / مجات</td>
+                    </tr>
+                    <tr>
+                      <td className="p-2 font-black text-slate-200">اللون</td>
+                      <td className="p-2">لون الصنف المتاح</td>
+                      <td className="p-2 text-left text-slate-400">ألوان مشكلة / أبيض</td>
+                    </tr>
+                    <tr>
+                      <td className="p-2 font-black text-blue-400">الفروع الـ 7 + مخزن أكتوبر</td>
+                      <td className="p-2">أعمدة الأرصدة (البحيرة، الفيوم، القاهرة، المنيا، ديمشلت، مخزون اكتوبر، منوف، منيا القمح)</td>
+                      <td className="p-2 text-left font-mono text-blue-300">أرقام عدد الكراتين</td>
+                    </tr>
+                    <tr>
+                      <td className="p-2 font-black text-rose-400">سعر العرض</td>
+                      <td className="p-2">سعر الخصم/العرض الترويجي للكرتونة (إذا وجد)</td>
+                      <td className="p-2 text-left font-mono text-rose-300">320 ج.م</td>
+                    </tr>
+                    <tr>
+                      <td className="p-2 font-black text-sky-400">لينك الصوره</td>
+                      <td className="p-2">رابط صورة المنتج المباشر من Google Drive أو CDN</td>
+                      <td className="p-2 text-left font-mono text-[10px] text-sky-300 truncate max-w-xs">googleusercontent.com/d/...</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
