@@ -105,7 +105,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
           {/* Brand & Logo */}
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-slate-950 p-1 border-2 border-amber-400 shadow-md shadow-amber-500/20 flex items-center justify-center shrink-0">
-              <img src="/icon.svg" alt="دريم طنطاوي" className="h-full w-full object-contain" />
+              <img src="/tantawy-group-logo.png" alt="شعار مجموعة طنطاوي" className="h-full w-full object-contain" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">

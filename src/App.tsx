@@ -221,8 +221,8 @@ class MobileErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBound
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center font-sans">
-          <div className="w-16 h-16 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black mb-4 shadow-xl">
-            <Package className="w-8 h-8" />
+          <div className="w-20 h-20 rounded-2xl bg-slate-950 border-2 border-amber-400/50 p-1.5 flex items-center justify-center mb-4 shadow-xl overflow-hidden">
+            <img src="/tantawy-group-logo.png" alt="شعار مجموعة طنطاوي" className="w-full h-full object-contain rounded-xl" />
           </div>
           <h2 className="text-xl font-black text-amber-300 mb-2">منظومة دريم طنطاوي للتوزيع</h2>
           <p className="text-sm text-slate-300 max-w-md mb-6 leading-relaxed">

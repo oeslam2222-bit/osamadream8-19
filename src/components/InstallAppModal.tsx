@@ -78,7 +78,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
 
           {/* Luxury App Icon Preview */}
           <div className="w-20 h-20 mx-auto rounded-2xl bg-slate-950 border-2 border-amber-400 p-1.5 shadow-xl shadow-amber-500/10 mb-3 flex items-center justify-center">
-            <img src="/icon.svg" alt="دريم طنطاوي" className="w-full h-full object-contain" />
+            <img src="/tantawy-group-logo.png" alt="شعار مجموعة طنطاوي" className="w-full h-full object-contain" />
           </div>
 
           <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-400/10 border border-amber-400/30 text-amber-300 text-[11px] font-bold mb-1">

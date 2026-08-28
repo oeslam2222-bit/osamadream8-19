@@ -68,8 +68,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
       <div className="w-full max-w-md z-10 my-4">
         {/* Header Branding */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 shadow-xl shadow-amber-500/20 mb-3 border border-amber-300/40">
-            <span className="text-3xl font-black font-serif">D</span>
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-slate-950 shadow-xl shadow-amber-500/20 mb-3 border-2 border-amber-400/50 p-1.5 overflow-hidden">
+            <img src="/tantawy-group-logo.png" alt="شعار مجموعة طنطاوي" className="w-full h-full object-contain rounded-xl" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center justify-center gap-2">
             <span>شركة دريم للتجارة والتوزيع</span>
