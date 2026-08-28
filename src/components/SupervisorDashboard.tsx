@@ -410,6 +410,41 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     }
   };
 
+  // Organizational Hierarchy Info for Rep, Supervisor, Manager, Admin, Developer
+  const mySupervisor = useMemo(() => {
+    return (
+      users.find((u) => u.id === currentUser?.supervisorId) ||
+      users.find((u) => u.role === 'supervisor' && u.branchName === currentUser?.branchName) ||
+      null
+    );
+  }, [users, currentUser]);
+
+  const currentBranchObj = useMemo(() => {
+    return branches.find((b) => b.name === currentUser?.branchName) || null;
+  }, [branches, currentUser]);
+
+  const myBranchManager = useMemo(() => {
+    const mgrUser = users.find((u) => u.role === 'branch_manager' && u.branchName === currentUser?.branchName);
+    return mgrUser ? mgrUser.name : (currentBranchObj?.managerName || 'أشرف عبد العزيز');
+  }, [users, currentUser, currentBranchObj]);
+
+  const systemAdminName = useMemo(() => {
+    const adminUser = users.find((u) => u.role === 'admin');
+    return adminUser ? `${adminUser.name}` : 'محمد طنطاوي / الإدارة العامة';
+  }, [users]);
+
+  const developerName = 'أسامة إسلام (المطور التقني)';
+
+  const getStageNumber = (status: OrderStatus): number => {
+    if (status === 'قيد مراجعة المشرف' || status === 'معلقة بانتظار اعتماد الفرع' || status === 'قيد المراجعة') return 1;
+    if (status === 'جاري تحضير المنتجات' || status === 'معتمدة ومصروفة من المخزن' || status === 'معتمدة') return 2;
+    if (status === 'تم وصول المنتجات') return 3;
+    if (status === 'قيد التوصيل') return 4;
+    if (status === 'تم التسليم') return 5;
+    if (status === 'إغلاق الطلبية') return 6;
+    return 0; // Returned or Rejected
+  };
+
   const statusBadges: Record<string, { bg: string; text: string; label: string }> = {
     'قيد مراجعة المشرف': { bg: 'bg-amber-100 border-amber-300', text: 'text-amber-900', label: 'قيد مراجعة المشرف ⏳' },
     'معلقة بانتظار اعتماد الفرع': { bg: 'bg-blue-100 border-blue-300', text: 'text-blue-900', label: 'بانتظار مدير الفرع 🏛️' },
@@ -445,14 +480,24 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="bg-amber-400 text-slate-950 text-xs font-black px-2.5 py-1 rounded-lg">
-                لوحة تحكم المشرفين ومدراء الفروع
+                {currentUser?.role === 'sales_rep'
+                  ? '🎯 لوحة تحكم وطلبيات المندوب (Rep Command Center)'
+                  : currentUser?.role === 'supervisor'
+                  ? '👔 لوحة إشراف واعتماد الطلبيات (Supervisor Hub)'
+                  : currentUser?.role === 'branch_manager'
+                  ? '🏛️ لوحة إدارة الفرع والاعتمادات (Branch Manager Hub)'
+                  : '🛡️ لوحة الإدارة العامة والتحكم المركزي (HQ Command Center)'}
               </span>
               <h2 className="text-lg sm:text-xl font-black text-white">
-                متابعة طلبيات المناديب والتسليم والمرتجعات
+                {currentUser?.role === 'sales_rep'
+                  ? `مرحباً بك: ${currentUser.name} — متابعة مبيعاتك وطلبياتك والتسليم`
+                  : 'متابعة طلبيات المناديب والتسليم والمرتجعات'}
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              متابعة مباشرة لحالات الصرف، التوصيل، التسليم للعملاء، واسترداد المخزون تلقائياً عند تسجيل المرتجع
+              {currentUser?.role === 'sales_rep'
+                ? `فرعك: ${currentUser.branchName || 'الفرع المحدد'} | متابعة فورية لحالات طلبياتك ومراحل الصرف والتوصيل للعملاء.`
+                : 'متابعة مباشرة لحالات الصرف، التوصيل، التسليم للعملاء، واسترداد المخزون تلقائياً عند تسجيل المرتجع.'}
             </p>
           </div>
 
@@ -469,6 +514,60 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           </div>
         </div>
 
+        {/* Organizational Leadership & Team Hierarchy Card (الهيكل الإداري وفريق العمل) */}
+        <div className="bg-slate-800/90 rounded-2xl p-4 border border-slate-700/80 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-700 pb-2.5">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-amber-400" />
+              <span className="text-xs font-black text-slate-200">
+                الهيكل الإداري والمسئولين عن الفرع والطلبيات (Organizational Team)
+              </span>
+            </div>
+            {/* Privacy Shield Badge */}
+            <div className="flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-1 rounded-xl text-[11px] font-bold">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>🔐 سرية تامة: كل مستخدم يرى بياناته المصرح له بها فقط</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 text-xs">
+            {/* 1. Current Rep / User */}
+            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-700/80 space-y-0.5">
+              <span className="text-[10px] text-amber-400 font-bold block">👤 المندوب (المستخدم الحالي):</span>
+              <strong className="text-xs font-black text-white block truncate">{currentUser?.name || 'مندوب المبيعات'}</strong>
+              <span className="text-[10px] text-slate-400 block font-mono">@{currentUser?.username || 'rep'} ({currentUser?.phone || 'مفعل'})</span>
+            </div>
+
+            {/* 2. Direct Supervisor */}
+            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-700/80 space-y-0.5">
+              <span className="text-[10px] text-blue-400 font-bold block">👔 المشرف المباشر:</span>
+              <strong className="text-xs font-black text-slate-100 block truncate">{mySupervisor ? mySupervisor.name : 'مشرف مبيعات الفرع'}</strong>
+              <span className="text-[10px] text-slate-400 block">{mySupervisor?.phone || '01012345678'}</span>
+            </div>
+
+            {/* 3. Branch Manager */}
+            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-700/80 space-y-0.5">
+              <span className="text-[10px] text-teal-400 font-bold block">🏛️ مدير الفرع:</span>
+              <strong className="text-xs font-black text-slate-100 block truncate">{myBranchManager}</strong>
+              <span className="text-[10px] text-slate-400 block truncate">{currentUser?.branchName || 'الفرع الرئيسي'}</span>
+            </div>
+
+            {/* 4. System Admin */}
+            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-700/80 space-y-0.5">
+              <span className="text-[10px] text-rose-400 font-bold block">🛡️ مدير النظام (Admin):</span>
+              <strong className="text-xs font-black text-slate-100 block truncate">{systemAdminName}</strong>
+              <span className="text-[10px] text-slate-400 block">الإدارة العامة لشركة دريم</span>
+            </div>
+
+            {/* 5. Tech Developer */}
+            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-700/80 space-y-0.5 col-span-2 sm:col-span-1">
+              <span className="text-[10px] text-purple-400 font-bold block">💻 المطور والدعم التقني:</span>
+              <strong className="text-xs font-black text-slate-100 block truncate">{developerName}</strong>
+              <span className="text-[10px] text-slate-400 block font-mono">01000000001</span>
+            </div>
+          </div>
+        </div>
+
         {/* Aggregate KPI Stats Grid - Top Row: Orders Workflow */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
           
@@ -476,7 +575,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700/80 space-y-1">
             <div className="text-[11px] text-slate-400 font-bold flex items-center gap-1">
               <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
-              <span>إجمالي المبيعات</span>
+              <span>{currentUser?.role === 'sales_rep' ? 'إجمالي مبيعاتي' : 'إجمالي المبيعات'}</span>
             </div>
             <div className="text-base sm:text-lg font-black text-amber-300">
               {formatCurrency(metrics.totalRevenue)}
@@ -490,7 +589,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           <div className="bg-emerald-500/10 p-3.5 rounded-2xl border border-emerald-500/30 space-y-1">
             <div className="text-[11px] text-emerald-300 font-bold flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>الفواتير المكتملة</span>
+              <span>{currentUser?.role === 'sales_rep' ? 'طلبياتي المسلّمة' : 'الفواتير المكتملة'}</span>
             </div>
             <div className="text-base sm:text-lg font-black text-emerald-400">
               {metrics.completedInvoices} فاتورة
@@ -825,17 +924,17 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           {/* Status Tab Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 text-xs">
             {[
-              { id: 'الكل', label: 'جميع الحالات', count: invoices.length },
-              { id: 'قيد مراجعة المشرف', label: '⏳ مراجعة المشرف', count: invoices.filter((i) => i.status === 'قيد مراجعة المشرف').length },
-              { id: 'معلقة بانتظار اعتماد الفرع', label: '🏛️ اعتماد الفرع', count: invoices.filter((i) => i.status === 'معلقة بانتظار اعتماد الفرع').length },
-              { id: 'جاري تحضير المنتجات', label: '📦 جاري التحضير', count: invoices.filter((i) => i.status === 'جاري تحضير المنتجات').length },
-              { id: 'تم وصول المنتجات', label: '🏢 وصول المنتجات', count: invoices.filter((i) => i.status === 'تم وصول المنتجات').length },
-              { id: 'معتمدة ومصروفة من المخزن', label: '✨ معتمدة ومصروفة', count: invoices.filter((i) => i.status === 'معتمدة ومصروفة من المخزن').length },
-              { id: 'قيد التوصيل', label: '🚚 قيد التوصيل', count: invoices.filter((i) => i.status === 'قيد التوصيل').length },
-              { id: 'تم التسليم', label: '✅ تم التسليم', count: invoices.filter((i) => i.status === 'تم التسليم').length },
-              { id: 'إغلاق الطلبية', label: '🔒 إغلاق الطلبية', count: invoices.filter((i) => i.status === 'إغلاق الطلبية').length },
-              { id: 'مرتجع', label: '↩️ مرتجع', count: invoices.filter((i) => i.status === 'مرتجع').length },
-              { id: 'مرفوضة / ملغاة', label: '❌ ملغاة', count: invoices.filter((i) => i.status === 'مرفوضة / ملغاة').length },
+              { id: 'الكل', label: 'جميع الحالات', count: accessibleInvoices.length },
+              { id: 'قيد مراجعة المشرف', label: '⏳ مراجعة المشرف', count: accessibleInvoices.filter((i) => i.status === 'قيد مراجعة المشرف').length },
+              { id: 'معلقة بانتظار اعتماد الفرع', label: '🏛️ اعتماد الفرع', count: accessibleInvoices.filter((i) => i.status === 'معلقة بانتظار اعتماد الفرع').length },
+              { id: 'جاري تحضير المنتجات', label: '📦 جاري التحضير', count: accessibleInvoices.filter((i) => i.status === 'جاري تحضير المنتجات').length },
+              { id: 'تم وصول المنتجات', label: '🏢 وصول المنتجات', count: accessibleInvoices.filter((i) => i.status === 'تم وصول المنتجات').length },
+              { id: 'معتمدة ومصروفة من المخزن', label: '✨ معتمدة ومصروفة', count: accessibleInvoices.filter((i) => i.status === 'معتمدة ومصروفة من المخزن').length },
+              { id: 'قيد التوصيل', label: '🚚 قيد التوصيل', count: accessibleInvoices.filter((i) => i.status === 'قيد التوصيل').length },
+              { id: 'تم التسليم', label: '✅ تم التسليم', count: accessibleInvoices.filter((i) => i.status === 'تم التسليم').length },
+              { id: 'إغلاق الطلبية', label: '🔒 إغلاق الطلبية', count: accessibleInvoices.filter((i) => i.status === 'إغلاق الطلبية').length },
+              { id: 'مرتجع', label: '↩️ مرتجع', count: accessibleInvoices.filter((i) => i.status === 'مرتجع').length },
+              { id: 'مرفوضة / ملغاة', label: '❌ ملغاة', count: accessibleInvoices.filter((i) => i.status === 'مرفوضة / ملغاة').length },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -887,8 +986,8 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                   <th className="p-3.5 text-center">الكمية (كراتين)</th>
                   <th className="p-3.5 text-left">قيمة الفاتورة</th>
                   <th className="p-3.5 text-center">حالة الطلبية</th>
-                  <th className="p-3.5 text-center">متابعة مسار ودورة الطلبية</th>
-                  <th className="p-3.5 text-center">الإجراءات</th>
+                  <th className="p-3.5 text-center">مسار ودورة الطلبية (Lifecycle)</th>
+                  <th className="p-3.5 text-center">إجراءات المتابعة والتحكم</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -910,23 +1009,32 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                     currentUser?.role === 'branch_manager' ||
                     currentUser?.role === 'supervisor';
 
+                  const isRep = currentUser?.role === 'sales_rep';
+
                   const debtBefore = inv.customerBalanceBefore || 0;
                   const debtAfter = inv.customerBalanceAfter || (debtBefore + inv.estimatedGrandTotal);
-                  const creditLimit = inv.customerCreditLimit || 50000;
-                  const isExceeded = inv.creditLimitExceeded ?? (debtAfter > creditLimit);
+                  const creditLimit = Number(inv.customerCreditLimit || 0);
+                  const hasNoCredit = creditLimit <= 0;
+                  const isExceeded = !hasNoCredit && (inv.creditLimitExceeded ?? (debtAfter > creditLimit));
+                  const stageNum = getStageNumber(inv.status);
 
                   return (
                     <tr key={inv.id} className="hover:bg-amber-50/30 transition">
                       
                       {/* Order Code */}
                       <td className="p-3 font-mono font-black text-slate-900">
-                        <span className="bg-slate-100 px-2 py-1 rounded-md text-amber-900 border border-slate-200">
+                        <span className="bg-slate-100 px-2 py-1 rounded-md text-amber-900 border border-slate-200 block w-fit">
                           {inv.invoiceNumber}
                         </span>
                         <div className="text-[10px] text-slate-400 mt-0.5">{inv.date}</div>
+                        {inv.isShortageInvoice && (
+                          <span className="text-[9px] bg-indigo-100 text-indigo-900 px-1 rounded font-bold mt-0.5 block w-fit">
+                            فاتورة نواقص
+                          </span>
+                        )}
                       </td>
 
-                      {/* Customer & Debt Breakdown */}
+                      {/* Customer & Debt Breakdown with No-Credit-Limit clarification */}
                       <td className="p-3">
                         <div className="font-black text-slate-900 text-xs sm:text-sm">{inv.customerName}</div>
                         <div className="text-[10px] text-slate-400">{inv.customerPhone || '---'}</div>
@@ -934,16 +1042,29 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                         {/* Financial Snapshot Badges */}
                         <div className="mt-1 flex flex-col gap-0.5 text-[10px]">
                           <div className="text-slate-600 flex items-center gap-1">
-                            <span>المديونية الحالية:</span>
+                            <span>المديونية السابقة:</span>
                             <strong className="font-mono text-slate-800">{debtBefore.toLocaleString()} ج.م</strong>
                           </div>
                           <div className="text-slate-600 flex items-center gap-1">
                             <span>بعد الفاتورة:</span>
-                            <strong className={`font-mono font-black ${isExceeded ? 'text-rose-600' : 'text-emerald-700'}`}>
+                            <strong className={`font-mono font-black ${isExceeded ? 'text-rose-600' : hasNoCredit ? 'text-amber-700' : 'text-emerald-700'}`}>
                               {debtAfter.toLocaleString()} ج.م
                             </strong>
-                            <span className="text-[9px] text-slate-400">(حد: {creditLimit.toLocaleString()})</span>
                           </div>
+                          
+                          {/* Credit Limit State */}
+                          <div className="mt-0.5">
+                            {hasNoCredit ? (
+                              <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-950 font-black px-2 py-0.5 rounded border border-amber-300 text-[9px]">
+                                ⚠️ لا يوجد حد ائتماني (نقدي فقط)
+                              </span>
+                            ) : (
+                              <span className="text-[9px] text-slate-500 font-bold">
+                                (حد معتمد: {creditLimit.toLocaleString()} ج.م)
+                              </span>
+                            )}
+                          </div>
+
                           {isExceeded && (
                             <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 font-bold px-1.5 py-0.5 rounded border border-rose-300 w-fit text-[9px] mt-0.5">
                               ⚠️ تجاوز حد (مطلوب: {(inv.requiredDownPayment || (debtAfter - creditLimit)).toLocaleString()} ج.م)
@@ -977,6 +1098,56 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                         <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold border ${badge.bg} ${badge.text}`}>
                           {badge.label}
                         </span>
+                      </td>
+
+                      {/* Order Lifecycle Progress Stepper */}
+                      <td className="p-3">
+                        <div className="min-w-[200px] max-w-[240px] mx-auto space-y-1">
+                          <div className="flex items-center justify-between text-[9px] font-bold text-slate-500">
+                            <span className={stageNum >= 1 ? 'text-amber-600 font-black' : ''}>مراجعة ⏳</span>
+                            <span className={stageNum >= 2 ? 'text-orange-600 font-black' : ''}>تحضير 📦</span>
+                            <span className={stageNum >= 3 ? 'text-teal-600 font-black' : ''}>وصول 🏢</span>
+                            <span className={stageNum >= 4 ? 'text-cyan-600 font-black' : ''}>توصيل 🚚</span>
+                            <span className={stageNum >= 5 ? 'text-emerald-600 font-black' : ''}>تسليم ✅</span>
+                            <span className={stageNum >= 6 ? 'text-slate-800 font-black' : ''}>إغلاق 🔒</span>
+                          </div>
+
+                          {/* Progress Line */}
+                          <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden flex">
+                            <div
+                              className={`h-full transition-all duration-300 ${
+                                inv.status === 'مرتجع'
+                                  ? 'bg-purple-500 w-full'
+                                  : inv.status === 'مرفوضة / ملغاة'
+                                  ? 'bg-rose-500 w-full'
+                                  : stageNum === 6
+                                  ? 'bg-slate-800 w-full'
+                                  : stageNum === 5
+                                  ? 'bg-emerald-500 w-[83%]'
+                                  : stageNum === 4
+                                  ? 'bg-cyan-500 w-[66%]'
+                                  : stageNum === 3
+                                  ? 'bg-teal-500 w-[50%]'
+                                  : stageNum === 2
+                                  ? 'bg-orange-500 w-[33%]'
+                                  : 'bg-amber-500 w-[16%]'
+                              }`}
+                            />
+                          </div>
+
+                          <div className="text-[10px] text-center font-bold">
+                            {inv.status === 'مرتجع' && <span className="text-purple-700">↩️ مرتجع إلى مخزن الفرع</span>}
+                            {inv.status === 'مرفوضة / ملغاة' && <span className="text-rose-700">❌ ملغاة / مرفوضة</span>}
+                            {inv.status === 'قيد مراجعة المشرف' && <span className="text-amber-700">⏳ بانتظار موافقة المشرف</span>}
+                            {inv.status === 'معلقة بانتظار اعتماد الفرع' && <span className="text-blue-700">🏛️ بانتظار مدير الفرع</span>}
+                            {inv.status === 'جاري تحضير المنتجات' && <span className="text-orange-700">📦 جاري التجهيز بالمخزن</span>}
+                            {inv.status === 'معتمدة ومصروفة من المخزن' && <span className="text-indigo-700">✨ تم الصرف من المخزن</span>}
+                            {inv.status === 'تم وصول المنتجات' && <span className="text-teal-700">🏢 جاهزة بالفرع للتوزيع</span>}
+                            {inv.status === 'قيد التوصيل' && <span className="text-cyan-700 font-black animate-pulse">🚚 جاري التوصيل للعميل</span>}
+                            {inv.status === 'تم التسليم' && <span className="text-emerald-700 font-black">✅ تم الاستلام والتحصيل</span>}
+                            {inv.status === 'إغلاق الطلبية' && <span className="text-slate-800 font-black">🔒 تم التقفيل والتسوية المالية</span>}
+                          </div>
+                        </div>
                       </td>
 
                       {/* Delivery & Workflow Action Controls */}
@@ -1026,7 +1197,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                                 title="تأكيد وصول المنتجات للفرع/المنطقة"
                               >
                                 <Building className="w-3.5 h-3.5" />
-                                <span>وصول المنتجات</span>
+                                <span>وصول بالفرع</span>
                               </button>
 
                               <button
@@ -1049,7 +1220,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                                 title="تسليم للسائق / بدء التوصيل"
                               >
                                 <Truck className="w-3.5 h-3.5" />
-                                <span>قيد التوصيل</span>
+                                <span>خروج للتوصيل</span>
                               </button>
 
                               <button
@@ -1063,13 +1234,13 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                             </>
                           )}
 
-                          {/* 4. If Out for Delivery: Show Delivered or Returned */}
+                          {/* 4. If Out for Delivery: Both Rep and Manager can mark Delivered or Returned */}
                           {inv.status === 'قيد التوصيل' && (
                             <>
                               <button
                                 onClick={() => handleSetDelivered(inv)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
-                                title="تأكيد تسليم الطلبية للعميل"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                title="تأكيد تسليم الطلبية للعميل وتحصيل المبلغ"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
                                 <span>تم التسليم ✅</span>
@@ -1130,16 +1301,11 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                             </span>
                           )}
 
-                        </div>
-                      </td>
-
-                      {/* General Actions */}
-                      <td className="p-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
+                          {/* General Actions: View, Excel, PDF */}
                           {onViewInvoice && (
                             <button
                               onClick={() => onViewInvoice(inv)}
-                              className="bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer"
+                              className="bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer"
                               title="معاينة الفاتورة الإلكترونية"
                             >
                               <Eye className="w-3.5 h-3.5" />
@@ -1169,14 +1335,17 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                               onClick={() => {
                                 if (window.confirm(`هل أنت متأكد من حذف الفاتورة رقم ${inv.invoiceNumber} نهائياً؟`)) {
                                   deleteInvoice(inv.id);
+                                  setSuccessToast(`تم حذف الفاتورة رقم ${inv.invoiceNumber}`);
+                                  setTimeout(() => setSuccessToast(null), 3000);
                                 }
                               }}
-                              className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg transition cursor-pointer"
+                              className="bg-rose-100 hover:bg-rose-200 text-rose-700 p-1.5 rounded-lg transition cursor-pointer"
                               title="حذف الفاتورة نهائياً"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
+
                         </div>
                       </td>
 

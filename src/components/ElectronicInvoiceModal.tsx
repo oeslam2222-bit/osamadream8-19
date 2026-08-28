@@ -437,7 +437,13 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                 </div>
                 <div className="flex justify-between items-center text-slate-400">
                   <span>الحد الائتماني المعتمد:</span>
-                  <span className="font-bold font-mono text-blue-300">{formatCurrency(invoice.customerCreditLimit || 50000)}</span>
+                  {(invoice.customerCreditLimit || 0) <= 0 ? (
+                    <span className="font-bold text-amber-300 text-[10px] bg-amber-950/60 border border-amber-500/50 px-2 py-0.5 rounded">
+                      لا يوجد حد ائتماني (سداد نقدي)
+                    </span>
+                  ) : (
+                    <span className="font-bold font-mono text-blue-300">{formatCurrency(invoice.customerCreditLimit || 0)}</span>
+                  )}
                 </div>
                 {invoice.creditLimitExceeded && (
                   <div className="bg-rose-950/90 border border-rose-500/80 p-2 rounded-xl text-rose-200 text-[10px] space-y-0.5 mt-1">

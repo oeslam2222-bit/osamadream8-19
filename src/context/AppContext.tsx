@@ -1718,7 +1718,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     const custBalanceBefore = Number(matchedCustomer?.balance || 0);
-    const custCreditLimit = Number(matchedCustomer?.creditLimit !== undefined ? matchedCustomer.creditLimit : 50000);
+    const custCreditLimit = Number(
+      matchedCustomer?.creditLimit !== undefined && matchedCustomer?.creditLimit !== null
+        ? matchedCustomer.creditLimit
+        : 0
+    );
     const custBalanceAfter = custBalanceBefore + primaryTotals.estimatedGrandTotal;
     const isCreditExceeded = custCreditLimit > 0 && custBalanceAfter > custCreditLimit;
     const reqPayment = isCreditExceeded ? Math.max(0, custBalanceAfter - custCreditLimit) : 0;

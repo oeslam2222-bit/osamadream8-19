@@ -213,7 +213,9 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   }, [customers, selectedCustomerId, customerCode, customerName]);
 
   const customerCurrentBalance = Number(activeCustomer?.balance ?? activeCustomer?.currentBalance ?? 0);
-  const customerCreditLimit = Number(activeCustomer?.creditLimit !== undefined ? activeCustomer.creditLimit : 50000);
+  const rawCreditLimit = activeCustomer?.creditLimit !== undefined && activeCustomer?.creditLimit !== null ? Number(activeCustomer.creditLimit) : 0;
+  const hasNoCreditLimit = rawCreditLimit <= 0;
+  const customerCreditLimit = rawCreditLimit;
   const orderGrandTotal = summary.grandTotal;
   const balanceAfterInvoice = customerCurrentBalance + orderGrandTotal;
   const isCreditLimitExceeded = customerCreditLimit > 0 && balanceAfterInvoice > customerCreditLimit;
@@ -817,16 +819,51 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   </div>
                   <div className={`p-2.5 rounded-xl border ${isCreditLimitExceeded ? 'bg-rose-950/80 border-rose-600 text-rose-200' : 'bg-slate-800/80 border-slate-700 text-slate-100'}`}>
                     <span className="text-[10px] block font-bold">إجمالي المديونية بعد الفاتورة:</span>
-                    <strong className={`text-sm font-black ${isCreditLimitExceeded ? 'text-rose-400' : 'text-emerald-400'}`}>
+                    <strong className={`text-sm font-black ${isCreditLimitExceeded ? 'text-rose-400' : hasNoCreditLimit ? 'text-amber-300' : 'text-emerald-400'}`}>
                       {balanceAfterInvoice.toLocaleString()} ج.م
                     </strong>
                   </div>
-                  <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
+                  <div className={`p-2.5 rounded-xl border ${hasNoCreditLimit ? 'bg-slate-800/90 border-amber-400/40 text-amber-300' : 'bg-slate-800/80 border-slate-700'}`}>
                     <span className="text-[10px] text-slate-400 block font-bold">الحد الائتماني المعتمد:</span>
-                    <strong className="text-sm font-black text-blue-400">{customerCreditLimit.toLocaleString()} ج.م</strong>
+                    {hasNoCreditLimit ? (
+                      <div className="space-y-0.5">
+                        <strong className="text-xs font-black text-amber-300 block">لا يوجد حد ائتماني</strong>
+                        <span className="text-[9px] text-slate-300 block font-bold">(سداد نقدي كاش فقط)</span>
+                      </div>
+                    ) : (
+                      <strong className="text-sm font-black text-blue-400">{customerCreditLimit.toLocaleString()} ج.م</strong>
+                    )}
                   </div>
                 </div>
 
+                {/* Scenario 1: Customer has NO Credit Limit */}
+                {hasNoCreditLimit && (
+                  <div className="p-3 bg-amber-500/15 border-2 border-amber-500/80 rounded-xl text-xs space-y-2 text-amber-200">
+                    <div className="flex items-center gap-2 text-amber-300 font-black text-xs sm:text-sm">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                      <span>توضيح هام للمندوب: لا يوجد حد ائتماني معتمد للعميل (سداد نقدي فقط)</span>
+                    </div>
+                    <p className="text-[11px] text-slate-200 font-medium leading-relaxed">
+                      هذا العميل غير مصرح له بالسحب الآجل. <strong className="text-amber-300 font-black">يجب تحصيل قيمة الفاتورة ({orderGrandTotal.toLocaleString()} ج.م) نقداً بالكامل (كاش) عند الاستلام </strong>
+                      {customerCurrentBalance > 0 ? ` بالإضافة إلى سداد المديونية السابقة (${customerCurrentBalance.toLocaleString()} ج.م).` : '.'}
+                    </p>
+                    <div className="pt-1 flex items-center flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const noteText = `توضيح السداد: العميل ليس لديه حد ائتماني معتمد ويتم التعامل نقداً (كاش) بالكامل بقيمة ${orderGrandTotal.toLocaleString()} ج.م عند الاستلام.`;
+                          setOrderNotes((prev) => (prev && prev.includes('العميل ليس لديه حد ائتماني') ? prev : prev ? `${prev} | ${noteText}` : noteText));
+                        }}
+                        className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm cursor-pointer transition transform active:scale-95"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>📝 إدراج بيان التعامل النقدي التام في الملاحظات</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Scenario 2: Customer has a credit limit but EXCEEDED */}
                 {isCreditLimitExceeded && (
                   <div className="p-3 bg-rose-500/15 border-2 border-rose-500 rounded-xl text-xs space-y-2 text-rose-200">
                     <div className="flex items-center gap-2 text-rose-400 font-black text-xs sm:text-sm">
