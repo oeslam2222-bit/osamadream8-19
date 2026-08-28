@@ -63,6 +63,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   const [activeStatusTab, setActiveStatusTab] = useState<string>('الكل');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRepFilter, setSelectedRepFilter] = useState('الكل');
+  const [selectedDate, setSelectedDate] = useState('');
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
   // Pagination state for responsive performance
@@ -179,12 +180,22 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         return false;
       }
 
-      // 4. Rep filter
+      // 4. Day filter — supports the stored Arabic date and native date input format
+      if (selectedDate) {
+        const normalizedInvoiceDate = inv.date.replace(/[\\/]/g, '-');
+        const dateParts = normalizedInvoiceDate.split('-');
+        const invoiceDateAsInput = dateParts.length === 3 && dateParts[0].length === 2
+          ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`
+          : normalizedInvoiceDate;
+        if (invoiceDateAsInput !== selectedDate) return false;
+      }
+
+      // 5. Rep filter
       if (selectedRepFilter !== 'الكل' && inv.repName !== selectedRepFilter) {
         return false;
       }
 
-      // 5. Search term
+      // 6. Search term
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase().trim();
         const numMatch = inv.invoiceNumber?.toLowerCase().includes(q);
@@ -199,12 +210,12 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
       return true;
     });
-  }, [invoices, currentUser, users, selectedBranchFilter, activeStatusTab, selectedRepFilter, searchTerm]);
+  }, [invoices, currentUser, users, selectedBranchFilter, activeStatusTab, selectedRepFilter, selectedDate, searchTerm]);
 
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedBranchFilter, activeStatusTab, selectedRepFilter, searchTerm]);
+  }, [selectedBranchFilter, activeStatusTab, selectedRepFilter, selectedDate, searchTerm]);
 
   const totalPages = useMemo(() => {
     if (itemsPerPage === 'all') return 1;
@@ -865,16 +876,37 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             ))}
           </div>
 
-          {/* Search Input */}
-          <div className="relative text-xs">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="ابحث برقم الفاتورة، اسم العميل، الهاتف، المندوب، الفرع..."
-              className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 text-xs font-medium"
-            />
+          {/* Search and day filter */}
+          <div className="flex flex-col sm:flex-row gap-2 text-xs">
+            <div className="relative flex-1">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="ابحث برقم الفاتورة، العميل، المندوب أو الفرع..."
+                className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 text-xs font-medium"
+              />
+            </div>
+            <label className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 font-bold text-amber-950 whitespace-nowrap">
+              <span>عرض يوم:</span>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="bg-transparent font-black focus:outline-none"
+                aria-label="فلترة الفواتير حسب اليوم"
+              />
+              {selectedDate && (
+                <button type="button" onClick={() => setSelectedDate('')} className="text-amber-700 hover:text-rose-600" aria-label="مسح فلتر اليوم">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </label>
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-slate-500 bg-slate-50 rounded-xl px-3 py-2">
+            <span>النتائج الظاهرة تشمل القيمة والعدد والتفاصيل حسب الفلاتر الحالية.</span>
+            <span className="font-black text-slate-700">{formatCurrency(accessibleInvoices.reduce((sum, invoice) => sum + (invoice.estimatedGrandTotal || 0), 0))}</span>
           </div>
         </div>
 
@@ -1250,7 +1282,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                                 }
                               }}
                               className="bg-rose-100 hover:bg-rose-200 text-rose-700 p-1.5 rounded-lg transition cursor-pointer"
-                              title="حذف الفاتورة نهائياً"
+                              title="حذف الفاتورة نها��ياً"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
