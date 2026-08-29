@@ -161,8 +161,8 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     setCustomerTaxNumber(c.taxNumber || '');
     setCustomerBranch(c.branchName || currentUser?.branchName || '');
     setCustomerRep(c.salesRepName || c.repName || (currentUser?.role === 'sales_rep' ? currentUser.name : ''));
-    setCustomerTier(c.tier || 'عادي');
-    setIsCustomerDropdownOpen(false);
+        setCustomerTier(c.tier || 'عادي');
+        setIsCustomerDropdownOpen(false);
     setCustomerSearchQuery('');
   };
 
@@ -879,7 +879,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                       <button
                         type="button"
                         onClick={() => {
-                          const noteText = `توضيح الدفعة المقدمة: سيتم تحصيل دفعة نقدية بقيمة (${requiredDownPayment.toLocaleString()} ج.م) لتنزيل المديونية دون الحد الائتماني (${customerCreditLimit.toLocaleString()} ج.م).`;
+                          const noteText = `توضيح الدفعة المقدمة: سيتم تحصيل دفعة نقدية ��قيمة (${requiredDownPayment.toLocaleString()} ج.م) لتنزيل المديونية دون الحد الائتماني (${customerCreditLimit.toLocaleString()} ج.م).`;
                           setOrderNotes((prev) => (prev && prev.includes('توضيح الدفعة المقدمة') ? prev : prev ? `${prev} | ${noteText}` : noteText));
                         }}
                         className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm cursor-pointer transition transform active:scale-95"

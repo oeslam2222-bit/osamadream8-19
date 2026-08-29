@@ -19,9 +19,11 @@ export function normalizeArabicText(str?: string): string {
     .replace(/[أإآٱٵٲ]/g, 'ا')
     // 5. Normalize Taa Marbuta (ة) -> ه
     .replace(/ة/g, 'ه')
-    // 6. Normalize Alef Maqsura (ى) -> ي
-    .replace(/ى/g, 'ي')
-    // 7. Normalize Hamzas (ؤ, ئ, ء)
+  // 6. Normalize Alef Maqsura (ى) -> ي, and common duplicated ya spelling
+  // This makes variants such as "يحيى" and "يحيي" match the same representative.
+  .replace(/ى/g, 'ي')
+  .replace(/يي/g, 'ي')
+  // 7. Normalize Hamzas (ؤ, ئ, ء)
     .replace(/ؤ/g, 'و')
     .replace(/ئ/g, 'ي')
     .replace(/ء/g, '')
