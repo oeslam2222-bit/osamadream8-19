@@ -560,7 +560,13 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
     repField.toLowerCase() === 'none';
 
   if (!isGenericRep) {
+    // Imported sheets may contain harmless Arabic spelling variants; match the
+    // representative by the Arabic display name before considering account IDs.
+    const repFieldWords = normalizeArabicText(repField).split(' ').filter(Boolean);
+    const repNameWords = normalizeArabicText(repUser.name).split(' ').filter(Boolean);
+    const sharedNameWords = repNameWords.filter((word) => repFieldWords.includes(word));
     if (isArabicNameMatch(repField, repUser.name)) return true;
+    if (repNameWords.length >= 2 && sharedNameWords.length >= 2) return true;
     if (repUser.username && isArabicNameMatch(repField, repUser.username)) return true;
     if (repUser.phone && (repField.includes(repUser.phone) || repUser.phone.includes(repField))) return true;
 

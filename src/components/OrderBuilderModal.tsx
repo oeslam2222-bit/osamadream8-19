@@ -783,7 +783,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     <input
                       type="text"
                       disabled
-                      value={`${currentUser?.name || 'مندوب المبيعات'} (@${currentUser?.username || 'rep'})`}
+                      value={currentUser?.name || 'مندوب المبيعات'}
                       className="w-full h-11 px-3 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-xs cursor-not-allowed"
                     />
                   </div>
