@@ -597,7 +597,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS).then((idbCustomers) => {
       if (idbCustomers && idbCustomers.length > 0) {
-        setCustomers(idbCustomers);
+        // Normalize and deduplicate persisted records before counts are calculated.
+        setCustomers(sanitizeCustomers(idbCustomers));
       }
     });
 
