@@ -440,11 +440,11 @@ export const InventoryStockView: React.FC = () => {
             </span>
           </div>
           <div className="mt-2">
-            <div className="text-[11px] text-slate-500 font-bold">يحتاج تحويل من أكتو��ر</div>
+            <div className="text-sm sm:text-base text-blue-950 font-black">طلب تحويل 🚚 — يحتاج تحويل من أكتوبر</div>
             <div className="text-xl sm:text-2xl font-black text-blue-950">
               {stockMetrics.needsTransferCount} <span className="text-xs font-bold text-slate-500">صنف</span>
             </div>
-            <div className="text-[10px] text-blue-800 font-semibold mt-0.5">عجز بالفرع ومتوفر بالمخزن ال��ئيسي</div>
+            <div className="text-[10px] text-blue-800 font-semibold mt-0.5">عجز بالفرع ومتوفر بالمخزن الرئيسي</div>
           </div>
         </div>
 
@@ -984,7 +984,7 @@ export const InventoryStockView: React.FC = () => {
                   <thead className="bg-slate-900 text-white font-bold">
                     <tr>
                       <th className="p-3">الكود</th>
-                      <th className="p-3">اسم الصنف والبيان</th>
+                      <th className="p-3">��سم الصنف والبيان</th>
                       <th className="p-3 text-center">شدة الكرتونة</th>
                       <th className="p-3 text-center">المخزون بالفرع (المتاح)</th>
                       <th className="p-3 text-center">حالة التوافر والإجراء</th>
