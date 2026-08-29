@@ -612,42 +612,33 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
     repField.toLowerCase() === 'none';
 
   if (!isGenericRep) {
-    // Imported sheets may contain harmless Arabic spelling variants; match the
-    // representative by the Arabic display name before considering account IDs.
-    const repFieldWords = normalizeArabicText(repField).split(' ').filter(Boolean);
-    const repNameWords = normalizeArabicText(repUser.name).split(' ').filter(Boolean);
-    const sharedNameWords = repNameWords.filter((word) => repFieldWords.includes(word));
+    // Exact or normalized Arabic match
     if (isArabicNameMatch(repField, repUser.name)) return true;
-    if (repNameWords.length >= 2 && sharedNameWords.length >= 2) return true;
     if (repUser.username && isArabicNameMatch(repField, repUser.username)) return true;
     if (repUser.phone && (repField.includes(repUser.phone) || repUser.phone.includes(repField))) return true;
 
-    // Normalized direct containment (e.g. "حسن محمد" in "مندوب حسن محمد - المنيا")
     const normRepField = normalizeArabicText(repField);
     const normUserName = normalizeArabicText(repUser.name);
+
     if (normRepField && normUserName) {
+      if (normRepField === normUserName) return true;
       if (normRepField.includes(normUserName) || normUserName.includes(normRepField)) {
         return true;
       }
     }
-    // If the customer has an explicit other rep name that doesn't match this repUser, return false
+
+    const repFieldWords = normRepField.split(' ').filter(Boolean);
+    const repNameWords = normUserName.split(' ').filter(Boolean);
+    const sharedNameWords = repNameWords.filter((word) => repFieldWords.includes(word));
+    if (repNameWords.length >= 2 && sharedNameWords.length >= 2) return true;
+    if (repNameWords.length === 1 && repFieldWords.includes(repNameWords[0])) return true;
+    if (repFieldWords.length === 1 && repNameWords.includes(repFieldWords[0])) return true;
+
+    // Not matching this rep
     return false;
   }
 
-  // 3. Fallback: If customer has NO assigned rep (or generic rep name), check if customer belongs to the exact same branch
-  const repBranch = repUser.branchName?.trim();
-  let customerBranch = customer.branchName?.trim();
-  if (!customerBranch || customerBranch.includes('الفرع الرئيسي') || customerBranch.includes('المخزن المركزي')) {
-    const inferred = inferBranchFromText(`${customer.name || ''} ${customer.address || ''} ${customer.governorate || ''} ${customer.notes || ''}`);
-    if (inferred) {
-      customerBranch = inferred;
-    }
-  }
-
-  if (isGenericRep && !customer.repId && customerBranch && repBranch && isBranchMatch(customerBranch, repBranch, { allowUnassigned: false })) {
-    return true;
-  }
-
+  // If rep is generic / unassigned in sheet, it does not strictly belong to this individual sales rep
   return false;
 }
 

@@ -12,6 +12,7 @@ import {
   Phone,
   Plus,
   Receipt,
+  RefreshCw,
   Search,
   ShoppingCart,
   Sparkles,
@@ -63,13 +64,26 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     getCartSummary,
     createOrder,
     currentUser,
-    cloudinaryConfig
+    cloudinaryConfig,
+    refreshCustomerRepLinks,
   } = useApp();
+
+  // Active Representative selection for the invoice
+  const [selectedRepId, setSelectedRepId] = useState<string>(() => currentUser?.id || '');
+  const [customerScope, setCustomerScope] = useState<'rep' | 'branch' | 'all'>('rep');
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+
+  const activeRepUser = useMemo(() => {
+    return users.find((u) => u.id === selectedRepId) || currentUser;
+  }, [users, selectedRepId, currentUser]);
+
+  const activeBranch = useMemo(() => {
+    return activeRepUser?.branchName || currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+  }, [activeRepUser, currentUser]);
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [selectedCustomerTierFilter, setSelectedCustomerTierFilter] = useState<'all' | 'VIP' | 'A' | 'B' | 'C'>('all');
-  const [selectedSupervisorRepFilter, setSelectedSupervisorRepFilter] = useState<string>('all');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [isNewCustomerMode, setIsNewCustomerMode] = useState(false);
 
@@ -89,39 +103,57 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState<string[]>([]);
 
-  // Supervised reps for supervisor or branch manager
-  const supervisedReps = useMemo(() => {
-    if (!currentUser || !users) return [];
-    if (currentUser.role === 'supervisor') {
+  // List of all sales representatives and staff available for assignment
+  const availableRepsList = useMemo(() => {
+    if (!users || users.length === 0) return [];
+    if (currentUser?.role === 'sales_rep') {
+      return [currentUser];
+    }
+    if (currentUser?.role === 'supervisor') {
       return users.filter(
         (u) =>
-          u.supervisorId === currentUser.id ||
-          (u.role === 'sales_rep' && isBranchMatch(u.branchName, currentUser.branchName))
+          u.role === 'sales_rep' &&
+          (u.supervisorId === currentUser.id || isBranchMatch(u.branchName, currentUser.branchName))
       );
     }
-    if (currentUser.role === 'branch_manager') {
+    if (currentUser?.role === 'branch_manager') {
       return users.filter(
-        (u) => u.role === 'sales_rep' && isBranchMatch(u.branchName, currentUser.branchName)
+        (u) =>
+          (u.role === 'sales_rep' || u.role === 'supervisor') &&
+          isBranchMatch(u.branchName, currentUser.branchName)
       );
     }
-    return [];
+    return users.filter((u) => u.role === 'sales_rep' || u.role === 'supervisor' || u.role === 'branch_manager');
   }, [users, currentUser]);
 
-  const visibleCustomers = useMemo(() => {
-    return (typeof getVisibleCustomers === 'function' ? getVisibleCustomers() : customers) || [];
-  }, [getVisibleCustomers, customers, currentUser]);
+  const isSalesRep = currentUser?.role === 'sales_rep';
 
-  // Filtered customers for search dropdown by search query, rep filter, and tier
+  // Compute customers by scope
+  const repScopedCustomers = useMemo(() => {
+    if (!activeRepUser) return customers;
+    return customers.filter((c) => doesCustomerBelongToRep(c, activeRepUser));
+  }, [customers, activeRepUser]);
+
+  const branchScopedCustomers = useMemo(() => {
+    return customers.filter((c) => doesCustomerBelongToBranch(c, activeBranch));
+  }, [customers, activeBranch]);
+
+  const allScopedCustomers = customers;
+
+  // Active list based on chosen scope (strictly rep-scoped for sales reps)
+  const scopedCustomersList = useMemo(() => {
+    if (isSalesRep || customerScope === 'rep') {
+      return repScopedCustomers;
+    }
+    if (customerScope === 'branch') {
+      return branchScopedCustomers;
+    }
+    return allScopedCustomers;
+  }, [isSalesRep, customerScope, repScopedCustomers, branchScopedCustomers, allScopedCustomers]);
+
+  // Filtered customers for search dropdown by search query and tier
   const filteredCustomers = useMemo(() => {
-    return visibleCustomers.filter((c) => {
-      // Supervisor rep-level filter
-      if (selectedSupervisorRepFilter !== 'all' && (currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager')) {
-        const targetRep = supervisedReps.find((r) => r.id === selectedSupervisorRepFilter);
-        if (targetRep && !doesCustomerBelongToRep(c, targetRep)) {
-          return false;
-        }
-      }
-
+    return scopedCustomersList.filter((c) => {
       // Tier filter
       if (selectedCustomerTierFilter !== 'all') {
         const cTier = (c.tier || '').toUpperCase();
@@ -148,8 +180,16 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
       }
 
       return true;
-    }).slice(0, 200);
-  }, [visibleCustomers, customerSearchQuery, selectedCustomerTierFilter, selectedSupervisorRepFilter, supervisedReps, currentUser]);
+    }).slice(0, 300);
+  }, [scopedCustomersList, customerSearchQuery, selectedCustomerTierFilter]);
+
+  const handleSyncLinks = () => {
+    if (typeof refreshCustomerRepLinks === 'function') {
+      const res = refreshCustomerRepLinks();
+      setSyncFeedback(`تم ربط وتحديث ${res.updatedCount} عميل بالمناديب بنجاح!`);
+      setTimeout(() => setSyncFeedback(null), 4000);
+    }
+  };
 
   const handleSelectCustomer = (c: Customer) => {
     setSelectedCustomerId(c.id);
@@ -159,10 +199,10 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     setCustomerPhone(c.phone || '');
     setCustomerAddress(c.address || c.governorate || '');
     setCustomerTaxNumber(c.taxNumber || '');
-    setCustomerBranch(c.branchName || currentUser?.branchName || '');
-    setCustomerRep(c.salesRepName || c.repName || (currentUser?.role === 'sales_rep' ? currentUser.name : ''));
-        setCustomerTier(c.tier || 'عادي');
-        setIsCustomerDropdownOpen(false);
+    setCustomerBranch(c.branchName || activeBranch);
+    setCustomerRep(c.salesRepName || c.repName || activeRepUser?.name || currentUser?.name || '');
+    setCustomerTier(c.tier || 'عادي');
+    setIsCustomerDropdownOpen(false);
     setCustomerSearchQuery('');
   };
 
@@ -175,8 +215,8 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     setCustomerPhone('');
     setCustomerAddress('');
     setCustomerTaxNumber('');
-    setCustomerBranch(currentUser?.branchName || 'الفرع الرئيسي');
-    setCustomerRep(currentUser?.role === 'sales_rep' ? currentUser.name : '');
+    setCustomerBranch(activeBranch);
+    setCustomerRep(activeRepUser?.name || currentUser?.name || 'مندوب المبيعات');
     setCustomerTier('عادي');
     setIsCustomerDropdownOpen(false);
     setCustomerSearchQuery('');
@@ -353,30 +393,44 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
           {/* Top Info Bar: Rep Name, Branch, Date */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
-                <User className="w-4 h-4 shrink-0" />
+              <div className="p-2 bg-amber-100 text-amber-800 rounded-xl shrink-0">
+                <User className="w-4 h-4" />
               </div>
-              <div>
-                <span className="text-slate-500 block text-[10px] font-bold">المندوب المسئول:</span>
-                <strong className="text-slate-900 font-black">{currentUser?.name || 'مندوب المبيعات'}</strong>
+              <div className="flex-1 min-w-0">
+                <span className="text-slate-500 block text-[10px] font-bold">المندوب المسئول عن الفاتورة:</span>
+                {currentUser?.role === 'sales_rep' ? (
+                  <strong className="text-slate-900 font-black truncate block">{currentUser.name}</strong>
+                ) : (
+                  <select
+                    value={selectedRepId}
+                    onChange={(e) => setSelectedRepId(e.target.value)}
+                    className="bg-white border border-slate-300 text-slate-900 font-black text-xs rounded-lg px-2 py-1 w-full mt-0.5 focus:ring-2 focus:ring-amber-500"
+                  >
+                    {availableRepsList.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name} ({r.branchName || 'فرع غير محدد'})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
 
             <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-blue-100 text-blue-800 rounded-xl">
-                <Building className="w-4 h-4 shrink-0" />
+              <div className="p-2 bg-blue-100 text-blue-800 rounded-xl shrink-0">
+                <Building className="w-4 h-4" />
               </div>
-              <div>
-                <span className="text-slate-500 block text-[10px] font-bold">فرع التحميل:</span>
-                <strong className="text-slate-900 font-black">{currentUser?.branchName || 'الفرع الرئيسي'}</strong>
+              <div className="min-w-0">
+                <span className="text-slate-500 block text-[10px] font-bold">فرع التحميل / الصرف:</span>
+                <strong className="text-slate-900 font-black truncate block">{activeBranch}</strong>
               </div>
             </div>
 
             <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">
-                <Calendar className="w-4 h-4 shrink-0" />
+              <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl shrink-0">
+                <Calendar className="w-4 h-4" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <span className="text-slate-500 block text-[10px] font-bold">تاريخ الطلبية:</span>
                 <strong className="text-slate-900 font-black">{todayDate}</strong>
               </div>
@@ -385,12 +439,21 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
           {/* Customer Selection & Details (Smart Searchable Dropdown) */}
           <div className="bg-slate-50/80 border border-slate-200 p-4 rounded-2xl space-y-3.5" id="customer-selection-section">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2 flex-wrap gap-2">
               <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
                 <span>1. بيانات العميل المسند / تسجيل عميل جديد</span>
                 <span className="text-rose-600 font-black">*</span>
               </h3>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleSyncLinks}
+                  className="text-[11px] font-black text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-300 px-2.5 py-1 rounded-xl cursor-pointer flex items-center gap-1 transition shadow-xs"
+                  title="إعادة فحص وربط العملاء بالمناديب تلقائياً"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-blue-700" />
+                  <span>🔄 مزامنة وربط العملاء بالمناديب</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => handleStartNewCustomer('')}
@@ -399,84 +462,69 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   <Plus className="w-3.5 h-3.5" />
                   <span>+ عميل جديد</span>
                 </button>
-                <span className="text-[10px] text-amber-800 bg-amber-100 px-2.5 py-1 rounded-xl font-bold">
-                  {visibleCustomers.length} عميل متاح
-                </span>
               </div>
             </div>
 
-            {/* Role-Specific Customer Filter & Security Banner */}
+            {/* Sync Feedback Alert */}
+            {syncFeedback && (
+              <div className="p-2.5 bg-emerald-100 text-emerald-900 font-black text-xs rounded-xl border border-emerald-300 flex items-center gap-2 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span>{syncFeedback}</span>
+              </div>
+            )}
+
+            {/* Scope Selection Tabs */}
             <div className="space-y-2">
-              {currentUser?.role === 'sales_rep' && (
-                <div className="flex items-center justify-between flex-wrap gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded-xl">
-                  <div className="flex items-center gap-2 text-xs font-black text-emerald-950">
-                    <UserCheck className="w-4 h-4 text-emerald-700" />
-                    <span>🔒 قائمة عملائك المسندين بالفرع ({visibleCustomers.length} عميل)</span>
+              {isSalesRep ? (
+                <div className="bg-amber-50 border border-amber-300/80 rounded-2xl p-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs font-black text-amber-950">
+                    <UserCheck className="w-4 h-4 text-amber-700 shrink-0" />
+                    <span>عملاء المندوب ({currentUser.name}) مسجلين في الشيت:</span>
                   </div>
-                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-lg border border-emerald-300">
-                    👤 المندوب: {currentUser.name} | {currentUser.branchName || 'فرعك'}
+                  <span className="bg-amber-500 text-slate-950 text-xs font-black px-2.5 py-1 rounded-xl shadow-xs">
+                    {repScopedCustomers.length} عميل
                   </span>
                 </div>
-              )}
+              ) : (
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setCustomerScope('rep')}
+                    className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer flex items-center gap-1.5 text-xs ${
+                      customerScope === 'rep'
+                        ? 'bg-amber-500 text-slate-950 shadow-md font-black ring-2 ring-amber-400'
+                        : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>عملاء المندوب ({activeRepUser?.name || 'المحدد'}) ({repScopedCustomers.length})</span>
+                  </button>
 
-              {currentUser?.role === 'supervisor' && (
-                <div className="flex items-center justify-between flex-wrap gap-2 p-2 bg-blue-50 border border-blue-200 rounded-xl">
-                  <div className="flex items-center gap-2 text-xs font-black text-blue-950">
-                    <Users className="w-4 h-4 text-blue-700" />
-                    <span>👥 عملاء فريق الإشراف بالفرع ({visibleCustomers.length} عميل)</span>
-                  </div>
-                  {supervisedReps.length > 0 && (
-                    <div className="flex items-center gap-1.5 text-xs">
-                      <span className="font-bold text-slate-700">تصفية بالمندوب:</span>
-                      <select
-                        value={selectedSupervisorRepFilter}
-                        onChange={(e) => setSelectedSupervisorRepFilter(e.target.value)}
-                        className="bg-white border border-blue-300 text-slate-900 rounded-lg px-2.5 py-1 font-bold text-xs focus:ring-1 focus:ring-blue-500 shadow-2xs"
-                      >
-                        <option value="all">كل مناديب الإشراف ({supervisedReps.length})</option>
-                        {supervisedReps.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
-              )}
+                  <button
+                    type="button"
+                    onClick={() => setCustomerScope('branch')}
+                    className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer flex items-center gap-1.5 text-xs ${
+                      customerScope === 'branch'
+                        ? 'bg-blue-600 text-white shadow-md font-black ring-2 ring-blue-400'
+                        : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Building className="w-3.5 h-3.5" />
+                    <span>كل عملاء الفرع ({activeBranch}) ({branchScopedCustomers.length})</span>
+                  </button>
 
-              {currentUser?.role === 'branch_manager' && (
-                <div className="flex items-center justify-between flex-wrap gap-2 p-2 bg-amber-50 border border-amber-200 rounded-xl">
-                  <div className="flex items-center gap-2 text-xs font-black text-amber-950">
-                    <Building className="w-4 h-4 text-amber-700" />
-                    <span>🏢 عملاء فرع {currentUser.branchName || ''} ({visibleCustomers.length} عميل)</span>
-                  </div>
-                  {supervisedReps.length > 0 && (
-                    <div className="flex items-center gap-1.5 text-xs">
-                      <span className="font-bold text-slate-700">مندوب الفرع:</span>
-                      <select
-                        value={selectedSupervisorRepFilter}
-                        onChange={(e) => setSelectedSupervisorRepFilter(e.target.value)}
-                        className="bg-white border border-amber-300 text-slate-900 rounded-lg px-2.5 py-1 font-bold text-xs"
-                      >
-                        <option value="all">كل مناديب الفرع</option>
-                        {supervisedReps.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
-                <div className="flex items-center justify-between flex-wrap gap-2 p-2 bg-slate-100 border border-slate-300 rounded-xl">
-                  <div className="flex items-center gap-2 text-xs font-black text-slate-950">
-                    <Users className="w-4 h-4 text-slate-800" />
-                    <span>🌐 إدارة العملاء العامة ({customers.length} عميل مسجل)</span>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCustomerScope('all')}
+                    className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer flex items-center gap-1.5 text-xs ${
+                      customerScope === 'all'
+                        ? 'bg-slate-900 text-amber-300 shadow-md font-black ring-2 ring-slate-700'
+                        : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span>كافة عملاء الشركة ({allScopedCustomers.length})</span>
+                  </button>
                 </div>
               )}
 
@@ -594,14 +642,23 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
                   {filteredCustomers.length === 0 ? (
                     <div className="p-4 text-center text-xs text-slate-600 space-y-2">
-                      <p>لا يوجد عميل مطابق لبحثك في القائمة الحالية.</p>
+                      {scopedCustomersList.length === 0 ? (
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-900 space-y-1 text-right">
+                          <p className="font-bold">⚠️ لا يوجد عملاء مسندين لهذا المندوب ({activeRepUser?.name || currentUser?.name}) في الشيت المرفوع حالياً.</p>
+                          <p className="text-[11px] text-amber-800">
+                            تأكد من أن اسم المندوب في شيت Google Sheets يطابق اسم المندوب، أو اكتب اسم العميل أعلاه للبدء فوراً بإضافته كعميل جديد.
+                          </p>
+                        </div>
+                      ) : (
+                        <p>لا يوجد عميل مطابق لبحثك في القائمة الحالية.</p>
+                      )}
                       {customerSearchQuery.trim() && (
                         <button
                           type="button"
                           onClick={() => handleStartNewCustomer(customerSearchQuery.trim())}
                           className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs cursor-pointer shadow-xs"
                         >
-                          + إضافة "{customerSearchQuery.trim()}" كعميل جديد
+                          + إضافة "{customerSearchQuery.trim()}" كعميل جديد مسند للمندوب
                         </button>
                       )}
                     </div>
