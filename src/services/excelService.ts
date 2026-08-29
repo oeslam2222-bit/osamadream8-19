@@ -1033,35 +1033,93 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     
     // 1. Check Sales Rep first (to prevent "اسم المندوب" from being captured as customer name)
     if (
-      norm.includes('مندوب') ||
+      norm.includes('اسمالمندوب') ||
+      norm.includes('اسمالبائع') ||
+      norm.includes('المندوبالمسؤول') ||
+      norm.includes('المندوبالمسئول') ||
+      norm.includes('مندوبالمبيعات') ||
+      norm.includes('مسؤولالمبيعات') ||
+      norm.includes('مسئولالمبيعات') ||
+      norm.includes('مسوولالمبيعات') ||
+      norm.includes('مندوبالبيع') ||
+      norm.includes('كودالمندوب') ||
       norm.includes('المندوب') ||
-      norm.includes('rep') ||
-      norm.includes('sales') ||
+      norm.includes('مندوب') ||
       norm.includes('بائع') ||
-      norm.includes('مسؤول') ||
-      norm.includes('مسئول') ||
-      norm.includes('مسوول') ||
-      norm.includes('اسمالمندوب')
+      norm.includes('الموزع') ||
+      norm.includes('موزع') ||
+      norm.includes('salesrep') ||
+      norm.includes('representative') ||
+      norm.includes('repname') ||
+      norm === 'rep'
     ) {
       if (colMap.repName === -1) colMap.repName = idx;
     }
     // 2. Check Branch
-    else if (norm.includes('فرع') || norm.includes('branch')) {
+    else if (norm.includes('فرع') || norm.includes('branch') || norm.includes('الفرع')) {
       if (colMap.branchName === -1) colMap.branchName = idx;
     }
     // 3. Check Customer Code
     else if (
+      norm.includes('كودالعميل') ||
+      norm.includes('رقم العميل') ||
+      norm.includes('رقم المحل') ||
+      norm.includes('كودالمحل') ||
       norm.includes('كود') ||
       norm.includes('code') ||
-      norm.includes('رقم العميل') ||
-      norm.includes('كودالعميل') ||
       norm.includes('cust_id') ||
-      norm.includes('custid')
+      norm.includes('custid') ||
+      norm.includes('customercode')
     ) {
       if (colMap.code === -1) colMap.code = idx;
     }
-    // 4. Check Customer Name
+    // 4. Check Credit Limit (الحد الائتماني)
     else if (
+      norm.includes('حدائتمان') ||
+      norm.includes('الحدالائتماني') ||
+      norm.includes('الحدالائتمانى') ||
+      norm.includes('الحدالمسموح') ||
+      norm.includes('سقفالائتمان') ||
+      norm.includes('الائتمانالمعتمد') ||
+      norm.includes('حدالائتمان') ||
+      norm.includes('ائتمان') ||
+      norm.includes('creditlimit') ||
+      norm.includes('credit')
+    ) {
+      if (colMap.creditLimit === -1) colMap.creditLimit = idx;
+    }
+    // 5. Check Balance / Debt (المديونية / الرصيد السابق)
+    else if (
+      norm.includes('المديونيةالسابقة') ||
+      norm.includes('المديونيهالسابقه') ||
+      norm.includes('المديونيةالحالية') ||
+      norm.includes('المديونيهالحاليه') ||
+      norm.includes('مديونيةسابقة') ||
+      norm.includes('مديونيهسابقه') ||
+      norm.includes('المديونية') ||
+      norm.includes('المديونيه') ||
+      norm.includes('مديونية') ||
+      norm.includes('مديونيه') ||
+      norm.includes('الرصيدالافتتاحي') ||
+      norm.includes('رصيدالعميل') ||
+      norm.includes('رصيدسابق') ||
+      norm.includes('حسابالعميل') ||
+      norm.includes('الرصيد') ||
+      norm.includes('رصيد') ||
+      norm.includes('currentbalance') ||
+      norm.includes('prevbalance') ||
+      norm.includes('previousbalance') ||
+      norm.includes('balance') ||
+      norm.includes('debt')
+    ) {
+      if (colMap.balance === -1) colMap.balance = idx;
+    }
+    // 6. Check Customer Name
+    else if (
+      norm.includes('اسمالعميل') ||
+      norm.includes('اسمالمحل') ||
+      norm.includes('اسمالتاجر') ||
+      norm.includes('اسمالزبون') ||
       norm.includes('عميل') ||
       norm.includes('محل') ||
       norm.includes('تاجر') ||
@@ -1073,7 +1131,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     ) {
       if (colMap.name === -1) colMap.name = idx;
     }
-    // 5. Optional extra fields
+    // 7. Optional extra fields
     else if (
       norm.includes('تليفون') ||
       norm.includes('هاتف') ||
@@ -1084,22 +1142,6 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('tel')
     ) {
       if (colMap.phone === -1) colMap.phone = idx;
-    } else if (
-      norm.includes('ائتمان') ||
-      norm.includes('حدائتمان') ||
-      norm.includes('الحدالائتماني') ||
-      norm.includes('creditlimit') ||
-      norm.includes('credit')
-    ) {
-      if (colMap.creditLimit === -1) colMap.creditLimit = idx;
-    } else if (
-      norm.includes('مديون') ||
-      norm.includes('رصيد') ||
-      norm.includes('حساب') ||
-      norm.includes('balance') ||
-      norm.includes('debt')
-    ) {
-      if (colMap.balance === -1) colMap.balance = idx;
     } else if (
       norm.includes('عنوان') ||
       norm.includes('منطقة') ||
@@ -1194,8 +1236,26 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       ? `cust-${cleanCode.replace(/\s+/g, '_')}`
       : `cust-${cleanName.replace(/\s+/g, '_').slice(0, 30)}_${cleanPhone || r}`;
 
-    const rawCredit = parseFloat(getVal(row, colMap.creditLimit).replace(/[^0-9.]/g, '')) || undefined;
-    const rawBalance = parseFloat(getVal(row, colMap.balance).replace(/[^0-9.]/g, '')) || undefined;
+    // Parse credit limit and current balance / debt
+    const parseNumberValue = (colIdx: number): number | undefined => {
+      if (colIdx === -1) return undefined;
+      let valStr = getVal(row, colIdx);
+      if (!valStr) return undefined;
+      const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+      for (let i = 0; i < 10; i++) {
+        valStr = valStr.split(arabicNumerals[i]).join(String(i));
+      }
+      valStr = valStr.replace(/,/g, '').replace(/٬/g, '').replace(/٫/g, '.');
+      const clean = valStr.replace(/[^\d.-]/g, '');
+      if (!clean) return undefined;
+      const parsed = parseFloat(clean);
+      return isNaN(parsed) ? undefined : parsed;
+    };
+
+    const parsedCredit = parseNumberValue(colMap.creditLimit);
+    const parsedBalance = parseNumberValue(colMap.balance);
+    const finalCreditLimit = parsedCredit !== undefined ? parsedCredit : 0;
+    const finalBalance = parsedBalance !== undefined ? parsedBalance : 0;
 
     const existing = customerMap.get(dedupKey);
 
@@ -1205,13 +1265,16 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       if (!existing.address && rawAddress) existing.address = rawAddress;
       if (!existing.taxNumber && rawTax) existing.taxNumber = rawTax;
       if (!existing.notes && rawNotes) existing.notes = rawNotes;
-      if (rawCredit !== undefined && !existing.creditLimit) existing.creditLimit = rawCredit;
-      if (rawBalance !== undefined && existing.currentBalance === undefined) existing.currentBalance = rawBalance;
-      if (rawRep) {
-        existing.repName = rawRep;
-        existing.salesRepName = rawRep;
+      if (parsedCredit !== undefined) existing.creditLimit = parsedCredit;
+      if (parsedBalance !== undefined) {
+        existing.currentBalance = parsedBalance;
+        existing.balance = parsedBalance;
       }
-      if (rawBranch) {
+      if (rawRep && rawRep.trim()) {
+        existing.repName = rawRep.trim();
+        existing.salesRepName = rawRep.trim();
+      }
+      if (rawBranch && rawBranch.trim()) {
         existing.branchName = normalizeExcelBranchName(rawBranch);
       }
       if (tier === 'مميز' || (tier === 'راقي' && existing.tier === 'متوسط')) {
@@ -1226,11 +1289,12 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
         tier: tier,
         phone: rawPhone,
         address: rawAddress,
-        creditLimit: rawCredit || 50000,
-        currentBalance: rawBalance || 0,
+        creditLimit: finalCreditLimit,
+        currentBalance: finalBalance,
+        balance: finalBalance,
         branchName: normalizeExcelBranchName(rawBranch),
-        repName: rawRep || '',
-        salesRepName: rawRep || '',
+        repName: rawRep ? rawRep.trim() : '',
+        salesRepName: rawRep ? rawRep.trim() : '',
         taxNumber: rawTax,
         notes: rawNotes,
         createdAt: new Date().toISOString(),

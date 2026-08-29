@@ -306,15 +306,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!existing.taxNumber && c.taxNumber) existing.taxNumber = c.taxNumber;
         if (!existing.notes && c.notes) existing.notes = c.notes;
         if (locInferred) existing.branchName = locInferred;
-        if (c.repName && (!existing.repName || existing.repName === 'مندوب المبيعات')) existing.repName = c.repName;
+        if (c.repId && !existing.repId) existing.repId = c.repId;
+        if (c.repName && (!existing.repName || existing.repName === 'مندوب المبيعات' || existing.repName === 'المندوب')) existing.repName = c.repName;
+        if (c.salesRepName && (!existing.salesRepName || existing.salesRepName === 'مندوب المبيعات' || existing.salesRepName === 'المندوب')) existing.salesRepName = c.salesRepName;
+        if (c.creditLimit !== undefined) existing.creditLimit = Number(c.creditLimit);
+        if (c.currentBalance !== undefined || c.balance !== undefined) {
+          const bal = Number(c.currentBalance ?? c.balance ?? 0);
+          existing.currentBalance = bal;
+          existing.balance = bal;
+        }
         if (c.tier === 'مميز' || (c.tier === 'راقي' && existing.tier === 'متوسط')) {
           existing.tier = c.tier;
         }
       } else {
+        const bal = Number(c.currentBalance ?? c.balance ?? 0);
         map.set(key, {
           ...c,
           name: c.name || `عميل ${c.code || ''}`,
           branchName: resolvedBranch,
+          creditLimit: c.creditLimit !== undefined ? Number(c.creditLimit) : 0,
+          currentBalance: bal,
+          balance: bal,
         });
       }
     }
@@ -813,6 +825,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Check if candidate matches rep in same branch, or overall
       const matchFn = (u: User) =>
         (updated.repId && u.id === updated.repId) ||
+        doesCustomerBelongToRep(updated, u) ||
         isArabicNameMatch(rawRep, u.name) ||
         (u.username && isArabicNameMatch(rawRep, u.username)) ||
         (u.phone && (rawRep.includes(u.phone) || u.phone.includes(rawRep))) ||
@@ -835,9 +848,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           repId: matched.id,
           salesRepName: matched.name,
           branchName: matched.branchName || updated.branchName || 'الفرع الرئيسي',
+          creditLimit: updated.creditLimit !== undefined ? Number(updated.creditLimit) : 0,
+          currentBalance: Number(updated.currentBalance ?? updated.balance ?? 0),
+          balance: Number(updated.currentBalance ?? updated.balance ?? 0),
         };
       }
-      return updated;
+      return {
+        ...updated,
+        creditLimit: updated.creditLimit !== undefined ? Number(updated.creditLimit) : 0,
+        currentBalance: Number(updated.currentBalance ?? updated.balance ?? 0),
+        balance: Number(updated.currentBalance ?? updated.balance ?? 0),
+      };
     });
   };
 

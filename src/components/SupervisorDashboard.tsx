@@ -1182,7 +1182,17 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                             </>
                           )}
 
-                          {/* 2. If In Preparation or Approved: Move to (تم وصول المنتجات) or (قيد التوصيل) */}
+                          {/* Active stages (Preparation, Stock Dispatched, Arrived, Out for Delivery): Supervisor / Manager can cancel anytime */}
+                          {!isPendingApproval && inv.status !== 'تم التسليم' && inv.status !== 'إغلاق الطلبية' && inv.status !== 'مرتجع' && inv.status !== 'مرفوضة / ملغاة' && canManage && (
+                            <button
+                              onClick={() => setRejectModalInvoice(inv)}
+                              className="bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 border border-rose-200 transition cursor-pointer"
+                              title="إلغاء الطلبية في أي وقت وإرجاع الكميات للمخزن"
+                            >
+                              <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                              <span>إلغاء الطلبية</span>
+                            </button>
+                          )}
                           {(inv.status === 'جاري تحضير المنتجات' || inv.status === 'معتمدة ومصروفة من المخزن') && canManage && (
                             <>
                               <button
@@ -1492,46 +1502,84 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         </div>
       )}
 
-      {/* Reject Modal */}
+      {/* Reject / Cancel Order Modal */}
       {rejectModalInvoice && (
         <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2 text-rose-800">
-                <XCircle className="w-5 h-5 text-rose-600" />
-                <h3 className="font-black text-base">رفض وإلغاء الطلبية</h3>
+                <XCircle className="w-6 h-6 text-rose-600" />
+                <div>
+                  <h3 className="font-black text-base">إلغاء أو رفض الطلبية #{rejectModalInvoice.invoiceNumber}</h3>
+                  <div className="text-[11px] text-slate-500 font-medium">العميل: {rejectModalInvoice.customerName} ({rejectModalInvoice.branchName || 'الفرع'})</div>
+                </div>
               </div>
-              <button onClick={() => setRejectModalInvoice(null)}>
+              <button onClick={() => setRejectModalInvoice(null)} className="p-1 hover:bg-slate-100 rounded-xl transition cursor-pointer">
                 <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed">
-              سيتم إلغاء حجز الأصناف وإرجاع الكميات المخصصة للمخزن فوراً.
-            </p>
+            <div className="bg-rose-50 border border-rose-200 text-rose-950 p-3.5 rounded-2xl text-xs space-y-1.5">
+              <div className="font-black flex items-center gap-1.5 text-rose-800">
+                <CheckCircle2 className="w-4 h-4 text-rose-700" />
+                <span>إرجاع البضاعة والمخزون فوراً:</span>
+              </div>
+              <p className="text-rose-900 leading-relaxed">
+                سيقوم النظام فوراً بإلغاء الطلبية وإرجاع <strong className="font-black">{rejectModalInvoice.totalCartons} كرتونة ({rejectModalInvoice.totalPieces} قطعة)</strong> إلى رصيد المخزن الفعلي والمحجوز وإتاحتها للبيع فوراً لباقي المناديب.
+              </p>
+            </div>
+
+            {/* Quick Reason Presets */}
+            <div className="space-y-1.5">
+              <label className="block font-bold text-slate-700 text-xs">أسباب الإلغاء الشائعة (اختر سريعاً):</label>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  'طلب العميل إلغاء الطلبية',
+                  'عدم توافر وسيلة نقل / تأجيل خط السير',
+                  'تجاوز الحد الائتماني وتعديل الأصناف',
+                  'خطأ في تسجيل الكميات أو الأصناف',
+                  'قرار إداري من مدير الفرع / المشرف',
+                ].map((reasonText) => (
+                  <button
+                    key={reasonText}
+                    type="button"
+                    onClick={() => setRejectReason(reasonText)}
+                    className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition cursor-pointer ${
+                      rejectReason === reasonText
+                        ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {reasonText}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <div className="text-xs space-y-1">
-              <label className="block font-bold text-slate-700">سبب الرفض:</label>
+              <label className="block font-bold text-slate-700">بيان وسبب الإلغاء:</label>
               <textarea
                 rows={2}
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-400 text-xs"
+                placeholder="اكتب سبب إلغاء أو رفض الطلبية بالتفصيل..."
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-400 text-xs font-medium"
               />
             </div>
 
             <div className="flex items-center gap-2 pt-2">
               <button
                 onClick={handleConfirmReject}
-                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer"
+                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
               >
-                تأكيد الرفض وفك الحجز
+                <XCircle className="w-4 h-4" />
+                <span>تأكيد إلغاء الطلبية واسترجاع المخزون</span>
               </button>
               <button
                 onClick={() => setRejectModalInvoice(null)}
                 className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200 cursor-pointer"
               >
-                إلغاء
+                تراجع
               </button>
             </div>
           </div>
