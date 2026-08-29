@@ -19,9 +19,11 @@ export function normalizeArabicText(str?: string): string {
     .replace(/[أإآٱٵٲ]/g, 'ا')
     // 5. Normalize Taa Marbuta (ة) -> ه
     .replace(/ة/g, 'ه')
-    // 6. Normalize Alef Maqsura (ى) -> ي
-    .replace(/ى/g, 'ي')
-    // 7. Normalize Hamzas (ؤ, ئ, ء)
+  // 6. Normalize Alef Maqsura (ى) -> ي, and common duplicated ya spelling
+  // This makes variants such as "يحيى" and "يحيي" match the same representative.
+  .replace(/ى/g, 'ي')
+  .replace(/يي/g, 'ي')
+  // 7. Normalize Hamzas (ؤ, ئ, ء)
     .replace(/ؤ/g, 'و')
     .replace(/ئ/g, 'ي')
     .replace(/ء/g, '')
@@ -558,7 +560,13 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
     repField.toLowerCase() === 'none';
 
   if (!isGenericRep) {
+    // Imported sheets may contain harmless Arabic spelling variants; match the
+    // representative by the Arabic display name before considering account IDs.
+    const repFieldWords = normalizeArabicText(repField).split(' ').filter(Boolean);
+    const repNameWords = normalizeArabicText(repUser.name).split(' ').filter(Boolean);
+    const sharedNameWords = repNameWords.filter((word) => repFieldWords.includes(word));
     if (isArabicNameMatch(repField, repUser.name)) return true;
+    if (repNameWords.length >= 2 && sharedNameWords.length >= 2) return true;
     if (repUser.username && isArabicNameMatch(repField, repUser.username)) return true;
     if (repUser.phone && (repField.includes(repUser.phone) || repUser.phone.includes(repField))) return true;
 
