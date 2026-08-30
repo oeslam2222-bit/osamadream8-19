@@ -183,6 +183,18 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     }).slice(0, 300);
   }, [scopedCustomersList, customerSearchQuery, selectedCustomerTierFilter]);
 
+  // Keep selected rep in sync with active user on modal open
+  useEffect(() => {
+    if (isOpen) {
+      if (currentUser?.id) {
+        setSelectedRepId(currentUser.id);
+      }
+      setCustomerScope('rep');
+      setIsCustomerDropdownOpen(false);
+      setCustomerSearchQuery('');
+    }
+  }, [isOpen, currentUser]);
+
   const handleSyncLinks = () => {
     if (typeof refreshCustomerRepLinks === 'function') {
       const res = refreshCustomerRepLinks();

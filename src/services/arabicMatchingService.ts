@@ -588,30 +588,57 @@ export function isBranchMatch(
 /**
  * Check if a customer strictly belongs to a specific sales rep
  * Direct rep assignment (by repId or salesRepName/repName) takes top priority,
- * followed by fallback branch matching for unassigned customers.
+ * with comprehensive Arabic normalization, phone/username matching, and alias support.
  */
 export function doesCustomerBelongToRep(customer: Customer, repUser: User): boolean {
   if (!repUser) return false;
 
-  // 1. Direct ID match (Highest authority)
-  if (customer.repId && customer.repId === repUser.id) {
+  // 1. Direct ID / Username match (Highest authority)
+  if (
+    customer.repId &&
+    (customer.repId === repUser.id ||
+      customer.repId.toLowerCase() === repUser.id.toLowerCase() ||
+      (repUser.username && customer.repId.toLowerCase() === repUser.username.toLowerCase()))
+  ) {
     return true;
   }
 
-  // 2. Direct Match by Name / Username / Phone on the customer's rep field
-  const repField = (customer.salesRepName || customer.repName || '').trim();
-  const isGenericRep =
-    !repField ||
-    repField === 'مندوب المبيعات' ||
-    repField === 'المندوب' ||
-    repField === 'مندوب' ||
-    repField === 'مبيعات' ||
-    repField === '---' ||
-    repField === '..' ||
-    repField.toLowerCase() === 'unassigned' ||
-    repField.toLowerCase() === 'none';
+  // 2. Direct Match by Name / Username / Phone on the customer's rep fields
+  const repCandidates = [
+    customer.salesRepName,
+    customer.repName,
+    (customer as any).rep,
+    (customer as any).delegateName,
+    (customer as any).salesRep,
+    (customer as any).sales_rep,
+  ]
+    .filter((val): val is string => typeof val === 'string' && val.trim().length > 0)
+    .map((s) => s.trim());
 
-  if (!isGenericRep) {
+  // Also check if notes contains explicit rep declaration (e.g. "المندوب: علاء عمر")
+  if (customer.notes && typeof customer.notes === 'string') {
+    const noteNorm = normalizeArabicText(customer.notes);
+    const userNorm = normalizeArabicText(repUser.name);
+    if (userNorm && (noteNorm.includes(`مندوب ${userNorm}`) || noteNorm.includes(`المندوب ${userNorm}`))) {
+      return true;
+    }
+  }
+
+  for (const repField of repCandidates) {
+    const isGenericRep =
+      !repField ||
+      repField === 'مندوب المبيعات' ||
+      repField === 'المندوب' ||
+      repField === 'مندوب' ||
+      repField === 'مبيعات' ||
+      repField === '---' ||
+      repField === '..' ||
+      repField === '.' ||
+      repField.toLowerCase() === 'unassigned' ||
+      repField.toLowerCase() === 'none';
+
+    if (isGenericRep) continue;
+
     // Exact or normalized Arabic match
     if (isArabicNameMatch(repField, repUser.name)) return true;
     if (repUser.username && isArabicNameMatch(repField, repUser.username)) return true;
@@ -627,18 +654,23 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
       }
     }
 
-    const repFieldWords = normRepField.split(' ').filter(Boolean);
-    const repNameWords = normUserName.split(' ').filter(Boolean);
-    const sharedNameWords = repNameWords.filter((word) => repFieldWords.includes(word));
-    if (repNameWords.length >= 2 && sharedNameWords.length >= 2) return true;
-    if (repNameWords.length === 1 && repFieldWords.includes(repNameWords[0])) return true;
-    if (repFieldWords.length === 1 && repNameWords.includes(repFieldWords[0])) return true;
+    // Tokenized Arabic matching (e.g. "علاء عمر" vs "مندوب / علاء عمر - اكتوبر")
+    const repTokens = getArabicTokens(repField);
+    const userTokens = getArabicTokens(repUser.name);
 
-    // Not matching this rep
-    return false;
+    if (userTokens.length > 0 && repTokens.length > 0) {
+      // Check if all user name tokens exist in the rep field
+      const allUserTokensMatch = userTokens.every((tok) => repTokens.includes(tok));
+      if (allUserTokensMatch) return true;
+
+      // Or if shared tokens >= 2
+      const sharedTokens = userTokens.filter((tok) => repTokens.includes(tok));
+      if (userTokens.length >= 2 && sharedTokens.length >= 2) return true;
+      if (userTokens.length === 1 && repTokens.includes(userTokens[0])) return true;
+      if (repTokens.length === 1 && userTokens.includes(repTokens[0])) return true;
+    }
   }
 
-  // If rep is generic / unassigned in sheet, it does not strictly belong to this individual sales rep
   return false;
 }
 

@@ -15,7 +15,7 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
-  const { login } = useApp();
+  const { login, authTerminationNotice, clearAuthTerminationNotice } = useApp();
 
   // --- Login State ---
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -28,6 +28,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
+    clearAuthTerminationNotice();
     setIsLoggingIn(true);
 
     if (!loginIdentifier.trim()) {
@@ -94,6 +95,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
           </div>
 
           <form onSubmit={handleLoginSubmit} className="space-y-4">
+            {authTerminationNotice && (
+              <div className="bg-rose-950/80 border border-rose-500/50 text-rose-200 p-3.5 rounded-2xl text-xs flex items-start gap-2.5 shadow-lg shadow-rose-950/50 animate-in fade-in">
+                <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                <div className="flex-1 font-bold leading-relaxed">{authTerminationNotice}</div>
+              </div>
+            )}
+
             {loginError && (
               <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 p-3 rounded-xl text-xs flex items-start gap-2 animate-in fade-in">
                 <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />

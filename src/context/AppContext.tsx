@@ -147,6 +147,8 @@ interface AppContextType {
   approveUser: (userId: string, supervisorId?: string, branchName?: string, role?: UserRole) => void;
   rejectUser: (userId: string) => void;
   assignSupervisor: (repId: string, supervisorId: string) => void;
+  authTerminationNotice: string | null;
+  clearAuthTerminationNotice: () => void;
 
   // Settings & App Extras
   updateCloudinarySettings: (config: CloudinaryConfig) => void;
@@ -199,23 +201,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return clean;
   };
 
-  // Initialize state with localStorage fallbacks
+  // Auth and Session Notice
+  const [authTerminationNotice, setAuthTerminationNotice] = useState<string | null>(null);
+  const clearAuthTerminationNotice = () => setAuthTerminationNotice(null);
+
+  // Initialize state with localStorage fallbacks, ensuring all core initial users are merged
   const [users, setUsers] = useState<User[]>(() => {
+    const userMap = new Map<string, User>();
+    INITIAL_USERS.forEach((u) => userMap.set(u.id, u));
+
     const saved = localStorage.getItem(STORAGE_KEYS.USERS);
-    if (!saved) return INITIAL_USERS;
+    if (!saved) return Array.from(userMap.values());
     try {
       const parsed: User[] = JSON.parse(saved);
-      const filtered = parsed
+      parsed
         .filter((u) => u.id !== 'u-branch-ashraf' && u.id !== 'u-sup-mahmoud' && u.id !== 'u-rep-ahmed')
-        .map((u) => ({
-          ...u,
-          name: u.id === 'u-admin-osama' ? 'أسامة إسلام (المطور التقني)' : u.name,
-          branchName: normalizeBranchName(u.branchName),
-          role: u.role === 'developer' || u.role === 'admin' || u.role === 'branch_manager' || u.role === 'supervisor' || u.role === 'sales_rep' ? u.role : 'sales_rep',
-        }));
-      return filtered.length > 0 ? filtered : INITIAL_USERS;
+        .forEach((u) => {
+          const normBranch = normalizeBranchName(u.branchName);
+          const validRole =
+            u.role === 'developer' ||
+            u.role === 'admin' ||
+            u.role === 'branch_manager' ||
+            u.role === 'supervisor' ||
+            u.role === 'sales_rep'
+              ? u.role
+              : 'sales_rep';
+
+          const existing = userMap.get(u.id);
+          if (existing) {
+            userMap.set(u.id, {
+              ...existing,
+              ...u,
+              name: u.id === 'u-admin-osama' ? 'أسامة إسلام (المطور التقني)' : u.name,
+              branchName: normBranch,
+              role: validRole,
+            });
+          } else {
+            userMap.set(u.id, {
+              ...u,
+              name: u.id === 'u-admin-osama' ? 'أسامة إسلام (المطور التقني)' : u.name,
+              branchName: normBranch,
+              role: validRole,
+            });
+          }
+        });
+      return Array.from(userMap.values());
     } catch {
-      return INITIAL_USERS;
+      return Array.from(userMap.values());
     }
   });
 
@@ -943,6 +975,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentUser, isAuthenticated]);
 
+  // Real-time Session Watcher: If current user is deleted or deactivated by admin, immediately terminate session
+  useEffect(() => {
+    if (currentUser && isAuthenticated) {
+      const activeAccount = users.find((u) => u.id === currentUser.id);
+      if (!activeAccount) {
+        logout();
+        setAuthTerminationNotice('تم حذف هذا الحساب من قبل إدارة شركة دريم. تم إنهاء الجلسة فوراً.');
+      } else if (!activeAccount.isActive || activeAccount.approvalStatus === 'rejected') {
+        logout();
+        setAuthTerminationNotice('تم إيقاف هذا الحساب من قبل إدارة شركة دريم. تم إنهاء الجلسة فوراً.');
+      }
+    }
+  }, [users, currentUser, isAuthenticated]);
+
+  // Multi-tab sync for immediate logout on user deletion across tabs
+  useEffect(() => {
+    const handleStorageSync = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEYS.USERS && e.newValue && currentUser && isAuthenticated) {
+        try {
+          const parsedUsers: User[] = JSON.parse(e.newValue);
+          const me = parsedUsers.find((u) => u.id === currentUser.id);
+          if (!me || !me.isActive || me.approvalStatus === 'rejected') {
+            logout();
+            setAuthTerminationNotice('تم إيقاف أو حذف هذا الحساب من قبل إدارة شركة دريم. تم إنهاء الجلسة فوراً.');
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorageSync);
+    return () => window.removeEventListener('storage', handleStorageSync);
+  }, [currentUser, isAuthenticated]);
+
   // Online / Offline tracking
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -989,6 +1053,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } catch (e) {
         console.warn('Direct Supabase login lookup failed:', e);
+      }
+    }
+
+    // 3. Fallback search in INITIAL_USERS (ensures seed/demo reps like alaaomar@dream.com can always log in)
+    if (!found) {
+      const matchInInitial = INITIAL_USERS.find(
+        (u) =>
+          (u.email && sanitizeEmail(u.email) === cleanEmail) ||
+          (u.email && u.email.toLowerCase().startsWith(cleanId)) ||
+          (u.username && sanitizeIdentifier(u.username).toLowerCase() === cleanId) ||
+          (u.name && sanitizeIdentifier(u.name).toLowerCase() === cleanId) ||
+          (u.phone && sanitizeIdentifier(u.phone) === rawTrim) ||
+          (u.id && String(u.id).toLowerCase() === cleanId)
+      );
+      if (matchInInitial) {
+        found = matchInInitial;
+        setUsers((prev) => {
+          const map = new Map<string, User>();
+          prev.forEach((u) => map.set(u.id, u));
+          map.set(found!.id, found!);
+          return Array.from(map.values());
+        });
       }
     }
 
@@ -1139,11 +1225,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, approvalStatus: 'rejected', isActive: false } : u))
     );
+    if (currentUser?.id === userId) {
+      logout();
+      setAuthTerminationNotice('تم إيقاف هذا الحساب من قبل إدارة شركة دريم. تم إنهاء الجلسة فوراً.');
+    }
   };
 
   const deleteUser = (userId: string) => {
     setUsers((prev) => prev.filter((u) => u.id !== userId));
     deleteUserFromSupabase(userId).catch((e) => console.warn('Supabase delete user failed:', e));
+    if (currentUser?.id === userId) {
+      logout();
+      setAuthTerminationNotice('تم حذف هذا الحساب من قبل إدارة شركة دريم. تم إنهاء الجلسة فوراً.');
+    }
+    // Clean rep associations from customers
+    setCustomers((prev) =>
+      prev.map((c) => (c.repId === userId ? { ...c, repId: undefined, repName: 'غير محدد', salesRepName: 'غير محدد' } : c))
+    );
   };
 
   const assignSupervisor = (repId: string, supervisorId: string) => {
@@ -2378,16 +2476,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addUser = (user: User) => {
-    setUsers((prev) => [...prev, user]);
+    setUsers((prev) => {
+      const map = new Map<string, User>();
+      prev.forEach((u) => map.set(u.id, u));
+      map.set(user.id, user);
+      return Array.from(map.values());
+    });
     saveUserToSupabase(user).catch((e) => console.warn('Supabase save user failed:', e));
+    setTimeout(() => {
+      refreshCustomerRepLinks();
+    }, 50);
   };
 
   const updateUser = (updatedUser: User) => {
     setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
     if (currentUser?.id === updatedUser.id) {
+      if (!updatedUser.isActive || updatedUser.approvalStatus === 'rejected') {
+        logout();
+        setAuthTerminationNotice('تم إيقاف هذا الحساب من قبل إدارة شركة دريم. تم إنهاء الجلسة فوراً.');
+        return;
+      }
       setCurrentUser(updatedUser);
     }
     saveUserToSupabase(updatedUser).catch((e) => console.warn('Supabase update user failed:', e));
+    setTimeout(() => {
+      refreshCustomerRepLinks();
+    }, 50);
   };
 
   const updateCloudinarySettings = (config: CloudinaryConfig) => {
@@ -2619,6 +2733,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         approveUser,
         rejectUser,
         assignSupervisor,
+        authTerminationNotice,
+        clearAuthTerminationNotice,
         updateCloudinarySettings,
         saveMatchedProductImages,
         clearAllAppData,
