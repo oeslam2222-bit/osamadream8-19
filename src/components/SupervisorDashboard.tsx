@@ -22,7 +22,6 @@ import {
   RotateCcw,
   Search,
   ShieldAlert,
-  ShieldCheck,
   ShoppingCart,
   TrendingUp,
   Truck,
@@ -410,31 +409,6 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     }
   };
 
-  // Organizational Hierarchy Info for Rep, Supervisor, Manager, Admin, Developer
-  const mySupervisor = useMemo(() => {
-    return (
-      users.find((u) => u.id === currentUser?.supervisorId) ||
-      users.find((u) => u.role === 'supervisor' && u.branchName === currentUser?.branchName) ||
-      null
-    );
-  }, [users, currentUser]);
-
-  const currentBranchObj = useMemo(() => {
-    return branches.find((b) => b.name === currentUser?.branchName) || null;
-  }, [branches, currentUser]);
-
-  const myBranchManager = useMemo(() => {
-    const mgrUser = users.find((u) => u.role === 'branch_manager' && u.branchName === currentUser?.branchName);
-    return mgrUser ? mgrUser.name : (currentBranchObj?.managerName || 'أشرف عبد العزيز');
-  }, [users, currentUser, currentBranchObj]);
-
-  const systemAdminName = useMemo(() => {
-    const adminUser = users.find((u) => u.role === 'admin');
-    return adminUser ? `${adminUser.name}` : 'محمد طنطاوي / الإدارة العامة';
-  }, [users]);
-
-  const developerName = 'أسامة إسلام (المطور التقني)';
-
   const getStageNumber = (status: OrderStatus): number => {
     if (status === 'قيد مراجعة المشرف' || status === 'معلقة بانتظار اعتماد الفرع' || status === 'قيد المراجعة') return 1;
     if (status === 'جاري تحضير المنتجات' || status === 'معتمدة ومصروفة من المخزن' || status === 'معتمدة') return 2;
@@ -511,60 +485,6 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                 <span>إنشاء طلبية جديدة</span>
               </button>
             )}
-          </div>
-        </div>
-
-        {/* Organizational Leadership & Team Hierarchy Card (الهيكل الإداري وفريق العمل) */}
-        <div className="bg-slate-800/90 rounded-2xl p-4 border border-slate-700/80 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-700 pb-2.5">
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-amber-400" />
-              <span className="text-xs font-black text-slate-200">
-                الهيكل الإداري والمسئولين عن الفرع والطلبيات (Organizational Team)
-              </span>
-            </div>
-            {/* Privacy Shield Badge */}
-            <div className="flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-1 rounded-xl text-[11px] font-bold">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>🔐 سرية تامة: كل مستخدم يرى بياناته المصرح له بها فقط</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 text-xs">
-            {/* 1. Current Rep / User */}
-            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-700/80 space-y-0.5">
-              <span className="text-[10px] text-amber-400 font-bold block">👤 المندوب (المستخدم الحالي):</span>
-              <strong className="text-xs font-black text-white block truncate">{currentUser?.name || 'مندوب المبيعات'}</strong>
-              <span className="text-[10px] text-slate-400 block font-mono">@{currentUser?.username || 'rep'} ({currentUser?.phone || 'مفعل'})</span>
-            </div>
-
-            {/* 2. Direct Supervisor */}
-            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-700/80 space-y-0.5">
-              <span className="text-[10px] text-blue-400 font-bold block">👔 المشرف المباشر:</span>
-              <strong className="text-xs font-black text-slate-100 block truncate">{mySupervisor ? mySupervisor.name : 'مشرف مبيعات الفرع'}</strong>
-              <span className="text-[10px] text-slate-400 block">{mySupervisor?.phone || '01012345678'}</span>
-            </div>
-
-            {/* 3. Branch Manager */}
-            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-700/80 space-y-0.5">
-              <span className="text-[10px] text-teal-400 font-bold block">🏛️ مدير الفرع:</span>
-              <strong className="text-xs font-black text-slate-100 block truncate">{myBranchManager}</strong>
-              <span className="text-[10px] text-slate-400 block truncate">{currentUser?.branchName || 'الفرع الرئيسي'}</span>
-            </div>
-
-            {/* 4. System Admin */}
-            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-700/80 space-y-0.5">
-              <span className="text-[10px] text-rose-400 font-bold block">🛡️ مدير النظام (Admin):</span>
-              <strong className="text-xs font-black text-slate-100 block truncate">{systemAdminName}</strong>
-              <span className="text-[10px] text-slate-400 block">الإدارة العامة لشركة دريم</span>
-            </div>
-
-            {/* 5. Tech Developer */}
-            <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-700/80 space-y-0.5 col-span-2 sm:col-span-1">
-              <span className="text-[10px] text-purple-400 font-bold block">💻 المطور والدعم التقني:</span>
-              <strong className="text-xs font-black text-slate-100 block truncate">{developerName}</strong>
-              <span className="text-[10px] text-slate-400 block font-mono">01000000001</span>
-            </div>
           </div>
         </div>
 

@@ -140,15 +140,13 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
   const allScopedCustomers = customers;
 
-  // Active list based on chosen scope (with automatic fallback so sales reps never get blocked with 0 customers)
+  // Active list strictly based on chosen scope
   const scopedCustomersList = useMemo(() => {
     if (customerScope === 'rep') {
-      if (repScopedCustomers.length > 0) return repScopedCustomers;
-      if (branchScopedCustomers.length > 0) return branchScopedCustomers;
-      return allScopedCustomers;
+      return repScopedCustomers;
     }
     if (customerScope === 'branch') {
-      return branchScopedCustomers.length > 0 ? branchScopedCustomers : allScopedCustomers;
+      return branchScopedCustomers;
     }
     return allScopedCustomers;
   }, [customerScope, repScopedCustomers, branchScopedCustomers, allScopedCustomers]);
@@ -156,7 +154,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   // Filtered customers for search dropdown by search query and tier
   const filteredCustomers = useMemo(() => {
     const isSearchActive = customerSearchQuery.trim().length > 0;
-    const baseList = isSearchActive ? (scopedCustomersList.length > 0 ? scopedCustomersList : allScopedCustomers) : scopedCustomersList;
+    const baseList = scopedCustomersList;
 
     const filtered = baseList.filter((c) => {
       // Tier filter
@@ -188,27 +186,8 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
       return true;
     });
 
-    // If search active and returned no results in scoped list, search across all company customers as well
-    if (isSearchActive && filtered.length === 0 && baseList !== allScopedCustomers) {
-      const q = customerSearchQuery.toLowerCase().trim();
-      return allScopedCustomers
-        .filter((c) => {
-          return (
-            (c.name && isArabicNameMatch(c.name, q)) ||
-            (c.name && c.name.toLowerCase().includes(q)) ||
-            (c.code && c.code.toLowerCase().includes(q)) ||
-            (c.phone && c.phone.includes(q)) ||
-            (c.storeName && c.storeName.toLowerCase().includes(q)) ||
-            (c.branchName && c.branchName.toLowerCase().includes(q)) ||
-            (c.salesRepName && c.salesRepName.toLowerCase().includes(q)) ||
-            (c.repName && c.repName.toLowerCase().includes(q))
-          );
-        })
-        .slice(0, 300);
-    }
-
     return filtered.slice(0, 300);
-  }, [scopedCustomersList, allScopedCustomers, customerSearchQuery, selectedCustomerTierFilter]);
+  }, [scopedCustomersList, customerSearchQuery, selectedCustomerTierFilter]);
 
   // Keep selected rep in sync with active user on modal open
   useEffect(() => {
