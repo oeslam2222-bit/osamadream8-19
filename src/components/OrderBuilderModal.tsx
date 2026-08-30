@@ -24,7 +24,7 @@ import {
   Warehouse,
   X
 } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { ProductImage } from './ProductImage';
 import { exportElectronicInvoiceToExcel } from '../services/excelService';
