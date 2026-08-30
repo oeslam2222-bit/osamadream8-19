@@ -1337,7 +1337,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                       ).length;
                       return (
                         <option key={rep.id} value={rep.name}>
-                          مندوب: {rep.name} {rep.branchName ? `(${rep.branchName})` : ''} - [{repCustomerCount} عميل]
+                          {rep.name} [{repCustomerCount} عميل]
                         </option>
                       );
                     })}
@@ -1467,11 +1467,17 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                                   className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                                 >
                                   <option value="">-- غير محدد --</option>
+                                  {(c.salesRepName || c.repName) &&
+                                    !users.some((u) => u.name === (c.salesRepName || c.repName)) && (
+                                      <option value={c.salesRepName || c.repName}>
+                                        {c.salesRepName || c.repName}
+                                      </option>
+                                    )}
                                   {users
                                     .filter((u) => u.role === 'sales_rep' || u.role === 'supervisor')
                                     .map((u) => (
                                       <option key={u.id} value={u.name}>
-                                        {u.name} {u.branchName ? `(${u.branchName})` : ''}
+                                        {u.name}
                                       </option>
                                     ))}
                                 </select>

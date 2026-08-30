@@ -338,9 +338,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!existing.taxNumber && c.taxNumber) existing.taxNumber = c.taxNumber;
         if (!existing.notes && c.notes) existing.notes = c.notes;
         if (locInferred) existing.branchName = locInferred;
-        if (c.repId && !existing.repId) existing.repId = c.repId;
-        if (c.repName && (!existing.repName || existing.repName === 'مندوب المبيعات' || existing.repName === 'المندوب')) existing.repName = c.repName;
-        if (c.salesRepName && (!existing.salesRepName || existing.salesRepName === 'مندوب المبيعات' || existing.salesRepName === 'المندوب')) existing.salesRepName = c.salesRepName;
+        if (c.repId) existing.repId = c.repId;
+        if (c.repName) existing.repName = c.repName;
+        if (c.salesRepName) existing.salesRepName = c.salesRepName;
+        if (c.branchName) existing.branchName = c.branchName;
         if (c.creditLimit !== undefined) existing.creditLimit = Number(c.creditLimit);
         if (c.currentBalance !== undefined || c.balance !== undefined) {
           const bal = Number(c.currentBalance ?? c.balance ?? 0);
@@ -380,7 +381,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
     try {
       const raw = saved ? JSON.parse(saved) : INITIAL_CUSTOMERS;
-      return sanitizeCustomers(raw);
+      const sanitized = sanitizeCustomers(raw);
+      return sanitized && sanitized.length > 0 ? sanitized : INITIAL_CUSTOMERS;
     } catch {
       return INITIAL_CUSTOMERS;
     }
@@ -839,13 +841,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return list.map((c) => {
       let updated = { ...c };
 
-      // Ensure branch is properly determined from location / address / name if available
-      const locInferred = inferBranchFromText(
-        `${updated.address || ''} ${updated.governorate || ''} ${updated.name || ''} ${updated.notes || ''}`
-      );
-      if (locInferred) {
-        updated.branchName = locInferred;
-      } else if (updated.branchName) {
+      // Keep branch from uploaded sheet if present; only infer if completely empty
+      if (!updated.branchName) {
+        const locInferred = inferBranchFromText(
+          `${updated.address || ''} ${updated.governorate || ''} ${updated.name || ''} ${updated.notes || ''}`
+        );
+        if (locInferred) {
+          updated.branchName = locInferred;
+        }
+      } else {
         updated.branchName = normalizeBranchName(updated.branchName);
       }
 
@@ -864,22 +868,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         normalizeArabicText(rawRep).includes(normalizeArabicText(u.name)) ||
         normalizeArabicText(u.name).includes(normalizeArabicText(rawRep));
 
-      const branchCompatibleReps = updated.branchName
-        ? reps.filter((u) => u.branchName && isBranchMatch(updated.branchName, u.branchName, { allowUnassigned: false }))
-        : [];
-
-      let matched = branchCompatibleReps.find(matchFn);
-      if (!matched) {
-        matched = reps.find(matchFn);
-      }
+      let matched = reps.find(matchFn);
 
       if (matched) {
         return {
           ...updated,
-          repName: matched.name,
+          repName: rawRep || matched.name,
           repId: matched.id,
-          salesRepName: matched.name,
-          branchName: matched.branchName || updated.branchName || 'الفرع الرئيسي',
+          salesRepName: rawRep || matched.name,
+          branchName: updated.branchName || matched.branchName || '',
           creditLimit: updated.creditLimit !== undefined ? Number(updated.creditLimit) : 0,
           currentBalance: Number(updated.currentBalance ?? updated.balance ?? 0),
           balance: Number(updated.currentBalance ?? updated.balance ?? 0),

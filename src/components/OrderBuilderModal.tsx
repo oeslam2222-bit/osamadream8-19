@@ -140,20 +140,25 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
   const allScopedCustomers = customers;
 
-  // Active list based on chosen scope (strictly rep-scoped for sales reps)
+  // Active list based on chosen scope (with automatic fallback so sales reps never get blocked with 0 customers)
   const scopedCustomersList = useMemo(() => {
-    if (isSalesRep || customerScope === 'rep') {
-      return repScopedCustomers;
+    if (customerScope === 'rep') {
+      if (repScopedCustomers.length > 0) return repScopedCustomers;
+      if (branchScopedCustomers.length > 0) return branchScopedCustomers;
+      return allScopedCustomers;
     }
     if (customerScope === 'branch') {
-      return branchScopedCustomers;
+      return branchScopedCustomers.length > 0 ? branchScopedCustomers : allScopedCustomers;
     }
     return allScopedCustomers;
-  }, [isSalesRep, customerScope, repScopedCustomers, branchScopedCustomers, allScopedCustomers]);
+  }, [customerScope, repScopedCustomers, branchScopedCustomers, allScopedCustomers]);
 
   // Filtered customers for search dropdown by search query and tier
   const filteredCustomers = useMemo(() => {
-    return scopedCustomersList.filter((c) => {
+    const isSearchActive = customerSearchQuery.trim().length > 0;
+    const baseList = isSearchActive ? (scopedCustomersList.length > 0 ? scopedCustomersList : allScopedCustomers) : scopedCustomersList;
+
+    const filtered = baseList.filter((c) => {
       // Tier filter
       if (selectedCustomerTierFilter !== 'all') {
         const cTier = (c.tier || '').toUpperCase();
@@ -164,24 +169,46 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
       }
 
       // Search Query
-      if (customerSearchQuery.trim()) {
+      if (isSearchActive) {
         const q = customerSearchQuery.toLowerCase().trim();
         const matches =
           (c.name && isArabicNameMatch(c.name, q)) ||
-          c.name.toLowerCase().includes(q) ||
+          (c.name && c.name.toLowerCase().includes(q)) ||
           (c.code && c.code.toLowerCase().includes(q)) ||
           (c.phone && c.phone.includes(q)) ||
           (c.storeName && c.storeName.toLowerCase().includes(q)) ||
           (c.branchName && c.branchName.toLowerCase().includes(q)) ||
           (c.salesRepName && c.salesRepName.toLowerCase().includes(q)) ||
           (c.repName && c.repName.toLowerCase().includes(q)) ||
-          (c.governorate && c.governorate.toLowerCase().includes(q));
+          (c.governorate && c.governorate.toLowerCase().includes(q)) ||
+          (c.address && c.address.toLowerCase().includes(q));
         if (!matches) return false;
       }
 
       return true;
-    }).slice(0, 300);
-  }, [scopedCustomersList, customerSearchQuery, selectedCustomerTierFilter]);
+    });
+
+    // If search active and returned no results in scoped list, search across all company customers as well
+    if (isSearchActive && filtered.length === 0 && baseList !== allScopedCustomers) {
+      const q = customerSearchQuery.toLowerCase().trim();
+      return allScopedCustomers
+        .filter((c) => {
+          return (
+            (c.name && isArabicNameMatch(c.name, q)) ||
+            (c.name && c.name.toLowerCase().includes(q)) ||
+            (c.code && c.code.toLowerCase().includes(q)) ||
+            (c.phone && c.phone.includes(q)) ||
+            (c.storeName && c.storeName.toLowerCase().includes(q)) ||
+            (c.branchName && c.branchName.toLowerCase().includes(q)) ||
+            (c.salesRepName && c.salesRepName.toLowerCase().includes(q)) ||
+            (c.repName && c.repName.toLowerCase().includes(q))
+          );
+        })
+        .slice(0, 300);
+    }
+
+    return filtered.slice(0, 300);
+  }, [scopedCustomersList, allScopedCustomers, customerSearchQuery, selectedCustomerTierFilter]);
 
   // Keep selected rep in sync with active user on modal open
   useEffect(() => {
@@ -420,7 +447,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   >
                     {availableRepsList.map((r) => (
                       <option key={r.id} value={r.id}>
-                        {r.name} ({r.branchName || 'فرع غير محدد'})
+                        {r.name}
                       </option>
                     ))}
                   </select>
@@ -487,58 +514,46 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
             {/* Scope Selection Tabs */}
             <div className="space-y-2">
-              {isSalesRep ? (
-                <div className="bg-amber-50 border border-amber-300/80 rounded-2xl p-3 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-xs font-black text-amber-950">
-                    <UserCheck className="w-4 h-4 text-amber-700 shrink-0" />
-                    <span>عملاء المندوب ({currentUser.name}) مسجلين في الشيت:</span>
-                  </div>
-                  <span className="bg-amber-500 text-slate-950 text-xs font-black px-2.5 py-1 rounded-xl shadow-xs">
-                    {repScopedCustomers.length} عميل
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setCustomerScope('rep')}
-                    className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer flex items-center gap-1.5 text-xs ${
-                      customerScope === 'rep'
-                        ? 'bg-amber-500 text-slate-950 shadow-md font-black ring-2 ring-amber-400'
-                        : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
-                    }`}
-                  >
-                    <UserCheck className="w-3.5 h-3.5" />
-                    <span>عملاء المندوب ({activeRepUser?.name || 'المحدد'}) ({repScopedCustomers.length})</span>
-                  </button>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+                <button
+                  type="button"
+                  onClick={() => setCustomerScope('rep')}
+                  className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer flex items-center gap-1.5 text-xs ${
+                    customerScope === 'rep'
+                      ? 'bg-amber-500 text-slate-950 shadow-md font-black ring-2 ring-amber-400'
+                      : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
+                  }`}
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>عملاء المندوب ({activeRepUser?.name || currentUser?.name || 'المحدد'}) ({repScopedCustomers.length})</span>
+                </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setCustomerScope('branch')}
-                    className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer flex items-center gap-1.5 text-xs ${
-                      customerScope === 'branch'
-                        ? 'bg-blue-600 text-white shadow-md font-black ring-2 ring-blue-400'
-                        : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
-                    }`}
-                  >
-                    <Building className="w-3.5 h-3.5" />
-                    <span>كل عملاء الفرع ({activeBranch}) ({branchScopedCustomers.length})</span>
-                  </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomerScope('branch')}
+                  className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer flex items-center gap-1.5 text-xs ${
+                    customerScope === 'branch'
+                      ? 'bg-blue-600 text-white shadow-md font-black ring-2 ring-blue-400'
+                      : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
+                  }`}
+                >
+                  <Building className="w-3.5 h-3.5" />
+                  <span>كل عملاء الفرع ({activeBranch}) ({branchScopedCustomers.length})</span>
+                </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setCustomerScope('all')}
-                    className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer flex items-center gap-1.5 text-xs ${
-                      customerScope === 'all'
-                        ? 'bg-slate-900 text-amber-300 shadow-md font-black ring-2 ring-slate-700'
-                        : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
-                    }`}
-                  >
-                    <Users className="w-3.5 h-3.5" />
-                    <span>كافة عملاء الشركة ({allScopedCustomers.length})</span>
-                  </button>
-                </div>
-              )}
+                <button
+                  type="button"
+                  onClick={() => setCustomerScope('all')}
+                  className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer flex items-center gap-1.5 text-xs ${
+                    customerScope === 'all'
+                      ? 'bg-slate-900 text-amber-300 shadow-md font-black ring-2 ring-slate-700'
+                      : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>كافة عملاء الشركة ({allScopedCustomers.length})</span>
+                </button>
+              </div>
 
               {/* Tier Filters for Customers */}
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">

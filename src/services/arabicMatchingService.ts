@@ -591,7 +591,7 @@ export function isBranchMatch(
  * with comprehensive Arabic normalization, phone/username matching, and alias support.
  */
 export function doesCustomerBelongToRep(customer: Customer, repUser: User): boolean {
-  if (!repUser) return false;
+  if (!customer || !repUser) return false;
 
   // 1. Direct ID / Username match (Highest authority)
   if (
@@ -611,6 +611,8 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
     (customer as any).delegateName,
     (customer as any).salesRep,
     (customer as any).sales_rep,
+    (customer as any).rep_name,
+    (customer as any).representative_name,
   ]
     .filter((val): val is string => typeof val === 'string' && val.trim().length > 0)
     .map((s) => s.trim());
@@ -624,6 +626,38 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
     }
   }
 
+  const STOP_TOKENS = new Set([
+    'مندوب',
+    'المندوب',
+    'استاذ',
+    'الاستاذ',
+    'أستاذ',
+    'الأستاذ',
+    'ا',
+    'أ',
+    'م',
+    'كابتن',
+    'مهندس',
+    'مسؤول',
+    'مسئول',
+    'فرع',
+    'توزيع',
+    'مبيعات',
+    'المبيعات',
+    'التوزيع',
+    'الفيوم',
+    'القاهرة',
+    'المنيا',
+    'اكتوبر',
+    'ديمشلت',
+    'منوف',
+    'الشرقية',
+    'البحيرة',
+    'مصر',
+  ]);
+
+  const cleanUserTokens = getArabicTokens(repUser.name).filter((t) => !STOP_TOKENS.has(t));
+
   for (const repField of repCandidates) {
     const isGenericRep =
       !repField ||
@@ -635,7 +669,8 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
       repField === '..' ||
       repField === '.' ||
       repField.toLowerCase() === 'unassigned' ||
-      repField.toLowerCase() === 'none';
+      repField.toLowerCase() === 'none' ||
+      repField.toLowerCase() === 'null';
 
     if (isGenericRep) continue;
 
@@ -654,20 +689,28 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
       }
     }
 
-    // Tokenized Arabic matching (e.g. "علاء عمر" vs "مندوب / علاء عمر - اكتوبر")
-    const repTokens = getArabicTokens(repField);
-    const userTokens = getArabicTokens(repUser.name);
+    // Tokenized Arabic matching after stop words removal (e.g. "علاء عمر" vs "مندوب / علاء - فرع الفيوم")
+    const repTokens = getArabicTokens(repField).filter((t) => !STOP_TOKENS.has(t));
 
-    if (userTokens.length > 0 && repTokens.length > 0) {
+    if (cleanUserTokens.length > 0 && repTokens.length > 0) {
       // Check if all user name tokens exist in the rep field
-      const allUserTokensMatch = userTokens.every((tok) => repTokens.includes(tok));
+      const allUserTokensMatch = cleanUserTokens.every((tok) => repTokens.includes(tok));
       if (allUserTokensMatch) return true;
 
-      // Or if shared tokens >= 2
-      const sharedTokens = userTokens.filter((tok) => repTokens.includes(tok));
-      if (userTokens.length >= 2 && sharedTokens.length >= 2) return true;
-      if (userTokens.length === 1 && repTokens.includes(userTokens[0])) return true;
-      if (repTokens.length === 1 && userTokens.includes(repTokens[0])) return true;
+      // Check if all rep tokens exist in user name tokens (e.g. rep field is "علاء" and user is "علاء عمر")
+      const allRepTokensInUser = repTokens.every((tok) => cleanUserTokens.includes(tok));
+      if (allRepTokensInUser) return true;
+
+      // First/distinctive name matching (e.g. "علاء" matches "علاء عمر")
+      if (repTokens[0] && cleanUserTokens[0] && repTokens[0] === cleanUserTokens[0]) {
+        return true;
+      }
+
+      // Shared tokens >= 1 when repTokens is small
+      const sharedTokens = cleanUserTokens.filter((tok) => repTokens.includes(tok));
+      if (sharedTokens.length >= 1 && (cleanUserTokens.length <= 2 || repTokens.length <= 2)) {
+        return true;
+      }
     }
   }
 
