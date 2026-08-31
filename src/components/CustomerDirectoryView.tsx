@@ -76,11 +76,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
   const [scopeTab, setScopeTab] = useState<'my_customers' | 'branch' | 'all'>(() => {
-    // If rep has assigned customers, default to my_customers, otherwise show branch or all so they never see a blank screen
-    if (isRep) {
-      const myCount = currentUser ? customers.filter((c) => doesCustomerBelongToRep(c, currentUser)).length : 0;
-      return myCount > 0 ? 'my_customers' : 'branch';
-    }
+    if (isRep) return 'my_customers';
     if (isSupervisor || isBranchManager) return 'branch';
     return 'all';
   });
@@ -138,6 +134,8 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
   // Extract ALL unique Sales Reps from customers (registered + unregistered in customer records)
   const allAvailableReps = useMemo(() => {
+    const sourceCustomers = isAdminOrDev ? customers : getVisibleCustomers();
+    const sourceUsers = isAdminOrDev ? users : users.filter((u) => u.id === currentUser?.id || u.supervisorId === currentUser?.id);
     const repMap = new Map<string, {
       name: string;
       branchName: string;
@@ -147,7 +145,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     }>();
 
     // 1. First scan all customers in the database
-    customers.forEach((c) => {
+    sourceCustomers.forEach((c) => {
       const rawRep = (c.salesRepName || c.repName || '').trim();
       if (!rawRep || rawRep === 'مندوب المبيعات' || rawRep === 'المندوب' || rawRep === 'غير محدد' || rawRep === '---') {
         return;
@@ -174,22 +172,27 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     });
 
     // 2. Also include all registered sales reps / supervisors from users list
-    users
+    sourceUsers
       .filter((u) => u.role === 'sales_rep' || u.role === 'supervisor')
       .forEach((u) => {
         if (!repMap.has(u.name)) {
           repMap.set(u.name, {
             name: u.name,
             branchName: u.branchName || '',
-            customerCount: customers.filter((c) => doesCustomerBelongToRep(c, u)).length,
+            customerCount: sourceCustomers.filter((c) => c.repId === u.id).length,
             isRegisteredUser: true,
             userId: u.id,
           });
         }
       });
 
-    return Array.from(repMap.values()).sort((a, b) => b.customerCount - a.customerCount);
-  }, [customers, users]);
+    const unique = new Map<string, (typeof repMap extends Map<string, infer V> ? V : never)>();
+    repMap.forEach((rep) => {
+      const key = normalizeArabicText(rep.name).replace(/\s+/g, '');
+      if (!unique.has(key)) unique.set(key, rep);
+    });
+    return Array.from(unique.values()).sort((a, b) => b.customerCount - a.customerCount);
+  }, [customers, users, currentUser, isAdminOrDev, getVisibleCustomers]);
 
   // Unregistered reps count
   const unregisteredReps = useMemo(() => {
@@ -200,7 +203,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
   const allAvailableBranches = useMemo(() => {
     const branchSet = new Set<string>();
     branches.forEach((b) => branchSet.add(b.name));
-    customers.forEach((c) => {
+    sourceCustomers.forEach((c) => {
       if (c.branchName && c.branchName.trim()) {
         branchSet.add(c.branchName.trim());
       }
