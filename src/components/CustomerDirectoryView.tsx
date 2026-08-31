@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Users,
   Search,
@@ -85,6 +85,19 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBranch, setSelectedBranch] = useState<string>('الكل');
   const [selectedRepFilter, setSelectedRepFilter] = useState<string>('الكل');
+
+  useEffect(() => {
+    if (!currentUser) return;
+    if (isRep) {
+      setScopeTab('my_customers');
+      setSelectedBranch(currentUser.branchName || '');
+      setSelectedRepFilter(currentUser.id);
+    } else if (isSupervisor || isBranchManager) {
+      setScopeTab('branch');
+      setSelectedBranch(currentUser.branchName || '');
+      setSelectedRepFilter('الكل');
+    }
+  }, [currentUser?.id, currentUser?.branchName, isRep, isSupervisor, isBranchManager]);
   const [debtFilter, setDebtFilter] = useState<'all' | 'has_debt' | 'exceeded_limit' | 'zero_debt'>('all');
   const [sortField, setSortField] = useState<'name' | 'code' | 'debt' | 'limit' | 'branch'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -201,9 +214,10 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
   // Extract ALL unique Branches from branches + customers
   const allAvailableBranches = useMemo(() => {
+    const visibleCustomers = isAdminOrDev ? customers : getVisibleCustomers();
     const branchSet = new Set<string>();
-    branches.forEach((b) => branchSet.add(b.name));
-    sourceCustomers.forEach((c) => {
+    if (isAdminOrDev) branches.forEach((b) => branchSet.add(b.name));
+    visibleCustomers.forEach((c) => {
       if (c.branchName && c.branchName.trim()) {
         branchSet.add(c.branchName.trim());
       }
@@ -868,6 +882,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         </button>
 
         <button
+          hidden={isRep}
           onClick={() => {
             setScopeTab('branch');
             setCurrentPage(1);
@@ -883,6 +898,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         </button>
 
         <button
+          hidden={isRep}
           onClick={() => {
             setScopeTab('all');
             setCurrentPage(1);
@@ -935,7 +951,8 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
               }}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
             >
-              <option value="الكل">كل الفروع (الكل)</option>
+              {!isAdminOrDev && <option value={currentUser?.branchName || ''}>{currentUser?.branchName || 'الفرع الحالي'}</option>}
+              {isAdminOrDev && <option value="الكل">كل الفروع (الكل)</option>}
               {allAvailableBranches.map((bName) => (
                 <option key={bName} value={bName}>
                   {bName}
@@ -954,8 +971,8 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
               }}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
             >
-              <option value="الكل">كل المناديب ({allAvailableReps.length} مندوب)</option>
-              {allAvailableReps.map((r) => (
+              <option value={isRep ? currentUser?.id || '' : 'الكل'}>{isRep ? `مندوب: ${currentUser?.name || ''}` : `كل المناديب (${allAvailableReps.length} مندوب)`}</option>
+              {!isRep && allAvailableReps.map((r) => (
                 <option key={r.name} value={r.name}>
                   {r.name} ({r.customerCount} عميل) - {r.branchName || 'فرع غير محدد'} {r.isRegisteredUser ? '✅' : '📄'}
                 </option>
@@ -1181,7 +1198,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                         {globalIdx}
                       </td>
 
-                      {/* كود العميل */}
+                      {/* ك��د العميل */}
                       <td className="py-3 px-3 font-mono font-bold text-slate-700">
                         <span className="bg-slate-100 px-2 py-1 rounded-md text-[11px] border border-slate-200">
                           {customer.code || '---'}
