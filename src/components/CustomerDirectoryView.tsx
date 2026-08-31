@@ -60,6 +60,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     users,
     currentUser,
     branches,
+    getVisibleCustomers,
     addCustomer,
     updateCustomer,
     deleteCustomer,
@@ -207,25 +208,15 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     return Array.from(branchSet);
   }, [branches, customers]);
 
-  // Compute Scoped List based on Tab & User Role
-  // For Branch Manager / Supervisor: they see ALL customers of their branch (regardless of user registration!)
+  // The context owns the privacy boundary; tabs can only narrow that list.
   const scopedCustomers = useMemo(() => {
-    if (!currentUser) return customers;
-
-    if (scopeTab === 'my_customers') {
-      return customers.filter((c) => doesCustomerBelongToRep(c, currentUser));
+    const visibleCustomers = getVisibleCustomers();
+    if (!currentUser || isAdminOrDev) return visibleCustomers;
+    if (scopeTab === 'my_customers' && isRep) {
+      return visibleCustomers.filter((c) => c.repId === currentUser.id);
     }
-
-    if (scopeTab === 'branch') {
-      const userBranch = currentUser.branchName;
-      if (!userBranch || userBranch.includes('المخزن المركزي') || isAdminOrDev) {
-        return customers;
-      }
-      return customers.filter((c) => doesCustomerBelongToBranch(c, userBranch));
-    }
-
-    return customers;
-  }, [customers, currentUser, scopeTab, isAdminOrDev]);
+    return visibleCustomers;
+  }, [getVisibleCustomers, currentUser, isAdminOrDev, isRep, scopeTab]);
 
   // Filter & Search Logic
   const filteredCustomers = useMemo(() => {
