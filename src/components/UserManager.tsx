@@ -39,6 +39,7 @@ import {
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { doesCustomerBelongToRep } from '../services/arabicMatchingService';
+import { formatCurrency } from '../services/invoiceService';
 import { User, UserApprovalStatus, UserRole } from '../types';
 
 export const UserManager: React.FC = () => {
@@ -56,6 +57,7 @@ export const UserManager: React.FC = () => {
     getSupervisorsInBranch,
     loginAs,
     refreshCustomerRepLinks,
+    autoCreateMissingRepsFromCustomers,
   } = useApp();
 
   const [showAddUserModal, setShowAddUserModal] = useState(false);
@@ -66,6 +68,10 @@ export const UserManager: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [syncToast, setSyncToast] = useState<string | null>(null);
+  const [syncModalData, setSyncModalData] = useState<{ open: boolean; result?: any } | null>(null);
+  const [viewingRepUser, setViewingRepUser] = useState<User | null>(null);
+  const [repCustomerSearchTerm, setRepCustomerSearchTerm] = useState<string>('');
+  const [autoCreateFeedback, setAutoCreateFeedback] = useState<string | null>(null);
 
   const isSuperAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
@@ -433,13 +439,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               <button
                 onClick={() => {
                   const res = refreshCustomerRepLinks();
+                  setSyncModalData({ open: true, result: res });
                   setSyncToast(`تم فحص ومزامنة العملاء بنجاح! تم تحديث وربط ${res.updatedCount} عميل بالمناديب.`);
                   setTimeout(() => setSyncToast(null), 4000);
                 }}
-                className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3.5 py-3 rounded-2xl text-xs shadow-xs transition active:scale-95 cursor-pointer border border-slate-300"
-                title="إعادة فحص وربط العملاء بالمناديب وفقاً للأسماء والفروع"
+                className="flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-black px-4 py-3 rounded-2xl text-xs shadow-md transition active:scale-95 cursor-pointer border border-slate-700"
+                title="إعادة فحص وربط العملاء بالمناديب وفقاً للأسماء والفروع وعرض تقرير المطابقة"
               >
-                <RefreshCw className="w-3.5 h-3.5 text-slate-600" />
+                <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
                 <span>مزامنة وربط العملاء بالمناديب</span>
               </button>
             )}
@@ -693,9 +700,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   {user.role === 'sales_rep' && (
                     <div className="flex justify-between items-center">
                       <span className="text-slate-400">العملاء المسندين:</span>
-                      <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold px-2 py-0.5 rounded text-[10px]">
-                        👥 {customers.filter((c) => doesCustomerBelongToRep(c, user)).length} عميل
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setViewingRepUser(user)}
+                        className="bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 font-bold px-2 py-0.5 rounded text-[10px] cursor-pointer transition flex items-center gap-1 active:scale-95"
+                        title="عرض قائمة العملاء والمديونيات والحد الائتماني لهذا المندوب"
+                      >
+                        👥 {customers.filter((c) => doesCustomerBelongToRep(c, user)).length} عميل (عرض التفاصيل)
+                      </button>
                     </div>
                   )}
                   {user.role === 'sales_rep' && (
@@ -820,9 +832,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                       <div className="font-bold text-slate-800">{user.branchName}</div>
                       {user.role === 'sales_rep' && (
                         <div className="mt-1">
-                          <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-850 border border-emerald-200 px-2 py-0.5 rounded-lg text-[10px] font-bold">
-                            👥 {customers.filter((c) => doesCustomerBelongToRep(c, user)).length} عميل مسند
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setViewingRepUser(user)}
+                            className="inline-flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 px-2.5 py-1 rounded-xl text-[11px] font-black cursor-pointer transition shadow-2xs active:scale-95"
+                            title="عرض قائمة العملاء والمديونيات والحد الائتماني لهذا المندوب"
+                          >
+                            👥 {customers.filter((c) => doesCustomerBelongToRep(c, user)).length} عميل مسند (عرض)
+                          </button>
                         </div>
                       )}
                     </td>
@@ -1270,6 +1287,373 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               >
                 <Check className="w-4 h-4" />
                 <span>اعتماد وتفعيل الحساب فوراً</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEWING REP CUSTOMERS MODAL */}
+      {viewingRepUser && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+            {/* Header */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-base shadow-sm">
+                  {viewingRepUser.name.charAt(0)}
+                </div>
+                <div>
+                  <h3 className="font-black text-sm sm:text-base flex items-center gap-2">
+                    <span>عملاء المندوب: {viewingRepUser.name}</span>
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold">
+                      {viewingRepUser.branchName}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-300 font-mono mt-0.5">
+                    كود: {viewingRepUser.id} • هاتف: {viewingRepUser.phone || 'غير مسجل'} • @{viewingRepUser.username}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    loginAs(viewingRepUser.id);
+                    setViewingRepUser(null);
+                  }}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3.5 py-1.5 rounded-xl text-xs shadow transition flex items-center gap-1 cursor-pointer"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>دخول كـ المندوب</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewingRepUser(null);
+                    setRepCustomerSearchTerm('');
+                  }}
+                  className="text-slate-400 hover:text-white p-1 rounded-xl cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Rep Summary Stats & Search */}
+            {(() => {
+              const repCustomers = customers.filter((c) => doesCustomerBelongToRep(c, viewingRepUser));
+              const totalDebts = repCustomers.reduce((sum, c) => sum + (c.currentBalance || c.balance || 0), 0);
+              const totalLimits = repCustomers.reduce((sum, c) => sum + (c.creditLimit || 0), 0);
+
+              const filtered = repCustomers.filter((c) => {
+                if (!repCustomerSearchTerm.trim()) return true;
+                const q = repCustomerSearchTerm.toLowerCase().trim();
+                return (
+                  c.name.toLowerCase().includes(q) ||
+                  (c.code && c.code.toLowerCase().includes(q)) ||
+                  (c.phone && c.phone.includes(q)) ||
+                  (c.storeName && c.storeName.toLowerCase().includes(q)) ||
+                  (c.address && c.address.toLowerCase().includes(q))
+                );
+              });
+
+              return (
+                <div className="p-4 sm:p-5 space-y-4 flex-1 overflow-y-auto">
+                  {/* Stat Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                      <div className="text-[11px] text-slate-500 font-bold">👥 إجمالي العملاء المسندين</div>
+                      <div className="text-lg font-black text-slate-900 mt-1">{repCustomers.length} <span className="text-xs text-slate-400 font-normal">عميل</span></div>
+                    </div>
+                    <div className="bg-rose-50/60 p-3.5 rounded-2xl border border-rose-200">
+                      <div className="text-[11px] text-rose-700 font-bold">💰 إجمالي مديونيات العملاء</div>
+                      <div className="text-lg font-black text-rose-700 mt-1">{formatCurrency(totalDebts)}</div>
+                    </div>
+                    <div className="bg-blue-50/60 p-3.5 rounded-2xl border border-blue-200">
+                      <div className="text-[11px] text-blue-700 font-bold">🛡️ إجمالي الحدود الائتمانية</div>
+                      <div className="text-lg font-black text-blue-700 mt-1">{formatCurrency(totalLimits)}</div>
+                    </div>
+                  </div>
+
+                  {/* Search Bar */}
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={repCustomerSearchTerm}
+                      onChange={(e) => setRepCustomerSearchTerm(e.target.value)}
+                      placeholder="ابحث في عملاء المندوب بالاسم، الكود، الهاتف، أو العنوان..."
+                      className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold focus:ring-2 focus:ring-amber-400 focus:bg-white"
+                    />
+                  </div>
+
+                  {/* Customer Table */}
+                  {filtered.length === 0 ? (
+                    <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-300 text-slate-500 text-xs">
+                      {repCustomers.length === 0
+                        ? `لا يوجد عملاء مسندين حالياً للمندوب (${viewingRepUser.name}) في فرع (${viewingRepUser.branchName}). يمكنك مزامنة الشيت أو تعديل مندوب العميل.`
+                        : 'لا توجد نتائج مطابقة لبحثك في عملاء المندوب.'}
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                      <table className="w-full text-right text-xs">
+                        <thead className="bg-slate-100 text-slate-700 font-black sticky top-0">
+                          <tr>
+                            <th className="p-3">#</th>
+                            <th className="p-3">كود العميل</th>
+                            <th className="p-3">اسم العميل / المحل</th>
+                            <th className="p-3">الفرع</th>
+                            <th className="p-3 text-rose-700">المديونية (ج.م)</th>
+                            <th className="p-3 text-blue-700">الحد الائتماني</th>
+                            <th className="p-3 text-emerald-700">المتاح من الائتمان</th>
+                            <th className="p-3">الهاتف</th>
+                            <th className="p-3">العنوان</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-semibold text-slate-800">
+                          {filtered.map((c, idx) => {
+                            const debt = c.currentBalance || c.balance || 0;
+                            const limit = c.creditLimit || 0;
+                            const available = limit > 0 ? Math.max(0, limit - debt) : null;
+
+                            return (
+                              <tr key={c.id} className="hover:bg-amber-50/40">
+                                <td className="p-3 text-slate-400 font-bold">{idx + 1}</td>
+                                <td className="p-3 font-mono font-bold text-amber-900">{c.code || '---'}</td>
+                                <td className="p-3">
+                                  <div className="font-black text-slate-900">{c.name}</div>
+                                  {c.storeName && (
+                                    <div className="text-[10px] text-slate-500">{c.storeName}</div>
+                                  )}
+                                </td>
+                                <td className="p-3 text-slate-600">
+                                  <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[11px]">
+                                    {c.branchName || viewingRepUser.branchName}
+                                  </span>
+                                </td>
+                                <td className="p-3 font-mono font-bold text-rose-600">
+                                  {debt > 0 ? formatCurrency(debt) : <span className="text-slate-400">0 ج.م</span>}
+                                </td>
+                                <td className="p-3 font-mono font-bold text-blue-700">
+                                  {limit > 0 ? formatCurrency(limit) : <span className="text-slate-400">غير محدد</span>}
+                                </td>
+                                <td className="p-3 font-mono font-bold text-emerald-700">
+                                  {available !== null ? formatCurrency(available) : <span className="text-slate-400">مفتوح</span>}
+                                </td>
+                                <td className="p-3 font-mono text-slate-600">{c.phone || '---'}</td>
+                                <td className="p-3 text-slate-500 text-[11px]">{c.address || c.governorate || '---'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setViewingRepUser(null);
+                  setRepCustomerSearchTerm('');
+                }}
+                className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-bold text-xs cursor-pointer"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SYNC & MATCHING REPORT MODAL */}
+      {syncModalData?.open && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+            {/* Header */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black">
+                  <RefreshCw className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm sm:text-base">تقرير مطابقة ومزامنة العملاء بالمناديب</h3>
+                  <p className="text-xs text-slate-300">تم فحص قاعدة البيانات وتحديث ربط العملاء بحسابات المناديب</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSyncModalData(null);
+                  setAutoCreateFeedback(null);
+                }}
+                className="text-slate-400 hover:text-white p-1 rounded-xl cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 space-y-4 flex-1 overflow-y-auto text-xs">
+              {/* Feedback alert */}
+              {autoCreateFeedback && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-950 rounded-2xl text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{autoCreateFeedback}</span>
+                </div>
+              )}
+
+              {/* Stats overview */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                  <span className="text-slate-500 font-bold">إجمالي العملاء:</span>
+                  <div className="text-lg font-black text-slate-900 mt-0.5">{customers.length} عميل</div>
+                </div>
+                <div className="bg-emerald-50 p-3 rounded-2xl border border-emerald-200">
+                  <span className="text-emerald-800 font-bold">تم ربطهم بالمندوب:</span>
+                  <div className="text-lg font-black text-emerald-800 mt-0.5">
+                    {customers.filter((c) => c.repId || c.salesRepName || c.repName).length} عميل
+                  </div>
+                </div>
+                <div className="bg-amber-50 p-3 rounded-2xl border border-amber-200">
+                  <span className="text-amber-800 font-bold">المناديب المسجلين:</span>
+                  <div className="text-lg font-black text-amber-900 mt-0.5">
+                    {users.filter((u) => u.role === 'sales_rep').length} مندوب
+                  </div>
+                </div>
+              </div>
+
+              {/* Reps Breakdown Table */}
+              <div className="space-y-2">
+                <h4 className="font-black text-slate-900 text-xs sm:text-sm">
+                  توزيع العملاء والمديونيات على حسابات المناديب المسجلة:
+                </h4>
+                <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-56 overflow-y-auto">
+                  <table className="w-full text-right text-xs">
+                    <thead className="bg-slate-100 text-slate-700 font-black sticky top-0">
+                      <tr>
+                        <th className="p-2.5">المندوب</th>
+                        <th className="p-2.5">الفرع</th>
+                        <th className="p-2.5 text-center">العملاء التابعين</th>
+                        <th className="p-2.5">إجمالي المديونية</th>
+                        <th className="p-2.5 text-center">معاينة</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-semibold">
+                      {users
+                        .filter((u) => u.role === 'sales_rep')
+                        .map((rep) => {
+                          const repCusts = customers.filter((c) => doesCustomerBelongToRep(c, rep));
+                          const repDebts = repCusts.reduce((sum, c) => sum + (c.currentBalance || c.balance || 0), 0);
+
+                          return (
+                            <tr key={rep.id} className="hover:bg-amber-50/40">
+                              <td className="p-2.5 font-black text-slate-900">{rep.name}</td>
+                              <td className="p-2.5 text-slate-600">{rep.branchName}</td>
+                              <td className="p-2.5 text-center">
+                                <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-[11px]">
+                                  {repCusts.length} عميل
+                                </span>
+                              </td>
+                              <td className="p-2.5 font-mono font-bold text-rose-600">{formatCurrency(repDebts)}</td>
+                              <td className="p-2.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSyncModalData(null);
+                                    setViewingRepUser(rep);
+                                  }}
+                                  className="text-[11px] font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded-lg transition cursor-pointer"
+                                >
+                                  عرض العملاء
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Unmatched Reps in Customers */}
+              {(() => {
+                const unmatched = syncModalData?.result?.unmatchedRepNames || [];
+                if (unmatched.length === 0) return null;
+
+                return (
+                  <div className="bg-amber-50 border border-amber-300 p-4 rounded-2xl space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                        <div>
+                          <h5 className="font-black text-amber-950 text-xs">
+                            تم رصد ({unmatched.length}) اسم مندوب بالشيت غير مسجلين في المنظومة:
+                          </h5>
+                          <p className="text-[11px] text-amber-800 mt-0.5">
+                            يمكنك إنشاء وتفعيل حسابات دخول فورية لهم بضغطة واحدة ليتم ربط عملائهم تلقائياً.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const res = autoCreateMissingRepsFromCustomers();
+                          setAutoCreateFeedback(res.message);
+                          const updated = refreshCustomerRepLinks();
+                          setSyncModalData({ open: true, result: updated });
+                        }}
+                        className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-3.5 py-1.5 rounded-xl text-xs shadow transition flex items-center gap-1 shrink-0 cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>إنشاء وتفعيل الحسابات الآن</span>
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5">
+                      {unmatched.map((item: any, idx: number) => (
+                        <span
+                          key={idx}
+                          className="bg-white border border-amber-200 text-amber-900 px-2.5 py-1 rounded-xl text-[11px] font-bold shadow-2xs"
+                        >
+                          👤 {item.repName} ({item.branchName}) • {item.count} عميل
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  const res = refreshCustomerRepLinks();
+                  setSyncModalData({ open: true, result: res });
+                  setAutoCreateFeedback(`تمت إعادة الفحص وتحديث الربط بنجاح! تم تحديث ${res.updatedCount} عميل.`);
+                }}
+                className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-black px-4 py-2 rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>إعادة الفحص الآن</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSyncModalData(null);
+                  setAutoCreateFeedback(null);
+                }}
+                className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-bold text-xs cursor-pointer"
+              >
+                إغلاق
               </button>
             </div>
           </div>

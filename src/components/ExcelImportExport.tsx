@@ -63,6 +63,7 @@ export const ExcelImportExport: React.FC = () => {
     updateCustomer,
     deleteCustomer,
     refreshCustomerRepLinks,
+    autoCreateMissingRepsFromCustomers,
     wipeAllProductsAndData,
     selectedBranchFilter
   } = useApp();
@@ -1223,6 +1224,61 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
             </div>
           </div>
 
+          {/* Customer Summary Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+              <div className="text-[11px] font-bold text-slate-500">👥 إجمالي العملاء بالمنظومة</div>
+              <div className="text-xl font-black text-slate-900 mt-1">{customers.length} <span className="text-xs text-slate-400 font-normal">عميل</span></div>
+              <div className="text-[10px] text-emerald-600 font-bold mt-1">
+                {customers.filter((c) => c.repId || c.salesRepName || c.repName).length} مرتبطين بمندوب
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+              <div className="text-[11px] font-bold text-slate-500">💰 إجمالي مديونيات العملاء</div>
+              <div className="text-xl font-black text-rose-600 mt-1">
+                {formatCurrency(customers.reduce((sum, c) => sum + (c.currentBalance || c.balance || 0), 0))}
+              </div>
+              <div className="text-[10px] text-slate-400 font-bold mt-1">مستحقة التحصيل</div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+              <div className="text-[11px] font-bold text-slate-500">🛡️ إجمالي الحدود الائتمانية</div>
+              <div className="text-xl font-black text-blue-700 mt-1">
+                {formatCurrency(customers.reduce((sum, c) => sum + (c.creditLimit || 0), 0))}
+              </div>
+              <div className="text-[10px] text-blue-500 font-bold mt-1">حد أقصى مسموح</div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
+              <div className="text-[11px] font-bold text-slate-500">⚡ إجراءات سريعة للتطابق</div>
+              <div className="flex items-center gap-1.5 mt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const res = refreshCustomerRepLinks();
+                    setCustomerSheetSuccess(`تمت المزامنة والتطابق بنجاح! تم تحديث ${res.updatedCount} عميل وربطهم بحسابات مناديبهم.`);
+                  }}
+                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-2 py-1.5 rounded-xl text-[10px] transition text-center shadow-xs cursor-pointer"
+                  title="مزامنة فورية وتطابق ذكي بين أسماء المناديب والعملاء"
+                >
+                  🔄 مطابقة المناديب
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const res = autoCreateMissingRepsFromCustomers();
+                    setCustomerSheetSuccess(res.message);
+                  }}
+                  className="flex-1 bg-slate-900 hover:bg-slate-800 text-amber-400 font-black px-2 py-1.5 rounded-xl text-[10px] transition text-center shadow-xs cursor-pointer"
+                  title="إنشاء وتفعيل حسابات جديدة للمناديب المذكورين في الشيت ولم يتم تسجيلهم بعد"
+                >
+                  ✨ إنشاء المناديب
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* Customer Preview Table (if loaded from sheet/file) */}
           {customerPreviewList.length > 0 && (
             <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -1233,7 +1289,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                     <span>معاينة العملاء المستوردين ({customerPreviewList.length} عميل)</span>
                   </h4>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    اختر طريقة الاستيراد واضغط على زر الحفظ لتحديث قاعدة البيانات.
+                    تحقق من الفرع، المندوب، المديونية الحالية، والحد الائتماني قبل تأكيد الحفظ في المنظومة.
                   </p>
                 </div>
 
@@ -1263,7 +1319,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                   <button
                     type="button"
                     onClick={() => setCustomerPreviewList([])}
-                    className="text-xs text-slate-500 hover:text-slate-700 px-3 py-2"
+                    className="text-xs text-slate-500 hover:text-slate-700 px-3 py-2 cursor-pointer"
                   >
                     إلغاء
                   </button>
@@ -1271,7 +1327,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
               </div>
 
               {/* Preview Customer Table */}
-              <div className="overflow-x-auto max-h-72 border border-slate-200 rounded-2xl">
+              <div className="overflow-x-auto max-h-80 border border-slate-200 rounded-2xl">
                 <table className="w-full text-right text-xs">
                   <thead className="bg-slate-100 text-slate-700 font-black sticky top-0">
                     <tr>
@@ -1280,16 +1336,38 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                       <th className="p-3">اسم العميل</th>
                       <th className="p-3">الفرع التابع له</th>
                       <th className="p-3">اسم المندوب</th>
+                      <th className="p-3 text-rose-700">المديونية (ج.م)</th>
+                      <th className="p-3 text-blue-700">الحد الائتماني (ج.م)</th>
+                      <th className="p-3">الهاتف</th>
+                      <th className="p-3">العنوان</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-800">
                     {customerPreviewList.map((c, i) => (
                       <tr key={c.id || i} className="hover:bg-amber-50/50">
                         <td className="p-3 text-slate-400">{i + 1}</td>
-                        <td className="p-3 font-mono font-bold text-amber-800">{c.code}</td>
+                        <td className="p-3 font-mono font-bold text-amber-800">{c.code || '---'}</td>
                         <td className="p-3 font-bold text-slate-950">{c.name}</td>
-                        <td className="p-3">{c.branchName || 'الفرع الرئيسي'}</td>
-                        <td className="p-3 font-bold text-emerald-700">{c.repName || c.salesRepName || 'غير مرتبط'}</td>
+                        <td className="p-3">
+                          <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-800 text-[11px] font-bold">
+                            {c.branchName || 'الفرع الرئيسي'}
+                          </span>
+                        </td>
+                        <td className="p-3 font-bold text-emerald-700">
+                          {c.repName || c.salesRepName || <span className="text-slate-400">غير مرتبط</span>}
+                        </td>
+                        <td className="p-3 font-mono font-bold text-rose-600">
+                          {(c.currentBalance || c.balance || 0) > 0
+                            ? formatCurrency(c.currentBalance || c.balance || 0)
+                            : '0 ج.م'}
+                        </td>
+                        <td className="p-3 font-mono font-bold text-blue-700">
+                          {(c.creditLimit || 0) > 0
+                            ? formatCurrency(c.creditLimit || 0)
+                            : 'غير محدد'}
+                        </td>
+                        <td className="p-3 font-mono text-slate-600">{c.phone || '---'}</td>
+                        <td className="p-3 text-slate-500">{c.address || c.governorate || '---'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1310,7 +1388,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                     سجل العملاء النشط بالمنظومة ({customers.length} عميل)
                   </h4>
                   <p className="text-xs text-slate-500">
-                    يتم استدعاء هؤلاء العملاء تلقائياً في شاشة الفواتير للمندوبين والبحث السريع
+                    يتم استدعاء هؤلاء العملاء تلقائياً في شاشة الفواتير للمندوبين مع متابعة المديونية والحد الائتماني
                   </p>
                 </div>
               </div>
@@ -1384,13 +1462,14 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                     <tr>
                       <th className="p-3">#</th>
                       <th className="p-3">كود العميل</th>
-                      <th className="p-3">اسم العميل</th>
-                      <th className="p-3">اسم المحل / المعرض</th>
-                      <th className="p-3">رقم الهاتف</th>
-                      <th className="p-3">الفرع التابع له</th>
+                      <th className="p-3">اسم العميل / المحل</th>
+                      <th className="p-3">الفرع</th>
                       <th className="p-3">المندوب المسؤول</th>
-                      <th className="p-3">العنوان والمحافظة</th>
-                      <th className="p-3">الرقم الضريبي</th>
+                      <th className="p-3 text-rose-700">المديونية (ج.م)</th>
+                      <th className="p-3 text-blue-700">الحد الائتماني (ج.م)</th>
+                      <th className="p-3 text-emerald-700">المتاح من الائتمان</th>
+                      <th className="p-3">الهاتف</th>
+                      <th className="p-3">العنوان</th>
                       <th className="p-3 text-center">إجراءات</th>
                     </tr>
                   </thead>
@@ -1436,73 +1515,95 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
 
                       return (
                         <>
-                          {displayed.map((c, i) => (
-                            <tr key={c.id} className="hover:bg-amber-50/40">
-                              <td className="p-3 text-slate-400 font-bold">{i + 1}</td>
-                              <td className="p-3 font-mono font-bold text-amber-900">{c.code || '---'}</td>
-                              <td className="p-3 font-black text-slate-900">{c.name}</td>
-                              <td className="p-3 font-bold text-slate-700">{c.storeName || '---'}</td>
-                              <td className="p-3 font-bold text-emerald-800">{c.phone || '---'}</td>
-                              <td className="p-3 text-slate-600">
-                                <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[11px]">
-                                  {c.branchName || 'الفرع الرئيسي'}
-                                </span>
-                              </td>
-                              <td className="p-3">
-                                {/* Inline Rep Selector */}
-                                <select
-                                  value={c.salesRepName || c.repName || ''}
-                                  onChange={(e) => {
-                                    const selectedRepName = e.target.value;
-                                    const matchedUser = users.find((u) => u.name === selectedRepName);
-                                    updateCustomer({
-                                      ...c,
-                                      salesRepName: selectedRepName || undefined,
-                                      repName: selectedRepName || undefined,
-                                      repId: matchedUser ? matchedUser.id : undefined,
-                                      branchName: c.branchName || matchedUser?.branchName || undefined,
-                                    });
-                                  }}
-                                  aria-label={`تحديد مندوب العميل ${c.name}`}
-                                  className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                >
-                                  <option value="">-- غير محدد --</option>
-                                  {(c.salesRepName || c.repName) &&
-                                    !users.some((u) => u.name === (c.salesRepName || c.repName)) && (
-                                      <option value={c.salesRepName || c.repName}>
-                                        {c.salesRepName || c.repName}
-                                      </option>
-                                    )}
-                                  {users
-                                    .filter((u) => u.role === 'sales_rep' || u.role === 'supervisor')
-                                    .map((u) => (
-                                      <option key={u.id} value={u.name}>
-                                        {u.name}
-                                      </option>
-                                    ))}
-                                </select>
-                              </td>
-                              <td className="p-3 text-slate-600">{c.address || c.governorate || '---'}</td>
-                              <td className="p-3 font-mono text-slate-500">{c.taxNumber || '---'}</td>
-                              <td className="p-3 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (window.confirm(`هل أنت متأكد من حذف العميل (${c.name})؟`)) {
-                                      deleteCustomer(c.id);
-                                    }
-                                  }}
-                                  className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer transition"
-                                  title="حذف العميل"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
+                          {displayed.map((c, i) => {
+                            const debt = c.currentBalance || c.balance || 0;
+                            const limit = c.creditLimit || 0;
+                            const availableCredit = limit > 0 ? Math.max(0, limit - debt) : null;
+
+                            return (
+                              <tr key={c.id} className="hover:bg-amber-50/40">
+                                <td className="p-3 text-slate-400 font-bold">{i + 1}</td>
+                                <td className="p-3 font-mono font-bold text-amber-900">{c.code || '---'}</td>
+                                <td className="p-3">
+                                  <div className="font-black text-slate-900">{c.name}</div>
+                                  {c.storeName && (
+                                    <div className="text-[10px] text-slate-500 font-semibold">{c.storeName}</div>
+                                  )}
+                                </td>
+                                <td className="p-3 text-slate-600">
+                                  <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[11px]">
+                                    {c.branchName || 'الفرع الرئيسي'}
+                                  </span>
+                                </td>
+                                <td className="p-3">
+                                  {/* Inline Rep Selector */}
+                                  <select
+                                    value={c.salesRepName || c.repName || ''}
+                                    onChange={(e) => {
+                                      const selectedRepName = e.target.value;
+                                      const matchedUser = users.find((u) => u.name === selectedRepName);
+                                      updateCustomer({
+                                        ...c,
+                                        salesRepName: selectedRepName || undefined,
+                                        repName: selectedRepName || undefined,
+                                        repId: matchedUser ? matchedUser.id : undefined,
+                                        branchName: c.branchName || matchedUser?.branchName || undefined,
+                                      });
+                                    }}
+                                    aria-label={`تحديد مندوب العميل ${c.name}`}
+                                    className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                  >
+                                    <option value="">-- غير محدد --</option>
+                                    {(c.salesRepName || c.repName) &&
+                                      !users.some((u) => u.name === (c.salesRepName || c.repName)) && (
+                                        <option value={c.salesRepName || c.repName}>
+                                          {c.salesRepName || c.repName}
+                                        </option>
+                                      )}
+                                    {users
+                                      .filter((u) => u.role === 'sales_rep' || u.role === 'supervisor')
+                                      .map((u) => (
+                                        <option key={u.id} value={u.name}>
+                                          {u.name}
+                                        </option>
+                                      ))}
+                                  </select>
+                                </td>
+                                <td className="p-3 font-mono font-bold text-rose-600">
+                                  {debt > 0 ? formatCurrency(debt) : <span className="text-slate-400">0 ج.م</span>}
+                                </td>
+                                <td className="p-3 font-mono font-bold text-blue-700">
+                                  {limit > 0 ? formatCurrency(limit) : <span className="text-slate-400">غير محدد</span>}
+                                </td>
+                                <td className="p-3 font-mono font-bold text-emerald-700">
+                                  {availableCredit !== null ? (
+                                    formatCurrency(availableCredit)
+                                  ) : (
+                                    <span className="text-slate-400">مفتوح</span>
+                                  )}
+                                </td>
+                                <td className="p-3 font-bold text-emerald-800 font-mono">{c.phone || '---'}</td>
+                                <td className="p-3 text-slate-600 text-[11px]">{c.address || c.governorate || '---'}</td>
+                                <td className="p-3 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (window.confirm(`هل أنت متأكد من حذف العميل (${c.name})؟`)) {
+                                        deleteCustomer(c.id);
+                                      }
+                                    }}
+                                    className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer transition"
+                                    title="حذف العميل"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
                           {filtered.length > customerDisplayLimit && (
                             <tr>
-                              <td colSpan={10} className="p-4 text-center bg-slate-50">
+                              <td colSpan={11} className="p-4 text-center bg-slate-50">
                                 <button
                                   type="button"
                                   onClick={() => setCustomerDisplayLimit((prev) => prev + 100)}

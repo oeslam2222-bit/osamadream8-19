@@ -1037,10 +1037,15 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('اسمالبائع') ||
       norm.includes('المندوبالمسؤول') ||
       norm.includes('المندوبالمسئول') ||
+      norm.includes('المندوبالمشرف') ||
       norm.includes('مندوبالمبيعات') ||
       norm.includes('مسؤولالمبيعات') ||
       norm.includes('مسئولالمبيعات') ||
       norm.includes('مسوولالمبيعات') ||
+      norm.includes('مسؤولالتوزيع') ||
+      norm.includes('مسئولالتوزيع') ||
+      norm.includes('مسؤولالخط') ||
+      norm.includes('مسئولالخط') ||
       norm.includes('مندوبالبيع') ||
       norm.includes('كودالمندوب') ||
       norm.includes('المندوب') ||
@@ -1050,21 +1055,33 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('موزع') ||
       norm.includes('salesrep') ||
       norm.includes('representative') ||
+      norm.includes('salesman') ||
+      norm.includes('salesperson') ||
       norm.includes('repname') ||
       norm === 'rep'
     ) {
       if (colMap.repName === -1) colMap.repName = idx;
     }
     // 2. Check Branch
-    else if (norm.includes('فرع') || norm.includes('branch') || norm.includes('الفرع')) {
+    else if (
+      norm.includes('اسمالفرع') ||
+      norm.includes('فرع') ||
+      norm.includes('الفرع') ||
+      norm.includes('المنطقه') ||
+      norm.includes('منطقة') ||
+      norm.includes('branch') ||
+      norm.includes('branchname')
+    ) {
       if (colMap.branchName === -1) colMap.branchName = idx;
     }
     // 3. Check Customer Code
     else if (
       norm.includes('كودالعميل') ||
-      norm.includes('رقم العميل') ||
-      norm.includes('رقم المحل') ||
+      norm.includes('رقمالعميل') ||
+      norm.includes('رقمالمحل') ||
       norm.includes('كودالمحل') ||
+      norm.includes('كودالحساب') ||
+      norm.includes('رقمالحساب') ||
       norm.includes('كود') ||
       norm.includes('code') ||
       norm.includes('cust_id') ||
@@ -1078,12 +1095,18 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('حدائتمان') ||
       norm.includes('الحدالائتماني') ||
       norm.includes('الحدالائتمانى') ||
+      norm.includes('الحدالائتمان') ||
       norm.includes('الحدالمسموح') ||
+      norm.includes('الحدالمسموحبه') ||
       norm.includes('سقفالائتمان') ||
       norm.includes('الائتمانالمعتمد') ||
       norm.includes('حدالائتمان') ||
+      norm.includes('حدالبيعالاجل') ||
+      norm.includes('حدالدين') ||
       norm.includes('ائتمان') ||
+      norm.includes('الائتمان') ||
       norm.includes('creditlimit') ||
+      norm.includes('limit') ||
       norm.includes('credit')
     ) {
       if (colMap.creditLimit === -1) colMap.creditLimit = idx;
@@ -1096,16 +1119,32 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('المديونيهالحاليه') ||
       norm.includes('مديونيةسابقة') ||
       norm.includes('مديونيهسابقه') ||
+      norm.includes('مديونيةالعميل') ||
+      norm.includes('مديونيهالعميل') ||
+      norm.includes('اجماليالمديونية') ||
+      norm.includes('اجماليالمديونيه') ||
       norm.includes('المديونية') ||
       norm.includes('المديونيه') ||
       norm.includes('مديونية') ||
       norm.includes('مديونيه') ||
       norm.includes('الرصيدالافتتاحي') ||
-      norm.includes('رصيدالعميل') ||
+      norm.includes('رصيدافتتاحي') ||
+      norm.includes('الرصيدالسابق') ||
       norm.includes('رصيدسابق') ||
+      norm.includes('الرصيدالحالي') ||
+      norm.includes('رصيدحالي') ||
+      norm.includes('رصيدالعميل') ||
       norm.includes('حسابالعميل') ||
+      norm.includes('صافيالحساب') ||
+      norm.includes('اجماليالحساب') ||
+      norm.includes('المستحق') ||
+      norm.includes('مستحق') ||
+      norm.includes('المتبقي') ||
+      norm.includes('متبقي') ||
       norm.includes('الرصيد') ||
       norm.includes('رصيد') ||
+      norm.includes('حساب') ||
+      norm.includes('عليه') ||
       norm.includes('currentbalance') ||
       norm.includes('prevbalance') ||
       norm.includes('previousbalance') ||
@@ -1120,6 +1159,8 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('اسمالمحل') ||
       norm.includes('اسمالتاجر') ||
       norm.includes('اسمالزبون') ||
+      norm.includes('اسمالشركه') ||
+      norm.includes('اسمالشركة') ||
       norm.includes('عميل') ||
       norm.includes('محل') ||
       norm.includes('تاجر') ||
@@ -1522,32 +1563,62 @@ export function generateSampleCustomersTemplate(): void {
     {
       id: 'sample-cust-1',
       code: 'CUST-101',
-      name: 'سنتر الأمل للتجارة',
-      storeName: 'سنتر الأمل للتجارة',
+      name: 'سوبر ماركت النور والبركة',
+      storeName: 'سوبر ماركت النور والبركة',
       phone: '01011122233',
-      branchName: 'فرع القاهرة',
-      repName: 'أحمد محمود',
-      salesRepName: 'أحمد محمود',
+      branchName: 'فرع المنيا',
+      repName: 'حسن محمد',
+      salesRepName: 'حسن محمد',
+      creditLimit: 50000,
+      currentBalance: 8500,
+      balance: 8500,
+      address: 'شارع الجمهورية - المنيا',
+      tier: 'مميز',
     },
     {
       id: 'sample-cust-2',
       code: 'CUST-102',
-      name: 'معرض النور للأدوات المنزلية',
-      storeName: 'معرض النور للأدوات المنزلية',
+      name: 'معرض الأمل للأدوات والتجارة',
+      storeName: 'معرض الأمل للأدوات والتجارة',
       phone: '01122233344',
-      branchName: 'فرع الفيوم',
-      repName: 'محمود عبد الرحيم',
-      salesRepName: 'محمود عبد الرحيم',
+      branchName: 'فرع المنيا',
+      repName: 'علاء عمر',
+      salesRepName: 'علاء عمر',
+      creditLimit: 30000,
+      currentBalance: 0,
+      balance: 0,
+      address: 'بندر المنيا - بجوار المحطة',
+      tier: 'راقي',
     },
     {
       id: 'sample-cust-3',
       code: 'CUST-103',
-      name: 'محلات الهلال والنجمة',
-      storeName: 'محلات الهلال والنجمة',
+      name: 'محلات الهلال والنجمة للتوزيع',
+      storeName: 'محلات الهلال والنجمة للتوزيع',
       phone: '01233344455',
-      branchName: 'فرع المنيا',
-      repName: 'مصطفى القوصي',
-      salesRepName: 'مصطفى القوصي',
+      branchName: 'فرع الفيوم',
+      repName: 'محمود عبد الرحيم',
+      salesRepName: 'محمود عبد الرحيم',
+      creditLimit: 75000,
+      currentBalance: 12300,
+      balance: 12300,
+      address: 'شارع البحر - الفيوم',
+      tier: 'مميز',
+    },
+    {
+      id: 'sample-cust-4',
+      code: 'CUST-104',
+      name: 'سنتر الفيروز ماركت',
+      storeName: 'سنتر الفيروز ماركت',
+      phone: '01099887766',
+      branchName: 'فرع القاهرة',
+      repName: 'أحمد محمود',
+      salesRepName: 'أحمد محمود',
+      creditLimit: 40000,
+      currentBalance: 4200,
+      balance: 4200,
+      address: 'مدينة نصر - القاهرة',
+      tier: 'متوسط',
     },
   ];
 
@@ -1560,40 +1631,53 @@ export function generateSampleCustomersTemplate(): void {
 export function exportCustomersToExcel(customers: Customer[]): void {
   const wb = XLSX.utils.book_new();
 
-  const headers = ['كود العميل', 'اسم العميل / المحل', 'الفرع التابع له', 'اسم المندوب', 'رقم الهاتف', 'الحد الائتماني (ج.م)', 'المديونية الحالية (ج.م)', 'المتبقي من الحد الائتماني (ج.م)'];
+  const headers = [
+    'كود العميل',
+    'اسم العميل / المحل',
+    'الفرع التابع له',
+    'اسم المندوب المسؤول',
+    'المديونية الحالية (ج.م)',
+    'الحد الائتماني (ج.م)',
+    'المتبقي من الائتمان (ج.م)',
+    'رقم الهاتف',
+    'العنوان والمحافظة',
+    'الرقم الضريبي',
+  ];
 
-  const rows = customers.map(c => {
-    const limit = c.creditLimit || 50000;
-    const balance = c.currentBalance || 0;
+  const rows = customers.map((c) => {
+    const limit = Number(c.creditLimit) || 0;
+    const balance = Number(c.currentBalance ?? c.balance ?? 0);
     const available = Math.max(0, limit - balance);
     return [
-      c.code,
+      c.code || '---',
       c.name,
-      c.branchName,
-      c.repName || c.salesRepName || '',
-      c.phone || '',
-      limit,
+      c.branchName || 'الفرع الرئيسي',
+      c.salesRepName || c.repName || 'غير محدد',
       balance,
-      available
+      limit,
+      available,
+      c.phone || '',
+      c.address || c.governorate || '',
+      c.taxNumber || '',
     ];
   });
 
-  const data = [headers, ...rows];
-  const ws = XLSX.utils.aoa_to_sheet(data);
-
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   ws['!cols'] = [
     { wch: 14 },
-    { wch: 32 },
+    { wch: 35 },
+    { wch: 18 },
     { wch: 22 },
-    { wch: 22 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 20 },
     { wch: 16 },
-    { wch: 20 },
-    { wch: 20 },
-    { wch: 24 }
+    { wch: 30 },
+    { wch: 16 },
   ];
 
-  XLSX.utils.book_append_sheet(wb, ws, 'قاعدة_بيانات_العملاء');
-  XLSX.writeFile(wb, `عملاء_شركة_دريم_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  XLSX.utils.book_append_sheet(wb, ws, 'سجل_العملاء');
+  XLSX.writeFile(wb, `سجل_عملاء_دريم_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 /**

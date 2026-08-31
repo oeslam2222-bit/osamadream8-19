@@ -84,7 +84,15 @@ interface AppContextType {
   deleteCustomer: (customerId: string) => void;
   importCustomersList: (newCustomers: Customer[], mode?: 'merge' | 'replace') => void;
   cleanAndDeduplicateCustomers: () => { originalCount: number; deduplicatedCount: number; duplicatesRemoved: number };
-  refreshCustomerRepLinks: () => { updatedCount: number };
+  refreshCustomerRepLinks: () => {
+    updatedCount: number;
+    totalCustomers: number;
+    linkedCustomersCount: number;
+    unassignedCount: number;
+    repBreakdown: { repName: string; branchName: string; customerCount: number; hasUserAccount: boolean; user?: User }[];
+    unmatchedReps: string[];
+  };
+  autoCreateMissingRepsFromCustomers: () => { createdUsers: User[]; count: number; message: string };
 
   // Auth actions
   login: (identifier: string, password?: string) => Promise<{ success: boolean; message: string; user?: User }>;
@@ -902,17 +910,134 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveCustomersToSupabase(finalCustomers).catch((e) => console.warn('Supabase customer bulk save error:', e));
   };
 
-  const refreshCustomerRepLinks = (): { updatedCount: number } => {
+  const refreshCustomerRepLinks = (): {
+    updatedCount: number;
+    totalCustomers: number;
+    linkedCustomersCount: number;
+    unassignedCount: number;
+    repBreakdown: { repName: string; branchName: string; customerCount: number; hasUserAccount: boolean; user?: User }[];
+    unmatchedReps: string[];
+  } => {
     let updatedCount = 0;
+    const currentUsers = users;
+    let nextCustomers: Customer[] = [];
+
     setCustomers((prev) => {
-      const linked = linkCustomersToUsers(prev, users);
+      const linked = linkCustomersToUsers(prev, currentUsers);
       updatedCount = linked.filter(
         (c, i) => c.repId !== prev[i]?.repId || c.branchName !== prev[i]?.branchName || c.salesRepName !== prev[i]?.salesRepName
       ).length;
       saveCustomersToSupabase(linked).catch(() => {});
+      nextCustomers = linked;
       return linked;
     });
-    return { updatedCount };
+
+    const listToAnalyze = nextCustomers.length > 0 ? nextCustomers : customers;
+    const totalCustomers = listToAnalyze.length;
+    const repMap = new Map<string, { repName: string; branchName: string; customerCount: number; hasUserAccount: boolean; user?: User }>();
+    let linkedCustomersCount = 0;
+    let unassignedCount = 0;
+    const unmatchedSet = new Set<string>();
+
+    listToAnalyze.forEach((c) => {
+      const rep = (c.salesRepName || c.repName || '').trim();
+      if (!rep || rep === 'مندوب المبيعات' || rep === 'المندوب' || rep === 'غير محدد') {
+        unassignedCount++;
+        return;
+      }
+      linkedCustomersCount++;
+      const user = currentUsers.find(
+        (u) => (u.role === 'sales_rep' || u.role === 'supervisor') && (u.id === c.repId || isArabicNameMatch(rep, u.name))
+      );
+      const key = user ? user.name : rep;
+      if (!repMap.has(key)) {
+        repMap.set(key, {
+          repName: key,
+          branchName: c.branchName || user?.branchName || '',
+          customerCount: 0,
+          hasUserAccount: !!user,
+          user,
+        });
+      }
+      repMap.get(key)!.customerCount++;
+      if (!user) {
+        unmatchedSet.add(rep);
+      }
+    });
+
+    return {
+      updatedCount,
+      totalCustomers,
+      linkedCustomersCount,
+      unassignedCount,
+      repBreakdown: Array.from(repMap.values()),
+      unmatchedReps: Array.from(unmatchedSet),
+    };
+  };
+
+  const autoCreateMissingRepsFromCustomers = (): { createdUsers: User[]; count: number; message: string } => {
+    const created: User[] = [];
+    const repNamesMap = new Map<string, { name: string; branchName: string }>();
+
+    customers.forEach((c) => {
+      const rep = (c.salesRepName || c.repName || '').trim();
+      if (!rep || rep === 'مندوب المبيعات' || rep === 'المندوب' || rep === 'غير محدد') return;
+      if (!repNamesMap.has(rep)) {
+        repNamesMap.set(rep, {
+          name: rep,
+          branchName: c.branchName || 'فرع المنيا',
+        });
+      }
+    });
+
+    const newUsersList = [...users];
+    let addedAny = false;
+
+    repNamesMap.forEach(({ name, branchName }) => {
+      const exists = newUsersList.some(
+        (u) => (u.role === 'sales_rep' || u.role === 'supervisor') && isArabicNameMatch(name, u.name)
+      );
+      if (!exists) {
+        const cleanId = `rep_${name.replace(/\s+/g, '_').toLowerCase()}_${Date.now().toString().slice(-4)}`;
+        const cleanUser = name.replace(/\s+/g, '').toLowerCase().slice(0, 15);
+        const newUser: User = {
+          id: cleanId,
+          name,
+          username: cleanUser || `rep_${Date.now().toString().slice(-4)}`,
+          email: `${cleanUser || 'rep'}@dream.com`,
+          role: 'sales_rep',
+          branchName: branchName || 'فرع المنيا',
+          phone: '',
+          isActive: true,
+          approvalStatus: 'active',
+          registrationDate: new Date().toISOString(),
+        };
+        newUsersList.push(newUser);
+        created.push(newUser);
+        addedAny = true;
+      }
+    });
+
+    if (addedAny) {
+      setUsers(newUsersList);
+      safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(newUsersList));
+      idbSet(STORAGE_KEYS.USERS, newUsersList);
+      saveUsersToSupabase(newUsersList).catch(() => {});
+      // Link customers to new users
+      setCustomers((prev) => {
+        const linked = linkCustomersToUsers(prev, newUsersList);
+        saveCustomersToSupabase(linked).catch(() => {});
+        return linked;
+      });
+    }
+
+    return {
+      createdUsers: created,
+      count: created.length,
+      message: created.length > 0
+        ? `تم إنشاء وتفعيل حسابات ${created.length} مندوب بنجاح وربط عملائهم تلقائياً!`
+        : 'جميع المناديب المذكورين بالشيت لديهم حسابات مفعلة بالفعل ومطابقة للعملاء.',
+    };
   };
 
   // Auto-link customers to users when user list changes (e.g. after Supabase fetch)
@@ -2699,6 +2824,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         importCustomersList,
         cleanAndDeduplicateCustomers,
         refreshCustomerRepLinks,
+        autoCreateMissingRepsFromCustomers,
         login,
         register,
         logout,
