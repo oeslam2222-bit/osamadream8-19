@@ -660,7 +660,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
-      // 3. Push local users, invoices, and products to Supabase if requested
+      // 2b. Fetch customers from Supabase
+      if (direction === 'fetch' || direction === 'both') {
+        const custRes = await fetchCustomersFromSupabase();
+        if (custRes.success && custRes.customers && custRes.customers.length > 0) {
+          setCustomers((prev) => {
+            const linked = linkCustomersToUsers(custRes.customers!, users);
+            const merged = sanitizeCustomers([...prev, ...linked]);
+            return merged;
+          });
+        }
+      }
       if (direction === 'push' || direction === 'both') {
         if (users.length > 0) {
           await saveUsersToSupabase(users);
@@ -760,6 +770,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               prev.forEach((i) => map.set(i.id, i));
               res.invoices!.forEach((si) => map.set(si.id, si));
               return Array.from(map.values());
+            });
+          }
+        });
+
+        // 4. Fetch Customers from Supabase and link them to user accounts
+        fetchCustomersFromSupabase().then((res) => {
+          if (res.success && res.customers && res.customers.length > 0) {
+            setCustomers((prev) => {
+              const linked = linkCustomersToUsers(res.customers!, users);
+              const merged = sanitizeCustomers([...prev, ...linked]);
+              return merged;
             });
           }
         });
@@ -2935,10 +2956,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return customers.filter((c) => Boolean(c.branchName) && doesCustomerBelongToBranch(c, currentUser.branchName));
     }
     if (currentUser.role === 'supervisor') {
-      const repIds = new Set(users.filter((u) => u.role === 'sales_rep' && u.supervisorId === currentUser.id && isBranchMatch(u.branchName, currentUser.branchName, { allowUnassigned: false })).map((u) => u.id));
-      return customers.filter((c) => Boolean(c.branchName) && isBranchMatch(c.branchName, currentUser.branchName, { allowUnassigned: false }) && Boolean(c.repId) && repIds.has(c.repId));
+      return customers.filter((c) => doesCustomerBelongToSupervisor(c, currentUser, users));
     }
-    return customers.filter((c) => Boolean(c.branchName) && isBranchMatch(c.branchName, currentUser.branchName, { allowUnassigned: false }) && c.repId === currentUser.id);
+    return customers.filter((c) => doesCustomerBelongToRep(c, currentUser));
   };
 
   const getVisibleProducts = (): Product[] => {
