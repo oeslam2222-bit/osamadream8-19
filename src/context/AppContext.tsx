@@ -276,7 +276,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             });
           }
         });
-      return Array.from(userMap.values());
+      const unique = new Map<string, User>();
+      for (const user of userMap.values()) {
+        const key = `${String(user.username || '').trim().toLowerCase()}|${String(user.email || '').trim().toLowerCase()}|${String(user.name || '').trim().replace(/\s+/g, ' ')}`;
+        if (!unique.has(key) || user.approvalStatus === 'active') unique.set(key, user);
+      }
+      return Array.from(unique.values());
     } catch {
       return Array.from(userMap.values());
     }
@@ -1586,7 +1591,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             unitPrice: appliedCartonPrice,
             pricePerPiece: piecePrice,
             totalPrice,
-            quantityDescription: cartonsToAdd > 0 && piecesToAdd > 0 ? `${cartonsToAdd} كرتونة و ${piecesToAdd} قطعة` : cartonsToAdd > 0 ? `${cartonsToAdd} كرتونة` : `${piecesToAdd} قطعة`,
+            quantityDescription: cartonsToAdd > 0 && piecesToAdd > 0 ? `${cartonsToAdd} ك��تونة و ${piecesToAdd} قطعة` : cartonsToAdd > 0 ? `${cartonsToAdd} كرتونة` : `${piecesToAdd} قطعة`,
             fulfillFromMainWarehouse: latestProd.branchStockActual <= 0 && latestProd.mainWarehouseActual > 0,
           },
         ];
@@ -2196,7 +2201,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           tier: 'عادي',
           balance: 0,
           creditLimit: 50000,
-          notes: `تم تسجيل العميل تلقائياً مع الفاتورة #${primaryInvoice.invoiceNumber}`,
+          notes: `تم تسجيل ال��ميل تلقائياً مع الفاتورة #${primaryInvoice.invoiceNumber}`,
           lastOrderDate: formattedDate,
           totalOrdersCount: 1,
           totalSpent: primaryTotals.estimatedGrandTotal,
@@ -2611,7 +2616,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       badgeType: status === 'تم التسليم' || status === 'معتمدة ومصروفة من المخزن' ? 'success' : isNowReturnedOrCancelled ? 'danger' : 'info',
     });
 
-    let message = `تم تحديث حالة الطلبية #${inv.invoiceNumber} بنجاح إلى: ${status}`;
+    let message = `تم تحدي�� حالة الطلبية #${inv.invoiceNumber} بنجاح إلى: ${status}`;
     if (status === 'مرتجع') {
       message = `تم تسجيل الطلبية #${inv.invoiceNumber} كـ (مرتجع) وإرجاع كافة الكراتين والأرصدة إلى المخزن بنجاح!`;
     } else if (status === 'تم التسليم') {
