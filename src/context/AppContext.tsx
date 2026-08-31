@@ -50,6 +50,8 @@ import {
   Invoice,
   OrderStatus,
   Product,
+  ReturnedItem,
+  ReturnRecord,
   User,
   UserApprovalStatus,
   UserRole,
@@ -145,6 +147,12 @@ interface AppContextType {
   forwardOrderToManager: (invoiceId: string, notes?: string) => { success: boolean; message: string };
   rejectOrder: (invoiceId: string, reason: string) => { success: boolean; message: string };
   updateOrderStatus: (invoiceId: string, status: OrderStatus, reason?: string) => { success: boolean; message: string };
+  processOrderReturn: (
+    invoiceId: string,
+    returnedItems: ReturnedItem[],
+    reason: string,
+    restockToInventory?: boolean
+  ) => { success: boolean; message: string; returnRecord?: ReturnRecord };
   deleteInvoice: (invoiceId: string) => void;
   syncToAccounting: (invoiceId: string) => Promise<boolean>;
 
@@ -2583,6 +2591,160 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message };
   };
 
+  const processOrderReturn = (
+    invoiceId: string,
+    returnedItems: ReturnedItem[],
+    reason: string,
+    restockToInventory: boolean = true
+  ): { success: boolean; message: string; returnRecord?: ReturnRecord } => {
+    const inv = invoices.find((i) => i.id === invoiceId);
+    if (!inv) return { success: false, message: 'الفاتورة غير موجودة' };
+
+    if (!returnedItems || returnedItems.length === 0) {
+      return { success: false, message: 'يرجى تحديد صنف واحد على الأقل مع تحديد الكمية المرتجعة' };
+    }
+
+    const totalRefundAmount = returnedItems.reduce((sum, item) => sum + (item.refundAmount || 0), 0);
+    const totalReturnedCartons = returnedItems.reduce((sum, item) => sum + (item.cartonCount || 0), 0);
+    const totalReturnedPieces = returnedItems.reduce((sum, item) => sum + (item.totalPieces || (item.pieceCount || 0)), 0);
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const timeStr = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const returnVoucherNumber = `RET-${new Date().getFullYear()}-${String(Math.floor(1000 + Math.random() * 9000))}`;
+
+    const newReturnRecord: ReturnRecord = {
+      id: `ret_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      returnVoucherNumber,
+      invoiceId: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      customerName: inv.customerName,
+      customerCode: inv.customerCode,
+      branchName: inv.branchName,
+      repName: inv.repName,
+      date: dateStr,
+      time: timeStr,
+      returnedItems,
+      totalRefundAmount,
+      totalReturnedCartons,
+      totalReturnedPieces,
+      reason: reason || 'مرتجع مبيعات',
+      handledBy: currentUser?.name || 'مسؤول النظام',
+      restockedToInventory: restockToInventory,
+      notes: `إذن مرتجع مبيعات #${returnVoucherNumber} للفاتورة #${inv.invoiceNumber}`,
+    };
+
+    // 1. Restock to inventory if requested and condition is good
+    if (restockToInventory) {
+      setProducts((prev) =>
+        prev.map((p) => {
+          const retItem = returnedItems.find((it) => it.productId === p.id);
+          if (!retItem || retItem.condition === 'damaged' || retItem.condition === 'expired') {
+            return p;
+          }
+          const addCartons = retItem.cartonCount || 0;
+          return {
+            ...p,
+            branchStockActual: p.branchStockActual + addCartons,
+            branchStockReserved: p.branchStockReserved + addCartons,
+          };
+        })
+      );
+
+      // Record inventory transactions for each returned item
+      returnedItems.forEach((retItem) => {
+        if (retItem.condition !== 'damaged' && retItem.condition !== 'expired' && retItem.cartonCount > 0) {
+          const prod = products.find((p) => p.id === retItem.productId);
+          const currentStock = prod ? prod.branchStockActual : 0;
+          recordInventoryTransaction({
+            productId: retItem.productId,
+            productCode: retItem.productCode,
+            productName: retItem.productName,
+            type: 'مرتجع مبيعات وإرجاع للمخزن',
+            quantityPieces: retItem.cartonCount,
+            branchStockBefore: currentStock,
+            branchStockAfter: currentStock + retItem.cartonCount,
+            branchName: inv.branchName,
+            userName: currentUser?.name || 'مسؤول المرتجعات',
+            userRole: currentUser?.role || 'branch_manager',
+            invoiceId: inv.id,
+            invoiceNumber: inv.invoiceNumber,
+            notes: `مرتجع مبيعات (${retItem.cartonCount} كرتونة) - إذن #${returnVoucherNumber} - السبب: ${retItem.returnReason || reason}`,
+          });
+        }
+      });
+    }
+
+    // 2. Adjust Customer Debt / Balance if applicable
+    if (totalRefundAmount > 0 && inv.customerName) {
+      setCustomers((prev) =>
+        prev.map((c) => {
+          const match = (inv.customerCode && c.code === inv.customerCode) || c.name === inv.customerName;
+          if (!match) return c;
+          const currentBal = c.currentBalance ?? c.balance ?? 0;
+          const updatedBal = Math.max(0, currentBal - totalRefundAmount);
+          return {
+            ...c,
+            currentBalance: updatedBal,
+            balance: updatedBal,
+          };
+        })
+      );
+    }
+
+    // 3. Determine if Full or Partial Return
+    const existingRecords = inv.returnRecords || [];
+    const updatedRecords = [...existingRecords, newReturnRecord];
+    const prevRefunded = inv.totalRefundedAmount || 0;
+    const allRefunded = prevRefunded + totalRefundAmount;
+
+    // Check if entire order is returned
+    const allReturnedCartonsCount = updatedRecords.reduce((s, r) => s + r.totalReturnedCartons, 0);
+    const isFullReturn = allReturnedCartonsCount >= inv.totalCartons || allRefunded >= inv.estimatedGrandTotal;
+
+    const newStatus: OrderStatus = isFullReturn ? 'مرتجع' : 'مرتجع جزئي';
+    const netGrandTotal = Math.max(0, inv.estimatedGrandTotal - allRefunded);
+
+    setInvoices((prev) =>
+      prev.map((i) => {
+        if (i.id !== invoiceId) return i;
+        const updated: Invoice = {
+          ...i,
+          status: newStatus,
+          hasReturns: true,
+          isPartialReturn: !isFullReturn,
+          returnRecords: updatedRecords,
+          totalRefundedAmount: allRefunded,
+          netAmountAfterReturns: netGrandTotal,
+          lastReturnDate: dateStr,
+          restoredStockDetails: `تم استرجاع ${totalReturnedCartons} كرتونة بقيمة ${totalRefundAmount.toLocaleString()} ج.م (إذن #${returnVoucherNumber})`,
+          notes: `${i.notes ? i.notes + ' | ' : ''}مرتجع ${isFullReturn ? 'كلي' : 'جزئي'} إذن #${returnVoucherNumber} بقيمة ${totalRefundAmount.toLocaleString()} ج.م (${reason})`,
+        };
+        saveInvoiceToSupabase(updated).catch((e) => console.warn('Supabase return sync failed:', e));
+        return updated;
+      })
+    );
+
+    // 4. Record Audit Log
+    recordAuditLog({
+      userId: currentUser?.id || 'admin',
+      userName: currentUser?.name || 'مسؤول النظام',
+      userRole: currentUser?.role || 'admin',
+      branchName: inv.branchName,
+      action: 'return_invoice',
+      actionTitle: `تسجيل مرتجع مبيعات ${isFullReturn ? 'كلي' : 'جزئي'} للفاتورة #${inv.invoiceNumber}`,
+      details: `إذن #${returnVoucherNumber} • العميل: ${inv.customerName} • القيمة المسترجعة: ${totalRefundAmount.toLocaleString()} ج.م • الكراتين: ${totalReturnedCartons} • السبب: ${reason}`,
+      invoiceId: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      badgeType: 'warning',
+    });
+
+    return {
+      success: true,
+      message: `تم تسجيل إذن المرتجع #${returnVoucherNumber} بنجاح (${isFullReturn ? 'مرتجع كلي' : 'مرتجع جزئي'}) بقيمة ${totalRefundAmount.toLocaleString()} ج.م وتحديث المخزون وحساب العميل!`,
+      returnRecord: newReturnRecord,
+    };
+  };
+
   const deleteInvoice = (invoiceId: string) => {
     setInvoices((prev) => prev.filter((inv) => inv.id !== invoiceId));
   };
@@ -2866,6 +3028,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         forwardOrderToManager,
         rejectOrder,
         updateOrderStatus,
+        processOrderReturn,
         deleteInvoice,
         syncToAccounting,
         addUser,

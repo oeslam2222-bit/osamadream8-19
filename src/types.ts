@@ -150,9 +150,46 @@ export type OrderStatus =
   | 'تم التسليم'
   | 'إغلاق الطلبية'
   | 'مرتجع'
+  | 'مرتجع جزئي'
   | 'مرفوضة / ملغاة'
   | 'ملغاة';
 export type PaymentMethod = 'نقدي (كاش)' | 'آجل (30 يوم)' | 'آجل (60 يوم)' | 'تحويل بنكي' | 'شيك';
+
+export interface ReturnedItem {
+  productId: string;
+  productCode: string;
+  productName: string;
+  cartonCount: number;               // عدد الكراتين المرتجعة
+  pieceCount: number;                // عدد القطع المرتجعة
+  cartonQuantity: number;            // شدة الكرتونة
+  totalPieces: number;               // إجمالي القطع المرتجعة
+  pricePerCarton: number;            // سعر الكرتونة
+  pricePerPiece: number;             // سعر القطعة
+  refundAmount: number;              // إجمالي القيمة المالية المرتجعة للصنف
+  returnReason?: string;             // سبب ارتجاع الصنف
+  condition?: 'good_condition' | 'damaged' | 'expired'; // حالة البضاعة (سليمة تعود للمخزن / تالفة / منتهية)
+}
+
+export interface ReturnRecord {
+  id: string;
+  returnVoucherNumber: string;       // رقم إذن المرتجع مثل: RET-2026-0014
+  invoiceId: string;
+  invoiceNumber: string;
+  customerName: string;
+  customerCode?: string;
+  branchName: string;
+  repName: string;
+  date: string;                      // تاريخ المرتجع
+  time: string;
+  returnedItems: ReturnedItem[];
+  totalRefundAmount: number;
+  totalReturnedCartons: number;
+  totalReturnedPieces: number;
+  reason: string;                    // سبب الارتجاع العام
+  handledBy: string;                 // اسم من قام بتسجيل المرتجع
+  restockedToInventory: boolean;     // هل تم إرجاع الكميات السليمة لرصيد المخزن الفعلي
+  notes?: string;
+}
 
 export interface InventoryTransaction {
   id: string;
@@ -249,6 +286,14 @@ export interface Invoice {
   cancelledBy?: string;
   cancelledAt?: string;
   restoredStockDetails?: string;
+
+  // Returns & Partial Return Records (إدارة المرتجعات الكلية والجزئية)
+  hasReturns?: boolean;
+  isPartialReturn?: boolean;
+  returnRecords?: ReturnRecord[];
+  totalRefundedAmount?: number;
+  netAmountAfterReturns?: number;
+  lastReturnDate?: string;
 }
 
 export interface CloudinaryConfig {
