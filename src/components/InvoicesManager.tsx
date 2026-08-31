@@ -44,6 +44,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     invoices,
     currentUser,
     users,
+    getVisibleInvoices,
     updateOrderStatus,
     deleteInvoice,
     approveOrder,
@@ -67,42 +68,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     setCurrentPage(1);
   }, [searchTerm, selectedStatus, selectedRepFilter, selectedBranchFilter, itemsPerPage]);
 
-  // Role based filtering logic
+  // The context applies the privacy boundary before local filters.
   const accessibleInvoices = useMemo(() => {
-    if (!currentUser) return [];
-
-    return invoices.filter((inv) => {
-      // 1. Strict Role boundaries & Branch Isolation
-      if (currentUser.role === 'sales_rep') {
-        // Sales Rep only sees his own invoices (Strict Privacy)
-        if (inv.repId !== currentUser.id && inv.repName !== currentUser.name) {
-          return false;
-        }
-      } else if (currentUser.role === 'supervisor') {
-        // Supervisor sees ONLY invoices for his branch and reps under his supervision
-        const isSameBranch = !inv.branchName || inv.branchName === currentUser.branchName;
-        const myReps = users.filter((u) => u.supervisorId === currentUser.id).map((u) => u.id);
-        const myRepNames = users.filter((u) => u.supervisorId === currentUser.id).map((u) => u.name);
-        const isMyRep = myReps.includes(inv.repId) || myRepNames.includes(inv.repName);
-        const isSelf = inv.repId === currentUser.id || inv.repName === currentUser.name;
-        const isMySupervision = inv.supervisorName === currentUser.name;
-
-        if (!isSameBranch || (!isMyRep && !isSelf && !isMySupervision)) {
-          return false;
-        }
-      } else if (currentUser.role === 'branch_manager') {
-        // Branch Manager STRICTLY sees only invoices for his own branch
-        if (inv.branchName !== currentUser.branchName) {
-          return false;
-        }
-      } else if (currentUser.role === 'admin' || currentUser.role === 'developer') {
-        // Admin & Developer see all, or filter by branch if chosen
-        if (selectedBranchFilter !== 'الكل' && inv.branchName !== selectedBranchFilter) {
-          return false;
-        }
-      }
-
-      // 2. Search query filter
+    return getVisibleInvoices().filter((inv) => {
+      // Search query filter
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase().trim();
         const numMatch = inv.invoiceNumber.toLowerCase().includes(q);
@@ -498,7 +467,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                       {/* Quantities */}
                       <td className="p-3 text-center">
                         <div className="font-black text-slate-900">{invoice.totalCartons} كرتونة</div>
-                        <div className="text-[10px] text-slate-500">{invoice.totalPieces} قطعة</div>
+                        <div className="text-[10px] text-slate-500">{invoice.totalPieces} قطع��</div>
                       </td>
 
                       {/* Estimated Grand Total */}
