@@ -192,7 +192,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
           repMap.set(u.name, {
             name: u.name,
             branchName: u.branchName || '',
-            customerCount: sourceCustomers.filter((c) => c.repId === u.id).length,
+            customerCount: sourceCustomers.filter((c) => doesCustomerBelongToRep(c, u)).length,
             isRegisteredUser: true,
             userId: u.id,
           });
@@ -230,7 +230,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     const visibleCustomers = getVisibleCustomers();
     if (!currentUser || isAdminOrDev) return visibleCustomers;
     if (scopeTab === 'my_customers' && isRep) {
-      return visibleCustomers.filter((c) => c.repId === currentUser.id);
+      return visibleCustomers.filter((c) => doesCustomerBelongToRep(c, currentUser));
     }
     return visibleCustomers;
   }, [getVisibleCustomers, currentUser, isAdminOrDev, isRep, scopeTab]);
