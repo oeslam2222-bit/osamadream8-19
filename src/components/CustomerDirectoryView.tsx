@@ -75,7 +75,11 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
   const [scopeTab, setScopeTab] = useState<'my_customers' | 'branch' | 'all'>(() => {
-    if (isRep) return 'my_customers';
+    // If rep has assigned customers, default to my_customers, otherwise show branch or all so they never see a blank screen
+    if (isRep) {
+      const myCount = currentUser ? customers.filter((c) => doesCustomerBelongToRep(c, currentUser)).length : 0;
+      return myCount > 0 ? 'my_customers' : 'branch';
+    }
     if (isSupervisor || isBranchManager) return 'branch';
     return 'all';
   });
@@ -1115,14 +1119,49 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
               {paginatedCustomers.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-slate-400">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                        <Users className="w-6 h-6" />
+                    <div className="flex flex-col items-center justify-center gap-3">
+                      <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                        <Users className="w-7 h-7" />
                       </div>
-                      <p className="font-bold text-slate-600">لا توجد نتائج تطابق خيارات البحث</p>
-                      <p className="text-[11px] text-slate-400">
-                        جرب تغيير كلمات البحث أو التبديل إلى تبويب "عملاء فرعي" أو "جميع العملاء"
-                      </p>
+                      <div>
+                        <p className="font-black text-slate-700 text-sm">
+                          {scopeTab === 'my_customers'
+                            ? 'لا يوجد عملاء مسندين لحسابك حالياً في هذا التبويب'
+                            : 'لا توجد نتائج تطابق خيارات البحث'}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                          {scopeTab === 'my_customers'
+                            ? 'يمكنك استعراض جميع عملاء الفرع أو الضغط أدناه للانتقال لعملاء الفرع والتنقل بحرية.'
+                            : 'جرب إزالة الفلاتر أو تغيير كلمة البحث لعرض العملاء.'}
+                        </p>
+                      </div>
+
+                      {scopeTab === 'my_customers' && (
+                        <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setScopeTab('branch');
+                              setCurrentPage(1);
+                            }}
+                            className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                          >
+                            <Building2 className="w-4 h-4" />
+                            <span>عرض عملاء الفرع ({currentUser?.branchName || 'الفرع'})</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setScopeTab('all');
+                              setCurrentPage(1);
+                            }}
+                            className="bg-slate-900 hover:bg-slate-800 text-white font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                          >
+                            <Users className="w-4 h-4" />
+                            <span>عرض جميع عملاء الفروع ({customers.length})</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </td>
                 </tr>
