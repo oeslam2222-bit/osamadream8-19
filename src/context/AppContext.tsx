@@ -858,15 +858,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return updated;
       }
 
-      // Check if candidate matches rep in same branch, or overall
+      // Check if candidate matches rep in user list
       const matchFn = (u: User) =>
         (updated.repId && u.id === updated.repId) ||
-        doesCustomerBelongToRep(updated, u) ||
         isArabicNameMatch(rawRep, u.name) ||
         (u.username && isArabicNameMatch(rawRep, u.username)) ||
-        (u.phone && (rawRep.includes(u.phone) || u.phone.includes(rawRep))) ||
-        normalizeArabicText(rawRep).includes(normalizeArabicText(u.name)) ||
-        normalizeArabicText(u.name).includes(normalizeArabicText(rawRep));
+        (u.phone && rawRep.length >= 8 && (rawRep === u.phone || u.phone.includes(rawRep)));
 
       let matched = reps.find(matchFn);
 

@@ -234,6 +234,18 @@ export const INITIAL_USERS: User[] = [
     approvalStatus: 'active',
   },
   {
+    id: 'u-rep-hassan-minya',
+    name: 'حسن محمد',
+    username: 'hassan_minya',
+    email: 'hassan@dream.com',
+    password: '',
+    role: 'sales_rep',
+    branchName: 'فرع المنيا',
+    phone: '01099881122',
+    isActive: true,
+    approvalStatus: 'active',
+  },
+  {
     id: 'u-mgr-minya',
     name: 'ماجد القوصي',
     username: 'minya_mgr',

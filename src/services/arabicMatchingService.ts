@@ -139,8 +139,8 @@ export function getArabicTokens(str?: string): string[] {
 
 /**
  * Intelligent Arabic Name Matcher
- * Handles exact matches, token overlap, prefix/suffix names (e.g. "يحيى عبد الفتاح" vs "يحيي عبدالفتاح"),
- * compound names, titles/honorifics stripping, and fuzzy Arabic variations.
+ * Handles exact matches, full token equality, prefix/suffix titles stripping,
+ * and compound names normalization without false positive partial matching.
  */
 export function isArabicNameMatch(nameA?: string, nameB?: string): boolean {
   if (!nameA || !nameB) return false;
@@ -148,11 +148,6 @@ export function isArabicNameMatch(nameA?: string, nameB?: string): boolean {
   const normB = normalizeArabicText(nameB);
   if (!normA || !normB) return false;
   if (normA === normB) return true;
-
-  // Direct containment check (e.g. "يحيي عبدالفتاح" inside "مندوب يحيى عبد الفتاح - المنيا")
-  if (normA.includes(normB) || normB.includes(normA)) {
-    return true;
-  }
 
   const tokensA = getArabicTokens(nameA);
   const tokensB = getArabicTokens(nameB);
@@ -162,50 +157,37 @@ export function isArabicNameMatch(nameA?: string, nameB?: string): boolean {
   const joinedB = tokensB.join(' ');
   if (joinedA === joinedB) return true;
 
-  // If one full tokenized string starts with or contains the other
-  if (joinedA.length >= 3 && joinedB.length >= 3) {
-    if (
-      joinedA.startsWith(joinedB) ||
-      joinedB.startsWith(joinedA) ||
-      joinedA.includes(joinedB) ||
-      joinedB.includes(joinedA)
-    ) {
-      return true;
-    }
+  // Exact word boundary containment (e.g. "علاء عمر" inside "مندوب علاء عمر فرع الفيوم")
+  if (
+    (` ${normA} `).includes(` ${normB} `) ||
+    (` ${normB} `).includes(` ${normA} `) ||
+    (` ${joinedA} `).includes(` ${joinedB} `) ||
+    (` ${joinedB} `).includes(` ${joinedA} `)
+  ) {
+    return true;
   }
 
-  // Token matching heuristics
+  // Token matching heuristics:
+  // Names MUST share first name token or all tokens of shorter name
   const [shorter, longer] = tokensA.length <= tokensB.length ? [tokensA, tokensB] : [tokensB, tokensA];
   const longerSet = new Set(longer);
 
-  // If all tokens of shorter name exist in longer name (e.g. "يحيى عبدالفتاح" in "يحيى عبد الفتاح طنطاوي")
+  // If all tokens of shorter name exist in longer name in exact sequence or set
   const allShorterMatch = shorter.every((t) => longerSet.has(t));
   if (allShorterMatch) {
     return true;
   }
 
-  // First name (first token) match check
+  // If first names match (e.g. "يحيى بدير" and "يحيى بدير طنطاوي" or "يحيى" and "يحيى بدير")
   const firstMatch = tokensA[0] === tokensB[0];
   if (firstMatch) {
-    // If one of them has only 1 token (e.g. "يحيى" matching "يحيى عبد الفتاح")
     if (tokensA.length === 1 || tokensB.length === 1) {
       return true;
     }
-    // If both have >= 2 tokens and share second token as well
+    // If both have >= 2 tokens and second token matches
     if (tokensA[1] === tokensB[1]) {
       return true;
     }
-    // Count shared tokens
-    const sharedCount = shorter.filter((t) => longerSet.has(t)).length;
-    if (sharedCount >= 2 || (sharedCount >= 1 && shorter.length <= 2)) {
-      return true;
-    }
-  }
-
-  // Check if >= 2 distinctive tokens match anywhere in the name
-  const sharedTokens = shorter.filter((t) => longerSet.has(t));
-  if (sharedTokens.length >= 2) {
-    return true;
   }
 
   return false;
@@ -674,22 +656,23 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
 
     if (isGenericRep) continue;
 
-    // Exact or normalized Arabic match
+    // Exact or normalized Arabic match via isArabicNameMatch
     if (isArabicNameMatch(repField, repUser.name)) return true;
     if (repUser.username && isArabicNameMatch(repField, repUser.username)) return true;
-    if (repUser.phone && (repField.includes(repUser.phone) || repUser.phone.includes(repField))) return true;
+    if (repUser.phone && repUser.phone.length >= 8 && (repField.includes(repUser.phone) || repUser.phone.includes(repField))) return true;
 
     const normRepField = normalizeArabicText(repField);
     const normUserName = normalizeArabicText(repUser.name);
 
     if (normRepField && normUserName) {
       if (normRepField === normUserName) return true;
-      if (normRepField.includes(normUserName) || normUserName.includes(normRepField)) {
+      // Word boundary match
+      if ((` ${normRepField} `).includes(` ${normUserName} `) || (` ${normUserName} `).includes(` ${normRepField} `)) {
         return true;
       }
     }
 
-    // Tokenized Arabic matching after stop words removal (e.g. "علاء عمر" vs "مندوب / علاء - فرع الفيوم")
+    // Tokenized Arabic matching after stop words removal (e.g. "علاء عمر" vs "مندوب / علاء عمر - فرع الفيوم")
     const repTokens = getArabicTokens(repField).filter((t) => !STOP_TOKENS.has(t));
 
     if (cleanUserTokens.length > 0 && repTokens.length > 0) {
@@ -697,20 +680,9 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
       const allUserTokensMatch = cleanUserTokens.every((tok) => repTokens.includes(tok));
       if (allUserTokensMatch) return true;
 
-      // Check if all rep tokens exist in user name tokens (e.g. rep field is "علاء" and user is "علاء عمر")
+      // Check if all rep tokens exist in user name tokens (e.g. rep field is "علاء عمر" and user is "علاء عمر السيد")
       const allRepTokensInUser = repTokens.every((tok) => cleanUserTokens.includes(tok));
       if (allRepTokensInUser) return true;
-
-      // First/distinctive name matching (e.g. "علاء" matches "علاء عمر")
-      if (repTokens[0] && cleanUserTokens[0] && repTokens[0] === cleanUserTokens[0]) {
-        return true;
-      }
-
-      // Shared tokens >= 1 when repTokens is small
-      const sharedTokens = cleanUserTokens.filter((tok) => repTokens.includes(tok));
-      if (sharedTokens.length >= 1 && (cleanUserTokens.length <= 2 || repTokens.length <= 2)) {
-        return true;
-      }
     }
   }
 
