@@ -217,6 +217,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return clean;
   };
 
+  const normalizeIdentity = (value?: string) => normalizeArabicText(String(value || '')).replace(/\s+/g, '');
+  const hasDuplicateUserIdentity = (candidate: Partial<User>, list: User[], excludeId?: string) => {
+    const username = normalizeIdentity(candidate.username);
+    const email = normalizeIdentity(candidate.email);
+    const phone = normalizeIdentity(candidate.phone);
+    const name = normalizeIdentity(candidate.name);
+    return list.some((u) => {
+      if (u.id === excludeId) return false;
+      return (username && normalizeIdentity(u.username) === username) ||
+        (email && normalizeIdentity(u.email) === email) ||
+        (phone && normalizeIdentity(u.phone) === phone) ||
+        (name && normalizeIdentity(u.name) === name);
+    });
+  };
+
   // Auth and Session Notice
   const [authTerminationNotice, setAuthTerminationNotice] = useState<string | null>(null);
   const clearAuthTerminationNotice = () => setAuthTerminationNotice(null);
@@ -1308,11 +1323,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         u.username.toLowerCase() === userData.username.trim().toLowerCase()
     );
 
-    if (existing) {
-      return { success: false, message: 'البريد الإلكتروني أو اسم المستخدم مسجل بالفعل.' };
-    }
-
-    const newUser: User = {
+  if (existing || hasDuplicateUserIdentity(userData, users)) {
+  return { success: false, message: 'اسم المستخدم أو البريد أو الهاتف أو اسم المندوب مسجل بالفعل.' };
+  }
+  
+  const newUser: User = {
       id: `u-${Date.now()}`,
       name: userData.name.trim(),
       username: userData.username.trim().toLowerCase(),
@@ -2795,8 +2810,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addUser = (user: User) => {
-    setUsers((prev) => {
-      const map = new Map<string, User>();
+  if (hasDuplicateUserIdentity(user, users, user.id)) return;
+  setUsers((prev) => {
+  const map = new Map<string, User>();
       prev.forEach((u) => map.set(u.id, u));
       map.set(user.id, user);
       return Array.from(map.values());
@@ -2808,7 +2824,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateUser = (updatedUser: User) => {
-    setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+  if (hasDuplicateUserIdentity(updatedUser, users, updatedUser.id)) return;
+  setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
     if (currentUser?.id === updatedUser.id) {
       if (!updatedUser.isActive || updatedUser.approvalStatus === 'rejected') {
         logout();
@@ -2893,62 +2910,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // --- Role-Based Data Visibility (STRICT PRIVACY) ---
   const getVisibleInvoices = (): Invoice[] => {
     if (!currentUser) return [];
-
-    // Admin & Developer see all invoices across all branches (or filtered by selected branch)
     if (currentUser.role === 'admin' || currentUser.role === 'developer') {
-      if (selectedBranchFilter !== 'الكل') {
-        return invoices.filter(i => i.branchName === selectedBranchFilter);
-      }
-      return invoices;
+      return selectedBranchFilter === 'الكل' ? invoices : invoices.filter((i) => i.branchName === selectedBranchFilter);
     }
-
-    // Branch Manager sees all invoices of their specific branch
     if (currentUser.role === 'branch_manager') {
-      return invoices.filter(i => i.branchName === currentUser.branchName);
+      return invoices.filter((i) => Boolean(i.branchName) && isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false }));
     }
-
-    // Supervisor sees invoices of reps in their branch or assigned directly to them
     if (currentUser.role === 'supervisor') {
-      const supervisedReps = users.filter(
-        (u) =>
-          u.supervisorId === currentUser.id ||
-          (u.role === 'sales_rep' && isBranchMatch(u.branchName, currentUser.branchName))
-      );
-      const repIds = new Set(supervisedReps.map((u) => u.id));
-      repIds.add(currentUser.id);
-
-      return invoices.filter((i) => {
-        if (!isBranchMatch(i.branchName, currentUser.branchName)) return false;
-        if (i.repId && repIds.has(i.repId)) return true;
-        if (i.supervisorName && isArabicNameMatch(i.supervisorName, currentUser.name)) return true;
-        if (i.repName && isArabicNameMatch(i.repName, currentUser.name)) return true;
-        return supervisedReps.some((r) => isArabicNameMatch(i.repName, r.name));
-      });
+      const repIds = new Set(users.filter((u) => u.role === 'sales_rep' && u.supervisorId === currentUser.id && isBranchMatch(u.branchName, currentUser.branchName, { allowUnassigned: false })).map((u) => u.id));
+      return invoices.filter((i) => Boolean(i.branchName) && isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false }) && Boolean(i.repId) && repIds.has(i.repId));
     }
-
-    // Sales Rep: STRICT PRIVACY - ONLY his own invoices
-    return invoices.filter(
-      (i) =>
-        i.repId === currentUser.id ||
-        isArabicNameMatch(i.repName, currentUser.name) ||
-        (currentUser.username && isArabicNameMatch(i.repName, currentUser.username))
-    );
+    return invoices.filter((i) => Boolean(i.branchName) && isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false }) && i.repId === currentUser.id);
   };
 
   const getVisibleCustomers = (): Customer[] => {
     if (!currentUser) return [];
     if (currentUser.role === 'admin' || currentUser.role === 'developer') return customers;
-
     if (currentUser.role === 'branch_manager') {
-      return customers.filter((c) => doesCustomerBelongToBranch(c, currentUser.branchName));
+      return customers.filter((c) => Boolean(c.branchName) && doesCustomerBelongToBranch(c, currentUser.branchName));
     }
-
     if (currentUser.role === 'supervisor') {
-      return customers.filter((c) => doesCustomerBelongToSupervisor(c, currentUser, users));
+      const repIds = new Set(users.filter((u) => u.role === 'sales_rep' && u.supervisorId === currentUser.id && isBranchMatch(u.branchName, currentUser.branchName, { allowUnassigned: false })).map((u) => u.id));
+      return customers.filter((c) => Boolean(c.branchName) && isBranchMatch(c.branchName, currentUser.branchName, { allowUnassigned: false }) && Boolean(c.repId) && repIds.has(c.repId));
     }
-
-    // Sales Rep: STRICT PRIVACY - ONLY his own customers in his branch
-    return customers.filter((c) => doesCustomerBelongToRep(c, currentUser));
+    return customers.filter((c) => Boolean(c.branchName) && isBranchMatch(c.branchName, currentUser.branchName, { allowUnassigned: false }) && c.repId === currentUser.id);
   };
 
   const getVisibleProducts = (): Product[] => {
