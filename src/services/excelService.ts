@@ -1103,9 +1103,14 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('حدالائتمان') ||
       norm.includes('حدالبيعالاجل') ||
       norm.includes('حدالدين') ||
+      norm.includes('حدالاجل') ||
+      norm.includes('حدالآجل') ||
+      norm.includes('حدالكريديت') ||
+      norm.includes('كريديت') ||
       norm.includes('ائتمان') ||
       norm.includes('الائتمان') ||
       norm.includes('creditlimit') ||
+      norm.includes('cred') ||
       norm.includes('limit') ||
       norm.includes('credit')
     ) {
@@ -1145,6 +1150,18 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('رصيد') ||
       norm.includes('حساب') ||
       norm.includes('عليه') ||
+      norm.includes('دائن') ||
+      norm.includes('مدين') ||
+      norm.includes('اجماليمدين') ||
+      norm.includes('رصيددائن') ||
+      norm.includes('رصيدمدين') ||
+      norm.includes('مديونيهعليه') ||
+      norm.includes('مديونيةعليه') ||
+      norm.includes('عليهالعميل') ||
+      norm.includes('الديون') ||
+      norm.includes('ديون') ||
+      norm.includes('دفع') ||
+      norm.includes('مطلوب') ||
       norm.includes('currentbalance') ||
       norm.includes('prevbalance') ||
       norm.includes('previousbalance') ||
@@ -1214,6 +1231,12 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     colMap.name = 1;
     colMap.branchName = 2;
     colMap.repName = 3;
+  }
+
+  // Positional fallback for debt & credit if headers weren't matched but sheet has 5+ columns
+  if (colMap.balance === -1 && colMap.creditLimit === -1 && headers.length >= 6) {
+    colMap.balance = 4;
+    colMap.creditLimit = 5;
   }
 
   const getVal = (row: any[], colIdx: number, def = ''): string => {
