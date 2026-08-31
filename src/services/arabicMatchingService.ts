@@ -3,6 +3,7 @@ import { Customer, Product, User } from '../types';
 /**
  * Universal Arabic Text Normalizer
  * Cleans diacritics (tashkeel), tatweel/kashida, non-breaking spaces,
+ * Unicode replacement characters (\uFFFD /  / ?),
  * normalizes alif variants, taa marbuta, alef maqsura, compound names (عبد الفتاح / عبدالفتاح),
  * honorific prefixes (أ/ , ك/ , م/ , د/ ), and punctuation.
  */
@@ -10,8 +11,10 @@ export function normalizeArabicText(str?: string): string {
   if (!str) return '';
   let text = str
     .toString()
+    // 0. Remove Unicode Replacement Character \uFFFD, replacement mark , control chars, and weird artifacts
+    .replace(/[\uFFFD\uFEFF\u0000-\u001F\u007F-\u009F]/g, ' ')
     // 1. Remove non-breaking spaces, zero-width chars, tabs
-    .replace(/[\u00A0\u1680\u180E\u2000-\u200B\u202F\u205F\u3000\uFEFF]/g, ' ')
+    .replace(/[\u00A0\u1680\u180E\u2000-\u200B\u202F\u205F\u3000]/g, ' ')
     // 2. Remove Arabic Tashkeel / Harakat (Fatha, Damma, Kasra, Shadda, Sukun, Tanween...)
     .replace(/[\u064B-\u065F\u0670]/g, '')
     // 3. Remove Arabic Tatweel / Kashida (ـ)
@@ -27,8 +30,8 @@ export function normalizeArabicText(str?: string): string {
     .replace(/ؤ/g, 'و')
     .replace(/ئ/g, 'ي')
     .replace(/ء/g, '')
-    // 8. Replace punctuation, brackets, dashes, and separators with spaces
-    .replace(/[\-_/\\()\[\]+.,:;*&^%$#@!~"'{}`|]/g, ' ')
+    // 8. Replace punctuation, question marks, brackets, dashes, and separators with spaces
+    .replace(/[\-_/\\()\[\]+.,:;*&^%$#@!~"'{}`|?؟]/g, ' ')
     // 9. Collapse spaces
     .replace(/\s+/g, ' ')
     .trim()
@@ -683,6 +686,18 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
       // Check if all rep tokens exist in user name tokens (e.g. rep field is "علاء عمر" and user is "علاء عمر السيد")
       const allRepTokensInUser = repTokens.every((tok) => cleanUserTokens.includes(tok));
       if (allRepTokensInUser) return true;
+
+      // Check shared non-trivial name tokens (e.g. "اسلام" or "بدير" or "الطنطاوي")
+      const commonNames = new Set(['محمد', 'احمد', 'علي', 'حسن', 'حسين', 'سيد']);
+      const sharedTokens = cleanUserTokens.filter((tok) => repTokens.includes(tok));
+      if (sharedTokens.length >= 2) return true;
+      if (
+        sharedTokens.length === 1 &&
+        !commonNames.has(sharedTokens[0]) &&
+        sharedTokens[0].length >= 3
+      ) {
+        return true;
+      }
     }
   }
 

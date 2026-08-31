@@ -313,8 +313,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!Array.isArray(list)) return [];
     const map = new Map<string, Customer>();
 
-    for (const c of list) {
-      if (!c) continue;
+    const cleanStr = (s?: string) => {
+      if (!s) return '';
+      return String(s)
+        .replace(/[\uFFFD\uFEFF\u0000-\u001F\u007F-\u009F]/g, '')
+        .trim();
+    };
+
+    for (const rawC of list) {
+      if (!rawC) continue;
+      const c: Customer = {
+        ...rawC,
+        name: cleanStr(rawC.name),
+        code: cleanStr(rawC.code),
+        phone: cleanStr(rawC.phone),
+        address: cleanStr(rawC.address),
+        branchName: cleanStr(rawC.branchName),
+        repName: cleanStr(rawC.repName),
+        salesRepName: cleanStr(rawC.salesRepName),
+        notes: cleanStr(rawC.notes),
+        taxNumber: cleanStr(rawC.taxNumber),
+        storeName: cleanStr(rawC.storeName),
+      };
+
       const cleanCode = (c.code || '').trim().toLowerCase();
       const cleanName = (c.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
       const cleanPhone = (c.phone || '').replace(/[^0-9]/g, '');

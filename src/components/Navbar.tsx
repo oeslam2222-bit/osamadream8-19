@@ -85,13 +85,14 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
 
   const navItems = [
     { id: 'catalog', label: 'كتالوج الأصناف والبيع', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'customers', label: 'قاعدة بيانات العملاء 👥', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'dashboard', label: 'لوحة المشرف والمتابعة 📊', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'invoices', label: 'الفواتير والطلبيات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
     { id: 'inventory', label: 'إدارة المخزون والاعتمادات', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
     { id: 'excel', label: 'شيتات Google Sheets والإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },
     { id: 'audit', label: 'سجل العمليات (Audit Log)', icon: ShieldCheck, roles: ['admin', 'developer'] },
     { id: 'guide', label: 'دليل دورة العمل 📖', icon: BookOpen, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'users', label: 'المستخدمين والصلاحيات', icon: Users, roles: ['admin', 'developer'], badge: pendingApprovalsCount },
+    { id: 'users', label: 'المستخدمين والصلاحيات', icon: UserCheck, roles: ['admin', 'developer'], badge: pendingApprovalsCount },
   ];
 
   const filteredNavItems = navItems.filter((item) => item.roles.includes(currentUser.role));

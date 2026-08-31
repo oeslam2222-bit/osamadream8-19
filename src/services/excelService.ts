@@ -1220,7 +1220,9 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     if (colIdx === -1 || colIdx >= row.length) return def;
     const val = row[colIdx];
     if (val === undefined || val === null) return def;
-    return String(val).trim();
+    return String(val)
+      .replace(/[\uFFFD\uFEFF\u0000-\u001F\u007F-\u009F]/g, '')
+      .trim();
   };
 
   const customerMap = new Map<string, Customer>();
@@ -1508,7 +1510,7 @@ export async function fetchCustomersFromGoogleSheetUrl(urlOrId: string): Promise
   }
 
   const csvText = await response.text();
-  const wb = XLSX.read(csvText, { type: 'string' });
+  const wb = XLSX.read(csvText, { type: 'string', codepage: 65001 });
   const firstSheet = wb.Sheets[wb.SheetNames[0]];
   const rawRows: any[][] = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
 
@@ -1529,7 +1531,7 @@ export async function parseExcelCustomers(file: File): Promise<{
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = XLSX.read(data, { type: 'array', codepage: 65001 });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
         const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });

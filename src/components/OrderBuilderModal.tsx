@@ -45,12 +45,14 @@ interface OrderBuilderModalProps {
   isOpen: boolean;
   onClose: () => void;
   onInvoiceCreated: (invoice: any) => void;
+  initialCustomer?: Customer | null;
 }
 
 export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   isOpen,
   onClose,
   onInvoiceCreated,
+  initialCustomer,
 }) => {
   const {
     cart,
@@ -189,7 +191,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     return filtered.slice(0, 300);
   }, [scopedCustomersList, customerSearchQuery, selectedCustomerTierFilter]);
 
-  // Keep selected rep in sync with active user on modal open
+  // Keep selected rep in sync with active user on modal open, and prefill initial customer if provided
   useEffect(() => {
     if (isOpen) {
       if (currentUser?.id) {
@@ -198,8 +200,21 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
       setCustomerScope('rep');
       setIsCustomerDropdownOpen(false);
       setCustomerSearchQuery('');
+
+      if (initialCustomer) {
+        setSelectedCustomerId(initialCustomer.id);
+        setIsNewCustomerMode(false);
+        setCustomerName(initialCustomer.name);
+        setCustomerCode(initialCustomer.code || '');
+        setCustomerPhone(initialCustomer.phone || '');
+        setCustomerAddress(initialCustomer.address || initialCustomer.governorate || '');
+        setCustomerTaxNumber(initialCustomer.taxNumber || '');
+        setCustomerBranch(initialCustomer.branchName || activeBranch);
+        setCustomerRep(initialCustomer.salesRepName || initialCustomer.repName || currentUser?.name || '');
+        setCustomerTier(initialCustomer.tier || 'عادي');
+      }
     }
-  }, [isOpen, currentUser]);
+  }, [isOpen, currentUser, initialCustomer]);
 
   const handleSyncLinks = () => {
     if (typeof refreshCustomerRepLinks === 'function') {

@@ -19,6 +19,7 @@ import React, { Component, ErrorInfo, Suspense, useState } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { ProductCatalog } from './components/ProductCatalog';
+import { CustomerDirectoryView } from './components/CustomerDirectoryView';
 import { SupervisorDashboard } from './components/SupervisorDashboard';
 import { InvoicesManager } from './components/InvoicesManager';
 import { InventoryStockView } from './components/InventoryStockView';
@@ -29,7 +30,7 @@ import { SystemWorkflowGuide } from './components/SystemWorkflowGuide';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
 import { AppProvider, useApp } from './context/AppContext';
-import { Invoice } from './types';
+import { Customer, Invoice } from './types';
 
 // Lightweight Skeleton for tab transitions
 const TabLoadingSkeleton = () => (
@@ -49,6 +50,7 @@ const MainLayout: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<string>('catalog');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
 
   // If user is not logged in, show dedicated Login / Registration Page
@@ -57,6 +59,11 @@ const MainLayout: React.FC = () => {
   }
 
   const cartSummary = getCartSummary();
+
+  const handleOpenOrderForCustomer = (cust: Customer) => {
+    setOrderInitialCustomer(cust);
+    setIsOrderModalOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col text-slate-900 font-sans antialiased selection:bg-amber-400 selection:text-slate-950">
@@ -81,6 +88,12 @@ const MainLayout: React.FC = () => {
         <Suspense fallback={<TabLoadingSkeleton />}>
           {activeTab === 'catalog' && (
             <ProductCatalog onOpenCart={() => setIsOrderModalOpen(true)} />
+          )}
+
+          {activeTab === 'customers' && (
+            <CustomerDirectoryView
+              onOpenNewOrderForCustomer={(cust) => handleOpenOrderForCustomer(cust)}
+            />
           )}
 
           {activeTab === 'dashboard' && (
@@ -154,9 +167,14 @@ const MainLayout: React.FC = () => {
         {isOrderModalOpen && (
           <OrderBuilderModal
             isOpen={isOrderModalOpen}
-            onClose={() => setIsOrderModalOpen(false)}
+            initialCustomer={orderInitialCustomer}
+            onClose={() => {
+              setIsOrderModalOpen(false);
+              setOrderInitialCustomer(null);
+            }}
             onInvoiceCreated={(inv) => {
               setIsOrderModalOpen(false);
+              setOrderInitialCustomer(null);
               setViewingInvoice(inv);
             }}
           />
