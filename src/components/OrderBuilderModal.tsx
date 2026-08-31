@@ -130,11 +130,17 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
   const isSalesRep = currentUser?.role === 'sales_rep';
 
-  // Compute customers by scope
+  // Compute customers by scope — "rep" means "my customers" which differs by role
   const repScopedCustomers = useMemo(() => {
     if (!activeRepUser) return customers;
+    if (activeRepUser.role === 'supervisor') {
+      return customers.filter((c) => doesCustomerBelongToSupervisor(c, activeRepUser, users));
+    }
+    if (activeRepUser.role === 'branch_manager') {
+      return customers.filter((c) => doesCustomerBelongToBranch(c, activeRepUser.branchName));
+    }
     return customers.filter((c) => doesCustomerBelongToRep(c, activeRepUser));
-  }, [customers, activeRepUser]);
+  }, [customers, activeRepUser, users]);
 
   const branchScopedCustomers = useMemo(() => {
     return customers.filter((c) => doesCustomerBelongToBranch(c, activeBranch));
@@ -524,6 +530,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
                 <button
                   type="button"
+                  hidden={isSalesRep}
                   onClick={() => setCustomerScope('branch')}
                   className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer flex items-center gap-1.5 text-xs ${
                     customerScope === 'branch'
@@ -537,6 +544,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
                 <button
                   type="button"
+                  hidden={isSalesRep || currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager'}
                   onClick={() => setCustomerScope('all')}
                   className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer flex items-center gap-1.5 text-xs ${
                     customerScope === 'all'
