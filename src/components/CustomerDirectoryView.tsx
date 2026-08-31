@@ -19,18 +19,33 @@ import {
   ShoppingCart,
   ArrowUpDown,
   Download,
+  Upload,
   X,
   Save,
   MessageCircle,
   ExternalLink,
   ShieldAlert,
   Layers,
-  Sparkles
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  UserPlus,
+  Link2
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Customer, User } from '../types';
 import { formatCurrency } from '../services/invoiceService';
-import { doesCustomerBelongToRep, isArabicNameMatch, normalizeArabicText } from '../services/arabicMatchingService';
+import {
+  doesCustomerBelongToRep,
+  doesCustomerBelongToBranch,
+  doesCustomerBelongToSupervisor,
+  isArabicNameMatch,
+  normalizeArabicText,
+  isBranchMatch
+} from '../services/arabicMatchingService';
+import { parseExcelCustomers, parseRawRowsToCustomers } from '../services/excelService';
 import * as XLSX from 'xlsx';
 
 interface CustomerDirectoryViewProps {
@@ -48,13 +63,16 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     addCustomer,
     updateCustomer,
     deleteCustomer,
+    importCustomersList,
     refreshCustomerRepLinks,
+    autoCreateMissingRepsFromCustomers,
   } = useApp();
 
-  // Scope: 'my_customers' (default for reps) | 'branch' | 'all'
+  // Roles & Scopes
   const isRep = currentUser?.role === 'sales_rep';
   const isSupervisor = currentUser?.role === 'supervisor';
   const isBranchManager = currentUser?.role === 'branch_manager';
+  const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
   const [scopeTab, setScopeTab] = useState<'my_customers' | 'branch' | 'all'>(() => {
     if (isRep) return 'my_customers';
@@ -70,8 +88,13 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
   const [sortField, setSortField] = useState<'name' | 'code' | 'debt' | 'limit' | 'branch'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
+  // Pagination (For smooth rendering of 3400+ customers)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(50);
+
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const [syncFeedback, setSyncFeedback] = useState<{
@@ -80,13 +103,24 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     type: 'success' | 'info' | 'warning';
   } | null>(null);
 
+  // Import Modal State
+  const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge');
+  const [googleSheetUrl, setGoogleSheetUrl] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState<{
+    customers: Customer[];
+    branches: string[];
+    reps: string[];
+    totalDebt: number;
+  } | null>(null);
+
   // Form State for Add / Edit
   const [formData, setFormData] = useState({
     id: '',
     code: '',
     name: '',
     storeName: '',
-    branchName: currentUser?.branchName || 'فرع المنيا',
+    branchName: currentUser?.branchName || 'فرع الفيوم',
     repName: isRep ? currentUser?.name || '' : '',
     repId: isRep ? currentUser?.id || '' : '',
     currentBalance: 0,
@@ -97,12 +131,80 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     notes: '',
   });
 
-  // List of all sales reps in the system
-  const salesReps = useMemo(() => {
-    return users.filter((u) => u.role === 'sales_rep' || u.role === 'supervisor');
-  }, [users]);
+  // Extract ALL unique Sales Reps from customers (registered + unregistered in customer records)
+  const allAvailableReps = useMemo(() => {
+    const repMap = new Map<string, {
+      name: string;
+      branchName: string;
+      customerCount: number;
+      isRegisteredUser: boolean;
+      userId?: string;
+    }>();
 
-  // Compute Scoped List based on Tab
+    // 1. First scan all customers in the database
+    customers.forEach((c) => {
+      const rawRep = (c.salesRepName || c.repName || '').trim();
+      if (!rawRep || rawRep === 'مندوب المبيعات' || rawRep === 'المندوب' || rawRep === 'غير محدد' || rawRep === '---') {
+        return;
+      }
+
+      const matchedUser = users.find((u) => u.id === c.repId || isArabicNameMatch(rawRep, u.name));
+      const existing = repMap.get(rawRep);
+      if (existing) {
+        existing.customerCount++;
+        if (!existing.branchName && c.branchName) existing.branchName = c.branchName;
+        if (matchedUser) {
+          existing.isRegisteredUser = true;
+          existing.userId = matchedUser.id;
+        }
+      } else {
+        repMap.set(rawRep, {
+          name: rawRep,
+          branchName: c.branchName || (matchedUser ? matchedUser.branchName || '' : ''),
+          customerCount: 1,
+          isRegisteredUser: !!matchedUser,
+          userId: matchedUser ? matchedUser.id : undefined,
+        });
+      }
+    });
+
+    // 2. Also include all registered sales reps / supervisors from users list
+    users
+      .filter((u) => u.role === 'sales_rep' || u.role === 'supervisor')
+      .forEach((u) => {
+        if (!repMap.has(u.name)) {
+          repMap.set(u.name, {
+            name: u.name,
+            branchName: u.branchName || '',
+            customerCount: customers.filter((c) => doesCustomerBelongToRep(c, u)).length,
+            isRegisteredUser: true,
+            userId: u.id,
+          });
+        }
+      });
+
+    return Array.from(repMap.values()).sort((a, b) => b.customerCount - a.customerCount);
+  }, [customers, users]);
+
+  // Unregistered reps count
+  const unregisteredReps = useMemo(() => {
+    return allAvailableReps.filter((r) => !r.isRegisteredUser && r.name && r.name.length > 2);
+  }, [allAvailableReps]);
+
+  // Extract ALL unique Branches from branches + customers
+  const allAvailableBranches = useMemo(() => {
+    const branchSet = new Set<string>();
+    branches.forEach((b) => branchSet.add(b.name));
+    customers.forEach((c) => {
+      if (c.branchName && c.branchName.trim()) {
+        branchSet.add(c.branchName.trim());
+      }
+    });
+    return Array.from(branchSet);
+  }, [branches, customers]);
+
+  // Compute Scoped List based on Tab & User Role
+  // For Branch Manager / Supervisor: they see ALL customers of their branch (regardless of user registration!)
   const scopedCustomers = useMemo(() => {
     if (!currentUser) return customers;
 
@@ -112,18 +214,14 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
     if (scopeTab === 'branch') {
       const userBranch = currentUser.branchName;
-      if (!userBranch || userBranch === 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)') {
+      if (!userBranch || userBranch.includes('المخزن المركزي') || isAdminOrDev) {
         return customers;
       }
-      return customers.filter((c) => {
-        const cBranchNorm = (c.branchName || '').replace(/فرع\s+/g, '').trim();
-        const uBranchNorm = userBranch.replace(/فرع\s+/g, '').trim();
-        return cBranchNorm.includes(uBranchNorm) || uBranchNorm.includes(cBranchNorm);
-      });
+      return customers.filter((c) => doesCustomerBelongToBranch(c, userBranch));
     }
 
     return customers;
-  }, [customers, currentUser, scopeTab]);
+  }, [customers, currentUser, scopeTab, isAdminOrDev]);
 
   // Filter & Search Logic
   const filteredCustomers = useMemo(() => {
@@ -132,19 +230,20 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     return scopedCustomers.filter((c) => {
       // Branch filter
       if (selectedBranch !== 'الكل') {
-        const cBranch = (c.branchName || '').replace(/فرع\s+/g, '').trim();
-        const selBranch = selectedBranch.replace(/فرع\s+/g, '').trim();
-        if (!cBranch.includes(selBranch) && !selBranch.includes(cBranch)) {
+        if (!isBranchMatch(c.branchName, selectedBranch, { allowUnassigned: false })) {
           return false;
         }
       }
 
-      // Rep filter
+      // Rep filter (works for both registered users and unregistered reps)
       if (selectedRepFilter !== 'الكل') {
         const repName = c.salesRepName || c.repName || '';
-        if (!isArabicNameMatch(repName, selectedRepFilter) && c.repId !== selectedRepFilter) {
-          return false;
-        }
+        const isMatch =
+          isArabicNameMatch(repName, selectedRepFilter) ||
+          c.repId === selectedRepFilter ||
+          (repName && repName.includes(selectedRepFilter));
+
+        if (!isMatch) return false;
       }
 
       // Debt filter
@@ -155,7 +254,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       if (debtFilter === 'zero_debt' && debt > 0) return false;
       if (debtFilter === 'exceeded_limit' && (limit <= 0 || debt <= limit)) return false;
 
-      // Text Search
+      // Text Search across all fields
       if (query) {
         const nameNorm = normalizeArabicText(c.name);
         const storeNorm = normalizeArabicText(c.storeName);
@@ -164,6 +263,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         const branchNorm = normalizeArabicText(c.branchName);
         const phone = (c.phone || '').replace(/[^0-9]/g, '');
         const addressNorm = normalizeArabicText(c.address);
+        const notesNorm = normalizeArabicText(c.notes);
 
         const match =
           nameNorm.includes(query) ||
@@ -172,7 +272,8 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
           repNorm.includes(query) ||
           branchNorm.includes(query) ||
           phone.includes(query) ||
-          addressNorm.includes(query);
+          addressNorm.includes(query) ||
+          notesNorm.includes(query);
 
         if (!match) return false;
       }
@@ -215,6 +316,14 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       return 0;
     });
   }, [filteredCustomers, sortField, sortDirection]);
+
+  // Pagination Slice
+  const totalPages = Math.ceil(sortedCustomers.length / (pageSize || 1)) || 1;
+  const paginatedCustomers = useMemo(() => {
+    if (pageSize >= 99999) return sortedCustomers;
+    const start = (currentPage - 1) * pageSize;
+    return sortedCustomers.slice(start, start + pageSize);
+  }, [sortedCustomers, currentPage, pageSize]);
 
   // Statistical calculations
   const stats = useMemo(() => {
@@ -269,7 +378,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       code: customer.code || '',
       name: customer.name || '',
       storeName: customer.storeName || customer.name || '',
-      branchName: customer.branchName || currentUser?.branchName || 'فرع المنيا',
+      branchName: customer.branchName || currentUser?.branchName || 'فرع الفيوم',
       repName: customer.salesRepName || customer.repName || '',
       repId: customer.repId || '',
       currentBalance: Number(customer.currentBalance ?? customer.balance ?? 0),
@@ -290,7 +399,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       code: nextCode,
       name: '',
       storeName: '',
-      branchName: currentUser?.branchName || 'فرع المنيا',
+      branchName: currentUser?.branchName || 'فرع الفيوم',
       repName: isRep ? currentUser?.name || '' : '',
       repId: isRep ? currentUser?.id || '' : '',
       currentBalance: 0,
@@ -379,6 +488,126 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     });
   };
 
+  // Auto Create Accounts for Unregistered Reps
+  const handleAutoCreateReps = () => {
+    const result = autoCreateMissingRepsFromCustomers();
+    setSyncFeedback({
+      show: true,
+      msg: `تم بنجاح إنشاء (${result.count}) حساب مندوب جديد في النظام وربط عملائهم تلقائياً!`,
+      type: 'success',
+    });
+  };
+
+  // Handle Excel File Upload
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    try {
+      const res = await parseExcelCustomers(file);
+      if (res.customers.length === 0) {
+        alert('لم يتم العثور على أي عملاء صالحين في الملف المرفوع.');
+        setIsImporting(false);
+        return;
+      }
+
+      const branchSet = new Set<string>();
+      const repSet = new Set<string>();
+      let debt = 0;
+
+      res.customers.forEach((c) => {
+        if (c.branchName) branchSet.add(c.branchName);
+        if (c.salesRepName || c.repName) repSet.add(c.salesRepName || c.repName || '');
+        debt += Number(c.currentBalance ?? c.balance ?? 0);
+      });
+
+      setImportPreview({
+        customers: res.customers,
+        branches: Array.from(branchSet),
+        reps: Array.from(repSet),
+        totalDebt: debt,
+      });
+    } catch (err: any) {
+      alert(`حدث خطأ أثناء قراءة الملف: ${err.message || 'خطأ غير معروف'}`);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Handle Google Sheet URL Fetch
+  const handleFetchGoogleSheet = async () => {
+    if (!googleSheetUrl.trim()) {
+      alert('يرجى لصق رابط Google Sheet أولاً');
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      // Extract CSV export URL
+      let csvUrl = googleSheetUrl.trim();
+      const sheetIdMatch = csvUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/i);
+      if (sheetIdMatch) {
+        const sheetId = sheetIdMatch[1];
+        const gidMatch = csvUrl.match(/[#&?]gid=([0-9]+)/i);
+        const gid = gidMatch ? gidMatch[1] : '0';
+        csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+      }
+
+      const resp = await fetch(csvUrl);
+      if (!resp.ok) {
+        throw new Error(`فشل الاتصال بالشيت (${resp.status}). يرجى التأكد من تفعيل "Anyone with the link can view"`);
+      }
+      const csvText = await resp.text();
+      const workbook = XLSX.read(csvText, { type: 'string' });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+      const res = parseRawRowsToCustomers(rawRows);
+      if (res.customers.length === 0) {
+        alert('تم جلب الشيت لكن لم يتم العثور على أعمدة عملاء صالحة.');
+        setIsImporting(false);
+        return;
+      }
+
+      const branchSet = new Set<string>();
+      const repSet = new Set<string>();
+      let debt = 0;
+
+      res.customers.forEach((c) => {
+        if (c.branchName) branchSet.add(c.branchName);
+        if (c.salesRepName || c.repName) repSet.add(c.salesRepName || c.repName || '');
+        debt += Number(c.currentBalance ?? c.balance ?? 0);
+      });
+
+      setImportPreview({
+        customers: res.customers,
+        branches: Array.from(branchSet),
+        reps: Array.from(repSet),
+        totalDebt: debt,
+      });
+    } catch (err: any) {
+      alert(`خطأ في جلب Google Sheets: ${err.message || 'تعذر الوصول للرابط'}`);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Confirm and Apply Import
+  const handleApplyImport = () => {
+    if (!importPreview || importPreview.customers.length === 0) return;
+
+    importCustomersList(importPreview.customers, importMode);
+    setIsImportModalOpen(false);
+    setImportPreview(null);
+    setGoogleSheetUrl('');
+    setSyncFeedback({
+      show: true,
+      msg: `تم بنجاح تحميل وتثبيت (${importPreview.customers.length}) عميل في المنظومة مع الفروع والمناديب والمديونيات!`,
+      type: 'success',
+    });
+  };
+
   // Export Exact Format Requested by User
   const handleExportSheet = () => {
     const wb = XLSX.utils.book_new();
@@ -455,6 +684,16 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
         {/* Global Action Buttons */}
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          
+          <button
+            onClick={() => setIsImportModalOpen(true)}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-md shadow-blue-900/30"
+            title="استيراد شيت 3400 عميل من Google Sheets أو Excel"
+          >
+            <Upload className="w-4 h-4" />
+            <span>استيراد العملاء 📥</span>
+          </button>
+
           <button
             onClick={handleRunSync}
             className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-amber-300 border border-slate-700 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-sm"
@@ -469,7 +708,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
             className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-md shadow-emerald-900/30"
           >
             <Download className="w-4 h-4" />
-            <span>تصدير إكسل 📥</span>
+            <span>تصدير إكسل 📊</span>
           </button>
 
           <button
@@ -477,10 +716,36 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
             className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs transition cursor-pointer shadow-lg shadow-amber-400/20"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
-            <span>إضافة عميل جديد ➕</span>
+            <span>إضافة عميل ➕</span>
           </button>
         </div>
       </div>
+
+      {/* Unregistered Reps Notification Banner (if any detected) */}
+      {unregisteredReps.length > 0 && isAdminOrDev && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-300/40 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0">
+              <UserPlus className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold text-slate-900">
+                اكتشفنا <span className="text-amber-700 font-black">{unregisteredReps.length} مندوب</span> مسجلين في بيانات العملاء ولم يتم إنشاء حسابات مستخدمين لهم بعد!
+              </span>
+              <p className="text-slate-500 text-[11px]">
+                يمكنك إنشاء حسابات دخول فورية لهم بضغطة زر واحدة حتى يتمكنوا من الدخول ومتابعة عملائهم.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleAutoCreateReps}
+            className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer shrink-0"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>إنشاء حسابات المناديب آلياً 🚀</span>
+          </button>
+        </div>
+      )}
 
       {/* Sync Feedback Alert if active */}
       {syncFeedback?.show && (
@@ -590,7 +855,10 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       {/* Navigation Scope Tabs (For Reps, Branch Managers & Admins) */}
       <div className="bg-white rounded-2xl p-2 border border-slate-200 shadow-sm flex flex-wrap items-center gap-1.5">
         <button
-          onClick={() => setScopeTab('my_customers')}
+          onClick={() => {
+            setScopeTab('my_customers');
+            setCurrentPage(1);
+          }}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
             scopeTab === 'my_customers'
               ? 'bg-amber-400 text-slate-950 shadow-sm'
@@ -602,7 +870,10 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         </button>
 
         <button
-          onClick={() => setScopeTab('branch')}
+          onClick={() => {
+            setScopeTab('branch');
+            setCurrentPage(1);
+          }}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
             scopeTab === 'branch'
               ? 'bg-amber-400 text-slate-950 shadow-sm'
@@ -614,7 +885,10 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         </button>
 
         <button
-          onClick={() => setScopeTab('all')}
+          onClick={() => {
+            setScopeTab('all');
+            setCurrentPage(1);
+          }}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
             scopeTab === 'all'
               ? 'bg-amber-400 text-slate-950 shadow-sm'
@@ -636,7 +910,10 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
               placeholder="بحث باسم العميل، الكود، المحل، الهاتف..."
               className="w-full bg-slate-50 border border-slate-300 rounded-xl pr-9 pl-3 py-2 text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
             />
@@ -654,29 +931,35 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
           <div>
             <select
               value={selectedBranch}
-              onChange={(e) => setSelectedBranch(e.target.value)}
+              onChange={(e) => {
+                setSelectedBranch(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
             >
               <option value="الكل">كل الفروع (الكل)</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.name}>
-                  {b.name}
+              {allAvailableBranches.map((bName) => (
+                <option key={bName} value={bName}>
+                  {bName}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Sales Rep Filter */}
+          {/* Sales Rep Filter (Dynamic: includes all reps in database) */}
           <div>
             <select
               value={selectedRepFilter}
-              onChange={(e) => setSelectedRepFilter(e.target.value)}
+              onChange={(e) => {
+                setSelectedRepFilter(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
             >
-              <option value="الكل">كل المناديب (الكل)</option>
-              {salesReps.map((r) => (
-                <option key={r.id} value={r.name}>
-                  {r.name} ({r.branchName || 'فرع غير محدد'})
+              <option value="الكل">كل المناديب ({allAvailableReps.length} مندوب)</option>
+              {allAvailableReps.map((r) => (
+                <option key={r.name} value={r.name}>
+                  {r.name} ({r.customerCount} عميل) - {r.branchName || 'فرع غير محدد'} {r.isRegisteredUser ? '✅' : '📄'}
                 </option>
               ))}
             </select>
@@ -686,7 +969,10 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
           <div>
             <select
               value={debtFilter}
-              onChange={(e) => setDebtFilter(e.target.value as any)}
+              onChange={(e) => {
+                setDebtFilter(e.target.value as any);
+                setCurrentPage(1);
+              }}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
             >
               <option value="all">كل حالات المديونية</option>
@@ -699,7 +985,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         </div>
       </div>
 
-      {/* Main Customers Table Matching Requested Layout Exactly */}
+      {/* Main Customers Table */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         
         {/* Table Header Bar */}
@@ -711,32 +997,57 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
             </span>
           </div>
 
-          <div className="text-[11px] text-slate-500 flex items-center gap-2">
-            <span>ترتيب حسب:</span>
-            <button
-              onClick={() => handleSort('name')}
-              className={`px-2 py-0.5 rounded-md font-bold transition ${
-                sortField === 'name' ? 'bg-amber-400 text-slate-950' : 'bg-white border border-slate-200'
-              }`}
-            >
-              الاسم
-            </button>
-            <button
-              onClick={() => handleSort('debt')}
-              className={`px-2 py-0.5 rounded-md font-bold transition ${
-                sortField === 'debt' ? 'bg-amber-400 text-slate-950' : 'bg-white border border-slate-200'
-              }`}
-            >
-              المديونية
-            </button>
-            <button
-              onClick={() => handleSort('code')}
-              className={`px-2 py-0.5 rounded-md font-bold transition ${
-                sortField === 'code' ? 'bg-amber-400 text-slate-950' : 'bg-white border border-slate-200'
-              }`}
-            >
-              الكود
-            </button>
+          {/* Sort Controls & Page Size Selector */}
+          <div className="flex items-center gap-3 text-xs">
+            
+            {/* Page Size Selector */}
+            <div className="flex items-center gap-1.5 text-slate-500">
+              <span className="text-[11px]">عرض:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-slate-300 rounded-lg px-2 py-0.5 text-xs font-bold text-slate-800 focus:outline-none"
+              >
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+                <option value={500}>500</option>
+                <option value={99999}>الكل ({sortedCustomers.length})</option>
+              </select>
+            </div>
+
+            {/* Sort Buttons */}
+            <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+              <span>ترتيب:</span>
+              <button
+                onClick={() => handleSort('name')}
+                className={`px-2 py-0.5 rounded-md font-bold transition ${
+                  sortField === 'name' ? 'bg-amber-400 text-slate-950' : 'bg-white border border-slate-200'
+                }`}
+              >
+                الاسم
+              </button>
+              <button
+                onClick={() => handleSort('debt')}
+                className={`px-2 py-0.5 rounded-md font-bold transition ${
+                  sortField === 'debt' ? 'bg-amber-400 text-slate-950' : 'bg-white border border-slate-200'
+                }`}
+              >
+                المديونية
+              </button>
+              <button
+                onClick={() => handleSort('code')}
+                className={`px-2 py-0.5 rounded-md font-bold transition ${
+                  sortField === 'code' ? 'bg-amber-400 text-slate-950' : 'bg-white border border-slate-200'
+                }`}
+              >
+                الكود
+              </button>
+            </div>
+
           </div>
         </div>
 
@@ -801,7 +1112,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 font-medium">
-              {sortedCustomers.length === 0 ? (
+              {paginatedCustomers.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
@@ -812,19 +1123,12 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                       <p className="text-[11px] text-slate-400">
                         جرب تغيير كلمات البحث أو التبديل إلى تبويب "عملاء فرعي" أو "جميع العملاء"
                       </p>
-                      {scopeTab === 'my_customers' && (
-                        <button
-                          onClick={() => setScopeTab('branch')}
-                          className="mt-2 text-xs bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold px-3 py-1.5 rounded-xl transition cursor-pointer"
-                        >
-                          عرض جميع عملاء فرعك
-                        </button>
-                      )}
                     </div>
                   </td>
                 </tr>
               ) : (
-                sortedCustomers.map((customer, index) => {
+                paginatedCustomers.map((customer, index) => {
+                  const globalIdx = (currentPage - 1) * pageSize + index + 1;
                   const debt = Number(customer.currentBalance ?? customer.balance ?? 0);
                   const limit = Number(customer.creditLimit || 0);
                   const available = Math.max(0, limit - debt);
@@ -841,7 +1145,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                     >
                       {/* # */}
                       <td className="py-3 px-3 text-center text-slate-400 font-bold text-[11px]">
-                        {index + 1}
+                        {globalIdx}
                       </td>
 
                       {/* كود العميل */}
@@ -981,7 +1285,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                           </button>
 
                           {/* Delete Customer (Admins only) */}
-                          {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+                          {isAdminOrDev && (
                             <button
                               onClick={() => setCustomerToDelete(customer)}
                               className="w-7 h-7 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center transition cursor-pointer"
@@ -1002,23 +1306,230 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
           </table>
         </div>
 
-        {/* Table Footer */}
-        <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
-          <div>
-            إجمالي العملاء في هذا العرض: <span className="font-bold text-slate-800">{sortedCustomers.length}</span> عميل
+        {/* Table Footer with Pagination Controls */}
+        <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-3">
+          
+          <div className="flex items-center gap-2">
+            <span>
+              عرض <span className="font-bold text-slate-800">{(currentPage - 1) * pageSize + 1}</span> إلى{' '}
+              <span className="font-bold text-slate-800">
+                {Math.min(currentPage * pageSize, sortedCustomers.length)}
+              </span>{' '}
+              من أصل <span className="font-black text-slate-900">{sortedCustomers.length}</span> عميل
+            </span>
           </div>
-          <div className="flex items-center gap-4">
+
+          {/* Pagination Buttons */}
+          {totalPages > 1 && pageSize < 99999 && (
+            <div className="flex items-center gap-1">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(1)}
+                className="p-1 rounded-lg bg-white border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition cursor-pointer"
+                title="الصفحة الأولى"
+              >
+                <ChevronsRight className="w-4 h-4" />
+              </button>
+
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="p-1 rounded-lg bg-white border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition cursor-pointer"
+                title="السابق"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+
+              <span className="px-3 py-1 bg-amber-400 text-slate-950 font-black rounded-lg text-xs">
+                {currentPage} / {totalPages}
+              </span>
+
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="p-1 rounded-lg bg-white border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition cursor-pointer"
+                title="التالي"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+                className="p-1 rounded-lg bg-white border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition cursor-pointer"
+                title="الصفحة الأخيرة"
+              >
+                <ChevronsLeft className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3">
             <div>
-              إجمالي مديونيات الصفحة: <span className="font-black text-rose-600">{formatCurrency(stats.totalDebt)}</span>
+              إجمالي مديونيات العرض: <span className="font-black text-rose-600">{formatCurrency(stats.totalDebt)}</span>
             </div>
             <div className="text-slate-300">|</div>
             <div>
-              إجمالي الحدود الائتمانية: <span className="font-black text-blue-700">{formatCurrency(stats.totalLimit)}</span>
+              الحدود الائتمانية: <span className="font-black text-blue-700">{formatCurrency(stats.totalLimit)}</span>
             </div>
           </div>
+
         </div>
 
       </div>
+
+      {/* Import Modal for 3400+ Customers (Google Sheets & Excel) */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6 space-y-4 max-h-[92vh] overflow-y-auto">
+            
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black shadow-md">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-slate-900">
+                    استيراد وتحميل قاعدة بيانات العملاء (3400+ عميل)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    استيراد مباشر من شيت Google Sheets أو ملف Excel (.xlsx / .csv)
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsImportModalOpen(false);
+                  setImportPreview(null);
+                }}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Import Method Options */}
+            <div className="space-y-4">
+              
+              {/* Option 1: Google Sheets URL */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5">
+                <label className="block text-xs font-black text-slate-800 flex items-center gap-1.5">
+                  <Link2 className="w-4 h-4 text-blue-600" />
+                  <span>طريقة 1: لصق رابط Google Sheets المباشر</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={googleSheetUrl}
+                    onChange={(e) => setGoogleSheetUrl(e.target.value)}
+                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                    className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                  />
+                  <button
+                    onClick={handleFetchGoogleSheet}
+                    disabled={isImporting || !googleSheetUrl.trim()}
+                    className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer shrink-0"
+                  >
+                    {isImporting ? 'جاري الجلب...' : 'جلب الشيت 🔄'}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  تأكد من جعل الشيت متاحاً للعرض (Anyone with the link can view).
+                </p>
+              </div>
+
+              {/* Option 2: Upload Excel File */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5">
+                <label className="block text-xs font-black text-slate-800 flex items-center gap-1.5">
+                  <Upload className="w-4 h-4 text-emerald-600" />
+                  <span>طريقة 2: رفع ملف إكسل من جهازك (.xlsx أو .csv)</span>
+                </label>
+                <input
+                  type="file"
+                  accept=".xlsx, .xls, .csv"
+                  onChange={handleFileUpload}
+                  className="w-full text-xs text-slate-600 file:mr-0 file:ml-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 file:cursor-pointer"
+                />
+              </div>
+
+              {/* Import Mode: Merge vs Replace */}
+              <div className="bg-amber-50/50 p-3.5 rounded-2xl border border-amber-200/60 space-y-2">
+                <span className="text-xs font-black text-amber-900 block">طريقة تثبيت البيانات:</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition ${importMode === 'merge' ? 'bg-white border-amber-500 shadow-sm' : 'bg-transparent border-amber-200'}`}>
+                    <input
+                      type="radio"
+                      name="importMode"
+                      value="merge"
+                      checked={importMode === 'merge'}
+                      onChange={() => setImportMode('merge')}
+                      className="text-amber-500"
+                    />
+                    <div>
+                      <div className="font-bold text-xs text-slate-900">دمج وتحديث السجلات (Merge)</div>
+                      <div className="text-[10px] text-slate-500">تحديث المديونيات والبيانات مع الحفاظ على العملاء الحاليين</div>
+                    </div>
+                  </label>
+
+                  <label className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition ${importMode === 'replace' ? 'bg-white border-rose-500 shadow-sm' : 'bg-transparent border-amber-200'}`}>
+                    <input
+                      type="radio"
+                      name="importMode"
+                      value="replace"
+                      checked={importMode === 'replace'}
+                      onChange={() => setImportMode('replace')}
+                      className="text-rose-500"
+                    />
+                    <div>
+                      <div className="font-bold text-xs text-rose-900">استبدال كامل لقاعدة العملاء (Replace)</div>
+                      <div className="text-[10px] text-rose-600">مسح القديم وتنزيل الـ 3400 عميل من الشيت بالكامل</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Preview of Parsed Data */}
+              {importPreview && (
+                <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 space-y-3 animate-in fade-in">
+                  <div className="flex items-center gap-2 text-emerald-900 font-black text-xs">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <span>تم تحليل الملف بنجاح! جاهز للتثبيت ({importPreview.customers.length} عميل)</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                      <div className="text-slate-500 text-[10px]">إجمالي العملاء</div>
+                      <div className="text-base font-black text-slate-900">{importPreview.customers.length}</div>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                      <div className="text-slate-500 text-[10px]">عدد الفروع المكتشفة</div>
+                      <div className="text-base font-black text-blue-600">{importPreview.branches.length}</div>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                      <div className="text-slate-500 text-[10px]">عدد المناديب المكتشفين</div>
+                      <div className="text-base font-black text-amber-600">{importPreview.reps.length}</div>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                      <div className="text-slate-500 text-[10px]">إجمالي المديونيات</div>
+                      <div className="text-xs font-black text-rose-600">{formatCurrency(importPreview.totalDebt)}</div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleApplyImport}
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black py-2.5 rounded-xl text-xs shadow-lg shadow-emerald-900/20 transition cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>تثبيت الـ ({importPreview.customers.length}) عميل الآن في المنظومة</span>
+                  </button>
+                </div>
+              )}
+
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* Add / Edit Customer Modal */}
       {(isAddModalOpen || editingCustomer) && (
@@ -1098,9 +1609,9 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                     onChange={(e) => setFormData({ ...formData, branchName: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500"
                   >
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.name}>
-                        {b.name}
+                    {allAvailableBranches.map((bName) => (
+                      <option key={bName} value={bName}>
+                        {bName}
                       </option>
                     ))}
                   </select>
@@ -1112,21 +1623,21 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                     المندوب المسؤول
                   </label>
                   <select
-                    value={formData.repId || formData.repName}
+                    value={formData.repName || formData.repId}
                     onChange={(e) => {
                       const selectedVal = e.target.value;
-                      const repUser = salesReps.find((r) => r.id === selectedVal || r.name === selectedVal);
+                      const repUser = users.find((r) => r.id === selectedVal || r.name === selectedVal);
                       setFormData({
                         ...formData,
                         repId: repUser ? repUser.id : '',
-                        repName: repUser ? repUser.name : selectedVal,
+                        repName: selectedVal,
                       });
                     }}
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500"
                   >
                     <option value="">-- غير محدد (بدون مندوب) --</option>
-                    {salesReps.map((r) => (
-                      <option key={r.id} value={r.id}>
+                    {allAvailableReps.map((r) => (
+                      <option key={r.name} value={r.name}>
                         {r.name} ({r.branchName || 'فرع غير محدد'})
                       </option>
                     ))}
@@ -1193,7 +1704,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                     value={formData.address}
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500"
-                    placeholder="مثال: المنيا - شارع المحطة"
+                    placeholder="مثال: الفيوم - شارع الحرية"
                   />
                 </div>
 

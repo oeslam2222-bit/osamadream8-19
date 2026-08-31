@@ -262,8 +262,13 @@ export function inferBranchFromText(text?: string): string {
     return 'فرع منيا القمح';
   }
 
-  // 3. Minya (Upper Egypt) general
-  if (norm.includes('المنيا') || norm.includes('منيا') || norm.includes('minya') || norm.includes('min')) {
+  // 3. Minya (Upper Egypt) general - Strict word matching
+  if (
+    /(?:^|\s)(?:المنيا|فرع المنيا|مدينة المنيا)(?:\s|$)/.test(norm) ||
+    norm === 'المنيا' ||
+    norm === 'منيا' ||
+    norm.includes('عروس الصعيد')
+  ) {
     return 'فرع المنيا';
   }
 
@@ -578,6 +583,16 @@ export function isBranchMatch(
 export function doesCustomerBelongToRep(customer: Customer, repUser: User): boolean {
   if (!customer || !repUser) return false;
 
+  // 0. Strict branch check for sales reps: Rep in Minya cannot claim a Fayoum customer
+  if (
+    repUser.role === 'sales_rep' &&
+    repUser.branchName &&
+    customer.branchName &&
+    !isBranchMatch(customer.branchName, repUser.branchName, { allowUnassigned: false })
+  ) {
+    return false;
+  }
+
   // 1. Direct ID / Username match (Highest authority)
   if (
     customer.repId &&
@@ -687,17 +702,9 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
       const allRepTokensInUser = repTokens.every((tok) => cleanUserTokens.includes(tok));
       if (allRepTokensInUser) return true;
 
-      // Check shared non-trivial name tokens (e.g. "اسلام" or "بدير" or "الطنطاوي")
-      const commonNames = new Set(['محمد', 'احمد', 'علي', 'حسن', 'حسين', 'سيد']);
+      // Check shared non-trivial name tokens (requires at least 2 shared tokens)
       const sharedTokens = cleanUserTokens.filter((tok) => repTokens.includes(tok));
       if (sharedTokens.length >= 2) return true;
-      if (
-        sharedTokens.length === 1 &&
-        !commonNames.has(sharedTokens[0]) &&
-        sharedTokens[0].length >= 3
-      ) {
-        return true;
-      }
     }
   }
 
@@ -714,10 +721,10 @@ export function doesCustomerBelongToSupervisor(
 ): boolean {
   if (!supervisorUser) return false;
 
-  // 1. STRICT Branch Verification
+  // 1. If customer belongs to the supervisor's branch, supervisor can view it
   if (supervisorUser.branchName && customer.branchName) {
-    if (!isBranchMatch(customer.branchName, supervisorUser.branchName, { allowUnassigned: false })) {
-      return false;
+    if (isBranchMatch(customer.branchName, supervisorUser.branchName, { allowUnassigned: false })) {
+      return true;
     }
   }
 
@@ -726,7 +733,7 @@ export function doesCustomerBelongToSupervisor(
     return true;
   }
 
-  // 3. Find all sales reps belonging to this supervisor in the same branch
+  // 3. Find all sales reps belonging to this supervisor
   const supervisedReps = allUsers.filter(
     (u) =>
       u.supervisorId === supervisorUser.id ||

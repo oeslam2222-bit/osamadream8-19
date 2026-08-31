@@ -361,11 +361,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         key = `id:::${c.id || Math.random()}`;
       }
 
-      // Check if location or name contains clear district keywords (e.g. بني مزار -> فرع المنيا)
-      const locInferred = inferBranchFromText(
-        `${c.address || ''} ${c.governorate || ''} ${c.name || ''} ${c.notes || ''} ${c.branchName || ''}`
-      );
-      const resolvedBranch = locInferred || normalizeBranchName(c.branchName || 'الفرع الرئيسي');
+      // Respect explicit branch first; only infer if completely missing
+      let resolvedBranch = '';
+      if (c.branchName && c.branchName.trim()) {
+        resolvedBranch = normalizeBranchName(c.branchName);
+      } else {
+        const locInferred = inferBranchFromText(
+          `${c.address || ''} ${c.governorate || ''} ${c.notes || ''}`
+        );
+        resolvedBranch = locInferred || normalizeBranchName(c.branchName || 'الفرع الرئيسي');
+      }
 
       const existing = map.get(key);
       if (existing) {
@@ -374,11 +379,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!existing.address && c.address) existing.address = c.address;
         if (!existing.taxNumber && c.taxNumber) existing.taxNumber = c.taxNumber;
         if (!existing.notes && c.notes) existing.notes = c.notes;
-        if (locInferred) existing.branchName = locInferred;
+        if (c.branchName && c.branchName.trim()) {
+          existing.branchName = normalizeBranchName(c.branchName);
+        }
         if (c.repId) existing.repId = c.repId;
         if (c.repName) existing.repName = c.repName;
         if (c.salesRepName) existing.salesRepName = c.salesRepName;
-        if (c.branchName) existing.branchName = c.branchName;
         if (c.creditLimit !== undefined) existing.creditLimit = Number(c.creditLimit);
         if (c.currentBalance !== undefined || c.balance !== undefined) {
           const bal = Number(c.currentBalance ?? c.balance ?? 0);
@@ -895,12 +901,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return updated;
       }
 
-      // Check if candidate matches rep in user list
-      const matchFn = (u: User) =>
-        (updated.repId && u.id === updated.repId) ||
-        isArabicNameMatch(rawRep, u.name) ||
-        (u.username && isArabicNameMatch(rawRep, u.username)) ||
-        (u.phone && rawRep.length >= 8 && (rawRep === u.phone || u.phone.includes(rawRep)));
+      // Check if candidate matches rep in user list with branch isolation
+      const matchFn = (u: User) => {
+        if (updated.repId && u.id === updated.repId) return true;
+        if (
+          u.role === 'sales_rep' &&
+          updated.branchName &&
+          u.branchName &&
+          !isBranchMatch(updated.branchName, u.branchName, { allowUnassigned: false })
+        ) {
+          return false;
+        }
+        return (
+          isArabicNameMatch(rawRep, u.name) ||
+          (u.username && isArabicNameMatch(rawRep, u.username)) ||
+          (u.phone && rawRep.length >= 8 && (rawRep === u.phone || u.phone.includes(rawRep)))
+        );
+      };
 
       let matched = reps.find(matchFn);
 
