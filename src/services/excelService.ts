@@ -1285,16 +1285,16 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     const cleanPhone = (rawPhone || '').replace(/[^0-9]/g, '');
 
     let dedupKey = '';
-    if (cleanCode && cleanCode !== '---' && !cleanCode.startsWith('cust-row')) {
+    if (cleanCode && cleanCode !== '---' && !cleanCode.startsWith('cust-row') && cleanCode.length >= 2) {
       dedupKey = `code:::${cleanCode}`;
     } else if (cleanName && cleanPhone.length >= 7) {
       dedupKey = `name_phone:::${cleanName}:::${cleanPhone}`;
-    } else if (cleanName) {
-      dedupKey = `name:::${cleanName}`;
+    } else if (cleanName && rawAddress && rawAddress.trim().length >= 3) {
+      dedupKey = `name_addr:::${cleanName}:::${rawAddress.trim().toLowerCase()}`;
     } else if (cleanPhone.length >= 8) {
       dedupKey = `phone:::${cleanPhone}`;
     } else {
-      dedupKey = `row:::${r}`;
+      dedupKey = `row:::${r}_${cleanName || 'cust'}`;
     }
 
     const assignedCode = rawCode || `CUST-${1000 + customerMap.size + 1}`;

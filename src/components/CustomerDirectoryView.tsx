@@ -250,8 +250,16 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
       // Rep filter (works for both registered users and unregistered reps)
       if (selectedRepFilter !== 'الكل') {
+        const tempRepUser = users.find(
+          (u) => u.id === selectedRepFilter || u.name === selectedRepFilter || isArabicNameMatch(u.name, selectedRepFilter)
+        ) || {
+          id: selectedRepFilter,
+          name: selectedRepFilter,
+          role: 'sales_rep' as const,
+        };
         const repName = c.salesRepName || c.repName || '';
         const isMatch =
+          doesCustomerBelongToRep(c, tempRepUser as User) ||
           isArabicNameMatch(repName, selectedRepFilter) ||
           c.repId === selectedRepFilter ||
           (repName && repName.includes(selectedRepFilter));

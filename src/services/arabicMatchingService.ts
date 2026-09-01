@@ -152,6 +152,14 @@ export function isArabicNameMatch(nameA?: string, nameB?: string): boolean {
   if (!normA || !normB) return false;
   if (normA === normB) return true;
 
+  // Compact space-stripped match (e.g. "احمدعلاء" vs "احمد علاء")
+  const compactA = normA.replace(/\s+/g, '');
+  const compactB = normB.replace(/\s+/g, '');
+  if (compactA === compactB) return true;
+  if (compactA.length >= 6 && compactB.length >= 6) {
+    if (compactA.includes(compactB) || compactB.includes(compactA)) return true;
+  }
+
   const tokensA = getArabicTokens(nameA);
   const tokensB = getArabicTokens(nameB);
   if (tokensA.length === 0 || tokensB.length === 0) return false;
@@ -583,16 +591,6 @@ export function isBranchMatch(
 export function doesCustomerBelongToRep(customer: Customer, repUser: User): boolean {
   if (!customer || !repUser) return false;
 
-  // 0. Strict branch check for sales reps: Rep in Minya cannot claim a Fayoum customer
-  if (
-    repUser.role === 'sales_rep' &&
-    repUser.branchName &&
-    customer.branchName &&
-    !isBranchMatch(customer.branchName, repUser.branchName, { allowUnassigned: false })
-  ) {
-    return false;
-  }
-
   // 1. Direct ID / Username match (Highest authority)
   if (
     customer.repId &&
@@ -602,6 +600,12 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
   ) {
     return true;
   }
+
+  const normUserName = normalizeArabicText(repUser.name);
+  const normUserCompact = normUserName.replace(/\s+/g, '');
+  const cleanUserTokens = getArabicTokens(repUser.name).filter(
+    (t) => !['مندوب', 'المندوب', 'استاذ', 'الاستاذ', 'كابتن', 'مهندس', 'مسؤول', 'مسئول', 'فرع', 'مبيعات', 'المبيعات'].includes(t)
+  );
 
   // 2. Direct Match by Name / Username / Phone on the customer's rep fields
   const repCandidates = [
@@ -617,46 +621,27 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
     .filter((val): val is string => typeof val === 'string' && val.trim().length > 0)
     .map((s) => s.trim());
 
-  // Also check if notes contains explicit rep declaration (e.g. "المندوب: علاء عمر")
+  // Also check if notes contains explicit rep declaration (e.g. "المندوب: أحمد علاء" or "أحمد علاء")
   if (customer.notes && typeof customer.notes === 'string') {
     const noteNorm = normalizeArabicText(customer.notes);
-    const userNorm = normalizeArabicText(repUser.name);
-    if (userNorm && (noteNorm.includes(`مندوب ${userNorm}`) || noteNorm.includes(`المندوب ${userNorm}`))) {
+    if (
+      normUserName &&
+      (noteNorm.includes(`مندوب ${normUserName}`) ||
+        noteNorm.includes(`المندوب ${normUserName}`) ||
+        noteNorm.includes(`المندوب: ${normUserName}`) ||
+        noteNorm.includes(normUserName))
+    ) {
       return true;
     }
   }
 
-  const STOP_TOKENS = new Set([
-    'مندوب',
-    'المندوب',
-    'استاذ',
-    'الاستاذ',
-    'أستاذ',
-    'الأستاذ',
-    'ا',
-    'أ',
-    'م',
-    'كابتن',
-    'مهندس',
-    'مسؤول',
-    'مسئول',
-    'فرع',
-    'توزيع',
-    'مبيعات',
-    'المبيعات',
-    'التوزيع',
-    'الفيوم',
-    'القاهرة',
-    'المنيا',
-    'اكتوبر',
-    'ديمشلت',
-    'منوف',
-    'الشرقية',
-    'البحيرة',
-    'مصر',
-  ]);
-
-  const cleanUserTokens = getArabicTokens(repUser.name).filter((t) => !STOP_TOKENS.has(t));
+  // Also check if address contains rep note (e.g. "تسليم مندوب أحمد علاء")
+  if (customer.address && typeof customer.address === 'string') {
+    const addrNorm = normalizeArabicText(customer.address);
+    if (normUserName && (addrNorm.includes(`مندوب ${normUserName}`) || addrNorm.includes(`تسليم ${normUserName}`))) {
+      return true;
+    }
+  }
 
   for (const repField of repCandidates) {
     const isGenericRep =
@@ -665,6 +650,7 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
       repField === 'المندوب' ||
       repField === 'مندوب' ||
       repField === 'مبيعات' ||
+      repField === 'غير محدد' ||
       repField === '---' ||
       repField === '..' ||
       repField === '.' ||
@@ -680,29 +666,36 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
     if (repUser.phone && repUser.phone.length >= 8 && (repField.includes(repUser.phone) || repUser.phone.includes(repField))) return true;
 
     const normRepField = normalizeArabicText(repField);
-    const normUserName = normalizeArabicText(repUser.name);
 
     if (normRepField && normUserName) {
       if (normRepField === normUserName) return true;
-      // Word boundary match
+
+      // Word boundary match (e.g. "مندوب احمد علاء فرع الفيوم" contains "احمد علاء")
       if ((` ${normRepField} `).includes(` ${normUserName} `) || (` ${normUserName} `).includes(` ${normRepField} `)) {
         return true;
       }
+
+      // Compact match without spaces (e.g. "احمدعلاء" vs "احمد علاء")
+      const normRepCompact = normRepField.replace(/\s+/g, '');
+      if (normUserCompact && normRepCompact.includes(normUserCompact)) return true;
+      if (normRepCompact.length >= 6 && normUserCompact.includes(normRepCompact)) return true;
     }
 
-    // Tokenized Arabic matching after stop words removal (e.g. "علاء عمر" vs "مندوب / علاء عمر - فرع الفيوم")
-    const repTokens = getArabicTokens(repField).filter((t) => !STOP_TOKENS.has(t));
+    // Tokenized Arabic matching
+    const repTokens = getArabicTokens(repField).filter(
+      (t) => !['مندوب', 'المندوب', 'استاذ', 'الاستاذ', 'كابتن', 'مهندس', 'مسؤول', 'مسئول', 'فرع', 'مبيعات', 'المبيعات'].includes(t)
+    );
 
     if (cleanUserTokens.length > 0 && repTokens.length > 0) {
-      // Check if all user name tokens exist in the rep field
+      // If all tokens of user name exist in the rep field (e.g. user "احمد علاء" in "احمد علاء الدين" or "احمد علاء عمر")
       const allUserTokensMatch = cleanUserTokens.every((tok) => repTokens.includes(tok));
       if (allUserTokensMatch) return true;
 
-      // Check if all rep tokens exist in user name tokens (e.g. rep field is "علاء عمر" and user is "علاء عمر السيد")
+      // If all rep tokens exist in user name tokens (e.g. rep field is "احمد علاء" and user is "احمد علاء محمد")
       const allRepTokensInUser = repTokens.every((tok) => cleanUserTokens.includes(tok));
       if (allRepTokensInUser) return true;
 
-      // Check shared non-trivial name tokens (requires at least 2 shared tokens)
+      // Check shared non-trivial name tokens (e.g. first and second name match)
       const sharedTokens = cleanUserTokens.filter((tok) => repTokens.includes(tok));
       if (sharedTokens.length >= 2) return true;
     }
