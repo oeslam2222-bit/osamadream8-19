@@ -36,7 +36,7 @@ import {
   Wrench,
   X
 } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { doesCustomerBelongToRep } from '../services/arabicMatchingService';
 import { formatCurrency } from '../services/invoiceService';
@@ -72,6 +72,8 @@ export const UserManager: React.FC = () => {
   const [viewingRepUser, setViewingRepUser] = useState<User | null>(null);
   const [repCustomerSearchTerm, setRepCustomerSearchTerm] = useState<string>('');
   const [autoCreateFeedback, setAutoCreateFeedback] = useState<string | null>(null);
+  const [usersPage, setUsersPage] = useState(1);
+  const USERS_PER_PAGE = 25;
 
   const isSuperAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
@@ -281,8 +283,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
   // Pending users waiting for approval
   const pendingUsers = users.filter((u) => u.approvalStatus === 'pending_approval');
 
-  // Active users filtered
-  const activeUsers = users.filter((u) => {
+  // Active users are filtered once, then rendered in small pages to keep the table responsive.
+  const activeUsers = useMemo(() => users.filter((u) => {
     if (u.approvalStatus === 'pending_approval') return false;
 
     // Strict Branch Filter: Admin & Dev can see all branches, while Supervisor / Branch Manager / Rep only see their own branch
@@ -302,7 +304,18 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       if (!matchName && !matchUser && !matchPhone && !matchEmail) return false;
     }
     return true;
-  });
+  }), [users, isSuperAdminOrDev, currentUser?.branchName, selectedBranchFilter, selectedRoleFilter, searchQuery]);
+
+  const totalUsersPages = Math.max(1, Math.ceil(activeUsers.length / USERS_PER_PAGE));
+  const visibleUsers = activeUsers.slice((usersPage - 1) * USERS_PER_PAGE, usersPage * USERS_PER_PAGE);
+
+  useEffect(() => {
+    setUsersPage(1);
+  }, [selectedBranchFilter, selectedRoleFilter, searchQuery]);
+
+  useEffect(() => {
+    if (usersPage > totalUsersPages) setUsersPage(totalUsersPages);
+  }, [usersPage, totalUsersPages]);
 
   const handleOpenApproveModal = (user: User) => {
     setApprovingUser(user);
@@ -422,7 +435,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-lg sm:text-xl font-black text-slate-900">
-                  إدارة الموظفين والصلاحيات والهيكل الإداري
+                  إد��رة الموظفين والصلاحيات والهيكل الإداري
                 </h2>
                 <span className="bg-slate-100 text-slate-700 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-slate-200">
                   {users.length} موظف مسجل
@@ -657,9 +670,18 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
           </div>
         </div>
 
-        {/* 1. Mobile Cards View (Hidden on Tablet / Desktop) */}
+        <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 text-xs">
+    <span className="font-bold text-slate-500">عرض {visibleUsers.length} من {activeUsers.length} مستخدم</span>
+    <div className="flex items-center gap-2">
+      <button type="button" onClick={() => setUsersPage((page) => Math.max(1, page - 1))} disabled={usersPage === 1} className="rounded-lg border border-slate-200 px-3 py-1.5 font-bold disabled:cursor-not-allowed disabled:opacity-40">السابق</button>
+      <span className="font-black text-slate-700">{usersPage} / {totalUsersPages}</span>
+      <button type="button" onClick={() => setUsersPage((page) => Math.min(totalUsersPages, page + 1))} disabled={usersPage === totalUsersPages} className="rounded-lg border border-slate-200 px-3 py-1.5 font-bold disabled:cursor-not-allowed disabled:opacity-40">التالي</button>
+    </div>
+  </div>
+
+  {/* 1. Mobile Cards View (Hidden on Tablet / Desktop) */}
         <div className="block sm:hidden divide-y divide-slate-100">
-          {activeUsers.map((user) => {
+          {visibleUsers.map((user) => {
             const cfg = roleConfigs[user.role] || roleConfigs.sales_rep;
             const isCurrent = currentUser?.id === user.id;
             const branchSupervisors = getSupervisorsInBranch(user.branchName);
@@ -782,7 +804,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {activeUsers.map((user) => {
+              {visibleUsers.map((user) => {
                 const cfg = roleConfigs[user.role] || roleConfigs.sales_rep;
                 const isCurrent = currentUser?.id === user.id;
                 const branchSupervisors = getSupervisorsInBranch(user.branchName);
@@ -1015,7 +1037,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 {/* Full Name */}
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    الاسم بالكامل (اسم المندوب / الموظف المربوط بالعملاء وفواتير البيع) <span className="text-rose-600">*</span>
+                    الاسم بالكامل (اسم المندوب / الموظف المرب��ط بالعملاء وفواتير البيع) <span className="text-rose-600">*</span>
                   </label>
                   <input
                     type="text"
