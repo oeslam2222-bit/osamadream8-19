@@ -34,6 +34,7 @@ import { exportElectronicInvoiceToExcel, exportInvoiceForERP } from '../services
 import { downloadInvoicePDF } from '../services/pdfService';
 import { formatArabicDate, formatCurrency } from '../services/invoiceService';
 import { Invoice, OrderStatus } from '../types';
+import { CustomerCreditPopover } from './CustomerCreditPopover';
 
 interface InvoicesManagerProps {
   onOpenNewOrder: () => void;
@@ -313,7 +314,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
             }`}
           >
-            معتمدة ومصروفة ✅ ({accessibleInvoices.filter(i => i.status === 'معتمدة ومصروفة من المخزن' || i.status === 'معتمدة').length})
+            ��عتمدة ومصروفة ✅ ({accessibleInvoices.filter(i => i.status === 'معتمدة ومصروفة من المخزن' || i.status === 'معتمدة').length})
           </button>
 
           <button
@@ -491,8 +492,13 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
                       {/* Customer Name */}
                       <td className="p-3">
-                        <div className="font-extrabold text-slate-900 text-sm">{invoice.customerName}</div>
-                        <div className="text-[10px] text-slate-400">{invoice.customerPhone || '---'}</div>
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <div className="font-extrabold text-slate-900 text-sm">{invoice.customerName}</div>
+                            <div className="text-[10px] text-slate-400">{invoice.customerPhone || '---'}</div>
+                          </div>
+                          <CustomerCreditPopover invoice={invoice} viewerRole={currentUser?.role} />
+                        </div>
                       </td>
 
                       {/* Rep & Branch */}
