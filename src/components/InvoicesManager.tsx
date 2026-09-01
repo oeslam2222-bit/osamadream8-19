@@ -24,7 +24,9 @@ import {
   X,
   XCircle,
   RotateCcw,
-  AlertCircle
+  AlertCircle,
+  Pencil,
+  PlusCircle
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -36,11 +38,13 @@ import { Invoice, OrderStatus } from '../types';
 interface InvoicesManagerProps {
   onOpenNewOrder: () => void;
   onViewInvoice: (invoice: Invoice) => void;
+  onEditInvoice?: (invoice: Invoice) => void;
 }
 
 export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   onOpenNewOrder,
   onViewInvoice,
+  onEditInvoice,
 }) => {
   const {
     invoices,
@@ -430,7 +434,18 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                   const isPending =
                     invoice.status === 'قيد مراجعة المشرف' ||
                     invoice.status === 'معلقة بانتظار اعتماد الفرع' ||
-                    invoice.status === 'قيد المراجعة';
+                    invoice.status === 'قيد المراجعة' ||
+                    invoice.status === 'مسودة';
+
+                  const isOwnerRep = currentUser?.role === 'sales_rep' && (invoice.repId === currentUser.id || invoice.repName === currentUser.name);
+                  
+                  const canEditPending = Boolean(
+                    onEditInvoice &&
+                    isPending &&
+                    (isOwnerRep || currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer')
+                  );
+
+                  const canRepCancel = isPending && isOwnerRep;
 
                   const canApprove =
                     (currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer') &&
@@ -495,7 +510,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                       {/* Quantities */}
                       <td className="p-3 text-center">
                         <div className="font-black text-slate-900">{invoice.totalCartons} كرتونة</div>
-                        <div className="text-[10px] text-slate-500">{invoice.totalPieces} قطع��</div>
+                        <div className="text-[10px] text-slate-500">{invoice.totalPieces} قطعة</div>
                       </td>
 
                       {/* Estimated Grand Total */}
@@ -536,6 +551,18 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                       <td className="p-3">
                         <div className="flex items-center justify-center gap-1.5 flex-wrap">
                           
+                          {/* Edit / Add Items Button for Sales Rep / Supervisor on Pending Orders */}
+                          {canEditPending && (
+                            <button
+                              onClick={() => onEditInvoice && onEditInvoice(invoice)}
+                              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                              title="تعديل الطلبية وإضافة أو حذف أصناف في السلة"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                              <span>تعديل/إضافة</span>
+                            </button>
+                          )}
+
                           {/* Fast Approval Action for Supervisor/Manager */}
                           {canApprove && (
                             <>
@@ -570,8 +597,20 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             </>
                           )}
 
+                          {/* Rep cancel pending order button */}
+                          {!canApprove && canRepCancel && (
+                            <button
+                              onClick={() => setRejectModalInvoiceId(invoice.id)}
+                              className="bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer border border-rose-300"
+                              title="إلغاء طلبيتي قبل الاعتماد وفك حجز البضاعة"
+                            >
+                              <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                              <span>إلغاء الطلبية</span>
+                            </button>
+                          )}
+
                           {/* If not pending, but active: Supervisor / Manager / Admin can cancel anytime */}
-                          {!canApprove && canCancelAnytime && (
+                          {!canApprove && !canRepCancel && canCancelAnytime && (
                             <button
                               onClick={() => setRejectModalInvoiceId(invoice.id)}
                               className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer border border-rose-200"

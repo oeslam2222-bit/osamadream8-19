@@ -46,7 +46,7 @@ const TabLoadingSkeleton = () => (
 );
 
 const MainLayout: React.FC = () => {
-  const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary } = useApp();
+  const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder } = useApp();
 
   const [activeTab, setActiveTab] = useState<string>('catalog');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
@@ -63,6 +63,19 @@ const MainLayout: React.FC = () => {
   const handleOpenOrderForCustomer = (cust: Customer) => {
     setOrderInitialCustomer(cust);
     setIsOrderModalOpen(true);
+  };
+
+  const handleEditInvoice = (invoice: Invoice) => {
+    const res = editPendingOrder(invoice);
+    if (res.success) {
+      if (res.customer) {
+        setOrderInitialCustomer(res.customer);
+      }
+      setViewingInvoice(null);
+      setIsOrderModalOpen(true);
+    } else {
+      alert(res.message);
+    }
   };
 
   return (
@@ -111,6 +124,7 @@ const MainLayout: React.FC = () => {
             <InvoicesManager
               onOpenNewOrder={() => setIsOrderModalOpen(true)}
               onViewInvoice={(inv) => setViewingInvoice(inv)}
+              onEditInvoice={handleEditInvoice}
             />
           )}
 
@@ -190,6 +204,7 @@ const MainLayout: React.FC = () => {
             isOpen={!!viewingInvoice}
             invoice={viewingInvoice}
             onClose={() => setViewingInvoice(null)}
+            onEditInvoice={handleEditInvoice}
           />
         )}
       </Suspense>

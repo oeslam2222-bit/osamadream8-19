@@ -1,5 +1,28 @@
 @import "tailwindcss";
 
+@layer base {
+  html, body {
+    font-family: 'Cairo', 'Tajawal', 'IBM Plex Sans Arabic', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans Arabic', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  button, input, select, textarea {
+    font-family: inherit;
+  }
+}
+
+/* Mobile & Touch Performance Optimization */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Fast smooth transitions and hardware acceleration for modals */
+.animate-in {
+  will-change: transform, opacity;
+}
+
 /* Invoice output: print exactly two clean copies, without the app shell. */
 @media print {
   @page { size: A4 portrait; margin: 8mm; }

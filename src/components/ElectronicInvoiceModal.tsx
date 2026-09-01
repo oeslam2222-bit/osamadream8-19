@@ -7,6 +7,7 @@ import {
   FileSpreadsheet,
   FileText,
   MapPin,
+  Pencil,
   Phone,
   Printer,
   QrCode,
@@ -31,12 +32,14 @@ interface ElectronicInvoiceModalProps {
   invoice: Invoice | null;
   isOpen: boolean;
   onClose: () => void;
+  onEditInvoice?: (invoice: Invoice) => void;
 }
 
 export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   invoice,
   isOpen,
   onClose,
+  onEditInvoice,
 }) => {
   const { syncToAccounting, currentUser, rejectOrder } = useApp();
   const [isSyncing, setIsSyncing] = useState(false);
@@ -44,21 +47,45 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const [copiedInvoiceNo, setCopiedInvoiceNo] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [cancelReason, setCancelReason] = useState('قرار إداري من مدير الفرع / المشرف');
+  const [cancelReason, setCancelReason] = useState('طلب تعديل أو إلغاء الطلبية وفك الحجز');
   const [cancelFeedback, setCancelFeedback] = useState<string | null>(null);
 
   if (!isOpen || !invoice) return null;
 
-  const canCancelOrder =
-    (currentUser?.role === 'supervisor' ||
+  const isPending =
+    invoice.status === 'قيد مراجعة المشرف' ||
+    invoice.status === 'معلقة بانتظار اعتماد الفرع' ||
+    invoice.status === 'قيد المراجعة' ||
+    invoice.status === 'مسودة';
+
+  const isOwnerRep = currentUser?.role === 'sales_rep' && (invoice.repId === currentUser.id || invoice.repName === currentUser.name);
+
+  const canEditOrder = Boolean(
+    onEditInvoice &&
+    isPending &&
+    (isOwnerRep ||
+      currentUser?.role === 'supervisor' ||
       currentUser?.role === 'branch_manager' ||
       currentUser?.role === 'admin' ||
-      currentUser?.role === 'developer') &&
-    invoice.status !== 'تم التسليم' &&
-    invoice.status !== 'إغلاق الطلبية' &&
-    invoice.status !== 'مرتجع' &&
-    invoice.status !== 'مرفوضة / ملغاة' &&
-    invoice.status !== 'ملغاة';
+      currentUser?.role === 'developer')
+  );
+
+  const canCancelOrder =
+    isPending
+      ? isOwnerRep ||
+        currentUser?.role === 'supervisor' ||
+        currentUser?.role === 'branch_manager' ||
+        currentUser?.role === 'admin' ||
+        currentUser?.role === 'developer'
+      : (currentUser?.role === 'supervisor' ||
+          currentUser?.role === 'branch_manager' ||
+          currentUser?.role === 'admin' ||
+          currentUser?.role === 'developer') &&
+        invoice.status !== 'تم التسليم' &&
+        invoice.status !== 'إغلاق الطلبية' &&
+        invoice.status !== 'مرتجع' &&
+        invoice.status !== 'مرفوضة / ملغاة' &&
+        invoice.status !== 'ملغاة';
 
   const handleCancelConfirm = () => {
     if (!invoice) return;
@@ -154,6 +181,21 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
 
           {/* Action Buttons in Header */}
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Edit / Re-open order if pending */}
+            {canEditOrder && (
+              <button
+                onClick={() => {
+                  onClose();
+                  if (onEditInvoice) onEditInvoice(invoice);
+                }}
+                className="flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-black transition shadow-sm cursor-pointer"
+                title="تعديل الطلبية وإضافة أصناف جديدة في السلة"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>تعديل الطلبية / إضافة أصناف ✏️</span>
+              </button>
+            )}
+
             {/* Direct High-Quality PDF Download */}
             <button
               onClick={handleDownloadPDF}

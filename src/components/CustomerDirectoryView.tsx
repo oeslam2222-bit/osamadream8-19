@@ -214,16 +214,17 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
   // Extract ALL unique Branches from branches + customers
   const allAvailableBranches = useMemo(() => {
-    const visibleCustomers = isAdminOrDev ? customers : getVisibleCustomers();
     const branchSet = new Set<string>();
-    if (isAdminOrDev) branches.forEach((b) => branchSet.add(b.name));
+    branches.filter((b) => !b.isMainWarehouse).forEach((b) => branchSet.add(b.name));
+    const visibleCustomers = isAdminOrDev ? customers : getVisibleCustomers();
     visibleCustomers.forEach((c) => {
       if (c.branchName && c.branchName.trim()) {
-        branchSet.add(c.branchName.trim());
+        const norm = c.branchName.trim().startsWith('فرع') ? c.branchName.trim() : `فرع ${c.branchName.trim()}`;
+        branchSet.add(norm);
       }
     });
     return Array.from(branchSet);
-  }, [branches, customers]);
+  }, [branches, customers, isAdminOrDev, getVisibleCustomers]);
 
   // The context owns the privacy boundary; tabs can only narrow that list.
   const scopedCustomers = useMemo(() => {
@@ -960,15 +961,23 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 setSelectedBranch(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+              disabled={!isAdminOrDev}
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500 disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
             >
-              {!isAdminOrDev && <option value={currentUser?.branchName || ''}>{currentUser?.branchName || 'الفرع الحالي'}</option>}
-              {isAdminOrDev && <option value="الكل">كل الفروع (الكل)</option>}
-              {allAvailableBranches.map((bName) => (
-                <option key={bName} value={bName}>
-                  {bName}
+              {isAdminOrDev ? (
+                <>
+                  <option value="الكل">كل الفروع (الكل)</option>
+                  {allAvailableBranches.map((bName) => (
+                    <option key={bName} value={bName}>
+                      {bName}
+                    </option>
+                  ))}
+                </>
+              ) : (
+                <option value={currentUser?.branchName || ''}>
+                  {currentUser?.branchName || 'الفرع الحالي'}
                 </option>
-              ))}
+              )}
             </select>
           </div>
 
@@ -1209,7 +1218,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                         {globalIdx}
                       </td>
 
-                      {/* ك��د العميل */}
+                      {/* كود العميل */}
                       <td className="py-3 px-3 font-mono font-bold text-slate-700">
                         <span className="bg-slate-100 px-2 py-1 rounded-md text-[11px] border border-slate-200">
                           {customer.code || '---'}

@@ -146,6 +146,8 @@ interface AppContextType {
   approveOrder: (invoiceId: string, notes?: string) => { success: boolean; message: string };
   forwardOrderToManager: (invoiceId: string, notes?: string) => { success: boolean; message: string };
   rejectOrder: (invoiceId: string, reason: string) => { success: boolean; message: string };
+  editPendingOrder: (invoice: Invoice) => { success: boolean; message: string; customer?: Customer | null };
+  cancelPendingOrderByRep: (invoiceId: string, reason?: string) => { success: boolean; message: string };
   updateOrderStatus: (invoiceId: string, status: OrderStatus, reason?: string) => { success: boolean; message: string };
   processOrderReturn: (
     invoiceId: string,
@@ -199,6 +201,7 @@ const STORAGE_KEYS = {
   CUSTOMERS: 'dream_dist_customers_v9',
   CLOUDINARY: 'dream_dist_cloudinary_v9',
   CURRENT_USER_ID: 'dream_dist_current_user_v9',
+  CURRENT_USER_DATA: 'dream_dist_current_user_session_v10',
   IS_AUTH: 'dream_dist_is_auth_v9',
   ACCOUNTING_LOGS: 'dream_dist_acc_logs_v9',
   CART: 'dream_dist_cart_v9'
@@ -309,18 +312,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const savedUserId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
-    const isAuth = localStorage.getItem(STORAGE_KEYS.IS_AUTH);
-    if (savedUserId && isAuth === 'true') {
-      const found = users.find(u => u.id === savedUserId);
-      if (found) return found;
+    const isAuth = localStorage.getItem(STORAGE_KEYS.IS_AUTH) === 'true';
+    if (!isAuth) return null;
+
+    // 1. Try reading the full serialized session user object first (persists immediately across page reload)
+    const savedUserObj = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_DATA);
+    if (savedUserObj) {
+      try {
+        const parsed: User = JSON.parse(savedUserObj);
+        if (parsed && parsed.id && parsed.name && parsed.approvalStatus !== 'rejected' && parsed.isActive !== false) {
+          return {
+            ...parsed,
+            branchName: normalizeBranchName(parsed.branchName),
+          };
+        }
+      } catch (e) {
+        console.warn('Session user parse error:', e);
+      }
     }
-    // Default to admin or sales rep if already saved
+
+    // 2. Fallback to finding by saved user ID in users or INITIAL_USERS
+    const savedUserId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
+    if (savedUserId) {
+      const found = users.find((u) => u.id === savedUserId) || INITIAL_USERS.find((u) => u.id === savedUserId);
+      if (found && found.approvalStatus !== 'rejected' && found.isActive !== false) {
+        return found;
+      }
+    }
+
     return null;
   });
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem(STORAGE_KEYS.IS_AUTH) === 'true';
+    const isAuth = localStorage.getItem(STORAGE_KEYS.IS_AUTH) === 'true';
+    const hasUserId = Boolean(localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID));
+    const hasUserData = Boolean(localStorage.getItem(STORAGE_KEYS.CURRENT_USER_DATA));
+    return isAuth && (hasUserId || hasUserData);
   });
 
   const sanitizeProducts = (list: Product[]): Product[] => {
@@ -482,6 +509,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     idbSet('dream_dist_audit_logs_v7', auditLogs);
     safeLocalStorageSet('dream_dist_audit_logs_v7', JSON.stringify(auditLogs));
   }, [auditLogs]);
+
+  // Persist users to IndexedDB and localStorage so offline sessions and registered reps are immediately available
+  useEffect(() => {
+    if (users && users.length > 0) {
+      idbSet(STORAGE_KEYS.USERS, users);
+      safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(users));
+    }
+  }, [users]);
+
+  // Persist active session across browser refreshes and tab reloads
+  useEffect(() => {
+    if (isAuthenticated && currentUser) {
+      localStorage.setItem(STORAGE_KEYS.IS_AUTH, 'true');
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, currentUser.id);
+      safeLocalStorageSet(STORAGE_KEYS.CURRENT_USER_DATA, JSON.stringify(currentUser));
+    } else if (!isAuthenticated || !currentUser) {
+      localStorage.removeItem(STORAGE_KEYS.IS_AUTH);
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_DATA);
+    }
+  }, [currentUser, isAuthenticated]);
+
+  // Keep active currentUser in sync with updated users list (e.g. role update, branch change, account status, or deletion)
+  useEffect(() => {
+    if (currentUser) {
+      if (users.length > 0) {
+        const fresh = users.find((u) => u.id === currentUser.id);
+        if (!fresh && currentUser.id !== 'u-admin-osama') {
+          // User was permanently deleted from the database
+          logout();
+          setAuthTerminationNotice('تم حذف هذا الحساب من قاعدة البيانات بواسطة إدارة الشركة. تم إنهاء الجلسة ولا يمكن تسجيل الدخول بهذا الحساب.');
+        } else if (fresh) {
+          if (fresh.approvalStatus === 'rejected' || fresh.isActive === false) {
+            logout();
+            setAuthTerminationNotice('تم إيقاف هذا الحساب من قبل الإدارة.');
+          } else if (
+            fresh.role !== currentUser.role ||
+            fresh.branchName !== currentUser.branchName ||
+            fresh.supervisorId !== currentUser.supervisorId ||
+            fresh.name !== currentUser.name ||
+            fresh.approvalStatus !== currentUser.approvalStatus
+          ) {
+            setCurrentUser(fresh);
+          }
+        }
+      }
+    }
+  }, [users]);
 
   const recordAuditLog = (logData: Omit<AuditLog, 'id' | 'timestamp' | 'formattedTime'>) => {
     const now = new Date();
@@ -1306,7 +1381,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (found.password && found.password.trim().length > 0) {
       const dbPass = found.password.trim();
       if (dbPass !== cleanPass) {
-        return { success: false, message: 'كلمة المرور غير صحي��ة. يرجى التأكد من كتابة كل��ة المرور بدقة.' };
+        return { success: false, message: 'كلمة المرور غير صحيحة. يرجى التأكد من كتابة كلمة المرور بدقة.' };
       }
     } else if (cleanPass) {
       // First-time setup: user sets their password
@@ -1393,6 +1468,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const logout = () => {
     setCurrentUser(null);
     setIsAuthenticated(false);
+    localStorage.removeItem(STORAGE_KEYS.IS_AUTH);
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_DATA);
     clearCart();
   };
 
@@ -1612,7 +1690,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             unitPrice: appliedCartonPrice,
             pricePerPiece: piecePrice,
             totalPrice,
-            quantityDescription: cartonsToAdd > 0 && piecesToAdd > 0 ? `${cartonsToAdd} ك��تونة و ${piecesToAdd} قطعة` : cartonsToAdd > 0 ? `${cartonsToAdd} كرتونة` : `${piecesToAdd} قطعة`,
+            quantityDescription: cartonsToAdd > 0 && piecesToAdd > 0 ? `${cartonsToAdd} كرتونة و ${piecesToAdd} قطعة` : cartonsToAdd > 0 ? `${cartonsToAdd} كرتونة` : `${piecesToAdd} قطعة`,
             fulfillFromMainWarehouse: latestProd.branchStockActual <= 0 && latestProd.mainWarehouseActual > 0,
           },
         ];
@@ -1886,7 +1964,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     message?: string;
   } => {
     if (cart.length === 0) {
-      return { success: false, message: 'سلة الطلبية ف��رغة! يرجى إضافة أصناف أولاً.' };
+      return { success: false, message: 'سلة الطلبية فارغة! يرجى إضافة أصناف أولاً.' };
     }
 
     // Submitting a request does not check, reserve, transfer, or deduct stock.
@@ -2120,7 +2198,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         estimatedGrandTotal: shortageTotals.estimatedGrandTotal,
         paymentMethod: orderData.paymentMethod || 'نقدي (كاش)',
         status: 'قيد مراجعة المشرف',
-        notes: `��اتورة تحويل نواقص تابعة للفاتورة الأساسية #${newInvoiceNumber}`,
+        notes: `فاتورة تحويل نواقص تابعة للفاتورة الأساسية #${newInvoiceNumber}`,
         syncedToAccounting: false,
         isShortageInvoice: true,
         parentInvoiceId: primaryInvoice.id,
@@ -2222,7 +2300,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           tier: 'عادي',
           balance: 0,
           creditLimit: 50000,
-          notes: `تم تسجيل ال��ميل تلقائياً مع الفاتورة #${primaryInvoice.invoiceNumber}`,
+          notes: `تم تسجيل العميل تلقائياً مع الفاتورة #${primaryInvoice.invoiceNumber}`,
           lastOrderDate: formattedDate,
           totalOrdersCount: 1,
           totalSpent: primaryTotals.estimatedGrandTotal,
@@ -2498,6 +2576,130 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
+  // Re-open / Edit pending order for sales rep or supervisor before approval
+  const editPendingOrder = (invoice: Invoice): { success: boolean; message: string; customer?: Customer | null } => {
+    const isPending =
+      invoice.status === 'قيد مراجعة المشرف' ||
+      invoice.status === 'معلقة بانتظار اعتماد الفرع' ||
+      invoice.status === 'قيد المراجعة' ||
+      invoice.status === 'مسودة';
+
+    if (!isPending) {
+      return { success: false, message: 'لا يمكن تعديل الطلبية بعد اعتمادها وصرفها من المخزن.' };
+    }
+
+    // 1. Release reserved stock back to available stock
+    setProducts((prev) => {
+      return prev.map((p) => {
+        const invItem = invoice.items.find((it) => it.productId === p.id);
+        if (!invItem) return p;
+        if (invItem.fulfilledFrom === 'main_warehouse') {
+          return {
+            ...p,
+            mainWarehouseReserved: p.mainWarehouseReserved + invItem.cartonCount,
+          };
+        } else {
+          return {
+            ...p,
+            branchStockReserved: p.branchStockReserved + invItem.cartonCount,
+          };
+        }
+      });
+    });
+
+    // 2. Load items into cart
+    const loadedCartItems: CartItem[] = invoice.items.map((item) => {
+      const prod: Product = products.find((p) => p.id === item.productId) || {
+        id: item.productId,
+        code: item.productCode,
+        name: item.productName,
+        salesPriority: 'عادي',
+        category: 'عام',
+        status: 'متاح',
+        cartonQuantity: item.cartonQuantity || 1,
+        size: 'قياسي',
+        color: 'افتراضي',
+        branchStockActual: 100,
+        branchStockReserved: 100,
+        mainWarehouseActual: 100,
+        mainWarehouseReserved: 100,
+        department: 'عام',
+        classification: 'عام',
+        cartonPrice: item.pricePerCarton || item.appliedPrice,
+        piecePrice: item.pricePerPiece,
+        branchName: invoice.branchName || 'الفرع الرئيسي',
+        minOrderQuantity: 1,
+      };
+
+      return {
+        product: prod,
+        cartonCount: item.cartonCount,
+        pieceCount: item.pieceCount || 0,
+        cartonQuantity: item.cartonQuantity || 1,
+        totalPieces: item.totalUnits,
+        unitPrice: item.appliedPrice,
+        pricePerPiece: item.pricePerPiece,
+        totalPrice: item.totalBeforeTax,
+        quantityDescription: item.quantityDescription,
+        orderType: 'carton',
+        fulfillFromMainWarehouse: item.fulfilledFrom === 'main_warehouse',
+      };
+    });
+
+    setCart(loadedCartItems);
+
+    // 3. Match customer
+    const matchedCustomer = customers.find(
+      (c) =>
+        (invoice.customerCode && c.code === invoice.customerCode) ||
+        (invoice.customerName && c.name.trim().toLowerCase() === invoice.customerName.trim().toLowerCase()) ||
+        (invoice.customerPhone && c.phone && c.phone.trim() === invoice.customerPhone.trim())
+    ) || (invoice.customerName ? {
+      id: `c-temp-${Date.now()}`,
+      code: invoice.customerCode || 'CUST-NEW',
+      name: invoice.customerName,
+      phone: invoice.customerPhone || '',
+      address: invoice.customerAddress || '',
+      taxNumber: invoice.customerTaxNumber || '',
+      governorate: 'عام',
+      branchName: invoice.branchName,
+      salesRepName: invoice.repName,
+      repName: invoice.repName,
+      repId: invoice.repId,
+      tier: 'عادي',
+      balance: invoice.customerBalanceBefore || 0,
+      creditLimit: invoice.customerCreditLimit || 50000,
+      notes: '',
+    } : null);
+
+    // 4. Remove previous pending invoice
+    setInvoices((prev) => prev.filter((i) => i.id !== invoice.id));
+
+    recordAuditLog({
+      userId: currentUser?.id || 'rep',
+      userName: currentUser?.name || 'المندوب',
+      userRole: currentUser?.role || 'sales_rep',
+      branchName: invoice.branchName,
+      action: 'update_invoice_status',
+      actionTitle: `إعادة فتح وتعديل الطلبية #${invoice.invoiceNumber}`,
+      details: `تم إعادة فتح أصناف الطلبية #${invoice.invoiceNumber} للعميل (${invoice.customerName}) في السلة لإتاحة إضافة أو حذف أصناف أو تعديل الكميات والأسعار قبل الاعتماد.`,
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      badgeType: 'info',
+    });
+
+    return {
+      success: true,
+      message: `تم فتح الطلبية #${invoice.invoiceNumber} في السلة بنجاح! يمكنك الآن تعديل الكميات أو إضافة أصناف جديدة من الكتالوج وإعادة إصدار الفاتورة.`,
+      customer: matchedCustomer,
+    };
+  };
+
+  // Rep or supervisor can cancel order while pending
+  const cancelPendingOrderByRep = (invoiceId: string, reason?: string): { success: boolean; message: string } => {
+    return rejectOrder(invoiceId, reason || 'إلغاء الطلبية بطلب من المندوب قبل الاعتماد');
+  };
+
   const updateOrderStatus = (
     invoiceId: string,
     status: OrderStatus,
@@ -2657,7 +2859,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       badgeType: status === 'تم التسليم' || status === 'معتمدة ومصروفة من المخزن' ? 'success' : isNowReturnedOrCancelled ? 'danger' : 'info',
     });
 
-    let message = `تم تحدي�� حالة الطلبية #${inv.invoiceNumber} بنجاح إلى: ${status}`;
+    let message = `تم تحديث حالة الطلبية #${inv.invoiceNumber} بنجاح إلى: ${status}`;
     if (status === 'مرتجع') {
       message = `تم تسجيل الطلبية #${inv.invoiceNumber} كـ (مرتجع) وإرجاع كافة الكراتين والأرصدة إلى المخزن بنجاح!`;
     } else if (status === 'تم التسليم') {
@@ -3022,6 +3224,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (found) {
       setCurrentUser(found);
       setIsAuthenticated(true);
+      localStorage.setItem(STORAGE_KEYS.IS_AUTH, 'true');
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, found.id);
+      safeLocalStorageSet(STORAGE_KEYS.CURRENT_USER_DATA, JSON.stringify(found));
     }
   };
 
@@ -3074,6 +3279,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         approveOrder,
         forwardOrderToManager,
         rejectOrder,
+        editPendingOrder,
+        cancelPendingOrderByRep,
         updateOrderStatus,
         processOrderReturn,
         deleteInvoice,

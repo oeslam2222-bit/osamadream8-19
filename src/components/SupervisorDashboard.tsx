@@ -327,12 +327,12 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     };
   }, [products]);
 
-  // List of unique reps in accessible invoices
+  // List of unique reps in accessible invoices (Strict branch privacy)
   const repsList = useMemo(() => {
     const set = new Set<string>();
-    invoices.forEach((i) => i.repName && set.add(i.repName));
+    accessibleInvoices.forEach((i) => i.repName && set.add(i.repName));
     return ['الكل', ...Array.from(set)];
-  }, [invoices]);
+  }, [accessibleInvoices]);
 
   // Reps Performance Table
   const repPerformance = useMemo(() => {

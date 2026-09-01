@@ -984,7 +984,7 @@ export const InventoryStockView: React.FC = () => {
                   <thead className="bg-slate-900 text-white font-bold">
                     <tr>
                       <th className="p-3">الكود</th>
-                      <th className="p-3">��سم الصنف والبيان</th>
+                      <th className="p-3">اسم الصنف والبيان</th>
                       <th className="p-3 text-center">شدة الكرتونة</th>
                       <th className="p-3 text-center">المخزون بالفرع (المتاح)</th>
                       <th className="p-3 text-center">حالة التوافر والإجراء</th>
@@ -1401,7 +1401,7 @@ export const InventoryStockView: React.FC = () => {
               </p>
             </div>
             <span className="bg-slate-100 text-slate-800 font-bold px-3 py-1 rounded-xl text-xs border border-slate-200">
-              {inventoryLogs.length} حركة ��سجلة
+              {inventoryLogs.length} حركة مسجلة
             </span>
           </div>
 
@@ -1693,7 +1693,7 @@ export const InventoryStockView: React.FC = () => {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-black text-sm text-rose-700 flex items-center gap-2">
                 <XCircle className="w-4 h-4" />
-                <span>رفض الطلبية وإرجاع الر��يد المحجوز للمخ��ن</span>
+                <span>رفض الطلبية وإرجاع الرصيد المحجوز للمخزن</span>
               </h3>
               <button onClick={() => setRejectModalInvoiceId(null)}>
                 <X className="w-4 h-4 text-slate-400 hover:text-slate-700" />
