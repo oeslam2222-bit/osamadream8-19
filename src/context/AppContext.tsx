@@ -910,6 +910,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 return Array.from(map.values());
               });
             }
+          } else if (payload.eventType === 'DELETE') {
+            const deleted = payload.old as any;
+            if (deleted?.id) {
+              setInvoices((prev) => prev.filter((invoice) => invoice.id !== deleted.id));
+            }
           }
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
@@ -949,6 +954,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.warn('Realtime channel error:', e);
     }
+  }, []);
+
+  // Realtime can be unavailable when the table is not enabled for replication.
+  // Keep both accounts in sync with a lightweight fallback refresh.
+  useEffect(() => {
+    let cancelled = false;
+
+    const refreshInvoices = async () => {
+      const result = await fetchInvoicesFromSupabase();
+      if (cancelled || !result.success || !result.invoices) return;
+      setInvoices((prev) => {
+        const remoteById = new Map(result.invoices!.map((invoice) => [invoice.id, invoice]));
+        const localOnly = prev.filter((invoice) => !remoteById.has(invoice.id));
+        return [...result.invoices!, ...localOnly];
+      });
+    };
+
+    const interval = window.setInterval(refreshInvoices, 7000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, []);
 
   // Customer CRUD Actions
@@ -3039,7 +3066,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       invoiceNumber: inv.invoiceNumber,
       status: 'نجاح',
       systemName: 'نظام الحسابات المركزي لشركة دريم (ERP System)',
-      responseMessage: `تم تصدير القيد المحاسبي وحساب العميل والمخزون بنجاح رقم السند #${Math.floor(100000 + Math.random() * 900000)}`,
+      responseMessage: `تم تصدير القيد الم��اسبي وحساب العميل والمخزون بنجاح رقم السند #${Math.floor(100000 + Math.random() * 900000)}`,
     };
 
     setAccountingLogs((prev) => [newLog, ...prev]);
