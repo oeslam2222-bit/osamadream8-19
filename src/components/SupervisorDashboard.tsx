@@ -241,8 +241,9 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         inv.status === 'معتمدة ومصروفة من المخزن' ||
         inv.status === 'معتمدة' ||
         inv.status === 'جاري التجهيز' ||
-        inv.status === 'قيد التوصيل' ||
-        inv.status === 'تم التسليم';
+  inv.status === 'قيد التوصيل' ||
+  inv.status === 'تم التسليم' ||
+  inv.status === 'إغلاق الطلبية';
 
       if (isApprovedOrActive) {
         totalRevenue += inv.estimatedGrandTotal || 0;
@@ -263,9 +264,9 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         pendingApprovals += 1;
       } else if (inv.status === 'قيد التوصيل') {
         outForDelivery += 1;
-      } else if (inv.status === 'تم التسليم') {
-        deliveredCount += 1;
-        deliveredRevenue += inv.estimatedGrandTotal || 0;
+  } else if (inv.status === 'تم التسليم' || inv.status === 'إغلاق الطلبية') {
+  deliveredCount += 1;
+  deliveredRevenue += inv.estimatedGrandTotal || 0;
       } else if (inv.status === 'مرتجع') {
         returnedCount += 1;
         returnedRevenue += inv.estimatedGrandTotal || 0;
