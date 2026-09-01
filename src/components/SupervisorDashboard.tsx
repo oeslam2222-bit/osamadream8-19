@@ -37,6 +37,7 @@ import { useApp } from '../context/AppContext';
 import { exportElectronicInvoiceToExcel } from '../services/excelService';
 import { formatCurrency } from '../services/invoiceService';
 import { downloadInvoicePDF } from '../services/pdfService';
+import { isBranchMatch } from '../services/arabicMatchingService';
 import { Invoice, OrderStatus } from '../types';
 
 interface SupervisorDashboardProps {
@@ -168,13 +169,13 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
       } else if (currentUser?.role === 'supervisor') {
         // Supervisor STRICTLY sees ONLY his branch and reps under him
         const isSupervisedRep = users.some(
-          (u) => u.id === inv.repId && u.supervisorId === currentUser.id
+          (u) => u.id === inv.repId && (u.supervisorId === currentUser.id || isBranchMatch(u.branchName, currentUser.branchName))
         );
-        const isSameBranch = inv.branchName === currentUser.branchName;
-        if (!isSameBranch && !isSupervisedRep) return false;
+        const isSameBranch = Boolean(inv.branchName) && isBranchMatch(inv.branchName, currentUser.branchName);
+        if (!isSameBranch && !isSupervisedRep && inv.repId !== currentUser.id) return false;
       } else if (currentUser?.role === 'branch_manager') {
         // Branch Manager STRICTLY sees ONLY his own branch
-        if (inv.branchName !== currentUser.branchName) return false;
+        if (!inv.branchName || !isBranchMatch(inv.branchName, currentUser.branchName)) return false;
       }
 
       // 3. Status filter

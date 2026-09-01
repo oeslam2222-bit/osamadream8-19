@@ -3165,8 +3165,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return invoices.filter((i) => Boolean(i.branchName) && isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false }));
     }
     if (currentUser.role === 'supervisor') {
-      const repIds = new Set(users.filter((u) => u.role === 'sales_rep' && u.supervisorId === currentUser.id && isBranchMatch(u.branchName, currentUser.branchName, { allowUnassigned: false })).map((u) => u.id));
-      return invoices.filter((i) => Boolean(i.branchName) && isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false }) && Boolean(i.repId) && repIds.has(i.repId));
+      const repIds = new Set(
+        users
+          .filter((u) => u.role === 'sales_rep' && (u.supervisorId === currentUser.id || isBranchMatch(u.branchName, currentUser.branchName)))
+          .map((u) => u.id)
+      );
+      return invoices.filter((i) => {
+        const isSameBranch = Boolean(i.branchName) && isBranchMatch(i.branchName, currentUser.branchName);
+        const isSupervisedRep = Boolean(i.repId) && repIds.has(i.repId);
+        const isSelf = i.repId === currentUser.id;
+        return isSameBranch || isSupervisedRep || isSelf;
+      });
     }
     return invoices.filter((i) => Boolean(i.branchName) && isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false }) && i.repId === currentUser.id);
   };
