@@ -697,39 +697,50 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         {/* Global Action Buttons */}
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           
-          <button
-            onClick={() => setIsImportModalOpen(true)}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-md shadow-blue-900/30"
-            title="استيراد شيت 3400 عميل من Google Sheets أو Excel"
-          >
-            <Upload className="w-4 h-4" />
-            <span>استيراد العملاء 📥</span>
-          </button>
+          {/* Import Customers (Admin & Developer Only) */}
+          {isAdminOrDev && (
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-md shadow-blue-900/30"
+              title="استيراد شيت 3400 عميل من Google Sheets أو Excel"
+            >
+              <Upload className="w-4 h-4" />
+              <span>استيراد العملاء 📥</span>
+            </button>
+          )}
 
-          <button
-            onClick={handleRunSync}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-amber-300 border border-slate-700 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-sm"
-            title="إعادة مطابقة أسماء المناديب مع أسماء العملاء في الشيت"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span>مزامنة المناديب 🔄</span>
-          </button>
+          {/* Sync Reps (Admin & Developer Only) */}
+          {isAdminOrDev && (
+            <button
+              onClick={handleRunSync}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-amber-300 border border-slate-700 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-sm"
+              title="إعادة مطابقة أسماء المناديب مع أسماء العملاء في الشيت"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>مزامنة المناديب 🔄</span>
+            </button>
+          )}
 
+          {/* Export Excel (Available for All Roles - Reps, Supervisors, Managers, Admins) */}
           <button
             onClick={handleExportSheet}
             className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-md shadow-emerald-900/30"
+            title="تصدير بيانات العملاء المعروضة إلى شيت إكسل"
           >
             <Download className="w-4 h-4" />
             <span>تصدير إكسل 📊</span>
           </button>
 
-          <button
-            onClick={handleOpenAdd}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs transition cursor-pointer shadow-lg shadow-amber-400/20"
-          >
-            <Plus className="w-4 h-4 stroke-[3]" />
-            <span>إضافة عميل ➕</span>
-          </button>
+          {/* Add Customer (Admin & Developer Only - Reps add new un-coded customers during order creation) */}
+          {isAdminOrDev && (
+            <button
+              onClick={handleOpenAdd}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs transition cursor-pointer shadow-lg shadow-amber-400/20"
+            >
+              <Plus className="w-4 h-4 stroke-[3]" />
+              <span>إضافة عميل ➕</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1325,14 +1336,16 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                             </a>
                           )}
 
-                          {/* Edit Customer */}
-                          <button
-                            onClick={() => handleOpenEdit(customer)}
-                            className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer"
-                            title="تعديل بيانات العميل والحد الائتماني والمندوب"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
+                          {/* Edit Customer (Admin & Dev only) */}
+                          {isAdminOrDev && (
+                            <button
+                              onClick={() => handleOpenEdit(customer)}
+                              className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer"
+                              title="تعديل بيانات العميل والحد الائتماني والمندوب"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                          )}
 
                           {/* Delete Customer (Admins only) */}
                           {isAdminOrDev && (

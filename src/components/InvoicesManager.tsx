@@ -22,7 +22,9 @@ import {
   UserCheck,
   Users,
   X,
-  XCircle
+  XCircle,
+  RotateCcw,
+  AlertCircle
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -58,6 +60,9 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   const [selectedRepFilter, setSelectedRepFilter] = useState<string>('الكل');
   const [rejectModalInvoiceId, setRejectModalInvoiceId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<string>('نفاذ الكمية أو طلب العميل إلغاء الطلبية');
+  const [returnModalInvoice, setReturnModalInvoice] = useState<Invoice | null>(null);
+  const [returnReason, setReturnReason] = useState<string>('مرتجع بطلب العميل واسترجاع البضاعة للمخزن');
+  const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
   // Pagination state for responsive multi-page browsing
@@ -193,6 +198,21 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       setSuccessToast(res.message);
       setRejectModalInvoiceId(null);
       setTimeout(() => setSuccessToast(null), 4000);
+    }
+  };
+
+  const handleReturnConfirm = () => {
+    if (!returnModalInvoice) return;
+    setIsSubmittingReturn(true);
+    try {
+      const res = updateOrderStatus(returnModalInvoice.id, 'مرتجع', returnReason);
+      if (res.success) {
+        setSuccessToast(`تم تسجيل الفاتورة #${returnModalInvoice.invoiceNumber} كمرتجع بنجاح! تمت إعادة ${returnModalInvoice.totalCartons} كرتونة إلى رصيد المخزن، وخصم ${formatCurrency(returnModalInvoice.estimatedGrandTotal)} من حساب ومديونية العميل.`);
+        setReturnModalInvoice(null);
+        setTimeout(() => setSuccessToast(null), 5000);
+      }
+    } finally {
+      setIsSubmittingReturn(false);
     }
   };
 
@@ -424,6 +444,14 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                     invoice.status !== 'مرفوضة / ملغاة' &&
                     invoice.status !== 'ملغاة';
 
+                  const canMakeReturn =
+                    (currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer') &&
+                    (invoice.status === 'معتمدة ومصروفة من المخزن' ||
+                     invoice.status === 'معتمدة' ||
+                     invoice.status === 'جاري التجهيز' ||
+                     invoice.status === 'قيد التوصيل' ||
+                     invoice.status === 'تم التسليم');
+
                   return (
                     <tr key={invoice.id} className="hover:bg-amber-50/30 transition">
                       
@@ -553,6 +581,21 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               <span>إلغاء</span>
                             </button>
                           )}
+                          {/* Return Button for Manager/Supervisor/Admin on approved or completed orders */}
+                          {canMakeReturn && (
+                            <button
+                              onClick={() => {
+                                setReturnModalInvoice(invoice);
+                                setReturnReason('مرتجع بطلب العميل واسترجاع البضاعة للمخزن');
+                              }}
+                              className="bg-amber-100 hover:bg-amber-200 text-amber-950 font-black px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer border border-amber-300 shadow-xs"
+                              title="تسجيل مرتجع للطلبية وإرجاع المخزون وتعديل المديونية"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5 text-amber-800" />
+                              <span>مرتجع</span>
+                            </button>
+                          )}
+
                           <button
                             onClick={() => onViewInvoice(invoice)}
                             className="bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition shadow-xs cursor-pointer"
@@ -816,6 +859,109 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200 cursor-pointer"
               >
                 تراجع
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order Return Prompt Modal */}
+      {returnModalInvoice && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-black text-sm text-amber-900 flex items-center gap-2">
+                <RotateCcw className="w-5 h-5 text-amber-600" />
+                <span>تسجيل مرتجع للطلبية #{returnModalInvoice.invoiceNumber}</span>
+              </h3>
+              <button onClick={() => setReturnModalInvoice(null)} className="cursor-pointer">
+                <X className="w-5 h-5 text-slate-400 hover:text-slate-700" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-bold">العميل:</span>
+                <span className="font-black text-slate-900">{returnModalInvoice.customerName}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-bold">المندوب والفرع:</span>
+                <span className="font-bold text-slate-800">{returnModalInvoice.repName} • {returnModalInvoice.branchName}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-bold">الكمية الإجمالية:</span>
+                <span className="font-black text-slate-900">{returnModalInvoice.totalCartons} كرتونة ({returnModalInvoice.totalPieces} قطعة)</span>
+              </div>
+              <div className="flex items-center justify-between border-t border-slate-200 pt-1.5">
+                <span className="text-amber-900 font-bold">إجمالي المبلغ المرتجع:</span>
+                <span className="font-black text-sm text-amber-900">{formatCurrency(returnModalInvoice.estimatedGrandTotal)}</span>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 text-amber-950 p-3.5 rounded-2xl text-xs space-y-1.5">
+              <div className="font-black flex items-center gap-1.5 text-amber-900">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>الإجراءات التلقائية عند تأكيد المرتجع:</span>
+              </div>
+              <ul className="list-disc list-inside text-slate-700 space-y-1 leading-relaxed pr-1 text-[11px]">
+                <li>إعادة كافة الأصناف والكراتين ({returnModalInvoice.totalCartons} كرتونة) فوراً إلى رصيد المخزن الفعلي والمتاح.</li>
+                <li>خصم قيمة الفاتورة ({formatCurrency(returnModalInvoice.estimatedGrandTotal)}) تلقائياً من حساب ومديونية العميل.</li>
+                <li>تسجيل حركة المرتجع في سجل الحركات وسجل التدقيق الإداري.</li>
+              </ul>
+            </div>
+
+            {/* Quick Presets */}
+            <div className="space-y-1.5">
+              <label className="block font-bold text-slate-700 text-xs">سبب المرتجع:</label>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  'مرتجع بطلب العميل واسترجاع البضاعة للمخزن',
+                  'رفض الاستلام عند التوصيل',
+                  'تلف أو عيب في بعض الكراتين',
+                  'خطأ في تسجيل الطلبية أو الكميات',
+                  'استبدال أصناف بطلب الإدارة',
+                ].map((reasonText) => (
+                  <button
+                    key={reasonText}
+                    type="button"
+                    onClick={() => setReturnReason(reasonText)}
+                    className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition cursor-pointer ${
+                      returnReason === reasonText
+                        ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {reasonText}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="text-xs space-y-1">
+              <label className="block font-bold text-slate-700">ملاحظات وتفاصيل المرتجع:</label>
+              <textarea
+                rows={2}
+                value={returnReason}
+                onChange={(e) => setReturnReason(e.target.value)}
+                placeholder="اكتب تفاصيل أو سبب المرتجع..."
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-400 font-medium"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                disabled={isSubmittingReturn}
+                onClick={handleReturnConfirm}
+                className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-black py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>تأكيد المرتجع واسترجاع المخزون والمديونية</span>
+              </button>
+              <button
+                onClick={() => setReturnModalInvoice(null)}
+                className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200 cursor-pointer"
+              >
+                إلغاء
               </button>
             </div>
           </div>

@@ -87,7 +87,11 @@ const MainLayout: React.FC = () => {
       <main className="flex-1 max-w-7xl w-full mx-auto px-2 sm:px-4 md:px-6 py-2.5 sm:py-5 pb-24 md:pb-8">
         <Suspense fallback={<TabLoadingSkeleton />}>
           {activeTab === 'catalog' && (
-            <ProductCatalog onOpenCart={() => setIsOrderModalOpen(true)} />
+            <ProductCatalog
+              onOpenCart={() => setIsOrderModalOpen(true)}
+              selectedCustomer={orderInitialCustomer}
+              onClearSelectedCustomer={() => setOrderInitialCustomer(null)}
+            />
           )}
 
           {activeTab === 'customers' && (

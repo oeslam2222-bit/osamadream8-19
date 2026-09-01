@@ -57,16 +57,22 @@ import {
 import { formatCurrency } from '../services/invoiceService';
 import { cacheProductImages, getCachedImagesStats, clearCachedImages } from '../services/imageCacheService';
 import { parseExcelProducts, fetchAndParseGoogleSheet, generateSampleExcelTemplate } from '../services/excelService';
-import { ItemStatus, OFFICIAL_DEPARTMENTS, Product, SalesPriority } from '../types';
+import { Customer, ItemStatus, OFFICIAL_DEPARTMENTS, Product, SalesPriority } from '../types';
 import { DepartmentCategorySlicer } from './DepartmentCategorySlicer';
 import { getDepartmentMeta } from '../data/departmentMeta';
 import { getBranchStockForProduct } from '../services/arabicMatchingService';
 
 interface ProductCatalogProps {
   onOpenCart?: () => void;
+  selectedCustomer?: Customer | null;
+  onClearSelectedCustomer?: () => void;
 }
 
-export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) => {
+export const ProductCatalog: React.FC<ProductCatalogProps> = ({
+  onOpenCart,
+  selectedCustomer,
+  onClearSelectedCustomer,
+}) => {
   const {
     products,
     currentUser,
@@ -564,6 +570,54 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ onOpenCart }) =>
 
   return (
     <div className="space-y-4 pb-20">
+
+      {/* Selected Customer Order Context Banner */}
+      {selectedCustomer && (
+        <div className="bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 p-3 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg border border-amber-300 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-slate-950 text-amber-400 flex items-center justify-center font-black shrink-0 shadow-md">
+              <ShoppingCart className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-[11px] font-bold text-slate-900 flex items-center gap-1.5">
+                <span>جاري إنشاء طلبية للعميل المختار:</span>
+                <span className="bg-slate-950 text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full">
+                  {selectedCustomer.code || 'عميل مسجل'}
+                </span>
+              </div>
+              <div className="text-sm sm:text-base font-black text-slate-950">
+                {selectedCustomer.name}
+              </div>
+              <div className="text-[11px] text-slate-800 font-medium">
+                {selectedCustomer.branchName ? `الفرع: ${selectedCustomer.branchName}` : ''} 
+                {selectedCustomer.salesRepName || selectedCustomer.repName ? ` • المندوب: ${selectedCustomer.salesRepName || selectedCustomer.repName}` : ''}
+                {selectedCustomer.currentBalance ? ` • المديونية: ${formatCurrency(selectedCustomer.currentBalance)}` : ''}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            {onOpenCart && (
+              <button
+                onClick={onOpenCart}
+                className="bg-slate-950 hover:bg-slate-900 active:scale-95 text-amber-400 px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 shadow-md transition cursor-pointer"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                <span>معاينة الفاتورة وتأكيد الطلبية 🛒</span>
+              </button>
+            )}
+            {onClearSelectedCustomer && (
+              <button
+                onClick={onClearSelectedCustomer}
+                className="bg-slate-900/10 hover:bg-slate-900/20 text-slate-900 p-2 rounded-xl text-xs font-bold transition cursor-pointer"
+                title="إلغاء تحديد العميل والعودة للطلب العام"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       
       {/* Toast Notification when adding item (Amazon / Souq style) */}
       {addedItemToast && (

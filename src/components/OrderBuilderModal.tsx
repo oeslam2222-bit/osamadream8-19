@@ -801,22 +801,27 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
             ) : (
               <div className="space-y-2.5">
                 {/* NEW CUSTOMER NOTIFICATION BADGE */}
-                <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md shrink-0">
-                      عميل جديد ✨
+                <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs">
+                  <div className="flex items-start gap-2.5">
+                    <span className="bg-amber-500 text-slate-950 text-[10px] font-black px-2.5 py-1 rounded-lg shrink-0 mt-0.5 flex items-center gap-1 shadow-xs">
+                      <span>عميل جديد (قيد التكويد) ⏳</span>
                     </span>
-                    <span className="font-bold text-emerald-950">
-                      {customerName.trim()
-                        ? `سيتم حفظ وتوثيق العميل (${customerName}) وإسناده تلقا��ياً للمندوب (${customerRep || currentUser?.name || 'المندوب الحالي'}).`
-                        : `أدخل بيانات العميل الجديد أدناه وسيتم تسجيله وربطه بحساب المندوب تلقائياً فور حفظ الفاتورة.`}
-                    </span>
+                    <div className="text-amber-950">
+                      <p className="font-bold text-xs">
+                        {customerName.trim()
+                          ? `العميل: "${customerName}" قيد التسجيل الأولي والتكويد.`
+                          : `تسجيل عميل جديد مؤقت لحين تكويده الرسمي في النظام.`}
+                      </p>
+                      <p className="text-[11px] text-amber-900 mt-0.5 leading-relaxed">
+                        سيتم إصدار الفاتورة باسم العميل وإسناده للمندوب ({customerRep || currentUser?.name || "المندوب الحالي"})، مع تمرير بياناته للمشرف والإدارة للمراجعة والتكويد الرسمي.
+                      </p>
+                    </div>
                   </div>
                   {isNewCustomerMode && (
                     <button
                       type="button"
                       onClick={() => setIsCustomerDropdownOpen(true)}
-                      className="text-[11px] text-emerald-800 hover:text-emerald-950 font-black underline cursor-pointer shrink-0"
+                      className="text-[11px] text-amber-950 hover:text-slate-950 font-black underline cursor-pointer shrink-0 self-end sm:self-auto bg-amber-200/70 px-2 py-1 rounded-lg"
                     >
                       أو اختر من المسجلين
                     </button>

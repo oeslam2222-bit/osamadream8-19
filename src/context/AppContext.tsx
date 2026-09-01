@@ -2603,6 +2603,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
         });
       }
+
+      // Restore / Refund customer balance and debt if order amount was added
+      if (inv.customerName && inv.estimatedGrandTotal > 0) {
+        setCustomers((prev) =>
+          prev.map((c) => {
+            const match = (inv.customerCode && c.code === inv.customerCode) || c.name.trim().toLowerCase() === inv.customerName.trim().toLowerCase();
+            if (!match) return c;
+            const currentBal = Number(c.currentBalance ?? c.balance ?? 0);
+            const newBal = Math.max(0, currentBal - inv.estimatedGrandTotal);
+            const updatedCust: Customer = {
+              ...c,
+              currentBalance: newBal,
+              balance: newBal,
+              totalSpent: Math.max(0, Number(c.totalSpent || 0) - inv.estimatedGrandTotal),
+            };
+            saveCustomersToSupabase([updatedCust]).catch((e) => console.warn('Supabase customer return balance sync failed:', e));
+            return updatedCust;
+          })
+        );
+      }
     }
 
     setInvoices((prev) =>
