@@ -223,15 +223,15 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                 className="hidden xl:flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-amber-300 border border-amber-500/30 px-3 h-9 sm:h-10 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
                 title={
                   currentUser.role === 'admin' || currentUser.role === 'developer'
-                    ? 'تعديل ترويسة وبيانات الشركة الرسمية / الفروع'
-                    : `تعديل ترويسة وبيانات فرعك (${currentUser.branchName})`
+                    ? 'إعدادات بيانات الفاتورة للشركة والفروع'
+                    : `إعدادات بيانات فاتورة فرعك (${currentUser.branchName})`
                 }
               >
                 <Building2 className="w-3.5 h-3.5 text-amber-400" />
                 <span>
                   {currentUser.role === 'admin' || currentUser.role === 'developer'
-                    ? 'ترويسة الشركة والفروع 🏢'
-                    : 'ترويسة فرعك 🏢'}
+                    ? 'إعدادات بيانات الفاتورة 🏢'
+                    : 'إعدادات بيانات الفاتورة 🏢'}
                 </span>
               </button>
             )}
@@ -315,8 +315,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                         <Building2 className="w-4 h-4 text-amber-400" />
                         <span>
                           {currentUser.role === 'admin' || currentUser.role === 'developer'
-                            ? '🏢 ترويسة وبيانات الشركة / الفروع'
-                            : `🏢 ترويسة وبيانات فرع (${currentUser.branchName})`}
+                            ? '🏢 إعدادات بيانات الفاتورة (الشركة / الفروع)'
+                            : `🏢 إعدادات بيانات الفاتورة (${currentUser.branchName})`}
                         </span>
                       </button>
                     )}

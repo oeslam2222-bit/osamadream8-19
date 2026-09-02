@@ -278,10 +278,10 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                   type="button"
                   onClick={() => setShowCompanySettings(true)}
                   className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
-                  title="تعديل ترويسة وبيانات الشركة أو الفرع"
+                  title="إعدادات بيانات الفاتورة للفرع"
                 >
                   <Settings className="w-3 h-3 text-amber-600" />
-                  <span>تعديل ترويسة {currentUser?.role === 'admin' || currentUser?.role === 'developer' ? 'الشركة / الفرع' : 'الفرع'} ✏️</span>
+                  <span>إعدادات بيانات الفاتورة {currentUser?.role === 'admin' || currentUser?.role === 'developer' ? '(الشركة / الفروع)' : `(${currentUser?.branchName})`} ✏️</span>
                 </button>
               </div>
             )}

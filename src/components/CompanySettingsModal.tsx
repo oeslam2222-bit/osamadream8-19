@@ -133,13 +133,13 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-2">
-                <span>تعديل ترويسة وبيانات الشركة الرسمية</span>
+                <span>إعدادات بيانات الفاتورة</span>
                 <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30">
-                  للفواتير والطباعة
+                  للفواتير والمطبوعات
                 </span>
               </h2>
               <p className="text-xs text-slate-300 mt-0.5">
-                تخصيص اسم الشركة، السجل التجاري، البطاقة الضريبية، العنوان والخط الساخن
+                تخصيص بيانات الفرع (العنوان، الهواتف، السجل والضريبة) مع ثبات الأيقونة الموحدة للشركة
               </p>
             </div>
           </div>
@@ -157,7 +157,7 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
         <div className="bg-slate-900 text-slate-100 p-3 sm:px-5 sm:py-3.5 border-b border-slate-700 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Store className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="text-xs font-bold text-slate-200">نطاق تطبيق الترويسة:</span>
+            <span className="text-xs font-bold text-slate-200">الفرع المطلوب ضبط بيانات فواتيره:</span>
           </div>
 
           {isMasterAdmin ? (
@@ -167,7 +167,7 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                 onChange={(e) => setSelectedScope(e.target.value)}
                 className="w-full bg-slate-800 text-amber-300 border border-amber-500/40 rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
               >
-                <option value="__GLOBAL__">🏢 الترويسة الرئيسية العامة (افتراضي لكافة الفروع)</option>
+                <option value="__GLOBAL__">🏢 بيانات الفاتورة الرئيسية العامة (افتراضي لكافة الفروع)</option>
                 {branches.map((b) => (
                   <option key={b.id} value={b.name}>
                     📍 فرع: {b.name} {branchCompanyInfo[b.name] ? '✨ (مخصص)' : ''}
@@ -178,7 +178,7 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
           ) : (
             <div className="flex items-center gap-2 bg-amber-500/15 border border-amber-500/40 px-3 py-1.5 rounded-xl text-amber-300 text-xs font-bold">
               <Lock className="w-3.5 h-3.5 text-amber-400" />
-              <span>مخصص حصرياً لفرعك: <strong>{selectedScope}</strong></span>
+              <span>مخصص لفرعك: <strong>{selectedScope}</strong></span>
             </div>
           )}
         </div>
@@ -193,11 +193,11 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
           <span>
             {isEditingBranch ? (
               <>
-                🔒 <strong>عزل الفرع مفعل:</strong> التعديلات المحفوظة هنا ستطبق <strong>حصراً على فواتير ومطبوعات {selectedScope}</strong> ولن تؤثر على أي فرع آخر.
+                🔒 <strong>عزل بيانات الفرع مفعل:</strong> التعديلات هنا ستطبق <strong>حصراً على فواتير ومطبوعات {selectedScope}</strong> مع ثبات الأيقونة الموحدة.
               </>
             ) : (
               <>
-                🏢 <strong>الترويسة العامة الموحدة:</strong> يتم توريث هذه البيانات افتراضياً لجميع فروع الشركة ما لم يقم الفرع بتخصيص بياناته.
+                🏢 <strong>بيانات الفاتورة العامة الموحدة:</strong> تورث تلقائياً لكافة الفروع ما لم يقم الفرع بضبط بياناته الخاصة.
               </>
             )}
           </span>
@@ -208,7 +208,7 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
               <Eye className="w-4 h-4 text-amber-600" />
-              <span>معاينة حية فورية لترويسة الفاتورة ({isEditingBranch ? selectedScope : 'العامة'}):</span>
+              <span>معاينة حية لشكل الفاتورة ({isEditingBranch ? selectedScope : 'العامة'}):</span>
             </span>
             <span className="text-[10px] text-slate-500">تتحدث تلقائياً مع كل حرف تعدله</span>
           </div>
@@ -276,30 +276,30 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
               <CheckCircle2 className="w-5 h-5 text-emerald-600" />
               <span>
                 {isEditingBranch
-                  ? `تم حفظ وتطبيق ترويسة فرع (${selectedScope}) بنجاح وبشكل معزول!`
-                  : 'تم حفظ وتطبيق الترويسة العامة للشركة بنجاح على جميع الفروع!'}
+                  ? `تم حفظ وتطبيق بيانات فاتورة فرع (${selectedScope}) بنجاح وبشكل مستقل!`
+                  : 'تم حفظ وتطبيق بيانات الفاتورة العامة بنجاح!'}
               </span>
             </div>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 text-xs">
             
-            {/* Logo Letter / Symbol */}
+            {/* Standard Fixed Company Logo / Icon */}
             <div className="sm:col-span-3">
-              <label className="block font-bold text-slate-700 mb-1">حرف أو رمز الشعار (Logo)</label>
-              <input
-                type="text"
-                maxLength={4}
-                value={formData.logoLetter || 'D'}
-                onChange={(e) => handleChange('logoLetter', e.target.value)}
-                placeholder="D"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-black text-center text-base focus:ring-2 focus:ring-amber-500"
-              />
+              <label className="block font-bold text-slate-700 mb-1">أيقونة وشعار التطبيق</label>
+              <div className="flex items-center gap-2 p-2 bg-slate-100 border border-slate-300 rounded-xl">
+                <div className="w-8 h-8 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center font-black text-sm shadow-xs shrink-0">
+                  {formData.logoLetter || 'D'}
+                </div>
+                <div className="text-[10px] text-slate-600 font-bold leading-tight">
+                  ثابتة وموحدة 🔒
+                </div>
+              </div>
             </div>
 
             {/* Arabic Name */}
             <div className="sm:col-span-9">
-              <label className="block font-bold text-slate-700 mb-1">اسم الشركة / الفرع باللغة العربية *</label>
+              <label className="block font-bold text-slate-700 mb-1">اسم الشركة / الفرع بالفاتورة *</label>
               <input
                 type="text"
                 required
@@ -308,7 +308,7 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                   handleChange('nameArabic', e.target.value);
                   handleChange('name', e.target.value);
                 }}
-                placeholder="شركة دريم للتجارة والتوزيع"
+                placeholder="شركة دريم للتجارة والتوزيع - فرع أكتوبر"
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-black text-slate-900 focus:ring-2 focus:ring-amber-500"
               />
             </div>
