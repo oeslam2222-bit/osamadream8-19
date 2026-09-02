@@ -3,6 +3,7 @@ import {
   CheckCircle,
   Clock,
   Copy,
+  CreditCard,
   Download,
   FileSpreadsheet,
   FileText,
@@ -12,6 +13,8 @@ import {
   Printer,
   QrCode,
   Server,
+  Settings,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Store,
@@ -22,11 +25,12 @@ import {
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { COMPANY_INFO } from '../data/mockData';
 import { exportElectronicInvoiceToExcel, exportInvoiceForERP } from '../services/excelService';
 import { formatArabicDate, formatCurrency } from '../services/invoiceService';
 import { downloadInvoicePDF } from '../services/pdfService';
 import { Invoice } from '../types';
+import { CompanySettingsModal } from './CompanySettingsModal';
+import { CreditAuditModal } from './CreditAuditModal';
 
 interface ElectronicInvoiceModalProps {
   invoice: Invoice | null;
@@ -41,7 +45,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   onClose,
   onEditInvoice,
 }) => {
-  const { syncToAccounting, currentUser, rejectOrder } = useApp();
+  const { syncToAccounting, currentUser, rejectOrder, companyInfo, getCompanyInfoForBranch } = useApp();
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
@@ -49,8 +53,12 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('طلب تعديل أو إلغاء الطلبية وفك الحجز');
   const [cancelFeedback, setCancelFeedback] = useState<string | null>(null);
+  const [showCompanySettings, setShowCompanySettings] = useState(false);
+  const [showCreditAudit, setShowCreditAudit] = useState(false);
 
   if (!isOpen || !invoice) return null;
+
+  const effectiveCompanyInfo = getCompanyInfoForBranch ? getCompanyInfoForBranch(invoice.branchName) : companyInfo;
 
   const isPending =
     invoice.status === 'قيد مراجعة المشرف' ||
@@ -207,6 +215,16 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               <span>{isDownloadingPDF ? 'جاري التجهيز...' : 'تحميل PDF فاخر 📄'}</span>
             </button>
 
+            {/* Credit Audit Modal Button */}
+            <button
+              onClick={() => setShowCreditAudit(true)}
+              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+              title="عرض جدول تدقيق الائتمان والمديونية المعتمد"
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>تدقيق الائتمان 💳</span>
+            </button>
+
             {/* Excel Download Standard */}
             <button
               onClick={() => exportElectronicInvoiceToExcel(invoice)}
@@ -251,38 +269,54 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
         <div className="flex-1 overflow-y-auto p-4 sm:p-7 space-y-5 text-slate-900 bg-white" id="printable-invoice">
           
           {/* Header Banner - Company Identity */}
-          <div className="border-b-2 border-slate-900 pb-4">
+          <div className="border-b-2 border-slate-900 pb-4 relative group">
+            
+            {/* Quick Edit Header Button for Admin/Developer/Branch Manager/Supervisor */}
+            {['admin', 'developer', 'supervisor', 'branch_manager'].includes(currentUser?.role || '') && (
+              <div className="absolute top-0 left-0 print:hidden opacity-90 group-hover:opacity-100 transition">
+                <button
+                  type="button"
+                  onClick={() => setShowCompanySettings(true)}
+                  className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
+                  title="تعديل ترويسة وبيانات الشركة أو الفرع"
+                >
+                  <Settings className="w-3 h-3 text-amber-600" />
+                  <span>تعديل ترويسة {currentUser?.role === 'admin' || currentUser?.role === 'developer' ? 'الشركة / الفرع' : 'الفرع'} ✏️</span>
+                </button>
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               
               {/* Right: Company Logo & Details */}
               <div className="text-center sm:text-right space-y-1">
                 <div className="flex items-center justify-center sm:justify-start gap-2">
                   <div className="w-8 h-8 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center font-black text-sm shadow-xs">
-                    D
+                    {effectiveCompanyInfo.logoLetter || 'D'}
                   </div>
                   <div>
                     <h1 className="text-lg sm:text-2xl font-black text-slate-950 tracking-tight">
-                      {COMPANY_INFO.nameArabic}
+                      {effectiveCompanyInfo.nameArabic || effectiveCompanyInfo.name || 'شركة دريم للتجارة والتوزيع'}
                     </h1>
                     <div className="text-[10px] sm:text-xs font-bold text-slate-500 font-sans tracking-wide">
-                      {COMPANY_INFO.nameEnglish}
+                      {effectiveCompanyInfo.nameEnglish || effectiveCompanyInfo.commercialNameEn || 'Dream Trading & Distribution Co.'}
                     </div>
                   </div>
                 </div>
 
                 <p className="text-[11px] sm:text-xs text-slate-600 font-medium pt-1">
-                  {COMPANY_INFO.activity} • {COMPANY_INFO.headquarters}
+                  {effectiveCompanyInfo.activity || 'تجارة وتوزيع الأدوات المنزلية والزجاج والمستلزمات'} • {effectiveCompanyInfo.headquarters || effectiveCompanyInfo.address || 'المنطقة الصناعية الرابعة، مدينة 6 أكتوبر، الجيزة'}
                 </p>
 
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3 text-[11px] text-slate-700 pt-0.5">
-                  <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-800">
-                    س.ت: <strong>{COMPANY_INFO.commercialRegister}</strong>
+                  <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-800 border border-slate-200">
+                    س.ت: <strong>{effectiveCompanyInfo.commercialRegister || '184920 - الجيزة'}</strong>
                   </span>
-                  <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-800">
-                    ب.ض: <strong>{COMPANY_INFO.taxNumber}</strong>
+                  <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-800 border border-slate-200">
+                    ب.ض: <strong>{effectiveCompanyInfo.taxNumber || '200-482-991'}</strong>
                   </span>
                   <span className="bg-amber-50 border border-amber-200 px-2 py-0.5 rounded text-amber-900 font-bold">
-                    الخط الساخن: <strong>{COMPANY_INFO.customerService}</strong>
+                    الخط الساخن: <strong>{effectiveCompanyInfo.customerService || '19000 / 01000000001'}</strong>
                   </span>
                 </div>
               </div>
@@ -304,7 +338,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                 {/* QR Code Identification */}
                 <div className="w-20 h-20 bg-slate-50 p-1.5 rounded-2xl border-2 border-slate-900 flex flex-col items-center justify-center text-center shrink-0 shadow-xs">
                   <QrCode className="w-11 h-11 text-slate-900" />
-                  <span className="text-[7px] font-black text-slate-700 pt-0.5 font-mono">DREAM DIST</span>
+                  <span className="text-[7px] font-black text-slate-700 pt-0.5 font-mono">{effectiveCompanyInfo.logoLetter || 'DREAM'} DIST</span>
                 </div>
               </div>
 
@@ -314,7 +348,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
           {/* Customer Appreciation Banner */}
           <div className="bg-gradient-to-r from-amber-400/20 via-amber-400/10 to-amber-400/20 border border-amber-400/50 rounded-2xl p-2.5 text-center shadow-xs">
             <p className="text-xs sm:text-sm font-black text-amber-950 flex items-center justify-center gap-1.5">
-              <span>✨ شكراً لتعاملكم واختياركم شركة دريم للتجارة والتوزيع ❤️</span>
+              <span>✨ شكراً لتعاملكم واختياركم {companyInfo.nameArabic || 'شركة دريم للتجارة والتوزيع'} ❤️</span>
             </p>
           </div>
 
@@ -518,6 +552,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                 {invoice.creditLimitExceeded && (
                   <div className="bg-rose-950/90 border border-rose-500/80 p-2 rounded-xl text-rose-200 text-[10px] space-y-0.5 mt-1">
                     <div className="font-black text-rose-300 flex items-center gap-1">
+                      <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
                       <span>⚠️ تم تجاوز الحد الائتماني للعميل</span>
                     </div>
                     <div>
@@ -526,6 +561,15 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                     </div>
                   </div>
                 )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowCreditAudit(true)}
+                  className="w-full mt-2 bg-blue-950/80 hover:bg-blue-900 text-blue-300 border border-blue-500/50 hover:border-blue-400 py-1.5 px-2.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <CreditCard className="w-3.5 h-3.5 text-blue-400" />
+                  <span>فتح جدول تدقيق الائتمان والمديونية الشامل 🔍</span>
+                </button>
               </div>
             </div>
 
@@ -659,6 +703,24 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               </div>
             </div>
           </div>
+        )}
+
+        {/* Company Header & Identity Settings Modal */}
+        {showCompanySettings && (
+          <CompanySettingsModal
+            isOpen={showCompanySettings}
+            onClose={() => setShowCompanySettings(false)}
+            targetBranchName={invoice.branchName}
+          />
+        )}
+
+        {/* Credit & Financial Audit Modal */}
+        {showCreditAudit && (
+          <CreditAuditModal
+            invoice={invoice}
+            isOpen={showCreditAudit}
+            onClose={() => setShowCreditAudit(false)}
+          />
         )}
 
       </div>

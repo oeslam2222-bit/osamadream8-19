@@ -217,67 +217,112 @@ export async function saveCustomerToSupabase(customer: Customer): Promise<{ succ
 const CATALOG_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000001';
 export const USER_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000002';
 
+let cachedUsersResponse: { data: User[]; timestamp: number } | null = null;
+const USERS_CACHE_TTL_MS = 60 * 1000; // 60 seconds memory cache
+let activeUsersFetchPromise: Promise<{ success: boolean; users?: User[]; error?: string }> | null = null;
+
+export function invalidateUsersCache() {
+  cachedUsersResponse = null;
+}
+
 /**
  * Fetch all users from Supabase (checking 'users', 'app_users', 'profiles' and central snapshot)
+ * Optimized with in-memory caching and request deduplication to accelerate loading
  */
-export async function fetchUsersFromSupabase(): Promise<{ success: boolean; users?: User[]; error?: string }> {
-  try {
-    const byId = new Map<string, User>();
-    const byEmail = new Map<string, User>();
-    const tableCandidates = ['users', 'app_users', 'profiles'];
-
-    const mapUser = (u: any, tbl: string, idx: number): User => {
-      const rawEmail = String(u.email || '').trim();
-      const emailPrefix = rawEmail ? rawEmail.split('@')[0] : '';
-      return {
-        id: String(u.id || `sup-${tbl}-${idx + 1}`),
-        name: u.name || u.full_name || u.display_name || emailPrefix || 'مستخدم',
-        username: String(u.username || u.user_name || emailPrefix || `user_${idx + 1}`).trim().toLowerCase(),
-        email: rawEmail,
-        password: String(u.password || u.pass || '').trim(),
-        role: normalizeUserRole(u.role, u.is_admin),
-        branchName: u.branch_name || u.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
-        supervisorId: u.supervisor_id || u.supervisorId,
-        phone: u.phone || u.mobile || u.tel || '',
-        commissionRate: Number(u.commission_rate || u.commissionRate || 2.5),
-        isActive: u.is_active !== undefined ? Boolean(u.is_active) : true,
-        approvalStatus: u.approval_status || u.approvalStatus || 'active',
-      };
-    };
-
-    for (const tbl of tableCandidates) {
-      try {
-        const { data, error } = await supabase.from(tbl).select('*');
-        if (error || !data) continue;
-        data.forEach((row: any, idx: number) => {
-          const user = mapUser(row, tbl, idx);
-          const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
-          byId.set(user.id, { ...existing, ...user });
-          if (user.email) byEmail.set(user.email.toLowerCase(), { ...existing, ...user });
-        });
-      } catch {
-        // Continue to other candidate tables
-      }
-    }
-
-    // Check central snapshot as fallback
-    try {
-      const { data } = await supabase.from('orders').select('items').eq('id', USER_SYNC_STORE_ID).limit(1);
-      const items = data?.[0]?.items;
-      const snapshot = Array.isArray(items) ? items : typeof items === 'string' ? JSON.parse(items) : [];
-      snapshot.forEach((row: any, idx: number) => {
-        const user = mapUser(row, 'snapshot', idx);
-        if (!byId.has(user.id) && (!user.email || !byEmail.has(user.email.toLowerCase()))) byId.set(user.id, user);
-      });
-    } catch {
-      // snapshot optional
-    }
-
-    const users = Array.from(byId.values());
-    return users.length > 0 ? { success: true, users } : { success: false, error: 'لم يتم العثور على مستخدمين' };
-  } catch (err: any) {
-    return { success: false, error: err?.message || 'خطأ في جلب المستخدمين من Supabase' };
+export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Promise<{ success: boolean; users?: User[]; error?: string }> {
+  const now = Date.now();
+  if (!forceRefresh && cachedUsersResponse && (now - cachedUsersResponse.timestamp < USERS_CACHE_TTL_MS)) {
+    return { success: true, users: cachedUsersResponse.data };
   }
+
+  if (activeUsersFetchPromise && !forceRefresh) {
+    return activeUsersFetchPromise;
+  }
+
+  activeUsersFetchPromise = (async () => {
+    try {
+      const byId = new Map<string, User>();
+      const byEmail = new Map<string, User>();
+      const tableCandidates = ['users', 'app_users', 'profiles'];
+
+      const mapUser = (u: any, tbl: string, idx: number): User => {
+        const rawEmail = String(u.email || '').trim();
+        const emailPrefix = rawEmail ? rawEmail.split('@')[0] : '';
+        return {
+          id: String(u.id || `sup-${tbl}-${idx + 1}`),
+          name: u.name || u.full_name || u.display_name || emailPrefix || 'مستخدم',
+          username: String(u.username || u.user_name || emailPrefix || `user_${idx + 1}`).trim().toLowerCase(),
+          email: rawEmail,
+          password: String(u.password || u.pass || '').trim(),
+          role: normalizeUserRole(u.role, u.is_admin),
+          branchName: u.branch_name || u.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+          supervisorId: u.supervisor_id || u.supervisorId,
+          phone: u.phone || u.mobile || u.tel || '',
+          commissionRate: Number(u.commission_rate || u.commissionRate || 2.5),
+          isActive: u.is_active !== undefined ? Boolean(u.is_active) : true,
+          approvalStatus: u.approval_status || u.approvalStatus || 'active',
+        };
+      };
+
+      // 1. Prioritize querying the primary 'users' table first
+      try {
+        const { data, error } = await supabase.from('users').select('*');
+        if (!error && data && data.length > 0) {
+          data.forEach((row: any, idx: number) => {
+            const user = mapUser(row, 'users', idx);
+            byId.set(user.id, user);
+            if (user.email) byEmail.set(user.email.toLowerCase(), user);
+          });
+        }
+      } catch {
+        // Continue to secondary tables if needed
+      }
+
+      // 2. Only check secondary candidates if primary 'users' table is empty or has very few records
+      if (byId.size === 0) {
+        for (const tbl of ['app_users', 'profiles']) {
+          try {
+            const { data, error } = await supabase.from(tbl).select('*');
+            if (error || !data) continue;
+            data.forEach((row: any, idx: number) => {
+              const user = mapUser(row, tbl, idx);
+              const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
+              byId.set(user.id, { ...existing, ...user });
+              if (user.email) byEmail.set(user.email.toLowerCase(), { ...existing, ...user });
+            });
+          } catch {
+            // Continue
+          }
+        }
+
+        // Check central snapshot as fallback
+        try {
+          const { data } = await supabase.from('orders').select('items').eq('id', USER_SYNC_STORE_ID).limit(1);
+          const items = data?.[0]?.items;
+          const snapshot = Array.isArray(items) ? items : typeof items === 'string' ? JSON.parse(items) : [];
+          snapshot.forEach((row: any, idx: number) => {
+            const user = mapUser(row, 'snapshot', idx);
+            if (!byId.has(user.id) && (!user.email || !byEmail.has(user.email.toLowerCase()))) byId.set(user.id, user);
+          });
+        } catch {
+          // snapshot optional
+        }
+      }
+
+      const users = Array.from(byId.values());
+      if (users.length > 0) {
+        cachedUsersResponse = { data: users, timestamp: Date.now() };
+        return { success: true, users };
+      }
+      return { success: false, error: 'لم يتم العثور على مستخدمين' };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'خطأ في جلب المستخدمين من Supabase' };
+    } finally {
+      activeUsersFetchPromise = null;
+    }
+  })();
+
+  return activeUsersFetchPromise;
 }
 
 /**
@@ -332,6 +377,7 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
  */
 export async function saveUsersToSupabase(users: User[]): Promise<{ success: boolean; error?: string }> {
   try {
+    invalidateUsersCache();
     const usersPayload = users.map((u) => ({
       id: u.id,
       name: u.name,
@@ -393,6 +439,7 @@ export async function saveUsersToSupabase(users: User[]): Promise<{ success: boo
  */
 export async function saveUserToSupabase(user: User): Promise<{ success: boolean; error?: string }> {
   try {
+    invalidateUsersCache();
     const userPayload = {
       id: user.id,
       name: user.name,
@@ -463,6 +510,7 @@ export async function saveUserToSupabase(user: User): Promise<{ success: boolean
  */
 export async function deleteUserFromSupabase(userId: string): Promise<{ success: boolean; error?: string }> {
   try {
+    invalidateUsersCache();
     // 1. Delete directly from tables
     try {
       await supabase.from('users').delete().eq('id', userId);

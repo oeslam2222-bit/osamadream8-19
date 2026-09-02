@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
+  COMPANY_INFO,
   INITIAL_AUDIT_LOGS,
   INITIAL_BRANCHES,
   INITIAL_CUSTOMERS,
@@ -45,6 +46,7 @@ import {
   Branch,
   CartItem,
   CloudinaryConfig,
+  CompanyInfo,
   Customer,
   InventoryTransaction,
   Invoice,
@@ -169,6 +171,13 @@ interface AppContextType {
   clearAuthTerminationNotice: () => void;
 
   // Settings & App Extras
+  companyInfo: CompanyInfo;
+  branchCompanyInfo: Record<string, Partial<CompanyInfo>>;
+  updateCompanyInfo: (newInfo: Partial<CompanyInfo>) => void;
+  resetCompanyInfo: () => void;
+  updateBranchCompanyInfo: (branchName: string, newInfo: Partial<CompanyInfo>) => void;
+  resetBranchCompanyInfo: (branchName: string) => void;
+  getCompanyInfoForBranch: (branchName?: string) => CompanyInfo;
   updateCloudinarySettings: (config: CloudinaryConfig) => void;
   saveMatchedProductImages: (updates: { id: string; imageUrl: string }[]) => void;
   clearAllAppData: (mode?: 'cache_only' | 'full_reset') => void;
@@ -342,6 +351,95 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return null;
   });
+
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(() => {
+    const saved = localStorage.getItem('dream_dist_company_info_v1');
+    if (saved) {
+      try {
+        return { ...COMPANY_INFO, ...JSON.parse(saved) };
+      } catch (e) {
+        console.error('Error parsing saved company info', e);
+      }
+    }
+    return COMPANY_INFO;
+  });
+
+  const updateCompanyInfo = (newInfo: Partial<CompanyInfo>) => {
+    setCompanyInfo((prev) => {
+      const updated: CompanyInfo = { ...prev, ...newInfo };
+      safeLocalStorageSet('dream_dist_company_info_v1', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const resetCompanyInfo = () => {
+    setCompanyInfo(COMPANY_INFO);
+    safeLocalStorageSet('dream_dist_company_info_v1', JSON.stringify(COMPANY_INFO));
+  };
+
+  // Branch-specific company headers and identities (Isolation per branch)
+  const [branchCompanyInfo, setBranchCompanyInfo] = useState<Record<string, Partial<CompanyInfo>>>(() => {
+    const saved = localStorage.getItem('dream_dist_branch_company_info_v1');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Error parsing saved branch company info', e);
+      }
+    }
+    return {};
+  });
+
+  const updateBranchCompanyInfo = (branchName: string, newInfo: Partial<CompanyInfo>) => {
+    if (!branchName) return;
+    const norm = normalizeBranchName(branchName);
+    setBranchCompanyInfo((prev) => {
+      const updated = {
+        ...prev,
+        [norm]: {
+          ...(prev[norm] || {}),
+          ...newInfo,
+        },
+      };
+      safeLocalStorageSet('dream_dist_branch_company_info_v1', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const resetBranchCompanyInfo = (branchName: string) => {
+    if (!branchName) return;
+    const norm = normalizeBranchName(branchName);
+    setBranchCompanyInfo((prev) => {
+      const updated = { ...prev };
+      delete updated[norm];
+      safeLocalStorageSet('dream_dist_branch_company_info_v1', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const getCompanyInfoForBranch = (branchName?: string): CompanyInfo => {
+    if (!branchName) return companyInfo;
+    const norm = normalizeBranchName(branchName);
+    const branchOverride = branchCompanyInfo[norm] || branchCompanyInfo[branchName];
+    if (branchOverride && Object.keys(branchOverride).length > 0) {
+      return {
+        ...companyInfo,
+        ...branchOverride,
+      };
+    }
+    // Fallback: match branch data
+    const matchedBranch = branches.find(
+      (b) => b.name === norm || isBranchMatch(b.name, branchName)
+    );
+    if (matchedBranch && matchedBranch.address) {
+      return {
+        ...companyInfo,
+        address: matchedBranch.address || companyInfo.address,
+        phone: matchedBranch.phone ? `${matchedBranch.phone} / ${companyInfo.customerService}` : companyInfo.phone,
+      };
+    }
+    return companyInfo;
+  };
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     const isAuth = localStorage.getItem(STORAGE_KEYS.IS_AUTH) === 'true';
@@ -3066,7 +3164,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       invoiceNumber: inv.invoiceNumber,
       status: 'نجاح',
       systemName: 'نظام الحسابات المركزي لشركة دريم (ERP System)',
-      responseMessage: `تم تصدير القيد الم��اسبي وحساب العميل والمخزون بنجاح رقم السند #${Math.floor(100000 + Math.random() * 900000)}`,
+      responseMessage: `تم تصدير القيد المحاسبي وحساب العميل والمخزون بنجاح رقم السند #${Math.floor(100000 + Math.random() * 900000)}`,
     };
 
     setAccountingLogs((prev) => [newLog, ...prev]);
@@ -3341,6 +3439,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         triggerInstallPrompt,
         isInstallModalOpen,
         setIsInstallModalOpen,
+        companyInfo,
+        branchCompanyInfo,
+        updateCompanyInfo,
+        resetCompanyInfo,
+        updateBranchCompanyInfo,
+        resetBranchCompanyInfo,
+        getCompanyInfoForBranch,
         getVisibleInvoices,
         getVisibleCustomers,
         getVisibleProducts,

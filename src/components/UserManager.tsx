@@ -259,7 +259,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
   });
 
   const matchingCustomerCount = useMemo(() => {
-    if (!formData.name?.trim()) return 0;
+    if (!showAddUserModal || !formData.name?.trim() || formData.role !== 'sales_rep') return 0;
     const tempUser: User = {
       id: editingUser?.id || 'temp-id',
       name: formData.name.trim(),
@@ -272,7 +272,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       isActive: true,
     };
     return customers.filter((c) => doesCustomerBelongToRep(c, tempUser)).length;
-  }, [formData.name, formData.username, formData.email, formData.phone, formData.branchName, formData.role, editingUser, customers]);
+  }, [showAddUserModal, formData.name, formData.username, formData.email, formData.phone, formData.branchName, formData.role, editingUser, customers]);
 
   // Approval modal state
   const [approvingUser, setApprovingUser] = useState<User | null>(null);
@@ -280,8 +280,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
   const [approvalBranchName, setApprovalBranchName] = useState<string>('');
   const [approvalRole, setApprovalRole] = useState<UserRole>('sales_rep');
 
-  // Pending users waiting for approval
-  const pendingUsers = users.filter((u) => u.approvalStatus === 'pending_approval');
+  // Pending users waiting for approval (Memoized)
+  const pendingUsers = useMemo(() => users.filter((u) => u.approvalStatus === 'pending_approval'), [users]);
 
   // Active users are filtered once, then rendered in small pages to keep the table responsive.
   const activeUsers = useMemo(() => users.filter((u) => {
@@ -307,7 +307,106 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
   }), [users, isSuperAdminOrDev, currentUser?.branchName, selectedBranchFilter, selectedRoleFilter, searchQuery]);
 
   const totalUsersPages = Math.max(1, Math.ceil(activeUsers.length / USERS_PER_PAGE));
-  const visibleUsers = activeUsers.slice((usersPage - 1) * USERS_PER_PAGE, usersPage * USERS_PER_PAGE);
+  const visibleUsers = useMemo(() => {
+    return activeUsers.slice((usersPage - 1) * USERS_PER_PAGE, usersPage * USERS_PER_PAGE);
+  }, [activeUsers, usersPage]);
+
+  // Fast memoized customer count map for the visible reps (computed in microseconds for max 25 users)
+  const repCustomerCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    const repUsers = visibleUsers.filter((u) => u.role === 'sales_rep');
+    if (repUsers.length === 0 || customers.length === 0) return map;
+
+    for (const rep of repUsers) {
+      let count = 0;
+      for (const c of customers) {
+        if (doesCustomerBelongToRep(c, rep)) {
+          count++;
+        }
+      }
+      map.set(rep.id, count);
+    }
+    return map;
+  }, [visibleUsers, customers]);
+
+  // Fast memoized supervisors per branch map
+  const supervisorsByBranchMap = useMemo(() => {
+    const map = new Map<string, User[]>();
+    for (const u of users) {
+      if (
+        (u.role === 'supervisor' || u.role === 'branch_manager' || u.role === 'admin' || u.role === 'developer') &&
+        u.isActive &&
+        u.approvalStatus === 'active'
+      ) {
+        const branch = u.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+        const list = map.get(branch) || [];
+        list.push(u);
+        map.set(branch, list);
+      }
+    }
+    return map;
+  }, [users]);
+
+  // Fast memoized count of reps under each supervisor
+  const supervisorRepCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const u of users) {
+      if (u.supervisorId) {
+        map.set(u.supervisorId, (map.get(u.supervisorId) || 0) + 1);
+      }
+    }
+    return map;
+  }, [users]);
+
+  // Fast memoized active count per role
+  const roleCountsMap = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const u of users) {
+      if (u.approvalStatus === 'active') {
+        counts[u.role] = (counts[u.role] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [users]);
+
+  // Memoized breakdown of sales reps and customer debts for the sync report modal
+  const syncRepBreakdown = useMemo(() => {
+    if (!syncModalData?.open) return [];
+    return users
+      .filter((u) => u.role === 'sales_rep')
+      .map((rep) => {
+        const repCusts = customers.filter((c) => doesCustomerBelongToRep(c, rep));
+        const repDebts = repCusts.reduce((sum, c) => sum + (c.currentBalance || c.balance || 0), 0);
+        return {
+          rep,
+          count: repCusts.length,
+          debts: repDebts,
+        };
+      });
+  }, [syncModalData?.open, users, customers]);
+
+  // Memoized rep customer data for modal
+  const viewingRepData = useMemo(() => {
+    if (!viewingRepUser) return { repCustomers: [], totalDebts: 0, totalLimits: 0, filtered: [] };
+    const repCustomers = customers.filter((c) => doesCustomerBelongToRep(c, viewingRepUser));
+    const totalDebts = repCustomers.reduce((sum, c) => sum + (c.currentBalance || c.balance || 0), 0);
+    const totalLimits = repCustomers.reduce((sum, c) => sum + (c.creditLimit || 0), 0);
+
+    const q = repCustomerSearchTerm.toLowerCase().trim();
+    const filtered = !q
+      ? repCustomers
+      : repCustomers.filter((c) => {
+          return (
+            c.name.toLowerCase().includes(q) ||
+            (c.code && c.code.toLowerCase().includes(q)) ||
+            (c.phone && c.phone.includes(q)) ||
+            (c.storeName && c.storeName.toLowerCase().includes(q)) ||
+            (c.address && c.address.toLowerCase().includes(q))
+          );
+        });
+
+    return { repCustomers, totalDebts, totalLimits, filtered };
+  }, [viewingRepUser, customers, repCustomerSearchTerm]);
 
   useEffect(() => {
     setUsersPage(1);
@@ -435,7 +534,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-lg sm:text-xl font-black text-slate-900">
-                  إد��رة الموظفين والصلاحيات والهيكل الإداري
+                  إدارة الموظفين والصلاحيات والهيكل الإداري
                 </h2>
                 <span className="bg-slate-100 text-slate-700 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-slate-200">
                   {users.length} موظف مسجل
@@ -563,7 +662,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         {(Object.keys(roleConfigs) as UserRole[]).map((roleKey) => {
           const cfg = roleConfigs[roleKey];
-          const count = users.filter((u) => u.role === roleKey && u.approvalStatus === 'active').length;
+          const count = roleCountsMap[roleKey] || 0;
           const RoleIcon = cfg.icon;
 
           return (
@@ -684,7 +783,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
           {visibleUsers.map((user) => {
             const cfg = roleConfigs[user.role] || roleConfigs.sales_rep;
             const isCurrent = currentUser?.id === user.id;
-            const branchSupervisors = getSupervisorsInBranch(user.branchName);
+            const branchSupervisors = supervisorsByBranchMap.get(user.branchName || '') || supervisorsByBranchMap.get('الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)') || [];
+            const repCustCount = repCustomerCountMap.get(user.id) || 0;
             const RoleIcon = cfg.icon;
 
             return (
@@ -728,7 +828,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         className="bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 font-bold px-2 py-0.5 rounded text-[10px] cursor-pointer transition flex items-center gap-1 active:scale-95"
                         title="عرض قائمة العملاء والمديونيات والحد الائتماني لهذا المندوب"
                       >
-                        👥 {customers.filter((c) => doesCustomerBelongToRep(c, user)).length} عميل (عرض التفاصيل)
+                        👥 {repCustCount} عميل (عرض التفاصيل)
                       </button>
                     </div>
                   )}
@@ -807,7 +907,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               {visibleUsers.map((user) => {
                 const cfg = roleConfigs[user.role] || roleConfigs.sales_rep;
                 const isCurrent = currentUser?.id === user.id;
-                const branchSupervisors = getSupervisorsInBranch(user.branchName);
+                const branchSupervisors = supervisorsByBranchMap.get(user.branchName || '') || supervisorsByBranchMap.get('الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)') || [];
+                const repCustCount = repCustomerCountMap.get(user.id) || 0;
+                const supervisedRepsCount = supervisorRepCountMap.get(user.id) || 0;
                 const RoleIcon = cfg.icon;
 
                 return (
@@ -860,7 +962,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                             className="inline-flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 px-2.5 py-1 rounded-xl text-[11px] font-black cursor-pointer transition shadow-2xs active:scale-95"
                             title="عرض قائمة العملاء والمديونيات والحد الائتماني لهذا المندوب"
                           >
-                            👥 {customers.filter((c) => doesCustomerBelongToRep(c, user)).length} عميل مسند (عرض)
+                            👥 {repCustCount} عميل مسند (عرض)
                           </button>
                         </div>
                       )}
@@ -883,7 +985,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         </select>
                       ) : user.role === 'supervisor' ? (
                         <span className="text-[11px] text-blue-700 font-bold bg-blue-50 px-2.5 py-1 rounded-lg">
-                          مشرف قطاع ({users.filter((u) => u.supervisorId === user.id).length} مناديب)
+                          مشرف قطاع ({supervisedRepsCount} مناديب)
                         </span>
                       ) : (
                         <span className="text-slate-400">---</span>
@@ -1037,7 +1139,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 {/* Full Name */}
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    الاسم بالكامل (اسم المندوب / الموظف المرب��ط بالعملاء وفواتير البيع) <span className="text-rose-600">*</span>
+                    الاسم بالكامل (اسم المندوب / الموظف المربوط بالعملاء وفواتير البيع) <span className="text-rose-600">*</span>
                   </label>
                   <input
                     type="text"
@@ -1365,21 +1467,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
 
             {/* Rep Summary Stats & Search */}
             {(() => {
-              const repCustomers = customers.filter((c) => doesCustomerBelongToRep(c, viewingRepUser));
-              const totalDebts = repCustomers.reduce((sum, c) => sum + (c.currentBalance || c.balance || 0), 0);
-              const totalLimits = repCustomers.reduce((sum, c) => sum + (c.creditLimit || 0), 0);
-
-              const filtered = repCustomers.filter((c) => {
-                if (!repCustomerSearchTerm.trim()) return true;
-                const q = repCustomerSearchTerm.toLowerCase().trim();
-                return (
-                  c.name.toLowerCase().includes(q) ||
-                  (c.code && c.code.toLowerCase().includes(q)) ||
-                  (c.phone && c.phone.includes(q)) ||
-                  (c.storeName && c.storeName.toLowerCase().includes(q)) ||
-                  (c.address && c.address.toLowerCase().includes(q))
-                );
-              });
+              const { repCustomers, totalDebts, totalLimits, filtered } = viewingRepData;
 
               return (
                 <div className="p-4 sm:p-5 space-y-4 flex-1 overflow-y-auto">
@@ -1567,37 +1655,30 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-semibold">
-                      {users
-                        .filter((u) => u.role === 'sales_rep')
-                        .map((rep) => {
-                          const repCusts = customers.filter((c) => doesCustomerBelongToRep(c, rep));
-                          const repDebts = repCusts.reduce((sum, c) => sum + (c.currentBalance || c.balance || 0), 0);
-
-                          return (
-                            <tr key={rep.id} className="hover:bg-amber-50/40">
-                              <td className="p-2.5 font-black text-slate-900">{rep.name}</td>
-                              <td className="p-2.5 text-slate-600">{rep.branchName}</td>
-                              <td className="p-2.5 text-center">
-                                <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-[11px]">
-                                  {repCusts.length} عميل
-                                </span>
-                              </td>
-                              <td className="p-2.5 font-mono font-bold text-rose-600">{formatCurrency(repDebts)}</td>
-                              <td className="p-2.5 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSyncModalData(null);
-                                    setViewingRepUser(rep);
-                                  }}
-                                  className="text-[11px] font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded-lg transition cursor-pointer"
-                                >
-                                  عرض العملاء
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                      {syncRepBreakdown.map(({ rep, count, debts }) => (
+                        <tr key={rep.id} className="hover:bg-amber-50/40">
+                          <td className="p-2.5 font-black text-slate-900">{rep.name}</td>
+                          <td className="p-2.5 text-slate-600">{rep.branchName}</td>
+                          <td className="p-2.5 text-center">
+                            <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-[11px]">
+                              {count} عميل
+                            </span>
+                          </td>
+                          <td className="p-2.5 font-mono font-bold text-rose-600">{formatCurrency(debts)}</td>
+                          <td className="p-2.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSyncModalData(null);
+                                setViewingRepUser(rep);
+                              }}
+                              className="text-[11px] font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded-lg transition cursor-pointer"
+                            >
+                              عرض العملاء
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>

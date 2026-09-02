@@ -39,6 +39,8 @@ import { formatCurrency } from '../services/invoiceService';
 import { downloadInvoicePDF } from '../services/pdfService';
 import { isBranchMatch } from '../services/arabicMatchingService';
 import { Invoice, OrderStatus } from '../types';
+import { CreditAuditModal } from './CreditAuditModal';
+import { CreditStatusBadge } from './CreditStatusBadge';
 
 interface SupervisorDashboardProps {
   onOpenNewOrder?: () => void;
@@ -72,6 +74,10 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   // Pagination state for responsive performance
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(15);
+
+  // Credit & Financial Audit Modal State
+  const [auditInvoice, setAuditInvoice] = useState<Invoice | null>(null);
+  const [isAuditOpen, setIsAuditOpen] = useState(false);
 
   // Return Modal State
   const [returnModalInvoice, setReturnModalInvoice] = useState<Invoice | null>(null);
@@ -956,43 +962,18 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                         )}
                       </td>
 
-                      {/* Customer & Debt Breakdown with No-Credit-Limit clarification */}
-                      <td className="p-3">
-                        <div className="font-black text-slate-900 text-xs sm:text-sm">{inv.customerName}</div>
-                        <div className="text-[10px] text-slate-400">{inv.customerPhone || '---'}</div>
+                      {/* Customer & Debt Breakdown with Distinctive Credit Widget */}
+                      <td className="p-3 min-w-[200px]">
+                        <div className="font-black text-slate-900 text-xs sm:text-sm mb-1">{inv.customerName}</div>
                         
-                        {/* Financial Snapshot Badges */}
-                        <div className="mt-1 flex flex-col gap-0.5 text-[10px]">
-                          <div className="text-slate-600 flex items-center gap-1">
-                            <span>المديونية السابقة:</span>
-                            <strong className="font-mono text-slate-800">{debtBefore.toLocaleString()} ج.م</strong>
-                          </div>
-                          <div className="text-slate-600 flex items-center gap-1">
-                            <span>بعد الفاتورة:</span>
-                            <strong className={`font-mono font-black ${isExceeded ? 'text-rose-600' : hasNoCredit ? 'text-amber-700' : 'text-emerald-700'}`}>
-                              {debtAfter.toLocaleString()} ج.م
-                            </strong>
-                          </div>
-                          
-                          {/* Credit Limit State */}
-                          <div className="mt-0.5">
-                            {hasNoCredit ? (
-                              <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-950 font-black px-2 py-0.5 rounded border border-amber-300 text-[9px]">
-                                ⚠️ لا يوجد حد ائتماني (نقدي فقط)
-                              </span>
-                            ) : (
-                              <span className="text-[9px] text-slate-500 font-bold">
-                                (حد معتمد: {creditLimit.toLocaleString()} ج.م)
-                              </span>
-                            )}
-                          </div>
-
-                          {isExceeded && (
-                            <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 font-bold px-1.5 py-0.5 rounded border border-rose-300 w-fit text-[9px] mt-0.5">
-                              ⚠️ تجاوز حد (مطلوب: {(inv.requiredDownPayment || (debtAfter - creditLimit)).toLocaleString()} ج.م)
-                            </span>
-                          )}
-                        </div>
+                        {/* Financial Snapshot Widget (الحد الائتماني والمديونية وقيمة الفاتورة والتجاوز) */}
+                        <CreditStatusBadge
+                          invoice={inv}
+                          onClick={() => {
+                            setAuditInvoice(inv);
+                            setIsAuditOpen(true);
+                          }}
+                        />
                       </td>
 
                       {/* Rep & Branch */}
@@ -1506,6 +1487,26 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Credit & Financial Audit Modal */}
+      {isAuditOpen && auditInvoice && (
+        <CreditAuditModal
+          invoice={auditInvoice}
+          isOpen={isAuditOpen}
+          onClose={() => {
+            setIsAuditOpen(false);
+            setAuditInvoice(null);
+          }}
+          onViewInvoice={onViewInvoice}
+          onApprove={(id) => {
+            updateOrderStatus(id, 'جاري تحضير المنتجات');
+            setSuccessToast('تم اعتماد الطلبية بنجاح وتحويلها للمخزن!');
+          }}
+          onReject={(inv) => {
+            setRejectModalInvoice(inv);
+          }}
+        />
       )}
 
     </div>

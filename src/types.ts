@@ -19,6 +19,26 @@ export interface User {
   commissionRate?: number;
 }
 
+export interface CompanyInfo {
+  name: string;
+  nameArabic: string;
+  nameEnglish: string;
+  commercialNameEn?: string;
+  taxNumber: string;
+  taxRegistrationNumber?: string;
+  commercialRegister: string;
+  activity: string;
+  address: string;
+  headquarters: string;
+  phone: string;
+  customerService: string;
+  email: string;
+  website: string;
+  logoLetter?: string;
+  logoUrl?: string;
+  footerNotes?: string;
+}
+
 export interface Branch {
   id: string;
   name: string;
@@ -240,6 +260,7 @@ export interface InvoiceItem {
 export interface Invoice {
   id: string;
   invoiceNumber: string;         // رقم الفاتورة مثل: DRM-2026-0042
+  customerId?: string;           // كود أو معرّف العميل
   customerCode?: string;         // كود العميل
   customerName: string;          // اسم العميل
   customerPhone?: string;

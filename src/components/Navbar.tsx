@@ -3,6 +3,7 @@ import {
   BookOpen,
   Boxes,
   Building,
+  Building2,
   CheckCircle,
   CloudLightning,
   Download,
@@ -27,6 +28,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import { UserRole } from '../types';
+import { CompanySettingsModal } from './CompanySettingsModal';
 import { InstallAppModal } from './InstallAppModal';
 
 interface NavbarProps {
@@ -55,6 +57,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
   } = useApp();
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
   const cartSummary = getCartSummary();
 
   if (!currentUser) return null;
@@ -212,6 +215,27 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
               </div>
             )}
 
+            {/* Quick Company / Branch Header Button for Admin, Developer, Branch Manager, Supervisor */}
+            {['admin', 'developer', 'branch_manager', 'supervisor'].includes(currentUser.role) && (
+              <button
+                type="button"
+                onClick={() => setIsCompanyModalOpen(true)}
+                className="hidden xl:flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-amber-300 border border-amber-500/30 px-3 h-9 sm:h-10 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+                title={
+                  currentUser.role === 'admin' || currentUser.role === 'developer'
+                    ? 'تعديل ترويسة وبيانات الشركة الرسمية / الفروع'
+                    : `تعديل ترويسة وبيانات فرعك (${currentUser.branchName})`
+                }
+              >
+                <Building2 className="w-3.5 h-3.5 text-amber-400" />
+                <span>
+                  {currentUser.role === 'admin' || currentUser.role === 'developer'
+                    ? 'ترويسة الشركة والفروع 🏢'
+                    : 'ترويسة فرعك 🏢'}
+                </span>
+              </button>
+            )}
+
             {/* User Profile Menu with Logout */}
             <div className="relative">
               <button
@@ -278,6 +302,25 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                   </div>
 
                   <div className="space-y-1.5 pt-2">
+                    {/* Edit Company Info & Header Details */}
+                    {['admin', 'developer', 'branch_manager', 'supervisor'].includes(currentUser.role) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          setIsCompanyModalOpen(true);
+                        }}
+                        className="w-full bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[40px]"
+                      >
+                        <Building2 className="w-4 h-4 text-amber-400" />
+                        <span>
+                          {currentUser.role === 'admin' || currentUser.role === 'developer'
+                            ? '🏢 ترويسة وبيانات الشركة / الفروع'
+                            : `🏢 ترويسة وبيانات فرع (${currentUser.branchName})`}
+                        </span>
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => {
@@ -430,6 +473,14 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
         onClose={() => setIsInstallModalOpen(false)}
         installPromptEvent={installPromptEvent}
       />
+
+      {/* Company Header & Identity Settings Modal */}
+      {isCompanyModalOpen && (
+        <CompanySettingsModal
+          isOpen={isCompanyModalOpen}
+          onClose={() => setIsCompanyModalOpen(false)}
+        />
+      )}
     </>
   );
 };

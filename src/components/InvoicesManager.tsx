@@ -34,6 +34,8 @@ import { exportElectronicInvoiceToExcel, exportInvoiceForERP } from '../services
 import { downloadInvoicePDF } from '../services/pdfService';
 import { formatArabicDate, formatCurrency } from '../services/invoiceService';
 import { Invoice, OrderStatus } from '../types';
+import { CreditAuditModal } from './CreditAuditModal';
+import { CreditStatusBadge } from './CreditStatusBadge';
 
 interface InvoicesManagerProps {
   onOpenNewOrder: () => void;
@@ -66,6 +68,8 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   const [rejectReason, setRejectReason] = useState<string>('نفاذ الكمية أو طلب العميل إلغاء الطلبية');
   const [returnModalInvoice, setReturnModalInvoice] = useState<Invoice | null>(null);
   const [returnReason, setReturnReason] = useState<string>('مرتجع بطلب العميل واسترجاع البضاعة للمخزن');
+  const [auditInvoice, setAuditInvoice] = useState<Invoice | null>(null);
+  const [isAuditOpen, setIsAuditOpen] = useState(false);
   const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
@@ -489,10 +493,16 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                         </div>
                       </td>
 
-                      {/* Customer Name */}
-                      <td className="p-3">
-                        <div className="font-extrabold text-slate-900 text-sm">{invoice.customerName}</div>
-                        <div className="text-[10px] text-slate-400">{invoice.customerPhone || '---'}</div>
+                      {/* Customer Name & Credit Summary */}
+                      <td className="p-3 min-w-[190px]">
+                        <div className="font-extrabold text-slate-900 text-sm mb-1">{invoice.customerName}</div>
+                        <CreditStatusBadge
+                          invoice={invoice}
+                          onClick={() => {
+                            setAuditInvoice(invoice);
+                            setIsAuditOpen(true);
+                          }}
+                        />
                       </td>
 
                       {/* Rep & Branch */}
@@ -1005,6 +1015,19 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Credit & Financial Audit Modal */}
+      {isAuditOpen && auditInvoice && (
+        <CreditAuditModal
+          invoice={auditInvoice}
+          isOpen={isAuditOpen}
+          onClose={() => {
+            setIsAuditOpen(false);
+            setAuditInvoice(null);
+          }}
+          onViewInvoice={onViewInvoice}
+        />
       )}
 
     </div>
