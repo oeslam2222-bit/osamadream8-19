@@ -237,11 +237,6 @@ ${
                       كود: {invoice.customerCode}
                     </span>
                   )}
-                  {matchedCustomer?.tier && (
-                    <span className="bg-purple-100 text-purple-900 text-xs px-2 py-0.5 rounded font-bold">
-                      فئة: {matchedCustomer.tier}
-                    </span>
-                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mt-1">
                   {invoice.customerPhone && (

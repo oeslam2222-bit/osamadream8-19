@@ -1237,11 +1237,6 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                       <td className="py-3 px-4">
                         <div className="font-black text-slate-900 text-xs flex items-center gap-1.5">
                           <span>{customer.name}</span>
-                          {customer.tier === 'مميز' && (
-                            <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-black">
-                              VIP
-                            </span>
-                          )}
                         </div>
                         {customer.storeName && customer.storeName !== customer.name && (
                           <div className="text-[11px] text-slate-500 font-medium">{customer.storeName}</div>

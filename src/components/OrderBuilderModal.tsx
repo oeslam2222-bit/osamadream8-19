@@ -85,7 +85,6 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
-  const [selectedCustomerTierFilter, setSelectedCustomerTierFilter] = useState<'all' | 'VIP' | 'A' | 'B' | 'C'>('all');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [isNewCustomerMode, setIsNewCustomerMode] = useState(false);
 
@@ -159,43 +158,33 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     return allScopedCustomers;
   }, [customerScope, repScopedCustomers, branchScopedCustomers, allScopedCustomers]);
 
-  // Filtered customers for search dropdown by search query and tier
+  // Filtered customers for search dropdown by search query
   const filteredCustomers = useMemo(() => {
     const isSearchActive = customerSearchQuery.trim().length > 0;
     const baseList = scopedCustomersList;
 
+    if (!isSearchActive) {
+      return baseList.slice(0, 300);
+    }
+
+    const q = customerSearchQuery.toLowerCase().trim();
     const filtered = baseList.filter((c) => {
-      // Tier filter
-      if (selectedCustomerTierFilter !== 'all') {
-        const cTier = (c.tier || '').toUpperCase();
-        if (selectedCustomerTierFilter === 'VIP' && !cTier.includes('VIP') && !cTier.includes('مميز')) return false;
-        if (selectedCustomerTierFilter === 'A' && !cTier.includes('A') && !cTier.includes('راقي')) return false;
-        if (selectedCustomerTierFilter === 'B' && !cTier.includes('B') && !cTier.includes('متوسط')) return false;
-        if (selectedCustomerTierFilter === 'C' && !cTier.includes('C') && !cTier.includes('عادي')) return false;
-      }
-
-      // Search Query
-      if (isSearchActive) {
-        const q = customerSearchQuery.toLowerCase().trim();
-        const matches =
-          (c.name && isArabicNameMatch(c.name, q)) ||
-          (c.name && c.name.toLowerCase().includes(q)) ||
-          (c.code && c.code.toLowerCase().includes(q)) ||
-          (c.phone && c.phone.includes(q)) ||
-          (c.storeName && c.storeName.toLowerCase().includes(q)) ||
-          (c.branchName && c.branchName.toLowerCase().includes(q)) ||
-          (c.salesRepName && c.salesRepName.toLowerCase().includes(q)) ||
-          (c.repName && c.repName.toLowerCase().includes(q)) ||
-          (c.governorate && c.governorate.toLowerCase().includes(q)) ||
-          (c.address && c.address.toLowerCase().includes(q));
-        if (!matches) return false;
-      }
-
-      return true;
+      return (
+        (c.name && isArabicNameMatch(c.name, q)) ||
+        (c.name && c.name.toLowerCase().includes(q)) ||
+        (c.code && c.code.toLowerCase().includes(q)) ||
+        (c.phone && c.phone.includes(q)) ||
+        (c.storeName && c.storeName.toLowerCase().includes(q)) ||
+        (c.branchName && c.branchName.toLowerCase().includes(q)) ||
+        (c.salesRepName && c.salesRepName.toLowerCase().includes(q)) ||
+        (c.repName && c.repName.toLowerCase().includes(q)) ||
+        (c.governorate && c.governorate.toLowerCase().includes(q)) ||
+        (c.address && c.address.toLowerCase().includes(q))
+      );
     });
 
     return filtered.slice(0, 300);
-  }, [scopedCustomersList, customerSearchQuery, selectedCustomerTierFilter]);
+  }, [scopedCustomersList, customerSearchQuery]);
 
   // Keep selected rep in sync with active user on modal open, and prefill initial customer if provided
   useEffect(() => {
@@ -556,65 +545,6 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   <span>كافة عملاء الشركة ({allScopedCustomers.length})</span>
                 </button>
               </div>
-
-              {/* Tier Filters for Customers */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
-                <button
-                  type="button"
-                  onClick={() => setSelectedCustomerTierFilter('all')}
-                  className={`px-2.5 py-1 rounded-xl font-black shrink-0 transition cursor-pointer text-[11px] ${
-                    selectedCustomerTierFilter === 'all'
-                      ? 'bg-slate-800 text-amber-300 shadow-xs'
-                      : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
-                  }`}
-                >
-                  الكل ({filteredCustomers.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedCustomerTierFilter('VIP')}
-                  className={`px-2.5 py-1 rounded-xl font-black shrink-0 transition cursor-pointer text-[11px] ${
-                    selectedCustomerTierFilter === 'VIP'
-                      ? 'bg-amber-400 text-slate-950 shadow-xs ring-1 ring-amber-500'
-                      : 'bg-white text-amber-900 border border-amber-300 hover:bg-amber-50'
-                  }`}
-                >
-                  ⭐ مميز (VIP)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedCustomerTierFilter('A')}
-                  className={`px-2.5 py-1 rounded-xl font-black shrink-0 transition cursor-pointer text-[11px] ${
-                    selectedCustomerTierFilter === 'A'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-50'
-                  }`}
-                >
-                  🏆 راقي (A)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedCustomerTierFilter('B')}
-                  className={`px-2.5 py-1 rounded-xl font-black shrink-0 transition cursor-pointer text-[11px] ${
-                    selectedCustomerTierFilter === 'B'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-white text-blue-800 border border-blue-300 hover:bg-blue-50'
-                  }`}
-                >
-                  🏬 متوسط (B)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedCustomerTierFilter('C')}
-                  className={`px-2.5 py-1 rounded-xl font-black shrink-0 transition cursor-pointer text-[11px] ${
-                    selectedCustomerTierFilter === 'C'
-                      ? 'bg-slate-700 text-white shadow-xs'
-                      : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
-                  }`}
-                >
-                  🏪 عادي (C)
-                </button>
-              </div>
             </div>
 
             {/* Searchable Customer Dropdown */}
@@ -722,17 +652,6 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                                     المندوب: {c.salesRepName || c.repName}
                                   </span>
                                 )
-                              )}
-                              {c.tier && (
-                                <span className={`text-[9px] font-black px-1.5 py-0.2 rounded ${
-                                  c.tier.includes('VIP') || c.tier.includes('مميز')
-                                    ? 'bg-amber-400 text-slate-950'
-                                    : c.tier.includes('A') || c.tier.includes('راقي')
-                                    ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                                    : 'bg-slate-100 text-slate-700'
-                                }`}>
-                                  {c.tier}
-                                </span>
                               )}
                             </div>
                             <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
