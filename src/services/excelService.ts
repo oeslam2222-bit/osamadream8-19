@@ -1049,6 +1049,9 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     tier: -1,
     creditLimit: -1,
     balance: -1,
+    totalOverdueAndDue: -1,
+    overdueBalance: -1,
+    dueBalance: -1,
     notes: -1,
   };
 
@@ -1139,6 +1142,27 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('credit')
     ) {
       if (colMap.creditLimit === -1) colMap.creditLimit = idx;
+    }
+    // 4. Check Total Overdue & Due (إجمالي المتأخرات والمستحق / المتأخرات)
+    else if (
+      (norm.includes('متاخر') && norm.includes('مستحق')) ||
+      norm.includes('المتاخراتوالمستحق') ||
+      norm.includes('المتاخراتومستحق') ||
+      norm.includes('متاخراتوالمستحق') ||
+      norm.includes('متاخراتومستحق') ||
+      norm.includes('المستحقوالمتاخرات') ||
+      norm.includes('مستحقومتاخرات') ||
+      norm.includes('اجماليالمتاخرات') ||
+      norm.includes('اجماليمتاخرات') ||
+      norm.includes('اجماليالمستحق') ||
+      norm.includes('المتاخرات') ||
+      norm.includes('متاخرات') ||
+      norm.includes('totaloverduedue') ||
+      norm.includes('overdueanddue') ||
+      norm.includes('totaloverdue') ||
+      norm.includes('overdue')
+    ) {
+      if (colMap.totalOverdueAndDue === -1) colMap.totalOverdueAndDue = idx;
     }
     // 5. Check Balance / Debt (المديونية / الرصيد السابق)
     else if (
@@ -1344,8 +1368,12 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
 
     const parsedCredit = parseNumberValue(colMap.creditLimit);
     const parsedBalance = parseNumberValue(colMap.balance);
+    const parsedTotalOverdueAndDue = parseNumberValue(colMap.totalOverdueAndDue);
+
     const finalCreditLimit = parsedCredit !== undefined ? parsedCredit : 0;
-    const finalBalance = parsedBalance !== undefined ? parsedBalance : 0;
+    // If balance was not explicitly provided in a separate column but totalOverdueAndDue was, use it
+    const finalBalance = parsedBalance !== undefined ? parsedBalance : (parsedTotalOverdueAndDue !== undefined ? parsedTotalOverdueAndDue : 0);
+    const finalTotalOverdueAndDue = parsedTotalOverdueAndDue !== undefined ? parsedTotalOverdueAndDue : (finalBalance > 0 ? finalBalance : 0);
 
     const existing = customerMap.get(dedupKey);
 
@@ -1359,6 +1387,11 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       if (parsedBalance !== undefined) {
         existing.currentBalance = parsedBalance;
         existing.balance = parsedBalance;
+      }
+      if (parsedTotalOverdueAndDue !== undefined) {
+        existing.totalOverdueAndDue = parsedTotalOverdueAndDue;
+      } else if (existing.totalOverdueAndDue === undefined && (existing.currentBalance || existing.balance)) {
+        existing.totalOverdueAndDue = existing.currentBalance || existing.balance || 0;
       }
       if (rawRep && rawRep.trim()) {
         existing.repName = rawRep.trim();
@@ -1382,6 +1415,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
         creditLimit: finalCreditLimit,
         currentBalance: finalBalance,
         balance: finalBalance,
+        totalOverdueAndDue: finalTotalOverdueAndDue,
         branchName: normalizeExcelBranchName(rawBranch),
         repName: rawRep ? rawRep.trim() : '',
         salesRepName: rawRep ? rawRep.trim() : '',

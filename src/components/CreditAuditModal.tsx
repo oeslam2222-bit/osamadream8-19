@@ -276,9 +276,15 @@ ${
               <div className="text-xl font-black text-slate-900 font-mono">
                 {debtBefore.toLocaleString()} <span className="text-xs font-bold text-slate-500">ج.م</span>
               </div>
-              <div className="text-[10px] text-slate-500 mt-1 font-medium">
-                رصيد الحساب المسجل قبل هذه الفاتورة
-              </div>
+              {matchedCustomer?.totalOverdueAndDue !== undefined && matchedCustomer.totalOverdueAndDue > 0 ? (
+                <div className="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 mt-1 font-black inline-block">
+                  المتأخرات والمستحق: {matchedCustomer.totalOverdueAndDue.toLocaleString()} ج.م ⚠️
+                </div>
+              ) : (
+                <div className="text-[10px] text-slate-500 mt-1 font-medium">
+                  رصيد الحساب المسجل قبل هذه الفاتورة
+                </div>
+              )}
             </div>
 
             {/* 2. Current Invoice Amount */}

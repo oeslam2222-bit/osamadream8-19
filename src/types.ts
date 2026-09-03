@@ -111,6 +111,9 @@ export interface Customer {
   taxNumber?: string;                // الرقم الضريبي
   balance?: number;                  // رصيد الحساب الحالي
   currentBalance?: number;           // المديونية الحالية
+  totalOverdueAndDue?: number;       // إجمالي المتأخرات والمستحق
+  overdueBalance?: number;           // المتأخرات
+  dueBalance?: number;               // المستحق
   creditLimit?: number;              // الحد الائتماني
   lastOrderDate?: string;            // تاريخ آخر طلبية
   totalOrdersCount?: number;         // إجمالي عدد الطلبيات

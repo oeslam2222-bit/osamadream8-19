@@ -536,11 +536,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           existing.currentBalance = bal;
           existing.balance = bal;
         }
+        if (c.totalOverdueAndDue !== undefined) {
+          existing.totalOverdueAndDue = Number(c.totalOverdueAndDue);
+        } else if (existing.totalOverdueAndDue === undefined && (existing.currentBalance || existing.balance)) {
+          existing.totalOverdueAndDue = existing.currentBalance || existing.balance || 0;
+        }
+        if (c.overdueBalance !== undefined) {
+          existing.overdueBalance = Number(c.overdueBalance);
+        }
+        if (c.dueBalance !== undefined) {
+          existing.dueBalance = Number(c.dueBalance);
+        }
         if (c.tier === 'مميز' || (c.tier === 'راقي' && existing.tier === 'متوسط')) {
           existing.tier = c.tier;
         }
       } else {
         const bal = Number(c.currentBalance ?? c.balance ?? 0);
+        const overdueDue = c.totalOverdueAndDue !== undefined ? Number(c.totalOverdueAndDue) : bal;
         map.set(key, {
           ...c,
           name: c.name || `عميل ${c.code || ''}`,
@@ -548,6 +560,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           creditLimit: c.creditLimit !== undefined ? Number(c.creditLimit) : 0,
           currentBalance: bal,
           balance: bal,
+          totalOverdueAndDue: overdueDue,
+          overdueBalance: c.overdueBalance !== undefined ? Number(c.overdueBalance) : undefined,
+          dueBalance: c.dueBalance !== undefined ? Number(c.dueBalance) : undefined,
         });
       }
     }

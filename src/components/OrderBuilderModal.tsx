@@ -281,6 +281,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   }, [customers, selectedCustomerId, customerCode, customerName]);
 
   const customerCurrentBalance = Number(activeCustomer?.balance ?? activeCustomer?.currentBalance ?? 0);
+  const customerOverdueAndDue = Number(activeCustomer?.totalOverdueAndDue !== undefined ? activeCustomer.totalOverdueAndDue : customerCurrentBalance);
   const rawCreditLimit = activeCustomer?.creditLimit !== undefined && activeCustomer?.creditLimit !== null ? Number(activeCustomer.creditLimit) : 0;
   const hasNoCreditLimit = rawCreditLimit <= 0;
   const customerCreditLimit = rawCreditLimit;
@@ -818,9 +819,15 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
+                  <div className={`p-2.5 rounded-xl border ${customerOverdueAndDue > 0 ? 'bg-amber-950/40 border-amber-500/80 text-amber-100' : 'bg-slate-800/80 border-slate-700'}`}>
+                    <span className="text-[10px] text-amber-300/90 block font-bold">إجمالي المتأخرات والمستحق:</span>
+                    <strong className={`text-sm font-black ${customerOverdueAndDue > 0 ? 'text-amber-400' : 'text-slate-300'}`}>
+                      {customerOverdueAndDue.toLocaleString()} ج.م
+                    </strong>
+                  </div>
                   <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
-                    <span className="text-[10px] text-slate-400 block font-bold">المديونية الحالية (الرصيد السابق):</span>
+                    <span className="text-[10px] text-slate-400 block font-bold">المديونية الحالية:</span>
                     <strong className="text-sm font-black text-slate-100">{customerCurrentBalance.toLocaleString()} ج.م</strong>
                   </div>
                   <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
@@ -828,7 +835,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     <strong className="text-sm font-black text-amber-400">{orderGrandTotal.toLocaleString()} ج.م</strong>
                   </div>
                   <div className={`p-2.5 rounded-xl border ${isCreditLimitExceeded ? 'bg-rose-950/80 border-rose-600 text-rose-200' : 'bg-slate-800/80 border-slate-700 text-slate-100'}`}>
-                    <span className="text-[10px] block font-bold">إجمالي المديونية بعد الفاتورة:</span>
+                    <span className="text-[10px] block font-bold">المديونية بعد الفاتورة:</span>
                     <strong className={`text-sm font-black ${isCreditLimitExceeded ? 'text-rose-400' : hasNoCreditLimit ? 'text-amber-300' : 'text-emerald-400'}`}>
                       {balanceAfterInvoice.toLocaleString()} ج.م
                     </strong>
@@ -838,7 +845,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     {hasNoCreditLimit ? (
                       <div className="space-y-0.5">
                         <strong className="text-xs font-black text-amber-300 block">لا يوجد حد ائتماني</strong>
-                        <span className="text-[9px] text-slate-300 block font-bold">(سداد نقدي كاش فقط)</span>
+                        <span className="text-[9px] text-slate-300 block font-bold">(كاش فقط)</span>
                       </div>
                     ) : (
                       <strong className="text-sm font-black text-blue-400">{customerCreditLimit.toLocaleString()} ج.م</strong>
@@ -898,6 +905,19 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                         <span>📝 إدراج بيان الدفعة المقدمة تلقائياً في بند الملاحظات</span>
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {/* Scenario 3: Customer has Overdue and Due Balance */}
+                {customerOverdueAndDue > 0 && !isCreditLimitExceeded && (
+                  <div className="p-3 bg-amber-950/40 border border-amber-500/50 rounded-xl text-xs space-y-1.5 text-amber-200">
+                    <div className="flex items-center gap-2 text-amber-300 font-black text-xs">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                      <span>تنبيه المندوب بخصوص المتأخرات والمستحق ({customerOverdueAndDue.toLocaleString()} ج.م):</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 font-medium leading-relaxed">
+                      العميل مقيد عليه إجمالي متأخرات ومستحقات سابقة بقيمة <strong className="text-amber-300 font-black">{customerOverdueAndDue.toLocaleString()} ج.م</strong>. يرجى التنسيق مع العميل للتحصيل أثناء تسليم الطلبية الحالية.
+                    </p>
                   </div>
                 )}
               </div>

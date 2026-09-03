@@ -98,8 +98,8 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       setSelectedRepFilter('الكل');
     }
   }, [currentUser?.id, currentUser?.branchName, isRep, isSupervisor, isBranchManager]);
-  const [debtFilter, setDebtFilter] = useState<'all' | 'has_debt' | 'exceeded_limit' | 'zero_debt'>('all');
-  const [sortField, setSortField] = useState<'name' | 'code' | 'debt' | 'limit' | 'branch'>('name');
+  const [debtFilter, setDebtFilter] = useState<'all' | 'has_debt' | 'has_overdue' | 'exceeded_limit' | 'zero_debt'>('all');
+  const [sortField, setSortField] = useState<'name' | 'code' | 'overdue' | 'debt' | 'limit' | 'branch'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Pagination (For smooth rendering of 3400+ customers)
@@ -137,6 +137,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     branchName: currentUser?.branchName || 'فرع الفيوم',
     repName: isRep ? currentUser?.name || '' : '',
     repId: isRep ? currentUser?.id || '' : '',
+    totalOverdueAndDue: 0,
     currentBalance: 0,
     creditLimit: 50000,
     phone: '',
@@ -269,10 +270,12 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
       // Debt filter
       const debt = Number(c.currentBalance ?? c.balance ?? 0);
+      const overdueDue = Number(c.totalOverdueAndDue !== undefined ? c.totalOverdueAndDue : debt);
       const limit = Number(c.creditLimit || 0);
 
       if (debtFilter === 'has_debt' && debt <= 0) return false;
-      if (debtFilter === 'zero_debt' && debt > 0) return false;
+      if (debtFilter === 'has_overdue' && overdueDue <= 0) return false;
+      if (debtFilter === 'zero_debt' && debt > 0 && overdueDue > 0) return false;
       if (debtFilter === 'exceeded_limit' && (limit <= 0 || debt <= limit)) return false;
 
       // Text Search across all fields
@@ -319,6 +322,11 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         valB = b.code || '';
         return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
       }
+      if (sortField === 'overdue') {
+        valA = Number(a.totalOverdueAndDue !== undefined ? a.totalOverdueAndDue : (a.currentBalance ?? a.balance ?? 0));
+        valB = Number(b.totalOverdueAndDue !== undefined ? b.totalOverdueAndDue : (b.currentBalance ?? b.balance ?? 0));
+        return sortDirection === 'asc' ? valA - valB : valB - valA;
+      }
       if (sortField === 'debt') {
         valA = Number(a.currentBalance ?? a.balance ?? 0);
         valB = Number(b.currentBalance ?? b.balance ?? 0);
@@ -349,16 +357,23 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
   // Statistical calculations
   const stats = useMemo(() => {
     let totalDebt = 0;
+    let totalOverdueAndDue = 0;
     let totalLimit = 0;
     let customersWithDebt = 0;
+    let customersWithOverdue = 0;
     let customersExceededLimit = 0;
 
     scopedCustomers.forEach((c) => {
       const debt = Number(c.currentBalance ?? c.balance ?? 0);
+      const overdueDue = Number(c.totalOverdueAndDue !== undefined ? c.totalOverdueAndDue : debt);
       const limit = Number(c.creditLimit || 0);
       if (debt > 0) {
         totalDebt += debt;
         customersWithDebt++;
+      }
+      if (overdueDue > 0) {
+        totalOverdueAndDue += overdueDue;
+        customersWithOverdue++;
       }
       totalLimit += limit;
       if (limit > 0 && debt > limit) {
@@ -374,6 +389,8 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       totalCount: scopedCustomers.length,
       myCustomersCount,
       totalDebt,
+      totalOverdueAndDue,
+      customersWithOverdue,
       totalLimit,
       availableLimit: Math.max(0, totalLimit - totalDebt),
       customersWithDebt,
@@ -382,7 +399,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
   }, [scopedCustomers, customers, currentUser]);
 
   // Handle Sort Click
-  const handleSort = (field: 'name' | 'code' | 'debt' | 'limit' | 'branch') => {
+  const handleSort = (field: 'name' | 'code' | 'overdue' | 'debt' | 'limit' | 'branch') => {
     if (sortField === field) {
       setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
     } else {
@@ -394,6 +411,8 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
   // Open Edit Modal
   const handleOpenEdit = (customer: Customer) => {
     setEditingCustomer(customer);
+    const balanceVal = Number(customer.currentBalance ?? customer.balance ?? 0);
+    const overdueVal = Number(customer.totalOverdueAndDue !== undefined ? customer.totalOverdueAndDue : balanceVal);
     setFormData({
       id: customer.id,
       code: customer.code || '',
@@ -402,7 +421,8 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       branchName: customer.branchName || currentUser?.branchName || 'فرع الفيوم',
       repName: customer.salesRepName || customer.repName || '',
       repId: customer.repId || '',
-      currentBalance: Number(customer.currentBalance ?? customer.balance ?? 0),
+      totalOverdueAndDue: overdueVal,
+      currentBalance: balanceVal,
       creditLimit: Number(customer.creditLimit || 0),
       phone: customer.phone || '',
       address: customer.address || '',
@@ -423,6 +443,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       branchName: currentUser?.branchName || 'فرع الفيوم',
       repName: isRep ? currentUser?.name || '' : '',
       repId: isRep ? currentUser?.id || '' : '',
+      totalOverdueAndDue: 0,
       currentBalance: 0,
       creditLimit: 50000,
       phone: '',
@@ -441,6 +462,11 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       return;
     }
 
+    const currentBal = Number(formData.currentBalance) || 0;
+    const overdueDue = formData.totalOverdueAndDue !== undefined && !isNaN(Number(formData.totalOverdueAndDue))
+      ? Number(formData.totalOverdueAndDue)
+      : currentBal;
+
     const payload: Customer = {
       id: editingCustomer ? editingCustomer.id : formData.id || `cust_${Date.now()}`,
       code: formData.code.trim() || `CUST-${Math.floor(Math.random() * 9000 + 1000)}`,
@@ -450,8 +476,9 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       salesRepName: formData.repName.trim(),
       repName: formData.repName.trim(),
       repId: formData.repId,
-      currentBalance: Number(formData.currentBalance) || 0,
-      balance: Number(formData.currentBalance) || 0,
+      totalOverdueAndDue: overdueDue,
+      currentBalance: currentBal,
+      balance: currentBal,
       creditLimit: Number(formData.creditLimit) || 0,
       phone: formData.phone.trim(),
       address: formData.address.trim(),
@@ -638,6 +665,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       'اسم العميل',
       'الفرع',
       'المندوب',
+      'اجمالي المتأخرات والمستحق',
       'مديونيه العميل',
       'الحد الائتماني',
       'المتبقي من الائتمان',
@@ -648,12 +676,14 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     const rows = sortedCustomers.map((c) => {
       const limit = Number(c.creditLimit) || 0;
       const balance = Number(c.currentBalance ?? c.balance ?? 0);
+      const overdueAndDue = Number(c.totalOverdueAndDue !== undefined ? c.totalOverdueAndDue : balance);
       const available = Math.max(0, limit - balance);
       return [
         c.code || '---',
         c.name || '',
         c.branchName || 'الفرع الرئيسي',
         c.salesRepName || c.repName || 'غير محدد',
+        overdueAndDue,
         balance,
         limit,
         available,
@@ -668,6 +698,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       { wch: 35 },
       { wch: 20 },
       { wch: 22 },
+      { wch: 24 },
       { wch: 18 },
       { wch: 18 },
       { wch: 20 },
@@ -822,20 +853,21 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
           </div>
         </div>
 
-        {/* Card 2: Total Customer Debt */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
+        {/* Card 2: Total Overdue & Due / Customer Debt */}
+        <div className="bg-white rounded-2xl p-4 border border-amber-200/80 shadow-sm flex flex-col justify-between relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">إجمالي مديونيات العملاء</span>
-            <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-xs">
+            <span className="text-xs font-bold text-amber-900">إجمالي المتأخرات والمستحق</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-xl sm:text-2xl font-black text-rose-600">
-              {formatCurrency(stats.totalDebt)}
+            <div className="text-xl sm:text-2xl font-black text-amber-700">
+              {formatCurrency(stats.totalOverdueAndDue > 0 ? stats.totalOverdueAndDue : stats.totalDebt)}
             </div>
-            <div className="text-[11px] text-rose-500 font-semibold mt-0.5">
-              {stats.customersWithDebt} عميل عليهم مديونيات
+            <div className="text-[11px] text-slate-500 font-medium mt-0.5 flex items-center justify-between">
+              <span>{stats.customersWithOverdue > 0 ? stats.customersWithOverdue : stats.customersWithDebt} عميل مستحق</span>
+              <span className="text-rose-600 font-bold">المديونية: {formatCurrency(stats.totalDebt)}</span>
             </div>
           </div>
         </div>
@@ -1019,6 +1051,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
             >
               <option value="all">كل حالات المديونية</option>
+              <option value="has_overdue">عملاء عليهم متأخرات ومستحق ⚠️</option>
               <option value="has_debt">عملاء عليهم مديونية &gt; 0 ج.م</option>
               <option value="exceeded_limit">عملاء تجاوزوا الحد الائتماني ⚠️</option>
               <option value="zero_debt">عملاء بدون مديونية (0 ج.م)</option>
@@ -1072,6 +1105,14 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 }`}
               >
                 الاسم
+              </button>
+              <button
+                onClick={() => handleSort('overdue')}
+                className={`px-2 py-0.5 rounded-md font-bold transition ${
+                  sortField === 'overdue' ? 'bg-amber-400 text-slate-950' : 'bg-white border border-slate-200'
+                }`}
+              >
+                المتأخرات والمستحق
               </button>
               <button
                 onClick={() => handleSort('debt')}
@@ -1131,6 +1172,15 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                   <span>المندوب المسؤول</span>
                 </th>
                 <th
+                  onClick={() => handleSort('overdue')}
+                  className="py-3 px-3 cursor-pointer hover:text-amber-300 transition text-left"
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    <span>إجمالي المتأخرات والمستحق</span>
+                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                  </div>
+                </th>
+                <th
                   onClick={() => handleSort('debt')}
                   className="py-3 px-3 cursor-pointer hover:text-amber-300 transition text-left"
                 >
@@ -1157,7 +1207,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
             <tbody className="divide-y divide-slate-200 font-medium">
               {paginatedCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                  <td colSpan={10} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-3">
                       <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
                         <Users className="w-7 h-7" />
@@ -1208,6 +1258,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 paginatedCustomers.map((customer, index) => {
                   const globalIdx = (currentPage - 1) * pageSize + index + 1;
                   const debt = Number(customer.currentBalance ?? customer.balance ?? 0);
+                  const overdueAndDue = Number(customer.totalOverdueAndDue !== undefined ? customer.totalOverdueAndDue : debt);
                   const limit = Number(customer.creditLimit || 0);
                   const available = Math.max(0, limit - debt);
                   const isExceeded = limit > 0 && debt > limit;
@@ -1285,6 +1336,24 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                               </button>
                             )}
                           </div>
+                        )}
+                      </td>
+
+                      {/* إجمالي المتأخرات والمستحق */}
+                      <td className="py-3 px-3 text-left">
+                        <div
+                          className={`font-black text-xs ${
+                            overdueAndDue > 0 ? 'text-amber-700 font-bold' : 'text-slate-500'
+                          }`}
+                        >
+                          {formatCurrency(overdueAndDue)}
+                        </div>
+                        {overdueAndDue > 0 ? (
+                          <div className="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-50 text-amber-800 border border-amber-200">
+                            <span>متأخر ومستحق ⚠️</span>
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-emerald-600 font-bold">خالص ✓</div>
                         )}
                       </td>
 
@@ -1721,8 +1790,22 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 
+                {/* إجمالي المتأخرات والمستحق */}
+                <div>
+                  <label className="block text-xs font-bold text-amber-800 mb-1">
+                    إجمالي المتأخرات والمستحق (ج.م)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.totalOverdueAndDue}
+                    onChange={(e) => setFormData({ ...formData, totalOverdueAndDue: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-amber-50/70 border border-amber-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                    placeholder="0"
+                  />
+                </div>
+
                 {/* مديونية العميل */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
