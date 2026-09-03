@@ -817,26 +817,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               </button>
             )}
           </div>
-
-          {/* Quick Actions in Top Bar (Hidden on mobile for sales reps, shown on desktop) */}
-          <div className="hidden md:flex items-center gap-1.5 shrink-0">
-            <button
-              onClick={() => setIsUploadBoxOpen(true)}
-              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 text-amber-300 font-bold px-3.5 h-11 sm:h-12 rounded-xl text-xs border border-slate-700 transition cursor-pointer"
-              title="رفع ملف إكسل أو ربط Google Sheets"
-            >
-              <Upload className="w-4 h-4 text-amber-400" />
-              <span>رفع إكسل</span>
-            </button>
-
-            <button
-              onClick={() => setIsWipeModalOpen(true)}
-              className="flex items-center gap-1 bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 font-bold px-3 h-11 sm:h-12 rounded-xl text-xs border border-rose-800/40 transition cursor-pointer"
-              title="تصفير ومسح الكل للبدء من جديد"
-            >
-              <Trash2 className="w-4 h-4 text-rose-400" />
-            </button>
-          </div>
         </div>
 
         {/* Dropdown Filters Toolbar */}
