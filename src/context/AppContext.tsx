@@ -1054,13 +1054,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // Realtime can be unavailable when the table is not enabled for replication.
-  // Keep both accounts in sync with a lightweight fallback refresh.
+  // Supabase Egress Protection:
+  // Instead of polling every 7 seconds 24/7 (which consumes gigabytes of egress bandwidth),
+  // we rely on Supabase Realtime for instant updates, and use an intelligent, low-frequency
+  // fallback (every 90s + on tab focus) only when the tab is active and visible.
   useEffect(() => {
     let cancelled = false;
 
     const refreshInvoices = async () => {
-      const result = await fetchInvoicesFromSupabase();
+      // Don't poll if the tab is hidden or minimized to save mobile data and Supabase egress
+      if (typeof document !== 'undefined' && document.hidden) return;
+
+      // Limit background refresh to the most recent 50 invoices
+      const result = await fetchInvoicesFromSupabase(50);
       if (cancelled || !result.success || !result.invoices) return;
       setInvoices((prev) => {
         const remoteById = new Map(result.invoices!.map((invoice) => [invoice.id, invoice]));
@@ -1069,10 +1075,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     };
 
-    const interval = window.setInterval(refreshInvoices, 7000);
+    // Low-frequency heartbeat fallback (90 seconds)
+    const interval = window.setInterval(refreshInvoices, 90000);
+
+    // Instant refresh whenever the user switches back to this tab
+    const handleFocusOrVisibility = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        refreshInvoices();
+      }
+    };
+
+    window.addEventListener('focus', handleFocusOrVisibility);
+    document.addEventListener('visibilitychange', handleFocusOrVisibility);
+
     return () => {
       cancelled = true;
       window.clearInterval(interval);
+      window.removeEventListener('focus', handleFocusOrVisibility);
+      document.removeEventListener('visibilitychange', handleFocusOrVisibility);
     };
   }, []);
 

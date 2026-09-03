@@ -49,51 +49,51 @@ export async function testSupabaseConnection(): Promise<SupabaseSyncStatus> {
     let invoicesCount = 0;
     let customersCount = 0;
 
-    // 1. Try 'users' or 'profiles' table
+    // 1. Try 'users' or 'profiles' table (using head: true to minimize bandwidth / egress)
     try {
-      const { data: usersData, error: userErr } = await supabase.from('users').select('*').limit(50);
-      if (!userErr && usersData) {
+      const { count: uCount, error: userErr } = await supabase.from('users').select('id', { count: 'exact', head: true });
+      if (!userErr && typeof uCount === 'number') {
         foundTable += 'users ';
-        usersCount = usersData.length;
+        usersCount = uCount;
       } else {
-        const { data: profData, error: profErr } = await supabase.from('profiles').select('*').limit(50);
-        if (!profErr && profData) {
+        const { count: pCount, error: profErr } = await supabase.from('profiles').select('id', { count: 'exact', head: true });
+        if (!profErr && typeof pCount === 'number') {
           foundTable += 'profiles ';
-          usersCount = profData.length;
+          usersCount = pCount;
         }
       }
     } catch (e) {
       console.warn('Could not query users table in Supabase:', e);
     }
 
-    // 2. Try 'products' or 'items' table
+    // 2. Try 'products' or 'items' table (using head: true to minimize egress)
     try {
-      const { data: prodData, error: prodErr } = await supabase.from('products').select('*').limit(50);
-      if (!prodErr && prodData) {
+      const { count: prCount, error: prodErr } = await supabase.from('products').select('id', { count: 'exact', head: true });
+      if (!prodErr && typeof prCount === 'number') {
         foundTable += 'products ';
-        productsCount = prodData.length;
+        productsCount = prCount;
       }
     } catch (e) {
       console.warn('Could not query products table in Supabase:', e);
     }
 
-    // 3. Try 'invoices' or 'orders' table
+    // 3. Try 'invoices' or 'orders' table (using head: true to minimize egress)
     try {
-      const { data: invData, error: invErr } = await supabase.from('invoices').select('*').limit(50);
-      if (!invErr && invData) {
+      const { count: inCount, error: invErr } = await supabase.from('invoices').select('id', { count: 'exact', head: true });
+      if (!invErr && typeof inCount === 'number') {
         foundTable += 'invoices ';
-        invoicesCount = invData.length;
+        invoicesCount = inCount;
       }
     } catch (e) {
       console.warn('Could not query invoices table in Supabase:', e);
     }
 
-    // 4. Try 'customers' or 'clients' table
+    // 4. Try 'customers' or 'clients' table (using head: true to minimize egress)
     try {
-      const { data: custData, error: custErr } = await supabase.from('customers').select('*').limit(50);
-      if (!custErr && custData) {
+      const { count: cCount, error: custErr } = await supabase.from('customers').select('id', { count: 'exact', head: true });
+      if (!custErr && typeof cCount === 'number') {
         foundTable += 'customers ';
-        customersCount = custData.length;
+        customersCount = cCount;
       }
     } catch (e) {
       console.warn('Could not query customers table in Supabase:', e);
@@ -643,17 +643,25 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
 }
 
 /**
- * Fetch all invoices / orders from Supabase
+ * Fetch all invoices / orders from Supabase (capped to latest 200 by default to save Egress bandwidth)
  */
-export async function fetchInvoicesFromSupabase(): Promise<{ success: boolean; invoices?: Invoice[]; error?: string }> {
+export async function fetchInvoicesFromSupabase(limit = 200): Promise<{ success: boolean; invoices?: Invoice[]; error?: string }> {
   try {
     let rawInvoices: any[] | null = null;
-    const { data: invData, error: invErr } = await supabase.from('invoices').select('*').order('created_at', { ascending: false });
+    const { data: invData, error: invErr } = await supabase
+      .from('invoices')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
     
     if (!invErr && invData && invData.length > 0) {
       rawInvoices = invData;
     } else {
-      const { data: ordData, error: ordErr } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+      const { data: ordData, error: ordErr } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
       if (!ordErr && ordData && ordData.length > 0) {
         rawInvoices = ordData;
       }
