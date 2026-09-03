@@ -99,7 +99,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       // 3. Status filter
       if (selectedStatus !== 'الكل') {
         if (selectedStatus === 'فواتير النواقص') {
-          if (!inv.isShortageInvoice && !inv.hasShortageSplit) return false;
+          if (!inv.isShortageInvoice && !(inv.invoiceNumber && inv.invoiceNumber.endsWith('-NQ'))) return false;
         } else if (selectedStatus === 'قيد مراجعة المشرف') {
           if (inv.status !== 'قيد مراجعة المشرف' && inv.status !== 'معلقة بانتظار اعتماد الفرع' && inv.status !== 'قيد المراجعة') {
             return false;
@@ -340,7 +340,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100'
             }`}
           >
-            فواتير النواقص والتحويل 🚚 ({accessibleInvoices.filter(i => i.isShortageInvoice || i.hasShortageSplit).length})
+            فواتير النواقص (-NQ) 🚚 ({accessibleInvoices.filter(i => i.isShortageInvoice || (i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))).length})
           </button>
 
           <button

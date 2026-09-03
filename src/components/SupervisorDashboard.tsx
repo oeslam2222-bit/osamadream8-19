@@ -186,8 +186,12 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
       }
 
       // 3. Status filter
-      if (activeStatusTab !== 'الكل' && inv.status !== activeStatusTab) {
-        return false;
+      if (activeStatusTab !== 'الكل') {
+        if (activeStatusTab === 'فواتير النواقص') {
+          if (!inv.isShortageInvoice && !(inv.invoiceNumber && inv.invoiceNumber.endsWith('-NQ'))) return false;
+        } else if (inv.status !== activeStatusTab) {
+          return false;
+        }
       }
 
       // 4. Rep filter
@@ -301,7 +305,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
       returnedRevenue,
       returnedCartons,
       deliveryRate,
-      shortageInvoicesCount: accessibleInvoices.filter((i) => i.isShortageInvoice || i.hasShortageSplit).length,
+      shortageInvoicesCount: accessibleInvoices.filter((i) => i.isShortageInvoice || (i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))).length,
     };
   }, [accessibleInvoices]);
 
@@ -557,18 +561,26 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           </div>
 
           {/* Shortages & Backorders */}
-          <div className="bg-indigo-500/10 p-3.5 rounded-2xl border border-indigo-500/30 space-y-1">
-            <div className="text-[11px] text-indigo-300 font-bold flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setActiveStatusTab(activeStatusTab === 'فواتير النواقص' ? 'الكل' : 'فواتير النواقص')}
+            className={`p-3.5 rounded-2xl border space-y-1 text-right transition cursor-pointer ${
+              activeStatusTab === 'فواتير النواقص'
+                ? 'bg-indigo-600 text-white border-indigo-400 shadow-md ring-2 ring-indigo-300'
+                : 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+            }`}
+          >
+            <div className={`text-[11px] font-bold flex items-center gap-1 ${activeStatusTab === 'فواتير النواقص' ? 'text-white' : 'text-indigo-300'}`}>
               <Boxes className="w-3.5 h-3.5 text-indigo-400" />
               <span>فواتير النواقص (-NQ)</span>
             </div>
-            <div className="text-base sm:text-lg font-black text-indigo-300">
+            <div className={`text-base sm:text-lg font-black ${activeStatusTab === 'فواتير النواقص' ? 'text-white' : 'text-indigo-300'}`}>
               {metrics.shortageInvoicesCount} فاتورة
             </div>
-            <div className="text-[10px] text-indigo-300/80 font-medium">
-              طلب توريد من أكتوبر
+            <div className={`text-[10px] font-medium ${activeStatusTab === 'فواتير النواقص' ? 'text-indigo-100' : 'text-indigo-300/80'}`}>
+              طلب توريد من أكتوبر (اضغط للتصفية)
             </div>
-          </div>
+          </button>
 
           {/* Returns & Auto Stock Restored */}
           <div className="bg-purple-500/10 p-3.5 rounded-2xl border border-purple-500/30 space-y-1">
@@ -862,6 +874,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               { id: 'قيد التوصيل', label: '🚚 قيد التوصيل', count: accessibleInvoices.filter((i) => i.status === 'قيد التوصيل').length },
               { id: 'تم التسليم', label: '✅ تم التسليم', count: accessibleInvoices.filter((i) => i.status === 'تم التسليم').length },
               { id: 'إغلاق الطلبية', label: '🔒 إغلاق الطلبية', count: accessibleInvoices.filter((i) => i.status === 'إغلاق الطلبية').length },
+              { id: 'فواتير النواقص', label: '🚚 فواتير النواقص (-NQ)', count: accessibleInvoices.filter((i) => i.isShortageInvoice || (i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))).length },
               { id: 'مرتجع', label: '↩️ مرتجع', count: accessibleInvoices.filter((i) => i.status === 'مرتجع').length },
               { id: 'مرفوضة / ملغاة', label: '❌ ملغاة', count: accessibleInvoices.filter((i) => i.status === 'مرفوضة / ملغاة').length },
             ].map((tab) => (
