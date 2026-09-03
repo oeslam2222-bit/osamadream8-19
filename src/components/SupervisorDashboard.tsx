@@ -41,6 +41,7 @@ import { isBranchMatch } from '../services/arabicMatchingService';
 import { Invoice, OrderStatus } from '../types';
 import { CreditAuditModal } from './CreditAuditModal';
 import { CreditStatusBadge } from './CreditStatusBadge';
+import { OrderReturnModal } from './OrderReturnModal';
 
 interface SupervisorDashboardProps {
   onOpenNewOrder?: () => void;
@@ -1200,11 +1201,42 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                             </>
                           )}
 
-                          {/* 6. If Closed: Display Final Closed Badge */}
+                          {/* 6. If Closed: Display Final Closed Badge with Return Option */}
                           {inv.status === 'إغلاق الطلبية' && (
-                            <span className="text-[10px] bg-slate-100 text-slate-800 font-black px-2 py-0.5 rounded-md border border-slate-300">
-                              🔒 مغلقة ومكتملة
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] bg-slate-100 text-slate-800 font-black px-2 py-0.5 rounded-md border border-slate-300">
+                                🔒 مغلقة ومكتملة
+                              </span>
+                              {canManage && (
+                                <button
+                                  onClick={() => setReturnModalInvoice(inv)}
+                                  className="bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer"
+                                  title="تسجيل إذن مرتجع مبيعات (كلي أو جزئي) على طلبية مغلقة"
+                                >
+                                  <RotateCcw className="w-3 h-3 text-purple-700" />
+                                  <span>مرتجع ↩️</span>
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {/* If Partially Returned: Display Badge and Option to Add Another Return */}
+                          {inv.status === 'مرتجع جزئي' && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] bg-amber-50 text-amber-900 font-black px-2 py-0.5 rounded-md border border-amber-300">
+                                ⚠️ مرتجع جزئي
+                              </span>
+                              {canManage && (
+                                <button
+                                  onClick={() => setReturnModalInvoice(inv)}
+                                  className="bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer"
+                                  title="تسجيل إذن مرتجع إضافي لباقي الأصناف"
+                                >
+                                  <RotateCcw className="w-3 h-3 text-purple-700" />
+                                  <span>إضافة مرتجع ↩️</span>
+                                </button>
+                              )}
+                            </div>
                           )}
 
                           {/* If Returned: Indicate restored */}
@@ -1337,72 +1369,17 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
       </div>
 
-      {/* Return Modal: Automatically Restores Inventory */}
+      {/* Advanced Return Modal: Supports Itemized & Full Returns on Delivered/Closed/Active Orders */}
       {returnModalInvoice && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2 text-purple-900">
-                <RotateCcw className="w-5 h-5 text-purple-600" />
-                <h3 className="font-black text-base">
-                  تسجيل مرتجع للطلبية #{returnModalInvoice.invoiceNumber}
-                </h3>
-              </div>
-              <button onClick={() => setReturnModalInvoice(null)} className="text-slate-400 hover:text-slate-700">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="bg-purple-50 border border-purple-200 text-purple-950 p-3.5 rounded-2xl text-xs space-y-1.5">
-              <div className="font-black flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-purple-700" />
-                <span>إعادة الأصناف للمخزن تلقائياً:</span>
-              </div>
-              <p className="text-purple-900/90 leading-relaxed">
-                سيقوم النظام فوراً بإعادة <strong className="font-black">{returnModalInvoice.totalCartons} كرتونة ({returnModalInvoice.totalPieces} قطعة)</strong> إلى رصيد مخزن الفرع والمخزن الرئيسي وإتاحتها للبيع فوراً لباقي المناديب.
-              </p>
-            </div>
-
-            {/* Item list breakdown */}
-            <div className="max-h-36 overflow-y-auto border border-slate-100 rounded-xl p-2 space-y-1 text-xs">
-              {returnModalInvoice.items.map((item) => (
-                <div key={item.productId} className="flex items-center justify-between p-1.5 bg-slate-50 rounded-lg">
-                  <div className="font-bold text-slate-800">
-                    {item.productName} ({item.productCode})
-                  </div>
-                  <div className="font-black text-purple-900">
-                    +{item.cartonCount} كرتونة ({item.totalUnits} ق)
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="text-xs space-y-1">
-              <label className="block font-bold text-slate-700">سبب الإرجاع:</label>
-              <textarea
-                rows={2}
-                value={returnReason}
-                onChange={(e) => setReturnReason(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-400 text-xs"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                onClick={handleConfirmReturn}
-                className="flex-1 bg-purple-700 hover:bg-purple-800 text-white font-black py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer"
-              >
-                تأكيد المرتجع وإرجاع المخزون الآن
-              </button>
-              <button
-                onClick={() => setReturnModalInvoice(null)}
-                className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200 cursor-pointer"
-              >
-                إلغاء
-              </button>
-            </div>
-          </div>
-        </div>
+        <OrderReturnModal
+          invoice={returnModalInvoice}
+          isOpen={Boolean(returnModalInvoice)}
+          onClose={() => setReturnModalInvoice(null)}
+          onSuccess={(msg) => {
+            setSuccessToast(msg);
+            setTimeout(() => setSuccessToast(null), 6000);
+          }}
+        />
       )}
 
       {/* Reject / Cancel Order Modal */}

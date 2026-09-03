@@ -57,7 +57,7 @@ import {
 import { formatCurrency } from '../services/invoiceService';
 import { cacheProductImages, getCachedImagesStats, clearCachedImages } from '../services/imageCacheService';
 import { parseExcelProducts, fetchAndParseGoogleSheet, generateSampleExcelTemplate } from '../services/excelService';
-import { Customer, ItemStatus, OFFICIAL_DEPARTMENTS, Product, SalesPriority } from '../types';
+import { Customer, ItemStatus, Product, SalesPriority } from '../types';
 import { DepartmentCategorySlicer } from './DepartmentCategorySlicer';
 import { getDepartmentMeta } from '../data/departmentMeta';
 import { getBranchStockForProduct } from '../services/arabicMatchingService';
@@ -238,48 +238,53 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     }
   };
 
-  // Department item count helper
+  // Dynamic Arabic Item Groups list derived directly from products
+  const dynamicItemGroups = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach((p) => {
+      const g = (p.itemGroup || p.department || p.category || '').trim();
+      if (g) set.add(g);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [products]);
+
+  // Department / Item Group item count helper
   const deptCounts = useMemo(() => {
     const counts: Record<string, number> = { 'الكل': products.length };
-    OFFICIAL_DEPARTMENTS.forEach((dept) => {
+    dynamicItemGroups.forEach((dept) => {
       counts[dept] = 0;
     });
 
     products.forEach((p) => {
-      const pDept = (p.department || '').trim();
-      const pCat = (p.category || '').trim();
-      const pName = (p.name || '').trim();
-      const pCode = (p.code || '').trim();
-
-      OFFICIAL_DEPARTMENTS.forEach((dept) => {
-        const dLower = dept.toLowerCase();
-        if (
-          pDept.toLowerCase() === dLower ||
-          pCat.toLowerCase() === dLower ||
-          pName.toLowerCase().includes(dLower) ||
-          pCode.toLowerCase().startsWith(dept.slice(0, 3).toLowerCase())
-        ) {
-          counts[dept] = (counts[dept] || 0) + 1;
-        }
-      });
+      const pGrp = (p.itemGroup || p.department || p.category || '').trim();
+      if (pGrp && counts[pGrp] !== undefined) {
+        counts[pGrp] = (counts[pGrp] || 0) + 1;
+      }
     });
 
     return counts;
-  }, [products]);
+  }, [products, dynamicItemGroups]);
 
-  // Extract unique subcategories
+  // Extract unique subcategories / families (العائلات / الفئات التابعة للمجموعة المختارة أو للكل)
   const subCategories = useMemo(() => {
     const set = new Set<string>();
-    products.forEach((p) => {
-      if (p.category && !OFFICIAL_DEPARTMENTS.includes(p.category as any)) {
-        set.add(p.category.trim());
-      }
-      if (p.classification && p.classification !== 'فئة A' && !OFFICIAL_DEPARTMENTS.includes(p.classification as any)) {
-        set.add(p.classification.trim());
+    const filteredByDept = selectedOfficialDept === 'الكل'
+      ? products
+      : products.filter((p) => {
+          const g = (p.itemGroup || p.department || p.category || '').trim().toLowerCase();
+          return g === selectedOfficialDept.trim().toLowerCase();
+        });
+
+    filteredByDept.forEach((p) => {
+      const fam = (p.familyName && p.familyName.trim()) ||
+                  (p.classification && p.classification.trim() !== 'فئة A' ? p.classification.trim() : '') ||
+                  (p.category && !dynamicItemGroups.includes(p.category) ? p.category.trim() : '');
+      if (fam) {
+        set.add(fam);
       }
     });
-    return Array.from(set).filter(Boolean);
-  }, [products]);
+    return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [products, selectedOfficialDept, dynamicItemGroups]);
 
   // Active branch context for stock resolution: specific user's branch for reps/supervisors, or global filter for admin
   const currentActiveBranch = useMemo(() => {
@@ -373,20 +378,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         }
       }
 
-      // Official Brand / Item Group Filter (أقسام الشركة الرئيسية)
+      // Official Brand / Item Group Filter (المجموعة الرئيسية من الشيت)
       if (selectedOfficialDept !== 'الكل') {
         const target = selectedOfficialDept.toLowerCase().trim();
-        const pDept = (p.itemGroup || p.department || '').toLowerCase().trim();
-        const pCat = (p.category || '').toLowerCase().trim();
+        const pDept = (p.itemGroup || p.department || p.category || '').toLowerCase().trim();
 
-        const match =
-          pDept === target ||
-          pCat === target ||
-          pDept.includes(target) ||
-          pCat.includes(target) ||
-          (target.length >= 3 && pDept.startsWith(target.slice(0, 3))) ||
-          (target.length >= 3 && pCat.startsWith(target.slice(0, 3)));
-
+        const match = pDept === target || pDept.includes(target);
         if (!match) return false;
       }
 

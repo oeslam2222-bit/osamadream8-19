@@ -12,6 +12,7 @@ import {
   Phone,
   Printer,
   QrCode,
+  RotateCcw,
   Server,
   Settings,
   ShieldAlert,
@@ -31,6 +32,7 @@ import { downloadInvoicePDF } from '../services/pdfService';
 import { Invoice } from '../types';
 import { CompanySettingsModal } from './CompanySettingsModal';
 import { CreditAuditModal } from './CreditAuditModal';
+import { OrderReturnModal } from './OrderReturnModal';
 
 interface ElectronicInvoiceModalProps {
   invoice: Invoice | null;
@@ -55,6 +57,8 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   const [cancelFeedback, setCancelFeedback] = useState<string | null>(null);
   const [showCompanySettings, setShowCompanySettings] = useState(false);
   const [showCreditAudit, setShowCreditAudit] = useState(false);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnSuccessMsg, setReturnSuccessMsg] = useState<string | null>(null);
 
   if (!isOpen || !invoice) return null;
 
@@ -77,6 +81,21 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
       currentUser?.role === 'admin' ||
       currentUser?.role === 'developer')
   );
+
+  const canMakeReturn =
+    (currentUser?.role === 'supervisor' ||
+     currentUser?.role === 'branch_manager' ||
+     currentUser?.role === 'admin' ||
+     currentUser?.role === 'developer') &&
+    (invoice.status === 'معتمدة ومصروفة من المخزن' ||
+     invoice.status === 'معتمدة' ||
+     invoice.status === 'جاري التجهيز' ||
+     invoice.status === 'جاري تحضير المنتجات' ||
+     invoice.status === 'تم وصول المنتجات' ||
+     invoice.status === 'قيد التوصيل' ||
+     invoice.status === 'تم التسليم' ||
+     invoice.status === 'إغلاق الطلبية' ||
+     invoice.status === 'مرتجع جزئي');
 
   const canCancelOrder =
     isPending
@@ -464,6 +483,66 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             </table>
           </div>
 
+          {/* Returned Items & Credit Vouchers Summary (If any returns registered) */}
+          {invoice.returnRecords && invoice.returnRecords.length > 0 && (
+            <div className="bg-purple-50/70 border border-purple-200 rounded-3xl p-4 space-y-3 print:border-slate-300">
+              <div className="flex items-center justify-between border-b border-purple-200/80 pb-2">
+                <div className="flex items-center gap-2 text-purple-950 font-black text-xs">
+                  <RotateCcw className="w-4 h-4 text-purple-700" />
+                  <span>سجل قسائم المرتجعات المعتمدة على الفاتورة ({invoice.returnRecords.length} حركة)</span>
+                </div>
+                <span className="text-[11px] font-black bg-purple-200/80 text-purple-900 px-2.5 py-0.5 rounded-full">
+                  إجمالي المرتجع: -{formatCurrency(invoice.totalRefundedAmount || 0)}
+                </span>
+              </div>
+
+              <div className="space-y-2.5">
+                {invoice.returnRecords.map((record, idx) => (
+                  <div key={record.id || idx} className="bg-white p-3 rounded-2xl border border-purple-100 shadow-2xs space-y-2 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-black text-purple-900 bg-purple-100 px-2 py-0.5 rounded">
+                          إذن مرتجع #{record.returnVoucherNumber}
+                        </span>
+                        <span className="text-slate-500 font-medium">
+                          {record.date} {record.time ? `(${record.time})` : ''} • المنفذ: {record.handledBy}
+                        </span>
+                      </div>
+                      <div className="font-black text-purple-950">
+                        مبلغ الرد الدائن: {formatCurrency(record.totalRefundAmount)}
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] text-slate-700 bg-slate-50 p-2 rounded-xl border border-slate-100 flex items-center justify-between">
+                      <div>
+                        <strong>سبب الإرجاع:</strong> {record.reason}
+                      </div>
+                      <div className="text-emerald-700 font-bold">
+                        {record.restockedToInventory ? '✓ تم إرجاع الكميات للمخزن الفعلي' : '⚠️ لم يتم الإرجاع للمخزن (أصناف تالفة)'}
+                      </div>
+                    </div>
+
+                    {/* Returned items breakdown */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+                      {record.returnedItems.map((rItem, rIdx) => (
+                        <div key={rIdx} className="bg-purple-50/50 p-2 rounded-xl border border-purple-100 text-[11px] flex items-center justify-between">
+                          <div>
+                            <div className="font-bold text-slate-900">{rItem.productName}</div>
+                            <div className="text-[10px] text-slate-500 font-mono">{rItem.productCode}</div>
+                          </div>
+                          <div className="text-left">
+                            <span className="font-black text-purple-900 block">{rItem.cartonCount} كرتونة</span>
+                            <span className="text-[10px] font-bold text-slate-600">({rItem.pieceCount} ق)</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Financial Summary & Stamp Breakdown */}
           <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
             
@@ -608,6 +687,19 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               <Copy className="w-3.5 h-3.5" />
               <span>{copiedInvoiceNo ? 'تم نسخ الرقم! ✓' : 'نسخ رقم الفاتورة'}</span>
             </button>
+
+            {/* Return Action Button (Full/Partial Return for Delivered, Closed, or In-progress orders) */}
+            {canMakeReturn && (
+              <button
+                onClick={() => setShowReturnModal(true)}
+                className="flex items-center gap-1.5 bg-purple-50 hover:bg-purple-100 text-purple-900 font-bold px-3 py-2 rounded-xl text-xs border border-purple-300 transition cursor-pointer shadow-xs"
+                title="تسجيل إذن مرتجع (كلي أو جزئي) وإعادة المخزون وتعديل المديونية"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-purple-700" />
+                <span>إجراء مرتجع (كلي / جزئي) ↩️</span>
+              </button>
+            )}
+
             {/* Cancel Order button for Supervisor/Manager */}
             {canCancelOrder && (
               <button
@@ -721,6 +813,26 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             isOpen={showCreditAudit}
             onClose={() => setShowCreditAudit(false)}
           />
+        )}
+
+        {/* Advanced Itemized Order Return Modal */}
+        {showReturnModal && invoice && (
+          <OrderReturnModal
+            invoice={invoice}
+            isOpen={showReturnModal}
+            onClose={() => setShowReturnModal(false)}
+            onSuccess={(msg) => {
+              setReturnSuccessMsg(msg);
+              setTimeout(() => setReturnSuccessMsg(null), 6000);
+            }}
+          />
+        )}
+
+        {returnSuccessMsg && (
+          <div className="fixed bottom-6 right-6 z-50 bg-emerald-900 text-white font-black px-4 py-3 rounded-2xl shadow-2xl border border-emerald-500 animate-in slide-in-from-bottom flex items-center gap-2 text-xs">
+            <CheckCircle className="w-4 h-4 text-emerald-400" />
+            <span>{returnSuccessMsg}</span>
+          </div>
         )}
 
       </div>

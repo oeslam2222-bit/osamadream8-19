@@ -17,8 +17,8 @@ import {
   Warehouse,
   X,
 } from 'lucide-react';
-import { DEPARTMENT_METADATA_MAP, getDepartmentMeta } from '../data/departmentMeta';
-import { OFFICIAL_DEPARTMENTS, OfficialDepartment, Product } from '../types';
+import { getDepartmentMeta } from '../data/departmentMeta';
+import { Product } from '../types';
 
 export interface ClassificationStat {
   name: string;
@@ -55,19 +55,20 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
   const [classSearchTerm, setClassSearchTerm] = useState('');
   const [isSlicerCollapsed, setIsSlicerCollapsed] = useState(false);
 
-  // 1. Calculate Dynamic Department / Item Group Item Counts from data + official list
+  // 1. Calculate Dynamic Arabic Item Groups (المجموعات الرئيسية) purely from loaded products
   const dynamicItemGroups = useMemo(() => {
     const set = new Set<string>();
-    // First include official list
-    OFFICIAL_DEPARTMENTS.forEach((d) => set.add(d));
-    // Add any custom item group from uploaded products
     products.forEach((p) => {
-      if (p.itemGroup && p.itemGroup.trim()) set.add(p.itemGroup.trim());
-      else if (p.department && p.department.trim()) set.add(p.department.trim());
+      const g = (p.itemGroup || p.department || p.category || '').trim();
+      if (g) set.add(g);
     });
-    return Array.from(set).filter(Boolean);
+
+    const list = Array.from(set).filter(Boolean);
+    // Sort alphabetically in Arabic
+    return list.sort((a, b) => a.localeCompare(b, 'ar'));
   }, [products]);
 
+  // 2. Count items per Arabic item group
   const deptCounts = useMemo(() => {
     const counts: Record<string, number> = { 'الكل': products.length };
     dynamicItemGroups.forEach((dept) => {
@@ -75,50 +76,27 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
     });
 
     products.forEach((p) => {
-      const pDept = (p.itemGroup || p.department || '').trim().toLowerCase();
-      const pCat = (p.category || '').trim().toLowerCase();
-      const pName = (p.name || '').trim().toLowerCase();
-      const pCode = (p.code || '').trim().toLowerCase();
-
-      dynamicItemGroups.forEach((dept) => {
-        const dLower = dept.toLowerCase();
-        if (
-          pDept === dLower ||
-          pCat === dLower ||
-          pName.includes(dLower) ||
-          pCode.startsWith(dept.slice(0, 3).toLowerCase())
-        ) {
-          counts[dept] = (counts[dept] || 0) + 1;
-        }
-      });
+      const pGrp = (p.itemGroup || p.department || p.category || '').trim();
+      if (pGrp && counts[pGrp] !== undefined) {
+        counts[pGrp] = (counts[pGrp] || 0) + 1;
+      }
     });
 
     return counts;
   }, [products, dynamicItemGroups]);
 
-  // 2. Filter products by selected department to extract accurate classifications/families for this department
+  // 3. Filter products by selected Arabic group to extract accurate sub-families (الفئات/العائلات)
   const productsInCurrentDept = useMemo(() => {
     if (selectedDepartment === 'الكل') return products;
 
     const target = selectedDepartment.toLowerCase().trim();
     return products.filter((p) => {
-      const pDept = (p.itemGroup || p.department || '').toLowerCase().trim();
-      const pCat = (p.category || '').toLowerCase().trim();
-      const pName = (p.name || '').toLowerCase().trim();
-      const pCode = (p.code || '').toLowerCase().trim();
-
-      return (
-        pDept === target ||
-        pCat === target ||
-        pDept.includes(target) ||
-        pCat.includes(target) ||
-        pName.includes(target) ||
-        pCode.startsWith(selectedDepartment.slice(0, 3).toLowerCase())
-      );
+      const pGrp = (p.itemGroup || p.department || p.category || '').toLowerCase().trim();
+      return pGrp === target;
     });
   }, [products, selectedDepartment]);
 
-  // 3. Calculate Classifications / Family Names and their Power BI Style Metrics
+  // 4. Calculate Sub-categories / Family Names (عائلات وفئات الأصناف المرتبطة بالمجموعة)
   const classificationStats = useMemo<ClassificationStat[]>(() => {
     const map = new Map<
       string,
@@ -179,14 +157,14 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
     return list.sort((a, b) => b.count - a.count);
   }, [productsInCurrentDept, dynamicItemGroups]);
 
-  // 4. Filter classifications by search query
+  // 5. Filter classifications by search query
   const filteredClassificationStats = useMemo(() => {
     if (!classSearchTerm.trim()) return classificationStats;
     const q = classSearchTerm.toLowerCase().trim();
     return classificationStats.filter((c) => c.name.toLowerCase().includes(q));
   }, [classificationStats, classSearchTerm]);
 
-  const currentDeptMeta = getDepartmentMeta(selectedDepartment === 'الكل' ? undefined : selectedDepartment);
+  const currentDeptMeta = getDepartmentMeta(selectedDepartment);
   const CurrentDeptIcon = currentDeptMeta.icon;
 
   const totalFilteredCount =
@@ -196,7 +174,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
 
   return (
     <div className={`space-y-2 bg-slate-900/95 text-white rounded-2xl p-2.5 sm:p-3.5 border border-slate-800 shadow-lg ${className}`}>
-      {/* 1. Header Bar: Departments & Power BI Slicer Title */}
+      {/* 1. Header Bar: Arabic Item Groups & Power BI Slicer Title */}
       <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shadow-xs shrink-0">
@@ -205,14 +183,14 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
           <div>
             <div className="flex items-center gap-1.5">
               <h3 className="font-black text-xs sm:text-sm text-white">
-                تصفية المجموعات (Item Group) والعائلات (Family)
+                تصفية المجموعات الرئيسية (Item Group) والفئات (Categories)
               </h3>
               <span className="bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[9px] font-black px-1.5 py-0.2 rounded-md">
-                Slicer 📊
+                مباشر من الشيت 📊
               </span>
             </div>
             <p className="text-[10px] text-slate-400">
-              اختر المجموعة الرئيسية لتظهر لك العائلات التابعة لها تلقائياً
+              اختر المجموعة الرئيسية بالعربي لتظهر لك الفئات والعائلات التابعة لها تلقائياً
             </p>
           </div>
         </div>
@@ -223,7 +201,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
             type="button"
             onClick={() => setDeptViewStyle(deptViewStyle === 'scroll' ? 'grid' : 'scroll')}
             className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold rounded-lg border border-slate-700 flex items-center gap-1 transition cursor-pointer"
-            title="تبديل طريقة عرض الأقسام"
+            title="تبديل طريقة عرض المجموعات"
           >
             {deptViewStyle === 'scroll' ? (
               <>
@@ -247,7 +225,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
                 setClassSearchTerm('');
               }}
               className="px-2 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-[11px] font-black rounded-lg flex items-center gap-1 transition cursor-pointer"
-              title="إلغاء تصفية القسم والفئة"
+              title="إلغاء تصفية المجموعة والفئة"
             >
               <X className="w-3 h-3" />
               <span>مسح التصفية</span>
@@ -280,7 +258,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
             }}
             className="w-full h-10 px-3 bg-slate-800 text-white border border-slate-700 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
           >
-            <option value="الكل">📦 كل المجموعات (Item Groups) - {products.length} صنف</option>
+            <option value="الكل">📦 كل المجموعات ({dynamicItemGroups.length} مجموعة - {products.length} صنف)</option>
             {dynamicItemGroups.map((grp) => {
               const count = deptCounts[grp] || 0;
               return (
@@ -295,14 +273,14 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
         <div className="space-y-1">
           <label className="text-[11px] font-bold text-amber-300 flex items-center gap-1">
             <Tag className="w-3.5 h-3.5 text-amber-400" />
-            <span>2. عائلة الأصناف (Family Name):</span>
+            <span>2. فئة / عائلة الأصناف (Family / Category):</span>
           </label>
           <select
             value={selectedClassification}
             onChange={(e) => onSelectClassification(e.target.value)}
             className="w-full h-10 px-3 bg-slate-800 text-white border border-slate-700 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
           >
-            <option value="الكل">🏷️ كل العائلات التابعة لـ ({selectedDepartment === 'الكل' ? 'الكل' : selectedDepartment})</option>
+            <option value="الكل">🏷️ كل الفئات التابعة لـ ({selectedDepartment === 'الكل' ? 'جميع المجموعات' : selectedDepartment}) - {classificationStats.length} فئة</option>
             {classificationStats.map((stat) => (
               <option key={stat.name} value={stat.name}>
                 {stat.name} ({stat.count} صنف • {stat.totalCartons} كرتونة)
@@ -312,21 +290,21 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
         </div>
       </div>
 
-      {/* 2. The 21 Departments Bar */}
+      {/* 2. The Dynamic Arabic Item Groups Bar */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-[10px] font-bold text-slate-400">
           <span className="flex items-center gap-1">
-            <span>القسم المختار:</span>
+            <span>المجموعة المختارة:</span>
             <strong className="text-amber-300">
-              {selectedDepartment === 'الكل' ? 'جميع الأقسام' : currentDeptMeta.nameArabic}
+              {selectedDepartment === 'الكل' ? 'جميع المجموعات' : currentDeptMeta.nameArabic}
             </strong>
           </span>
           <span className="text-[10px] text-slate-400">
-            {products.length} صنف مسجل
+            {products.length} صنف مسجل • {dynamicItemGroups.length} مجموعة رئيسية
           </span>
         </div>
 
-        {/* Scrollable Carousel vs Grid of Departments */}
+        {/* Scrollable Carousel vs Grid of Arabic Groups */}
         {deptViewStyle === 'scroll' ? (
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
             {/* 'الكل' Option */}
@@ -349,7 +327,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
               >
                 <Package className="w-3 h-3" />
               </div>
-              <span>كل الأقسام</span>
+              <span>كل المجموعات</span>
               <span
                 className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${
                   selectedDepartment === 'الكل' ? 'bg-slate-950 text-amber-300' : 'bg-slate-700 text-slate-300'
@@ -359,19 +337,19 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
               </span>
             </button>
 
-            {/* 21 Department Buttons */}
-            {OFFICIAL_DEPARTMENTS.map((dept) => {
-              const meta = DEPARTMENT_METADATA_MAP[dept];
+            {/* Dynamic Arabic Group Buttons */}
+            {dynamicItemGroups.map((grp) => {
+              const meta = getDepartmentMeta(grp);
               const IconComp = meta.icon;
-              const count = deptCounts[dept] || 0;
-              const isSelected = selectedDepartment === dept;
+              const count = deptCounts[grp] || 0;
+              const isSelected = selectedDepartment === grp;
 
               return (
                 <button
-                  key={dept}
+                  key={grp}
                   type="button"
                   onClick={() => {
-                    onSelectDepartment(dept);
+                    onSelectDepartment(grp);
                     onSelectClassification('الكل');
                   }}
                   className={`whitespace-nowrap px-2.5 h-9 rounded-xl text-xs font-bold shrink-0 transition cursor-pointer flex items-center gap-1.5 active:scale-95 ${
@@ -379,7 +357,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
                       ? 'bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 ring-2 ring-amber-300 shadow-sm font-black'
                       : 'bg-slate-800/90 text-slate-200 hover:bg-slate-700 hover:text-white border border-slate-700/70'
                   }`}
-                  title={`${meta.nameArabic} - ${meta.description}`}
+                  title={`${meta.nameArabic} (${count} صنف)`}
                 >
                   <div
                     className={`w-5 h-5 rounded-lg flex items-center justify-center font-bold ${
@@ -393,7 +371,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
                   </div>
                   {count > 0 && (
                     <span
-                      className={`text-[9px] px-1 py-0.2 rounded-full font-black ${
+                      className={`text-[9px] px-1.5 py-0.2 rounded-full font-black ${
                         isSelected ? 'bg-slate-950 text-amber-300' : 'bg-slate-700 text-slate-200'
                       }`}
                     >
@@ -405,8 +383,8 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
             })}
           </div>
         ) : (
-          /* Grid View of Departments */
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-1.5 pt-0.5 max-h-44 overflow-y-auto p-1 bg-slate-950/40 rounded-xl border border-slate-800">
+          /* Grid View of Arabic Groups */
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-1.5 pt-0.5 max-h-48 overflow-y-auto p-1 bg-slate-950/40 rounded-xl border border-slate-800">
             <button
               type="button"
               onClick={() => {
@@ -421,23 +399,23 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
             >
               <Package className="w-3.5 h-3.5" />
               <div className="text-right flex-1">
-                <div className="font-black text-xs">كل الأقسام</div>
+                <div className="font-black text-xs">كل المجموعات</div>
                 <div className="text-[9px] opacity-80">{products.length} صنف</div>
               </div>
             </button>
 
-            {OFFICIAL_DEPARTMENTS.map((dept) => {
-              const meta = DEPARTMENT_METADATA_MAP[dept];
+            {dynamicItemGroups.map((grp) => {
+              const meta = getDepartmentMeta(grp);
               const IconComp = meta.icon;
-              const count = deptCounts[dept] || 0;
-              const isSelected = selectedDepartment === dept;
+              const count = deptCounts[grp] || 0;
+              const isSelected = selectedDepartment === grp;
 
               return (
                 <button
-                  key={dept}
+                  key={grp}
                   type="button"
                   onClick={() => {
-                    onSelectDepartment(dept);
+                    onSelectDepartment(grp);
                     onSelectClassification('الكل');
                   }}
                   className={`p-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
@@ -466,196 +444,147 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
         )}
       </div>
 
-      {/* 3. Power BI Classifications (الفئات) Interactive Drilldown Panel */}
+      {/* 3. Power BI Classifications (الفئات والعائلات التابعة) Interactive Drilldown Panel */}
       {!isSlicerCollapsed && (
-        <div className="pt-1.5 border-t border-slate-800/80 space-y-2">
-          {/* Sub-header: Current Department Context & Subcategories Count */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 bg-slate-950/60 p-2 rounded-xl border border-slate-800">
-            <div className="flex items-center gap-1.5">
-              <div
-                className={`w-6 h-6 rounded-lg flex items-center justify-center font-black ${
-                  selectedDepartment === 'الكل'
-                    ? 'bg-amber-400 text-slate-950'
-                    : `${currentDeptMeta.colorClasses.bgLight} ${currentDeptMeta.colorClasses.text}`
-                }`}
-              >
-                <CurrentDeptIcon className="w-3.5 h-3.5" />
-              </div>
-              <span className="text-xs font-black text-slate-200">
-                فئات {selectedDepartment === 'الكل' ? 'كافة الأقسام' : currentDeptMeta.shortLabel}:
+        <div className="space-y-2 bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/90 animate-in fade-in">
+          {/* Slicer Subheader & Search */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="font-black text-amber-300 flex items-center gap-1">
+                <Tag className="w-3.5 h-3.5" />
+                <span>فئات وعائلات:</span>
               </span>
-              <span className="text-[10px] text-amber-300 font-bold bg-slate-800 px-1.5 py-0.2 rounded-md border border-slate-700">
-                {classificationStats.length} فئة
+              <span className="bg-slate-800 text-slate-200 px-2 py-0.5 rounded-md font-bold text-[11px]">
+                {selectedDepartment === 'الكل' ? 'جميع المجموعات' : currentDeptMeta.nameArabic}
+              </span>
+              <span className="text-[10px] text-slate-400">
+                ({classificationStats.length} فئة • {totalFilteredCount} صنف)
               </span>
             </div>
 
-            {/* Slicer Controls: Search & View Mode */}
-            <div className="flex items-center gap-1.5">
-              {/* Slicer Search */}
-              <div className="relative flex-1 sm:w-36">
-                <Search className="w-3 h-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2" />
+            <div className="flex items-center gap-2">
+              {/* Search inside classifications */}
+              <div className="relative">
+                <Search className="w-3 h-3 text-slate-400 absolute right-2 top-2" />
                 <input
                   type="text"
                   value={classSearchTerm}
                   onChange={(e) => setClassSearchTerm(e.target.value)}
-                  placeholder="بحث بالفئات..."
-                  className="w-full h-7 pr-6 pl-6 bg-slate-800 text-white placeholder-slate-400 text-[11px] rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  placeholder="بحث في الفئات..."
+                  className="w-28 sm:w-36 h-7 pr-6 pl-2 text-[11px] bg-slate-900 text-white rounded-lg border border-slate-700 focus:outline-none focus:border-amber-400 placeholder-slate-500"
                 />
-                {classSearchTerm && (
-                  <button
-                    type="button"
-                    onClick={() => setClassSearchTerm('')}
-                    className="absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
               </div>
 
-              {/* Tiles vs Chips Toggle */}
-              <div className="flex items-center bg-slate-800 p-0.5 rounded-lg border border-slate-700 shrink-0">
+              {/* Mode switch (Tiles vs Chips) */}
+              <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-700 text-[10px]">
                 <button
                   type="button"
                   onClick={() => setSlicerDisplayMode('tiles')}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition cursor-pointer ${
-                    slicerDisplayMode === 'tiles' ? 'bg-amber-400 text-slate-950 font-black shadow-xs' : 'text-slate-400 hover:text-white'
+                  className={`px-1.5 py-0.5 rounded font-bold cursor-pointer transition ${
+                    slicerDisplayMode === 'tiles' ? 'bg-amber-400 text-slate-950' : 'text-slate-400 hover:text-white'
                   }`}
-                  title="عرض بطاقات مدمجة"
                 >
-                  بطاقات 🗂️
+                  كروت تحليلية
                 </button>
                 <button
                   type="button"
                   onClick={() => setSlicerDisplayMode('chips')}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition cursor-pointer ${
-                    slicerDisplayMode === 'chips' ? 'bg-amber-400 text-slate-950 font-black shadow-xs' : 'text-slate-400 hover:text-white'
+                  className={`px-1.5 py-0.5 rounded font-bold cursor-pointer transition ${
+                    slicerDisplayMode === 'chips' ? 'bg-amber-400 text-slate-950' : 'text-slate-400 hover:text-white'
                   }`}
-                  title="عرض أزرار سريعة"
                 >
-                  أزرار 🏷️
+                  مختصر
                 </button>
               </div>
             </div>
           </div>
 
-          {/* 4. Power BI Slicers Content (Cards or Chips) */}
-          {classificationStats.length === 0 ? (
-            <div className="text-center py-3 text-slate-400 text-xs bg-slate-950/40 rounded-xl border border-slate-800">
-              لا توجد فئات مسجلة تحت هذا القسم.
+          {/* Slicer Cards / Badges Grid */}
+          {filteredClassificationStats.length === 0 ? (
+            <div className="text-center py-4 text-xs text-slate-500">
+              لا توجد فئات مطابقة للبحث داخل هذه المجموعة
             </div>
           ) : slicerDisplayMode === 'tiles' ? (
-            /* Compact Power BI Style Interactive Slicer Tiles */
-            <div className="flex flex-wrap gap-1.5 max-h-56 overflow-y-auto p-1 bg-slate-950/30 rounded-xl border border-slate-800/80">
-              {/* 'All Classifications' Slicer Card */}
+            /* Power BI Metric Tiles Mode */
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-1.5 max-h-56 overflow-y-auto pr-0.5">
+              {/* All Classifications Tile */}
               <button
                 type="button"
                 onClick={() => onSelectClassification('الكل')}
-                className={`min-w-[120px] max-w-[180px] flex-1 p-2 rounded-xl text-right transition cursor-pointer relative overflow-hidden border flex flex-col justify-between active:scale-95 ${
+                className={`p-2 rounded-xl text-right transition cursor-pointer border flex flex-col justify-between ${
                   selectedClassification === 'الكل'
-                    ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 border-amber-300 shadow-md ring-1 ring-amber-300'
-                    : 'bg-slate-800/90 text-slate-200 hover:bg-slate-750 border-slate-700/80'
+                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md ring-1 ring-amber-300'
+                    : 'bg-slate-900 hover:bg-slate-850 text-slate-200 border-slate-800'
                 }`}
               >
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <span className="text-[11px] font-black truncate">جميع الفئات</span>
-                  {selectedClassification === 'الكل' ? (
-                    <span className="w-3.5 h-3.5 rounded-full bg-slate-950 text-amber-300 flex items-center justify-center text-[9px] shrink-0">
-                      <Check className="w-2.5 h-2.5" />
-                    </span>
-                  ) : (
-                    <span className="text-[9px] px-1 py-0.2 rounded-full font-bold bg-slate-700 text-slate-300">
-                      100%
-                    </span>
-                  )}
+                <div className="flex items-center justify-between pb-1 border-b border-white/10">
+                  <span className="font-black text-xs">كل الفئات</span>
+                  {selectedClassification === 'الكل' && <Check className="w-3.5 h-3.5 text-slate-950" />}
                 </div>
-                <div className="flex items-baseline justify-between">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-xs font-black">{productsInCurrentDept.length}</span>
-                    <span className={`text-[9px] ${selectedClassification === 'الكل' ? 'text-slate-800' : 'text-slate-400'}`}>
-                      صنف بالقسم
-                    </span>
-                  </div>
+                <div className="pt-1 flex items-center justify-between text-[10px]">
+                  <span className="font-bold">{productsInCurrentDept.length} صنف</span>
+                  <span className="opacity-80">100%</span>
                 </div>
               </button>
 
-              {/* Filtered Slicer Cards for each classification */}
+              {/* Individual Category Tiles */}
               {filteredClassificationStats.map((stat) => {
                 const isSelected = selectedClassification === stat.name;
-
                 return (
                   <button
                     key={stat.name}
                     type="button"
-                    onClick={() => {
-                      if (isSelected) {
-                        onSelectClassification('الكل');
-                      } else {
-                        onSelectClassification(stat.name);
-                      }
-                    }}
-                    className={`min-w-[120px] max-w-[190px] flex-1 p-2 rounded-xl text-right transition cursor-pointer relative overflow-hidden border flex flex-col justify-between group active:scale-95 ${
+                    onClick={() => onSelectClassification(stat.name)}
+                    className={`p-2 rounded-xl text-right transition cursor-pointer border flex flex-col justify-between ${
                       isSelected
-                        ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 border-amber-300 shadow-md ring-1 ring-amber-300'
-                        : 'bg-slate-800/90 text-slate-200 hover:bg-slate-750 hover:border-slate-600 border-slate-700/80'
+                        ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md ring-1 ring-amber-300 font-bold'
+                        : 'bg-slate-900 hover:bg-slate-850 text-slate-200 border-slate-800'
                     }`}
                   >
-                    <div>
-                      <div className="flex items-center justify-between gap-1 mb-0.5">
-                        <div className="font-black text-[11px] truncate leading-tight" title={stat.name}>
-                          {stat.name}
-                        </div>
-                        {isSelected && (
-                          <span className="w-3.5 h-3.5 rounded-full bg-slate-950 text-amber-300 flex items-center justify-center text-[9px] shrink-0">
-                            <Check className="w-2 h-2" />
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Compact metrics */}
-                      <div className="flex items-center justify-between text-[10px]">
-                        <div className="flex items-baseline gap-1">
-                          <strong className="text-xs font-black">{stat.count}</strong>
-                          <span className={`text-[9px] ${isSelected ? 'text-slate-800' : 'text-slate-400'}`}>
-                            أصناف
-                          </span>
-                        </div>
-                        <span
-                          className={`text-[9px] font-black px-1 rounded ${
-                            isSelected ? 'bg-slate-950 text-amber-300' : 'bg-slate-700 text-amber-300'
-                          }`}
-                        >
-                          {stat.percentage}%
-                        </span>
-                      </div>
+                    <div className="flex items-center justify-between gap-1 pb-1 border-b border-white/10">
+                      <span className="font-black text-[11px] truncate flex-1" title={stat.name}>
+                        {stat.name}
+                      </span>
+                      {isSelected && <Check className="w-3 h-3 text-slate-950 shrink-0" />}
                     </div>
 
-                    {/* Stock indicator */}
-                    <div className="mt-1 pt-1 border-t border-slate-700/40 flex items-center justify-between text-[9px]">
-                      <span className={isSelected ? 'text-slate-800' : 'text-slate-400'}>المخزون:</span>
-                      <strong className={isSelected ? 'text-slate-950 font-black' : 'text-emerald-400 font-bold'}>
-                        {stat.totalCartons} ك
-                      </strong>
+                    <div className="pt-1.5 space-y-0.5 text-[9px]">
+                      <div className="flex items-center justify-between">
+                        <span className="opacity-80">الأصناف:</span>
+                        <strong className="font-black text-[10px]">{stat.count} صنف</strong>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-400">
+                        <span>المخزون:</span>
+                        <span className={isSelected ? 'text-slate-950 font-black' : 'text-amber-300 font-bold'}>
+                          {stat.totalCartons} كرتونة
+                        </span>
+                      </div>
+                      {/* Visual progress bar */}
+                      <div className="w-full bg-slate-800 rounded-full h-1 overflow-hidden mt-1">
+                        <div
+                          className={`h-full ${isSelected ? 'bg-slate-950' : 'bg-amber-400'}`}
+                          style={{ width: `${Math.min(100, stat.percentage)}%` }}
+                        />
+                      </div>
                     </div>
                   </button>
                 );
               })}
             </div>
           ) : (
-            /* Compact Chips View */
-            <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+            /* Compact Chips Mode */
+            <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
               <button
                 type="button"
                 onClick={() => onSelectClassification('الكل')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer flex items-center gap-1 ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                   selectedClassification === 'الكل'
-                    ? 'bg-amber-400 text-slate-950 shadow-xs'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
+                    ? 'bg-amber-400 text-slate-950 shadow-xs font-black'
+                    : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
                 }`}
               >
-                <span>جميع الفئات</span>
-                <span className="text-[9px] px-1 py-0.2 bg-slate-900/40 rounded-full">
-                  {productsInCurrentDept.length}
-                </span>
+                <span>كل الفئات</span>
+                <span className="text-[10px] opacity-75">({productsInCurrentDept.length})</span>
               </button>
 
               {filteredClassificationStats.map((stat) => {
@@ -664,22 +593,15 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
                   <button
                     key={stat.name}
                     type="button"
-                    onClick={() => {
-                      if (isSelected) onSelectClassification('الكل');
-                      else onSelectClassification(stat.name);
-                    }}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer flex items-center gap-1 ${
+                    onClick={() => onSelectClassification(stat.name)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                       isSelected
-                        ? 'bg-amber-400 text-slate-950 shadow-xs font-black ring-1 ring-amber-300'
-                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'
+                        ? 'bg-amber-400 text-slate-950 shadow-xs font-black'
+                        : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
                     }`}
                   >
                     <span>{stat.name}</span>
-                    <span
-                      className={`text-[9px] px-1 rounded-full font-bold ${
-                        isSelected ? 'bg-slate-950 text-amber-300' : 'bg-slate-700 text-slate-200'
-                      }`}
-                    >
+                    <span className={`text-[10px] px-1 rounded ${isSelected ? 'bg-slate-950 text-amber-300' : 'bg-slate-800 text-slate-400'}`}>
                       {stat.count}
                     </span>
                   </button>
@@ -687,29 +609,6 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
               })}
             </div>
           )}
-
-          {/* 5. Drilldown Breadcrumb & Active Filter Summary Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1.5 border-t border-slate-800 text-[10px]">
-            <div className="flex items-center gap-1.5 text-slate-300">
-              <Filter className="w-3 h-3 text-amber-400 shrink-0" />
-              <span>المسار:</span>
-              <strong className="text-amber-300 font-bold">
-                {selectedDepartment === 'الكل' ? 'كل الأقسام (21)' : currentDeptMeta.shortLabel}
-              </strong>
-              {selectedClassification !== 'الكل' && (
-                <>
-                  <span className="text-slate-500">/</span>
-                  <span className="bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded font-black text-[10px]">
-                    {selectedClassification}
-                  </span>
-                </>
-              )}
-            </div>
-
-            <div className="text-slate-400">
-              الأصناف المطابقة: <strong className="text-white font-bold">{totalFilteredCount}</strong> صنف
-            </div>
-          </div>
         </div>
       )}
     </div>

@@ -356,28 +356,50 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       colMap.salesPrice = idx;
       colMap.piecePrice = idx;
     }
-    // 7. Item group (المجموعة الرئيسية)
+    // 7. Item group (المجموعة الرئيسية / مجموعة الأصناف / القسم / الماركة)
     else if (
       norm === 'itemgroup' ||
       norm === 'item_group' ||
+      norm === 'item group' ||
       norm.includes('itemgroup') ||
       norm.includes('مجموعةالاصناف') ||
+      norm.includes('مجموعةالأصناف') ||
+      norm.includes('مجموعةالصنف') ||
+      norm.includes('مجموعهالصنف') ||
       norm.includes('المجموعةالرئيسية') ||
-      norm.includes('المجموعهالرئيسيه')
+      norm.includes('المجموعهالرئيسيه') ||
+      norm.includes('المجموعةالرئيسيه') ||
+      norm.includes('المجموعهالرئيسية') ||
+      norm.includes('المجموعة') ||
+      norm.includes('المجموعه') ||
+      norm.includes('البراند') ||
+      norm.includes('الماركة') ||
+      norm.includes('الماركه')
     ) {
       colMap.itemGroup = idx;
       colMap.department = idx;
     }
-    // 8. Family Name (العائلة / المجموعة الفرعية)
+    // 8. Family Name (العائلة / الفئة / المجموعة الفرعية / التصنيف)
     else if (
       norm === 'familyname' ||
       norm === 'family_name' ||
+      norm === 'family name' ||
       norm.includes('familyname') ||
       norm.includes('اسمالعائلة') ||
+      norm.includes('اسمالعائله') ||
+      norm.includes('عائلةالصنف') ||
+      norm.includes('عائلهالصنف') ||
+      norm.includes('المجموعةالفرعية') ||
+      norm.includes('المجموعهالفرعيه') ||
       norm.includes('العائلة') ||
       norm.includes('العائله') ||
       norm.includes('الفئة') ||
-      norm.includes('فئة')
+      norm.includes('الفئه') ||
+      norm.includes('الفئات') ||
+      norm.includes('فئة') ||
+      norm.includes('فئه') ||
+      norm.includes('عائلة') ||
+      norm.includes('عائله')
     ) {
       colMap.familyName = idx;
       colMap.classification = idx;
@@ -515,8 +537,10 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     }
 
     // Item group and Family Name
-    const itemGroup = getVal(colMap.itemGroup) || getVal(colMap.department) || getVal(colMap.category) || 'LHLotus';
-    const familyName = getVal(colMap.familyName) || getVal(colMap.classification) || 'أصناف عامة';
+    const rawItemGroup = getVal(colMap.itemGroup) || getVal(colMap.department) || getVal(colMap.category) || 'عام';
+    const itemGroup = rawItemGroup.trim();
+    const rawFamilyName = getVal(colMap.familyName) || getVal(colMap.classification) || 'أصناف عامة';
+    const familyName = rawFamilyName.trim();
 
     // Multi-branch stocks for all 8 company warehouses
     const stockBeheira = colMap.stockBeheira > -1 ? getNum(colMap.stockBeheira, 0) : 0;
@@ -1790,9 +1814,11 @@ export function generateSampleExcelTemplate(): void {
     {
       id: 'sample-1',
       code: 'LHL-101',
-      name: 'طقم لوتس كلاسيك زجاجي 6 قطع - LHLotus',
+      name: 'طقم لوتس كلاسيك زجاجي 6 قطع',
       salesPriority: 'مرتفع',
-      category: 'LHLotus',
+      category: 'لوتس',
+      itemGroup: 'لوتس',
+      familyName: 'كاسات زجاج',
       status: 'متاح',
       cartonQuantity: 12,
       size: '300 مل',
@@ -1801,8 +1827,8 @@ export function generateSampleExcelTemplate(): void {
       branchStockReserved: 130,
       mainWarehouseActual: 2000,
       mainWarehouseReserved: 1800,
-      department: 'LHLotus',
-      classification: 'سوبر A',
+      department: 'لوتس',
+      classification: 'كاسات زجاج',
       promoPrice: 85,
       piecePrice: 95,
       cartonPrice: 1020,
@@ -1812,22 +1838,24 @@ export function generateSampleExcelTemplate(): void {
     {
       id: 'sample-2',
       code: 'FHL-111',
-      name: 'طقم لومينارك فرنسي أصلي 6 قطع - FHLuminarc',
+      name: 'طقم لومينارك فرنسي أصلي 6 قطع',
       salesPriority: 'مرتفع',
-      category: 'FHLuminarc',
+      category: 'لومينارك',
+      itemGroup: 'لومينارك',
+      familyName: 'أطقم عشاء',
       status: 'متاح',
       cartonQuantity: 6,
-      size: '330 مل',
-      color: 'شفاف مقاوم للصدمات',
-      branchStockActual: 200,
-      branchStockReserved: 180,
-      mainWarehouseActual: 3000,
-      mainWarehouseReserved: 2800,
-      department: 'FHLuminarc',
-      classification: 'أصلي Import',
-      promoPrice: undefined,
-      piecePrice: 175,
-      cartonPrice: 990,
+      size: 'كبير',
+      color: 'أبيض ناصع',
+      branchStockActual: 80,
+      branchStockReserved: 70,
+      mainWarehouseActual: 1200,
+      mainWarehouseReserved: 1100,
+      department: 'لومينارك',
+      classification: 'أطقم عشاء',
+      promoPrice: 140,
+      piecePrice: 160,
+      cartonPrice: 960,
       branchName: 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
       imageUrl: 'https://res.cloudinary.com/dream-dist/image/upload/products/FHL-111.jpg'
     }

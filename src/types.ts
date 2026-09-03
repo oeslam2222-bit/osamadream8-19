@@ -53,31 +53,9 @@ export interface Branch {
 export type SalesPriority = 'مرتفع' | 'متوسط' | 'عادي' | 'منخفض';
 export type ItemStatus = 'متاح' | 'راكد' | 'عرض ترويجي' | 'نواقص' | 'موقوف مؤقتاً';
 
-export const OFFICIAL_DEPARTMENTS = [
-  'LHLotus',
-  'LHALFA',
-  'LHDream',
-  'FHlines',
-  'FHGigilli',
-  'LHKAZAN',
-  'FHALZA',
-  'FHDream',
-  'FHTobaco',
-  'FHGIMYA',
-  'FHLuminarc',
-  'FHMarcato',
-  'LHGalaxy',
-  'FHBlinkmax',
-  'FHDelisoga',
-  'FHGreenApp',
-  'FHCasasunc',
-  'FHOlala',
-  'FHQcocicok',
-  'FHTesiJesi',
-  'FHKAZAN'
-] as const;
+export const OFFICIAL_DEPARTMENTS = [] as const;
 
-export type OfficialDepartment = typeof OFFICIAL_DEPARTMENTS[number];
+export type OfficialDepartment = string;
 
 export interface Product {
   id: string;

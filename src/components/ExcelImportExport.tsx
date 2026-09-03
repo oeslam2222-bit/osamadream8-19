@@ -483,14 +483,14 @@ function onEdit(e) {
                       <td className="p-2 text-left font-mono text-emerald-300">350 ج.م</td>
                     </tr>
                     <tr>
-                      <td className="p-2 font-black text-cyan-300">Item group</td>
-                      <td className="p-2">المجموعة الرئيسية / القسم للفلترة والتصنيف</td>
-                      <td className="p-2 text-left font-mono text-cyan-200">LHLotus / Philips</td>
+                      <td className="p-2 font-black text-cyan-300">المجموعة الرئيسية (Item group)</td>
+                      <td className="p-2">المجموعة الرئيسية بالعربي كما هي في الشيت (لوتس، ألفا، دريم هوم، لاينز، كازان، إلخ)</td>
+                      <td className="p-2 text-left font-mono text-cyan-200">لوتس / ألفا / دريم هوم</td>
                     </tr>
                     <tr>
-                      <td className="p-2 font-black text-purple-300">Family Name</td>
-                      <td className="p-2">اسم العائلة / التصنيف الفرعي</td>
-                      <td className="p-2 text-left text-purple-200">بمبونيرة / مجات</td>
+                      <td className="p-2 font-black text-purple-300">الفئة / عائلة الصنف (Family Name)</td>
+                      <td className="p-2">اسم الفئة أو العائلة التابعة للمجموعة الرئيسية</td>
+                      <td className="p-2 text-left text-purple-200">حلل وجرانيت / كاسات / بمبونيرة</td>
                     </tr>
                     <tr>
                       <td className="p-2 font-black text-slate-200">اللون</td>
