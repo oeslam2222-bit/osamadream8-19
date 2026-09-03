@@ -27,7 +27,6 @@ import {
   Truck,
   UserCheck,
   Users,
-  Warehouse,
   X,
   XCircle,
   Trash2
@@ -650,55 +649,6 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Stock Level Visibility: Local Branch Stock vs October Central Warehouse */}
-      <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-slate-200 space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2">
-            <Warehouse className="w-5 h-5 text-amber-500" />
-            <h3 className="font-black text-sm text-slate-900">
-              متابعة أرصدة المخازن الحالية (مخزن الفرع vs مخزن أكتوبر المركزي)
-            </h3>
-          </div>
-          <span className="text-xs text-slate-500 font-medium">
-            تحديث لحظي لجميع الأصناف بالكرتونة والقطع
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-          {products.slice(0, 4).map((p) => {
-            const branchCartons = Math.floor(p.branchStockActual / (p.cartonQuantity || 1));
-            const mainCartons = Math.floor(p.mainWarehouseActual / (p.cartonQuantity || 1));
-            return (
-              <div key={p.id} className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="bg-slate-900 text-amber-300 font-mono text-[10px] px-2 py-0.5 rounded font-black">
-                    {p.code}
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-500">شدة: {p.cartonQuantity} ق</span>
-                </div>
-                <div className="font-bold text-slate-900 text-xs truncate" title={p.name}>
-                  {p.name}
-                </div>
-                
-                <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-slate-200">
-                  <div className="bg-emerald-50 p-1.5 rounded-xl border border-emerald-200">
-                    <div className="text-[9px] text-emerald-800 font-bold">فرعك الحالي:</div>
-                    <div className="text-xs font-black text-emerald-950">{branchCartons} كرتونة</div>
-                    <div className="text-[9px] text-emerald-700">({p.branchStockActual} قطعة)</div>
-                  </div>
-
-                  <div className="bg-amber-50 p-1.5 rounded-xl border border-amber-200">
-                    <div className="text-[9px] text-amber-800 font-bold">مخزن أكتوبر:</div>
-                    <div className="text-xs font-black text-amber-950">{mainCartons} كرتونة</div>
-                    <div className="text-[9px] text-amber-700">({p.mainWarehouseActual} قطعة)</div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
         </div>
       </div>
 
