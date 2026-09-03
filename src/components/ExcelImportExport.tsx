@@ -32,7 +32,8 @@ import {
   UserCheck,
   Users,
   X,
-  Trash2
+  Trash2,
+  ShieldAlert
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -213,6 +214,22 @@ function onEdit(e) {
     setCopiedScript(true);
     setTimeout(() => setCopiedScript(false), 3000);
   };
+
+  const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+
+  if (!isAdminOrDev) {
+    return (
+      <div className="bg-white rounded-3xl p-8 border border-slate-200 text-center space-y-3 my-6 shadow-sm">
+        <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h3 className="text-lg font-black text-slate-900">غير مصرح لك بالدخول</h3>
+        <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
+          صلاحية رفع وإدارة ملفات الإكسل والشيتات وتصفير البيانات مقتصرة فقط على <strong>المدير العام (Admin)</strong> و<strong>المطور (Developer)</strong>.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-16">

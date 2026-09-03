@@ -103,6 +103,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
 
+  // Role permissions: ONLY Developer and Admin can upload or wipe catalog data
+  const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+
   // Modals & UI States
   const [selectedProductForModal, setSelectedProductForModal] = useState<Product | null>(null);
   const [addedItemToast, setAddedItemToast] = useState<{ name: string; count: string } | null>(null);
@@ -1034,8 +1037,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         className={`${isFilterPanelOpen ? 'block' : 'hidden'} md:block`}
       />
 
-      {/* Fresh Upload / Setup Box (Visible when triggered or when products are empty) */}
-      {isUploadBoxOpen && (
+      {/* Fresh Upload / Setup Box (Visible ONLY to Admin and Developer) */}
+      {isAdminOrDev && isUploadBoxOpen && (
         <div className="bg-white rounded-3xl p-5 sm:p-6 border-2 border-amber-400 shadow-xl space-y-4 animate-in fade-in">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
@@ -1653,13 +1656,17 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
           <div className="flex items-center justify-center gap-2 pt-2">
             {products.length === 0 ? (
-              <button
-                onClick={() => setIsUploadBoxOpen(true)}
-                className="bg-amber-400 hover:bg-amber-300 text-slate-950 px-5 py-2.5 rounded-2xl text-xs font-black shadow-md transition flex items-center gap-2 cursor-pointer"
-              >
-                <Upload className="w-4 h-4" />
-                <span>رفع شيت الأصناف الآن 📄</span>
-              </button>
+              isAdminOrDev ? (
+                <button
+                  onClick={() => setIsUploadBoxOpen(true)}
+                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 px-5 py-2.5 rounded-2xl text-xs font-black shadow-md transition flex items-center gap-2 cursor-pointer"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>رفع شيت الأصناف الآن 📄</span>
+                </button>
+              ) : (
+                <div className="text-xs text-slate-400">يرجى التواصل مع الإدارة لرفع الأصناف.</div>
+              )
             ) : (
               <button
                 onClick={() => {
@@ -1680,8 +1687,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
       )}
 
-      {/* Wipe All Data Confirmation Modal ("مسح كل البيانات للرفع من جديد") */}
-      {isWipeModalOpen && (
+      {/* Wipe All Data Confirmation Modal (Admin & Developer Only) */}
+      {isAdminOrDev && isWipeModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">

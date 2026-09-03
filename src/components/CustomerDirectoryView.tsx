@@ -1453,8 +1453,8 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
       </div>
 
-      {/* Import Modal for 3400+ Customers (Google Sheets & Excel) */}
-      {isImportModalOpen && (
+      {/* Import Modal for 3400+ Customers (Google Sheets & Excel - Admin & Developer Only) */}
+      {isAdminOrDev && isImportModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6 space-y-4 max-h-[92vh] overflow-y-auto">
             
