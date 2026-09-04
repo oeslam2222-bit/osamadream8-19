@@ -1226,9 +1226,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return updated;
       }
 
-      // Check if candidate matches rep in user list with branch isolation
+      // Check if candidate matches rep in user list with branch isolation.
+      // Name/phone/username match takes priority over stale repId so customers
+      // are linked to the correct rep even when repId points to the wrong user.
       const matchFn = (u: User) => {
-        if (updated.repId && u.id === updated.repId) return true;
         if (
           u.role === 'sales_rep' &&
           updated.branchName &&
@@ -1237,11 +1238,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ) {
           return false;
         }
-        return (
+        const nameOrPhoneMatch =
           isArabicNameMatch(rawRep, u.name) ||
           (u.username && isArabicNameMatch(rawRep, u.username)) ||
-          (u.phone && rawRep.length >= 8 && (rawRep === u.phone || u.phone.includes(rawRep)))
-        );
+          (u.phone && rawRep.length >= 8 && (rawRep === u.phone || u.phone.includes(rawRep)));
+        if (nameOrPhoneMatch) return true;
+        if (updated.repId && u.id === updated.repId) return true;
+        return false;
       };
 
       let matched = reps.find(matchFn);
