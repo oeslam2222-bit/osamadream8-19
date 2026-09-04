@@ -142,20 +142,14 @@ export async function fetchCustomersFromSupabase(): Promise<{ success: boolean; 
         address: c.address || c.region || c.city || '',
         governorate: c.governorate || '',
         branchName: c.branch_name || c.branchName || 'فرع القاهرة',
-        repName: c.rep_name || c.repName || c.sales_rep_name || c.salesRepName || '',
-        salesRepName: c.rep_name || c.repName || c.sales_rep_name || c.salesRepName || '',
-        repId: c.rep_id || c.repId || c.sales_rep_id || c.salesRepId || '',
+        repName: c.rep_name || c.repName || 'مندوب المبيعات',
+        salesRepName: c.rep_name || c.repName || 'مندوب المبيعات',
+        repId: c.rep_id || c.repId || '',
         taxNumber: c.tax_number || c.taxNumber || '',
         tier: c.tier || 'متوسط',
-        creditLimit: Number(c.credit_limit ?? c.creditLimit ?? c.credit ?? c.credit_line ?? 0),
-        balance: Number(c.balance ?? c.current_balance ?? c.currentBalance ?? 0),
-        currentBalance: Number(c.current_balance ?? c.currentBalance ?? c.balance ?? 0),
-        totalOverdueAndDue: Number(c.total_overdue_and_due ?? c.totalOverdueAndDue ?? c.overdue_balance ?? c.overdueBalance ?? c.due_balance ?? c.dueBalance ?? c.current_balance ?? c.balance ?? 0),
-        overdueBalance: Number(c.overdue_balance ?? c.overdueBalance ?? 0),
-        dueBalance: Number(c.due_balance ?? c.dueBalance ?? 0),
-        totalOrdersCount: Number(c.total_orders_count ?? c.totalOrdersCount ?? 0),
-        totalSpent: Number(c.total_spent ?? c.totalSpent ?? 0),
-        lastOrderDate: c.last_order_date || c.lastOrderDate || '',
+        creditLimit: Number(c.credit_limit ?? c.creditLimit ?? 0),
+        balance: Number(c.balance ?? c.current_balance ?? 0),
+        currentBalance: Number(c.current_balance ?? c.balance ?? 0),
         notes: c.notes || '',
         createdAt: c.created_at || new Date().toISOString(),
       }));
@@ -645,38 +639,6 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
   } catch (e: any) {
     console.warn('Supabase Invoice Save Exception:', e);
     return { success: false, error: e?.message };
-  }
-}
-
-/**
- * Delete an invoice from Supabase (both invoices and fallback orders tables)
- */
-export async function deleteInvoiceFromSupabase(invoiceId: string): Promise<{ success: boolean; error?: string }> {
-  try {
-    const { error: invErr } = await supabase.from('invoices').delete().eq('id', invoiceId);
-    await supabase.from('orders').delete().eq('id', invoiceId);
-    if (invErr) {
-      // Also try matching by invoice_number if id didn't match
-      await supabase.from('invoices').delete().eq('invoice_number', invoiceId);
-    }
-    return { success: true };
-  } catch (err: any) {
-    console.warn('Supabase Invoice Delete Notice:', err?.message);
-    return { success: false, error: err?.message };
-  }
-}
-
-/**
- * Clear all invoices from Supabase
- */
-export async function clearAllInvoicesFromSupabase(): Promise<{ success: boolean; error?: string }> {
-  try {
-    await supabase.from('invoices').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await supabase.from('orders').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    return { success: true };
-  } catch (err: any) {
-    console.warn('Supabase Clear Invoices Notice:', err?.message);
-    return { success: false, error: err?.message };
   }
 }
 

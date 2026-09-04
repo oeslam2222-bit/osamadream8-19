@@ -99,7 +99,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     }
   }, [currentUser?.id, currentUser?.branchName, isRep, isSupervisor, isBranchManager]);
   const [debtFilter, setDebtFilter] = useState<'all' | 'has_debt' | 'has_overdue' | 'exceeded_limit' | 'zero_debt'>('all');
-  const [sortField, setSortField] = useState<'name' | 'code' | 'overdue' | 'debt' | 'limit' | 'branch'>('debt');
+  const [sortField, setSortField] = useState<'name' | 'code' | 'overdue' | 'debt' | 'limit' | 'branch'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Pagination (For smooth rendering of 3400+ customers)
@@ -189,15 +189,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     sourceUsers
       .filter((u) => u.role === 'sales_rep' || u.role === 'supervisor')
       .forEach((u) => {
-        const normalizedUserKey = normalizeArabicText(u.name).replace(/\s+/g, '');
-        const matchingRepEntry = Array.from(repMap.entries()).find(
-          ([repName]) => normalizeArabicText(repName).replace(/\s+/g, '') === normalizedUserKey
-        );
-        if (matchingRepEntry) {
-          matchingRepEntry[1].isRegisteredUser = true;
-          matchingRepEntry[1].userId = u.id;
-          matchingRepEntry[1].branchName = matchingRepEntry[1].branchName || u.branchName || '';
-        } else {
+        if (!repMap.has(u.name)) {
           repMap.set(u.name, {
             name: u.name,
             branchName: u.branchName || '',
@@ -211,16 +203,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     const unique = new Map<string, (typeof repMap extends Map<string, infer V> ? V : never)>();
     repMap.forEach((rep) => {
       const key = normalizeArabicText(rep.name).replace(/\s+/g, '');
-      const existing = unique.get(key);
-      if (existing) {
-        // Different sheet spellings of the same rep must contribute to one total.
-        existing.customerCount += rep.customerCount;
-        existing.isRegisteredUser = existing.isRegisteredUser || rep.isRegisteredUser;
-        existing.userId = existing.userId || rep.userId;
-        existing.branchName = existing.branchName || rep.branchName;
-      } else {
-        unique.set(key, { ...rep });
-      }
+      if (!unique.has(key)) unique.set(key, rep);
     });
     return Array.from(unique.values()).sort((a, b) => b.customerCount - a.customerCount);
   }, [customers, users, currentUser, isAdminOrDev, getVisibleCustomers]);
@@ -678,15 +661,14 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     const wb = XLSX.utils.book_new();
 
     const headers = [
-      'المديونية',
-      'الحد الائتماني',
-      'الفاتورة',
-      'إجمالي المديونية بعد الفاتورة',
-      'المستحقات',
       'كود العميل',
       'اسم العميل',
       'الفرع',
       'المندوب',
+      'اجمالي المتأخرات والمستحق',
+      'مديونيه العميل',
+      'الحد الائتماني',
+      'المتبقي من الائتمان',
       'رقم الهاتف',
       'العنوان',
     ];
@@ -696,17 +678,15 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       const balance = Number(c.currentBalance ?? c.balance ?? 0);
       const overdueAndDue = Number(c.totalOverdueAndDue !== undefined ? c.totalOverdueAndDue : balance);
       const available = Math.max(0, limit - balance);
-      const invoiceAmount = Number((c as Customer & { lastInvoiceAmount?: number }).lastInvoiceAmount ?? 0);
       return [
-        balance,
-        limit,
-        invoiceAmount,
-        balance + invoiceAmount,
-        overdueAndDue,
         c.code || '---',
         c.name || '',
         c.branchName || 'الفرع الرئيسي',
         c.salesRepName || c.repName || 'غير محدد',
+        overdueAndDue,
+        balance,
+        limit,
+        available,
         c.phone || '',
         c.address || '',
       ];
@@ -714,16 +694,15 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     ws['!cols'] = [
-      { wch: 18 },
-      { wch: 18 },
-      { wch: 18 },
-      { wch: 24 },
-      { wch: 18 },
       { wch: 14 },
       { wch: 35 },
       { wch: 20 },
       { wch: 22 },
+      { wch: 24 },
       { wch: 18 },
+      { wch: 18 },
+      { wch: 20 },
+      { wch: 16 },
       { wch: 32 },
     ];
 
@@ -860,7 +839,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500">
-              {scopeTab === 'my_customers' ? 'عملائي المسندين لي' : 'إجمالي ��لعملاء المعروضين'}
+              {scopeTab === 'my_customers' ? 'عملائي المسندين لي' : 'إجمالي العملاء المعروضين'}
             </span>
             <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs">
               <Users className="w-4 h-4" />
@@ -1197,7 +1176,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                   className="py-3 px-3 cursor-pointer hover:text-amber-300 transition text-left"
                 >
                   <div className="flex items-center justify-end gap-1">
-                    <span>المستحقات</span>
+                    <span>إجمالي المتأخرات والمستحق</span>
                     <ArrowUpDown className="w-3 h-3 text-slate-400" />
                   </div>
                 </th>
@@ -1206,7 +1185,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                   className="py-3 px-3 cursor-pointer hover:text-amber-300 transition text-left"
                 >
                   <div className="flex items-center justify-end gap-1">
-                    <span>المديونية</span>
+                    <span>مديونية العميل</span>
                     <ArrowUpDown className="w-3 h-3 text-slate-400" />
                   </div>
                 </th>
@@ -1219,8 +1198,8 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                     <ArrowUpDown className="w-3 h-3 text-slate-400" />
                   </div>
                 </th>
-<th className="py-3 px-3 text-left">
-                  <span>إجمالي المديونية بعد الفاتورة</span>
+                <th className="py-3 px-3 text-left">
+                  <span>المتبقي من الائتمان</span>
                 </th>
                 <th className="py-3 px-4 text-center">إجراءات فورية</th>
               </tr>
@@ -1399,7 +1378,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                         </div>
                       </td>
 
-                      {/* إجمالي المديونية بعد الفاتورة */}
+                      {/* المتبقي من الائتمان */}
                       <td className="py-3 px-3 text-left">
                         {isExceeded ? (
                           <div className="text-rose-600 font-black text-[11px] flex items-center justify-end gap-1">

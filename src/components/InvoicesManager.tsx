@@ -25,7 +25,6 @@ import {
   XCircle,
   RotateCcw,
   AlertCircle,
-  AlertTriangle,
   Pencil,
   PlusCircle,
   ExternalLink
@@ -53,14 +52,11 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 }) => {
   const {
     invoices,
-    customers,
     currentUser,
     users,
     getVisibleInvoices,
     updateOrderStatus,
     deleteInvoice,
-    deleteInvoiceWithShortage,
-    clearAllInvoices,
     approveOrder,
     forwardOrderToManager,
     rejectOrder,
@@ -78,13 +74,6 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   const [isAuditOpen, setIsAuditOpen] = useState(false);
   const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
-
-  // In-App Deletion Modals State
-  const [deleteConfirmInvoice, setDeleteConfirmInvoice] = useState<{
-    invoice: Invoice;
-    linkedShortage?: Invoice;
-  } | null>(null);
-  const [isClearAllInvoicesModalOpen, setIsClearAllInvoicesModalOpen] = useState(false);
 
   // Pagination state for responsive multi-page browsing
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -207,7 +196,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     'قيد مراجعة المشرف': { bg: 'bg-amber-100 border-amber-300 animate-pulse', text: 'text-amber-900', label: 'قيد مراجعة المشرف ⏳' },
     'معلقة بانتظار اعتماد الفرع': { bg: 'bg-blue-100 border-blue-300 animate-pulse', text: 'text-blue-900', label: 'بانتظار مدير الفرع 🏛️' },
     'قيد المراجعة': { bg: 'bg-amber-100 border-amber-300', text: 'text-amber-800' },
-    'معتمدة ومصروفة من المخزن': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-800', label: 'فاتورة مكتملة بالفرع - جاهزة للتحضير' },
+    'معتمدة ومصروفة من المخزن': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-800', label: 'معتمدة ومصروفة ✅' },
     'معتمدة': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-800' },
     'جاري التجهيز': { bg: 'bg-indigo-100 border-indigo-300', text: 'text-indigo-800' },
     'تم التسليم': { bg: 'bg-teal-100 border-teal-300', text: 'text-teal-800' },
@@ -290,26 +279,13 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor') && invoices.length > 0 && (
-              <button
-                onClick={() => setIsClearAllInvoicesModalOpen(true)}
-                className="flex items-center justify-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold px-3.5 py-2.5 rounded-xl text-xs transition cursor-pointer"
-                title="مسح وتصفير جميع الفواتير التجريبية والبدء من جديد"
-              >
-                <Trash2 className="w-4 h-4 text-rose-600" />
-                <span>تصفير الفواتير التجريبية 🗑️</span>
-              </button>
-            )}
-
-            <button
-              onClick={onOpenNewOrder}
-              className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>إنشاء فاتورة / طلبية جديدة</span>
-            </button>
-          </div>
+          <button
+            onClick={onOpenNewOrder}
+            className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>إنشاء فاتورة / طلبية جديدة</span>
+          </button>
         </div>
 
         {/* Dashboard Aggregate Stat Cards */}
@@ -555,7 +531,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               className="bg-indigo-100 hover:bg-indigo-200 text-indigo-950 px-1.5 py-0.5 rounded text-[10px] font-bold border border-indigo-200 flex items-center gap-1 transition cursor-pointer text-right"
                               title="فاتورة نواقص محولة لمخزن أكتوبر المركزي - انقر للبحث عن الفاتورة الأساسية"
                             >
-                              <span>فاتورة نواقص في انتظار التوريد</span>
+                              <span>🚚 فاتورة نواقص (أكتوبر)</span>
                               {invoice.parentInvoiceNumber && <span className="text-indigo-700 font-mono">#{invoice.parentInvoiceNumber}</span>}
                             </button>
                           )}
@@ -569,13 +545,13 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               className="bg-amber-100 hover:bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-300 flex items-center gap-1 transition cursor-pointer text-right"
                               title="فاتورة الأصناف المتوفرة - تم فصل النواقص - انقر للبحث عن فاتورة النواقص"
                             >
-                              <span>فاتورة مكتملة بالفرع جاهزة للتحضير (النواقص: {invoice.shortageInvoiceNumber})</span>
+                              <span>📦 متوفر (نواقص: {invoice.shortageInvoiceNumber})</span>
                               <ExternalLink className="w-2.5 h-2.5 shrink-0" />
                             </button>
                           )}
                           {!invoice.isShortageInvoice && !invoice.hasShortageSplit && (
                             <span className="bg-teal-50 text-teal-800 px-1.5 py-0.5 rounded text-[10px] font-bold border border-teal-200">
-                              فاتورة مكتملة بالفرع جاهزة للتحضير
+                              📦 أصناف متوفرة
                             </span>
                           )}
                         </div>
@@ -586,11 +562,6 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                         <div className="font-extrabold text-slate-900 text-sm mb-1">{invoice.customerName}</div>
                         <CreditStatusBadge
                           invoice={invoice}
-                          customer={customers.find((customer) =>
-                            (invoice.customerId && customer.id === invoice.customerId) ||
-                            (invoice.customerCode && customer.code === invoice.customerCode) ||
-                            customer.name.trim().toLowerCase() === invoice.customerName.trim().toLowerCase()
-                          )}
                           onClick={() => {
                             setAuditInvoice(invoice);
                             setIsAuditOpen(true);
@@ -778,31 +749,15 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             <FileSpreadsheet className="w-3.5 h-3.5" />
                           </button>
 
-                          {/* Delete Action (Admin, Developer, Supervisor, Branch Manager, or Rep for own pending/draft) */}
-                          {(currentUser?.role === 'admin' ||
-                            currentUser?.role === 'developer' ||
-                            currentUser?.role === 'supervisor' ||
-                            currentUser?.role === 'branch_manager' ||
-                            (currentUser?.role === 'sales_rep' &&
-                              (invoice.status === 'قيد مراجعة المشرف' ||
-                               invoice.status === 'مسودة' ||
-                               invoice.repId === currentUser.id ||
-                               invoice.repName === currentUser.name))) && (
+                          {/* Delete (Admin & Developer only) */}
+                          {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
                             <button
                               onClick={() => {
-                                let linked: Invoice | undefined = undefined;
-                                if (invoice.shortageInvoiceNumber) {
-                                  linked = invoices.find((i) => i.invoiceNumber === invoice.shortageInvoiceNumber);
-                                } else if (invoice.isShortageInvoice && (invoice.parentInvoiceNumber || invoice.parentInvoiceId)) {
-                                  linked = invoices.find(
-                                    (i) =>
-                                      (invoice.parentInvoiceId && i.id === invoice.parentInvoiceId) ||
-                                      (invoice.parentInvoiceNumber && i.invoiceNumber === invoice.parentInvoiceNumber)
-                                  );
+                                if (window.confirm(`هل أنت متأكد من حذف الفاتورة رقم ${invoice.invoiceNumber} نهائياً؟`)) {
+                                  deleteInvoice(invoice.id);
                                 }
-                                setDeleteConfirmInvoice({ invoice, linkedShortage: linked });
                               }}
-                              className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg transition cursor-pointer hover:bg-rose-50"
+                              className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg transition cursor-pointer"
                               title="حذف الفاتورة نهائياً"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1047,153 +1002,6 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
           }}
           onViewInvoice={onViewInvoice}
         />
-      )}
-
-      {/* In-App Confirmation Modal: Delete Single Invoice (with Linked Shortage Option) */}
-      {deleteConfirmInvoice && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center gap-3 text-rose-600 border-b border-slate-100 pb-3">
-              <div className="w-10 h-10 rounded-2xl bg-rose-50 flex items-center justify-center shrink-0">
-                <Trash2 className="w-5 h-5 text-rose-600" />
-              </div>
-              <div>
-                <h4 className="font-black text-slate-900 text-sm">تأكيد حذف الفاتورة</h4>
-                <p className="text-[11px] text-slate-500 font-mono">
-                  رقم: {deleteConfirmInvoice.invoice.invoiceNumber}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 rounded-2xl p-3 text-xs space-y-1.5 border border-slate-100">
-              <div className="flex justify-between">
-                <span className="text-slate-500">العميل:</span>
-                <span className="font-bold text-slate-800">{deleteConfirmInvoice.invoice.customerName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">المندوب والفرع:</span>
-                <span className="font-bold text-slate-800">{deleteConfirmInvoice.invoice.repName} ({deleteConfirmInvoice.invoice.branchName})</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">الإجمالي:</span>
-                <span className="font-black text-amber-700">{formatCurrency(deleteConfirmInvoice.invoice.estimatedGrandTotal)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">الحالة:</span>
-                <span className="font-bold text-slate-700">{deleteConfirmInvoice.invoice.status}</span>
-              </div>
-            </div>
-
-            {deleteConfirmInvoice.linkedShortage ? (
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-900 space-y-1">
-                <div className="font-black flex items-center gap-1">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>تنبيه: توجد فاتورة مرتبطة بهذه الطلبية!</span>
-                </div>
-                <p className="text-[11px] text-amber-800">
-                  الفاتورة المرتبطة: <strong>{deleteConfirmInvoice.linkedShortage.invoiceNumber}</strong> ({deleteConfirmInvoice.linkedShortage.isShortageInvoice ? 'فاتورة نواقص' : 'الفاتورة الأصلية'}).
-                  هل ترغب بحذف الفاتورتين معاً لتنظيف السجلات بالكامل؟
-                </p>
-              </div>
-            ) : (
-              <p className="text-xs text-slate-600">
-                هل أنت متأكد من رغبتك في حذف هذه الفاتورة نهائياً من قاعدة البيانات والسجلات؟
-              </p>
-            )}
-
-            <div className="space-y-2 pt-1">
-              {deleteConfirmInvoice.linkedShortage && (
-                <button
-                  onClick={() => {
-                    const invNo = deleteConfirmInvoice.invoice.invoiceNumber;
-                    deleteInvoiceWithShortage(deleteConfirmInvoice.invoice.id);
-                    setSuccessToast(`تم حذف الفاتورة ${invNo} والفاتورة المرتبطة معاً بنجاح 🗑️`);
-                    setDeleteConfirmInvoice(null);
-                    setTimeout(() => setSuccessToast(null), 3000);
-                  }}
-                  className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>حذف الفاتورتين معاً (المتاح + النواقص)</span>
-                </button>
-              )}
-
-              <button
-                onClick={() => {
-                  const invNo = deleteConfirmInvoice.invoice.invoiceNumber;
-                  deleteInvoice(deleteConfirmInvoice.invoice.id);
-                  setSuccessToast(`تم حذف الفاتورة ${invNo} بنجاح 🗑️`);
-                  setDeleteConfirmInvoice(null);
-                  setTimeout(() => setSuccessToast(null), 3000);
-                }}
-                className={`w-full font-bold py-2.5 rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                  deleteConfirmInvoice.linkedShortage
-                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-                    : 'bg-rose-600 hover:bg-rose-700 text-white font-black shadow-md'
-                }`}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>{deleteConfirmInvoice.linkedShortage ? 'حذف هذه الفاتورة فقط' : 'نعم، تأكيد الحذف نهائياً'}</span>
-              </button>
-
-              <button
-                onClick={() => setDeleteConfirmInvoice(null)}
-                className="w-full py-2 bg-transparent text-slate-500 hover:text-slate-800 font-bold rounded-xl text-xs cursor-pointer"
-              >
-                إلغاء وتراجع
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* In-App Confirmation Modal: Wipe All Test Invoices */}
-      {isClearAllInvoicesModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center gap-3 text-rose-600 border-b border-slate-100 pb-3">
-              <div className="w-10 h-10 rounded-2xl bg-rose-50 flex items-center justify-center shrink-0">
-                <Trash2 className="w-5 h-5 text-rose-600" />
-              </div>
-              <div>
-                <h4 className="font-black text-slate-900 text-sm">مسح وتصفير الفواتير التجريبية</h4>
-                <p className="text-[11px] text-slate-500">
-                  إجمالي الفواتير الحالية: {invoices.length} فاتورة
-                </p>
-              </div>
-            </div>
-
-            <div className="text-xs text-slate-600 space-y-2">
-              <p>
-                سيتم <strong>حذف جميع الفواتير والطلبيات التجريبية بالكامل</strong> وتصفير سجلات المبيعات للبدء من جديد.
-              </p>
-              <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-[11px]">
-                🛡️ <strong>ملاحظة هامة:</strong> بيانات الأصناف والمخزون والعملاء وفروع الشركة والمستخدمين <strong>لن تتأثر نهائياً</strong>، فقط الفواتير والطلبيات هي التي سيتم تصفيرها.
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                onClick={() => {
-                  clearAllInvoices();
-                  setIsClearAllInvoicesModalOpen(false);
-                  setSuccessToast('تم مسح وتصفير جميع الفواتير التجريبية بنجاح! السجلات نظيفة الآن 🧹');
-                  setTimeout(() => setSuccessToast(null), 4000);
-                }}
-                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>نعم، تصفير جميع الفواتير الآن</span>
-              </button>
-              <button
-                onClick={() => setIsClearAllInvoicesModalOpen(false)}
-                className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200 cursor-pointer"
-              >
-                إلغاء
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
     </div>

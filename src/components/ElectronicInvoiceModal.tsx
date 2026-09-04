@@ -24,9 +24,7 @@ import {
   X,
   XCircle,
   ArrowLeft,
-  ExternalLink,
-  Trash2,
-  AlertTriangle
+  ExternalLink
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -52,17 +50,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   onClose,
   onEditInvoice,
 }) => {
-  const {
-    syncToAccounting,
-    currentUser,
-    rejectOrder,
-    companyInfo,
-    getCompanyInfoForBranch,
-    invoices,
-    customers,
-    deleteInvoice,
-    deleteInvoiceWithShortage,
-  } = useApp();
+  const { syncToAccounting, currentUser, rejectOrder, companyInfo, getCompanyInfoForBranch, invoices } = useApp();
   const [activeInvoice, setActiveInvoice] = useState<Invoice | null>(invoice);
 
   useEffect(() => {
@@ -82,7 +70,6 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   const [showCreditAudit, setShowCreditAudit] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnSuccessMsg, setReturnSuccessMsg] = useState<string | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   if (!isOpen || !currentInv) return null;
 
@@ -96,16 +83,6 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
     currentInv.parentInvoiceNumber || currentInv.parentInvoiceId
       ? invoices.find((i) => i.invoiceNumber === currentInv.parentInvoiceNumber || i.id === currentInv.parentInvoiceId)
       : undefined;
-
-  const linkedCustomer = customers.find(
-    (customer) =>
-      (currentInv.customerId && customer.id === currentInv.customerId) ||
-      (currentInv.customerCode && customer.code === currentInv.customerCode) ||
-      customer.name.trim().toLowerCase() === currentInv.customerName.trim().toLowerCase()
-  );
-  const effectiveCreditLimit = currentInv.customerCreditLimit && currentInv.customerCreditLimit > 0
-    ? currentInv.customerCreditLimit
-    : Number(linkedCustomer?.creditLimit ?? 0);
 
   const isPending =
     currentInv.status === 'قيد مراجعة المشرف' ||
@@ -320,16 +297,6 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             >
               <Printer className="w-3.5 h-3.5" />
               <span>طباعة</span>
-            </button>
-
-            {/* Delete Invoice Button */}
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="flex items-center gap-1.5 bg-rose-950/60 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
-              title="حذف هذه الفاتورة نهائياً"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-              <span>حذف 🗑️</span>
             </button>
 
             {/* Close Button */}
@@ -728,12 +695,12 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                 </div>
                 <div className="flex justify-between items-center text-slate-400">
                   <span>الحد الائتماني المعتمد:</span>
-                  {effectiveCreditLimit <= 0 ? (
+                  {(invoice.customerCreditLimit || 0) <= 0 ? (
                     <span className="font-bold text-amber-300 text-[10px] bg-amber-950/60 border border-amber-500/50 px-2 py-0.5 rounded">
                       لا يوجد حد ائتماني (سداد نقدي)
                     </span>
                   ) : (
-                    <span className="font-bold font-mono text-blue-300">{formatCurrency(effectiveCreditLimit)}</span>
+                    <span className="font-bold font-mono text-blue-300">{formatCurrency(invoice.customerCreditLimit || 0)}</span>
                   )}
                 </div>
                 {invoice.creditLimitExceeded && (
@@ -940,95 +907,6 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
           <div className="fixed bottom-6 right-6 z-50 bg-emerald-900 text-white font-black px-4 py-3 rounded-2xl shadow-2xl border border-emerald-500 animate-in slide-in-from-bottom flex items-center gap-2 text-xs">
             <CheckCircle className="w-4 h-4 text-emerald-400" />
             <span>{returnSuccessMsg}</span>
-          </div>
-        )}
-
-        {/* Delete Confirmation Modal */}
-        {showDeleteConfirm && (
-          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
-            <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4 text-right">
-              <div className="flex items-center gap-3 text-rose-600 border-b border-slate-100 pb-3">
-                <div className="w-10 h-10 rounded-2xl bg-rose-50 flex items-center justify-center shrink-0">
-                  <Trash2 className="w-5 h-5 text-rose-600" />
-                </div>
-                <div>
-                  <h4 className="font-black text-slate-900 text-sm">تأكيد حذف الفاتورة</h4>
-                  <p className="text-[11px] text-slate-500 font-mono">
-                    رقم: {currentInv.invoiceNumber}
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-slate-50 rounded-2xl p-3 text-xs space-y-1.5 border border-slate-100">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">العميل:</span>
-                  <span className="font-bold text-slate-800">{currentInv.customerName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">الإجمالي:</span>
-                  <span className="font-black text-amber-700">{formatCurrency(currentInv.estimatedGrandTotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">الحالة:</span>
-                  <span className="font-bold text-slate-700">{currentInv.status}</span>
-                </div>
-              </div>
-
-              {linkedShortageInvoice ? (
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-900 space-y-1">
-                  <div className="font-black flex items-center gap-1">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span>تنبيه: توجد فاتورة نواقص مرتبطة ({linkedShortageInvoice.invoiceNumber})!</span>
-                  </div>
-                  <p className="text-[11px] text-amber-800">
-                    هل ترغب بحذف الفاتورتين معاً (المتاح والنواقص) لتنظيف السجلات بالكامل؟
-                  </p>
-                </div>
-              ) : (
-                <p className="text-xs text-slate-600">
-                  هل أنت متأكد من حذف هذه الفاتورة نهائياً من قاعدة البيانات والسجلات؟
-                </p>
-              )}
-
-              <div className="space-y-2 pt-1">
-                {linkedShortageInvoice && (
-                  <button
-                    onClick={() => {
-                      deleteInvoiceWithShortage(currentInv.id);
-                      setShowDeleteConfirm(false);
-                      onClose();
-                    }}
-                    className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    <span>حذف الفاتورتين معاً (المتاح + النواقص)</span>
-                  </button>
-                )}
-
-                <button
-                  onClick={() => {
-                    deleteInvoice(currentInv.id);
-                    setShowDeleteConfirm(false);
-                    onClose();
-                  }}
-                  className={`w-full font-bold py-2.5 rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                    linkedShortageInvoice
-                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-                      : 'bg-rose-600 hover:bg-rose-700 text-white font-black shadow-md'
-                  }`}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>{linkedShortageInvoice ? 'حذف هذه الفاتورة فقط' : 'نعم، تأكيد الحذف نهائياً'}</span>
-                </button>
-
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="w-full py-2 bg-transparent text-slate-500 hover:text-slate-800 font-bold rounded-xl text-xs cursor-pointer"
-                >
-                  إلغاء وتراجع
-                </button>
-              </div>
-            </div>
           </div>
         )}
 

@@ -23,8 +23,6 @@ import {
 } from '../services/arabicMatchingService';
 import {
   deleteUserFromSupabase,
-  deleteInvoiceFromSupabase,
-  clearAllInvoicesFromSupabase,
   fetchCustomersFromSupabase,
   fetchInvoicesFromSupabase,
   fetchProductsFromSupabase,
@@ -160,8 +158,6 @@ interface AppContextType {
     restockToInventory?: boolean
   ) => { success: boolean; message: string; returnRecord?: ReturnRecord };
   deleteInvoice: (invoiceId: string) => void;
-  deleteInvoiceWithShortage: (invoiceId: string) => void;
-  clearAllInvoices: () => void;
   syncToAccounting: (invoiceId: string) => Promise<boolean>;
 
   // User Management & Approval Actions
@@ -262,14 +258,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const parsed: User[] = JSON.parse(saved);
       parsed
-        .filter(
-          (u) =>
-            !u.id.startsWith('u-mgr-') &&
-            !u.id.startsWith('u-sup-') &&
-            u.id !== 'u-branch-ashraf' &&
-            u.id !== 'u-sup-mahmoud' &&
-            u.id !== 'u-rep-ahmed'
-        )
+        .filter((u) => u.id !== 'u-branch-ashraf' && u.id !== 'u-sup-mahmoud' && u.id !== 'u-rep-ahmed')
         .forEach((u) => {
           const normBranch = normalizeBranchName(u.branchName);
           const validRole =
@@ -933,29 +922,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (res.success && res.users && res.users.length > 0) {
             setUsers((prev) => {
               const map = new Map<string, User>();
-              prev
-                .filter(
-                  (u) =>
-                    !u.id.startsWith('u-mgr-') &&
-                    !u.id.startsWith('u-sup-') &&
-                    u.id !== 'u-branch-ashraf' &&
-                    u.id !== 'u-sup-mahmoud' &&
-                    u.id !== 'u-rep-ahmed'
-                )
-                .forEach((u) => map.set(u.id, u));
-              res.users!
-                .filter(
-                  (su) =>
-                    !su.id.startsWith('u-mgr-') &&
-                    !su.id.startsWith('u-sup-') &&
-                    su.id !== 'u-branch-ashraf' &&
-                    su.id !== 'u-sup-mahmoud' &&
-                    su.id !== 'u-rep-ahmed'
-                )
-                .forEach((su) => map.set(su.id, su));
-              const finalUsers = Array.from(map.values());
-              safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(finalUsers));
-              return finalUsers;
+              prev.forEach((u) => map.set(u.id, u));
+              res.users!.forEach((su) => map.set(su.id, su));
+              return Array.from(map.values());
             });
           }
         });
@@ -1182,16 +1151,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
-  // Convert spreadsheet values such as "50,000 ج.م" without losing valid limits.
-  const toFinancialNumber = (value: unknown): number => {
-    if (typeof value === 'number' && Number.isFinite(value)) return value;
-    const normalized = String(value ?? '')
-      .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
-      .replace(/[,،\sج.م]/g, '');
-    const parsed = Number(normalized);
-    return Number.isFinite(parsed) ? parsed : 0;
-  };
-
   // Auto-link customer rep names to actual user accounts with robust branch matching & Arabic heuristics
   const linkCustomersToUsers = (list: Customer[], userList: User[]): Customer[] => {
     if (!userList || userList.length === 0) return list;
@@ -1213,15 +1172,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updated.branchName = normalizeBranchName(updated.branchName);
       }
 
-      const rawRep = (
-        updated.salesRepName ||
-        updated.repName ||
-        (updated as any).sales_rep ||
-        (updated as any).sales_rep_name ||
-        (updated as any).rep_name ||
-        (updated as any).delegateName ||
-        ''
-      ).trim();
+      const rawRep = (updated.salesRepName || updated.repName || '').trim();
       if ((!rawRep || rawRep === 'مندوب المبيعات' || rawRep === 'المندوب') && !updated.repId) {
         return updated;
       }
@@ -1248,9 +1199,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           repId: matched.id,
           salesRepName: rawRep || matched.name,
           branchName: updated.branchName || matched.branchName || '',
-          creditLimit: toFinancialNumber(updated.creditLimit),
-          currentBalance: toFinancialNumber(updated.currentBalance ?? updated.balance),
-          balance: toFinancialNumber(updated.currentBalance ?? updated.balance),
+          creditLimit: updated.creditLimit !== undefined ? Number(updated.creditLimit) : 0,
+          currentBalance: Number(updated.currentBalance ?? updated.balance ?? 0),
+          balance: Number(updated.currentBalance ?? updated.balance ?? 0),
         };
       }
       return {
@@ -1607,7 +1558,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: found.branchName,
       action: 'user_login',
       actionTitle: `تسجيل دخول (${found.name})`,
-      details: `تم تسجيل الدخول بصلاحية (${found.role === 'admin' ? 'مدير عام' : found.role === 'branch_manager' ? 'مدير فرع' : found.role === 'supervisor' ? 'مشرف مبيعات' : found.role === 'developer' ? 'مطور تقني' : 'م��دوب مبيعات'}) لـ ${found.branchName}.`,
+      details: `تم تسجيل الدخول بصلاحية (${found.role === 'admin' ? 'مدير عام' : found.role === 'branch_manager' ? 'مدير فرع' : found.role === 'supervisor' ? 'مشرف مبيعات' : found.role === 'developer' ? 'مطور تقني' : 'مندوب مبيعات'}) لـ ${found.branchName}.`,
       badgeType: 'info',
     });
 
@@ -1843,7 +1794,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (totalAvailable <= 0) {
       return {
         success: false,
-        message: `⚠️ تنبيه رصيد محجوز: الصنف (${latestProd.name}) غير متا�� للبيع!\n(الرصيد الفعلي بالمخزن: ${totalActual} كرتونة، ولكن تم حجز ${totalReserved} كرتونة بفواتير قيد المراجعة ⬅️ المتاح الصافي: 0 كرتونة).`
+        message: `⚠️ تنبيه رصيد محجوز: الصنف (${latestProd.name}) غير متاح للبيع!\n(الرصيد الفعلي بالمخزن: ${totalActual} كرتونة، ولكن تم حجز ${totalReserved} كرتونة بفواتير قيد المراجعة ⬅️ المتاح الصافي: 0 كرتونة).`
       };
     }
 
@@ -2889,7 +2840,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: invoice.branchName,
       action: 'update_invoice_status',
       actionTitle: `إعادة فتح وتعديل الطلبية #${invoice.invoiceNumber}`,
-      details: `تم إعادة فتح أصناف الطلبية #${invoice.invoiceNumber} للعميل (${invoice.customerName}) في السلة لإتاحة إضافة أو حذف أصناف أو تعديل ��لكميات والأسعار قبل الاعتماد.`,
+      details: `تم إعادة فتح أصناف الطلبية #${invoice.invoiceNumber} للعميل (${invoice.customerName}) في السلة لإتاحة إضافة أو حذف أصناف أو تعديل الكميات والأسعار قبل الاعتماد.`,
       invoiceId: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
       badgeType: 'info',
@@ -3227,65 +3178,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return {
       success: true,
-      message: `تم تسج��ل إذن المرتجع #${returnVoucherNumber} بنجاح (${isFullReturn ? 'مرتجع كلي' : 'مرتجع جزئي'}) بقيمة ${totalRefundAmount.toLocaleString()} ج.م وتحديث المخزون وحساب العميل!`,
+      message: `تم تسجيل إذن المرتجع #${returnVoucherNumber} بنجاح (${isFullReturn ? 'مرتجع كلي' : 'مرتجع جزئي'}) بقيمة ${totalRefundAmount.toLocaleString()} ج.م وتحديث المخزون وحساب العميل!`,
       returnRecord: newReturnRecord,
     };
   };
 
   const deleteInvoice = (invoiceId: string) => {
     setInvoices((prev) => prev.filter((inv) => inv.id !== invoiceId));
-    deleteInvoiceFromSupabase(invoiceId).catch((e) => console.warn('Supabase invoice delete failed:', e));
-  };
-
-  const deleteInvoiceWithShortage = (invoiceId: string) => {
-    const target = invoices.find((i) => i.id === invoiceId || i.invoiceNumber === invoiceId);
-    if (!target) {
-      deleteInvoice(invoiceId);
-      return;
-    }
-
-    const idsToDelete = new Set<string>([target.id]);
-
-    // Find linked shortage invoice
-    if (target.shortageInvoiceNumber) {
-      const linked = invoices.find((i) => i.invoiceNumber === target.shortageInvoiceNumber);
-      if (linked) idsToDelete.add(linked.id);
-    }
-
-    // Find linked parent invoice if this is a shortage invoice
-    if (target.isShortageInvoice && (target.parentInvoiceId || target.parentInvoiceNumber)) {
-      const parent = invoices.find(
-        (i) =>
-          (target.parentInvoiceId && i.id === target.parentInvoiceId) ||
-          (target.parentInvoiceNumber && i.invoiceNumber === target.parentInvoiceNumber)
-      );
-      if (parent) idsToDelete.add(parent.id);
-    }
-
-    // Find any child invoices referencing this invoice
-    invoices.forEach((i) => {
-      if (
-        (i.parentInvoiceId && i.parentInvoiceId === target.id) ||
-        (i.parentInvoiceNumber && i.parentInvoiceNumber === target.invoiceNumber) ||
-        (i.shortageInvoiceNumber && i.shortageInvoiceNumber === target.invoiceNumber)
-      ) {
-        idsToDelete.add(i.id);
-      }
-    });
-
-    setInvoices((prev) => prev.filter((inv) => !idsToDelete.has(inv.id)));
-    idsToDelete.forEach((id) => {
-      deleteInvoiceFromSupabase(id).catch((e) => console.warn('Supabase linked invoice delete failed:', e));
-    });
-  };
-
-  const clearAllInvoices = () => {
-    setInvoices([]);
-    idbSet(STORAGE_KEYS.INVOICES, []);
-    try {
-      safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify([]));
-    } catch {}
-    clearAllInvoicesFromSupabase().catch((e) => console.warn('Supabase clear invoices failed:', e));
   };
 
   const syncToAccounting = async (invoiceId: string): Promise<boolean> => {
@@ -3565,8 +3464,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateOrderStatus,
         processOrderReturn,
         deleteInvoice,
-        deleteInvoiceWithShortage,
-        clearAllInvoices,
         syncToAccounting,
         addUser,
         updateUser,

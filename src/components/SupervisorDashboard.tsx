@@ -64,21 +64,12 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     forwardOrderToManager,
     rejectOrder,
     deleteInvoice,
-    deleteInvoiceWithShortage,
-    clearAllInvoices,
   } = useApp();
 
   const [activeStatusTab, setActiveStatusTab] = useState<string>('الكل');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRepFilter, setSelectedRepFilter] = useState('الكل');
   const [successToast, setSuccessToast] = useState<string | null>(null);
-
-  // In-App Deletion Modals State (bypassing window.confirm)
-  const [deleteConfirmInvoice, setDeleteConfirmInvoice] = useState<{
-    invoice: Invoice;
-    linkedShortage?: Invoice;
-  } | null>(null);
-  const [isClearAllInvoicesModalOpen, setIsClearAllInvoicesModalOpen] = useState(false);
 
   // Pagination state for responsive performance
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -823,18 +814,6 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                 </div>
               )}
 
-              {/* Clear Demo Invoices Action for Admin / Developer / Supervisor */}
-              {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor') && invoices.length > 0 && (
-                <button
-                  onClick={() => setIsClearAllInvoicesModalOpen(true)}
-                  className="flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-3 py-2 rounded-xl font-bold transition shadow-xs cursor-pointer text-xs"
-                  title="مسح وتصفير جميع الفواتير التجريبية والبدء من جديد"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                  <span>تصفير الفواتير التجريبية 🗑️</span>
-                </button>
-              )}
-
             </div>
           </div>
 
@@ -1263,31 +1242,17 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                             <Download className="w-3.5 h-3.5" />
                           </button>
 
-                          {/* Delete Action (Admin, Developer, Supervisor, Branch Manager, or Rep for pending/draft) */}
-                          {(currentUser?.role === 'admin' ||
-                            currentUser?.role === 'developer' ||
-                            currentUser?.role === 'supervisor' ||
-                            currentUser?.role === 'branch_manager' ||
-                            (currentUser?.role === 'sales_rep' &&
-                              (inv.status === 'قيد مراجعة المشرف' ||
-                               inv.status === 'مسودة' ||
-                               inv.repId === currentUser.id ||
-                               inv.repName === currentUser.name))) && (
+                          {/* Delete (Admin & Developer only) */}
+                          {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
                             <button
                               onClick={() => {
-                                let linked: Invoice | undefined = undefined;
-                                if (inv.shortageInvoiceNumber) {
-                                  linked = invoices.find((i) => i.invoiceNumber === inv.shortageInvoiceNumber);
-                                } else if (inv.isShortageInvoice && (inv.parentInvoiceNumber || inv.parentInvoiceId)) {
-                                  linked = invoices.find(
-                                    (i) =>
-                                      (inv.parentInvoiceId && i.id === inv.parentInvoiceId) ||
-                                      (inv.parentInvoiceNumber && i.invoiceNumber === inv.parentInvoiceNumber)
-                                  );
+                                if (window.confirm(`هل أنت متأكد من حذف الفاتورة رقم ${inv.invoiceNumber} نهائياً؟`)) {
+                                  deleteInvoice(inv.id);
+                                  setSuccessToast(`تم حذف الفاتورة رقم ${inv.invoiceNumber}`);
+                                  setTimeout(() => setSuccessToast(null), 3000);
                                 }
-                                setDeleteConfirmInvoice({ invoice: inv, linkedShortage: linked });
                               }}
-                              className="bg-rose-50 hover:bg-rose-100 text-rose-700 p-1.5 rounded-lg transition cursor-pointer border border-rose-200/60"
+                              className="bg-rose-100 hover:bg-rose-200 text-rose-700 p-1.5 rounded-lg transition cursor-pointer"
                               title="حذف الفاتورة نهائياً"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1487,153 +1452,6 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             setRejectModalInvoice(inv);
           }}
         />
-      )}
-
-      {/* In-App Confirmation Modal: Delete Single Invoice (with Linked Shortage Option) */}
-      {deleteConfirmInvoice && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center gap-3 text-rose-600 border-b border-slate-100 pb-3">
-              <div className="w-10 h-10 rounded-2xl bg-rose-50 flex items-center justify-center shrink-0">
-                <Trash2 className="w-5 h-5 text-rose-600" />
-              </div>
-              <div>
-                <h4 className="font-black text-slate-900 text-sm">تأكيد حذف الفاتورة</h4>
-                <p className="text-[11px] text-slate-500 font-mono">
-                  رقم: {deleteConfirmInvoice.invoice.invoiceNumber}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 rounded-2xl p-3 text-xs space-y-1.5 border border-slate-100">
-              <div className="flex justify-between">
-                <span className="text-slate-500">العميل:</span>
-                <span className="font-bold text-slate-800">{deleteConfirmInvoice.invoice.customerName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">المندوب والفرع:</span>
-                <span className="font-bold text-slate-800">{deleteConfirmInvoice.invoice.repName} ({deleteConfirmInvoice.invoice.branchName})</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">الإجمالي:</span>
-                <span className="font-black text-amber-700">{formatCurrency(deleteConfirmInvoice.invoice.estimatedGrandTotal)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">الحالة:</span>
-                <span className="font-bold text-slate-700">{deleteConfirmInvoice.invoice.status}</span>
-              </div>
-            </div>
-
-            {deleteConfirmInvoice.linkedShortage ? (
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-900 space-y-1">
-                <div className="font-black flex items-center gap-1">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>تنبيه: توجد فاتورة مرتبطة بهذه الطلبية!</span>
-                </div>
-                <p className="text-[11px] text-amber-800">
-                  الفاتورة المرتبطة: <strong>{deleteConfirmInvoice.linkedShortage.invoiceNumber}</strong> ({deleteConfirmInvoice.linkedShortage.isShortageInvoice ? 'فاتورة نواقص' : 'الفاتورة الأصلية'}).
-                  هل ترغب بحذف الفاتورتين معاً لتنظيف السجلات بالكامل؟
-                </p>
-              </div>
-            ) : (
-              <p className="text-xs text-slate-600">
-                هل أنت متأكد من رغبتك في حذف هذه الفاتورة نهائياً من قاعدة البيانات والسجلات؟
-              </p>
-            )}
-
-            <div className="space-y-2 pt-1">
-              {deleteConfirmInvoice.linkedShortage && (
-                <button
-                  onClick={() => {
-                    const invNo = deleteConfirmInvoice.invoice.invoiceNumber;
-                    deleteInvoiceWithShortage(deleteConfirmInvoice.invoice.id);
-                    setSuccessToast(`تم حذف الفاتورة ${invNo} والفاتورة المرتبطة معاً بنجاح 🗑️`);
-                    setDeleteConfirmInvoice(null);
-                    setTimeout(() => setSuccessToast(null), 3000);
-                  }}
-                  className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>حذف الفاتورتين معاً (المتاح + النواقص)</span>
-                </button>
-              )}
-
-              <button
-                onClick={() => {
-                  const invNo = deleteConfirmInvoice.invoice.invoiceNumber;
-                  deleteInvoice(deleteConfirmInvoice.invoice.id);
-                  setSuccessToast(`تم حذف الفاتورة ${invNo} بنجاح 🗑️`);
-                  setDeleteConfirmInvoice(null);
-                  setTimeout(() => setSuccessToast(null), 3000);
-                }}
-                className={`w-full font-bold py-2.5 rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                  deleteConfirmInvoice.linkedShortage
-                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-                    : 'bg-rose-600 hover:bg-rose-700 text-white font-black shadow-md'
-                }`}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>{deleteConfirmInvoice.linkedShortage ? 'حذف هذه الفاتورة فقط' : 'نعم، تأكيد الحذف نهائياً'}</span>
-              </button>
-
-              <button
-                onClick={() => setDeleteConfirmInvoice(null)}
-                className="w-full py-2 bg-transparent text-slate-500 hover:text-slate-800 font-bold rounded-xl text-xs cursor-pointer"
-              >
-                إلغاء وتراجع
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* In-App Confirmation Modal: Wipe All Test Invoices */}
-      {isClearAllInvoicesModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center gap-3 text-rose-600 border-b border-slate-100 pb-3">
-              <div className="w-10 h-10 rounded-2xl bg-rose-50 flex items-center justify-center shrink-0">
-                <Trash2 className="w-5 h-5 text-rose-600" />
-              </div>
-              <div>
-                <h4 className="font-black text-slate-900 text-sm">مسح وتصفير الفواتير التجريبية</h4>
-                <p className="text-[11px] text-slate-500">
-                  إجمالي الفواتير الحالية: {invoices.length} فاتورة
-                </p>
-              </div>
-            </div>
-
-            <div className="text-xs text-slate-600 space-y-2">
-              <p>
-                سيتم <strong>حذف جميع الفواتير والطلبيات التجريبية بالكامل</strong> وتصفير سجلات المبيعات للبدء من جديد.
-              </p>
-              <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-[11px]">
-                🛡️ <strong>ملاحظة هامة:</strong> بيانات الأصناف والمخزون والعملاء وفروع الشركة والمستخدمين <strong>لن تتأثر نهائياً</strong>، فقط الفواتير والطلبيات هي التي سيتم تصفيرها.
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                onClick={() => {
-                  clearAllInvoices();
-                  setIsClearAllInvoicesModalOpen(false);
-                  setSuccessToast('تم مسح وتصفير جميع الفواتير التجريبية بنجاح! السجلات نظيفة الآن 🧹');
-                  setTimeout(() => setSuccessToast(null), 4000);
-                }}
-                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>نعم، تصفير جميع الفواتير الآن</span>
-              </button>
-              <button
-                onClick={() => setIsClearAllInvoicesModalOpen(false)}
-                className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200 cursor-pointer"
-              >
-                إلغاء
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
     </div>
