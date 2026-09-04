@@ -1182,6 +1182,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
+  // Convert spreadsheet values such as "50,000 ج.م" without losing valid limits.
+  const toFinancialNumber = (value: unknown): number => {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    const normalized = String(value ?? '')
+      .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+      .replace(/[,،\sج.م]/g, '');
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
   // Auto-link customer rep names to actual user accounts with robust branch matching & Arabic heuristics
   const linkCustomersToUsers = (list: Customer[], userList: User[]): Customer[] => {
     if (!userList || userList.length === 0) return list;
@@ -1203,7 +1213,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updated.branchName = normalizeBranchName(updated.branchName);
       }
 
-      const rawRep = (updated.salesRepName || updated.repName || '').trim();
+      const rawRep = (
+        updated.salesRepName ||
+        updated.repName ||
+        (updated as any).sales_rep ||
+        (updated as any).sales_rep_name ||
+        (updated as any).rep_name ||
+        (updated as any).delegateName ||
+        ''
+      ).trim();
       if ((!rawRep || rawRep === 'مندوب المبيعات' || rawRep === 'المندوب') && !updated.repId) {
         return updated;
       }
@@ -1235,9 +1253,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           repId: matched.id,
           salesRepName: rawRep || matched.name,
           branchName: updated.branchName || matched.branchName || '',
-          creditLimit: updated.creditLimit !== undefined ? Number(updated.creditLimit) : 0,
-          currentBalance: Number(updated.currentBalance ?? updated.balance ?? 0),
-          balance: Number(updated.currentBalance ?? updated.balance ?? 0),
+          creditLimit: toFinancialNumber(updated.creditLimit),
+          currentBalance: toFinancialNumber(updated.currentBalance ?? updated.balance),
+          balance: toFinancialNumber(updated.currentBalance ?? updated.balance),
         };
       }
       return {
@@ -1592,7 +1610,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: found.branchName,
       action: 'user_login',
       actionTitle: `تسجيل دخول (${found.name})`,
-      details: `تم تسجيل الدخول بصلاحية (${found.role === 'admin' ? 'مدير عام' : found.role === 'branch_manager' ? 'مدير فرع' : found.role === 'supervisor' ? 'مشرف مبيعات' : found.role === 'developer' ? 'مطور تقني' : 'مندوب مبيعات'}) لـ ${found.branchName}.`,
+      details: `تم تسجيل الدخول بصلاحية (${found.role === 'admin' ? 'مدير عام' : found.role === 'branch_manager' ? 'مدير فرع' : found.role === 'supervisor' ? 'مشرف مبيعات' : found.role === 'developer' ? 'مطور تقني' : 'م��دوب مبيعات'}) لـ ${found.branchName}.`,
       badgeType: 'info',
     });
 
@@ -1828,7 +1846,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (totalAvailable <= 0) {
       return {
         success: false,
-        message: `⚠️ تنبيه رصيد محجوز: الصنف (${latestProd.name}) غير متاح للبيع!\n(الرصيد الفعلي بالمخزن: ${totalActual} كرتونة، ولكن تم حجز ${totalReserved} كرتونة بفواتير قيد المراجعة ⬅️ المتاح الصافي: 0 كرتونة).`
+        message: `⚠️ تنبيه رصيد محجوز: الصنف (${latestProd.name}) غير متا�� للبيع!\n(الرصيد الفعلي بالمخزن: ${totalActual} كرتونة، ولكن تم حجز ${totalReserved} كرتونة بفواتير قيد المراجعة ⬅️ المتاح الصافي: 0 كرتونة).`
       };
     }
 
@@ -2874,7 +2892,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: invoice.branchName,
       action: 'update_invoice_status',
       actionTitle: `إعادة فتح وتعديل الطلبية #${invoice.invoiceNumber}`,
-      details: `تم إعادة فتح أصناف الطلبية #${invoice.invoiceNumber} للعميل (${invoice.customerName}) في السلة لإتاحة إضافة أو حذف أصناف أو تعديل الكميات والأسعار قبل الاعتماد.`,
+      details: `تم إعادة فتح أصناف الطلبية #${invoice.invoiceNumber} للعميل (${invoice.customerName}) في السلة لإتاحة إضافة أو حذف أصناف أو تعديل ��لكميات والأسعار قبل الاعتماد.`,
       invoiceId: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
       badgeType: 'info',
@@ -3212,7 +3230,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return {
       success: true,
-      message: `تم تسجيل إذن المرتجع #${returnVoucherNumber} بنجاح (${isFullReturn ? 'مرتجع كلي' : 'مرتجع جزئي'}) بقيمة ${totalRefundAmount.toLocaleString()} ج.م وتحديث المخزون وحساب العميل!`,
+      message: `تم تسج��ل إذن المرتجع #${returnVoucherNumber} بنجاح (${isFullReturn ? 'مرتجع كلي' : 'مرتجع جزئي'}) بقيمة ${totalRefundAmount.toLocaleString()} ج.م وتحديث المخزون وحساب العميل!`,
       returnRecord: newReturnRecord,
     };
   };
