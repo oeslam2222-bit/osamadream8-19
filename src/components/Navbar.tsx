@@ -21,10 +21,11 @@ import {
   Users,
   Wifi,
   WifiOff,
+  X,
   Zap,
   ZapOff
 } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import { UserRole } from '../types';
@@ -58,6 +59,23 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(true);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const standalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone === true ||
+        document.referrer.includes('android-app://');
+      setIsStandalone(!!standalone);
+      const dismissed = localStorage.getItem('tantawy_pwa_banner_dismissed');
+      if (!standalone && !dismissed) {
+        setShowInstallBanner(true);
+      }
+    }
+  }, []);
+
   const cartSummary = getCartSummary();
 
   if (!currentUser) return null;
@@ -102,6 +120,43 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
 
   return (
     <>
+      {/* Smart Mobile PWA Install Banner */}
+      {showInstallBanner && !isStandalone && (
+        <div className="bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 px-3 py-1.5 text-xs font-bold flex items-center justify-between shadow-md print:hidden border-b border-amber-600/30">
+          <div className="flex items-center gap-2 overflow-hidden">
+            <img src="/pwa-192x192.png" alt="الطنطاوي" className="w-6 h-6 rounded-lg border border-slate-900/30 shadow-sm shrink-0" />
+            <div className="leading-tight truncate">
+              <span className="font-black text-[11px] sm:text-xs block text-slate-950 truncate">تثبيت تطبيق مجموعة الطنطاوي 📲</span>
+              <span className="text-[9px] sm:text-[10px] text-slate-900/80 font-bold block truncate">أيقونة نقية بدون علامة كروم وبدون شريط متصفح</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => {
+                if (installPromptEvent && typeof installPromptEvent.prompt === 'function') {
+                  triggerInstallPrompt();
+                } else {
+                  setIsInstallModalOpen(true);
+                }
+              }}
+              className="bg-slate-950 hover:bg-slate-900 active:scale-95 text-amber-300 px-2.5 py-1 rounded-lg text-[11px] font-black shadow transition cursor-pointer whitespace-nowrap"
+            >
+              تثبيت الآن
+            </button>
+            <button
+              onClick={() => {
+                setShowInstallBanner(false);
+                try { localStorage.setItem('tantawy_pwa_banner_dismissed', 'true'); } catch {}
+              }}
+              className="p-1 text-slate-950/70 hover:text-slate-950 rounded-md transition"
+              title="إغلاق الإشعار"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <header className="sticky top-0 z-40 bg-slate-900 text-white shadow-lg border-b border-slate-800">
         {/* Top Banner - Compact on mobile with large touch controls */}
         <div className="max-w-7xl mx-auto px-2 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2">
@@ -109,7 +164,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
           {/* Brand & Logo */}
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-full bg-white p-0.5 border-2 border-amber-400 shadow-md shadow-amber-500/20 flex items-center justify-center shrink-0 overflow-hidden">
-              <img src="/tantawy-brand-logo.svg?v=3.1" alt="مجموعة الطنطاوي - TANTAWY GROUP" className="h-full w-full object-contain" />
+              <img src="/pwa-192x192.png" alt="مجموعة الطنطاوي - TANTAWY GROUP" className="h-full w-full object-contain" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
@@ -130,15 +185,15 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
           {/* Status Indicators, User Info, & Actions */}
           <div className="flex items-center gap-1.5 sm:gap-2.5">
             
-            {/* PWA Install Button (Compact & Large Touch Target) */}
+            {/* PWA Install Button (Clear and Prominent on Mobile & Desktop) */}
             <button
               type="button"
               onClick={() => setIsInstallModalOpen(true)}
-              className="flex items-center justify-center gap-1 bg-amber-500/20 hover:bg-amber-500/30 active:bg-amber-500/40 text-amber-300 border border-amber-400/50 px-2.5 h-9 sm:h-10 rounded-xl text-xs font-black transition cursor-pointer"
-              title="تثبيت التطبيق على الموبايل أو الكمبيوتر"
+              className="flex items-center justify-center gap-1 bg-amber-500/20 hover:bg-amber-500/30 active:bg-amber-500/40 text-amber-300 border border-amber-400/50 px-2 sm:px-2.5 h-9 sm:h-10 rounded-xl text-xs font-black transition cursor-pointer shadow-sm shadow-amber-500/10"
+              title="تثبيت التطبيق على الموبايل (أيقونة أصلية بدون علامة كروم)"
             >
               <Smartphone className="w-4 h-4 text-amber-400 shrink-0" />
-              <span className="hidden sm:inline">تثبيت</span>
+              <span className="font-black text-amber-300 text-[11px] sm:text-xs">تثبيت 📲</span>
             </button>
 
             {/* Data Saver Mode Toggle Button */}

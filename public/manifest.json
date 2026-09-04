@@ -1,33 +1,58 @@
 {
-  "name": "مجموعة الطنطاوي | Tantawy Group",
+  "id": "/",
+  "name": "مجموعة الطنطاوي للتجارة والتوزيع | TANTAWY GROUP",
   "short_name": "الطنطاوي",
-  "description": "منظومة المبيعات وإدارة المخزون والكتالوج والفواتير لشركة دريم للتجارة والتوزيع",
+  "description": "منظومة المبيعات وإدارة المخزون والكتالوج والفواتير لمجموعة الطنطاوي للتجارة والتوزيع",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
   "orientation": "any",
   "dir": "rtl",
   "lang": "ar",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "prefer_related_applications": false,
   "icons": [
     {
-      "src": "/tantawy-brand-logo.svg?v=3.1",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-192.png?v=3.1",
+      "src": "/pwa-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-512.png?v=3.1",
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
-  "categories": ["business", "productivity", "utilities"]
+  "categories": [
+    "business",
+    "productivity",
+    "shopping"
+  ]
 }

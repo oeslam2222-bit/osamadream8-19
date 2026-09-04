@@ -60,6 +60,7 @@ export type OfficialDepartment = string;
 export interface Product {
   id: string;
   code: string;                      // الكود
+  unifiedCode?: string;              // الكود الموحد (#) الذي يربط ألوان وموديلات الصنف معاً ويسهل التعرف على الصور
   name: string;                      // اسم الصنف (Product name)
   salesPriority: SalesPriority;      // اولوية البيع
   category: string;                  // التصنيف / المجموعة
@@ -124,6 +125,7 @@ export interface Customer {
 
 export interface CartItem {
   product: Product;
+  unifiedCode?: string;              // الكود الموحد (#)
   orderType?: 'carton' | 'piece' | 'mixed';
   cartonCount: number;               // عدد الكراتين
   pieceCount: number;                // عدد القطع الفردية
@@ -214,6 +216,7 @@ export interface InventoryTransaction {
 export interface InvoiceItem {
   productId: string;
   productCode: string;
+  unifiedCode?: string;              // الكود الموحد (#)
   productName: string;
   product?: Product;                 // Reference to full product if available
   itemGroup?: string;

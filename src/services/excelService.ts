@@ -175,6 +175,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
   // Identify column indexes based on Arabic & English header variations
   const colMap: Record<string, number> = {
     code: -1,
+    unifiedCode: -1,
     name: -1,
     salesPriority: -1,
     category: -1,
@@ -280,16 +281,32 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     ) {
       colMap.stockMeq = idx;
     }
-    // 2. Code (كود موحد / كود المنتج / كود)
+    // 2. Unified Code (الكود الموحد / كود الموديل / Unified Code / Model Code)
     else if (
+      norm === 'الكودالموحد' ||
       norm === 'كودموحد' ||
-      norm === 'كودالمنتج' ||
+      norm === 'كودالموديل' ||
+      norm === 'الموديل' ||
+      norm === 'كودالموديلالموحد' ||
+      norm.includes('الكودالموحد') ||
       norm.includes('كودموحد') ||
-      norm.includes('كودالمنتج') ||
-      norm.includes('كود') ||
-      norm.includes('code')
+      norm.includes('unifiedcode') ||
+      norm.includes('modelcode') ||
+      norm.includes('mastercode')
     ) {
-      if (colMap.code === -1 || norm === 'كودموحد' || norm === 'كودالمنتج') {
+      colMap.unifiedCode = idx;
+    }
+    // 3. Product Code (كود الصنف / كود المنتج / كود)
+    else if (
+      (norm === 'كودالمنتج' ||
+      norm === 'كودالصنف' ||
+      norm.includes('كودالمنتج') ||
+      norm.includes('كودالصنف') ||
+      norm.includes('كود') ||
+      norm.includes('code')) &&
+      idx !== colMap.unifiedCode
+    ) {
+      if (colMap.code === -1 || norm === 'كودالصنف' || norm === 'كودالمنتج') {
         colMap.code = idx;
       }
     }
@@ -600,9 +617,15 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const occSuffix = codeOccurrences[uniqueVariantKey] > 1 ? `_row${r}` : '';
     const deterministicId = `prod-${baseCode}${cleanName ? '_' + cleanName : ''}${colorSlug}${sizeSlug}${occSuffix}`;
 
+    const rawUnifiedCode = getVal(colMap.unifiedCode);
+    const unifiedCode = rawUnifiedCode
+      ? (rawUnifiedCode.startsWith('#') ? rawUnifiedCode : `#${rawUnifiedCode}`)
+      : undefined;
+
     const product: Product = {
       id: deterministicId,
       code: code,
+      unifiedCode: unifiedCode,
       name: name || `صنف دريم ${code}`,
       salesPriority: salesPriority,
       category: itemGroup,
@@ -759,6 +782,7 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
   const tableHeaders = [
     'م',
     'كود الصنف',
+    'الكود الموحد (#)',
     'اسم الصنف والبيان التفصيلي',
     'شدة الكرتونة (ق/ك)',
     'بيان الكمية بالكرتون والقطع',
@@ -770,7 +794,8 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
     'سعر العرض (إن وُجد)',
     'الإجمالي قبل الخصم (ج.م)',
     'قيمة الخصم (ج.م)',
-    'الصافي المطلوب (ج.م)'
+    'الصافي المطلوب (ج.م)',
+    'مصدر الصرف'
   ];
 
   const itemRows = invoice.items.map((item, index) => {
@@ -792,10 +817,13 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
 
     const pieceP = item.pricePerPiece || Math.round((item.pricePerCarton || item.appliedPrice) / cartonQty);
     const promoP = (item as any).promoPrice || (item as any).offerPrice ? `${(item as any).promoPrice || (item as any).offerPrice} ج.م` : '---';
+    const unified = item.unifiedCode || (item.product as any)?.unifiedCode || '---';
+    const fulfillmentSource = item.fulfilledFrom === 'main_warehouse' ? 'مخزن 6 أكتوبر المركزي (نواقص)' : (invoice.branchName || 'مخزن الفرع');
 
     return [
       index + 1,
       item.productCode,
+      unified,
       item.productName,
       cartonQty,
       item.quantityDescription || smartDesc,
@@ -807,19 +835,20 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
       promoP,
       item.totalBeforeTax,
       item.discountAmount,
-      item.netTotal
+      item.netTotal,
+      fulfillmentSource
     ];
   });
 
   const summaryRows = [
     [],
-    ['', '', '', '', '', '', '', '', '', '', 'إجمالي البضاعة قبل الخصم:', '', '', invoice.subtotal],
-    ['', '', '', '', '', '', '', '', '', '', `إجمالي الخصم التجاري (${invoice.discountPercentage}%):`, '', '', -invoice.discountAmount],
-    ['', '', '', '', '', '', '', '', '', '', 'الإجمالي النهائي المطلوب سداده:', '', '', invoice.estimatedGrandTotal],
-    ['', '', '', '', '', '', '', '', '', '', 'المديونية السابقة للعميل:', '', '', debtBefore],
-    ['', '', '', '', '', '', '', '', '', '', 'إجمالي مديونية العميل بعد الفاتورة:', '', '', debtAfter],
-    ['', '', '', '', '', '', '', '', '', '', 'الحد الائتماني المعتمد للعميل:', '', '', creditLimit],
-    ['', '', '', '', '', '', '', '', '', '', 'الدفعة النقدية المطلوب تحصيلها فوراً:', '', '', isExceeded ? requiredDown : 0],
+    ['', '', '', '', '', '', '', '', '', '', '', 'إجمالي البضاعة قبل الخصم:', '', invoice.subtotal],
+    ['', '', '', '', '', '', '', '', '', '', '', `إجمالي الخصم التجاري (${invoice.discountPercentage}%):`, '', -invoice.discountAmount],
+    ['', '', '', '', '', '', '', '', '', '', '', 'الإجمالي النهائي المطلوب سداده:', '', invoice.estimatedGrandTotal],
+    ['', '', '', '', '', '', '', '', '', '', '', 'المديونية السابقة للعميل:', '', debtBefore],
+    ['', '', '', '', '', '', '', '', '', '', '', 'إجمالي مديونية العميل بعد الفاتورة:', '', debtAfter],
+    ['', '', '', '', '', '', '', '', '', '', '', 'الحد الائتماني المعتمد للعميل:', '', creditLimit],
+    ['', '', '', '', '', '', '', '', '', '', '', 'الدفعة النقدية المطلوب تحصيلها فوراً:', '', isExceeded ? requiredDown : 0],
     [],
     ['رسالة شكر وتقدير:', '✨ شكرًا لثقتكم بشركة دريم للتجارة والتوزيع - مجموعة الطنطاوي ❤️'],
     ['ملاحظات الفاتورة:', invoice.notes || 'بضاعة مستلمة بحالة جيدة'],
@@ -837,7 +866,7 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
     { s: { r: 1, c: 0 }, e: { r: 1, c: lastColumn } },
   ];
   ws['!freeze'] = { xSplit: 0, ySplit: titleRows.length + 1 };
-  ws['!autofilter'] = { ref: `A${titleRows.length + 1}:N${titleRows.length + 1 + itemRows.length}` };
+  ws['!autofilter'] = { ref: `A${titleRows.length + 1}:P${titleRows.length + 1 + itemRows.length}` };
   ws['!sheetView'] = [{ rightToLeft: true }];
   ws['!rows'] = fullSheetData.map((_, rowIndex) => ({
     hpt: rowIndex === 0 ? 32 : rowIndex === 1 ? 24 : rowIndex === titleRows.length ? 28 : 22,
@@ -852,14 +881,28 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
       }
     }
   };
-  applyRangeStyle(`A1:N2`, { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 14 }, fill: { fgColor: { rgb: '0F172A' } }, alignment: { horizontal: 'center', vertical: 'center' } });
-  applyRangeStyle(`A${titleRows.length + 1}:N${titleRows.length + 1}`, { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: 'D97706' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: { top: { style: 'thin', color: { rgb: '94A3B8' } }, bottom: { style: 'thin', color: { rgb: '94A3B8' } } } });
-  applyRangeStyle(`A${titleRows.length + 2}:N${titleRows.length + 1 + itemRows.length}`, { alignment: { vertical: 'center', wrapText: true }, border: { top: { style: 'thin', color: { rgb: 'CBD5E1' } }, bottom: { style: 'thin', color: { rgb: 'CBD5E1' } }, left: { style: 'thin', color: { rgb: 'CBD5E1' } }, right: { style: 'thin', color: { rgb: 'CBD5E1' } } } });
-  applyRangeStyle(`L${titleRows.length + 2}:N${lastRow + 1}`, { alignment: { horizontal: 'right', vertical: 'center', wrapText: true } });
+  applyRangeStyle(`A1:P2`, { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 14 }, fill: { fgColor: { rgb: '0F172A' } }, alignment: { horizontal: 'center', vertical: 'center' } });
+  applyRangeStyle(`A${titleRows.length + 1}:P${titleRows.length + 1}`, { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: 'D97706' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: { top: { style: 'thin', color: { rgb: '94A3B8' } }, bottom: { style: 'thin', color: { rgb: '94A3B8' } } } });
+  applyRangeStyle(`A${titleRows.length + 2}:P${titleRows.length + 1 + itemRows.length}`, { alignment: { vertical: 'center', wrapText: true }, border: { top: { style: 'thin', color: { rgb: 'CBD5E1' } }, bottom: { style: 'thin', color: { rgb: 'CBD5E1' } }, left: { style: 'thin', color: { rgb: 'CBD5E1' } }, right: { style: 'thin', color: { rgb: 'CBD5E1' } } } });
+  applyRangeStyle(`M${titleRows.length + 2}:P${lastRow + 1}`, { alignment: { horizontal: 'right', vertical: 'center', wrapText: true } });
 
   ws['!cols'] = [
-    { wch: 6 }, { wch: 14 }, { wch: 40 }, { wch: 15 }, { wch: 24 }, { wch: 14 },
-    { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 14 }, { wch: 18 }
+    { wch: 6 },  // م
+    { wch: 14 }, // كود الصنف
+    { wch: 16 }, // الكود الموحد (#)
+    { wch: 38 }, // اسم الصنف والبيان
+    { wch: 15 }, // شدة الكرتونة
+    { wch: 22 }, // بيان الكمية
+    { wch: 13 }, // عدد الكراتين
+    { wch: 12 }, // قطع فردية
+    { wch: 14 }, // إجمالي القطع
+    { wch: 15 }, // سعر القطعة
+    { wch: 16 }, // سعر الكرتونة
+    { wch: 15 }, // سعر العرض
+    { wch: 18 }, // قبل الخصم
+    { wch: 14 }, // الخصم
+    { wch: 18 }, // الصافي
+    { wch: 24 }  // مصدر الصرف
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, `فاتورة_${invoice.invoiceNumber}`);
@@ -884,6 +927,7 @@ export function exportInvoiceForERP(invoice: Invoice): void {
     'اسم العميل',
     'رقم هاتف العميل',
     'كود الصنف',
+    'الكود الموحد (#)',
     'اسم الصنف',
     'القسم',
     'شدة الكرتونة',
@@ -907,6 +951,7 @@ export function exportInvoiceForERP(invoice: Invoice): void {
     const pCount = item.pieceCount || 0;
     const totalPcs = item.totalUnits || (cCount * cartonQty + pCount);
     const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round(((item.pricePerCarton || item.appliedPrice) / cartonQty) * 100) / 100 : 0);
+    const unified = item.unifiedCode || (item.product as any)?.unifiedCode || '---';
 
     return [
       invoice.invoiceNumber,
@@ -918,6 +963,7 @@ export function exportInvoiceForERP(invoice: Invoice): void {
       invoice.customerName,
       invoice.customerPhone || '',
       item.productCode,
+      unified,
       item.productName,
       item.fulfilledFrom === 'main_warehouse' ? 'مخزن مركزي (أكتوبر)' : 'فرع',
       cartonQty,
@@ -1771,6 +1817,7 @@ export function exportProductsToExcel(products: Product[], branchName = 'الك�
 
   const headers = [
     'الكود',
+    'الكود الموحد (#)',
     'اسم الصنف',
     'اولوية البيع',
     'التصنيف',
@@ -1792,6 +1839,7 @@ export function exportProductsToExcel(products: Product[], branchName = 'الك�
 
   const rows = products.map(p => [
     p.code,
+    p.unifiedCode || '',
     p.name,
     p.salesPriority,
     p.category,
@@ -1815,7 +1863,8 @@ export function exportProductsToExcel(products: Product[], branchName = 'الك�
   const ws = XLSX.utils.aoa_to_sheet(data);
 
   ws['!cols'] = [
-    { wch: 12 },
+    { wch: 14 },
+    { wch: 16 },
     { wch: 35 },
     { wch: 14 },
     { wch: 18 },

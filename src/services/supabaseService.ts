@@ -643,6 +643,38 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
 }
 
 /**
+ * Delete an invoice from Supabase (both invoices and fallback orders tables)
+ */
+export async function deleteInvoiceFromSupabase(invoiceId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error: invErr } = await supabase.from('invoices').delete().eq('id', invoiceId);
+    await supabase.from('orders').delete().eq('id', invoiceId);
+    if (invErr) {
+      // Also try matching by invoice_number if id didn't match
+      await supabase.from('invoices').delete().eq('invoice_number', invoiceId);
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.warn('Supabase Invoice Delete Notice:', err?.message);
+    return { success: false, error: err?.message };
+  }
+}
+
+/**
+ * Clear all invoices from Supabase
+ */
+export async function clearAllInvoicesFromSupabase(): Promise<{ success: boolean; error?: string }> {
+  try {
+    await supabase.from('invoices').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await supabase.from('orders').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    return { success: true };
+  } catch (err: any) {
+    console.warn('Supabase Clear Invoices Notice:', err?.message);
+    return { success: false, error: err?.message };
+  }
+}
+
+/**
  * Fetch all invoices / orders from Supabase (capped to latest 200 by default to save Egress bandwidth)
  */
 export async function fetchInvoicesFromSupabase(limit = 200): Promise<{ success: boolean; invoices?: Invoice[]; error?: string }> {

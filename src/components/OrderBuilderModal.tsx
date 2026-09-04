@@ -1005,6 +1005,11 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                               <span className="bg-slate-900 text-amber-300 font-mono font-black text-xs px-2 py-0.5 rounded-md">
                                 {p.code}
                               </span>
+                              {p.unifiedCode && (
+                                <span className="bg-indigo-950 text-indigo-300 font-mono font-black text-xs px-2 py-0.5 rounded-md border border-indigo-700/60" title="الكود الموحد للموديل والألوان">
+                                  #{p.unifiedCode.replace('#', '')}
+                                </span>
+                              )}
                               {(() => {
                                 const deptMeta = getDepartmentMeta(p.department || p.category);
                                 const DeptIcon = deptMeta.icon;

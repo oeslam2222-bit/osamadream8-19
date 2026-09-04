@@ -22,13 +22,18 @@ import {
   Tag,
   UserCheck,
   X,
-  XCircle
+  XCircle,
+  ArrowLeft,
+  ExternalLink,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { exportElectronicInvoiceToExcel, exportInvoiceForERP } from '../services/excelService';
 import { formatArabicDate, formatCurrency } from '../services/invoiceService';
 import { downloadInvoicePDF } from '../services/pdfService';
+import { isArabicNameMatch } from '../services/arabicMatchingService';
 import { Invoice } from '../types';
 import { CompanySettingsModal } from './CompanySettingsModal';
 import { CreditAuditModal } from './CreditAuditModal';
@@ -47,7 +52,24 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   onClose,
   onEditInvoice,
 }) => {
-  const { syncToAccounting, currentUser, rejectOrder, companyInfo, getCompanyInfoForBranch } = useApp();
+  const {
+    syncToAccounting,
+    currentUser,
+    rejectOrder,
+    companyInfo,
+    getCompanyInfoForBranch,
+    invoices,
+    deleteInvoice,
+    deleteInvoiceWithShortage,
+  } = useApp();
+  const [activeInvoice, setActiveInvoice] = useState<Invoice | null>(invoice);
+
+  useEffect(() => {
+    setActiveInvoice(invoice);
+  }, [invoice]);
+
+  const currentInv = activeInvoice || invoice;
+
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
@@ -59,18 +81,33 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   const [showCreditAudit, setShowCreditAudit] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnSuccessMsg, setReturnSuccessMsg] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  if (!isOpen || !invoice) return null;
+  if (!isOpen || !currentInv) return null;
 
-  const effectiveCompanyInfo = getCompanyInfoForBranch ? getCompanyInfoForBranch(invoice.branchName) : companyInfo;
+  const effectiveCompanyInfo = getCompanyInfoForBranch ? getCompanyInfoForBranch(currentInv.branchName) : companyInfo;
+
+  const linkedShortageInvoice = currentInv.shortageInvoiceNumber
+    ? invoices.find((i) => i.invoiceNumber === currentInv.shortageInvoiceNumber)
+    : undefined;
+
+  const linkedParentInvoice =
+    currentInv.parentInvoiceNumber || currentInv.parentInvoiceId
+      ? invoices.find((i) => i.invoiceNumber === currentInv.parentInvoiceNumber || i.id === currentInv.parentInvoiceId)
+      : undefined;
 
   const isPending =
-    invoice.status === 'قيد مراجعة المشرف' ||
-    invoice.status === 'معلقة بانتظار اعتماد الفرع' ||
-    invoice.status === 'قيد المراجعة' ||
-    invoice.status === 'مسودة';
+    currentInv.status === 'قيد مراجعة المشرف' ||
+    currentInv.status === 'معلقة بانتظار اعتماد الفرع' ||
+    currentInv.status === 'قيد المراجعة' ||
+    currentInv.status === 'مسودة';
 
-  const isOwnerRep = currentUser?.role === 'sales_rep' && (invoice.repId === currentUser.id || invoice.repName === currentUser.name);
+  const isOwnerRep =
+    currentUser?.role === 'sales_rep' &&
+    (currentInv.repId === currentUser.id ||
+      currentInv.repName === currentUser.name ||
+      (currentUser.username && currentInv.repId?.toLowerCase() === currentUser.username.toLowerCase()) ||
+      isArabicNameMatch(currentInv.repName, currentUser.name));
 
   const canEditOrder = Boolean(
     onEditInvoice &&
@@ -87,15 +124,15 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
      currentUser?.role === 'branch_manager' ||
      currentUser?.role === 'admin' ||
      currentUser?.role === 'developer') &&
-    (invoice.status === 'معتمدة ومصروفة من المخزن' ||
-     invoice.status === 'معتمدة' ||
-     invoice.status === 'جاري التجهيز' ||
-     invoice.status === 'جاري تحضير المنتجات' ||
-     invoice.status === 'تم وصول المنتجات' ||
-     invoice.status === 'قيد التوصيل' ||
-     invoice.status === 'تم التسليم' ||
-     invoice.status === 'إغلاق الطلبية' ||
-     invoice.status === 'مرتجع جزئي');
+    (currentInv.status === 'معتمدة ومصروفة من المخزن' ||
+     currentInv.status === 'معتمدة' ||
+     currentInv.status === 'جاري التجهيز' ||
+     currentInv.status === 'جاري تحضير المنتجات' ||
+     currentInv.status === 'تم وصول المنتجات' ||
+     currentInv.status === 'قيد التوصيل' ||
+     currentInv.status === 'تم التسليم' ||
+     currentInv.status === 'إغلاق الطلبية' ||
+     currentInv.status === 'مرتجع جزئي');
 
   const canCancelOrder =
     isPending
@@ -108,15 +145,15 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
           currentUser?.role === 'branch_manager' ||
           currentUser?.role === 'admin' ||
           currentUser?.role === 'developer') &&
-        invoice.status !== 'تم التسليم' &&
-        invoice.status !== 'إغلاق الطلبية' &&
-        invoice.status !== 'مرتجع' &&
-        invoice.status !== 'مرفوضة / ملغاة' &&
-        invoice.status !== 'ملغاة';
+        currentInv.status !== 'تم التسليم' &&
+        currentInv.status !== 'إغلاق الطلبية' &&
+        currentInv.status !== 'مرتجع' &&
+        currentInv.status !== 'مرفوضة / ملغاة' &&
+        currentInv.status !== 'ملغاة';
 
   const handleCancelConfirm = () => {
-    if (!invoice) return;
-    const res = rejectOrder(invoice.id, cancelReason);
+    if (!currentInv) return;
+    const res = rejectOrder(currentInv.id, cancelReason);
     if (res.success) {
       setCancelFeedback(res.message);
       setShowCancelModal(false);
@@ -130,7 +167,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   const handleDownloadPDF = async () => {
     setIsDownloadingPDF(true);
     try {
-      await downloadInvoicePDF(invoice);
+      await downloadInvoicePDF(currentInv);
     } finally {
       setIsDownloadingPDF(false);
     }
@@ -274,6 +311,16 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               <span>طباعة</span>
             </button>
 
+            {/* Delete Invoice Button */}
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-1.5 bg-rose-950/60 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
+              title="حذف هذه الفاتورة نهائياً"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <span>حذف 🗑️</span>
+            </button>
+
             {/* Close Button */}
             <button
               onClick={onClose}
@@ -371,62 +418,112 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             </p>
           </div>
 
+          {/* Shortage Invoice Banner */}
+          {currentInv.isShortageInvoice && (
+            <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs">
+              <div className="flex items-start gap-2.5">
+                <span className="text-2xl">🚚</span>
+                <div>
+                  <div className="font-black text-indigo-950 text-sm">فاتورة نواقص محولة للصرف من المخزن المركزي (6 أكتوبر)</div>
+                  <div className="text-indigo-800 text-[11px] mt-0.5">
+                    هذه الفاتورة تمثل الأصناف المحولة تلقائياً للتوريد من المخزن المركزي بأكتوبر لعدم توفرها برصيد الفرع.
+                  </div>
+                </div>
+              </div>
+              {linkedParentInvoice && (
+                <button
+                  type="button"
+                  onClick={() => setActiveInvoice(linkedParentInvoice)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 shrink-0 cursor-pointer shadow-xs"
+                >
+                  <span>عرض فاتورة المتوفر الأصلية (#{linkedParentInvoice.invoiceNumber})</span>
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Available Items (Split) Banner */}
+          {currentInv.hasShortageSplit && (
+            <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs">
+              <div className="flex items-start gap-2.5">
+                <span className="text-2xl">📦</span>
+                <div>
+                  <div className="font-black text-amber-950 text-sm">فاتورة الأصناف المتوفرة بالفرع (تم فصل النواقص)</div>
+                  <div className="text-amber-900 text-[11px] mt-0.5">
+                    تتضمن هذه الفاتورة الأصناف المتوفرة بمخزن الفرع. تم إصدار فاتورة نواقص منفصلة رقم <strong className="font-mono">{currentInv.shortageInvoiceNumber}</strong> للتوريد من المخزن المركزي بأكتوبر.
+                  </div>
+                </div>
+              </div>
+              {linkedShortageInvoice && (
+                <button
+                  type="button"
+                  onClick={() => setActiveInvoice(linkedShortageInvoice)}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 shrink-0 cursor-pointer shadow-xs"
+                >
+                  <span>عرض فاتورة النواقص (#{linkedShortageInvoice.invoiceNumber})</span>
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Customer and Invoice Details Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs">
             <div>
               <span className="text-slate-400 block text-[10px] font-bold">اسم العميل / المنشأة:</span>
               <strong className="text-slate-900 text-xs sm:text-sm font-black flex items-center gap-1 mt-0.5">
                 <Store className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                <span>{invoice.customerName}</span>
+                <span>{currentInv.customerName}</span>
               </strong>
             </div>
 
             <div>
               <span className="text-slate-400 block text-[10px] font-bold">كود العميل:</span>
               <strong className="text-slate-900 font-mono font-bold block mt-0.5">
-                {invoice.customerCode || '---'}
+                {currentInv.customerCode || '---'}
               </strong>
             </div>
 
             <div>
               <span className="text-slate-400 block text-[10px] font-bold">هاتف العميل:</span>
               <strong className="text-slate-900 font-mono font-bold block mt-0.5">
-                {invoice.customerPhone || '---'}
+                {currentInv.customerPhone || '---'}
               </strong>
             </div>
 
             <div>
               <span className="text-slate-400 block text-[10px] font-bold">عنوان التسليم:</span>
-              <strong className="text-slate-900 font-semibold block mt-0.5 truncate" title={invoice.customerAddress || ''}>
-                {invoice.customerAddress || '---'}
+              <strong className="text-slate-900 font-semibold block mt-0.5 truncate" title={currentInv.customerAddress || ''}>
+                {currentInv.customerAddress || '---'}
               </strong>
             </div>
 
             <div className="pt-2 border-t border-slate-200/80">
               <span className="text-slate-400 block text-[10px] font-bold">المندوب المسئول:</span>
               <strong className="text-slate-900 font-bold block mt-0.5">
-                {invoice.repName}
+                {currentInv.repName}
               </strong>
             </div>
 
             <div className="pt-2 border-t border-slate-200/80">
               <span className="text-slate-400 block text-[10px] font-bold">المشرف المسؤول:</span>
               <strong className="text-slate-900 font-bold block mt-0.5">
-                {invoice.supervisorName || 'الإدارة العامة'}
+                {currentInv.supervisorName || 'الإدارة العامة'}
               </strong>
             </div>
 
             <div className="pt-2 border-t border-slate-200/80">
               <span className="text-slate-400 block text-[10px] font-bold">فرع الصرف:</span>
               <strong className="text-slate-900 font-bold block mt-0.5">
-                {invoice.branchName}
+                {currentInv.branchName}
               </strong>
             </div>
 
             <div className="pt-2 border-t border-slate-200/80">
               <span className="text-slate-400 block text-[10px] font-bold">طريقة السداد:</span>
               <span className="inline-block bg-slate-200 text-slate-900 px-2 py-0.5 rounded-md font-black text-[10px] mt-0.5">
-                {invoice.paymentMethod}
+                {currentInv.paymentMethod}
               </span>
             </div>
           </div>
@@ -832,6 +929,95 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
           <div className="fixed bottom-6 right-6 z-50 bg-emerald-900 text-white font-black px-4 py-3 rounded-2xl shadow-2xl border border-emerald-500 animate-in slide-in-from-bottom flex items-center gap-2 text-xs">
             <CheckCircle className="w-4 h-4 text-emerald-400" />
             <span>{returnSuccessMsg}</span>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+            <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4 text-right">
+              <div className="flex items-center gap-3 text-rose-600 border-b border-slate-100 pb-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-50 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5 text-rose-600" />
+                </div>
+                <div>
+                  <h4 className="font-black text-slate-900 text-sm">تأكيد حذف الفاتورة</h4>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    رقم: {currentInv.invoiceNumber}
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 rounded-2xl p-3 text-xs space-y-1.5 border border-slate-100">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">العميل:</span>
+                  <span className="font-bold text-slate-800">{currentInv.customerName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">الإجمالي:</span>
+                  <span className="font-black text-amber-700">{formatCurrency(currentInv.estimatedGrandTotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">الحالة:</span>
+                  <span className="font-bold text-slate-700">{currentInv.status}</span>
+                </div>
+              </div>
+
+              {linkedShortageInvoice ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-900 space-y-1">
+                  <div className="font-black flex items-center gap-1">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>تنبيه: توجد فاتورة نواقص مرتبطة ({linkedShortageInvoice.invoiceNumber})!</span>
+                  </div>
+                  <p className="text-[11px] text-amber-800">
+                    هل ترغب بحذف الفاتورتين معاً (المتاح والنواقص) لتنظيف السجلات بالكامل؟
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-600">
+                  هل أنت متأكد من حذف هذه الفاتورة نهائياً من قاعدة البيانات والسجلات؟
+                </p>
+              )}
+
+              <div className="space-y-2 pt-1">
+                {linkedShortageInvoice && (
+                  <button
+                    onClick={() => {
+                      deleteInvoiceWithShortage(currentInv.id);
+                      setShowDeleteConfirm(false);
+                      onClose();
+                    }}
+                    className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>حذف الفاتورتين معاً (المتاح + النواقص)</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    deleteInvoice(currentInv.id);
+                    setShowDeleteConfirm(false);
+                    onClose();
+                  }}
+                  className={`w-full font-bold py-2.5 rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    linkedShortageInvoice
+                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                      : 'bg-rose-600 hover:bg-rose-700 text-white font-black shadow-md'
+                  }`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{linkedShortageInvoice ? 'حذف هذه الفاتورة فقط' : 'نعم، تأكيد الحذف نهائياً'}</span>
+                </button>
+
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="w-full py-2 bg-transparent text-slate-500 hover:text-slate-800 font-bold rounded-xl text-xs cursor-pointer"
+                >
+                  إلغاء وتراجع
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

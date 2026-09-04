@@ -369,14 +369,21 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       // Search match
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase().trim();
-        const codeMatch = p.code.toLowerCase().includes(query);
+        const cleanQuery = query.replace('#', '').trim();
+        const codeMatch = p.code.toLowerCase().includes(query) || p.code.toLowerCase().includes(cleanQuery);
+        const unifiedMatch = Boolean(
+          p.unifiedCode && (
+            p.unifiedCode.toLowerCase().includes(cleanQuery) ||
+            p.unifiedCode.toLowerCase().includes(query)
+          )
+        );
         const nameMatch = p.name.toLowerCase().includes(query);
         const catMatch = p.category?.toLowerCase().includes(query);
         const deptMatch = p.department?.toLowerCase().includes(query);
         const colorMatch = p.color?.toLowerCase().includes(query);
         const barcodeMatch = p.barcode?.includes(query);
 
-        if (!codeMatch && !nameMatch && !catMatch && !deptMatch && !colorMatch && !barcodeMatch) {
+        if (!codeMatch && !unifiedMatch && !nameMatch && !catMatch && !deptMatch && !colorMatch && !barcodeMatch) {
           return false;
         }
       }
@@ -807,7 +814,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="ابحث بالكود، اسم الصنف، الماركة..."
+              placeholder="ابحث بالكود، الكود الموحد (#)، اسم الصنف، الماركة..."
               className="w-full h-11 sm:h-12 pl-10 pr-10 bg-slate-800 text-white placeholder-slate-400 border border-slate-700 rounded-xl text-sm sm:text-base font-medium focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
             />
             {searchTerm && (
@@ -1154,9 +1161,20 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                   />
 
-                  {/* Product Code Badge */}
-                  <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 bg-slate-950/95 text-amber-300 text-[10px] sm:text-xs font-black px-1.5 py-0.5 rounded-lg backdrop-blur-xs shadow-xs border border-slate-750 flex items-center gap-1">
-                    <span>{product.code}</span>
+                  {/* Product Code & Unified Code Badge */}
+                  <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 flex items-center gap-1 max-w-[85%] z-10">
+                    <div className="bg-slate-950/95 text-amber-300 text-[10px] sm:text-xs font-black px-1.5 py-0.5 rounded-lg backdrop-blur-xs shadow-xs border border-slate-750 flex items-center gap-1">
+                      <span>{product.code}</span>
+                    </div>
+                    {product.unifiedCode && (
+                      <div
+                        className="bg-indigo-950/95 text-indigo-300 text-[10px] sm:text-xs font-black px-1.5 py-0.5 rounded-lg backdrop-blur-xs shadow-xs border border-indigo-700/70 flex items-center gap-0.5"
+                        title={`الكود الموحد للموديل: ${product.unifiedCode}`}
+                      >
+                        <span className="text-indigo-400 font-bold">#</span>
+                        <span>{product.unifiedCode.replace('#', '')}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Promo Badge */}
@@ -1465,9 +1483,17 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                             showBadgeOnFallback={false}
                             onClick={() => setSelectedProductForModal(product)}
                           />
-                          <span className="font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-lg text-[11px]">
-                            {product.code}
-                          </span>
+                          <div className="flex flex-col gap-1 items-start">
+                            <span className="font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-lg text-[11px]">
+                              {product.code}
+                            </span>
+                            {product.unifiedCode && (
+                              <span className="font-bold text-indigo-900 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded text-[10px] flex items-center gap-0.5" title="الكود الموحد">
+                                <span className="text-indigo-500 font-bold">#</span>
+                                <span>{product.unifiedCode.replace('#', '')}</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="p-2.5">
@@ -1744,10 +1770,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center flex-wrap gap-2">
                 <span className="bg-slate-950 text-amber-300 font-black text-xs px-2.5 py-1 rounded-xl">
                   {selectedProductForModal.code}
                 </span>
+                {selectedProductForModal.unifiedCode && (
+                  <span className="bg-indigo-950 text-indigo-200 font-mono font-black text-xs px-2.5 py-1 rounded-xl border border-indigo-700 flex items-center gap-1">
+                    <span className="text-amber-400 font-bold">#</span>
+                    <span>الكود الموحد: {selectedProductForModal.unifiedCode.replace('#', '')}</span>
+                  </span>
+                )}
                 {(() => {
                   const deptMeta = getDepartmentMeta(selectedProductForModal.department || selectedProductForModal.category);
                   const DeptIcon = deptMeta.icon;
@@ -1805,6 +1837,76 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   <div className="text-slate-500 mt-1">
                     القسم: {selectedProductForModal.department} • الفئة: {selectedProductForModal.classification}
                   </div>
+                  
+                  {/* Code & Unified Code Identification */}
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <span className="bg-slate-900 text-amber-300 font-mono font-black text-xs px-2.5 py-1 rounded-lg">
+                      كود الصنف: {selectedProductForModal.code}
+                    </span>
+                    {selectedProductForModal.unifiedCode ? (
+                      <span className="bg-indigo-950 text-indigo-200 font-mono font-black text-xs px-2.5 py-1 rounded-lg border border-indigo-700/80 flex items-center gap-1">
+                        <span className="text-amber-400 font-bold">#</span>
+                        <span>الكود الموحد للموديل: {selectedProductForModal.unifiedCode.replace('#', '')}</span>
+                      </span>
+                    ) : (
+                      <span className="bg-slate-100 text-slate-600 font-bold text-xs px-2 py-0.5 rounded-lg border border-slate-200">
+                        # بدون كود موحد
+                      </span>
+                    )}
+                    {selectedProductForModal.color && (
+                      <span className="bg-indigo-50 text-indigo-900 border border-indigo-200 font-black text-xs px-2 py-0.5 rounded-lg">
+                        🎨 اللون: {selectedProductForModal.color}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Sibling color variants of the same unifiedCode */}
+                  {selectedProductForModal.unifiedCode && (() => {
+                    const normCode = selectedProductForModal.unifiedCode.replace('#', '').trim();
+                    const siblings = products.filter(
+                      (other) =>
+                        other.id !== selectedProductForModal.id &&
+                        other.unifiedCode &&
+                        other.unifiedCode.replace('#', '').trim() === normCode
+                    );
+                    if (siblings.length === 0) return null;
+                    return (
+                      <div className="mt-3 bg-indigo-50/80 border border-indigo-200 rounded-2xl p-2.5 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-black text-indigo-950">
+                          <span className="flex items-center gap-1">
+                            <span>🎨 الألوان والموديلات لنفس الكود الموحد (#{normCode}):</span>
+                          </span>
+                          <span className="text-[10px] bg-indigo-200 text-indigo-900 font-black px-2 py-0.5 rounded-md">
+                            {siblings.length} بدائل ألوان
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto pr-1">
+                          {siblings.map((sib) => (
+                            <div
+                              key={sib.id}
+                              onClick={() => setSelectedProductForModal(sib)}
+                              className="flex items-center gap-2 p-1.5 bg-white border border-indigo-100 rounded-xl hover:border-indigo-400 hover:shadow-xs cursor-pointer transition text-[11px]"
+                              title={`عرض صنف: ${sib.name} (${sib.color || 'بدون لون'})`}
+                            >
+                              <ProductImage
+                                product={sib}
+                                cloudinaryConfig={cloudinaryConfig}
+                                containerClassName="w-7 h-7 rounded-md bg-slate-100 shrink-0 border border-slate-200"
+                                className="w-full h-full object-cover"
+                                showBadgeOnFallback={false}
+                              />
+                              <div className="truncate flex-1">
+                                <div className="font-black text-slate-900 truncate">{sib.color || sib.name}</div>
+                                <div className="text-[10px] text-indigo-700 font-mono font-bold flex items-center gap-1">
+                                  <span>{sib.code}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Stock Details Box */}

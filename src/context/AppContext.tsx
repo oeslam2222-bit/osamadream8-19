@@ -23,6 +23,8 @@ import {
 } from '../services/arabicMatchingService';
 import {
   deleteUserFromSupabase,
+  deleteInvoiceFromSupabase,
+  clearAllInvoicesFromSupabase,
   fetchCustomersFromSupabase,
   fetchInvoicesFromSupabase,
   fetchProductsFromSupabase,
@@ -158,6 +160,8 @@ interface AppContextType {
     restockToInventory?: boolean
   ) => { success: boolean; message: string; returnRecord?: ReturnRecord };
   deleteInvoice: (invoiceId: string) => void;
+  deleteInvoiceWithShortage: (invoiceId: string) => void;
+  clearAllInvoices: () => void;
   syncToAccounting: (invoiceId: string) => Promise<boolean>;
 
   // User Management & Approval Actions
@@ -2337,16 +2341,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdShortageInvoice = {
         id: `inv-${Date.now() + 1}`,
         invoiceNumber: shortageInvoiceNumber,
-        customerName: orderData.customerName || 'عميل تجزئة عام',
-        customerPhone: orderData.customerPhone || '',
-        customerAddress: orderData.customerAddress || '',
-        customerTaxNumber: orderData.customerTaxNumber || '',
+        customerName: orderData.customerName || (matchedCustomer ? matchedCustomer.name : 'عميل تجزئة عام'),
+        customerCode: orderData.customerCode || (matchedCustomer ? matchedCustomer.code : undefined),
+        customerPhone: orderData.customerPhone || (matchedCustomer ? matchedCustomer.phone : ''),
+        customerAddress: orderData.customerAddress || (matchedCustomer ? matchedCustomer.address : ''),
+        customerTaxNumber: orderData.customerTaxNumber || (matchedCustomer ? matchedCustomer.taxNumber : ''),
         date: formattedDate,
         time: formattedTime,
-        repId: currentUser ? currentUser.id : 'u-admin-1',
-        repName: currentUser ? currentUser.name : 'أسامة إسلام (المطور التقني)',
-        supervisorName: userSupervisor,
-        branchName: 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+        repId: assignedRepId,
+        repName: assignedRepName,
+        supervisorName: assignedSupervisorName,
+        branchName: orderBranch,
         items: shortageItems,
         totalCartons: shortageTotals.totalCartons,
         totalPieces: shortageTotals.totalPieces,
@@ -2358,7 +2363,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         estimatedGrandTotal: shortageTotals.estimatedGrandTotal,
         paymentMethod: orderData.paymentMethod || 'نقدي (كاش)',
         status: 'قيد مراجعة المشرف',
-        notes: `فاتورة تحويل نواقص تابعة للفاتورة الأساسية #${newInvoiceNumber}`,
+        notes: `فاتورة تحويل نواقص من المخزن المركزي (6 أكتوبر) تابعة للفاتورة الأساسية #${newInvoiceNumber}`,
         syncedToAccounting: false,
         isShortageInvoice: true,
         parentInvoiceId: primaryInvoice.id,
@@ -3187,6 +3192,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteInvoice = (invoiceId: string) => {
     setInvoices((prev) => prev.filter((inv) => inv.id !== invoiceId));
+    deleteInvoiceFromSupabase(invoiceId).catch((e) => console.warn('Supabase invoice delete failed:', e));
+  };
+
+  const deleteInvoiceWithShortage = (invoiceId: string) => {
+    const target = invoices.find((i) => i.id === invoiceId || i.invoiceNumber === invoiceId);
+    if (!target) {
+      deleteInvoice(invoiceId);
+      return;
+    }
+
+    const idsToDelete = new Set<string>([target.id]);
+
+    // Find linked shortage invoice
+    if (target.shortageInvoiceNumber) {
+      const linked = invoices.find((i) => i.invoiceNumber === target.shortageInvoiceNumber);
+      if (linked) idsToDelete.add(linked.id);
+    }
+
+    // Find linked parent invoice if this is a shortage invoice
+    if (target.isShortageInvoice && (target.parentInvoiceId || target.parentInvoiceNumber)) {
+      const parent = invoices.find(
+        (i) =>
+          (target.parentInvoiceId && i.id === target.parentInvoiceId) ||
+          (target.parentInvoiceNumber && i.invoiceNumber === target.parentInvoiceNumber)
+      );
+      if (parent) idsToDelete.add(parent.id);
+    }
+
+    // Find any child invoices referencing this invoice
+    invoices.forEach((i) => {
+      if (
+        (i.parentInvoiceId && i.parentInvoiceId === target.id) ||
+        (i.parentInvoiceNumber && i.parentInvoiceNumber === target.invoiceNumber) ||
+        (i.shortageInvoiceNumber && i.shortageInvoiceNumber === target.invoiceNumber)
+      ) {
+        idsToDelete.add(i.id);
+      }
+    });
+
+    setInvoices((prev) => prev.filter((inv) => !idsToDelete.has(inv.id)));
+    idsToDelete.forEach((id) => {
+      deleteInvoiceFromSupabase(id).catch((e) => console.warn('Supabase linked invoice delete failed:', e));
+    });
+  };
+
+  const clearAllInvoices = () => {
+    setInvoices([]);
+    idbSet(STORAGE_KEYS.INVOICES, []);
+    try {
+      safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify([]));
+    } catch {}
+    clearAllInvoicesFromSupabase().catch((e) => console.warn('Supabase clear invoices failed:', e));
   };
 
   const syncToAccounting = async (invoiceId: string): Promise<boolean> => {
@@ -3330,14 +3387,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .filter((u) => u.role === 'sales_rep' && (u.supervisorId === currentUser.id || isBranchMatch(u.branchName, currentUser.branchName)))
           .map((u) => u.id)
       );
+      const repNames = new Set(
+        users
+          .filter((u) => u.role === 'sales_rep' && (u.supervisorId === currentUser.id || isBranchMatch(u.branchName, currentUser.branchName)))
+          .map((u) => u.name.trim().toLowerCase())
+      );
       return invoices.filter((i) => {
         const isSameBranch = Boolean(i.branchName) && isBranchMatch(i.branchName, currentUser.branchName);
-        const isSupervisedRep = Boolean(i.repId) && repIds.has(i.repId);
-        const isSelf = i.repId === currentUser.id;
+        const isSupervisedRep =
+          (Boolean(i.repId) && repIds.has(i.repId)) ||
+          (Boolean(i.repName) && repNames.has(i.repName.trim().toLowerCase()));
+        const isSelf = i.repId === currentUser.id || (Boolean(i.repName) && isArabicNameMatch(i.repName, currentUser.name));
         return isSameBranch || isSupervisedRep || isSelf;
       });
     }
-    return invoices.filter((i) => Boolean(i.branchName) && isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false }) && i.repId === currentUser.id);
+    // Sales Rep: unconditionally sees all invoices belonging to him (both primary and shortage invoices)
+    return invoices.filter((i) => {
+      const isOwnerRep =
+        (Boolean(i.repId) && (i.repId === currentUser.id || (currentUser.username && i.repId.toLowerCase() === currentUser.username.toLowerCase()))) ||
+        (Boolean(i.repName) && (i.repName.trim().toLowerCase() === currentUser.name.trim().toLowerCase() || isArabicNameMatch(i.repName, currentUser.name)));
+      return isOwnerRep;
+    });
   };
 
   const getVisibleCustomers = (): Customer[] => {
@@ -3453,6 +3523,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateOrderStatus,
         processOrderReturn,
         deleteInvoice,
+        deleteInvoiceWithShortage,
+        clearAllInvoices,
         syncToAccounting,
         addUser,
         updateUser,
