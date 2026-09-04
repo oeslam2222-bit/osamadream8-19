@@ -262,7 +262,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const parsed: User[] = JSON.parse(saved);
       parsed
-        .filter((u) => u.id !== 'u-branch-ashraf' && u.id !== 'u-sup-mahmoud' && u.id !== 'u-rep-ahmed')
+        .filter(
+          (u) =>
+            !u.id.startsWith('u-mgr-') &&
+            !u.id.startsWith('u-sup-') &&
+            u.id !== 'u-branch-ashraf' &&
+            u.id !== 'u-sup-mahmoud' &&
+            u.id !== 'u-rep-ahmed'
+        )
         .forEach((u) => {
           const normBranch = normalizeBranchName(u.branchName);
           const validRole =
@@ -926,9 +933,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (res.success && res.users && res.users.length > 0) {
             setUsers((prev) => {
               const map = new Map<string, User>();
-              prev.forEach((u) => map.set(u.id, u));
-              res.users!.forEach((su) => map.set(su.id, su));
-              return Array.from(map.values());
+              prev
+                .filter(
+                  (u) =>
+                    !u.id.startsWith('u-mgr-') &&
+                    !u.id.startsWith('u-sup-') &&
+                    u.id !== 'u-branch-ashraf' &&
+                    u.id !== 'u-sup-mahmoud' &&
+                    u.id !== 'u-rep-ahmed'
+                )
+                .forEach((u) => map.set(u.id, u));
+              res.users!
+                .filter(
+                  (su) =>
+                    !su.id.startsWith('u-mgr-') &&
+                    !su.id.startsWith('u-sup-') &&
+                    su.id !== 'u-branch-ashraf' &&
+                    su.id !== 'u-sup-mahmoud' &&
+                    su.id !== 'u-rep-ahmed'
+                )
+                .forEach((su) => map.set(su.id, su));
+              const finalUsers = Array.from(map.values());
+              safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(finalUsers));
+              return finalUsers;
             });
           }
         });
