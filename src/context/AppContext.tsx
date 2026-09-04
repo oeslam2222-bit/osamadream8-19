@@ -1411,7 +1411,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
-  // Auto-link customers to users when user list changes (e.g. after Supabase fetch)
+  // Auto-link customers to users when either side arrives from storage or Supabase.
   useEffect(() => {
     if (users.length === 0 || customers.length === 0) return;
     setCustomers((prev) => {
@@ -1423,7 +1423,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       saveCustomersToSupabase(linked).catch(() => {});
       return linked;
     });
-  }, [users]);
+  }, [users, customers]);
 
   // Sync high-capacity data directly to IndexedDB (preventing LocalStorage quota overflow)
   useEffect(() => {
