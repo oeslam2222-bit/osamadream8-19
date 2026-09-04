@@ -611,6 +611,8 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
   const repCandidates = [
     customer.salesRepName,
     customer.repName,
+    // Some imported sheets store the representative name in the repId column.
+    customer.repId,
     (customer as any).rep,
     (customer as any).delegateName,
     (customer as any).salesRep,

@@ -661,15 +661,15 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     const wb = XLSX.utils.book_new();
 
     const headers = [
-      'كود العميل',
-      'اسم العميل',
-      'الفرع',
-      'المندوب',
       'المديونية',
       'الحد الائتماني',
       'الفاتورة',
       'إجمالي المديونية بعد الفاتورة',
       'المستحقات',
+      'كود العميل',
+      'اسم العميل',
+      'الفرع',
+      'المندوب',
       'رقم الهاتف',
       'العنوان',
     ];
@@ -679,16 +679,17 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       const balance = Number(c.currentBalance ?? c.balance ?? 0);
       const overdueAndDue = Number(c.totalOverdueAndDue !== undefined ? c.totalOverdueAndDue : balance);
       const available = Math.max(0, limit - balance);
+      const invoiceAmount = Number((c as Customer & { lastInvoiceAmount?: number }).lastInvoiceAmount ?? 0);
       return [
+        balance,
+        limit,
+        invoiceAmount,
+        balance + invoiceAmount,
+        overdueAndDue,
         c.code || '---',
         c.name || '',
         c.branchName || 'الفرع الرئيسي',
         c.salesRepName || c.repName || 'غير محدد',
-        balance,
-        limit,
-        Number((c as Customer & { lastInvoiceAmount?: number }).lastInvoiceAmount ?? 0),
-        balance + Number((c as Customer & { lastInvoiceAmount?: number }).lastInvoiceAmount ?? 0),
-        overdueAndDue,
         c.phone || '',
         c.address || '',
       ];
@@ -696,15 +697,16 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     ws['!cols'] = [
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 24 },
+      { wch: 18 },
       { wch: 14 },
       { wch: 35 },
       { wch: 20 },
       { wch: 22 },
-      { wch: 24 },
       { wch: 18 },
-      { wch: 18 },
-      { wch: 20 },
-      { wch: 16 },
       { wch: 32 },
     ];
 

@@ -2329,7 +2329,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         (orderData.customerPhone && c.phone && c.phone.trim() === orderData.customerPhone.trim())
     );
 
-    const custBalanceBefore = Number(matchedCustomer?.balance || 0);
+    const custBalanceBefore = Number(matchedCustomer?.currentBalance ?? matchedCustomer?.balance ?? 0);
     const custCreditLimit = Number(
       matchedCustomer?.creditLimit !== undefined && matchedCustomer?.creditLimit !== null
         ? matchedCustomer.creditLimit

@@ -53,6 +53,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 }) => {
   const {
     invoices,
+    customers,
     currentUser,
     users,
     getVisibleInvoices,
@@ -554,7 +555,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               className="bg-indigo-100 hover:bg-indigo-200 text-indigo-950 px-1.5 py-0.5 rounded text-[10px] font-bold border border-indigo-200 flex items-center gap-1 transition cursor-pointer text-right"
                               title="فاتورة نواقص محولة لمخزن أكتوبر المركزي - انقر للبحث عن الفاتورة الأساسية"
                             >
-                              <span>فاتورة نواقص - في انتظار التوريد</span>
+                              <span>فاتورة نواقص في انتظار التوريد</span>
                               {invoice.parentInvoiceNumber && <span className="text-indigo-700 font-mono">#{invoice.parentInvoiceNumber}</span>}
                             </button>
                           )}
@@ -568,13 +569,13 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               className="bg-amber-100 hover:bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-300 flex items-center gap-1 transition cursor-pointer text-right"
                               title="فاتورة الأصناف المتوفرة - تم فصل النواقص - انقر للبحث عن فاتورة النواقص"
                             >
-                              <span>📦 متوفر (نواقص: {invoice.shortageInvoiceNumber})</span>
+                              <span>فاتورة مكتملة بالفرع جاهزة للتحضير (النواقص: {invoice.shortageInvoiceNumber})</span>
                               <ExternalLink className="w-2.5 h-2.5 shrink-0" />
                             </button>
                           )}
                           {!invoice.isShortageInvoice && !invoice.hasShortageSplit && (
                             <span className="bg-teal-50 text-teal-800 px-1.5 py-0.5 rounded text-[10px] font-bold border border-teal-200">
-                              فاتورة مكتملة بالفرع - جاهزة للتحضير
+                              فاتورة مكتملة بالفرع جاهزة للتحضير
                             </span>
                           )}
                         </div>
@@ -585,6 +586,11 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                         <div className="font-extrabold text-slate-900 text-sm mb-1">{invoice.customerName}</div>
                         <CreditStatusBadge
                           invoice={invoice}
+                          customer={customers.find((customer) =>
+                            (invoice.customerId && customer.id === invoice.customerId) ||
+                            (invoice.customerCode && customer.code === invoice.customerCode) ||
+                            customer.name.trim().toLowerCase() === invoice.customerName.trim().toLowerCase()
+                          )}
                           onClick={() => {
                             setAuditInvoice(invoice);
                             setIsAuditOpen(true);

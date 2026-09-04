@@ -757,11 +757,11 @@ export async function fetchAndParseGoogleSheet(googleSheetUrlOrId: string): Prom
 export function exportInvoiceToExcel(invoice: Invoice): void {
   const wb = XLSX.utils.book_new();
 
-  const debtBefore = invoice.customerBalanceBefore || 0;
-  const debtAfter = invoice.customerBalanceAfter || (debtBefore + invoice.estimatedGrandTotal);
-  const creditLimit = invoice.customerCreditLimit || 50000;
+  const debtBefore = invoice.customerBalanceBefore ?? 0;
+  const debtAfter = invoice.customerBalanceAfter ?? (debtBefore + invoice.estimatedGrandTotal);
+  const creditLimit = invoice.customerCreditLimit ?? 0;
   const isExceeded = invoice.creditLimitExceeded ?? (debtAfter > creditLimit);
-  const requiredDown = invoice.requiredDownPayment || (isExceeded ? debtAfter - creditLimit : 0);
+  const requiredDown = invoice.requiredDownPayment ?? (isExceeded ? debtAfter - creditLimit : 0);
 
   const titleRows = [
     ['مجموعة الطنطاوي - دريم للتجارة والتوزيع (TANTAWY GROUP)'],
@@ -1012,11 +1012,11 @@ export function exportInvoiceForERP(invoice: Invoice): void {
   XLSX.utils.book_append_sheet(wb, wsItems, 'أصناف_الفاتورة_للسيستم_ERP');
 
   // Tab 2: Header Summary (Invoice Level)
-  const debtBefore = invoice.customerBalanceBefore || 0;
-  const debtAfter = invoice.customerBalanceAfter || (debtBefore + invoice.estimatedGrandTotal);
-  const creditLimit = invoice.customerCreditLimit || 50000;
+  const debtBefore = invoice.customerBalanceBefore ?? 0;
+  const debtAfter = invoice.customerBalanceAfter ?? (debtBefore + invoice.estimatedGrandTotal);
+  const creditLimit = invoice.customerCreditLimit ?? 0;
   const isExceeded = invoice.creditLimitExceeded ?? (debtAfter > creditLimit);
-  const requiredDown = invoice.requiredDownPayment || (isExceeded ? debtAfter - creditLimit : 0);
+  const requiredDown = invoice.requiredDownPayment ?? (isExceeded ? debtAfter - creditLimit : 0);
 
   const headerData = [
     ['رقم الفاتورة', invoice.invoiceNumber],

@@ -59,6 +59,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
     companyInfo,
     getCompanyInfoForBranch,
     invoices,
+    customers,
     deleteInvoice,
     deleteInvoiceWithShortage,
   } = useApp();
@@ -95,6 +96,16 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
     currentInv.parentInvoiceNumber || currentInv.parentInvoiceId
       ? invoices.find((i) => i.invoiceNumber === currentInv.parentInvoiceNumber || i.id === currentInv.parentInvoiceId)
       : undefined;
+
+  const linkedCustomer = customers.find(
+    (customer) =>
+      (currentInv.customerId && customer.id === currentInv.customerId) ||
+      (currentInv.customerCode && customer.code === currentInv.customerCode) ||
+      customer.name.trim().toLowerCase() === currentInv.customerName.trim().toLowerCase()
+  );
+  const effectiveCreditLimit = currentInv.customerCreditLimit && currentInv.customerCreditLimit > 0
+    ? currentInv.customerCreditLimit
+    : Number(linkedCustomer?.creditLimit ?? 0);
 
   const isPending =
     currentInv.status === 'قيد مراجعة المشرف' ||
@@ -717,12 +728,12 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                 </div>
                 <div className="flex justify-between items-center text-slate-400">
                   <span>الحد الائتماني المعتمد:</span>
-                  {(invoice.customerCreditLimit || 0) <= 0 ? (
+                  {effectiveCreditLimit <= 0 ? (
                     <span className="font-bold text-amber-300 text-[10px] bg-amber-950/60 border border-amber-500/50 px-2 py-0.5 rounded">
                       لا يوجد حد ائتماني (سداد نقدي)
                     </span>
                   ) : (
-                    <span className="font-bold font-mono text-blue-300">{formatCurrency(invoice.customerCreditLimit || 0)}</span>
+                    <span className="font-bold font-mono text-blue-300">{formatCurrency(effectiveCreditLimit)}</span>
                   )}
                 </div>
                 {invoice.creditLimitExceeded && (
