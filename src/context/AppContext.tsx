@@ -1197,11 +1197,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!userList || userList.length === 0) return list;
 
     const reps = userList.filter((u) => u.role === 'sales_rep' || u.role === 'supervisor' || u.role === 'branch_manager');
+    console.log('[linkCustomersToUsers] reps=', reps.map((u) => ({ id: u.id, name: u.name, role: u.role, branch: u.branchName })));
 
     return list.map((c) => {
       let updated = { ...c };
 
-      // Keep branch from uploaded sheet if present; only infer if completely empty
       if (!updated.branchName) {
         const locInferred = inferBranchFromText(
           `${updated.address || ''} ${updated.governorate || ''} ${updated.name || ''} ${updated.notes || ''}`
@@ -1226,8 +1226,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return updated;
       }
 
-      // Check if candidate matches rep in user list with branch isolation.
-      // Match ONLY by the rep's account name; no username/phone/repId fallback.
       const matchFn = (u: User) => {
         if (
           u.role === 'sales_rep' &&
@@ -1241,6 +1239,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
 
       let matched = reps.find(matchFn);
+      console.log('[linkCustomersToUsers] customer=', c.name, 'rawRep=', rawRep, 'branch=', updated.branchName, 'matched=', matched?.name);
 
       if (matched) {
         return {
@@ -1409,12 +1408,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Auto-link customers to users when either side arrives from storage or Supabase.
   useEffect(() => {
+    console.log('[LinkEffect] Triggered', { usersCount: users.length, customersCount: customers.length });
     if (users.length === 0 || customers.length === 0) return;
     setCustomers((prev) => {
       const linked = linkCustomersToUsers(prev, users);
       const changed = linked.some(
         (c, i) => c.repId !== prev[i]?.repId || c.branchName !== prev[i]?.branchName || c.salesRepName !== prev[i]?.salesRepName
       );
+      console.log('[LinkEffect] changed=', changed, 'prevCount=', prev.length, 'linkedCount=', linked.length);
       if (!changed) return prev;
       saveCustomersToSupabase(linked).catch(() => {});
       return linked;
