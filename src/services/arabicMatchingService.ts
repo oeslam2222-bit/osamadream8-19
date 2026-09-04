@@ -619,6 +619,20 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
     (customer as any).sales_rep,
     (customer as any).rep_name,
     (customer as any).representative_name,
+    // Preserve compatibility with older imports that kept the original column names.
+    ...Object.entries(customer as unknown as Record<string, unknown>)
+      .filter(([key, value]) => {
+        const normalizedKey = key.toLowerCase().replace(/[\s_-]/g, '');
+        return (
+          typeof value === 'string' &&
+          (normalizedKey.includes('rep') ||
+            normalizedKey.includes('sales') ||
+            normalizedKey.includes('delegate') ||
+            normalizedKey.includes('representative') ||
+            normalizedKey.includes('مندوب'))
+        );
+      })
+      .map(([, value]) => value),
   ]
     .filter((val): val is string => typeof val === 'string' && val.trim().length > 0)
     .map((s) => s.trim());
