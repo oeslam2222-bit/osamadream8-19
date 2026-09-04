@@ -206,7 +206,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     'قيد مراجعة المشرف': { bg: 'bg-amber-100 border-amber-300 animate-pulse', text: 'text-amber-900', label: 'قيد مراجعة المشرف ⏳' },
     'معلقة بانتظار اعتماد الفرع': { bg: 'bg-blue-100 border-blue-300 animate-pulse', text: 'text-blue-900', label: 'بانتظار مدير الفرع 🏛️' },
     'قيد المراجعة': { bg: 'bg-amber-100 border-amber-300', text: 'text-amber-800' },
-    'معتمدة ومصروفة من المخزن': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-800', label: 'معتمدة ومصروفة ✅' },
+    'معتمدة ومصروفة من المخزن': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-800', label: 'فاتورة مكتملة بالفرع - جاهزة للتحضير' },
     'معتمدة': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-800' },
     'جاري التجهيز': { bg: 'bg-indigo-100 border-indigo-300', text: 'text-indigo-800' },
     'تم التسليم': { bg: 'bg-teal-100 border-teal-300', text: 'text-teal-800' },
@@ -554,7 +554,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               className="bg-indigo-100 hover:bg-indigo-200 text-indigo-950 px-1.5 py-0.5 rounded text-[10px] font-bold border border-indigo-200 flex items-center gap-1 transition cursor-pointer text-right"
                               title="فاتورة نواقص محولة لمخزن أكتوبر المركزي - انقر للبحث عن الفاتورة الأساسية"
                             >
-                              <span>🚚 فاتورة نواقص (أكتوبر)</span>
+                              <span>فاتورة نواقص - في انتظار التوريد</span>
                               {invoice.parentInvoiceNumber && <span className="text-indigo-700 font-mono">#{invoice.parentInvoiceNumber}</span>}
                             </button>
                           )}
@@ -574,7 +574,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           )}
                           {!invoice.isShortageInvoice && !invoice.hasShortageSplit && (
                             <span className="bg-teal-50 text-teal-800 px-1.5 py-0.5 rounded text-[10px] font-bold border border-teal-200">
-                              📦 أصناف متوفرة
+                              فاتورة مكتملة بالفرع - جاهزة للتحضير
                             </span>
                           )}
                         </div>
