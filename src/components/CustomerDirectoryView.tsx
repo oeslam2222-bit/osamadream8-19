@@ -189,7 +189,15 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     sourceUsers
       .filter((u) => u.role === 'sales_rep' || u.role === 'supervisor')
       .forEach((u) => {
-        if (!repMap.has(u.name)) {
+        const normalizedUserKey = normalizeArabicText(u.name).replace(/\s+/g, '');
+        const matchingRepEntry = Array.from(repMap.entries()).find(
+          ([repName]) => normalizeArabicText(repName).replace(/\s+/g, '') === normalizedUserKey
+        );
+        if (matchingRepEntry) {
+          matchingRepEntry[1].isRegisteredUser = true;
+          matchingRepEntry[1].userId = u.id;
+          matchingRepEntry[1].branchName = matchingRepEntry[1].branchName || u.branchName || '';
+        } else {
           repMap.set(u.name, {
             name: u.name,
             branchName: u.branchName || '',
@@ -203,7 +211,16 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     const unique = new Map<string, (typeof repMap extends Map<string, infer V> ? V : never)>();
     repMap.forEach((rep) => {
       const key = normalizeArabicText(rep.name).replace(/\s+/g, '');
-      if (!unique.has(key)) unique.set(key, rep);
+      const existing = unique.get(key);
+      if (existing) {
+        // Different sheet spellings of the same rep must contribute to one total.
+        existing.customerCount += rep.customerCount;
+        existing.isRegisteredUser = existing.isRegisteredUser || rep.isRegisteredUser;
+        existing.userId = existing.userId || rep.userId;
+        existing.branchName = existing.branchName || rep.branchName;
+      } else {
+        unique.set(key, { ...rep });
+      }
     });
     return Array.from(unique.values()).sort((a, b) => b.customerCount - a.customerCount);
   }, [customers, users, currentUser, isAdminOrDev, getVisibleCustomers]);
