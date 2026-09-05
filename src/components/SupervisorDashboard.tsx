@@ -925,8 +925,18 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                         </span>
                         <div className="text-[10px] text-slate-400 mt-0.5">{inv.date}</div>
                         {inv.isShortageInvoice && (
-                          <span className="text-[9px] bg-indigo-100 text-indigo-900 px-1 rounded font-bold mt-0.5 block w-fit">
-                            فاتورة نواقص
+                          <span className="text-[9px] bg-purple-100 text-purple-900 border border-purple-200 px-1.5 py-0.5 rounded font-bold mt-1 block w-fit">
+                            🚚 فاتورة نواقص (مخزن أكتوبر)
+                          </span>
+                        )}
+                        {inv.hasShortageSplit && (
+                          <span className="text-[9px] bg-emerald-100 text-emerald-900 border border-emerald-200 px-1.5 py-0.5 rounded font-bold mt-1 block w-fit">
+                            📦 أصناف متوفرة (بالمخزن)
+                          </span>
+                        )}
+                        {!inv.isShortageInvoice && !inv.hasShortageSplit && (
+                          <span className="text-[9px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded font-bold mt-1 block w-fit">
+                            ✅ فاتورة مكتملة متوفرة بالمخزن
                           </span>
                         )}
                       </td>

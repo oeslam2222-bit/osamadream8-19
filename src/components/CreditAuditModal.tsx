@@ -4,6 +4,7 @@ import {
   ArrowDownRight,
   Building,
   CheckCircle2,
+  Clock,
   Copy,
   CreditCard,
   DollarSign,
@@ -85,6 +86,17 @@ export const CreditAuditModal: React.FC<CreditAuditModalProps> = ({
     ? Number(matchedCustomer.creditLimit)
     : 0;
 
+  const overdueDebt = Number(
+    invoice.customerOverdueBalance !== undefined && invoice.customerOverdueBalance !== null
+      ? invoice.customerOverdueBalance
+      : matchedCustomer?.totalOverdueAndDue !== undefined && matchedCustomer?.totalOverdueAndDue !== null
+      ? matchedCustomer.totalOverdueAndDue
+      : matchedCustomer?.overdueBalance !== undefined && matchedCustomer?.overdueBalance !== null
+      ? matchedCustomer.overdueBalance
+      : 0
+  );
+  const hasOverdue = overdueDebt > 0;
+
   const hasNoCredit = creditLimit <= 0;
   const isExceeded = !hasNoCredit && (invoice.creditLimitExceeded ?? (debtAfter > creditLimit));
   const excessAmount = isExceeded ? debtAfter - creditLimit : 0;
@@ -131,6 +143,7 @@ export const CreditAuditModal: React.FC<CreditAuditModalProps> = ({
 
 💰 *الموقف المالي والائتماني:*
 • المديونية الحالية السابقة: ${debtBefore.toLocaleString()} ج.م
+• المتأخرات المستحقة على العميل: ${hasOverdue ? `${overdueDebt.toLocaleString()} ج.م ⚠️` : 'لا توجد (0 ج.م) ✅'}
 • قيمة الفاتورة الحالية: +${invoiceTotal.toLocaleString()} ج.م
 • *المديونية الإجمالية بعد الفاتورة:* ${debtAfter.toLocaleString()} ج.م
 • *الحد الائتماني المعتمد:* ${hasNoCredit ? 'لا يوجد حد (نقدي فقط)' : `${creditLimit.toLocaleString()} ج.م`}
@@ -264,50 +277,74 @@ ${
             </div>
           </div>
 
-          {/* 4 Core Financial Metric Cards (المديونية الحالية، الفاتورة، الحد الائتماني، بعد الفاتورة) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {/* 5 Core Financial Metric Cards (المديونية الحالية، المتأخرات المستحقة، الفاتورة، الحد الائتماني، بعد الفاتورة) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             
             {/* 1. Current Debt Before Invoice */}
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs relative overflow-hidden">
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs relative overflow-hidden flex flex-col justify-between">
               <div className="flex items-center justify-between text-slate-500 mb-1">
-                <span className="text-xs font-bold">1. المديونية الحالية (السابقة)</span>
-                <Wallet className="w-4 h-4 text-slate-400" />
+                <span className="text-[11px] font-bold">1. المديونية الحالية (السابقة)</span>
+                <Wallet className="w-3.5 h-3.5 text-slate-400" />
               </div>
-              <div className="text-xl font-black text-slate-900 font-mono">
+              <div className="text-lg font-black text-slate-900 font-mono">
                 {debtBefore.toLocaleString()} <span className="text-xs font-bold text-slate-500">ج.م</span>
               </div>
-              {matchedCustomer?.totalOverdueAndDue !== undefined && matchedCustomer.totalOverdueAndDue > 0 ? (
-                <div className="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 mt-1 font-black inline-block">
-                  المتأخرات والمستحق: {matchedCustomer.totalOverdueAndDue.toLocaleString()} ج.م ⚠️
-                </div>
-              ) : (
-                <div className="text-[10px] text-slate-500 mt-1 font-medium">
-                  رصيد الحساب المسجل قبل هذه الفاتورة
-                </div>
-              )}
+              <div className="text-[10px] text-slate-500 mt-1 font-medium">
+                رصيد الحساب قبل هذه الطلبية
+              </div>
             </div>
 
-            {/* 2. Current Invoice Amount */}
-            <div className="bg-white p-4 rounded-xl border border-amber-200 bg-amber-50/20 shadow-xs relative overflow-hidden">
-              <div className="flex items-center justify-between text-amber-800 mb-1">
-                <span className="text-xs font-bold">2. قيمة الفاتورة الحالية</span>
-                <Receipt className="w-4 h-4 text-amber-600" />
+            {/* 2. Overdue Debt (المتأخرات المستحقة على العميل) */}
+            <div
+              className={`p-3.5 rounded-xl border shadow-xs relative overflow-hidden flex flex-col justify-between ${
+                hasOverdue
+                  ? 'bg-amber-50 border-amber-300 text-amber-950'
+                  : 'bg-white border-slate-200'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className={`text-[11px] font-bold ${hasOverdue ? 'text-amber-900 font-black' : 'text-slate-500'}`}>
+                  2. المتأخرات المستحقة
+                </span>
+                <Clock className={`w-3.5 h-3.5 ${hasOverdue ? 'text-amber-600' : 'text-slate-400'}`} />
               </div>
-              <div className="text-xl font-black text-amber-900 font-mono">
+              <div className={`text-lg font-black font-mono ${hasOverdue ? 'text-rose-700' : 'text-slate-700'}`}>
+                {overdueDebt.toLocaleString()} <span className="text-xs font-bold">ج.م</span>
+              </div>
+              <div className="text-[10px] mt-1 font-bold">
+                {hasOverdue ? (
+                  <span className="text-rose-800 bg-rose-100/90 px-1.5 py-0.5 rounded border border-rose-200 inline-block font-black">
+                    ⚠️ متأخرات واجبة التحصيل
+                  </span>
+                ) : (
+                  <span className="text-emerald-700 font-medium">
+                    ✅ لا توجد متأخرات سابقة
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* 3. Current Invoice Amount */}
+            <div className="bg-white p-3.5 rounded-xl border border-amber-200 bg-amber-50/20 shadow-xs relative overflow-hidden flex flex-col justify-between">
+              <div className="flex items-center justify-between text-amber-800 mb-1">
+                <span className="text-[11px] font-bold">3. قيمة الفاتورة الحالية</span>
+                <Receipt className="w-3.5 h-3.5 text-amber-600" />
+              </div>
+              <div className="text-lg font-black text-amber-900 font-mono">
                 {invoiceTotal.toLocaleString()} <span className="text-xs font-bold text-amber-700">ج.م</span>
               </div>
               <div className="text-[10px] text-amber-700 mt-1 font-medium">
-                إجمالي {invoice.totalCartons} كرتونة ({invoice.totalPieces} قطعة)
+                {invoice.totalCartons} كرتونة ({invoice.totalPieces} قطعة)
               </div>
             </div>
 
-            {/* 3. Approved Credit Limit */}
-            <div className="bg-white p-4 rounded-xl border border-blue-200 bg-blue-50/20 shadow-xs relative overflow-hidden">
+            {/* 4. Approved Credit Limit */}
+            <div className="bg-white p-3.5 rounded-xl border border-blue-200 bg-blue-50/20 shadow-xs relative overflow-hidden flex flex-col justify-between">
               <div className="flex items-center justify-between text-blue-800 mb-1">
-                <span className="text-xs font-bold">3. الحد الائتماني المعتمد</span>
-                <CreditCard className="w-4 h-4 text-blue-600" />
+                <span className="text-[11px] font-bold">4. الحد الائتماني المعتمد</span>
+                <CreditCard className="w-3.5 h-3.5 text-blue-600" />
               </div>
-              <div className="text-xl font-black text-blue-950 font-mono">
+              <div className="text-lg font-black text-blue-950 font-mono">
                 {hasNoCredit ? (
                   <span className="text-sm font-bold text-amber-700">0 (نقدي فقط)</span>
                 ) : (
@@ -317,13 +354,13 @@ ${
                 )}
               </div>
               <div className="text-[10px] text-blue-700 mt-1 font-medium">
-                سقف التسهيلات الممنوح من إدارة الائتمان
+                {hasNoCredit ? 'سداد نقدي فوري' : 'سقف التسهيلات المعتمد'}
               </div>
             </div>
 
-            {/* 4. Total Debt After Invoice */}
+            {/* 5. Total Debt After Invoice */}
             <div
-              className={`p-4 rounded-xl border shadow-xs relative overflow-hidden ${
+              className={`p-3.5 rounded-xl border shadow-xs relative overflow-hidden flex flex-col justify-between ${
                 isExceeded
                   ? 'bg-rose-50 border-rose-300 text-rose-950'
                   : hasNoCredit
@@ -332,18 +369,18 @@ ${
               }`}
             >
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-black">4. المديونية بعد الفاتورة</span>
-                <TrendingUp className={`w-4 h-4 ${isExceeded ? 'text-rose-600' : 'text-emerald-600'}`} />
+                <span className="text-[11px] font-black">5. المديونية بعد الفاتورة</span>
+                <TrendingUp className={`w-3.5 h-3.5 ${isExceeded ? 'text-rose-600' : 'text-emerald-600'}`} />
               </div>
-              <div className={`text-xl font-black font-mono ${isExceeded ? 'text-rose-700' : 'text-emerald-800'}`}>
+              <div className={`text-lg font-black font-mono ${isExceeded ? 'text-rose-700' : 'text-emerald-800'}`}>
                 {debtAfter.toLocaleString()} <span className="text-xs font-bold">ج.م</span>
               </div>
               <div className="text-[10px] font-bold mt-1">
                 {isExceeded
-                  ? `⚠️ متجاوزة بمقدار ${excessAmount.toLocaleString()} ج.م`
+                  ? `⚠️ تجاوز ${excessAmount.toLocaleString()} ج.م`
                   : hasNoCredit
                   ? 'تعامل نقدي بدون تسهيلات'
-                  : `✅ متبقي للشراء ${remainingCredit.toLocaleString()} ج.م`}
+                  : `✅ متبقي ${remainingCredit.toLocaleString()} ج.م`}
               </div>
             </div>
 
@@ -452,7 +489,33 @@ ${
                     </td>
                   </tr>
 
-                  {/* Row 2: Current Invoice Total */}
+                  {/* Row 2: Overdue Debt (المتأخرات المستحقة على العميل) */}
+                  <tr className={`hover:bg-amber-50/60 ${hasOverdue ? 'bg-amber-50/40' : ''}`}>
+                    <td className="p-3.5 font-bold flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${hasOverdue ? 'bg-amber-600 animate-ping' : 'bg-emerald-500'}`}></span>
+                      <span className={hasOverdue ? 'text-amber-950 font-black' : 'text-slate-800'}>
+                        المتأخرات المستحقة على العميل
+                      </span>
+                    </td>
+                    <td className={`p-3.5 font-mono font-black text-center text-sm ${hasOverdue ? 'text-rose-700 bg-amber-100/60 rounded-md' : 'text-slate-700'}`}>
+                      {overdueDebt.toLocaleString()} ج.م
+                    </td>
+                    <td className="p-3.5">
+                      {hasOverdue ? (
+                        <span className="text-amber-900 font-bold flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span>توجد متأخرات مستحقة التحصيل الفوري على العميل لتفادي تعثر الحساب</span>
+                        </span>
+                      ) : (
+                        <span className="text-emerald-700 font-medium flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>لا توجد أي متأخرات سابقة مسجلة على العميل - سجل السداد منتظم</span>
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+
+                  {/* Row 3: Current Invoice Total */}
                   <tr className="hover:bg-amber-50/40 bg-amber-50/10">
                     <td className="p-3.5 font-bold flex items-center gap-2 text-amber-900">
                       <span className="w-2 h-2 rounded-full bg-amber-500"></span>

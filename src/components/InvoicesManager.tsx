@@ -528,11 +528,19 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                                 e.stopPropagation();
                                 if (invoice.parentInvoiceNumber) setSearchTerm(invoice.parentInvoiceNumber);
                               }}
-                              className="bg-indigo-100 hover:bg-indigo-200 text-indigo-950 px-1.5 py-0.5 rounded text-[10px] font-bold border border-indigo-200 flex items-center gap-1 transition cursor-pointer text-right"
+                              className="bg-purple-50 hover:bg-purple-100 text-purple-950 px-2 py-1 rounded-md text-[10px] font-black border border-purple-300 flex flex-col gap-0.5 transition cursor-pointer text-right shadow-2xs group"
                               title="فاتورة نواقص محولة لمخزن أكتوبر المركزي - انقر للبحث عن الفاتورة الأساسية"
                             >
-                              <span>🚚 فاتورة نواقص (أكتوبر)</span>
-                              {invoice.parentInvoiceNumber && <span className="text-indigo-700 font-mono">#{invoice.parentInvoiceNumber}</span>}
+                              <div className="flex items-center gap-1 text-purple-900 font-black">
+                                <span>🚚 فاتورة نواقص (مخزن أكتوبر)</span>
+                              </div>
+                              {invoice.parentInvoiceNumber && (
+                                <div className="flex items-center gap-1 text-[9px] text-purple-700 font-mono">
+                                  <span>الأصلية:</span>
+                                  <span className="font-bold underline">#{invoice.parentInvoiceNumber}</span>
+                                  <ExternalLink className="w-2.5 h-2.5 shrink-0 text-purple-600" />
+                                </div>
+                              )}
                             </button>
                           )}
                           {invoice.hasShortageSplit && (
@@ -542,16 +550,24 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                                 e.stopPropagation();
                                 if (invoice.shortageInvoiceNumber) setSearchTerm(invoice.shortageInvoiceNumber);
                               }}
-                              className="bg-amber-100 hover:bg-amber-200 text-amber-950 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-300 flex items-center gap-1 transition cursor-pointer text-right"
-                              title="فاتورة الأصناف المتوفرة - تم فصل النواقص - انقر للبحث عن فاتورة النواقص"
+                              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-950 px-2 py-1 rounded-md text-[10px] font-black border border-emerald-300 flex flex-col gap-0.5 transition cursor-pointer text-right shadow-2xs group"
+                              title="فاتورة الأصناف المتوفرة بالمخزن - تم فصل النواقص - انقر للبحث عن فاتورة النواقص"
                             >
-                              <span>📦 متوفر (نواقص: {invoice.shortageInvoiceNumber})</span>
-                              <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                              <div className="flex items-center gap-1 text-emerald-900 font-black">
+                                <span>📦 أصناف متوفرة (بالمخزن)</span>
+                              </div>
+                              {invoice.shortageInvoiceNumber && (
+                                <div className="flex items-center gap-1 text-[9px] text-emerald-700 font-mono">
+                                  <span>نواقص:</span>
+                                  <span className="font-bold underline">#{invoice.shortageInvoiceNumber}</span>
+                                  <ExternalLink className="w-2.5 h-2.5 shrink-0 text-emerald-600" />
+                                </div>
+                              )}
                             </button>
                           )}
                           {!invoice.isShortageInvoice && !invoice.hasShortageSplit && (
-                            <span className="bg-teal-50 text-teal-800 px-1.5 py-0.5 rounded text-[10px] font-bold border border-teal-200">
-                              📦 أصناف متوفرة
+                            <span className="bg-emerald-50 text-emerald-900 px-2 py-1 rounded-md text-[10px] font-black border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                              <span>✅ فاتورة مكتملة متوفرة بالمخزن</span>
                             </span>
                           )}
                         </div>

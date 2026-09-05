@@ -276,6 +276,7 @@ export interface Invoice {
   customerBalanceBefore?: number;
   customerCreditLimit?: number;
   customerBalanceAfter?: number;
+  customerOverdueBalance?: number;
   creditLimitExceeded?: boolean;
   requiredDownPayment?: number;
 

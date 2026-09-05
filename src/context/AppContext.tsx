@@ -2278,6 +2278,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     const custBalanceBefore = Number(matchedCustomer?.currentBalance ?? matchedCustomer?.balance ?? 0);
+    const custOverdue = Number(matchedCustomer?.totalOverdueAndDue ?? matchedCustomer?.overdueBalance ?? 0);
     const custCreditLimit = Number(
       matchedCustomer?.creditLimit !== undefined && matchedCustomer?.creditLimit !== null
         ? matchedCustomer.creditLimit
@@ -2319,6 +2320,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       customerBalanceBefore: custBalanceBefore,
       customerCreditLimit: custCreditLimit,
       customerBalanceAfter: custBalanceAfter,
+      customerOverdueBalance: custOverdue,
       creditLimitExceeded: isCreditExceeded,
       requiredDownPayment: reqPayment,
       qrPayload: `DREAM-EINV-${newInvoiceNumber}|${orderData.customerTaxNumber || 'GEN'}|${primaryTotals.estimatedGrandTotal.toFixed(2)}|${primaryTotals.taxAmount.toFixed(2)}|${formattedDate}`,
@@ -2330,6 +2332,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const shortageItems = buildInvoiceItems(shortageCartItems);
       const shortageTotals = calculateTotals(shortageItems);
       const shortageInvoiceNumber = `${newInvoiceNumber}-NQ`;
+      const shortageBalanceAfter = custBalanceBefore + shortageTotals.estimatedGrandTotal;
+      const shortageCreditExceeded = custCreditLimit > 0 && shortageBalanceAfter > custCreditLimit;
+      const shortageReqPayment = shortageCreditExceeded ? Math.max(0, shortageBalanceAfter - custCreditLimit) : 0;
 
       createdShortageInvoice = {
         id: `inv-${Date.now() + 1}`,
@@ -2361,6 +2366,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isShortageInvoice: true,
         parentInvoiceId: primaryInvoice.id,
         parentInvoiceNumber: primaryInvoice.invoiceNumber,
+        customerBalanceBefore: custBalanceBefore,
+        customerCreditLimit: custCreditLimit,
+        customerBalanceAfter: shortageBalanceAfter,
+        customerOverdueBalance: custOverdue,
+        creditLimitExceeded: shortageCreditExceeded,
+        requiredDownPayment: shortageReqPayment,
         qrPayload: `DREAM-EINV-${shortageInvoiceNumber}|${orderData.customerTaxNumber || 'GEN'}|${shortageTotals.estimatedGrandTotal.toFixed(2)}|${shortageTotals.taxAmount.toFixed(2)}|${formattedDate}`,
       };
     }
