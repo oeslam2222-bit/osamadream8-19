@@ -475,18 +475,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return isAuth && (hasUserId || hasUserData);
   });
 
-  const getStrictVariantKey = (p: Product): string => {
-    const code = String(p.code || '').trim().toLowerCase();
-    const color = String(p.color || '').trim().toLowerCase();
-    const size = String(p.size || '').trim().toLowerCase();
-    const branch = String(p.branchName || '').trim().toLowerCase();
-    return `${code}:::${color}:::${size}:::${branch}`;
-  };
-
   const sanitizeProducts = (list: Product[]): Product[] => {
     const deduped = new Map<string, Product>();
     list.forEach((p) => {
-      const key = getStrictVariantKey(p);
+      const key = String(p.id || '').trim();
+      if (!key) return;
       if (!deduped.has(key)) {
         deduped.set(key, p);
       }
@@ -999,49 +992,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const variantKey = (p: Product) => [p.code, p.color, p.size, p.branchName]
                 .map((value) => String(value || '').trim().toLowerCase())
                 .join(':::');
-              const localByVariant = new Map<string, Product>();
-              prev.forEach((p) => localByVariant.set(variantKey(p), p));
+              const localById = new Map<string, Product>();
+              prev.forEach((p) => localById.set(p.id, p));
 
-              const remoteByVariant = new Map<string, Product>();
-              res.products!.forEach((rp) => remoteByVariant.set(variantKey(rp), rp));
+              const remoteByVariant = new Map<string, Product[]>();
+              res.products!.forEach((rp) => {
+                const key = variantKey(rp);
+                if (!remoteByVariant.has(key)) remoteByVariant.set(key, []);
+                remoteByVariant.get(key)!.push(rp);
+              });
 
-              const merged: Product[] = [];
+              const merged = new Map<string, Product>();
+              const usedRemoteKeys = new Set<string>();
 
-              // Match cloud rows by the business key, not only by generated id.
-              // This prevents an old catalog with different ids from being appended
-              // again after a 5,300-row replacement upload.
-              if (prev.length > 0) {
-                localByVariant.forEach((localP, key) => {
-                  const remoteP = remoteByVariant.get(key);
-                  if (!remoteP) {
-                    merged.push(localP);
-                  } else {
-                    merged.push({
-                      ...remoteP,
-                      id: localP.id,
-                      branchStocks: (remoteP.branchStocks && Object.keys(remoteP.branchStocks).length > 0)
-                        ? remoteP.branchStocks
-                        : localP.branchStocks,
-                      cartonQuantity: remoteP.cartonQuantity || localP.cartonQuantity,
-                      factor: remoteP.factor || localP.factor,
-                      piecePrice: remoteP.piecePrice || localP.piecePrice,
-                      cartonPrice: remoteP.cartonPrice || localP.cartonPrice,
-                      promoPrice: remoteP.promoPrice ?? localP.promoPrice,
-                      promoPiecePrice: remoteP.promoPiecePrice ?? localP.promoPiecePrice,
-                      branchStockReserved: localP.branchStockReserved < remoteP.branchStockActual ? localP.branchStockReserved : remoteP.branchStockActual,
-                      mainWarehouseReserved: localP.mainWarehouseReserved < remoteP.mainWarehouseActual ? localP.mainWarehouseReserved : remoteP.mainWarehouseActual,
-                    });
-                  }
-                });
+              localById.forEach((localP) => {
+                const key = variantKey(localP);
+                const remoteList = remoteByVariant.get(key) || [];
+                if (remoteList.length > 0) {
+                  const remoteP = remoteList[0];
+                  usedRemoteKeys.add(key);
+                  merged.set(localP.id, {
+                    ...remoteP,
+                    id: localP.id,
+                    branchStocks: (remoteP.branchStocks && Object.keys(remoteP.branchStocks).length > 0)
+                      ? remoteP.branchStocks
+                      : localP.branchStocks,
+                    cartonQuantity: remoteP.cartonQuantity || localP.cartonQuantity,
+                    factor: remoteP.factor || localP.factor,
+                    piecePrice: remoteP.piecePrice || localP.piecePrice,
+                    cartonPrice: remoteP.cartonPrice || localP.cartonPrice,
+                    promoPrice: remoteP.promoPrice ?? localP.promoPrice,
+                    promoPiecePrice: remoteP.promoPiecePrice ?? localP.promoPiecePrice,
+                    branchStockReserved: localP.branchStockReserved < remoteP.branchStockActual ? localP.branchStockReserved : remoteP.branchStockActual,
+                    mainWarehouseReserved: localP.mainWarehouseReserved < remoteP.mainWarehouseActual ? localP.mainWarehouseReserved : remoteP.mainWarehouseActual,
+                  });
+                } else {
+                  merged.set(localP.id, localP);
+                }
+              });
 
-                remoteByVariant.forEach((remoteP, key) => {
-                  if (!localByVariant.has(key)) merged.push(remoteP);
-                });
-              } else {
-                remoteByVariant.forEach((remoteP) => merged.push(remoteP));
-              }
+              remoteByVariant.forEach((remoteList, key) => {
+                if (!usedRemoteKeys.has(key)) {
+                  remoteList.forEach((rp) => {
+                    merged.set(rp.id, rp);
+                  });
+                }
+              });
 
-              return sanitizeProducts(merged);
+              return sanitizeProducts(Array.from(merged.values()));
             });
           }
         });
@@ -1142,7 +1140,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 ? JSON.parse(raw.items)
                 : [];
               if (remoteProducts.length > 0) {
-                setProducts(sanitizeProducts(remoteProducts));
+                setProducts((prev) => {
+                  const remoteById = new Map<string, Product>();
+                  remoteProducts.forEach((rp) => {
+                    const sanitized = sanitizeProducts([rp])[0];
+                    remoteById.set(sanitized.id, sanitized);
+                  });
+                  const merged = new Map<string, Product>();
+                  prev.forEach((p) => merged.set(p.id, p));
+                  remoteById.forEach((rp, id) => {
+                    const existing = merged.get(id);
+                    if (existing) {
+                      merged.set(id, { ...existing, ...rp, id: existing.id });
+                    } else {
+                      merged.set(id, rp);
+                    }
+                  });
+                  return sanitizeProducts(Array.from(merged.values()));
+                });
               }
             } else if (raw && raw.id === '00000000-0000-0000-0000-000000000002' && raw.items) {
               const remoteUsers: User[] = Array.isArray(raw.items)
@@ -2255,22 +2270,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const getProductVariantKey = (p: Product): string =>
       [p.code, p.color, p.size, p.branchName].map(normalizeKeyPart).join(':::');
 
-    const incomingByKey = new Map<string, Product>();
+    const incomingById = new Map<string, Product>();
     newProducts.forEach((raw) => {
       const incoming = sanitizeProducts([raw])[0];
-      const key = getProductVariantKey(incoming);
-      // If the sheet contains the same variant more than once, the last row is authoritative.
-      incomingByKey.set(key, incoming);
+      const key = incoming.id;
+      incomingById.set(key, incoming);
     });
 
-    const existingByKey = new Map<string, Product>();
+    const existingById = new Map<string, Product>();
     const duplicateIds = new Set<string>();
     products.forEach((product) => {
-      const key = getProductVariantKey(product);
-      if (existingByKey.has(key)) {
+      if (existingById.has(product.id)) {
         duplicateIds.add(product.id);
       } else {
-        existingByKey.set(key, product);
+        existingById.set(product.id, product);
       }
     });
 
@@ -2279,7 +2292,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return {
         ...(existing || incoming),
         id: existing?.id || incoming.id,
-        // These are the only daily fields intentionally refreshed from the sheet.
         branchStockActual: incoming.branchStockActual,
         mainWarehouseActual: incoming.mainWarehouseActual,
         branchStocks: incoming.branchStocks,
@@ -2299,8 +2311,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     let finalUpdated: Product[];
     if (mode === 'replace') {
-      finalUpdated = Array.from(incomingByKey.values()).map((incoming) =>
-        updateDailyFields(existingByKey.get(getProductVariantKey(incoming)), incoming)
+      finalUpdated = Array.from(incomingById.values()).map((incoming) =>
+        updateDailyFields(existingById.get(incoming.id), incoming)
       );
     } else {
       const merged = new Map<string, Product>();
@@ -2309,8 +2321,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           merged.set(product.id, product);
         }
       });
-      incomingByKey.forEach((incoming, key) => {
-        const updated = updateDailyFields(existingByKey.get(key), incoming);
+      incomingById.forEach((incoming) => {
+        const updated = updateDailyFields(existingById.get(incoming.id), incoming);
         merged.set(updated.id, updated);
       });
       finalUpdated = Array.from(merged.values());
