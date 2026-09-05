@@ -979,18 +979,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetchProductsFromSupabase().then((res) => {
           if (res.success && res.products && res.products.length > 0) {
             setProducts((prev) => {
-              // Merge remote products while preserving local reserved counts
               const localMap = new Map<string, Product>();
               prev.forEach((p) => localMap.set(p.id, p));
-              const merged = res.products!.map((remoteP) => {
-                const localP = localMap.get(remoteP.id);
-                if (!localP) return remoteP;
-                return {
-                  ...remoteP,
-                  branchStockReserved: localP.branchStockReserved < remoteP.branchStockActual ? localP.branchStockReserved : remoteP.branchStockActual,
-                  mainWarehouseReserved: localP.mainWarehouseReserved < remoteP.mainWarehouseActual ? localP.mainWarehouseReserved : remoteP.mainWarehouseActual,
-                };
-              });
+
+              const remoteMap = new Map<string, Product>();
+              res.products!.forEach((rp) => remoteMap.set(rp.id, rp));
+
+              const merged: Product[] = [];
+
+              // If local catalog has items (e.g. user imported 5130 products from Excel),
+              // iterate through local products first so NO products are ever dropped!
+              if (prev.length > 0) {
+                prev.forEach((localP) => {
+                  const remoteP = remoteMap.get(localP.id);
+                  if (!remoteP) {
+                    merged.push(localP);
+                  } else {
+                    merged.push({
+                      ...remoteP,
+                      // Preserve rich multi-branch stocks (Fayoum, etc.) if remote record is missing them
+                      branchStocks: (remoteP.branchStocks && Object.keys(remoteP.branchStocks).length > 0)
+                        ? remoteP.branchStocks
+                        : localP.branchStocks,
+                      cartonQuantity: remoteP.cartonQuantity || localP.cartonQuantity,
+                      factor: remoteP.factor || localP.factor,
+                      piecePrice: remoteP.piecePrice || localP.piecePrice,
+                      cartonPrice: remoteP.cartonPrice || localP.cartonPrice,
+                      promoPrice: remoteP.promoPrice ?? localP.promoPrice,
+                      promoPiecePrice: remoteP.promoPiecePrice ?? localP.promoPiecePrice,
+                      branchStockReserved: localP.branchStockReserved < remoteP.branchStockActual ? localP.branchStockReserved : remoteP.branchStockActual,
+                      mainWarehouseReserved: localP.mainWarehouseReserved < remoteP.mainWarehouseActual ? localP.mainWarehouseReserved : remoteP.mainWarehouseActual,
+                    });
+                  }
+                });
+
+                // Add any remote products not found locally
+                res.products!.forEach((remoteP) => {
+                  if (!localMap.has(remoteP.id)) {
+                    merged.push(remoteP);
+                  }
+                });
+              } else {
+                // If local state was empty, load remote products directly
+                merged.push(...res.products!);
+              }
+
               return sanitizeProducts(merged);
             });
           }

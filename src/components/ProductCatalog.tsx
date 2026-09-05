@@ -363,7 +363,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     let result = products.filter((p) => {
       // Branch filter if not 'الكل'
       if (selectedBranchFilter !== 'الكل' && p.branchName && p.branchName !== selectedBranchFilter) {
-        if (p.mainWarehouseActual <= 0 && p.branchStockActual <= 0) return false;
+        const bStock = getProductBranchStock(p);
+        if (p.mainWarehouseActual <= 0 && bStock <= 0 && p.branchStockActual <= 0) return false;
       }
 
       // Search match

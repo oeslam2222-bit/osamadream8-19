@@ -757,25 +757,45 @@ function stringToUuid(str: string): string {
   return `${hex}-${part2}-${part3}-${part4}-${part5}`;
 }
 
+const CATALOG_CHUNK_PREFIX = 'dream_catalog_chunk_';
+const CATALOG_MANIFEST_ID = 'dream_catalog_manifest';
+const CHUNK_SIZE = 400;
+
 /**
  * Save / Upsert full products catalog into Supabase
- * Uses standard products table + rich orders sync snapshot for immediate real-time sync across all devices
+ * Uses chunked snapshot in shared store for 100% full rich sync (including Fayoum & all branch stocks)
+ * + standard products table upsert
  */
 export async function saveProductsToSupabase(products: Product[]): Promise<{ success: boolean; error?: string }> {
   try {
-    // 1. Save full rich catalog snapshot to shared orders payload so reps & supervisors get immediate 100% full sync
+    if (!products || products.length === 0) return { success: true };
+
+    // 1. Save rich chunked snapshot into shared store so all 5000+ items and branch stocks are 100% preserved
+    const totalChunks = Math.ceil(products.length / CHUNK_SIZE);
     try {
+      // Save manifest first
       await supabase.from('orders').upsert({
-        id: CATALOG_SYNC_STORE_ID,
-        status: 'catalog_sync_snapshot',
+        id: CATALOG_MANIFEST_ID,
+        status: 'catalog_sync_manifest',
         total: products.length,
-        items: products as any,
+        items: { totalChunks, totalProducts: products.length, updatedAt: new Date().toISOString() } as any,
       });
+
+      // Save each chunk
+      for (let i = 0; i < totalChunks; i++) {
+        const chunk = products.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        await supabase.from('orders').upsert({
+          id: `${CATALOG_CHUNK_PREFIX}${i}`,
+          status: 'catalog_sync_chunk',
+          total: chunk.length,
+          items: chunk as any,
+        });
+      }
     } catch (storeErr) {
-      console.warn('Catalog snapshot store fallback:', storeErr);
+      console.warn('Catalog snapshot chunk store fallback:', storeErr);
     }
 
-    // 2. Also upsert into standard products table
+    // 2. Also upsert into standard products table in chunks
     const payload = products.map((p) => {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p.id);
       const safeId = isUuid ? p.id : stringToUuid(p.id);
@@ -807,10 +827,49 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
 
 /**
  * Fetch products catalog from Supabase
+ * Safely fetches all products without being capped at Supabase's default 1,000 row limit
  */
 export async function fetchProductsFromSupabase(): Promise<{ success: boolean; products?: Product[]; error?: string }> {
   try {
-    // 1. Check if full catalog snapshot exists in shared store
+    // 1. Check if chunked rich catalog snapshot exists
+    const { data: manifestData, error: manErr } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', CATALOG_MANIFEST_ID)
+      .limit(1);
+
+    if (!manErr && manifestData && manifestData.length > 0 && manifestData[0].items) {
+      const rawManifest = manifestData[0].items as any;
+      const totalChunks = rawManifest?.totalChunks;
+      if (typeof totalChunks === 'number' && totalChunks > 0) {
+        const chunkPromises: Promise<any>[] = [];
+        for (let i = 0; i < totalChunks; i++) {
+          chunkPromises.push(
+            Promise.resolve(
+              supabase.from('orders').select('items').eq('id', `${CATALOG_CHUNK_PREFIX}${i}`).limit(1)
+            )
+          );
+        }
+        const chunkResults = await Promise.allSettled(chunkPromises);
+        const allItems: Product[] = [];
+        chunkResults.forEach((res) => {
+          if (res.status === 'fulfilled' && res.value?.data && res.value.data.length > 0) {
+            const raw = res.value.data[0].items;
+            const list: Product[] = Array.isArray(raw)
+              ? raw
+              : typeof raw === 'string'
+              ? JSON.parse(raw)
+              : [];
+            allItems.push(...list);
+          }
+        });
+        if (allItems.length > 0) {
+          return { success: true, products: allItems };
+        }
+      }
+    }
+
+    // 2. Fallback: Check if single catalog snapshot exists
     const { data: snapshotData, error: snapErr } = await supabase
       .from('orders')
       .select('*')
@@ -829,10 +888,26 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
       }
     }
 
-    // 2. Fallback: select from standard products table
-    const { data: prodData, error: pErr } = await supabase.from('products').select('*');
-    if (!pErr && prodData && prodData.length > 0) {
-      const mapped: Product[] = prodData.map((p: any) => ({
+    // 3. Fallback: Paginated select from standard products table (overcomes default 1,000 row cap)
+    const pageSize = 1000;
+    let page = 0;
+    const allProdData: any[] = [];
+
+    while (true) {
+      const { data: chunk, error: pErr } = await supabase
+        .from('products')
+        .select('*')
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (pErr || !chunk || chunk.length === 0) break;
+      allProdData.push(...chunk);
+      if (chunk.length < pageSize) break;
+      page++;
+      if (page >= 35) break; // Safety limit
+    }
+
+    if (allProdData.length > 0) {
+      const mapped: Product[] = allProdData.map((p: any) => ({
         id: p.id,
         code: p.code || p.name?.slice(0, 8) || 'PRD',
         name: p.name || 'صنف دريم',

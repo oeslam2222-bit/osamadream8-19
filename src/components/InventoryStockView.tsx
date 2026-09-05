@@ -141,12 +141,16 @@ export const InventoryStockView: React.FC = () => {
     return products.filter((p) => {
       // Operating-branch stock is scoped to the user's branch. October's central
       // warehouse balance remains visible to everyone for availability and booking.
+      const bStock = getProductBranchStock(p);
+      const oStock = p.mainWarehouseActual || 0;
+
       if (
         visibleBranch !== 'الكل' &&
         visibleBranch &&
         p.branchName &&
         p.branchName !== visibleBranch &&
-        p.mainWarehouseActual <= 0
+        bStock <= 0 &&
+        oStock <= 0
       ) {
         return false;
       }
@@ -164,9 +168,6 @@ export const InventoryStockView: React.FC = () => {
       if (selectedCategory !== 'الكل' && p.category !== selectedCategory) {
         return false;
       }
-
-      const bStock = getProductBranchStock(p);
-      const oStock = p.mainWarehouseActual || 0;
 
       if (stockLevelFilter === 'offers') {
         if (!p.promoPrice && !p.promoPiecePrice && !p.offerPrice) return false;
@@ -1214,7 +1215,8 @@ export const InventoryStockView: React.FC = () => {
                   <option value={250}>250 صنف</option>
                   <option value={500}>500 صنف</option>
                   <option value={1000}>1000 صنف</option>
-                  <option value={5000}>عرض الكل ({filteredProducts.length} صنف)</option>
+                  <option value={2500}>2500 صنف</option>
+                  <option value={50000}>عرض الكل ({filteredProducts.length} صنف)</option>
                 </select>
                 <span>من إجمالي <strong className="text-slate-900">{filteredProducts.length}</strong> صنف</span>
               </div>
