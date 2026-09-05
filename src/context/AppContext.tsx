@@ -20,6 +20,7 @@ import {
   normalizeArabicText,
   getBranchStockForProduct,
   inferBranchFromText,
+  sanitizeAndDeduplicateUsers,
 } from '../services/arabicMatchingService';
 import {
   deleteUserFromSupabase,
@@ -97,6 +98,12 @@ interface AppContextType {
     unmatchedReps: string[];
   };
   autoCreateMissingRepsFromCustomers: () => { createdUsers: User[]; count: number; message: string };
+  mergeDuplicateUsers: () => Promise<{
+    success: boolean;
+    message: string;
+    mergedCount: number;
+    details: string[];
+  }>;
 
   // Auth actions
   login: (identifier: string, password?: string) => Promise<{ success: boolean; message: string; user?: User }>;
@@ -288,14 +295,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             });
           }
         });
-      const unique = new Map<string, User>();
-      for (const user of userMap.values()) {
-        const key = `${String(user.username || '').trim().toLowerCase()}|${String(user.email || '').trim().toLowerCase()}|${String(user.name || '').trim().replace(/\s+/g, ' ')}`;
-        if (!unique.has(key) || user.approvalStatus === 'active') unique.set(key, user);
-      }
-      return Array.from(unique.values());
+      const rawUsers = Array.from(userMap.values());
+      const dedupResult = sanitizeAndDeduplicateUsers(rawUsers);
+      return dedupResult.deduplicated;
     } catch {
-      return Array.from(userMap.values());
+      const dedupResult = sanitizeAndDeduplicateUsers(Array.from(userMap.values()));
+      return dedupResult.deduplicated;
     }
   });
 
@@ -737,7 +742,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const map = new Map<string, User>();
             prev.forEach((u) => map.set(u.id, u));
             idbUsers.forEach((u) => map.set(u.id, u));
-            return Array.from(map.values());
+            const dedup = sanitizeAndDeduplicateUsers(Array.from(map.values()));
+            return dedup.deduplicated;
           });
         }
       } catch (err) {
@@ -890,30 +896,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Initial Supabase connection check, fetch users, products, invoices & real-time sync
   useEffect(() => {
-    // 0. Load offline items from IndexedDB if present
-    idbGet<Product[]>(STORAGE_KEYS.PRODUCTS).then((idbProducts) => {
-      if (idbProducts && idbProducts.length > 0) {
-        setProducts((prev) => {
-          if (prev.length <= INITIAL_PRODUCTS.length) {
-            return sanitizeProducts(idbProducts);
-          }
-          return prev;
-        });
-      }
-    });
-
-    idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS).then((idbCustomers) => {
-      if (idbCustomers && idbCustomers.length > 0) {
-        setCustomers(idbCustomers);
-      }
-    });
-
-    idbGet<Invoice[]>(STORAGE_KEYS.INVOICES).then((idbInvoices) => {
-      if (idbInvoices && idbInvoices.length > 0) {
-        setInvoices(idbInvoices);
-      }
-    });
-
     testSupabaseConnection().then((status) => {
       setSupabaseStatus(status);
       if (status.connected) {
@@ -924,7 +906,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const map = new Map<string, User>();
               prev.forEach((u) => map.set(u.id, u));
               res.users!.forEach((su) => map.set(su.id, su));
-              return Array.from(map.values());
+              const dedup = sanitizeAndDeduplicateUsers(Array.from(map.values()));
+              // If duplicate IDs were detected and cleaned, delete them permanently from Supabase
+              if (dedup.removedUserIds.length > 0) {
+                dedup.removedUserIds.forEach((remId) => {
+                  deleteUserFromSupabase(remId).catch(() => {});
+                });
+                // Remap customer references
+                setCustomers((prevCusts) => {
+                  let changed = false;
+                  const updated = prevCusts.map((c) => {
+                    if (c.repId && dedup.idRedirectMap[c.repId]) {
+                      changed = true;
+                      return { ...c, repId: dedup.idRedirectMap[c.repId] };
+                    }
+                    return c;
+                  });
+                  return changed ? updated : prevCusts;
+                });
+                // Remap invoice references
+                setInvoices((prevInvs) => {
+                  let changed = false;
+                  const updated = prevInvs.map((inv) => {
+                    if (inv.repId && dedup.idRedirectMap[inv.repId]) {
+                      changed = true;
+                      return { ...inv, repId: dedup.idRedirectMap[inv.repId] };
+                    }
+                    return inv;
+                  });
+                  return changed ? updated : prevInvs;
+                });
+              }
+              return dedup.deduplicated;
             });
           }
         });
@@ -1153,10 +1166,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Auto-link customer rep names to actual user accounts with robust branch matching & Arabic heuristics
   const linkCustomersToUsers = (list: Customer[], userList: User[]): Customer[] => {
-    if (!userList || userList.length === 0) return list;
+    if (!userList || userList.length === 0 || !list || list.length === 0) return list;
 
     const reps = userList.filter((u) => u.role === 'sales_rep' || u.role === 'supervisor' || u.role === 'branch_manager');
-    console.log('[linkCustomersToUsers] reps=', reps.map((u) => ({ id: u.id, name: u.name, role: u.role, branch: u.branchName })));
+    if (reps.length === 0) return list;
+
+    // Pre-index reps for ultra-fast matching
+    const preparedReps = reps.map((u) => ({
+      user: u,
+      normName: normalizeArabicText(u.name),
+      normBranch: u.branchName ? normalizeBranchName(u.branchName) : '',
+    }));
+
+    // Cache lookup results to avoid re-running match algorithms for duplicate rep names
+    const repMatchCache = new Map<string, User | null>();
 
     return list.map((c) => {
       let updated = { ...c };
@@ -1173,24 +1196,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       const rawRep = (updated.salesRepName || updated.repName || '').trim();
-      if ((!rawRep || rawRep === 'مندوب المبيعات' || rawRep === 'المندوب') && !updated.repId) {
+      if ((!rawRep || rawRep === 'مندوب المبيعات' || rawRep === 'المندوب' || rawRep === 'غير محدد') && !updated.repId) {
         return updated;
       }
 
-      const matchFn = (u: User) => {
-        if (
-          u.role === 'sales_rep' &&
-          updated.branchName &&
-          u.branchName &&
-          !isBranchMatch(updated.branchName, u.branchName, { allowUnassigned: false })
-        ) {
-          return false;
-        }
-        return isArabicNameMatch(rawRep, u.name);
-      };
+      let matched: User | null = null;
+      if (rawRep && rawRep !== 'مندوب المبيعات' && rawRep !== 'المندوب') {
+        const cacheKey = `${rawRep}:::${updated.branchName || ''}`;
+        if (repMatchCache.has(cacheKey)) {
+          matched = repMatchCache.get(cacheKey)!;
+        } else {
+          const normRep = normalizeArabicText(rawRep);
+          // 1. Direct normalized name match in branch
+          const direct = preparedReps.find((pr) => {
+            if (
+              updated.branchName &&
+              pr.normBranch &&
+              !isBranchMatch(updated.branchName, pr.user.branchName, { allowUnassigned: false })
+            ) {
+              return false;
+            }
+            return pr.normName === normRep;
+          });
 
-      let matched = reps.find(matchFn);
-      console.log('[linkCustomersToUsers] customer=', c.name, 'rawRep=', rawRep, 'branch=', updated.branchName, 'matched=', matched?.name);
+          if (direct) {
+            matched = direct.user;
+          } else {
+            // 2. Fuzzy Arabic match
+            const fuzzy = preparedReps.find((pr) => {
+              if (
+                updated.branchName &&
+                pr.normBranch &&
+                !isBranchMatch(updated.branchName, pr.user.branchName, { allowUnassigned: false })
+              ) {
+                return false;
+              }
+              return isArabicNameMatch(rawRep, pr.user.name);
+            });
+            matched = fuzzy ? fuzzy.user : null;
+          }
+          repMatchCache.set(cacheKey, matched);
+        }
+      }
 
       if (matched) {
         return {
@@ -1311,8 +1358,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let addedAny = false;
 
     repNamesMap.forEach(({ name, branchName }) => {
+      const normIncoming = normalizeArabicText(name);
       const exists = newUsersList.some(
-        (u) => (u.role === 'sales_rep' || u.role === 'supervisor') && isArabicNameMatch(name, u.name)
+        (u) =>
+          (u.role === 'sales_rep' || u.role === 'supervisor') &&
+          (normalizeArabicText(u.name) === normIncoming || isArabicNameMatch(name, u.name))
       );
       if (!exists) {
         const cleanId = `rep_${name.replace(/\s+/g, '_').toLowerCase()}_${Date.now().toString().slice(-4)}`;
@@ -1357,21 +1407,92 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
-  // Auto-link customers to users when either side arrives from storage or Supabase.
-  useEffect(() => {
-    console.log('[LinkEffect] Triggered', { usersCount: users.length, customersCount: customers.length });
-    if (users.length === 0 || customers.length === 0) return;
+  const mergeDuplicateUsers = async (): Promise<{
+    success: boolean;
+    message: string;
+    mergedCount: number;
+    details: string[];
+  }> => {
+    const dedup = sanitizeAndDeduplicateUsers(users);
+    if (dedup.mergedCount === 0) {
+      return {
+        success: true,
+        message: 'جميع حسابات الموظفين سليمة ومطابقة 100% ولا توجد أي حسابات مكررة.',
+        mergedCount: 0,
+        details: [],
+      };
+    }
+
+    setUsers(dedup.deduplicated);
+    safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(dedup.deduplicated));
+    idbSet(STORAGE_KEYS.USERS, dedup.deduplicated);
+
+    // Remap customers
     setCustomers((prev) => {
+      let changed = false;
+      const updated = prev.map((c) => {
+        if (c.repId && dedup.idRedirectMap[c.repId]) {
+          changed = true;
+          return { ...c, repId: dedup.idRedirectMap[c.repId] };
+        }
+        return c;
+      });
+      if (changed) {
+        idbSet(STORAGE_KEYS.CUSTOMERS, updated);
+      }
+      return changed ? updated : prev;
+    });
+
+    // Remap invoices
+    setInvoices((prev) => {
+      let changed = false;
+      const updated = prev.map((inv) => {
+        if (inv.repId && dedup.idRedirectMap[inv.repId]) {
+          changed = true;
+          return { ...inv, repId: dedup.idRedirectMap[inv.repId] };
+        }
+        return inv;
+      });
+      if (changed) {
+        idbSet(STORAGE_KEYS.INVOICES, updated);
+      }
+      return changed ? updated : prev;
+    });
+
+    // Delete duplicate IDs from Supabase permanently
+    for (const remId of dedup.removedUserIds) {
+      await deleteUserFromSupabase(remId).catch(() => {});
+    }
+    await saveUsersToSupabase(dedup.deduplicated).catch(() => {});
+
+    const details = dedup.mergedPairs.map(
+      (p) => `تم دمج حساب المندوب [${p.keptUser.name}] بفرع (${p.keptUser.branchName || 'العام'}) وحذف الحساب المكرر (${p.removedUsername || p.removedId})`
+    );
+
+    return {
+      success: true,
+      message: `تم دمج وتنظيف ${dedup.mergedCount} حساب مكرر بنجاح وتحديث كافة الارتباطات.`,
+      mergedCount: dedup.mergedCount,
+      details,
+    };
+  };
+
+  // Auto-link customers to users in memory safely when users arrive or change, without network loops
+  const lastUsersFingerprintRef = React.useRef<string>('');
+  useEffect(() => {
+    if (users.length === 0 || customers.length === 0) return;
+    const currentFingerprint = users.map((u) => `${u.id}:${u.name}:${u.branchName}`).join('|');
+    if (lastUsersFingerprintRef.current === currentFingerprint) return;
+    lastUsersFingerprintRef.current = currentFingerprint;
+
+    setCustomers((prev) => {
+      const needsLinking = prev.some((c) => (c.salesRepName || c.repName) && !c.repId);
+      if (!needsLinking && prev.length > 0) return prev;
       const linked = linkCustomersToUsers(prev, users);
-      const changed = linked.some(
-        (c, i) => c.repId !== prev[i]?.repId || c.branchName !== prev[i]?.branchName || c.salesRepName !== prev[i]?.salesRepName
-      );
-      console.log('[LinkEffect] changed=', changed, 'prevCount=', prev.length, 'linkedCount=', linked.length);
-      if (!changed) return prev;
-      saveCustomersToSupabase(linked).catch(() => {});
+      idbSet(STORAGE_KEYS.CUSTOMERS, linked).catch(() => {});
       return linked;
     });
-  }, [users, customers]);
+  }, [users]);
 
   // Sync high-capacity data directly to IndexedDB (preventing LocalStorage quota overflow)
   useEffect(() => {
@@ -3451,6 +3572,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cleanAndDeduplicateCustomers,
         refreshCustomerRepLinks,
         autoCreateMissingRepsFromCustomers,
+        mergeDuplicateUsers,
         login,
         register,
         logout,

@@ -607,35 +607,17 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
     (t) => !['مندوب', 'المندوب', 'استاذ', 'الاستاذ', 'كابتن', 'مهندس', 'مسؤول', 'مسئول', 'فرع', 'مبيعات', 'المبيعات'].includes(t)
   );
 
-  // 2. Direct Match by Name / Username / Phone on the customer's rep fields
-  const repCandidates = [
-    customer.salesRepName,
-    customer.repName,
-    // Some imported sheets store the representative name in the repId column.
-    customer.repId,
-    (customer as any).rep,
-    (customer as any).delegateName,
-    (customer as any).salesRep,
-    (customer as any).sales_rep,
-    (customer as any).rep_name,
-    (customer as any).representative_name,
-    // Preserve compatibility with older imports that kept the original column names.
-    ...Object.entries(customer as unknown as Record<string, unknown>)
-      .filter(([key, value]) => {
-        const normalizedKey = key.toLowerCase().replace(/[\s_-]/g, '');
-        return (
-          typeof value === 'string' &&
-          (normalizedKey.includes('rep') ||
-            normalizedKey.includes('sales') ||
-            normalizedKey.includes('delegate') ||
-            normalizedKey.includes('representative') ||
-            normalizedKey.includes('مندوب'))
-        );
-      })
-      .map(([, value]) => value),
-  ]
-    .filter((val): val is string => typeof val === 'string' && val.trim().length > 0)
-    .map((s) => s.trim());
+  const rawAny = customer as any;
+  const repCandidates: string[] = [];
+  if (customer.salesRepName) repCandidates.push(customer.salesRepName);
+  if (customer.repName && customer.repName !== customer.salesRepName) repCandidates.push(customer.repName);
+  if (customer.repId && customer.repId !== customer.salesRepName && customer.repId !== customer.repName) repCandidates.push(customer.repId);
+  if (rawAny.rep) repCandidates.push(rawAny.rep);
+  if (rawAny.delegateName) repCandidates.push(rawAny.delegateName);
+  if (rawAny.salesRep) repCandidates.push(rawAny.salesRep);
+  if (rawAny.sales_rep) repCandidates.push(rawAny.sales_rep);
+  if (rawAny.rep_name) repCandidates.push(rawAny.rep_name);
+  if (rawAny.representative_name) repCandidates.push(rawAny.representative_name);
 
   // Also check if notes contains explicit rep declaration (e.g. "المندوب: أحمد علاء" or "أحمد علاء")
   if (customer.notes && typeof customer.notes === 'string') {
@@ -808,5 +790,147 @@ export function getBranchStockForProduct(product: Product, targetBranch?: string
 
   // 4. Fallback to product.branchStockActual if unassigned
   return product.branchStockActual || 0;
+}
+
+/**
+ * Normalizes branch names consistently across system data and customers.
+ */
+export function normalizeBranchName(name?: string): string {
+  if (!name || !name.trim()) return 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+  const clean = name.trim();
+  const inferred = inferBranchFromText(clean);
+  if (inferred) return inferred;
+  if (!clean.startsWith('فرع') && !clean.includes('المخزن')) {
+    return `فرع ${clean}`;
+  }
+  return clean;
+}
+
+export interface UserDeduplicationResult {
+  deduplicated: User[];
+  mergedCount: number;
+  removedUserIds: string[];
+  idRedirectMap: Record<string, string>; // maps removedId -> keptId
+  mergedPairs: {
+    keptUser: User;
+    removedId: string;
+    removedUsername: string;
+    reason: string;
+  }[];
+}
+
+/**
+ * Robust User Deduplication & Sanitization Engine
+ * Detects duplicated accounts for the same sales representative or supervisor across branches,
+ * merges their properties intelligently, and returns a redirect mapping for IDs.
+ */
+export function sanitizeAndDeduplicateUsers(userList: User[]): UserDeduplicationResult {
+  if (!Array.isArray(userList)) {
+    return { deduplicated: [], mergedCount: 0, removedUserIds: [], idRedirectMap: {}, mergedPairs: [] };
+  }
+
+  const result: User[] = [];
+  const removedUserIds: string[] = [];
+  const idRedirectMap: Record<string, string> = {};
+  const mergedPairs: { keptUser: User; removedId: string; removedUsername: string; reason: string }[] = [];
+
+  for (const rawUser of userList) {
+    if (!rawUser) continue;
+    const u: User = {
+      ...rawUser,
+      name: (rawUser.name || '').trim(),
+      username: (rawUser.username || '').trim(),
+      email: (rawUser.email || '').trim(),
+      branchName: normalizeBranchName(rawUser.branchName),
+    };
+
+    // System accounts (Admin / Developer) are protected
+    if (u.id === 'u-admin-osama' || u.role === 'developer' || u.role === 'admin') {
+      const existingIdx = result.findIndex(
+        (ex) => ex.id === u.id || (u.email && ex.email?.toLowerCase() === u.email.toLowerCase())
+      );
+      if (existingIdx >= 0) {
+        result[existingIdx] = { ...result[existingIdx], ...u };
+      } else {
+        result.push(u);
+      }
+      continue;
+    }
+
+    const normName = normalizeArabicText(u.name);
+    // Find if another user already exists with matching Arabic name and compatible branch/role
+    const matchIdx = result.findIndex((ex) => {
+      // Must have compatible role (both field reps / supervisors)
+      const roleMatch =
+        ex.role === u.role ||
+        ((ex.role === 'sales_rep' || ex.role === 'supervisor') && (u.role === 'sales_rep' || u.role === 'supervisor'));
+      if (!roleMatch) return false;
+
+      // Check branch compatibility:
+      if (ex.branchName && u.branchName && !isBranchMatch(ex.branchName, u.branchName, { allowUnassigned: false })) {
+        return false;
+      }
+
+      const exNorm = normalizeArabicText(ex.name);
+      return exNorm === normName || isArabicNameMatch(ex.name, u.name);
+    });
+
+    if (matchIdx >= 0) {
+      // Duplicate found!
+      const existing = result[matchIdx];
+      // Priority for keeping:
+      // Prefer standard 'u-rep-' or 'u-sup-' over generated 'rep_..._1234'
+      const existingIsStandard = existing.id.startsWith('u-rep-') || existing.id.startsWith('u-sup-');
+      const currentIsStandard = u.id.startsWith('u-rep-') || u.id.startsWith('u-sup-');
+
+      let kept: User;
+      let removed: User;
+
+      if (currentIsStandard && !existingIsStandard) {
+        // Keep current (standard ID), drop existing
+        kept = {
+          ...existing,
+          ...u,
+          password: u.password || existing.password || '',
+          supervisorId: u.supervisorId || existing.supervisorId,
+          phone: u.phone || existing.phone,
+          email: u.email || existing.email,
+        };
+        removed = existing;
+        result[matchIdx] = kept;
+      } else {
+        // Keep existing, drop current
+        kept = {
+          ...u,
+          ...existing,
+          password: existing.password || u.password || '',
+          supervisorId: existing.supervisorId || u.supervisorId,
+          phone: existing.phone || u.phone,
+          email: existing.email || u.email,
+        };
+        removed = u;
+        result[matchIdx] = kept;
+      }
+
+      removedUserIds.push(removed.id);
+      idRedirectMap[removed.id] = kept.id;
+      mergedPairs.push({
+        keptUser: kept,
+        removedId: removed.id,
+        removedUsername: removed.username,
+        reason: `تطابق الاسم [${kept.name}] والفرع [${kept.branchName || 'العام'}]`,
+      });
+    } else {
+      result.push(u);
+    }
+  }
+
+  return {
+    deduplicated: result,
+    mergedCount: removedUserIds.length,
+    removedUserIds,
+    idRedirectMap,
+    mergedPairs,
+  };
 }
 

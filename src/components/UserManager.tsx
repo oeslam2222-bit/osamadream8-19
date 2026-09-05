@@ -38,7 +38,12 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { doesCustomerBelongToRep } from '../services/arabicMatchingService';
+import {
+  doesCustomerBelongToRep,
+  isArabicNameMatch,
+  normalizeArabicText,
+  sanitizeAndDeduplicateUsers,
+} from '../services/arabicMatchingService';
 import { formatCurrency } from '../services/invoiceService';
 import { User, UserApprovalStatus, UserRole } from '../types';
 
@@ -58,6 +63,7 @@ export const UserManager: React.FC = () => {
     loginAs,
     refreshCustomerRepLinks,
     autoCreateMissingRepsFromCustomers,
+    mergeDuplicateUsers,
   } = useApp();
 
   const [showAddUserModal, setShowAddUserModal] = useState(false);
@@ -69,6 +75,8 @@ export const UserManager: React.FC = () => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [syncToast, setSyncToast] = useState<string | null>(null);
   const [syncModalData, setSyncModalData] = useState<{ open: boolean; result?: any } | null>(null);
+  const [isMergingDuplicates, setIsMergingDuplicates] = useState<boolean>(false);
+  const [mergeModalData, setMergeModalData] = useState<{ open: boolean; message: string; details: string[] } | null>(null);
   const [viewingRepUser, setViewingRepUser] = useState<User | null>(null);
   const [repCustomerSearchTerm, setRepCustomerSearchTerm] = useState<string>('');
   const [autoCreateFeedback, setAutoCreateFeedback] = useState<string | null>(null);
@@ -311,23 +319,76 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     return activeUsers.slice((usersPage - 1) * USERS_PER_PAGE, usersPage * USERS_PER_PAGE);
   }, [activeUsers, usersPage]);
 
-  // Fast memoized customer count map for the visible reps (computed in microseconds for max 25 users)
+  // High-performance single-pass customer count map for all sales reps
   const repCustomerCountMap = useMemo(() => {
     const map = new Map<string, number>();
-    const repUsers = visibleUsers.filter((u) => u.role === 'sales_rep');
-    if (repUsers.length === 0 || customers.length === 0) return map;
+    if (customers.length === 0 || users.length === 0) return map;
+
+    const repUsers = users.filter((u) => u.role === 'sales_rep');
+    const idToRepId = new Map<string, string>();
+    const normNameToRepId = new Map<string, string>();
 
     for (const rep of repUsers) {
-      let count = 0;
-      for (const c of customers) {
-        if (doesCustomerBelongToRep(c, rep)) {
-          count++;
+      map.set(rep.id, 0);
+      idToRepId.set(rep.id, rep.id);
+      if (rep.username) idToRepId.set(rep.username.toLowerCase(), rep.id);
+      const norm = normalizeArabicText(rep.name);
+      if (norm) normNameToRepId.set(norm, rep.id);
+    }
+
+    for (const c of customers) {
+      let matchedRepId: string | undefined;
+
+      if (c.repId) {
+        matchedRepId = idToRepId.get(c.repId) || idToRepId.get(c.repId.toLowerCase());
+      }
+
+      if (!matchedRepId) {
+        const rawName = (c.salesRepName || c.repName || '').trim();
+        if (rawName && rawName !== 'مندوب المبيعات' && rawName !== 'المندوب') {
+          const norm = normalizeArabicText(rawName);
+          matchedRepId = normNameToRepId.get(norm);
+          if (!matchedRepId) {
+            for (const rep of repUsers) {
+              if (isArabicNameMatch(rawName, rep.name)) {
+                matchedRepId = rep.id;
+                break;
+              }
+            }
+          }
         }
       }
-      map.set(rep.id, count);
+
+      if (matchedRepId && map.has(matchedRepId)) {
+        map.set(matchedRepId, (map.get(matchedRepId) || 0) + 1);
+      }
     }
+
     return map;
-  }, [visibleUsers, customers]);
+  }, [users, customers]);
+
+  // Real-time audit for duplicated accounts
+  const duplicateCheck = useMemo(() => {
+    return sanitizeAndDeduplicateUsers(users);
+  }, [users]);
+
+  const handleMergeDuplicates = async () => {
+    try {
+      setIsMergingDuplicates(true);
+      const res = await mergeDuplicateUsers();
+      setMergeModalData({
+        open: true,
+        message: res.message,
+        details: res.details,
+      });
+      setSyncToast(res.message);
+      setTimeout(() => setSyncToast(null), 5000);
+    } catch {
+      setSyncToast('حدث خطأ أثناء فحص ودمج الحسابات.');
+    } finally {
+      setIsMergingDuplicates(false);
+    }
+  };
 
   // Fast memoized supervisors per branch map
   const supervisorsByBranchMap = useMemo(() => {
@@ -549,6 +610,18 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
           <div className="flex items-center flex-wrap gap-2">
             {isSuperAdminOrDev && (
               <button
+                onClick={handleMergeDuplicates}
+                disabled={isMergingDuplicates}
+                className="flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-emerald-400 font-black px-4 py-3 rounded-2xl text-xs shadow-md transition active:scale-95 cursor-pointer border border-slate-700"
+                title="فحص حسابات الموظفين والمناديب المكررة ودمجها وتوحيد السجلات"
+              >
+                <Sparkles className={`w-3.5 h-3.5 text-emerald-400 ${isMergingDuplicates ? 'animate-spin' : ''}`} />
+                <span>{isMergingDuplicates ? 'جاري الفحص والدمج...' : 'فحص ودمج الحسابات المكررة'}</span>
+              </button>
+            )}
+
+            {isSuperAdminOrDev && (
+              <button
                 onClick={() => {
                   const res = refreshCustomerRepLinks();
                   setSyncModalData({ open: true, result: res });
@@ -584,6 +657,32 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
           <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 text-emerald-950 rounded-2xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{syncToast}</span>
+          </div>
+        )}
+
+        {duplicateCheck.mergedCount > 0 && isSuperAdminOrDev && (
+          <div className="mt-4 bg-amber-50 border-2 border-amber-400 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-in fade-in">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-800 flex items-center justify-center font-black shrink-0">
+                <Sparkles className="w-5 h-5 text-amber-700 animate-bounce" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-slate-900">
+                  تم رصد {duplicateCheck.mergedCount} حساب مكرر في النظام (تكرار نفس المندوب أو المشرف)
+                </p>
+                <p className="text-xs text-slate-600 mt-0.5 font-medium">
+                  {duplicateCheck.mergedPairs.map((p) => `[${p.keptUser.name} - ${p.keptUser.branchName || 'العام'}]`).join(' • ')}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleMergeDuplicates}
+              disabled={isMergingDuplicates}
+              className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-black text-xs px-5 py-2.5 rounded-xl shadow transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+            >
+              <Check className="w-4 h-4" />
+              <span>{isMergingDuplicates ? 'جاري الدمج والتنظيف...' : 'دمج الحسابات المكررة الآن'}</span>
+            </button>
           </div>
         )}
       </div>
@@ -1757,6 +1856,67 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-bold text-xs cursor-pointer"
               >
                 إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: DUPLICATE MERGE RESULTS */}
+      {mergeModalData?.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="p-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-white">تقرير فحص ودمج الحسابات المكررة</h3>
+                  <p className="text-xs text-slate-300 mt-0.5">تنظيف وتوحيد سجلات الموظفين والمناديب</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setMergeModalData(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4">
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3">
+                <Check className="w-5 h-5 text-emerald-600 shrink-0" />
+                <span className="text-sm font-black text-emerald-950">{mergeModalData.message}</span>
+              </div>
+
+              {mergeModalData.details.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-black text-slate-700">تفاصيل الحسابات التي تم دمجها وتوحيدها:</h4>
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    {mergeModalData.details.map((detail, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 flex items-start gap-2"
+                      >
+                        <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5">
+                          {idx + 1}
+                        </span>
+                        <span className="leading-relaxed">{detail}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setMergeModalData(null)}
+                className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-black text-xs cursor-pointer shadow-sm transition"
+              >
+                تم، إغلاق
               </button>
             </div>
           </div>
