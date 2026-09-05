@@ -981,25 +981,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetchProductsFromSupabase().then((res) => {
           if (res.success && res.products && res.products.length > 0) {
             setProducts((prev) => {
-              const localMap = new Map<string, Product>();
-              prev.forEach((p) => localMap.set(p.id, p));
+              const variantKey = (p: Product) => [p.code, p.color, p.size, p.branchName]
+                .map((value) => String(value || '').trim().toLowerCase())
+                .join(':::');
+              const localByVariant = new Map<string, Product>();
+              prev.forEach((p) => localByVariant.set(variantKey(p), p));
 
-              const remoteMap = new Map<string, Product>();
-              res.products!.forEach((rp) => remoteMap.set(rp.id, rp));
+              const remoteByVariant = new Map<string, Product>();
+              res.products!.forEach((rp) => remoteByVariant.set(variantKey(rp), rp));
 
               const merged: Product[] = [];
 
-              // If local catalog has items (e.g. user imported 5130 products from Excel),
-              // iterate through local products first so NO products are ever dropped!
+              // Match cloud rows by the business key, not only by generated id.
+              // This prevents an old catalog with different ids from being appended
+              // again after a 5,300-row replacement upload.
               if (prev.length > 0) {
-                prev.forEach((localP) => {
-                  const remoteP = remoteMap.get(localP.id);
+                localByVariant.forEach((localP, key) => {
+                  const remoteP = remoteByVariant.get(key);
                   if (!remoteP) {
                     merged.push(localP);
                   } else {
                     merged.push({
                       ...remoteP,
-                      // Preserve rich multi-branch stocks (Fayoum, etc.) if remote record is missing them
+                      id: localP.id,
                       branchStocks: (remoteP.branchStocks && Object.keys(remoteP.branchStocks).length > 0)
                         ? remoteP.branchStocks
                         : localP.branchStocks,
@@ -1015,15 +1019,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   }
                 });
 
-                // Add any remote products not found locally
-                res.products!.forEach((remoteP) => {
-                  if (!localMap.has(remoteP.id)) {
-                    merged.push(remoteP);
-                  }
+                remoteByVariant.forEach((remoteP, key) => {
+                  if (!localByVariant.has(key)) merged.push(remoteP);
                 });
               } else {
-                // If local state was empty, load remote products directly
-                merged.push(...res.products!);
+                remoteByVariant.forEach((remoteP) => merged.push(remoteP));
               }
 
               return sanitizeProducts(merged);
@@ -3235,7 +3235,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const updated: Invoice = {
           ...i,
           status,
-          cancellationReason: isNowReturnedOrCancelled ? (reason || i.cancellationReason || 'إلغاء الطلبية') : i.cancellationReason,
+          cancellationReason: isNowReturnedOrCancelled ? (reason || i.cancellationReason || 'إلغاء ��لطلبية') : i.cancellationReason,
           cancelledBy: isNowReturnedOrCancelled ? (currentUser?.name || 'مسؤول النظام') : i.cancelledBy,
           cancelledAt: isNowReturnedOrCancelled ? `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true })}` : i.cancelledAt,
           restoredStockDetails: isNowReturnedOrCancelled ? `تم استرجاع ${inv.totalCartons} كرتونة إلى المخزن` : i.restoredStockDetails,
@@ -3398,7 +3398,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           totalRefundedAmount: allRefunded,
           netAmountAfterReturns: netGrandTotal,
           lastReturnDate: dateStr,
-          restoredStockDetails: `تم استرجاع ${totalReturnedCartons} كرتونة بقيمة ${totalRefundAmount.toLocaleString()} ج.م (إذن #${returnVoucherNumber})`,
+          restoredStockDetails: `تم است��جاع ${totalReturnedCartons} كرتونة بقيمة ${totalRefundAmount.toLocaleString()} ج.م (إذن #${returnVoucherNumber})`,
           notes: `${i.notes ? i.notes + ' | ' : ''}مرتجع ${isFullReturn ? 'كلي' : 'جزئي'} إذن #${returnVoucherNumber} بقيمة ${totalRefundAmount.toLocaleString()} ج.م (${reason})`,
         };
         saveInvoiceToSupabase(updated).catch((e) => console.warn('Supabase return sync failed:', e));
