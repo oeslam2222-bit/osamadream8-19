@@ -1809,9 +1809,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80`
     };
 
-    setUsers((prev) => [...prev, newUser]);
-    // Save to Supabase asynchronously
-    saveUserToSupabase(newUser).catch((e) => console.warn('Supabase auto-save user failed:', e));
+    const nextUsers = [...users, newUser];
+    setUsers(nextUsers);
+    // Save the new account and the complete snapshot so every device can find it.
+    saveUserToSupabase(newUser, nextUsers).then((result) => {
+      if (!result.success) {
+        console.warn('[v0] Supabase auto-save user failed:', result.error);
+      }
+    }).catch((e) => console.warn('[v0] Supabase auto-save user failed:', e));
 
     recordAuditLog({
       userId: newUser.id,
@@ -2349,7 +2354,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const userSupervisor = currentUser?.supervisorId
       ? users.find((u) => u.id === currentUser.supervisorId)?.name
-      : 'مشرف عام الفرع';
+      : 'مشرف ��ام الفرع';
 
     // Sales reps only submit a request. Approval, transfer, and stock deduction belong to supervisors/managers.
     const isDirectManager = currentUser?.role === 'admin' || currentUser?.role === 'branch_manager';
@@ -3230,7 +3235,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: inv.branchName,
       action: status === 'مرتجع' ? 'return_invoice' : isNowReturnedOrCancelled ? 'cancel_invoice' : 'update_invoice_status',
       actionTitle: `تحديث حالة الفاتورة #${inv.invoiceNumber} إلى (${status})`,
-      details: `العميل: ${inv.customerName} • الحالة السابقة: (${oldStatus}) ⬅️ الحالة الجديدة: (${status}) ${reason ? `• السبب / الملاحظات: ${reason}` : ''}`,
+      details: `العميل: ${inv.customerName} • الحالة السابقة: (${oldStatus}) ��️ الحالة الجديدة: (${status}) ${reason ? `• السبب / الملاحظات: ${reason}` : ''}`,
       invoiceId: inv.id,
       invoiceNumber: inv.invoiceNumber,
       badgeType: status === 'تم التسليم' || status === 'معتمدة ومصروفة من المخزن' ? 'success' : isNowReturnedOrCancelled ? 'danger' : 'info',

@@ -466,9 +466,15 @@ export async function saveUserToSupabase(user: User, currentUsersList?: User[]):
       created_at: user.registrationDate || new Date().toISOString(),
     };
 
-    // 1. Parallel fast upsert to tables
+    // The users table is the source of truth for login. Do not hide an upsert error,
+    // otherwise the employee appears saved locally but cannot log in on another device.
+    const { error: usersError } = await supabase.from('users').upsert(userPayload);
+    if (usersError) {
+      return { success: false, error: `تعذر حفظ المستخدم في جدول users: ${usersError.message}` };
+    }
+
+    // profiles is only a compatibility mirror and may not exist in every project.
     const tablePromises: Promise<any>[] = [
-      Promise.resolve(supabase.from('users').upsert(userPayload)),
       Promise.resolve(
         supabase.from('profiles').upsert({
           id: user.id,
