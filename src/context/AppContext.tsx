@@ -2218,7 +2218,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return prevBranches;
     });
 
-    // Intelligently calculate currently active reservations from pending invoices to prevent overwriting sales rep reserves
+    // Keep reservations safe while allowing the daily sheet to change only stock and image URL.
     const reservedPiecesByProduct = new Map<string, number>();
     invoices.forEach((inv) => {
       if (
@@ -2228,8 +2228,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         inv.status === 'جاري التجهيز'
       ) {
         inv.items.forEach((item) => {
-          const current = reservedPiecesByProduct.get(item.productId) || 0;
-          reservedPiecesByProduct.set(item.productId, current + item.totalUnits);
+          reservedPiecesByProduct.set(
+            item.productId,
+            (reservedPiecesByProduct.get(item.productId) || 0) + item.totalUnits
+          );
         });
       }
     });
@@ -2238,48 +2240,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const getProductVariantKey = (p: Product): string =>
       [p.code, p.color, p.size, p.branchName].map(normalizeKeyPart).join(':::');
 
-    const existingByKey = new Map(products.map((p) => [getProductVariantKey(p), p]));
-    const importedByKey = new Map<string, Product>();
+    const incomingByKey = new Map<string, Product>();
     newProducts.forEach((raw) => {
       const incoming = sanitizeProducts([raw])[0];
       const key = getProductVariantKey(incoming);
-      // Last row wins inside the same upload, preventing duplicate rows from one sheet.
-      importedByKey.set(key, incoming);
+      // If the sheet contains the same variant more than once, the last row is authoritative.
+      incomingByKey.set(key, incoming);
     });
 
-    let finalUpdated: Product[] = [];
+    const existingByKey = new Map<string, Product>();
+    const duplicateIds = new Set<string>();
+    products.forEach((product) => {
+      const key = getProductVariantKey(product);
+      if (existingByKey.has(key)) {
+        duplicateIds.add(product.id);
+      } else {
+        existingByKey.set(key, product);
+      }
+    });
+
+    const updateDailyFields = (existing: Product | undefined, incoming: Product): Product => {
+      const activePending = reservedPiecesByProduct.get(existing?.id || incoming.id) || 0;
+      return {
+        ...(existing || incoming),
+        id: existing?.id || incoming.id,
+        // These are the only daily fields intentionally refreshed from the sheet.
+        branchStockActual: incoming.branchStockActual,
+        mainWarehouseActual: incoming.mainWarehouseActual,
+        branchStocks: incoming.branchStocks,
+        imageUrl: incoming.imageUrl || existing?.imageUrl,
+        unifiedCode: incoming.unifiedCode || existing?.unifiedCode,
+        branchStockReserved: Math.min(
+          incoming.branchStockActual,
+          Math.max(existing?.branchStockReserved || 0, activePending)
+        ),
+        mainWarehouseReserved: Math.min(
+          incoming.mainWarehouseActual,
+          existing?.mainWarehouseReserved || 0
+        ),
+        createdAt: existing?.createdAt || incoming.createdAt,
+      };
+    };
+
+    let finalUpdated: Product[];
     if (mode === 'replace') {
-      finalUpdated = sanitizeProducts(Array.from(importedByKey.values()).map((incoming) => {
-        const existing = existingByKey.get(getProductVariantKey(incoming));
-        const activePending = reservedPiecesByProduct.get(existing?.id || incoming.id) || 0;
-        return {
-          ...incoming,
-          id: existing?.id || incoming.id,
-          branchStockReserved: Math.min(
-            incoming.branchStockActual,
-            Math.max(existing?.branchStockReserved || 0, activePending)
-          ),
-        };
-      }));
+      finalUpdated = Array.from(incomingByKey.values()).map((incoming) =>
+        updateDailyFields(existingByKey.get(getProductVariantKey(incoming)), incoming)
+      );
     } else {
-      const merged = new Map(products.map((p) => [p.id, p]));
-      importedByKey.forEach((incoming, key) => {
-        const existing = existingByKey.get(key);
-        const activePending = reservedPiecesByProduct.get(existing?.id || incoming.id) || 0;
-        const mergedProduct: Product = {
-          ...(existing || incoming),
-          ...incoming,
-          id: existing?.id || incoming.id,
-          createdAt: existing?.createdAt || incoming.createdAt,
-          branchStockReserved: Math.min(
-            incoming.branchStockActual,
-            Math.max(existing?.branchStockReserved || 0, activePending)
-          ),
-        };
-        merged.set(mergedProduct.id, mergedProduct);
+      const merged = new Map<string, Product>();
+      products.forEach((product) => {
+        if (!duplicateIds.has(product.id)) {
+          merged.set(product.id, product);
+        }
       });
-      finalUpdated = sanitizeProducts(Array.from(merged.values()));
+      incomingByKey.forEach((incoming, key) => {
+        const updated = updateDailyFields(existingByKey.get(key), incoming);
+        merged.set(updated.id, updated);
+      });
+      finalUpdated = Array.from(merged.values());
     }
+
+    finalUpdated = sanitizeProducts(finalUpdated);
     setProducts(finalUpdated);
 
     // Persist full catalog to Supabase so reps & branch supervisors instantly receive it on all devices
@@ -2661,7 +2683,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         invoiceId: primaryInvoice.id,
         invoiceNumber: newInvoiceNumber,
         notes: isFromMain
-          ? `حجز صنف نواقص من المخزن المركزي بأكتوبر للطلبية #${newInvoiceNumber}`
+          ? `حجز صنف نواقص من المخزن ال��ركزي بأكتوبر للطلبية #${newInvoiceNumber}`
           : isDirectManager
           ? `اعتماد وصرف فوري للطلبية #${newInvoiceNumber}`
           : `حجز رصيد للطلبية #${newInvoiceNumber} لمنع تكرار الحجز (قيد مراجعة واعتماد المشرف)`,
@@ -3454,7 +3476,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       userRole: currentUser?.role || 'admin',
       branchName: target?.branchName || 'الفرع الرئيسي',
       action: 'delete_invoice',
-      actionTitle: `حذف الفاتورة #${targetNumber || targetId} نهائياً`,
+      actionTitle: `حذف ��لفاتورة #${targetNumber || targetId} نهائياً`,
       details: `تم حذف الفاتورة نهائياً من قاعدة البيانات والسيرفر • العميل: ${target?.customerName || 'عام'} • القيمة: ${target?.estimatedGrandTotal?.toLocaleString() || 0} ج.م`,
       invoiceId: targetId,
       invoiceNumber: targetNumber,
