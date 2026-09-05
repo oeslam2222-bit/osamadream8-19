@@ -712,6 +712,35 @@ export async function fetchInvoicesFromSupabase(limit = 200): Promise<{ success:
 }
 
 /**
+ * Delete invoice / order from Supabase permanently
+ */
+export async function deleteInvoiceFromSupabase(
+  invoiceId: string,
+  invoiceNumber?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // 1. Delete by primary ID from 'invoices'
+    await supabase.from('invoices').delete().eq('id', invoiceId);
+
+    // 2. Delete by invoice_number from 'invoices' if available
+    if (invoiceNumber) {
+      await supabase.from('invoices').delete().eq('invoice_number', invoiceNumber);
+    }
+
+    // 3. Fallback table 'orders'
+    await supabase.from('orders').delete().eq('id', invoiceId);
+    if (invoiceNumber) {
+      await supabase.from('orders').delete().eq('invoice_number', invoiceNumber);
+    }
+
+    return { success: true };
+  } catch (e: any) {
+    console.warn('Supabase delete invoice exception:', e);
+    return { success: false, error: e?.message };
+  }
+}
+
+/**
  * Deterministic UUID v4 generator from string (for consistent product IDs in Supabase)
  */
 function stringToUuid(str: string): string {

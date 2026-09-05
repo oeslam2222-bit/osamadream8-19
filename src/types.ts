@@ -348,6 +348,7 @@ export type AuditActionType =
   | 'approve_invoice'
   | 'cancel_invoice'
   | 'return_invoice'
+  | 'delete_invoice'
   | 'import_products'
   | 'stock_adjustment'
   | 'user_login'

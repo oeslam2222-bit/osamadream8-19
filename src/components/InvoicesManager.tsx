@@ -768,13 +768,15 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           {/* Delete (Admin & Developer only) */}
                           {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
                             <button
-                              onClick={() => {
-                                if (window.confirm(`هل أنت متأكد من حذف الفاتورة رقم ${invoice.invoiceNumber} نهائياً؟`)) {
-                                  deleteInvoice(invoice.id);
+                              onClick={async () => {
+                                if (window.confirm(`هل أنت متأكد من حذف الفاتورة رقم ${invoice.invoiceNumber} نهائياً من النظام والسيرفر؟`)) {
+                                  await deleteInvoice(invoice.id);
+                                  setSuccessToast(`تم حذف الفاتورة #${invoice.invoiceNumber} نهائياً بنجاح`);
+                                  setTimeout(() => setSuccessToast(null), 3500);
                                 }
                               }}
                               className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg transition cursor-pointer"
-                              title="حذف الفاتورة نهائياً"
+                              title="حذف الفاتورة نهائياً من السيرفر والنظام"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>

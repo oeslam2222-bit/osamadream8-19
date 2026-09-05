@@ -1255,11 +1255,11 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                           {/* Delete (Admin & Developer only) */}
                           {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
                             <button
-                              onClick={() => {
-                                if (window.confirm(`هل أنت متأكد من حذف الفاتورة رقم ${inv.invoiceNumber} نهائياً؟`)) {
-                                  deleteInvoice(inv.id);
-                                  setSuccessToast(`تم حذف الفاتورة رقم ${inv.invoiceNumber}`);
-                                  setTimeout(() => setSuccessToast(null), 3000);
+                              onClick={async () => {
+                                if (window.confirm(`هل أنت متأكد من حذف الفاتورة رقم ${inv.invoiceNumber} نهائياً من النظام والسيرفر؟`)) {
+                                  await deleteInvoice(inv.id);
+                                  setSuccessToast(`تم حذف الفاتورة رقم ${inv.invoiceNumber} نهائياً بنجاح`);
+                                  setTimeout(() => setSuccessToast(null), 3500);
                                 }
                               }}
                               className="bg-rose-100 hover:bg-rose-200 text-rose-700 p-1.5 rounded-lg transition cursor-pointer"

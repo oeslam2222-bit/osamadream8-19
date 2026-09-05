@@ -23,6 +23,7 @@ import {
   sanitizeAndDeduplicateUsers,
 } from '../services/arabicMatchingService';
 import {
+  deleteInvoiceFromSupabase,
   deleteUserFromSupabase,
   fetchCustomersFromSupabase,
   fetchInvoicesFromSupabase,
@@ -164,7 +165,7 @@ interface AppContextType {
     reason: string,
     restockToInventory?: boolean
   ) => { success: boolean; message: string; returnRecord?: ReturnRecord };
-  deleteInvoice: (invoiceId: string) => void;
+  deleteInvoice: (invoiceId: string) => Promise<void>;
   syncToAccounting: (invoiceId: string) => Promise<boolean>;
 
   // User Management & Approval Actions
@@ -220,7 +221,28 @@ const STORAGE_KEYS = {
   CURRENT_USER_DATA: 'dream_dist_current_user_session_v10',
   IS_AUTH: 'dream_dist_is_auth_v9',
   ACCOUNTING_LOGS: 'dream_dist_acc_logs_v9',
-  CART: 'dream_dist_cart_v9'
+  CART: 'dream_dist_cart_v9',
+  DELETED_INVOICE_IDS: 'dream_dist_deleted_invoices_v1',
+};
+
+const getDeletedInvoiceIds = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.DELETED_INVOICE_IDS);
+    if (!raw) return new Set<string>();
+    const parsed = JSON.parse(raw);
+    return new Set<string>(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set<string>();
+  }
+};
+
+const markInvoiceAsDeletedInStorage = (id: string, invoiceNumber?: string) => {
+  try {
+    const current = getDeletedInvoiceIds();
+    if (id) current.add(id);
+    if (invoiceNumber) current.add(invoiceNumber);
+    localStorage.setItem(STORAGE_KEYS.DELETED_INVOICE_IDS, JSON.stringify(Array.from(current)));
+  } catch {}
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -597,8 +619,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.INVOICES);
-    return saved ? JSON.parse(saved) : INITIAL_INVOICES;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.INVOICES);
+      const deletedSet = getDeletedInvoiceIds();
+      const list: Invoice[] = saved ? JSON.parse(saved) : INITIAL_INVOICES;
+      return list.filter((i) => !deletedSet.has(i.id) && !deletedSet.has(i.invoiceNumber));
+    } catch {
+      return INITIAL_INVOICES;
+    }
   });
 
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -732,7 +760,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setProducts(sanitizeProducts(idbProducts));
         }
         if (idbInvoices && Array.isArray(idbInvoices) && idbInvoices.length > 0) {
-          setInvoices(idbInvoices);
+          const deletedSet = getDeletedInvoiceIds();
+          setInvoices(idbInvoices.filter((i) => !deletedSet.has(i.id) && !deletedSet.has(i.invoiceNumber)));
         }
         if (idbCustomers && Array.isArray(idbCustomers) && idbCustomers.length > 0) {
           setCustomers(sanitizeCustomers(idbCustomers));
@@ -840,12 +869,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const invRes = await fetchInvoicesFromSupabase();
         if (invRes.success && invRes.invoices && invRes.invoices.length > 0) {
-          fetchedInvoicesCount = invRes.invoices.length;
+          const deletedSet = getDeletedInvoiceIds();
+          const validInvoices = invRes.invoices.filter((si) => !deletedSet.has(si.id) && !deletedSet.has(si.invoiceNumber));
+          fetchedInvoicesCount = validInvoices.length;
           setInvoices((prev) => {
             const invMap = new Map<string, Invoice>();
-            prev.forEach((i) => invMap.set(i.id, i));
-            prev.forEach((i) => invMap.set(i.invoiceNumber, i));
-            invRes.invoices!.forEach((si) => {
+            prev.filter((i) => !deletedSet.has(i.id) && !deletedSet.has(i.invoiceNumber)).forEach((i) => {
+              invMap.set(i.id, i);
+              invMap.set(i.invoiceNumber, i);
+            });
+            validInvoices.forEach((si) => {
               invMap.set(si.id, si);
               invMap.set(si.invoiceNumber, si);
             });
@@ -966,10 +999,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // 3. Fetch Invoices
         fetchInvoicesFromSupabase().then((res) => {
           if (res.success && res.invoices && res.invoices.length > 0) {
+            const deletedSet = getDeletedInvoiceIds();
+            const validInvoices = res.invoices.filter((si) => !deletedSet.has(si.id) && !deletedSet.has(si.invoiceNumber));
             setInvoices((prev) => {
               const map = new Map<string, Invoice>();
-              prev.forEach((i) => map.set(i.id, i));
-              res.invoices!.forEach((si) => map.set(si.id, si));
+              prev.filter((i) => !deletedSet.has(i.id) && !deletedSet.has(i.invoiceNumber)).forEach((i) => map.set(i.id, i));
+              validInvoices.forEach((si) => map.set(si.id, si));
               return Array.from(map.values());
             });
           }
@@ -996,6 +1031,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             const raw = payload.new as any;
             if (raw && raw.id) {
+              const deletedSet = getDeletedInvoiceIds();
+              if (deletedSet.has(raw.id) || (raw.invoice_number && deletedSet.has(raw.invoice_number))) {
+                return;
+              }
               const mappedInv: Invoice = {
                 id: raw.id,
                 invoiceNumber: raw.invoice_number || raw.invoiceNumber || 'DRM-INV',
@@ -3315,8 +3354,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
-  const deleteInvoice = (invoiceId: string) => {
-    setInvoices((prev) => prev.filter((inv) => inv.id !== invoiceId));
+  const deleteInvoice = async (invoiceId: string): Promise<void> => {
+    const target = invoices.find((inv) => inv.id === invoiceId || inv.invoiceNumber === invoiceId);
+    const targetId = target?.id || invoiceId;
+    const targetNumber = target?.invoiceNumber;
+
+    // 1. Mark as permanently deleted in local persistent storage so it is never re-added
+    markInvoiceAsDeletedInStorage(targetId, targetNumber);
+
+    // 2. Remove immediately from local state
+    setInvoices((prev) =>
+      prev.filter((inv) => inv.id !== targetId && (!targetNumber || inv.invoiceNumber !== targetNumber))
+    );
+
+    // 3. Immediately persist updated invoices to IndexedDB and LocalStorage
+    const remaining = invoices.filter(
+      (inv) => inv.id !== targetId && (!targetNumber || inv.invoiceNumber !== targetNumber)
+    );
+    idbSet(STORAGE_KEYS.INVOICES, remaining).catch(() => {});
+    safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify(remaining));
+
+    // 4. Record Audit Log
+    recordAuditLog({
+      userId: currentUser?.id || 'admin',
+      userName: currentUser?.name || 'مسؤول النظام',
+      userRole: currentUser?.role || 'admin',
+      branchName: target?.branchName || 'الفرع الرئيسي',
+      action: 'delete_invoice',
+      actionTitle: `حذف الفاتورة #${targetNumber || targetId} نهائياً`,
+      details: `تم حذف الفاتورة نهائياً من قاعدة البيانات والسيرفر • العميل: ${target?.customerName || 'عام'} • القيمة: ${target?.estimatedGrandTotal?.toLocaleString() || 0} ج.م`,
+      invoiceId: targetId,
+      invoiceNumber: targetNumber,
+      badgeType: 'danger',
+    });
+
+    // 5. Delete permanently from Supabase
+    try {
+      await deleteInvoiceFromSupabase(targetId, targetNumber);
+    } catch (e) {
+      console.warn('Supabase invoice deletion failed:', e);
+    }
   };
 
   const syncToAccounting = async (invoiceId: string): Promise<boolean> => {

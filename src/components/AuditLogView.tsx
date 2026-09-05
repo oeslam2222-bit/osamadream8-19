@@ -184,6 +184,8 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ onViewInvoice }) => 
         return <CheckCircle2 className="w-4 h-4 text-emerald-600" />;
       case 'cancel_invoice':
         return <XCircle className="w-4 h-4 text-rose-600" />;
+      case 'delete_invoice':
+        return <Trash2 className="w-4 h-4 text-rose-600" />;
       case 'return_invoice':
         return <ShieldAlert className="w-4 h-4 text-orange-600" />;
       case 'update_invoice_status':
