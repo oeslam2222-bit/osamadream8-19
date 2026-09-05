@@ -3465,7 +3465,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       map.set(user.id, user);
       return Array.from(map.values());
     });
-    saveUserToSupabase(user).catch((e) => console.warn('Supabase save user failed:', e));
+    saveUserToSupabase(user, users).catch((e) => console.warn('Supabase save user failed:', e));
     setTimeout(() => {
       refreshCustomerRepLinks();
     }, 50);
@@ -3482,7 +3482,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       setCurrentUser(updatedUser);
     }
-    saveUserToSupabase(updatedUser).catch((e) => console.warn('Supabase update user failed:', e));
+    saveUserToSupabase(updatedUser, users).catch((e) => console.warn('Supabase update user failed:', e));
     setTimeout(() => {
       refreshCustomerRepLinks();
     }, 50);

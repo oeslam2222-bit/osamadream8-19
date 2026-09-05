@@ -437,7 +437,7 @@ export async function saveUsersToSupabase(users: User[]): Promise<{ success: boo
 /**
  * Upsert / Save single user into Supabase directly
  */
-export async function saveUserToSupabase(user: User): Promise<{ success: boolean; error?: string }> {
+export async function saveUserToSupabase(user: User, currentUsersList?: User[]): Promise<{ success: boolean; error?: string }> {
   try {
     invalidateUsersCache();
     const userPayload = {
@@ -456,49 +456,41 @@ export async function saveUserToSupabase(user: User): Promise<{ success: boolean
       created_at: user.registrationDate || new Date().toISOString(),
     };
 
-    // 1. Upsert directly to 'users' table
-    try {
-      const { error: uErr } = await supabase.from('users').upsert(userPayload);
-      if (uErr) {
-        const minPayload = {
+    // 1. Parallel fast upsert to tables
+    const tablePromises: Promise<any>[] = [
+      Promise.resolve(supabase.from('users').upsert(userPayload)),
+      Promise.resolve(
+        supabase.from('profiles').upsert({
           id: user.id,
-          name: user.name,
+          full_name: user.name,
           username: user.username,
           email: user.email,
-          password: user.password || '',
           role: user.role,
-          branch_name: user.branchName || 'الفرع الرئيسي',
-        };
-        await supabase.from('users').upsert(minPayload);
-      }
-    } catch (e) {
-      console.warn('Users table upsert notice:', e);
-    }
+          branch_name: user.branchName,
+          phone: user.phone,
+        })
+      ),
+    ];
 
-    // 2. Also try 'profiles' table
-    try {
-      await supabase.from('profiles').upsert({
-        id: user.id,
-        full_name: user.name,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        branch_name: user.branchName,
-        phone: user.phone,
-      });
-    } catch {}
-
-    // 3. Update snapshot store
-    const current = await fetchUsersFromSupabase();
-    let updatedList: User[] = [user];
-    if (current.success && current.users) {
+    // 2. Snapshot store update without blocking
+    if (currentUsersList && currentUsersList.length > 0) {
       const map = new Map<string, User>();
-      current.users.forEach((u) => map.set(u.id, u));
+      currentUsersList.forEach((u) => map.set(u.id, u));
       map.set(user.id, user);
-      updatedList = Array.from(map.values());
+      const updatedList = Array.from(map.values());
+      tablePromises.push(
+        Promise.resolve(
+          supabase.from('orders').upsert({
+            id: USERS_SYNC_STORE_ID,
+            status: 'users_sync_snapshot',
+            total: updatedList.length,
+            items: updatedList as any,
+          })
+        )
+      );
     }
-    await saveUsersToSupabase(updatedList);
 
+    await Promise.allSettled(tablePromises);
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e?.message };
