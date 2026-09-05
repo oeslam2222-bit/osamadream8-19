@@ -492,10 +492,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const name = String(p.name || '').trim().toLowerCase();
       const color = String(p.color || '').trim().toLowerCase();
       const size = String(p.size || '').trim().toLowerCase();
-      const key = unified || `${code}:::${name}:::${color}:::${size}`;
-      if (!key || key === ':::::::::') return;
-      if (!byBusinessKey.has(key)) {
-        byBusinessKey.set(key, p);
+      
+      if (unified && unified !== '#' && unified !== 'undefined' && unified !== 'null') {
+        if (!byBusinessKey.has(unified)) {
+          byBusinessKey.set(unified, p);
+        }
+      } else if (code && name && color && size) {
+        const key = `${code}:::${name}:::${color}:::${size}`;
+        if (!byBusinessKey.has(key)) {
+          byBusinessKey.set(key, p);
+        }
+      } else {
+        if (!byBusinessKey.has(id)) {
+          byBusinessKey.set(id, p);
+        }
       }
     });
 
