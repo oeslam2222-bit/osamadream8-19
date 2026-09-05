@@ -74,8 +74,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   onClearSelectedCustomer,
 }) => {
   const {
-    products,
     currentUser,
+    getVisibleProducts,
     branches,
     addToCart,
     importProductsList,
@@ -87,6 +87,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     toggleDataSaverMode,
     setIsInstallModalOpen
   } = useApp();
+
+  const products = getVisibleProducts();
 
   // Search & Filters
   const [searchTerm, setSearchTerm] = useState('');

@@ -475,13 +475,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return isAuth && (hasUserId || hasUserData);
   });
 
+  const normalizeProductKeyPart = (value: unknown): string =>
+    String(value || '')
+      .normalize('NFKC')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '');
+
   const sanitizeProducts = (list: Product[]): Product[] => {
     const byId = new Map<string, Product>();
     list.forEach((p) => {
       const id = String(p.id || '').trim();
-      if (!id) return;
-      if (!byId.has(id)) {
-        byId.set(id, p);
+      const code = normalizeProductKeyPart(p.code);
+      const color = normalizeProductKeyPart(p.color);
+      const size = normalizeProductKeyPart(p.size);
+      const name = normalizeProductKeyPart(p.name);
+      const identity = code
+        ? `product:::${code}:::${color}:::${size}`
+        : name
+          ? `name:::${name}:::${color}:::${size}`
+          : `id:::${id}`;
+      if (!id && !code) return;
+      if (!byId.has(identity)) {
+        byId.set(identity, p);
       }
     });
     const unique = Array.from(byId.values());
@@ -989,60 +1005,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetchProductsFromSupabase().then((res) => {
           if (res.success && res.products && res.products.length > 0) {
             setProducts((prev) => {
-              const variantKey = (p: Product) => [p.code, p.color, p.size]
-                .map((value) => String(value || '').trim().toLowerCase())
-                .join(':::');
-              const localById = new Map<string, Product>();
-              prev.forEach((p) => localById.set(p.id, p));
-
-              const remoteByVariant = new Map<string, Product[]>();
-              res.products!.forEach((rp) => {
-                const key = variantKey(rp);
-                if (!remoteByVariant.has(key)) remoteByVariant.set(key, []);
-                remoteByVariant.get(key)!.push(rp);
-              });
-
-              const merged = new Map<string, Product>();
-              const usedRemoteKeys = new Set<string>();
-
-              localById.forEach((localP) => {
-                const key = variantKey(localP);
-                const remoteList = remoteByVariant.get(key) || [];
-                if (remoteList.length > 0) {
-                  const remoteP = remoteList[0];
-                  usedRemoteKeys.add(key);
-                  const combinedBranchStocks = { ...(localP.branchStocks || {}) };
-                  Object.entries(remoteP.branchStocks || {}).forEach(([k, v]) => {
-                    combinedBranchStocks[k] = (combinedBranchStocks[k] || 0) + v;
-                  });
-                  merged.set(localP.id, {
-                    ...remoteP,
-                    id: localP.id,
-                    branchStocks: combinedBranchStocks,
-                    branchName: localP.branchName || remoteP.branchName,
-                    cartonQuantity: remoteP.cartonQuantity || localP.cartonQuantity,
-                    factor: remoteP.factor || localP.factor,
-                    piecePrice: remoteP.piecePrice || localP.piecePrice,
-                    cartonPrice: remoteP.cartonPrice || localP.cartonPrice,
-                    promoPrice: remoteP.promoPrice ?? localP.promoPrice,
-                    promoPiecePrice: remoteP.promoPiecePrice ?? localP.promoPiecePrice,
-                    branchStockReserved: localP.branchStockReserved < remoteP.branchStockActual ? localP.branchStockReserved : remoteP.branchStockActual,
-                    mainWarehouseReserved: localP.mainWarehouseReserved < remoteP.mainWarehouseActual ? localP.mainWarehouseReserved : remoteP.mainWarehouseActual,
-                  });
-                } else {
-                  merged.set(localP.id, localP);
-                }
-              });
-
-              remoteByVariant.forEach((remoteList, key) => {
-                if (!usedRemoteKeys.has(key)) {
-                  remoteList.forEach((rp) => {
-                    merged.set(rp.id, rp);
-                  });
-                }
-              });
-
-              return sanitizeProducts(Array.from(merged.values()));
+              // The cloud catalog is authoritative once loaded. Appending the
+              // device cache here duplicates rows after an ID-changing upload.
+              return sanitizeProducts(res.products!);
             });
           }
         });
@@ -2269,24 +2234,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    const normalizeKeyPart = (value: unknown) => String(value || '').trim().toLowerCase();
     const getProductVariantKey = (p: Product): string =>
-      [p.code, p.color, p.size, p.branchName].map(normalizeKeyPart).join(':::');
+      [p.code, p.color, p.size, p.branchName].map(normalizeProductKeyPart).join(':::');
 
-    const incomingById = new Map<string, Product>();
+    const incomingByKey = new Map<string, Product>();
     newProducts.forEach((raw) => {
       const incoming = sanitizeProducts([raw])[0];
-      const key = incoming.id;
-      incomingById.set(key, incoming);
+      const key = getProductVariantKey(incoming);
+      incomingByKey.set(key, incoming);
     });
 
-    const existingById = new Map<string, Product>();
+    const existingByKey = new Map<string, Product>();
     const duplicateIds = new Set<string>();
     products.forEach((product) => {
-      if (existingById.has(product.id)) {
+      const key = getProductVariantKey(product);
+      if (existingByKey.has(key)) {
         duplicateIds.add(product.id);
       } else {
-        existingById.set(product.id, product);
+        existingByKey.set(key, product);
       }
     });
 
@@ -2314,18 +2279,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     let finalUpdated: Product[];
     if (mode === 'replace') {
-      finalUpdated = Array.from(incomingById.values()).map((incoming) =>
-        updateDailyFields(existingById.get(incoming.id), incoming)
+      finalUpdated = Array.from(incomingByKey.values()).map((incoming) =>
+        updateDailyFields(existingByKey.get(getProductVariantKey(incoming)), incoming)
       );
     } else {
       const merged = new Map<string, Product>();
       products.forEach((product) => {
-        if (!duplicateIds.has(product.id)) {
+        const key = getProductVariantKey(product);
+        if (!duplicateIds.has(product.id) && !incomingByKey.has(key)) {
           merged.set(product.id, product);
         }
       });
-      incomingById.forEach((incoming) => {
-        const updated = updateDailyFields(existingById.get(incoming.id), incoming);
+      incomingByKey.forEach((incoming, key) => {
+        const updated = updateDailyFields(existingByKey.get(key), incoming);
         merged.set(updated.id, updated);
       });
       finalUpdated = Array.from(merged.values());
@@ -3698,23 +3664,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getVisibleProducts = (): Product[] => {
-    if (!currentUser) return products;
+    const uniqueProducts = sanitizeProducts(products);
+    if (!currentUser) return uniqueProducts;
 
     if (currentUser.role === 'admin' || currentUser.role === 'developer') {
       if (selectedBranchFilter !== 'الكل') {
-        return products.filter(
+        return uniqueProducts.filter(
           (p) =>
             getBranchStockForProduct(p, selectedBranchFilter) > 0 ||
             p.mainWarehouseActual > 0 ||
             (!p.branchName && (p.branchStockActual || 0) > 0)
         );
       }
-      return products;
+      return uniqueProducts;
     }
 
     // Reps, Supervisors & Branch managers: products available in their branch or available from central warehouse
     const targetBranch = currentUser.branchName;
-    return products.filter(
+    return uniqueProducts.filter(
       (p) =>
         getBranchStockForProduct(p, targetBranch) > 0 ||
         p.mainWarehouseActual > 0 ||
