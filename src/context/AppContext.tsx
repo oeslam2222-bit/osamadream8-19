@@ -478,8 +478,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const sanitizeProducts = (list: Product[]): Product[] => {
     const deduped = new Map<string, Product>();
     list.forEach((p) => {
-      const key = String(p.id || '').trim();
-      if (!key) return;
+      const idPart = String(p.id || '').trim();
+      const codePart = String(p.code || '').trim().toLowerCase();
+      const namePart = String(p.name || '').trim().toLowerCase();
+      const colorPart = String(p.color || '').trim().toLowerCase();
+      const sizePart = String(p.size || '').trim().toLowerCase();
+      const branchPart = String(p.branchName || '').trim().toLowerCase();
+      const key = `${idPart}:::${codePart}:::${namePart}:::${colorPart}:::${sizePart}:::${branchPart}`;
+      if (!key || key === ':::::::::') return;
       if (!deduped.has(key)) {
         deduped.set(key, p);
       }
