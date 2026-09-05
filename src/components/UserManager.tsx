@@ -522,10 +522,27 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
 
   const handleSaveUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name?.trim() || !formData.email?.trim() || !isSuperAdminOrDev) return;
+    if (!isSuperAdminOrDev) return;
+    if (!formData.name?.trim() || !formData.email?.trim() || !formData.password?.trim()) {
+      window.alert('من فضلك أدخل الاسم والبريد وكلمة المرور قبل حفظ الحساب.');
+      return;
+    }
 
     const cleanEmail = formData.email.trim().toLowerCase();
-    const cleanUsername = cleanEmail.includes('@') ? cleanEmail.split('@')[0] : cleanEmail;
+    const cleanUsername = formData.username?.trim().toLowerCase() || (cleanEmail.includes('@') ? cleanEmail.split('@')[0] : cleanEmail);
+    const normalizedPhone = formData.phone?.replace(/\s+/g, '').trim();
+
+    if (!editingUser) {
+      const duplicate = users.find((user) =>
+        user.email?.trim().toLowerCase() === cleanEmail ||
+        user.username?.trim().toLowerCase() === cleanUsername ||
+        (normalizedPhone && user.phone?.replace(/\s+/g, '').trim() === normalizedPhone)
+      );
+      if (duplicate) {
+        window.alert(`لا يمكن إضافة الحساب: البريد أو اسم الدخول أو الهاتف مستخدم بالفعل بواسطة ${duplicate.name}.`);
+        return;
+      }
+    }
 
     const assignedBranch = (formData.role === 'admin' || formData.role === 'developer')
       ? 'جميع الفروع والمخزن المركزي (6 أكتوبر)'

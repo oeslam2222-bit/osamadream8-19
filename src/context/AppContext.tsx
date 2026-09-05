@@ -1936,7 +1936,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return {
         available: false,
         remainingPieces: 0,
-        message: `عفواً، الصنف (${prod.name}) غير متاح للطلب الآن!\n📊 تفاصيل الرصيد: الرصيد الفعلي (${totalActual} كرتونة) - محجوز بفواتير معلقة (${totalReserved} كرتونة) = الرصيد المتاح للبيع (0 كرتونة متبقية).`
+        message: `عفواً، الصنف (${prod.name}) غير متاح للطلب الآن!\n📊 تفاصيل الرصيد: الرصيد الفعلي (${totalActual} كرتو��ة) - محجوز بفواتير معلقة (${totalReserved} كرتونة) = الرصيد المتاح للبيع (0 كرتونة متبقية).`
       };
     }
 
@@ -3478,17 +3478,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addUser = (user: User) => {
-  if (hasDuplicateUserIdentity(user, users, user.id)) return;
-  setUsers((prev) => {
-  const map = new Map<string, User>();
-      prev.forEach((u) => map.set(u.id, u));
-      map.set(user.id, user);
-      return Array.from(map.values());
-    });
-    saveUserToSupabase(user, users).catch((e) => console.warn('Supabase save user failed:', e));
-    setTimeout(() => {
-      refreshCustomerRepLinks();
-    }, 50);
+  if (hasDuplicateUserIdentity(user, users, user.id)) return false;
+  const nextUsers = [...users.filter((existing) => existing.id !== user.id), user];
+  setUsers(nextUsers);
+  saveUserToSupabase(user, nextUsers).then((result) => {
+  if (!result.success) {
+  console.warn('[v0] Supabase save user failed:', result.error);
+  }
+  }).catch((e) => console.warn('[v0] Supabase save user failed:', e));
+  setTimeout(() => {
+  refreshCustomerRepLinks();
+  }, 50);
+  return true;
   };
 
   const updateUser = (updatedUser: User) => {
