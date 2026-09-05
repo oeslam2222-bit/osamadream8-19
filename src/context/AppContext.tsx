@@ -484,32 +484,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         byId.set(id, p);
       }
     });
-
-    const byBusinessKey = new Map<string, Product>();
-    byId.forEach((p) => {
-      const unified = String(p.unifiedCode || '').trim().toLowerCase();
-      const code = String(p.code || '').trim().toLowerCase();
-      const name = String(p.name || '').trim().toLowerCase();
-      const color = String(p.color || '').trim().toLowerCase();
-      const size = String(p.size || '').trim().toLowerCase();
-      
-      if (unified && unified !== '#' && unified !== 'undefined' && unified !== 'null') {
-        if (!byBusinessKey.has(unified)) {
-          byBusinessKey.set(unified, p);
-        }
-      } else if (code && name && color && size) {
-        const key = `${code}:::${name}:::${color}:::${size}`;
-        if (!byBusinessKey.has(key)) {
-          byBusinessKey.set(key, p);
-        }
-      } else {
-        if (!byBusinessKey.has(id)) {
-          byBusinessKey.set(id, p);
-        }
-      }
-    });
-
-    const unique = Array.from(byBusinessKey.values());
+    const unique = Array.from(byId.values());
     return unique.map((p) => {
       const cartonQty = p.cartonQuantity && p.cartonQuantity > 0 ? p.cartonQuantity : 1;
       const cartonPrice = typeof p.cartonPrice === 'number' ? p.cartonPrice : 0;
@@ -1014,7 +989,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetchProductsFromSupabase().then((res) => {
           if (res.success && res.products && res.products.length > 0) {
             setProducts((prev) => {
-              const variantKey = (p: Product) => [p.code, p.color, p.size, p.branchName]
+              const variantKey = (p: Product) => [p.code, p.color, p.size]
                 .map((value) => String(value || '').trim().toLowerCase())
                 .join(':::');
               const localById = new Map<string, Product>();
@@ -1036,12 +1011,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 if (remoteList.length > 0) {
                   const remoteP = remoteList[0];
                   usedRemoteKeys.add(key);
+                  const combinedBranchStocks = { ...(localP.branchStocks || {}) };
+                  Object.entries(remoteP.branchStocks || {}).forEach(([k, v]) => {
+                    combinedBranchStocks[k] = (combinedBranchStocks[k] || 0) + v;
+                  });
                   merged.set(localP.id, {
                     ...remoteP,
                     id: localP.id,
-                    branchStocks: (remoteP.branchStocks && Object.keys(remoteP.branchStocks).length > 0)
-                      ? remoteP.branchStocks
-                      : localP.branchStocks,
+                    branchStocks: combinedBranchStocks,
+                    branchName: localP.branchName || remoteP.branchName,
                     cartonQuantity: remoteP.cartonQuantity || localP.cartonQuantity,
                     factor: remoteP.factor || localP.factor,
                     piecePrice: remoteP.piecePrice || localP.piecePrice,

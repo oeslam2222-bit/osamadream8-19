@@ -849,6 +849,7 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
     if (!manErr && manifestData && manifestData.length > 0 && manifestData[0].items) {
       const rawManifest = manifestData[0].items as any;
       const totalChunks = rawManifest?.totalChunks;
+      const totalProductsExpected = rawManifest?.totalProducts;
       if (typeof totalChunks === 'number' && totalChunks > 0) {
         const chunkPromises: Promise<any>[] = [];
         for (let i = 0; i < totalChunks; i++) {
@@ -872,7 +873,11 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
           }
         });
         if (allItems.length > 0) {
-          return { success: true, products: allItems };
+          if (typeof totalProductsExpected === 'number' && allItems.length < totalProductsExpected) {
+            console.warn(`Supabase catalog snapshot incomplete: expected ${totalProductsExpected}, got ${allItems.length}. Falling back.`);
+          } else {
+            return { success: true, products: allItems };
+          }
         }
       }
     }
