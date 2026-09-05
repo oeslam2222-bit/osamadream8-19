@@ -30,6 +30,7 @@ import {
   fetchProductsFromSupabase,
   fetchUsersFromSupabase,
   findUserInSupabase,
+  flushPendingSupabaseWrites,
   sanitizeEmail,
   sanitizeIdentifier,
   saveCustomersToSupabase,
@@ -223,6 +224,7 @@ const STORAGE_KEYS = {
   ACCOUNTING_LOGS: 'dream_dist_acc_logs_v9',
   CART: 'dream_dist_cart_v9',
   DELETED_INVOICE_IDS: 'dream_dist_deleted_invoices_v1',
+    PENDING_CATALOG_SYNC: 'dream_dist_pending_catalog_sync_v1',
 };
 
 const getDeletedInvoiceIds = (): Set<string> => {
@@ -759,11 +761,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved === 'true';
   });
 
-  // Hydrate high-capacity collections from IndexedDB seamlessly on startup
+  // Use IndexedDB only as the offline fallback. When online, Supabase is the source of truth.
   useEffect(() => {
     let isMounted = true;
     async function hydrateFromIndexedDB() {
       try {
+        if (navigator.onLine) return;
+
         // Clean up legacy large keys from localStorage to prevent quota overflow
         try {
           localStorage.removeItem(STORAGE_KEYS.PRODUCTS);
@@ -793,13 +797,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setCustomers(sanitizeCustomers(idbCustomers));
         }
         if (idbUsers && Array.isArray(idbUsers) && idbUsers.length > 0) {
-          setUsers((prev) => {
-            const map = new Map<string, User>();
-            prev.forEach((u) => map.set(u.id, u));
-            idbUsers.forEach((u) => map.set(u.id, u));
-            const dedup = sanitizeAndDeduplicateUsers(Array.from(map.values()));
-            return dedup.deduplicated;
-          });
+          const dedup = sanitizeAndDeduplicateUsers(idbUsers);
+          setUsers(dedup.deduplicated);
         }
       } catch (err) {
         console.warn('IndexedDB initial hydration notice:', err);
@@ -878,50 +877,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // 2. Fetch remote users and invoices if requested
       if (direction === 'fetch' || direction === 'both') {
-        const fetchRes = await fetchUsersFromSupabase();
-        if (fetchRes.success && fetchRes.users && fetchRes.users.length > 0) {
+        const fetchRes = await fetchUsersFromSupabase(true);
+        if (fetchRes.success && fetchRes.users) {
           fetchedUsersCount = fetchRes.users.length;
-          setUsers((prev) => {
-            const mergedMap = new Map<string, User>();
-            prev.forEach((u) => mergedMap.set(u.id, u));
-            prev.forEach((u) => mergedMap.set(u.username.toLowerCase(), u));
-            fetchRes.users!.forEach((su) => {
-              mergedMap.set(su.id, su);
-              mergedMap.set(su.username.toLowerCase(), su);
-            });
-            return Array.from(new Set(mergedMap.values()));
-          });
+          setUsers(sanitizeAndDeduplicateUsers(fetchRes.users).deduplicated);
         }
 
         const invRes = await fetchInvoicesFromSupabase();
-        if (invRes.success && invRes.invoices && invRes.invoices.length > 0) {
+        if (invRes.success && invRes.invoices) {
           const deletedSet = getDeletedInvoiceIds();
           const validInvoices = invRes.invoices.filter((si) => !deletedSet.has(si.id) && !deletedSet.has(si.invoiceNumber));
           fetchedInvoicesCount = validInvoices.length;
-          setInvoices((prev) => {
-            const invMap = new Map<string, Invoice>();
-            prev.filter((i) => !deletedSet.has(i.id) && !deletedSet.has(i.invoiceNumber)).forEach((i) => {
-              invMap.set(i.id, i);
-              invMap.set(i.invoiceNumber, i);
-            });
-            validInvoices.forEach((si) => {
-              invMap.set(si.id, si);
-              invMap.set(si.invoiceNumber, si);
-            });
-            return Array.from(new Set(invMap.values()));
-          });
+          setInvoices(validInvoices);
         }
       }
 
       // 2b. Fetch customers from Supabase
       if (direction === 'fetch' || direction === 'both') {
         const custRes = await fetchCustomersFromSupabase();
-        if (custRes.success && custRes.customers && custRes.customers.length > 0) {
-          setCustomers((prev) => {
-            const linked = linkCustomersToUsers(custRes.customers!, users);
-            const merged = sanitizeCustomers([...prev, ...linked]);
-            return merged;
-          });
+        if (custRes.success && custRes.customers) {
+          setCustomers(sanitizeCustomers(custRes.customers));
+        }
+      }
+
+      // 2c. Delete locally-deleted invoices from Supabase so they never reappear on other devices
+      if ((direction === 'fetch' || direction === 'both') && navigator.onLine) {
+        const deletedSet = getDeletedInvoiceIds();
+        if (deletedSet.size > 0) {
+          await Promise.allSettled(Array.from(deletedSet).map((id) => deleteInvoiceFromSupabase(id)));
+          localStorage.removeItem(STORAGE_KEYS.DELETED_INVOICE_IDS);
         }
       }
       if (direction === 'push' || direction === 'both') {
@@ -966,12 +950,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               prev.forEach((u) => map.set(u.id, u));
               res.users!.forEach((su) => map.set(su.id, su));
               const dedup = sanitizeAndDeduplicateUsers(Array.from(map.values()));
-              // If duplicate IDs were detected and cleaned, delete them permanently from Supabase
+              // Remap references locally without deleting users from Supabase.
               if (dedup.removedUserIds.length > 0) {
-                dedup.removedUserIds.forEach((remId) => {
-                  deleteUserFromSupabase(remId).catch(() => {});
-                });
-                // Remap customer references
                 setCustomers((prevCusts) => {
                   let changed = false;
                   const updated = prevCusts.map((c) => {
@@ -983,7 +963,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   });
                   return changed ? updated : prevCusts;
                 });
-                // Remap invoice references
                 setInvoices((prevInvs) => {
                   let changed = false;
                   const updated = prevInvs.map((inv) => {
@@ -1003,37 +982,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         // 2. Fetch Central Catalog from Supabase (Propagates Admin/Developer uploads to all reps and supervisors)
         fetchProductsFromSupabase().then((res) => {
-          if (res.success && res.products && res.products.length > 0) {
-            setProducts((prev) => {
-              // The cloud catalog is authoritative once loaded. Appending the
-              // device cache here duplicates rows after an ID-changing upload.
-              return sanitizeProducts(res.products!);
-            });
+          if (res.success && res.products) {
+            // The cloud catalog is authoritative once loaded. Never restore a stale device cache here.
+            setProducts(sanitizeProducts(res.products));
           }
         });
 
         // 3. Fetch Invoices
         fetchInvoicesFromSupabase().then((res) => {
-          if (res.success && res.invoices && res.invoices.length > 0) {
+          if (res.success && res.invoices) {
             const deletedSet = getDeletedInvoiceIds();
             const validInvoices = res.invoices.filter((si) => !deletedSet.has(si.id) && !deletedSet.has(si.invoiceNumber));
-            setInvoices((prev) => {
-              const map = new Map<string, Invoice>();
-              prev.filter((i) => !deletedSet.has(i.id) && !deletedSet.has(i.invoiceNumber)).forEach((i) => map.set(i.id, i));
-              validInvoices.forEach((si) => map.set(si.id, si));
-              return Array.from(map.values());
-            });
+            setInvoices(validInvoices);
           }
         });
 
         // 4. Fetch Customers from Supabase and link them to user accounts
         fetchCustomersFromSupabase().then((res) => {
-          if (res.success && res.customers && res.customers.length > 0) {
-            setCustomers((prev) => {
-              const linked = linkCustomersToUsers(res.customers!, users);
-              const merged = sanitizeCustomers([...prev, ...linked]);
-              return merged;
-            });
+          if (res.success && res.customers) {
+            setCustomers(sanitizeCustomers(res.customers));
           }
         });
       }
@@ -1640,7 +1607,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Online / Offline tracking
   useEffect(() => {
-    const handleOnline = () => setIsOffline(false);
+    const handleOnline = async () => {
+      setIsOffline(false);
+      if (localStorage.getItem(STORAGE_KEYS.PENDING_CATALOG_SYNC) === 'true') {
+        const catalogResult = await saveProductsToSupabase(products);
+        if (catalogResult.success) {
+          localStorage.removeItem(STORAGE_KEYS.PENDING_CATALOG_SYNC);
+        }
+      }
+      await flushPendingSupabaseWrites();
+      await syncWithSupabase('fetch');
+    };
     const handleOffline = () => setIsOffline(true);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -1648,7 +1625,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [products]);
 
   // --- Authentication System ---
   const login = async (identifier: string, password?: string): Promise<{ success: boolean; message: string; user?: User }> => {
@@ -2301,9 +2278,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProducts(finalUpdated);
 
     // Persist full catalog to Supabase so reps & branch supervisors instantly receive it on all devices
-    saveProductsToSupabase(finalUpdated).catch((err) => {
-      console.warn('Supabase catalog auto-sync warning:', err);
-    });
+    safeLocalStorageSet(STORAGE_KEYS.PENDING_CATALOG_SYNC, 'true');
+    saveProductsToSupabase(finalUpdated).then((result) => {
+      if (result.success) localStorage.removeItem(STORAGE_KEYS.PENDING_CATALOG_SYNC);
+      else console.warn('Supabase catalog auto-sync warning:', result.error);
+    }).catch((err) => console.warn('Supabase catalog auto-sync warning:', err));
 
     recordAuditLog({
       userId: currentUser?.id || 'admin',
