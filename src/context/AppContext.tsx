@@ -141,7 +141,7 @@ interface AppContextType {
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
   deleteProduct: (productId: string) => void;
-  importProductsList: (newProducts: Product[], mode: 'merge' | 'replace') => void;
+  importProductsList: (newProducts: Product[], mode?: 'smart' | 'merge' | 'replace') => void;
   adjustStock: (productId: string, branchChange: number, mainWarehouseChange: number, reason?: string) => void;
   recordInventoryTransaction: (tx: Omit<InventoryTransaction, 'id' | 'timestamp' | 'date'>) => void;
   checkProductAvailability: (productId: string, requestedPieces: number) => { available: boolean; remainingPieces: number; message?: string };
@@ -1783,6 +1783,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     role: UserRole;
     supervisorId?: string;
   }): { success: boolean; message: string } => {
+    if (currentUser?.role !== 'admin' && currentUser?.role !== 'developer') {
+      return { success: false, message: 'غير مصرح لك بإنشاء حسابات جديدة. يتم إنشاء الحسابات من الإدارة فقط.' };
+    }
+
     const existing = users.find(
       (u) =>
         u.email.toLowerCase() === userData.email.trim().toLowerCase() ||
@@ -2183,7 +2187,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProducts((prev) => prev.filter((p) => p.id !== productId));
   };
 
-  const importProductsList = (newProducts: Product[], mode: 'merge' | 'replace') => {
+  const importProductsList = (newProducts: Product[], mode: 'smart' | 'merge' | 'replace' = 'smart') => {
     // Automatically register any newly encountered branch names dynamically
     setBranches((prevBranches) => {
       const existingNames = new Set(prevBranches.map((b) => b.name));
@@ -2228,39 +2232,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    const protectReserved = (prod: Product): Product => {
-      const activePending = reservedPiecesByProduct.get(prod.id) || 0;
-      const safeReserved = Math.max(0, prod.branchStockActual - activePending);
-      return {
-        ...prod,
-        branchStockReserved: safeReserved,
-      };
-    };
+    const normalizeKeyPart = (value: unknown) => String(value || '').trim().toLowerCase();
+    const getProductVariantKey = (p: Product): string =>
+      [p.code, p.color, p.size, p.branchName].map(normalizeKeyPart).join(':::');
 
-    const getProductVariantKey = (p: Product): string => {
-      const cCode = (p.code || '').trim().toLowerCase();
-      const cColor = (p.color || '').trim().toLowerCase();
-      const cSize = (p.size || '').trim().toLowerCase();
-      const cBranch = (p.branchName || '').trim().toLowerCase();
-      const cImg = (p.imageUrl || '').trim();
-      const cName = (p.name || '').trim().toLowerCase();
-      return `${cCode}:::${cColor}:::${cSize}:::${cBranch}:::${cImg || cName}`;
-    };
+    const existingByKey = new Map(products.map((p) => [getProductVariantKey(p), p]));
+    const importedByKey = new Map<string, Product>();
+    newProducts.forEach((raw) => {
+      const incoming = sanitizeProducts([raw])[0];
+      const key = getProductVariantKey(incoming);
+      // Last row wins inside the same upload, preventing duplicate rows from one sheet.
+      importedByKey.set(key, incoming);
+    });
 
     let finalUpdated: Product[] = [];
     if (mode === 'replace') {
-      finalUpdated = sanitizeProducts(newProducts.map(protectReserved));
-      setProducts(finalUpdated);
+      finalUpdated = sanitizeProducts(Array.from(importedByKey.values()).map((incoming) => {
+        const existing = existingByKey.get(getProductVariantKey(incoming));
+        const activePending = reservedPiecesByProduct.get(existing?.id || incoming.id) || 0;
+        return {
+          ...incoming,
+          id: existing?.id || incoming.id,
+          branchStockReserved: Math.min(
+            incoming.branchStockActual,
+            Math.max(existing?.branchStockReserved || 0, activePending)
+          ),
+        };
+      }));
     } else {
-      // Merge mode: Preserve all imported rows without collapsing identical codes
-      const idMap = new Map<string, Product>();
-      products.forEach((p) => idMap.set(p.id, p));
-      newProducts.forEach((p) => {
-        idMap.set(p.id, protectReserved(p));
+      const merged = new Map(products.map((p) => [p.id, p]));
+      importedByKey.forEach((incoming, key) => {
+        const existing = existingByKey.get(key);
+        const activePending = reservedPiecesByProduct.get(existing?.id || incoming.id) || 0;
+        const mergedProduct: Product = {
+          ...(existing || incoming),
+          ...incoming,
+          id: existing?.id || incoming.id,
+          createdAt: existing?.createdAt || incoming.createdAt,
+          branchStockReserved: Math.min(
+            incoming.branchStockActual,
+            Math.max(existing?.branchStockReserved || 0, activePending)
+          ),
+        };
+        merged.set(mergedProduct.id, mergedProduct);
       });
-      finalUpdated = sanitizeProducts(Array.from(idMap.values()));
-      setProducts(finalUpdated);
+      finalUpdated = sanitizeProducts(Array.from(merged.values()));
     }
+    setProducts(finalUpdated);
 
     // Persist full catalog to Supabase so reps & branch supervisors instantly receive it on all devices
     saveProductsToSupabase(finalUpdated).catch((err) => {
@@ -3064,7 +3082,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: invoice.branchName,
       action: 'update_invoice_status',
       actionTitle: `إعادة فتح وتعديل الطلبية #${invoice.invoiceNumber}`,
-      details: `تم إعادة فتح أصناف الطلبية #${invoice.invoiceNumber} للعميل (${invoice.customerName}) في السلة لإتاحة إضافة أو حذف أصناف أو تعديل الكميات والأسعار قبل الاعتماد.`,
+      details: `تم إعادة فتح أصناف ا��طلبية #${invoice.invoiceNumber} للعميل (${invoice.customerName}) في السلة لإتاحة إضافة أو حذف أصناف أو تعديل الكميات والأسعار قبل الاعتماد.`,
       invoiceId: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
       badgeType: 'info',

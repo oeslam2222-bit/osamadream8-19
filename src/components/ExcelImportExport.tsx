@@ -93,7 +93,7 @@ export const ExcelImportExport: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [previewProducts, setPreviewProducts] = useState<Product[]>([]);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
-  const [importMode, setImportMode] = useState<'merge' | 'replace'>('replace');
+  const [importMode, setImportMode] = useState<'smart' | 'merge' | 'replace'>('smart');
   const [importSuccessMsg, setImportSuccessMsg] = useState<string | null>(null);
 
   // Preview Table Filter & Pagination State
@@ -834,8 +834,19 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
             </div>
 
             {/* Import Mode Selection */}
-            <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-200">
-              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer">
+              <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-200">
+                <label className="flex items-center gap-1.5 text-xs font-black text-blue-700 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="importMode"
+                    value="smart"
+                    checked={importMode === 'smart'}
+                    onChange={() => setImportMode('smart')}
+                    className="text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>تحديث ذكي آمن (موصى به)</span>
+                </label>
+                <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer">
                 <input
                   type="radio"
                   name="importMode"
