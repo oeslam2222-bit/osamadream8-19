@@ -278,35 +278,45 @@ export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Pro
         // Continue to secondary tables if needed
       }
 
-      // 2. Only check secondary candidates if primary 'users' table is empty or has very few records
-      if (byId.size === 0) {
-        for (const tbl of ['app_users', 'profiles']) {
-          try {
-            const { data, error } = await supabase.from(tbl).select('*');
-            if (error || !data) continue;
-            data.forEach((row: any, idx: number) => {
-              const user = mapUser(row, tbl, idx);
-              const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
-              byId.set(user.id, { ...existing, ...user });
-              if (user.email) byEmail.set(user.email.toLowerCase(), { ...existing, ...user });
-            });
-          } catch {
-            // Continue
-          }
-        }
-
-        // Check central snapshot as fallback
+      // Merge secondary sources as well; the primary table may be readable but incomplete on some devices.
+      for (const tbl of ['app_users', 'profiles']) {
         try {
-          const { data } = await supabase.from('orders').select('items').eq('id', USER_SYNC_STORE_ID).limit(1);
-          const items = data?.[0]?.items;
-          const snapshot = Array.isArray(items) ? items : typeof items === 'string' ? JSON.parse(items) : [];
-          snapshot.forEach((row: any, idx: number) => {
-            const user = mapUser(row, 'snapshot', idx);
-            if (!byId.has(user.id) && (!user.email || !byEmail.has(user.email.toLowerCase()))) byId.set(user.id, user);
+          const { data, error } = await supabase.from(tbl).select('*');
+          if (error || !data) continue;
+          data.forEach((row: any, idx: number) => {
+            const user = mapUser(row, tbl, idx);
+            const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
+            const merged = {
+              ...existing,
+              ...user,
+              password: user.password || existing?.password || '',
+            };
+            byId.set(merged.id, merged);
+            if (merged.email) byEmail.set(merged.email.toLowerCase(), merged);
           });
         } catch {
-          // snapshot optional
+          // Continue
         }
+      }
+
+      // Check the central snapshot as a final source for users not present in the tables.
+      try {
+        const { data } = await supabase.from('orders').select('items').eq('id', USER_SYNC_STORE_ID).limit(1);
+        const items = data?.[0]?.items;
+        const snapshot = Array.isArray(items) ? items : typeof items === 'string' ? JSON.parse(items) : [];
+        snapshot.forEach((row: any, idx: number) => {
+          const user = mapUser(row, 'snapshot', idx);
+          const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
+          const merged = {
+            ...user,
+            ...existing,
+            password: existing?.password || user.password || '',
+          };
+          byId.set(merged.id, merged);
+          if (merged.email) byEmail.set(merged.email.toLowerCase(), merged);
+        });
+      } catch {
+        // snapshot optional
       }
 
       const users = Array.from(byId.values());
