@@ -1657,18 +1657,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const rawTrim = sanitizeIdentifier(identifier);
     const cleanPass = (password || '').trim();
 
-    // 1. Search in local memory first with rich identifier matching
-    let found = users.find(
-      (u) =>
-        (u.email && sanitizeEmail(u.email) === cleanEmail) ||
-        (u.email && u.email.toLowerCase().startsWith(cleanId)) ||
-        (u.username && sanitizeIdentifier(u.username).toLowerCase() === cleanId) ||
-        (u.name && sanitizeIdentifier(u.name).toLowerCase() === cleanId) ||
-        (u.phone && sanitizeIdentifier(u.phone) === rawTrim) ||
-        (u.id && String(u.id).toLowerCase() === cleanId)
-    );
+    const matchesIdentifier = (u: User) =>
+      (u.email && sanitizeEmail(u.email) === cleanEmail) ||
+      (u.email && u.email.toLowerCase().startsWith(cleanId)) ||
+      (u.username && sanitizeIdentifier(u.username).toLowerCase() === cleanId) ||
+      (u.name && sanitizeIdentifier(u.name).toLowerCase() === cleanId) ||
+      (u.phone && sanitizeIdentifier(u.phone) === rawTrim) ||
+      (u.id && String(u.id).toLowerCase() === cleanId);
 
-    // 2. If not found locally, query Supabase directly (essential for fresh sessions and cloud users)
+    // 1. Prefer the latest cloud record when online so password changes propagate between devices.
+    let found: User | undefined;
+    if (navigator.onLine) {
+      try {
+        const lookupQuery = cleanEmail.includes('@') ? cleanEmail : cleanId;
+        const supRes = await findUserInSupabase(lookupQuery, true);
+        if (supRes.success && supRes.user) {
+          found = supRes.user;
+          setUsers((prev) => {
+            const map = new Map<string, User>();
+            prev.forEach((u) => map.set(u.id, u));
+            map.set(found!.id, found!);
+            return Array.from(map.values());
+          });
+        }
+      } catch (e) {
+        console.warn('Fresh Supabase login lookup failed:', e);
+      }
+    }
+
+    // 2. Fall back to local memory for offline use or when the cloud lookup is unavailable.
+    if (!found) {
+      found = users.find(matchesIdentifier);
+    }
+
+    // 3. If not found locally, query Supabase directly (essential for fresh sessions and cloud users)
     if (!found) {
       try {
         const lookupQuery = cleanEmail.includes('@') ? cleanEmail : cleanId;
@@ -1687,17 +1709,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    // 3. Fallback search in INITIAL_USERS (ensures seed/demo reps like alaaomar@dream.com can always log in)
+    // 4. Fallback search in INITIAL_USERS (ensures seed/demo reps can always log in)
     if (!found) {
-      const matchInInitial = INITIAL_USERS.find(
-        (u) =>
-          (u.email && sanitizeEmail(u.email) === cleanEmail) ||
-          (u.email && u.email.toLowerCase().startsWith(cleanId)) ||
-          (u.username && sanitizeIdentifier(u.username).toLowerCase() === cleanId) ||
-          (u.name && sanitizeIdentifier(u.name).toLowerCase() === cleanId) ||
-          (u.phone && sanitizeIdentifier(u.phone) === rawTrim) ||
-          (u.id && String(u.id).toLowerCase() === cleanId)
-      );
+      const matchInInitial = INITIAL_USERS.find(matchesIdentifier);
       if (matchInInitial) {
         found = matchInInitial;
         setUsers((prev) => {
@@ -1757,6 +1771,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return { success: true, message: `مرحباً بك ${found.name}`, user: found };
   };
+
 
   const register = (userData: {
     name: string;

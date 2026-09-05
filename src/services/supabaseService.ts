@@ -341,7 +341,7 @@ export function sanitizeEmail(raw: string): string {
 /**
  * Find a specific user in Supabase by email, username, or phone safely
  */
-export async function findUserInSupabase(identifier: string): Promise<{ success: boolean; user?: User; error?: string }> {
+export async function findUserInSupabase(identifier: string, forceRefresh: boolean = false): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
     const rawClean = sanitizeIdentifier(identifier);
     const cleanLower = rawClean.toLowerCase();
@@ -352,7 +352,7 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
     }
 
     // Fetch remote users and match accurately in memory without fragile PostgREST URL syntax errors
-    const remoteRes = await fetchUsersFromSupabase();
+    const remoteRes = await fetchUsersFromSupabase(forceRefresh);
     if (remoteRes.success && remoteRes.users && remoteRes.users.length > 0) {
       const found = remoteRes.users.find(
         (u) =>
@@ -481,7 +481,7 @@ export async function saveUserToSupabase(user: User, currentUsersList?: User[]):
       tablePromises.push(
         Promise.resolve(
           supabase.from('orders').upsert({
-            id: USERS_SYNC_STORE_ID,
+            id: USER_SYNC_STORE_ID,
             status: 'users_sync_snapshot',
             total: updatedList.length,
             items: updatedList as any,
