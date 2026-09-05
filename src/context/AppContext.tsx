@@ -476,21 +476,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const sanitizeProducts = (list: Product[]): Product[] => {
-    const deduped = new Map<string, Product>();
+    const byId = new Map<string, Product>();
     list.forEach((p) => {
-      const idPart = String(p.id || '').trim();
-      const codePart = String(p.code || '').trim().toLowerCase();
-      const namePart = String(p.name || '').trim().toLowerCase();
-      const colorPart = String(p.color || '').trim().toLowerCase();
-      const sizePart = String(p.size || '').trim().toLowerCase();
-      const branchPart = String(p.branchName || '').trim().toLowerCase();
-      const key = `${idPart}:::${codePart}:::${namePart}:::${colorPart}:::${sizePart}:::${branchPart}`;
-      if (!key || key === ':::::::::') return;
-      if (!deduped.has(key)) {
-        deduped.set(key, p);
+      const id = String(p.id || '').trim();
+      if (!id) return;
+      if (!byId.has(id)) {
+        byId.set(id, p);
       }
     });
-    const unique = Array.from(deduped.values());
+
+    const byBusinessKey = new Map<string, Product>();
+    byId.forEach((p) => {
+      const unified = String(p.unifiedCode || '').trim().toLowerCase();
+      const code = String(p.code || '').trim().toLowerCase();
+      const name = String(p.name || '').trim().toLowerCase();
+      const color = String(p.color || '').trim().toLowerCase();
+      const size = String(p.size || '').trim().toLowerCase();
+      const key = unified || `${code}:::${name}:::${color}:::${size}`;
+      if (!key || key === ':::::::::') return;
+      if (!byBusinessKey.has(key)) {
+        byBusinessKey.set(key, p);
+      }
+    });
+
+    const unique = Array.from(byBusinessKey.values());
     return unique.map((p) => {
       const cartonQty = p.cartonQuantity && p.cartonQuantity > 0 ? p.cartonQuantity : 1;
       const cartonPrice = typeof p.cartonPrice === 'number' ? p.cartonPrice : 0;
