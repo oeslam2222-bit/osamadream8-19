@@ -475,16 +475,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return isAuth && (hasUserId || hasUserData);
   });
 
+  const getStrictVariantKey = (p: Product): string => {
+    const code = String(p.code || '').trim().toLowerCase();
+    const color = String(p.color || '').trim().toLowerCase();
+    const size = String(p.size || '').trim().toLowerCase();
+    const branch = String(p.branchName || '').trim().toLowerCase();
+    return `${code}:::${color}:::${size}:::${branch}`;
+  };
+
   const sanitizeProducts = (list: Product[]): Product[] => {
-  return list.map((p) => {
-  const cartonQty = p.cartonQuantity && p.cartonQuantity > 0 ? p.cartonQuantity : 1;
-  const cartonPrice = typeof p.cartonPrice === 'number' ? p.cartonPrice : 0;
-  const generatedUnifiedCode = p.code && p.color ? `${p.code}${p.color.replace(/\s+/g, '')}` : undefined;
-  
-  return {
-  ...p,
-  unifiedCode: p.unifiedCode || generatedUnifiedCode,
-  cartonQuantity: cartonQty,
+    const deduped = new Map<string, Product>();
+    list.forEach((p) => {
+      const key = getStrictVariantKey(p);
+      if (!deduped.has(key)) {
+        deduped.set(key, p);
+      }
+    });
+    const unique = Array.from(deduped.values());
+    return unique.map((p) => {
+      const cartonQty = p.cartonQuantity && p.cartonQuantity > 0 ? p.cartonQuantity : 1;
+      const cartonPrice = typeof p.cartonPrice === 'number' ? p.cartonPrice : 0;
+      const generatedUnifiedCode = p.code && p.color ? `${p.code}${p.color.replace(/\s+/g, '')}` : undefined;
+      return {
+        ...p,
+        unifiedCode: p.unifiedCode || generatedUnifiedCode,
+        cartonQuantity: cartonQty,
         cartonPrice: cartonPrice,
         piecePrice: cartonPrice > 0 && cartonQty > 0 ? Math.round((cartonPrice / cartonQty) * 100) / 100 : (p.piecePrice || cartonPrice),
       };

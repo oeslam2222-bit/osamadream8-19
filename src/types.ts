@@ -92,6 +92,7 @@ export interface Product {
   barcode?: string;
   minOrderQuantity?: number;
   notes?: string;
+  createdAt?: string;
 }
 
 export type CustomerTier = 'مميز' | 'راقي' | 'متوسط' | 'عادي';
