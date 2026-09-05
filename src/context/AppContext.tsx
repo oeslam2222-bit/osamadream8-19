@@ -476,13 +476,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const sanitizeProducts = (list: Product[]): Product[] => {
-    return list.map((p) => {
-      const cartonQty = p.cartonQuantity && p.cartonQuantity > 0 ? p.cartonQuantity : 1;
-      const cartonPrice = typeof p.cartonPrice === 'number' ? p.cartonPrice : 0;
-
-      return {
-        ...p,
-        cartonQuantity: cartonQty,
+  return list.map((p) => {
+  const cartonQty = p.cartonQuantity && p.cartonQuantity > 0 ? p.cartonQuantity : 1;
+  const cartonPrice = typeof p.cartonPrice === 'number' ? p.cartonPrice : 0;
+  const generatedUnifiedCode = p.code && p.color ? `${p.code}${p.color.replace(/\s+/g, '')}` : undefined;
+  
+  return {
+  ...p,
+  unifiedCode: p.unifiedCode || generatedUnifiedCode,
+  cartonQuantity: cartonQty,
         cartonPrice: cartonPrice,
         piecePrice: cartonPrice > 0 && cartonQty > 0 ? Math.round((cartonPrice / cartonQty) * 100) / 100 : (p.piecePrice || cartonPrice),
       };
