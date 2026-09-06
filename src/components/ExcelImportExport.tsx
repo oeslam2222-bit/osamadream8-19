@@ -825,11 +825,11 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
                 <h3 className="text-lg font-black text-slate-900">
-                  تم قراءة {previewProducts.length} صنف بالكامل من الملف (بدون دمج أو توحيد للأكواد)
+                  تم قراءة {previewProducts.length} صف من الملف وتجهيزها للتحديث
                 </h3>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                يتم إدراج كل سطر كصنف مستقل ببياناته الخاصة ومخزونه وصورته • إجمالي الأسطر: <span className="font-bold text-slate-800">{previewProducts.length} صنف</span>
+                يتم تحديث الصنف الموجود بالكود الأساسي، واستخدام الكود الموحد عند غياب الكود الأساسي • إجمالي الصفوف: <span className="font-bold text-slate-800">{previewProducts.length} صف</span>
               </p>
             </div>
 
@@ -1564,7 +1564,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                                         salesRepName: selectedRepName || undefined,
                                         repName: selectedRepName || undefined,
                                         repId: matchedUser ? matchedUser.id : undefined,
-                                        branchName: c.branchName || matchedUser?.branchName || undefined,
+                                        branchName: c.branchName || matchedUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
                                       });
                                     }}
                                     aria-label={`تحديد مندوب العميل ${c.name}`}
