@@ -16,6 +16,14 @@ WHERE p.id = r.id AND r.row_no > 1;
 CREATE UNIQUE INDEX IF NOT EXISTS products_code_unique_idx
   ON public.products (lower(trim(code)));
 
+-- User login identities must be unique regardless of case or surrounding spaces.
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_normalized_unique_idx
+  ON public.users (lower(regexp_replace(trim(username), '\\s+', '', 'g')));
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_normalized_unique_idx
+  ON public.users (lower(trim(email)))
+  WHERE email IS NOT NULL AND trim(email) <> '';
+
 DO $$
 BEGIN
   IF NOT EXISTS (

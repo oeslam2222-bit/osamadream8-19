@@ -378,6 +378,7 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
 export async function saveUsersToSupabase(users: User[]): Promise<{ success: boolean; error?: string }> {
   try {
     invalidateUsersCache();
+    let firstError = '';
     const usersPayload = users.map((u) => ({
       id: u.id,
       name: u.name,
@@ -409,9 +410,11 @@ export async function saveUsersToSupabase(users: User[]): Promise<{ success: boo
             role: c.role,
             branch_name: c.branch_name,
           }));
-          await supabase.from('users').upsert(minChunk);
+          const { error: fallbackError } = await supabase.from('users').upsert(minChunk);
+          if (fallbackError && !firstError) firstError = fallbackError.message;
         }
       } catch (err) {
+        if (!firstError) firstError = err instanceof Error ? err.message : 'تعذر حفظ المستخدمين';
         console.warn('Upsert chunk into users note:', err);
       }
     }
@@ -428,7 +431,7 @@ export async function saveUsersToSupabase(users: User[]): Promise<{ success: boo
       console.warn('Users snapshot save note:', storeErr);
     }
 
-    return { success: true };
+    return firstError ? { success: false, error: firstError } : { success: true };
   } catch (e: any) {
     return { success: false, error: e?.message };
   }
@@ -766,8 +769,15 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
     // two rows with the same conflict key in a single request.
     const productsByCode = new Map<string, Product>();
     products.forEach((product) => {
-      const code = String(product.code || '').trim().toLowerCase();
-      if (code) productsByCode.set(code, product);
+      const normalizeProductPart = (value?: string | number) =>
+        String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const code = normalizeProductPart(product.code);
+      const key = code && code !== '---'
+        ? [code, product.name, product.color, product.size, product.branchName]
+            .map(normalizeProductPart)
+            .join(':::')
+        : `id:${product.id}`;
+      productsByCode.set(key, product);
     });
     const uniqueProducts = Array.from(productsByCode.values());
 

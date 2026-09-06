@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { COMPANY_INFO, INITIAL_AUDIT_LOGS, INITIAL_BRANCHES } from '../data/mockData';
+import { COMPANY_INFO, INITIAL_AUDIT_LOGS, INITIAL_BRANCHES, INITIAL_USERS } from '../data/mockData';
 import { DEFAULT_CLOUDINARY_CONFIG } from '../services/cloudinaryService';
 import { clearCachedImages } from '../services/imageCacheService';
 import { idbClear, idbDelete, idbGet, idbSet, safeLocalStorageSet } from '../services/storageService';
@@ -271,7 +271,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Initialize state with localStorage fallbacks, ensuring all core initial users are merged
   const [users, setUsers] = useState<User[]>(() => {
-    return [];
+    const saved = localStorage.getItem(STORAGE_KEYS.USERS);
+    if (!saved) return INITIAL_USERS;
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) && parsed.length > 0
+        ? sanitizeAndDeduplicateUsers(parsed).deduplicated
+        : INITIAL_USERS;
+    } catch {
+      return INITIAL_USERS;
+    }
   });
 
   const [branches, setBranches] = useState<Branch[]>(() => {
@@ -296,7 +305,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    return null;
+    const savedSession = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_DATA);
+    if (!savedSession) return null;
+    try {
+      return JSON.parse(savedSession) as User;
+    } catch {
+      return null;
+    }
   });
 
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(() => {
@@ -388,7 +403,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return companyInfo;
   };
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem(STORAGE_KEYS.IS_AUTH) === 'true';
+  });
 
   // Never accept a user/session transferred through a URL or an old browser cache.
   useEffect(() => {
@@ -396,17 +413,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.history.replaceState({}, document.title, window.location.pathname);
     }
     supabase.auth.getSession().catch(() => null);
-    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_DATA);
-    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
-    localStorage.removeItem(STORAGE_KEYS.IS_AUTH);
   }, []);
 
   const sanitizeProducts = (list: Product[]): Product[] => {
     const byCode = new Map<string, Product>();
     list.forEach((rawProduct) => {
       const p = { ...rawProduct };
-      const code = String(p.code || '').trim().toLowerCase();
-      const key = code && code !== '---' ? `code:${code}` : `id:${p.id}`;
+      const normalizeProductPart = (value?: string | number) =>
+        String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const code = normalizeProductPart(p.code);
+      const key = code && code !== '---'
+        ? [code, p.name, p.color, p.size, p.branchName].map(normalizeProductPart).join(':::')
+        : `id:${p.id}`;
       const existing = byCode.get(key);
       if (!existing || (!existing.imageUrl && p.imageUrl) || (!existing.name && p.name)) {
         byCode.set(key, existing ? { ...existing, ...p } : p);
@@ -763,11 +781,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (direction === 'fetch' || direction === 'both') {
         const custRes = await fetchCustomersFromSupabase();
         if (custRes.success && custRes.customers && custRes.customers.length > 0) {
-          setCustomers((prev) => {
-            const linked = linkCustomersToUsers(custRes.customers!, users);
-            const merged = sanitizeCustomers([...prev, ...linked]);
-            return merged;
-          });
+          setCustomers(sanitizeCustomers(linkCustomersToUsers(custRes.customers, users)));
         }
       }
       if (direction === 'push' || direction === 'both') {
@@ -805,7 +819,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSupabaseStatus(status);
       if (status.connected) {
         // 1. Fetch Users
-        fetchUsersFromSupabase().then((res) => {
+        fetchUsersFromSupabase(true).then((res) => {
           if (res.success && res.users && res.users.length > 0) {
             setUsers((prev) => {
               const dedup = sanitizeAndDeduplicateUsers(res.users!);
@@ -868,11 +882,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // 4. Fetch Customers from Supabase and link them to user accounts
         fetchCustomersFromSupabase().then((res) => {
           if (res.success && res.customers && res.customers.length > 0) {
-            setCustomers((prev) => {
-              const linked = linkCustomersToUsers(res.customers!, users);
-              const merged = sanitizeCustomers([...prev, ...linked]);
-              return merged;
-            });
+            setCustomers(sanitizeCustomers(linkCustomersToUsers(res.customers, users)));
           }
         });
       }
@@ -949,21 +959,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               if (remoteProducts.length > 0) {
                 setProducts(sanitizeProducts(remoteProducts));
               }
-            } else if (raw && raw.id === '00000000-0000-0000-0000-000000000002' && raw.items) {
-              const remoteUsers: User[] = Array.isArray(raw.items)
-                ? raw.items
-                : typeof raw.items === 'string'
-                ? JSON.parse(raw.items)
-                : [];
-              if (remoteUsers.length > 0) {
-                setUsers(sanitizeAndDeduplicateUsers(remoteUsers).deduplicated);
-              } else if (raw && (raw.id === 'dream_catalog_manifest' || String(raw.id).startsWith('dream_catalog_chunk_'))) {
+            } else if (raw && (raw.id === 'dream_catalog_manifest' || String(raw.id).startsWith('dream_catalog_chunk_'))) {
                 fetchProductsFromSupabase().then((catalogRes) => {
                   if (catalogRes.success && catalogRes.products) {
                     setProducts(sanitizeProducts(catalogRes.products));
                   }
                 });
-              }
             }
           }
         })
@@ -1069,7 +1070,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Pre-index reps for ultra-fast matching
     const preparedReps = reps.map((u) => ({
       user: u,
-      normName: normalizeArabicText(u.name),
+      normName: normalizeArabicText(u.name).replace(/\s+/g, ''),
+      identityAliases: [u.name, u.username, u.email?.split('@')[0] || '']
+        .map((value) => normalizeArabicText(value))
+        .filter(Boolean),
       normBranch: u.branchName ? normalizeBranchName(u.branchName) : '',
     }));
 
@@ -1111,7 +1115,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ) {
               return false;
             }
-            return pr.normName === normRep;
+            return pr.identityAliases.some((alias) => alias === normRep || alias.replace(/\s+/g, '') === normRep.replace(/\s+/g, ''));
           });
 
           if (direct) {
@@ -1126,7 +1130,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               ) {
                 return false;
               }
-              return isArabicNameMatch(rawRep, pr.user.name);
+              return pr.identityAliases.some((alias) => isArabicNameMatch(rawRep, alias));
             });
             matched = fuzzy ? fuzzy.user : null;
           }
@@ -1427,7 +1431,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Real-time Session Watcher: If current user is deleted or deactivated by admin, immediately terminate session
   useEffect(() => {
-    if (currentUser && isAuthenticated) {
+    if (currentUser && isAuthenticated && users.length > 0) {
       const activeAccount = users.find((u) => u.id === currentUser.id);
       if (!activeAccount) {
         logout();
@@ -3248,22 +3252,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addUser = (user: User) => {
+  if (currentUser?.role !== 'admin' && currentUser?.role !== 'developer') return;
   if (hasDuplicateUserIdentity(user, users, user.id)) return;
-  setUsers((prev) => {
-  const map = new Map<string, User>();
-      prev.forEach((u) => map.set(u.id, u));
-      map.set(user.id, user);
-      return Array.from(map.values());
-    });
-    saveUserToSupabase(user, users).catch((e) => console.warn('Supabase save user failed:', e));
+    const nextUsers = [...users.filter((u) => u.id !== user.id), user];
+    setUsers(nextUsers);
+    safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(nextUsers));
+    idbSet(STORAGE_KEYS.USERS, nextUsers);
+    saveUsersToSupabase(nextUsers).catch((e) => console.warn('Supabase save user failed:', e));
     setTimeout(() => {
       refreshCustomerRepLinks();
     }, 50);
   };
 
   const updateUser = (updatedUser: User) => {
+  if (currentUser?.role !== 'admin' && currentUser?.role !== 'developer') return;
   if (hasDuplicateUserIdentity(updatedUser, users, updatedUser.id)) return;
-  setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+    const nextUsers = users.map((u) => (u.id === updatedUser.id ? updatedUser : u));
+    setUsers(nextUsers);
+    safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(nextUsers));
+    idbSet(STORAGE_KEYS.USERS, nextUsers);
     if (currentUser?.id === updatedUser.id) {
       if (!updatedUser.isActive || updatedUser.approvalStatus === 'rejected') {
         logout();
@@ -3272,7 +3279,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       setCurrentUser(updatedUser);
     }
-    saveUserToSupabase(updatedUser, users).catch((e) => console.warn('Supabase update user failed:', e));
+    saveUsersToSupabase(nextUsers).catch((e) => console.warn('Supabase update user failed:', e));
     setTimeout(() => {
       refreshCustomerRepLinks();
     }, 50);
@@ -3399,28 +3406,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getVisibleProducts = (): Product[] => {
-    if (!currentUser) return products;
-
-    if (currentUser.role === 'admin' || currentUser.role === 'developer') {
-      if (selectedBranchFilter !== 'الكل') {
-        return products.filter(
-          (p) =>
-            getBranchStockForProduct(p, selectedBranchFilter) > 0 ||
-            p.mainWarehouseActual > 0 ||
-            (!p.branchName && (p.branchStockActual || 0) > 0)
-        );
-      }
-      return products;
-    }
-
-    // Reps, Supervisors & Branch managers: products available in their branch or available from central warehouse
-    const targetBranch = currentUser.branchName;
-    return products.filter(
-      (p) =>
-        getBranchStockForProduct(p, targetBranch) > 0 ||
-        p.mainWarehouseActual > 0 ||
-        (!p.branchName && (p.branchStockActual || 0) > 0)
-    );
+    // The catalog is shared across roles; stock availability remains an optional UI filter.
+    return products;
   };
 
   const getSupervisorsInBranch = (branchName?: string): User[] => {

@@ -73,6 +73,7 @@ export const UserManager: React.FC = () => {
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('الكل');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [userFormError, setUserFormError] = useState<string | null>(null);
   const [syncToast, setSyncToast] = useState<string | null>(null);
   const [syncModalData, setSyncModalData] = useState<{ open: boolean; result?: any } | null>(null);
   const [isMergingDuplicates, setIsMergingDuplicates] = useState<boolean>(false);
@@ -158,7 +159,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     username TEXT UNIQUE NOT NULL,
-    email TEXT,
+    email TEXT UNIQUE,
     password TEXT,
     role TEXT DEFAULT 'sales_rep',
     branch_name TEXT,
@@ -506,6 +507,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       isActive: true,
       approvalStatus: 'active',
     });
+    setUserFormError(null);
     setShowAddUserModal(true);
   };
 
@@ -517,15 +519,32 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       password: user.password || '',
       commissionRate: user.commissionRate || 2.5,
     });
+    setUserFormError(null);
     setShowAddUserModal(true);
   };
 
   const handleSaveUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name?.trim() || !formData.email?.trim() || !isSuperAdminOrDev) return;
+    setUserFormError(null);
+    if (!formData.name?.trim() || !isSuperAdminOrDev) return;
 
-    const cleanEmail = formData.email.trim().toLowerCase();
-    const cleanUsername = cleanEmail.includes('@') ? cleanEmail.split('@')[0] : cleanEmail;
+    const requestedUsername = formData.username?.trim().toLowerCase() || '';
+    const fallbackUsername = normalizeArabicText(formData.name).replace(/\s+/g, '') || `user_${Date.now()}`;
+    const cleanUsername = requestedUsername || fallbackUsername;
+    const enteredEmail = formData.email?.trim().toLowerCase() || '';
+    const cleanEmail = enteredEmail.includes('@') ? enteredEmail : `${enteredEmail || cleanUsername}@dream.com`;
+    const identityKey = (value: string) => normalizeArabicText(value).replace(/\s+/g, '');
+    const duplicateUser = users.find((user) => {
+      if (editingUser && user.id === editingUser.id) return false;
+      return identityKey(user.username) === identityKey(cleanUsername) || identityKey(user.email) === identityKey(cleanEmail);
+    });
+    if (duplicateUser) {
+      const sameUsername = identityKey(duplicateUser.username) === identityKey(cleanUsername);
+      setUserFormError(sameUsername
+        ? 'اسم المستخدم مستخدم بالفعل، اختر اسمًا مختلفًا.'
+        : 'البريد الإلكتروني مستخدم بالفعل، اختر بريدًا مختلفًا.');
+      return;
+    }
 
     const assignedBranch = (formData.role === 'admin' || formData.role === 'developer')
       ? 'جميع الفروع والمخزن المركزي (6 أكتوبر)'
@@ -537,7 +556,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
         ...formData,
         name: formData.name.trim(),
         email: cleanEmail,
-        username: formData.username?.trim() || cleanUsername,
+        username: cleanUsername,
         branchName: assignedBranch,
       } as User);
       setEditingUser(null);
@@ -1190,6 +1209,11 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             </div>
 
             <form onSubmit={handleSaveUser} className="space-y-4 text-xs">
+              {userFormError && (
+                <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl px-3 py-2.5 font-bold text-xs">
+                  {userFormError}
+                </div>
+              )}
               
               {/* 1. VISUAL ROLE SELECTOR CARDS */}
               <div className="space-y-2">
@@ -1269,6 +1293,23 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     />
                     <p className="text-[10px] text-slate-500 mt-1">
                       🔐 يستخدمه الموظف لتسجيل الدخول في النظام مباشرة.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      اسم المستخدم <span className="text-rose-600">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.username || ''}
+                      onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                      placeholder="مثال: ahmed.sales"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 text-xs"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      يجب أن يكون مختلفًا عن جميع المستخدمين الحاليين.
                     </p>
                   </div>
 

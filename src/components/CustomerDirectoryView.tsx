@@ -243,7 +243,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
     return scopedCustomers.filter((c) => {
       // Branch filter
-      if (selectedBranch !== 'الكل') {
+      if (selectedBranch !== 'الكل' && !(scopeTab === 'my_customers' && isRep)) {
         if (!isBranchMatch(c.branchName, selectedBranch, { allowUnassigned: false })) {
           return false;
         }
@@ -304,7 +304,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
       return true;
     });
-  }, [scopedCustomers, searchQuery, selectedBranch, selectedRepFilter, debtFilter]);
+  }, [scopedCustomers, searchQuery, selectedBranch, selectedRepFilter, debtFilter, scopeTab, isRep]);
 
   // Sorting
   const sortedCustomers = useMemo(() => {
