@@ -16,6 +16,7 @@ import {
 } from '../services/arabicMatchingService';
 import {
   deleteInvoiceFromSupabase,
+  deleteAllInvoicesFromSupabase,
   deleteUserFromSupabase,
   fetchCustomersFromSupabase,
   fetchInvoicesFromSupabase,
@@ -2329,7 +2330,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const orderFinalNotes = [orderData.notes, creatorAuditNote].filter(Boolean).join('\n');
-    const orderBranch = orderData.branchName || currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+    const defaultBranch = currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+    const orderBranch = currentUser?.role === 'admin' || currentUser?.role === 'developer'
+      ? (orderData.branchName || defaultBranch)
+      : defaultBranch;
 
     // Match customer for credit limit & debt validation
     const matchedCustomer = customers.find(
@@ -2595,6 +2599,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
   const inv = invoices.find((i) => i.id === invoiceId);
   if (!inv) return { success: false, message: 'الطلبية غير موجودة' };
+  if (
+    currentUser.role !== 'admin' &&
+    currentUser.role !== 'developer' &&
+    (!currentUser.branchName || !inv.branchName || !isBranchMatch(inv.branchName, currentUser.branchName, { allowUnassigned: false }))
+  ) {
+    return { success: false, message: 'لا يمكنك اعتماد طلبية تابعة لفرع آخر.' };
+  }
+  const isPending = inv.status === 'قيد مراجعة المشرف' || inv.status === 'معلقة بانتظار اعتماد الفرع' || inv.status === 'قيد المراجعة' || inv.status === 'مسودة';
+  if (!isPending) return { success: false, message: 'لا يمكن اعتماد طلبية غير معلّقة للمراجعة.' };
     if (inv.status === 'معتمدة ومصروفة من المخزن') {
       return { success: false, message: 'الطلبية معتمدة ومصروفة بالفعل' };
     }
@@ -2607,7 +2620,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const product = products.find((p) => p.id === invItem.productId);
       if (!product) return { success: false, message: `الصنف (${invItem.productName}) غير موجود في المخزون` };
       const requested = Math.max(0, invItem.cartonCount || 0);
-      const branchAvailable = Math.max(0, product.branchStockActual);
+      const branchAvailable = Math.max(0, getBranchStockForProduct(product, inv.branchName));
       const mainAvailable = Math.max(0, product.mainWarehouseActual);
       const branch = Math.min(requested, branchAvailable);
       const main = requested - branch;
@@ -2623,9 +2636,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProducts((prev) => prev.map((p) => {
       const allocation = allocations.get(p.id);
       if (!allocation) return p;
+      const updatedBranchStocks = p.branchStocks ? { ...p.branchStocks } : undefined;
+      if (updatedBranchStocks && allocation.branch > 0) {
+        const branchKey = Object.keys(updatedBranchStocks).find((key) =>
+          isBranchMatch(key, inv.branchName, { allowUnassigned: false })
+        );
+        if (branchKey) {
+          updatedBranchStocks[branchKey] = Math.max(0, Number(updatedBranchStocks[branchKey] || 0) - allocation.branch);
+        }
+      }
       return {
         ...p,
-        branchStockActual: Math.max(0, p.branchStockActual - allocation.branch),
+        ...(updatedBranchStocks ? { branchStocks: updatedBranchStocks } : {}),
+        branchStockActual: updatedBranchStocks ? p.branchStockActual : Math.max(0, p.branchStockActual - allocation.branch),
         mainWarehouseActual: Math.max(0, p.mainWarehouseActual - allocation.main),
       };
     }));
@@ -2690,6 +2713,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
   const inv = invoices.find((i) => i.id === invoiceId);
     if (!inv) return { success: false, message: 'الطلبية غير موجودة' };
+    if (!inv.branchName || !currentUser.branchName || !isBranchMatch(inv.branchName, currentUser.branchName, { allowUnassigned: false })) {
+      return { success: false, message: 'لا يمكنك تحويل طلبية تابعة لفرع آخر.' };
+    }
+    if (!['قيد مراجعة المشرف', 'قيد المراجعة'].includes(inv.status)) {
+      return { success: false, message: 'لا يمكن تحويل طلبية في هذه الحالة.' };
+    }
 
     setInvoices((prev) =>
       prev.map((i) => {
@@ -2725,10 +2754,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Supervisor / Manager rejects order -> Immediately releases reserved stock back to market!
   const rejectOrder = (invoiceId: string, reason: string): { success: boolean; message: string } => {
+    if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً.' };
     const inv = invoices.find((i) => i.id === invoiceId);
     if (!inv) return { success: false, message: 'الطلبية غير موجودة' };
-    if (inv.status === 'مرفوضة / ملغاة') {
-      return { success: false, message: 'الطلبية ملغاة بالفعل' };
+    const isPending = inv.status === 'قيد مراجعة المشرف' || inv.status === 'معلقة بانتظار اعتماد الفرع' || inv.status === 'قيد المراجعة' || inv.status === 'مسودة';
+    const isOwnerRep = currentUser.role === 'sales_rep' &&
+      (inv.repId === currentUser.id || (!inv.repId && normalizeArabicText(inv.repName) === normalizeArabicText(currentUser.name)));
+    if (currentUser.role === 'sales_rep' && (!isOwnerRep || !isPending)) {
+      return { success: false, message: 'يمكن للمندوب إلغاء طلبه المعلّق فقط.' };
+    }
+    if (!['sales_rep', 'supervisor', 'branch_manager', 'admin', 'developer'].includes(currentUser.role)) {
+      return { success: false, message: 'لا تملك صلاحية رفض الطلبية.' };
+    }
+    if (
+      currentUser.role !== 'sales_rep' &&
+      currentUser.role !== 'admin' &&
+      currentUser.role !== 'developer' &&
+      (!currentUser.branchName || !inv.branchName || !isBranchMatch(inv.branchName, currentUser.branchName, { allowUnassigned: false }))
+    ) {
+      return { success: false, message: 'لا يمكنك رفض طلبية تابعة لفرع آخر.' };
+    }
+    if (!isPending) {
+      return { success: false, message: 'لا يمكن رفض طلبية بعد اعتمادها؛ استخدم مسار المرتجع أو الإلغاء المناسب.' };
     }
 
     // Restore reserved stock back to available stock (in Cartons)
@@ -2809,6 +2856,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Re-open / Edit pending order for sales rep or supervisor before approval
   const editPendingOrder = (invoice: Invoice): { success: boolean; message: string; customer?: Customer | null } => {
+    if (
+      currentUser &&
+      currentUser.role !== 'admin' &&
+      currentUser.role !== 'developer' &&
+      (!currentUser.branchName || !invoice.branchName || !isBranchMatch(invoice.branchName, currentUser.branchName, { allowUnassigned: false }))
+    ) {
+      return { success: false, message: 'لا يمكنك تعديل طلبية تابعة لفرع آخر.' };
+    }
     const isPending =
       invoice.status === 'قيد مراجعة المشرف' ||
       invoice.status === 'معلقة بانتظار اعتماد الفرع' ||
@@ -2819,26 +2874,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'لا يمكن تعديل الطلبية بعد اعتمادها وصرفها من المخزن.' };
     }
 
-    // 1. Release reserved stock back to available stock
-    setProducts((prev) => {
-      return prev.map((p) => {
-        const invItem = invoice.items.find((it) => it.productId === p.id);
-        if (!invItem) return p;
-        if (invItem.fulfilledFrom === 'main_warehouse') {
-          return {
-            ...p,
-            mainWarehouseReserved: p.mainWarehouseReserved + invItem.cartonCount,
-          };
-        } else {
-          return {
-            ...p,
-            branchStockReserved: p.branchStockReserved + invItem.cartonCount,
-          };
-        }
-      });
-    });
-
-    // 2. Load items into cart
+    // Load items into cart. Pending orders reserve the generic available balance
+    // at creation time, so reopening must not add stock a second time.
     const loadedCartItems: CartItem[] = invoice.items.map((item) => {
       const prod: Product = products.find((p) => p.id === item.productId) || {
         id: item.productId,
@@ -2938,6 +2975,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ): { success: boolean; message: string } => {
     const inv = invoices.find((i) => i.id === invoiceId);
     if (!inv) return { success: false, message: 'الفاتورة غير موجودة' };
+    if (
+      currentUser &&
+      currentUser.role !== 'admin' &&
+      currentUser.role !== 'developer' &&
+      (!currentUser.branchName || !inv.branchName || !isBranchMatch(inv.branchName, currentUser.branchName, { allowUnassigned: false }))
+    ) {
+      return { success: false, message: 'لا يمكنك تحديث طلبية تابعة لفرع آخر.' };
+    }
 
     const oldStatus = inv.status;
     if (oldStatus === status) return { success: true, message: 'حالة الطلبية مطابقة بالفعل' };
@@ -2970,8 +3015,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 mainWarehouseReserved: p.mainWarehouseReserved + qty,
               };
             } else {
+              const updatedBranchStocks = p.branchStocks ? { ...p.branchStocks } : undefined;
+              if (updatedBranchStocks) {
+                const branchKey = Object.keys(updatedBranchStocks).find((key) =>
+                  isBranchMatch(key, inv.branchName, { allowUnassigned: false })
+                );
+                if (branchKey) {
+                  updatedBranchStocks[branchKey] = Number(updatedBranchStocks[branchKey] || 0) + qty;
+                }
+              }
               return {
                 ...p,
+                ...(updatedBranchStocks ? { branchStocks: updatedBranchStocks } : {}),
                 branchStockActual: p.branchStockActual + qty,
                 branchStockReserved: p.branchStockReserved + qty,
               };
@@ -3292,9 +3347,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 5. Delete permanently from Supabase
     try {
-      await deleteInvoiceFromSupabase(targetId, targetNumber);
+      const remoteDelete = await deleteInvoiceFromSupabase(targetId, targetNumber);
+      if (!remoteDelete.success) {
+        throw new Error(remoteDelete.error || 'تعذر حذف الفاتورة من قاعدة البيانات');
+      }
     } catch (e) {
       console.warn('Supabase invoice deletion failed:', e);
+      throw e;
     }
   };
 
@@ -3420,9 +3479,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     safeLocalStorageSet(STORAGE_KEYS.CART, JSON.stringify([]));
 
     if (options?.wipeInvoices) {
+      const remoteDelete = await deleteAllInvoicesFromSupabase();
+      if (!remoteDelete.success) {
+        console.warn('Supabase invoice wipe warning:', remoteDelete.error);
+      }
       setInvoices([]);
       idbSet(STORAGE_KEYS.INVOICES, []);
       safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify([]));
+      safeLocalStorageSet(STORAGE_KEYS.DELETED_INVOICE_IDS, JSON.stringify([]));
     }
 
     try {
