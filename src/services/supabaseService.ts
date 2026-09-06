@@ -216,58 +216,6 @@ export async function saveCustomerToSupabase(customer: Customer): Promise<{ succ
 
 const CATALOG_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000001';
 export const USER_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000002';
-const PENDING_INVOICES_KEY = 'dream_dist_pending_invoices_v1';
-const PENDING_USERS_KEY = 'dream_dist_pending_users_v1';
-
-function readPending<T>(key: string): T[] {
-  try {
-    const value = JSON.parse(localStorage.getItem(key) || '[]');
-    return Array.isArray(value) ? value : [];
-  } catch {
-    return [];
-  }
-}
-
-function writePending<T>(key: string, values: T[]) {
-  try {
-    localStorage.setItem(key, JSON.stringify(values));
-  } catch {
-    // The primary offline copy remains in IndexedDB.
-  }
-}
-
-function queuePendingInvoice(invoice: Invoice) {
-  const queued = readPending<Invoice>(PENDING_INVOICES_KEY).filter((item) => item.id !== invoice.id);
-  queued.push(invoice);
-  writePending(PENDING_INVOICES_KEY, queued);
-}
-
-function queuePendingUser(user: User) {
-  const queued = readPending<User>(PENDING_USERS_KEY).filter((item) => item.id !== user.id);
-  queued.push(user);
-  writePending(PENDING_USERS_KEY, queued);
-}
-
-export async function flushPendingSupabaseWrites(): Promise<void> {
-  const pendingInvoices = readPending<Invoice>(PENDING_INVOICES_KEY);
-  const pendingUsers = readPending<User>(PENDING_USERS_KEY);
-
-  for (const invoice of pendingInvoices) {
-    const result = await saveInvoiceToSupabase(invoice);
-    if (result.success) {
-      const remaining = readPending<Invoice>(PENDING_INVOICES_KEY).filter((item) => item.id !== invoice.id);
-      writePending(PENDING_INVOICES_KEY, remaining);
-    }
-  }
-
-  for (const user of pendingUsers) {
-    const result = await saveUserToSupabase(user);
-    if (result.success) {
-      const remaining = readPending<User>(PENDING_USERS_KEY).filter((item) => item.id !== user.id);
-      writePending(PENDING_USERS_KEY, remaining);
-    }
-  }
-}
 
 let cachedUsersResponse: { data: User[]; timestamp: number } | null = null;
 const USERS_CACHE_TTL_MS = 60 * 1000; // 60 seconds memory cache
@@ -330,45 +278,35 @@ export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Pro
         // Continue to secondary tables if needed
       }
 
-      // Merge secondary sources as well; the primary table may be readable but incomplete on some devices.
-      for (const tbl of ['app_users', 'profiles']) {
+      // 2. Only check secondary candidates if primary 'users' table is empty or has very few records
+      if (byId.size === 0) {
+        for (const tbl of ['app_users', 'profiles']) {
+          try {
+            const { data, error } = await supabase.from(tbl).select('*');
+            if (error || !data) continue;
+            data.forEach((row: any, idx: number) => {
+              const user = mapUser(row, tbl, idx);
+              const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
+              byId.set(user.id, { ...existing, ...user });
+              if (user.email) byEmail.set(user.email.toLowerCase(), { ...existing, ...user });
+            });
+          } catch {
+            // Continue
+          }
+        }
+
+        // Check central snapshot as fallback
         try {
-          const { data, error } = await supabase.from(tbl).select('*');
-          if (error || !data) continue;
-          data.forEach((row: any, idx: number) => {
-            const user = mapUser(row, tbl, idx);
-            const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
-            const merged = {
-              ...existing,
-              ...user,
-              password: user.password || existing?.password || '',
-            };
-            byId.set(merged.id, merged);
-            if (merged.email) byEmail.set(merged.email.toLowerCase(), merged);
+          const { data } = await supabase.from('orders').select('items').eq('id', USER_SYNC_STORE_ID).limit(1);
+          const items = data?.[0]?.items;
+          const snapshot = Array.isArray(items) ? items : typeof items === 'string' ? JSON.parse(items) : [];
+          snapshot.forEach((row: any, idx: number) => {
+            const user = mapUser(row, 'snapshot', idx);
+            if (!byId.has(user.id) && (!user.email || !byEmail.has(user.email.toLowerCase()))) byId.set(user.id, user);
           });
         } catch {
-          // Continue
+          // snapshot optional
         }
-      }
-
-      // Check the central snapshot as a final source for users not present in the tables.
-      try {
-        const { data } = await supabase.from('orders').select('items').eq('id', USER_SYNC_STORE_ID).limit(1);
-        const items = data?.[0]?.items;
-        const snapshot = Array.isArray(items) ? items : typeof items === 'string' ? JSON.parse(items) : [];
-        snapshot.forEach((row: any, idx: number) => {
-          const user = mapUser(row, 'snapshot', idx);
-          const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
-          const merged = {
-            ...user,
-            ...existing,
-            password: existing?.password || user.password || '',
-          };
-          byId.set(merged.id, merged);
-          if (merged.email) byEmail.set(merged.email.toLowerCase(), merged);
-        });
-      } catch {
-        // snapshot optional
       }
 
       const users = Array.from(byId.values());
@@ -403,7 +341,7 @@ export function sanitizeEmail(raw: string): string {
 /**
  * Find a specific user in Supabase by email, username, or phone safely
  */
-export async function findUserInSupabase(identifier: string, forceRefresh: boolean = false): Promise<{ success: boolean; user?: User; error?: string }> {
+export async function findUserInSupabase(identifier: string): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
     const rawClean = sanitizeIdentifier(identifier);
     const cleanLower = rawClean.toLowerCase();
@@ -414,7 +352,7 @@ export async function findUserInSupabase(identifier: string, forceRefresh: boole
     }
 
     // Fetch remote users and match accurately in memory without fragile PostgREST URL syntax errors
-    const remoteRes = await fetchUsersFromSupabase(forceRefresh);
+    const remoteRes = await fetchUsersFromSupabase();
     if (remoteRes.success && remoteRes.users && remoteRes.users.length > 0) {
       const found = remoteRes.users.find(
         (u) =>
@@ -518,16 +456,9 @@ export async function saveUserToSupabase(user: User, currentUsersList?: User[]):
       created_at: user.registrationDate || new Date().toISOString(),
     };
 
-    // The users table is the source of truth for login. Do not hide an upsert error,
-    // otherwise the employee appears saved locally but cannot log in on another device.
-    const { error: usersError } = await supabase.from('users').upsert(userPayload);
-    if (usersError) {
-      queuePendingUser(user);
-      return { success: false, error: `تعذر حفظ المستخدم في جدول users: ${usersError.message}` };
-    }
-
-    // profiles is only a compatibility mirror and may not exist in every project.
+    // 1. Parallel fast upsert to tables
     const tablePromises: Promise<any>[] = [
+      Promise.resolve(supabase.from('users').upsert(userPayload)),
       Promise.resolve(
         supabase.from('profiles').upsert({
           id: user.id,
@@ -560,11 +491,8 @@ export async function saveUserToSupabase(user: User, currentUsersList?: User[]):
     }
 
     await Promise.allSettled(tablePromises);
-    const remaining = readPending<User>(PENDING_USERS_KEY).filter((item) => item.id !== user.id);
-    writePending(PENDING_USERS_KEY, remaining);
     return { success: true };
   } catch (e: any) {
-    queuePendingUser(user);
     return { success: false, error: e?.message };
   }
 }
@@ -649,10 +577,7 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
 
     // 1. Try upserting full payload to 'invoices' table
     const { error: invErr } = await supabase.from('invoices').upsert(payload);
-    if (!invErr) {
-      writePending(PENDING_INVOICES_KEY, readPending<Invoice>(PENDING_INVOICES_KEY).filter((item) => item.id !== invoice.id));
-      return { success: true };
-    }
+    if (!invErr) return { success: true };
 
     // 2. Try standard core payload (omitting newer extra columns that may not be in older schema cache)
     const corePayload = {
@@ -676,10 +601,7 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
     };
 
     const { error: coreInvErr } = await supabase.from('invoices').upsert(corePayload);
-    if (!coreInvErr) {
-      writePending(PENDING_INVOICES_KEY, readPending<Invoice>(PENDING_INVOICES_KEY).filter((item) => item.id !== invoice.id));
-      return { success: true };
-    }
+    if (!coreInvErr) return { success: true };
 
     // 3. Try minimal payload
     const minimalPayload = {
@@ -698,24 +620,16 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
     };
 
     const { error: minInvErr } = await supabase.from('invoices').upsert(minimalPayload);
-    if (!minInvErr) {
-      writePending(PENDING_INVOICES_KEY, readPending<Invoice>(PENDING_INVOICES_KEY).filter((item) => item.id !== invoice.id));
-      return { success: true };
-    }
+    if (!minInvErr) return { success: true };
 
     // 4. Try 'orders' table as fallback
     const { error: ordErr } = await supabase.from('orders').upsert(minimalPayload);
-    if (!ordErr) {
-      writePending(PENDING_INVOICES_KEY, readPending<Invoice>(PENDING_INVOICES_KEY).filter((item) => item.id !== invoice.id));
-      return { success: true };
-    }
+    if (!ordErr) return { success: true };
 
     console.warn('Supabase Invoice Save Notice:', invErr?.message || coreInvErr?.message || minInvErr?.message);
-    queuePendingInvoice(invoice);
     return { success: false, error: invErr?.message || coreInvErr?.message || minInvErr?.message };
   } catch (e: any) {
     console.warn('Supabase Invoice Save Exception:', e);
-    queuePendingInvoice(invoice);
     return { success: false, error: e?.message };
   }
 }
@@ -726,25 +640,13 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
 export async function fetchInvoicesFromSupabase(limit = 200): Promise<{ success: boolean; invoices?: Invoice[]; error?: string }> {
   try {
     let rawInvoices: any[] | null = null;
-    const pageSize = 1000;
-    const requestedLimit = typeof limit === 'number' && Number.isFinite(limit) ? limit : Number.POSITIVE_INFINITY;
-    const invPages: any[] = [];
-    let invErr: any = null;
-    for (let page = 0; invPages.length < requestedLimit; page++) {
-      const end = Math.min((page + 1) * pageSize, requestedLimit) - 1;
-      const { data, error } = await supabase
-        .from('invoices')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .range(page * pageSize, end);
-      invErr = error;
-      if (error || !data || data.length === 0) break;
-      invPages.push(...data);
-      if (data.length < pageSize) break;
-    }
-    const invData = invPages.slice(0, Number.isFinite(requestedLimit) ? requestedLimit : undefined);
+    const { data: invData, error: invErr } = await supabase
+      .from('invoices')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
     
-    if (!invErr && invData.length > 0) {
+    if (!invErr && invData && invData.length > 0) {
       rawInvoices = invData;
     } else {
       const { data: ordData, error: ordErr } = await supabase
@@ -859,30 +761,27 @@ const CHUNK_SIZE = 400;
 export async function saveProductsToSupabase(products: Product[]): Promise<{ success: boolean; error?: string }> {
   try {
     if (!products || products.length === 0) return { success: true };
-    let snapshotFailed = false;
 
     // 1. Save rich chunked snapshot into shared store so all 5000+ items and branch stocks are 100% preserved
     const totalChunks = Math.ceil(products.length / CHUNK_SIZE);
     try {
       // Save manifest first
-      const { error: manifestError } = await supabase.from('orders').upsert({
+      await supabase.from('orders').upsert({
         id: CATALOG_MANIFEST_ID,
         status: 'catalog_sync_manifest',
         total: products.length,
         items: { totalChunks, totalProducts: products.length, updatedAt: new Date().toISOString() } as any,
       });
-      if (manifestError) snapshotFailed = true;
 
       // Save each chunk
       for (let i = 0; i < totalChunks; i++) {
         const chunk = products.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-        const { error: chunkError } = await supabase.from('orders').upsert({
+        await supabase.from('orders').upsert({
           id: `${CATALOG_CHUNK_PREFIX}${i}`,
           status: 'catalog_sync_chunk',
           total: chunk.length,
           items: chunk as any,
         });
-        if (chunkError) snapshotFailed = true;
       }
     } catch (storeErr) {
       console.warn('Catalog snapshot chunk store fallback:', storeErr);
@@ -903,19 +802,15 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
       };
     });
 
-    let directProductsFailed = false;
     for (let i = 0; i < payload.length; i += 100) {
       const chunk = payload.slice(i, i + 100);
       const { error } = await supabase.from('products').upsert(chunk);
       if (error) {
-        directProductsFailed = true;
         console.warn('Direct products chunk save notice:', error.message);
       }
     }
 
-    return snapshotFailed || directProductsFailed
-      ? { success: false, error: 'تعذر حفظ كل أجزاء الكتالوج في قاعدة البيانات' }
-      : { success: true };
+    return { success: true };
   } catch (e: any) {
     console.error('Supabase products save error:', e);
     return { success: false, error: e?.message };
@@ -928,7 +823,6 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
  */
 export async function fetchProductsFromSupabase(): Promise<{ success: boolean; products?: Product[]; error?: string }> {
   try {
-    let incompleteChunkedSnapshot = false;
     // 1. Check if chunked rich catalog snapshot exists
     const { data: manifestData, error: manErr } = await supabase
       .from('orders')
@@ -939,7 +833,6 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
     if (!manErr && manifestData && manifestData.length > 0 && manifestData[0].items) {
       const rawManifest = manifestData[0].items as any;
       const totalChunks = rawManifest?.totalChunks;
-      const totalProductsExpected = rawManifest?.totalProducts;
       if (typeof totalChunks === 'number' && totalChunks > 0) {
         const chunkPromises: Promise<any>[] = [];
         for (let i = 0; i < totalChunks; i++) {
@@ -963,12 +856,7 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
           }
         });
         if (allItems.length > 0) {
-          if (typeof totalProductsExpected === 'number' && allItems.length < totalProductsExpected) {
-            console.warn(`Supabase catalog snapshot incomplete: expected ${totalProductsExpected}, got ${allItems.length}. Continuing fallback.`);
-            incompleteChunkedSnapshot = true;
-          } else {
-            return { success: true, products: allItems };
-          }
+          return { success: true, products: allItems };
         }
       }
     }
@@ -980,7 +868,7 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
       .eq('id', CATALOG_SYNC_STORE_ID)
       .limit(1);
 
-    if (!incompleteChunkedSnapshot && !snapErr && snapshotData && snapshotData.length > 0 && snapshotData[0].items) {
+    if (!snapErr && snapshotData && snapshotData.length > 0 && snapshotData[0].items) {
       const rawItems = snapshotData[0].items;
       const itemsList: Product[] = Array.isArray(rawItems)
         ? rawItems

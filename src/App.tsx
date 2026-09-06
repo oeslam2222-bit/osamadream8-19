@@ -24,7 +24,6 @@ import { SupervisorDashboard } from './components/SupervisorDashboard';
 import { InvoicesManager } from './components/InvoicesManager';
 import { InventoryStockView } from './components/InventoryStockView';
 import { ExcelImportExport } from './components/ExcelImportExport';
-import { AuditLogView } from './components/AuditLogView';
 import { UserManager } from './components/UserManager';
 import { SystemWorkflowGuide } from './components/SystemWorkflowGuide';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
@@ -131,15 +130,6 @@ const MainLayout: React.FC = () => {
           {activeTab === 'inventory' && <InventoryStockView />}
 
           {activeTab === 'excel' && <ExcelImportExport />}
-
-          {activeTab === 'audit' && (
-            <AuditLogView
-              onViewInvoice={(invoiceId) => {
-                const found = invoices.find((i) => i.id === invoiceId || i.invoiceNumber === invoiceId);
-                if (found) setViewingInvoice(found);
-              }}
-            />
-          )}
 
           {activeTab === 'users' && <UserManager />}
 

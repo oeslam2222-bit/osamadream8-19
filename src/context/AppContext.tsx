@@ -30,7 +30,6 @@ import {
   fetchProductsFromSupabase,
   fetchUsersFromSupabase,
   findUserInSupabase,
-  flushPendingSupabaseWrites,
   sanitizeEmail,
   sanitizeIdentifier,
   saveCustomersToSupabase,
@@ -142,7 +141,7 @@ interface AppContextType {
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
   deleteProduct: (productId: string) => void;
-  importProductsList: (newProducts: Product[], mode?: 'smart' | 'merge' | 'replace') => void;
+  importProductsList: (newProducts: Product[], mode: 'merge' | 'replace') => void;
   adjustStock: (productId: string, branchChange: number, mainWarehouseChange: number, reason?: string) => void;
   recordInventoryTransaction: (tx: Omit<InventoryTransaction, 'id' | 'timestamp' | 'date'>) => void;
   checkProductAvailability: (productId: string, requestedPieces: number) => { available: boolean; remainingPieces: number; message?: string };
@@ -224,7 +223,6 @@ const STORAGE_KEYS = {
   ACCOUNTING_LOGS: 'dream_dist_acc_logs_v9',
   CART: 'dream_dist_cart_v9',
   DELETED_INVOICE_IDS: 'dream_dist_deleted_invoices_v1',
-    PENDING_CATALOG_SYNC: 'dream_dist_pending_catalog_sync_v1',
 };
 
 const getDeletedInvoiceIds = (): Set<string> => {
@@ -477,39 +475,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return isAuth && (hasUserId || hasUserData);
   });
 
-  const normalizeProductKeyPart = (value: unknown): string =>
-    String(value || '')
-      .normalize('NFKC')
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, '');
-
   const sanitizeProducts = (list: Product[]): Product[] => {
-    const byId = new Map<string, Product>();
-    list.forEach((p) => {
-      const id = String(p.id || '').trim();
-      const code = normalizeProductKeyPart(p.code);
-      const color = normalizeProductKeyPart(p.color);
-      const size = normalizeProductKeyPart(p.size);
-      const name = normalizeProductKeyPart(p.name);
-      const identity = code
-        ? `product:::${code}:::${color}:::${size}`
-        : name
-          ? `name:::${name}:::${color}:::${size}`
-          : `id:::${id}`;
-      if (!id && !code) return;
-      if (!byId.has(identity)) {
-        byId.set(identity, p);
-      }
-    });
-    const unique = Array.from(byId.values());
-    return unique.map((p) => {
+    return list.map((p) => {
       const cartonQty = p.cartonQuantity && p.cartonQuantity > 0 ? p.cartonQuantity : 1;
       const cartonPrice = typeof p.cartonPrice === 'number' ? p.cartonPrice : 0;
-      const generatedUnifiedCode = p.code && p.color ? `${p.code}${p.color.replace(/\s+/g, '')}` : undefined;
+
       return {
         ...p,
-        unifiedCode: p.unifiedCode || generatedUnifiedCode,
         cartonQuantity: cartonQty,
         cartonPrice: cartonPrice,
         piecePrice: cartonPrice > 0 && cartonQty > 0 ? Math.round((cartonPrice / cartonQty) * 100) / 100 : (p.piecePrice || cartonPrice),
@@ -669,20 +641,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [inventoryLogs, setInventoryLogs] = useState<InventoryTransaction[]>(() => {
-    const saved = localStorage.getItem('dream_dist_inv_logs_v5');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [inventoryLogs] = useState<InventoryTransaction[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
-    const saved = localStorage.getItem('dream_dist_audit_logs_v7');
-    return saved ? JSON.parse(saved) : INITIAL_AUDIT_LOGS;
-  });
-
+  // Cleanup lingering audit & inventory logs from storage to save space and keep app ultra-lightweight
   useEffect(() => {
-    idbSet('dream_dist_audit_logs_v7', auditLogs);
-    safeLocalStorageSet('dream_dist_audit_logs_v7', JSON.stringify(auditLogs));
-  }, [auditLogs]);
+    try {
+      localStorage.removeItem('dream_dist_inv_logs_v5');
+      localStorage.removeItem('dream_dist_audit_logs_v7');
+      idbDelete('dream_dist_audit_logs_v7').catch(() => {});
+    } catch {}
+  }, []);
 
   // Persist users to IndexedDB and localStorage so offline sessions and registered reps are immediately available
   useEffect(() => {
@@ -732,21 +701,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [users]);
 
-  const recordAuditLog = (logData: Omit<AuditLog, 'id' | 'timestamp' | 'formattedTime'>) => {
-    const now = new Date();
-    const formattedTime = `${now.toISOString().slice(0, 10)} ${now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;
-    const newLog: AuditLog = {
-      ...logData,
-      id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      timestamp: now.toISOString(),
-      formattedTime,
-    };
-    setAuditLogs((prev) => [newLog, ...prev].slice(0, 800));
+  const recordAuditLog = (_logData: Omit<AuditLog, 'id' | 'timestamp' | 'formattedTime'>) => {
+    // Audit logs disabled as requested by user to keep the app ultra-clean and lightweight
   };
 
   const clearAuditLogs = () => {
     setAuditLogs([]);
-    localStorage.removeItem('dream_dist_audit_logs_v7');
+    try {
+      localStorage.removeItem('dream_dist_audit_logs_v7');
+    } catch {}
   };
 
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -761,13 +724,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved === 'true';
   });
 
-  // Use IndexedDB only as the offline fallback. When online, Supabase is the source of truth.
+  // Hydrate high-capacity collections from IndexedDB seamlessly on startup
   useEffect(() => {
     let isMounted = true;
     async function hydrateFromIndexedDB() {
       try {
-        if (navigator.onLine) return;
-
         // Clean up legacy large keys from localStorage to prevent quota overflow
         try {
           localStorage.removeItem(STORAGE_KEYS.PRODUCTS);
@@ -797,8 +758,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setCustomers(sanitizeCustomers(idbCustomers));
         }
         if (idbUsers && Array.isArray(idbUsers) && idbUsers.length > 0) {
-          const dedup = sanitizeAndDeduplicateUsers(idbUsers);
-          setUsers(dedup.deduplicated);
+          setUsers((prev) => {
+            const map = new Map<string, User>();
+            prev.forEach((u) => map.set(u.id, u));
+            idbUsers.forEach((u) => map.set(u.id, u));
+            const dedup = sanitizeAndDeduplicateUsers(Array.from(map.values()));
+            return dedup.deduplicated;
+          });
         }
       } catch (err) {
         console.warn('IndexedDB initial hydration notice:', err);
@@ -877,35 +843,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // 2. Fetch remote users and invoices if requested
       if (direction === 'fetch' || direction === 'both') {
-        const fetchRes = await fetchUsersFromSupabase(true);
-        if (fetchRes.success && fetchRes.users) {
+        const fetchRes = await fetchUsersFromSupabase();
+        if (fetchRes.success && fetchRes.users && fetchRes.users.length > 0) {
           fetchedUsersCount = fetchRes.users.length;
-          setUsers(sanitizeAndDeduplicateUsers(fetchRes.users).deduplicated);
+          setUsers((prev) => {
+            const mergedMap = new Map<string, User>();
+            prev.forEach((u) => mergedMap.set(u.id, u));
+            prev.forEach((u) => mergedMap.set(u.username.toLowerCase(), u));
+            fetchRes.users!.forEach((su) => {
+              mergedMap.set(su.id, su);
+              mergedMap.set(su.username.toLowerCase(), su);
+            });
+            return Array.from(new Set(mergedMap.values()));
+          });
         }
 
         const invRes = await fetchInvoicesFromSupabase();
-        if (invRes.success && invRes.invoices) {
+        if (invRes.success && invRes.invoices && invRes.invoices.length > 0) {
           const deletedSet = getDeletedInvoiceIds();
           const validInvoices = invRes.invoices.filter((si) => !deletedSet.has(si.id) && !deletedSet.has(si.invoiceNumber));
           fetchedInvoicesCount = validInvoices.length;
-          setInvoices(validInvoices);
+          setInvoices((prev) => {
+            const invMap = new Map<string, Invoice>();
+            prev.filter((i) => !deletedSet.has(i.id) && !deletedSet.has(i.invoiceNumber)).forEach((i) => {
+              invMap.set(i.id, i);
+              invMap.set(i.invoiceNumber, i);
+            });
+            validInvoices.forEach((si) => {
+              invMap.set(si.id, si);
+              invMap.set(si.invoiceNumber, si);
+            });
+            return Array.from(new Set(invMap.values()));
+          });
         }
       }
 
       // 2b. Fetch customers from Supabase
       if (direction === 'fetch' || direction === 'both') {
         const custRes = await fetchCustomersFromSupabase();
-        if (custRes.success && custRes.customers) {
-          setCustomers(sanitizeCustomers(custRes.customers));
-        }
-      }
-
-      // 2c. Delete locally-deleted invoices from Supabase so they never reappear on other devices
-      if ((direction === 'fetch' || direction === 'both') && navigator.onLine) {
-        const deletedSet = getDeletedInvoiceIds();
-        if (deletedSet.size > 0) {
-          await Promise.allSettled(Array.from(deletedSet).map((id) => deleteInvoiceFromSupabase(id)));
-          localStorage.removeItem(STORAGE_KEYS.DELETED_INVOICE_IDS);
+        if (custRes.success && custRes.customers && custRes.customers.length > 0) {
+          setCustomers((prev) => {
+            const linked = linkCustomersToUsers(custRes.customers!, users);
+            const merged = sanitizeCustomers([...prev, ...linked]);
+            return merged;
+          });
         }
       }
       if (direction === 'push' || direction === 'both') {
@@ -950,8 +931,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               prev.forEach((u) => map.set(u.id, u));
               res.users!.forEach((su) => map.set(su.id, su));
               const dedup = sanitizeAndDeduplicateUsers(Array.from(map.values()));
-              // Remap references locally without deleting users from Supabase.
+              // If duplicate IDs were detected and cleaned, delete them permanently from Supabase
               if (dedup.removedUserIds.length > 0) {
+                dedup.removedUserIds.forEach((remId) => {
+                  deleteUserFromSupabase(remId).catch(() => {});
+                });
+                // Remap customer references
                 setCustomers((prevCusts) => {
                   let changed = false;
                   const updated = prevCusts.map((c) => {
@@ -963,6 +948,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   });
                   return changed ? updated : prevCusts;
                 });
+                // Remap invoice references
                 setInvoices((prevInvs) => {
                   let changed = false;
                   const updated = prevInvs.map((inv) => {
@@ -982,25 +968,80 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         // 2. Fetch Central Catalog from Supabase (Propagates Admin/Developer uploads to all reps and supervisors)
         fetchProductsFromSupabase().then((res) => {
-          if (res.success && res.products) {
-            // The cloud catalog is authoritative once loaded. Never restore a stale device cache here.
-            setProducts(sanitizeProducts(res.products));
+          if (res.success && res.products && res.products.length > 0) {
+            setProducts((prev) => {
+              const localMap = new Map<string, Product>();
+              prev.forEach((p) => localMap.set(p.id, p));
+
+              const remoteMap = new Map<string, Product>();
+              res.products!.forEach((rp) => remoteMap.set(rp.id, rp));
+
+              const merged: Product[] = [];
+
+              // If local catalog has items (e.g. user imported 5130 products from Excel),
+              // iterate through local products first so NO products are ever dropped!
+              if (prev.length > 0) {
+                prev.forEach((localP) => {
+                  const remoteP = remoteMap.get(localP.id);
+                  if (!remoteP) {
+                    merged.push(localP);
+                  } else {
+                    merged.push({
+                      ...remoteP,
+                      // Preserve rich multi-branch stocks (Fayoum, etc.) if remote record is missing them
+                      branchStocks: (remoteP.branchStocks && Object.keys(remoteP.branchStocks).length > 0)
+                        ? remoteP.branchStocks
+                        : localP.branchStocks,
+                      cartonQuantity: remoteP.cartonQuantity || localP.cartonQuantity,
+                      factor: remoteP.factor || localP.factor,
+                      piecePrice: remoteP.piecePrice || localP.piecePrice,
+                      cartonPrice: remoteP.cartonPrice || localP.cartonPrice,
+                      promoPrice: remoteP.promoPrice ?? localP.promoPrice,
+                      promoPiecePrice: remoteP.promoPiecePrice ?? localP.promoPiecePrice,
+                      branchStockReserved: localP.branchStockReserved < remoteP.branchStockActual ? localP.branchStockReserved : remoteP.branchStockActual,
+                      mainWarehouseReserved: localP.mainWarehouseReserved < remoteP.mainWarehouseActual ? localP.mainWarehouseReserved : remoteP.mainWarehouseActual,
+                    });
+                  }
+                });
+
+                // Add any remote products not found locally
+                res.products!.forEach((remoteP) => {
+                  if (!localMap.has(remoteP.id)) {
+                    merged.push(remoteP);
+                  }
+                });
+              } else {
+                // If local state was empty, load remote products directly
+                merged.push(...res.products!);
+              }
+
+              return sanitizeProducts(merged);
+            });
           }
         });
 
         // 3. Fetch Invoices
         fetchInvoicesFromSupabase().then((res) => {
-          if (res.success && res.invoices) {
+          if (res.success && res.invoices && res.invoices.length > 0) {
             const deletedSet = getDeletedInvoiceIds();
             const validInvoices = res.invoices.filter((si) => !deletedSet.has(si.id) && !deletedSet.has(si.invoiceNumber));
-            setInvoices(validInvoices);
+            setInvoices((prev) => {
+              const map = new Map<string, Invoice>();
+              prev.filter((i) => !deletedSet.has(i.id) && !deletedSet.has(i.invoiceNumber)).forEach((i) => map.set(i.id, i));
+              validInvoices.forEach((si) => map.set(si.id, si));
+              return Array.from(map.values());
+            });
           }
         });
 
         // 4. Fetch Customers from Supabase and link them to user accounts
         fetchCustomersFromSupabase().then((res) => {
-          if (res.success && res.customers) {
-            setCustomers(sanitizeCustomers(res.customers));
+          if (res.success && res.customers && res.customers.length > 0) {
+            setCustomers((prev) => {
+              const linked = linkCustomersToUsers(res.customers!, users);
+              const merged = sanitizeCustomers([...prev, ...linked]);
+              return merged;
+            });
           }
         });
       }
@@ -1075,24 +1116,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 ? JSON.parse(raw.items)
                 : [];
               if (remoteProducts.length > 0) {
-                setProducts((prev) => {
-                  const remoteById = new Map<string, Product>();
-                  remoteProducts.forEach((rp) => {
-                    const sanitized = sanitizeProducts([rp])[0];
-                    remoteById.set(sanitized.id, sanitized);
-                  });
-                  const merged = new Map<string, Product>();
-                  prev.forEach((p) => merged.set(p.id, p));
-                  remoteById.forEach((rp, id) => {
-                    const existing = merged.get(id);
-                    if (existing) {
-                      merged.set(id, { ...existing, ...rp, id: existing.id });
-                    } else {
-                      merged.set(id, rp);
-                    }
-                  });
-                  return sanitizeProducts(Array.from(merged.values()));
-                });
+                setProducts(sanitizeProducts(remoteProducts));
               }
             } else if (raw && raw.id === '00000000-0000-0000-0000-000000000002' && raw.items) {
               const remoteUsers: User[] = Array.isArray(raw.items)
@@ -1560,10 +1584,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [accountingLogs]);
 
   useEffect(() => {
-    safeLocalStorageSet('dream_dist_inv_logs_v5', JSON.stringify(inventoryLogs));
-  }, [inventoryLogs]);
-
-  useEffect(() => {
     if (currentUser && isAuthenticated) {
       safeLocalStorageSet(STORAGE_KEYS.CURRENT_USER_ID, currentUser.id);
       safeLocalStorageSet(STORAGE_KEYS.IS_AUTH, 'true');
@@ -1607,17 +1627,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Online / Offline tracking
   useEffect(() => {
-    const handleOnline = async () => {
-      setIsOffline(false);
-      if (localStorage.getItem(STORAGE_KEYS.PENDING_CATALOG_SYNC) === 'true') {
-        const catalogResult = await saveProductsToSupabase(products);
-        if (catalogResult.success) {
-          localStorage.removeItem(STORAGE_KEYS.PENDING_CATALOG_SYNC);
-        }
-      }
-      await flushPendingSupabaseWrites();
-      await syncWithSupabase('fetch');
-    };
+    const handleOnline = () => setIsOffline(false);
     const handleOffline = () => setIsOffline(true);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -1625,7 +1635,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [products]);
+  }, []);
 
   // --- Authentication System ---
   const login = async (identifier: string, password?: string): Promise<{ success: boolean; message: string; user?: User }> => {
@@ -1634,40 +1644,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const rawTrim = sanitizeIdentifier(identifier);
     const cleanPass = (password || '').trim();
 
-    const matchesIdentifier = (u: User) =>
-      (u.email && sanitizeEmail(u.email) === cleanEmail) ||
-      (u.email && u.email.toLowerCase().startsWith(cleanId)) ||
-      (u.username && sanitizeIdentifier(u.username).toLowerCase() === cleanId) ||
-      (u.name && sanitizeIdentifier(u.name).toLowerCase() === cleanId) ||
-      (u.phone && sanitizeIdentifier(u.phone) === rawTrim) ||
-      (u.id && String(u.id).toLowerCase() === cleanId);
+    // 1. Search in local memory first with rich identifier matching
+    let found = users.find(
+      (u) =>
+        (u.email && sanitizeEmail(u.email) === cleanEmail) ||
+        (u.email && u.email.toLowerCase().startsWith(cleanId)) ||
+        (u.username && sanitizeIdentifier(u.username).toLowerCase() === cleanId) ||
+        (u.name && sanitizeIdentifier(u.name).toLowerCase() === cleanId) ||
+        (u.phone && sanitizeIdentifier(u.phone) === rawTrim) ||
+        (u.id && String(u.id).toLowerCase() === cleanId)
+    );
 
-    // 1. Prefer the latest cloud record when online so password changes propagate between devices.
-    let found: User | undefined;
-    if (navigator.onLine) {
-      try {
-        const lookupQuery = cleanEmail.includes('@') ? cleanEmail : cleanId;
-        const supRes = await findUserInSupabase(lookupQuery, true);
-        if (supRes.success && supRes.user) {
-          found = supRes.user;
-          setUsers((prev) => {
-            const map = new Map<string, User>();
-            prev.forEach((u) => map.set(u.id, u));
-            map.set(found!.id, found!);
-            return Array.from(map.values());
-          });
-        }
-      } catch (e) {
-        console.warn('Fresh Supabase login lookup failed:', e);
-      }
-    }
-
-    // 2. Fall back to local memory for offline use or when the cloud lookup is unavailable.
-    if (!found) {
-      found = users.find(matchesIdentifier);
-    }
-
-    // 3. If not found locally, query Supabase directly (essential for fresh sessions and cloud users)
+    // 2. If not found locally, query Supabase directly (essential for fresh sessions and cloud users)
     if (!found) {
       try {
         const lookupQuery = cleanEmail.includes('@') ? cleanEmail : cleanId;
@@ -1686,9 +1674,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    // 4. Fallback search in INITIAL_USERS (ensures seed/demo reps can always log in)
+    // 3. Fallback search in INITIAL_USERS (ensures seed/demo reps like alaaomar@dream.com can always log in)
     if (!found) {
-      const matchInInitial = INITIAL_USERS.find(matchesIdentifier);
+      const matchInInitial = INITIAL_USERS.find(
+        (u) =>
+          (u.email && sanitizeEmail(u.email) === cleanEmail) ||
+          (u.email && u.email.toLowerCase().startsWith(cleanId)) ||
+          (u.username && sanitizeIdentifier(u.username).toLowerCase() === cleanId) ||
+          (u.name && sanitizeIdentifier(u.name).toLowerCase() === cleanId) ||
+          (u.phone && sanitizeIdentifier(u.phone) === rawTrim) ||
+          (u.id && String(u.id).toLowerCase() === cleanId)
+      );
       if (matchInInitial) {
         found = matchInInitial;
         setUsers((prev) => {
@@ -1749,7 +1745,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: `مرحباً بك ${found.name}`, user: found };
   };
 
-
   const register = (userData: {
     name: string;
     username: string;
@@ -1760,10 +1755,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     role: UserRole;
     supervisorId?: string;
   }): { success: boolean; message: string } => {
-    if (currentUser?.role !== 'admin' && currentUser?.role !== 'developer') {
-      return { success: false, message: 'غير مصرح لك بإنشاء حسابات جديدة. يتم إنشاء الحسابات من الإدارة فقط.' };
-    }
-
     const existing = users.find(
       (u) =>
         u.email.toLowerCase() === userData.email.trim().toLowerCase() ||
@@ -1790,14 +1781,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80`
     };
 
-    const nextUsers = [...users, newUser];
-    setUsers(nextUsers);
-    // Save the new account and the complete snapshot so every device can find it.
-    saveUserToSupabase(newUser, nextUsers).then((result) => {
-      if (!result.success) {
-        console.warn('[v0] Supabase auto-save user failed:', result.error);
-      }
-    }).catch((e) => console.warn('[v0] Supabase auto-save user failed:', e));
+    setUsers((prev) => [...prev, newUser]);
+    // Save to Supabase asynchronously
+    saveUserToSupabase(newUser).catch((e) => console.warn('Supabase auto-save user failed:', e));
 
     recordAuditLog({
       userId: newUser.id,
@@ -1886,15 +1872,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // --- Inventory & Stock Real-time Audit Helper ---
-  const recordInventoryTransaction = (tx: Omit<InventoryTransaction, 'id' | 'timestamp' | 'date'>) => {
-    const now = new Date();
-    const newTx: InventoryTransaction = {
-      ...tx,
-      id: `tx-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      timestamp: now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
-      date: now.toISOString().slice(0, 10),
-    };
-    setInventoryLogs((prev) => [newTx, ...prev]);
+  const recordInventoryTransaction = (_tx: Omit<InventoryTransaction, 'id' | 'timestamp' | 'date'>) => {
+    // Inventory logs disabled as requested by user to keep the app ultra-clean and lightweight
   };
 
   const checkProductAvailability = (productId: string, requestedCartons: number) => {
@@ -2164,7 +2143,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProducts((prev) => prev.filter((p) => p.id !== productId));
   };
 
-  const importProductsList = (newProducts: Product[], mode: 'smart' | 'merge' | 'replace' = 'smart') => {
+  const importProductsList = (newProducts: Product[], mode: 'merge' | 'replace') => {
     // Automatically register any newly encountered branch names dynamically
     setBranches((prevBranches) => {
       const existingNames = new Set(prevBranches.map((b) => b.name));
@@ -2193,7 +2172,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return prevBranches;
     });
 
-    // Keep reservations safe while allowing the daily sheet to change only stock and image URL.
+    // Intelligently calculate currently active reservations from pending invoices to prevent overwriting sales rep reserves
     const reservedPiecesByProduct = new Map<string, number>();
     invoices.forEach((inv) => {
       if (
@@ -2203,86 +2182,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         inv.status === 'جاري التجهيز'
       ) {
         inv.items.forEach((item) => {
-          reservedPiecesByProduct.set(
-            item.productId,
-            (reservedPiecesByProduct.get(item.productId) || 0) + item.totalUnits
-          );
+          const current = reservedPiecesByProduct.get(item.productId) || 0;
+          reservedPiecesByProduct.set(item.productId, current + item.totalUnits);
         });
       }
     });
 
-    const getProductVariantKey = (p: Product): string =>
-      [p.code, p.color, p.size, p.branchName].map(normalizeProductKeyPart).join(':::');
-
-    const incomingByKey = new Map<string, Product>();
-    newProducts.forEach((raw) => {
-      const incoming = sanitizeProducts([raw])[0];
-      const key = getProductVariantKey(incoming);
-      incomingByKey.set(key, incoming);
-    });
-
-    const existingByKey = new Map<string, Product>();
-    const duplicateIds = new Set<string>();
-    products.forEach((product) => {
-      const key = getProductVariantKey(product);
-      if (existingByKey.has(key)) {
-        duplicateIds.add(product.id);
-      } else {
-        existingByKey.set(key, product);
-      }
-    });
-
-    const updateDailyFields = (existing: Product | undefined, incoming: Product): Product => {
-      const activePending = reservedPiecesByProduct.get(existing?.id || incoming.id) || 0;
+    const protectReserved = (prod: Product): Product => {
+      const activePending = reservedPiecesByProduct.get(prod.id) || 0;
+      const safeReserved = Math.max(0, prod.branchStockActual - activePending);
       return {
-        ...(existing || incoming),
-        id: existing?.id || incoming.id,
-        branchStockActual: incoming.branchStockActual,
-        mainWarehouseActual: incoming.mainWarehouseActual,
-        branchStocks: incoming.branchStocks,
-        imageUrl: incoming.imageUrl || existing?.imageUrl,
-        unifiedCode: incoming.unifiedCode || existing?.unifiedCode,
-        branchStockReserved: Math.min(
-          incoming.branchStockActual,
-          Math.max(existing?.branchStockReserved || 0, activePending)
-        ),
-        mainWarehouseReserved: Math.min(
-          incoming.mainWarehouseActual,
-          existing?.mainWarehouseReserved || 0
-        ),
-        createdAt: existing?.createdAt || incoming.createdAt,
+        ...prod,
+        branchStockReserved: safeReserved,
       };
     };
 
-    let finalUpdated: Product[];
+    const getProductVariantKey = (p: Product): string => {
+      const cCode = (p.code || '').trim().toLowerCase();
+      const cColor = (p.color || '').trim().toLowerCase();
+      const cSize = (p.size || '').trim().toLowerCase();
+      const cBranch = (p.branchName || '').trim().toLowerCase();
+      const cImg = (p.imageUrl || '').trim();
+      const cName = (p.name || '').trim().toLowerCase();
+      return `${cCode}:::${cColor}:::${cSize}:::${cBranch}:::${cImg || cName}`;
+    };
+
+    let finalUpdated: Product[] = [];
     if (mode === 'replace') {
-      finalUpdated = Array.from(incomingByKey.values()).map((incoming) =>
-        updateDailyFields(existingByKey.get(getProductVariantKey(incoming)), incoming)
-      );
+      finalUpdated = sanitizeProducts(newProducts.map(protectReserved));
+      setProducts(finalUpdated);
     } else {
-      const merged = new Map<string, Product>();
-      products.forEach((product) => {
-        const key = getProductVariantKey(product);
-        if (!duplicateIds.has(product.id) && !incomingByKey.has(key)) {
-          merged.set(product.id, product);
-        }
+      // Merge mode: Preserve all imported rows without collapsing identical codes
+      const idMap = new Map<string, Product>();
+      products.forEach((p) => idMap.set(p.id, p));
+      newProducts.forEach((p) => {
+        idMap.set(p.id, protectReserved(p));
       });
-      incomingByKey.forEach((incoming, key) => {
-        const updated = updateDailyFields(existingByKey.get(key), incoming);
-        merged.set(updated.id, updated);
-      });
-      finalUpdated = Array.from(merged.values());
+      finalUpdated = sanitizeProducts(Array.from(idMap.values()));
+      setProducts(finalUpdated);
     }
 
-    finalUpdated = sanitizeProducts(finalUpdated);
-    setProducts(finalUpdated);
-
     // Persist full catalog to Supabase so reps & branch supervisors instantly receive it on all devices
-    safeLocalStorageSet(STORAGE_KEYS.PENDING_CATALOG_SYNC, 'true');
-    saveProductsToSupabase(finalUpdated).then((result) => {
-      if (result.success) localStorage.removeItem(STORAGE_KEYS.PENDING_CATALOG_SYNC);
-      else console.warn('Supabase catalog auto-sync warning:', result.error);
-    }).catch((err) => console.warn('Supabase catalog auto-sync warning:', err));
+    saveProductsToSupabase(finalUpdated).catch((err) => {
+      console.warn('Supabase catalog auto-sync warning:', err);
+    });
 
     recordAuditLog({
       userId: currentUser?.id || 'admin',
@@ -2371,7 +2314,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const userSupervisor = currentUser?.supervisorId
       ? users.find((u) => u.id === currentUser.supervisorId)?.name
-      : 'مشرف ��ام الفرع';
+      : 'مشرف عام الفرع';
 
     // Sales reps only submit a request. Approval, transfer, and stock deduction belong to supervisors/managers.
     const isDirectManager = currentUser?.role === 'admin' || currentUser?.role === 'branch_manager';
@@ -2658,7 +2601,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         invoiceId: primaryInvoice.id,
         invoiceNumber: newInvoiceNumber,
         notes: isFromMain
-          ? `حجز صنف نواقص من المخزن ال��ركزي بأكتوبر للطلبية #${newInvoiceNumber}`
+          ? `حجز صنف نواقص من المخزن المركزي بأكتوبر للطلبية #${newInvoiceNumber}`
           : isDirectManager
           ? `اعتماد وصرف فوري للطلبية #${newInvoiceNumber}`
           : `حجز رصيد للطلبية #${newInvoiceNumber} لمنع تكرار الحجز (قيد مراجعة واعتماد المشرف)`,
@@ -3081,7 +3024,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: invoice.branchName,
       action: 'update_invoice_status',
       actionTitle: `إعادة فتح وتعديل الطلبية #${invoice.invoiceNumber}`,
-      details: `تم إعادة فتح أصناف ا��طلبية #${invoice.invoiceNumber} للعميل (${invoice.customerName}) في السلة لإتاحة إضافة أو حذف أصناف أو تعديل الكميات والأسعار قبل الاعتماد.`,
+      details: `تم إعادة فتح أصناف الطلبية #${invoice.invoiceNumber} للعميل (${invoice.customerName}) في السلة لإتاحة إضافة أو حذف أصناف أو تعديل الكميات والأسعار قبل الاعتماد.`,
       invoiceId: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
       badgeType: 'info',
@@ -3232,7 +3175,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const updated: Invoice = {
           ...i,
           status,
-          cancellationReason: isNowReturnedOrCancelled ? (reason || i.cancellationReason || 'إلغاء ��لطلبية') : i.cancellationReason,
+          cancellationReason: isNowReturnedOrCancelled ? (reason || i.cancellationReason || 'إلغاء الطلبية') : i.cancellationReason,
           cancelledBy: isNowReturnedOrCancelled ? (currentUser?.name || 'مسؤول النظام') : i.cancelledBy,
           cancelledAt: isNowReturnedOrCancelled ? `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true })}` : i.cancelledAt,
           restoredStockDetails: isNowReturnedOrCancelled ? `تم استرجاع ${inv.totalCartons} كرتونة إلى المخزن` : i.restoredStockDetails,
@@ -3252,7 +3195,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: inv.branchName,
       action: status === 'مرتجع' ? 'return_invoice' : isNowReturnedOrCancelled ? 'cancel_invoice' : 'update_invoice_status',
       actionTitle: `تحديث حالة الفاتورة #${inv.invoiceNumber} إلى (${status})`,
-      details: `العميل: ${inv.customerName} • الحالة السابقة: (${oldStatus}) ��️ الحالة الجديدة: (${status}) ${reason ? `• السبب / الملاحظات: ${reason}` : ''}`,
+      details: `العميل: ${inv.customerName} • الحالة السابقة: (${oldStatus}) ⬅️ الحالة الجديدة: (${status}) ${reason ? `• السبب / الملاحظات: ${reason}` : ''}`,
       invoiceId: inv.id,
       invoiceNumber: inv.invoiceNumber,
       badgeType: status === 'تم التسليم' || status === 'معتمدة ومصروفة من المخزن' ? 'success' : isNowReturnedOrCancelled ? 'danger' : 'info',
@@ -3395,7 +3338,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           totalRefundedAmount: allRefunded,
           netAmountAfterReturns: netGrandTotal,
           lastReturnDate: dateStr,
-          restoredStockDetails: `تم است��جاع ${totalReturnedCartons} كرتونة بقيمة ${totalRefundAmount.toLocaleString()} ج.م (إذن #${returnVoucherNumber})`,
+          restoredStockDetails: `تم استرجاع ${totalReturnedCartons} كرتونة بقيمة ${totalRefundAmount.toLocaleString()} ج.م (إذن #${returnVoucherNumber})`,
           notes: `${i.notes ? i.notes + ' | ' : ''}مرتجع ${isFullReturn ? 'كلي' : 'جزئي'} إذن #${returnVoucherNumber} بقيمة ${totalRefundAmount.toLocaleString()} ج.م (${reason})`,
         };
         saveInvoiceToSupabase(updated).catch((e) => console.warn('Supabase return sync failed:', e));
@@ -3451,7 +3394,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       userRole: currentUser?.role || 'admin',
       branchName: target?.branchName || 'الفرع الرئيسي',
       action: 'delete_invoice',
-      actionTitle: `حذف ��لفاتورة #${targetNumber || targetId} نهائياً`,
+      actionTitle: `حذف الفاتورة #${targetNumber || targetId} نهائياً`,
       details: `تم حذف الفاتورة نهائياً من قاعدة البيانات والسيرفر • العميل: ${target?.customerName || 'عام'} • القيمة: ${target?.estimatedGrandTotal?.toLocaleString() || 0} ج.م`,
       invoiceId: targetId,
       invoiceNumber: targetNumber,
@@ -3643,24 +3586,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getVisibleProducts = (): Product[] => {
-    const uniqueProducts = sanitizeProducts(products);
-    if (!currentUser) return uniqueProducts;
+    if (!currentUser) return products;
 
     if (currentUser.role === 'admin' || currentUser.role === 'developer') {
       if (selectedBranchFilter !== 'الكل') {
-        return uniqueProducts.filter(
+        return products.filter(
           (p) =>
             getBranchStockForProduct(p, selectedBranchFilter) > 0 ||
             p.mainWarehouseActual > 0 ||
             (!p.branchName && (p.branchStockActual || 0) > 0)
         );
       }
-      return uniqueProducts;
+      return products;
     }
 
     // Reps, Supervisors & Branch managers: products available in their branch or available from central warehouse
     const targetBranch = currentUser.branchName;
-    return uniqueProducts.filter(
+    return products.filter(
       (p) =>
         getBranchStockForProduct(p, targetBranch) > 0 ||
         p.mainWarehouseActual > 0 ||

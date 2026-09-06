@@ -7,15 +7,12 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   Clock,
   Download,
   Edit2,
   FileSpreadsheet,
   Filter,
   Flame,
-  History,
   Layers,
   LayoutGrid,
   List,
@@ -49,7 +46,6 @@ export const InventoryStockView: React.FC = () => {
     branches,
     currentUser,
     invoices,
-    inventoryLogs,
     addProduct,
     updateProduct,
     deleteProduct,
@@ -61,7 +57,7 @@ export const InventoryStockView: React.FC = () => {
     setSelectedBranchFilter
   } = useApp();
 
-  const [activeSubTab, setActiveSubTab] = useState<'matrix' | 'pending_approvals' | 'audit_logs'>('matrix');
+  const [activeSubTab, setActiveSubTab] = useState<'matrix' | 'pending_approvals'>('matrix');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('الكل');
   const [stockLevelFilter, setStockLevelFilter] = useState<'all' | 'offers' | 'in_branch' | 'needs_transfer' | 'low_stock' | 'out_of_stock'>('all');
@@ -72,10 +68,6 @@ export const InventoryStockView: React.FC = () => {
   // Pagination state for responsive performance
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(20);
-  
-  // Logs tab pagination
-  const [logsCurrentPage, setLogsCurrentPage] = useState<number>(1);
-  const [logsPerPage, setLogsPerPage] = useState<number | 'all'>(15);
   
   // Stock Transfer Modal
   const [stockTransferModal, setStockTransferModal] = useState<Product | null>(null);
@@ -261,18 +253,6 @@ export const InventoryStockView: React.FC = () => {
       pendingApprovalsCount: pendingInvoices.length
     };
   }, [products, pendingInvoices, currentActiveBranch]);
-
-  // Logs Tab Pagination
-  const logsTotalPages = useMemo(() => {
-    if (logsPerPage === 'all') return 1;
-    return Math.max(1, Math.ceil(inventoryLogs.length / logsPerPage));
-  }, [inventoryLogs.length, logsPerPage]);
-
-  const displayedInventoryLogs = useMemo(() => {
-    if (logsPerPage === 'all') return inventoryLogs;
-    const start = (logsCurrentPage - 1) * logsPerPage;
-    return inventoryLogs.slice(start, start + logsPerPage);
-  }, [inventoryLogs, logsCurrentPage, logsPerPage]);
 
   const handleSaveProduct = (e: React.FormEvent) => {
     e.preventDefault();
@@ -536,18 +516,6 @@ export const InventoryStockView: React.FC = () => {
               {stockMetrics.pendingApprovalsCount}
             </span>
           )}
-        </button>
-
-        <button
-          onClick={() => setActiveSubTab('audit_logs')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl transition cursor-pointer whitespace-nowrap ${
-            activeSubTab === 'audit_logs'
-              ? 'bg-amber-400 text-slate-950 font-black shadow'
-              : 'text-slate-300 hover:text-white'
-          }`}
-        >
-          <History className="w-4 h-4" />
-          <span>سجل حركات المخزون المباشرة ({inventoryLogs.length})</span>
         </button>
       </div>
 
@@ -1384,173 +1352,6 @@ export const InventoryStockView: React.FC = () => {
                   </div>
                 </div>
               ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 3: REAL-TIME AUDIT LOGS */}
-      {activeSubTab === 'audit_logs' && (
-        <div className="space-y-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                <History className="w-5 h-5 text-amber-500" />
-                <span>سجل تدقيق حركات المخزون المباشرة (Audit Trail)</span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                يوثق كل حركة حجز من المندوب، صرف واعتماد المشرف، توريد المصنع، وتعديلات الجرد بدقة بالثانية.
-              </p>
-            </div>
-            <span className="bg-slate-100 text-slate-800 font-bold px-3 py-1 rounded-xl text-xs border border-slate-200">
-              {inventoryLogs.length} حركة مسجلة
-            </span>
-          </div>
-
-          {inventoryLogs.length === 0 ? (
-            <div className="bg-white rounded-3xl p-12 text-center space-y-2 border border-slate-200">
-              <History className="w-10 h-10 text-slate-300 mx-auto" />
-              <div className="font-bold text-slate-700 text-sm">لا توجد حركات مخزنية مسجلة بعد</div>
-              <p className="text-xs text-slate-400">ستظهر هنا جميع عمليات الخصم والتوريد والحجز تلقائياً.</p>
-            </div>
-          ) : (
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-right text-xs">
-                  <thead className="bg-slate-900 text-white font-bold">
-                    <tr>
-                      <th className="p-3">الوقت والتاريخ</th>
-                      <th className="p-3">نوع الحركة</th>
-                      <th className="p-3">الصنف</th>
-                      <th className="p-3 text-center">الكمية</th>
-                      <th className="p-3 text-center">الرصيد قبل</th>
-                      <th className="p-3 text-center">الرصيد بعد</th>
-                      <th className="p-3">المستخدم والفرع</th>
-                      <th className="p-3">البيان والملاحظات</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-medium">
-                    {displayedInventoryLogs.map((log) => {
-                      const typeColors: Record<string, string> = {
-                        'حجز طلبية مندوب': 'bg-amber-100 text-amber-900 border-amber-300',
-                        'صرف واعتماد مشرف': 'bg-emerald-100 text-emerald-900 border-emerald-300',
-                        'إلغاء حجز وإرجاع': 'bg-blue-100 text-blue-900 border-blue-300',
-                        'توريد مخزني': 'bg-purple-100 text-purple-900 border-purple-300',
-                        'تعديل جردي': 'bg-slate-100 text-slate-800 border-slate-300',
-                      };
-
-                      return (
-                        <tr key={log.id} className="hover:bg-slate-50 transition">
-                          <td className="p-3 text-slate-600 font-mono text-[11px]">
-                            <div>{log.timestamp}</div>
-                            <div className="text-[10px] text-slate-400">{log.date}</div>
-                          </td>
-
-                          <td className="p-3">
-                            <span
-                              className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-black border ${
-                                typeColors[log.type] || 'bg-slate-100 text-slate-800'
-                              }`}
-                            >
-                              {log.type}
-                            </span>
-                          </td>
-
-                          <td className="p-3 font-bold text-slate-900">
-                            <div>{log.productName}</div>
-                            <div className="text-[10px] text-slate-400 font-mono">{log.productCode}</div>
-                          </td>
-
-                          <td className="p-3 text-center font-black text-slate-900">
-                            {log.quantityPieces} ق
-                          </td>
-
-                          <td className="p-3 text-center text-slate-500 font-mono">
-                            {log.branchStockBefore} ق
-                          </td>
-
-                          <td className="p-3 text-center font-black font-mono text-emerald-700">
-                            {log.branchStockAfter} ق
-                          </td>
-
-                          <td className="p-3">
-                            <div className="font-bold text-slate-800">{log.userName}</div>
-                            <div className="text-[10px] text-slate-400">
-                              {log.userRole} • {log.branchName}
-                            </div>
-                          </td>
-
-                          <td className="p-3 text-slate-600 text-[11px] max-w-xs truncate">
-                            {log.notes || '---'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Logs Pagination Footer */}
-              {inventoryLogs.length > 0 && (
-                <div className="bg-slate-50 border-t border-slate-200 p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2 text-slate-600 font-bold">
-                    <span>عرض الحركات:</span>
-                    <select
-                      value={logsPerPage}
-                      onChange={(e) => {
-                        const val = e.target.value === 'all' ? 'all' : Number(e.target.value);
-                        setLogsPerPage(val);
-                        setLogsCurrentPage(1);
-                      }}
-                      className="bg-white border border-slate-300 rounded-lg px-2 py-1 font-bold text-slate-800 focus:outline-none"
-                    >
-                      <option value={15}>15 حركة</option>
-                      <option value={30}>30 حركة</option>
-                      <option value={50}>50 حركة</option>
-                      <option value="all">عرض الكل ({inventoryLogs.length})</option>
-                    </select>
-                    <span className="text-slate-400">
-                      ({inventoryLogs.length} حركة إجمالية)
-                    </span>
-                  </div>
-
-                  {logsPerPage !== 'all' && logsTotalPages > 1 && (
-                    <div className="flex items-center gap-1">
-                      <button
-                        disabled={logsCurrentPage === 1}
-                        onClick={() => setLogsCurrentPage(1)}
-                        className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 disabled:opacity-40"
-                      >
-                        <ChevronsRight className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        disabled={logsCurrentPage === 1}
-                        onClick={() => setLogsCurrentPage((p) => Math.max(1, p - 1))}
-                        className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 disabled:opacity-40"
-                      >
-                        السابق
-                      </button>
-                      <span className="px-2 font-bold text-slate-800">
-                        {logsCurrentPage} / {logsTotalPages}
-                      </span>
-                      <button
-                        disabled={logsCurrentPage === logsTotalPages}
-                        onClick={() => setLogsCurrentPage((p) => Math.min(logsTotalPages, p + 1))}
-                        className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 disabled:opacity-40"
-                      >
-                        التالي
-                      </button>
-                      <button
-                        disabled={logsCurrentPage === logsTotalPages}
-                        onClick={() => setLogsCurrentPage(logsTotalPages)}
-                        className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 disabled:opacity-40"
-                      >
-                        <ChevronsLeft className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           )}
         </div>

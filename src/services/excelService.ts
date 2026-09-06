@@ -463,7 +463,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     // 12. General matchers fallback
     else if (norm.includes('كود') || norm.includes('code')) {
       if (colMap.code === -1) colMap.code = idx;
-    } else if (norm.includes('اسم') || norm.includes('��لبيان')) {
+    } else if (norm.includes('اسم') || norm.includes('البيان')) {
       if (colMap.name === -1) colMap.name = idx;
     } else if (norm.includes('اولويه') || norm.includes('priority')) {
       colMap.salesPriority = idx;
@@ -618,10 +618,9 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const deterministicId = `prod-${baseCode}${cleanName ? '_' + cleanName : ''}${colorSlug}${sizeSlug}${occSuffix}`;
 
     const rawUnifiedCode = getVal(colMap.unifiedCode);
-    const generatedUnifiedCode = code && colorVal ? `${code}${colorVal.replace(/\s+/g, '')}` : '';
     const unifiedCode = rawUnifiedCode
       ? (rawUnifiedCode.startsWith('#') ? rawUnifiedCode : `#${rawUnifiedCode}`)
-      : (generatedUnifiedCode ? `#${generatedUnifiedCode}` : undefined);
+      : undefined;
 
     const product: Product = {
       id: deterministicId,
