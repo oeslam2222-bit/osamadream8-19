@@ -419,22 +419,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const sanitizeProducts = (list: Product[]): Product[] => {
     if (!Array.isArray(list)) return [];
     const byId = new Map<string, Product>();
-    const byCode = new Map<string, string>();
+    const byIdentity = new Map<string, string>();
+    const normalizeProductCode = (value?: string) => String(value || '').trim().replace(/^#/, '').replace(/\s+/g, '').toLowerCase();
     list.forEach((rawProduct) => {
       if (!rawProduct) return;
       const p = { ...rawProduct };
-      const codeKey = p.code ? p.code.trim().toLowerCase() : '';
-      const idKey = p.id || (codeKey ? `code:${codeKey}` : `id:${Math.random()}`);
-      // Deduplicate by both ID and product code to prevent the same
-      // product appearing twice when it arrives with different ID formats
-      // (e.g. original string ID vs UUID-hashed version from Supabase).
-      const existingCodeKey = codeKey ? byCode.get(codeKey) : undefined;
-      const existingKey = existingCodeKey || idKey;
+      const codeKey = normalizeProductCode(p.code);
+      const unifiedKey = normalizeProductCode(p.unifiedCode);
+      const fallbackKey = [unifiedKey, p.name, p.color, p.size]
+        .map((value) => String(value || '').trim().toLowerCase())
+        .join(':::');
+      const identityKey = codeKey ? `code:${codeKey}` : unifiedKey ? `unified:${fallbackKey}` : `id:${p.id || Math.random()}`;
+      const idKey = p.id || identityKey;
+      const existingKey = byIdentity.get(identityKey) || idKey;
       const existing = byId.get(existingKey);
-      if (!existing || (!existing.imageUrl && p.imageUrl) || (!existing.name && p.name)) {
-        byId.set(existingKey, existing ? { ...existing, ...p } : p);
-      }
-      if (codeKey) byCode.set(codeKey, existingKey);
+      byId.set(existingKey, existing ? { ...existing, ...p } : p);
+      byIdentity.set(identityKey, existingKey);
     });
 
     return Array.from(byId.values()).map((p) => {
@@ -800,28 +800,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         const invRes = await fetchInvoicesFromSupabase();
-        if (invRes.success && invRes.invoices && invRes.invoices.length > 0) {
+        if (invRes.success) {
           const deletedSet = getDeletedInvoiceIds();
-          const validInvoices = invRes.invoices.filter((si) => !deletedSet.has(si.id) && !deletedSet.has(si.invoiceNumber));
+          const validInvoices = (invRes.invoices || []).filter((si) => !deletedSet.has(si.id) && !deletedSet.has(si.invoiceNumber));
           fetchedInvoicesCount = validInvoices.length;
-          setInvoices((prev) => {
-            const invMap = new Map<string, Invoice>();
-            prev.filter((i) => !deletedSet.has(i.id) && !deletedSet.has(i.invoiceNumber)).forEach((i) => {
-              invMap.set(i.id, i);
-            });
-            validInvoices.forEach((si) => {
-              invMap.set(si.id, si);
-            });
-            return Array.from(invMap.values());
-          });
+          setInvoices(validInvoices);
+          idbSet(STORAGE_KEYS.INVOICES, validInvoices);
+        }
+
+        const productRes = await fetchProductsFromSupabase();
+        if (productRes.success) {
+          const validProducts = sanitizeProducts(productRes.products || []);
+          setProducts(validProducts);
+          idbSet(STORAGE_KEYS.PRODUCTS, validProducts);
         }
       }
 
       // 2b. Fetch customers from Supabase
       if (direction === 'fetch' || direction === 'both') {
         const custRes = await fetchCustomersFromSupabase();
-        if (custRes.success && custRes.customers && custRes.customers.length > 0) {
-          setCustomers(sanitizeCustomers(linkCustomersToUsers(custRes.customers, users)));
+        if (custRes.success) {
+          const validCustomers = sanitizeCustomers(linkCustomersToUsers(custRes.customers || [], users));
+          setCustomers(validCustomers);
+          idbSet(STORAGE_KEYS.CUSTOMERS, validCustomers);
         }
       }
       if (direction === 'push' || direction === 'both') {
@@ -901,29 +902,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         // 2. Fetch Central Catalog from Supabase (Propagates Admin/Developer uploads to all reps and supervisors)
         fetchProductsFromSupabase().then((res) => {
-          if (res.success && res.products && res.products.length > 0) {
-            setProducts(() => sanitizeProducts(res.products!));
+          if (res.success) {
+            const validProducts = sanitizeProducts(res.products || []);
+            setProducts(validProducts);
+            idbSet(STORAGE_KEYS.PRODUCTS, validProducts);
           }
         });
 
         // 3. Fetch Invoices
         fetchInvoicesFromSupabase().then((res) => {
-          if (res.success && res.invoices && res.invoices.length > 0) {
+          if (res.success) {
             const deletedSet = getDeletedInvoiceIds();
-            const validInvoices = res.invoices.filter((si) => !deletedSet.has(si.id) && !deletedSet.has(si.invoiceNumber));
-            setInvoices((prev) => {
-              const map = new Map<string, Invoice>();
-              prev.filter((i) => !deletedSet.has(i.id) && !deletedSet.has(i.invoiceNumber)).forEach((i) => map.set(i.id, i));
-              validInvoices.forEach((si) => map.set(si.id, si));
-              return Array.from(map.values());
-            });
+            const validInvoices = (res.invoices || []).filter((si) => !deletedSet.has(si.id) && !deletedSet.has(si.invoiceNumber));
+            setInvoices(validInvoices);
+            idbSet(STORAGE_KEYS.INVOICES, validInvoices);
           }
         });
 
         // 4. Fetch Customers from Supabase and link them to user accounts
         fetchCustomersFromSupabase().then((res) => {
-          if (res.success && res.customers && res.customers.length > 0) {
-            setCustomers(sanitizeCustomers(linkCustomersToUsers(res.customers, users)));
+          if (res.success) {
+            const validCustomers = sanitizeCustomers(linkCustomersToUsers(res.customers || [], users));
+            setCustomers(validCustomers);
+            idbSet(STORAGE_KEYS.CUSTOMERS, validCustomers);
           }
         });
       }
@@ -2078,25 +2079,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     };
 
-    const getProductVariantKey = (p: Product): string => {
-      const cCode = (p.code || '').trim().toLowerCase();
-      const cColor = (p.color || '').trim().toLowerCase();
-      const cSize = (p.size || '').trim().toLowerCase();
-      const cBranch = (p.branchName || '').trim().toLowerCase();
-      const cImg = (p.imageUrl || '').trim();
-      const cName = (p.name || '').trim().toLowerCase();
-      return `${cCode}:::${cColor}:::${cSize}:::${cBranch}:::${cImg || cName}`;
+    const normalizeProductCode = (value?: string) => String(value || '').trim().replace(/^#/, '').replace(/\s+/g, '').toLowerCase();
+    const getProductIdentityKey = (p: Product): string => {
+      const code = normalizeProductCode(p.code);
+      if (code) return `code:${code}`;
+      const unified = normalizeProductCode(p.unifiedCode);
+      const fallback = [unified, p.name, p.color, p.size]
+        .map((value) => String(value || '').trim().toLowerCase())
+        .join(':::');
+      return unified ? `unified:${fallback}` : `id:${p.id}`;
     };
+
+    const existingByIdentity = new Map<string, Product>();
+    products.forEach((product) => existingByIdentity.set(getProductIdentityKey(product), product));
+    const incomingProducts = newProducts.map((product) => {
+      const existing = existingByIdentity.get(getProductIdentityKey(product));
+      return existing ? { ...product, id: existing.id } : product;
+    });
 
     let finalUpdated: Product[] = [];
     if (mode === 'replace') {
-      finalUpdated = sanitizeProducts(newProducts.map(protectReserved));
+      finalUpdated = sanitizeProducts(incomingProducts.map(protectReserved));
       setProducts(finalUpdated);
     } else {
-      // Merge mode: Preserve all imported rows without collapsing identical codes
       const idMap = new Map<string, Product>();
       products.forEach((p) => idMap.set(p.id, p));
-      newProducts.forEach((p) => {
+      incomingProducts.forEach((p) => {
         idMap.set(p.id, protectReserved(p));
       });
       finalUpdated = sanitizeProducts(Array.from(idMap.values()));
