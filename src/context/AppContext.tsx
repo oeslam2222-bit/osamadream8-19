@@ -1,13 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import {
-  COMPANY_INFO,
-  INITIAL_AUDIT_LOGS,
-  INITIAL_BRANCHES,
-  INITIAL_CUSTOMERS,
-  INITIAL_INVOICES,
-  INITIAL_PRODUCTS,
-  INITIAL_USERS
-} from '../data/mockData';
+import { COMPANY_INFO, INITIAL_AUDIT_LOGS, INITIAL_BRANCHES } from '../data/mockData';
 import { DEFAULT_CLOUDINARY_CONFIG } from '../services/cloudinaryService';
 import { clearCachedImages } from '../services/imageCacheService';
 import { idbClear, idbDelete, idbGet, idbSet, safeLocalStorageSet } from '../services/storageService';
@@ -280,10 +272,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Initialize state with localStorage fallbacks, ensuring all core initial users are merged
   const [users, setUsers] = useState<User[]>(() => {
     const userMap = new Map<string, User>();
-    INITIAL_USERS.forEach((u) => userMap.set(u.id, u));
-
     const saved = localStorage.getItem(STORAGE_KEYS.USERS);
-    if (!saved) return Array.from(userMap.values());
+    if (!saved) return [];
     try {
       const parsed: User[] = JSON.parse(saved);
       parsed
@@ -367,10 +357,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    // 2. Fallback to finding by saved user ID in users or INITIAL_USERS
+    // 2. Fallback to finding by saved user ID in the loaded users list
     const savedUserId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
     if (savedUserId) {
-      const found = users.find((u) => u.id === savedUserId) || INITIAL_USERS.find((u) => u.id === savedUserId);
+      const found = users.find((u) => u.id === savedUserId);
       if (found && found.approvalStatus !== 'rejected' && found.isActive !== false) {
         return found;
       }
@@ -476,7 +466,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const sanitizeProducts = (list: Product[]): Product[] => {
-    return list.map((p) => {
+    const byCode = new Map<string, Product>();
+    list.forEach((rawProduct) => {
+      const p = { ...rawProduct };
+      const code = String(p.code || '').trim().toLowerCase();
+      const key = code && code !== '---' ? `code:${code}` : `id:${p.id}`;
+      const existing = byCode.get(key);
+      if (!existing || (!existing.imageUrl && p.imageUrl) || (!existing.name && p.name)) {
+        byCode.set(key, existing ? { ...existing, ...p } : p);
+      }
+    });
+
+    return Array.from(byCode.values()).map((p) => {
       const cartonQty = p.cartonQuantity && p.cartonQuantity > 0 ? p.cartonQuantity : 1;
       const cartonPrice = typeof p.cartonPrice === 'number' ? p.cartonPrice : 0;
 
@@ -600,21 +601,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
     try {
-      const raw = saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+      const raw = saved ? JSON.parse(saved) : [];
       return sanitizeProducts(raw);
     } catch {
-      return sanitizeProducts(INITIAL_PRODUCTS);
+      return [];
     }
   });
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
     try {
-      const raw = saved ? JSON.parse(saved) : INITIAL_CUSTOMERS;
+      const raw = saved ? JSON.parse(saved) : [];
       const sanitized = sanitizeCustomers(raw);
-      return sanitized && sanitized.length > 0 ? sanitized : INITIAL_CUSTOMERS;
+      return sanitized;
     } catch {
-      return INITIAL_CUSTOMERS;
+      return [];
     }
   });
 
@@ -622,10 +623,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.INVOICES);
       const deletedSet = getDeletedInvoiceIds();
-      const list: Invoice[] = saved ? JSON.parse(saved) : INITIAL_INVOICES;
+      const list: Invoice[] = saved ? JSON.parse(saved) : [];
       return list.filter((i) => !deletedSet.has(i.id) && !deletedSet.has(i.invoiceNumber));
     } catch {
-      return INITIAL_INVOICES;
+      return [];
     }
   });
 
@@ -846,16 +847,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const fetchRes = await fetchUsersFromSupabase();
         if (fetchRes.success && fetchRes.users && fetchRes.users.length > 0) {
           fetchedUsersCount = fetchRes.users.length;
-          setUsers((prev) => {
-            const mergedMap = new Map<string, User>();
-            prev.forEach((u) => mergedMap.set(u.id, u));
-            prev.forEach((u) => mergedMap.set(u.username.toLowerCase(), u));
-            fetchRes.users!.forEach((su) => {
-              mergedMap.set(su.id, su);
-              mergedMap.set(su.username.toLowerCase(), su);
-            });
-            return Array.from(new Set(mergedMap.values()));
-          });
+          setUsers(sanitizeAndDeduplicateUsers(fetchRes.users).deduplicated);
         }
 
         const invRes = await fetchInvoicesFromSupabase();
@@ -927,10 +919,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetchUsersFromSupabase().then((res) => {
           if (res.success && res.users && res.users.length > 0) {
             setUsers((prev) => {
-              const map = new Map<string, User>();
-              prev.forEach((u) => map.set(u.id, u));
-              res.users!.forEach((su) => map.set(su.id, su));
-              const dedup = sanitizeAndDeduplicateUsers(Array.from(map.values()));
+              const dedup = sanitizeAndDeduplicateUsers(res.users!);
               // If duplicate IDs were detected and cleaned, delete them permanently from Supabase
               if (dedup.removedUserIds.length > 0) {
                 dedup.removedUserIds.forEach((remId) => {
@@ -969,54 +958,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // 2. Fetch Central Catalog from Supabase (Propagates Admin/Developer uploads to all reps and supervisors)
         fetchProductsFromSupabase().then((res) => {
           if (res.success && res.products && res.products.length > 0) {
-            setProducts((prev) => {
-              const localMap = new Map<string, Product>();
-              prev.forEach((p) => localMap.set(p.id, p));
-
-              const remoteMap = new Map<string, Product>();
-              res.products!.forEach((rp) => remoteMap.set(rp.id, rp));
-
-              const merged: Product[] = [];
-
-              // If local catalog has items (e.g. user imported 5130 products from Excel),
-              // iterate through local products first so NO products are ever dropped!
-              if (prev.length > 0) {
-                prev.forEach((localP) => {
-                  const remoteP = remoteMap.get(localP.id);
-                  if (!remoteP) {
-                    merged.push(localP);
-                  } else {
-                    merged.push({
-                      ...remoteP,
-                      // Preserve rich multi-branch stocks (Fayoum, etc.) if remote record is missing them
-                      branchStocks: (remoteP.branchStocks && Object.keys(remoteP.branchStocks).length > 0)
-                        ? remoteP.branchStocks
-                        : localP.branchStocks,
-                      cartonQuantity: remoteP.cartonQuantity || localP.cartonQuantity,
-                      factor: remoteP.factor || localP.factor,
-                      piecePrice: remoteP.piecePrice || localP.piecePrice,
-                      cartonPrice: remoteP.cartonPrice || localP.cartonPrice,
-                      promoPrice: remoteP.promoPrice ?? localP.promoPrice,
-                      promoPiecePrice: remoteP.promoPiecePrice ?? localP.promoPiecePrice,
-                      branchStockReserved: localP.branchStockReserved < remoteP.branchStockActual ? localP.branchStockReserved : remoteP.branchStockActual,
-                      mainWarehouseReserved: localP.mainWarehouseReserved < remoteP.mainWarehouseActual ? localP.mainWarehouseReserved : remoteP.mainWarehouseActual,
-                    });
-                  }
-                });
-
-                // Add any remote products not found locally
-                res.products!.forEach((remoteP) => {
-                  if (!localMap.has(remoteP.id)) {
-                    merged.push(remoteP);
-                  }
-                });
-              } else {
-                // If local state was empty, load remote products directly
-                merged.push(...res.products!);
-              }
-
-              return sanitizeProducts(merged);
-            });
+            setProducts(() => sanitizeProducts(res.products!));
           }
         });
 
@@ -1125,11 +1067,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 ? JSON.parse(raw.items)
                 : [];
               if (remoteUsers.length > 0) {
-                setUsers((prev) => {
-                  const map = new Map<string, User>();
-                  prev.forEach((u) => map.set(u.id, u));
-                  remoteUsers.forEach((u) => map.set(u.id, u));
-                  return Array.from(map.values());
+                setUsers(sanitizeAndDeduplicateUsers(remoteUsers).deduplicated);
+              } else if (raw && (raw.id === 'dream_catalog_manifest' || String(raw.id).startsWith('dream_catalog_chunk_'))) {
+                fetchProductsFromSupabase().then((catalogRes) => {
+                  if (catalogRes.success && catalogRes.products) {
+                    setProducts(sanitizeProducts(catalogRes.products));
+                  }
                 });
               }
             }
@@ -1671,28 +1614,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } catch (e) {
         console.warn('Direct Supabase login lookup failed:', e);
-      }
-    }
-
-    // 3. Fallback search in INITIAL_USERS (ensures seed/demo reps like alaaomar@dream.com can always log in)
-    if (!found) {
-      const matchInInitial = INITIAL_USERS.find(
-        (u) =>
-          (u.email && sanitizeEmail(u.email) === cleanEmail) ||
-          (u.email && u.email.toLowerCase().startsWith(cleanId)) ||
-          (u.username && sanitizeIdentifier(u.username).toLowerCase() === cleanId) ||
-          (u.name && sanitizeIdentifier(u.name).toLowerCase() === cleanId) ||
-          (u.phone && sanitizeIdentifier(u.phone) === rawTrim) ||
-          (u.id && String(u.id).toLowerCase() === cleanId)
-      );
-      if (matchInInitial) {
-        found = matchInInitial;
-        setUsers((prev) => {
-          const map = new Map<string, User>();
-          prev.forEach((u) => map.set(u.id, u));
-          map.set(found!.id, found!);
-          return Array.from(map.values());
-        });
       }
     }
 
@@ -3486,6 +3407,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       idbSet(STORAGE_KEYS.PRODUCTS, updated);
       safeLocalStorageSet(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+      saveProductsToSupabase(updated).catch((err) => {
+        console.warn('Supabase image links sync warning:', err);
+      });
 
       return updated;
     });
@@ -3497,9 +3421,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.clear();
       } catch {}
       idbClear();
-      setProducts(INITIAL_PRODUCTS);
-      setInvoices(INITIAL_INVOICES);
-      setUsers(INITIAL_USERS);
+      setProducts([]);
+      setInvoices([]);
+      setUsers([]);
       setBranches(INITIAL_BRANCHES);
       setCloudinaryConfig(DEFAULT_CLOUDINARY_CONFIG);
       setCart([]);
@@ -3566,10 +3490,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     // Sales Rep: unconditionally sees all invoices belonging to him (both primary and shortage invoices)
     return invoices.filter((i) => {
-      const isOwnerRep =
-        (Boolean(i.repId) && (i.repId === currentUser.id || (currentUser.username && i.repId.toLowerCase() === currentUser.username.toLowerCase()))) ||
-        (Boolean(i.repName) && (i.repName.trim().toLowerCase() === currentUser.name.trim().toLowerCase() || isArabicNameMatch(i.repName, currentUser.name)));
-      return isOwnerRep;
+      // Do not use the display name as an authorization key: duplicate names
+      // could expose one representative's invoices to another account.
+      return i.repId === currentUser.id ||
+        Boolean(currentUser.username && i.repId?.toLowerCase() === currentUser.username.toLowerCase());
     });
   };
 
