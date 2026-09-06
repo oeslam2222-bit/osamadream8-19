@@ -762,20 +762,29 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
   try {
     if (!products || products.length === 0) return { success: true };
 
+    // One row per SKU/code before sending the batch. Supabase cannot upsert
+    // two rows with the same conflict key in a single request.
+    const productsByCode = new Map<string, Product>();
+    products.forEach((product) => {
+      const code = String(product.code || '').trim().toLowerCase();
+      if (code) productsByCode.set(code, product);
+    });
+    const uniqueProducts = Array.from(productsByCode.values());
+
     // 1. Save rich chunked snapshot into shared store so all 5000+ items and branch stocks are 100% preserved
-    const totalChunks = Math.ceil(products.length / CHUNK_SIZE);
+    const totalChunks = Math.ceil(uniqueProducts.length / CHUNK_SIZE);
     try {
       // Save manifest first
       await supabase.from('orders').upsert({
         id: CATALOG_MANIFEST_ID,
         status: 'catalog_sync_manifest',
-        total: products.length,
-        items: { totalChunks, totalProducts: products.length, updatedAt: new Date().toISOString() } as any,
+        total: uniqueProducts.length,
+        items: { totalChunks, totalProducts: uniqueProducts.length, updatedAt: new Date().toISOString() } as any,
       });
 
       // Save each chunk
       for (let i = 0; i < totalChunks; i++) {
-        const chunk = products.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        const chunk = uniqueProducts.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
         await supabase.from('orders').upsert({
           id: `${CATALOG_CHUNK_PREFIX}${i}`,
           status: 'catalog_sync_chunk',
@@ -788,7 +797,7 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
     }
 
     // 2. Also upsert into standard products table in chunks
-    const payload = products.map((p) => {
+    const payload = uniqueProducts.map((p) => {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p.id);
       const safeId = isUuid ? p.id : stringToUuid(p.id);
       return {
@@ -804,7 +813,7 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
 
     for (let i = 0; i < payload.length; i += 100) {
       const chunk = payload.slice(i, i + 100);
-      const { error } = await supabase.from('products').upsert(chunk);
+      const { error } = await supabase.from('products').upsert(chunk, { onConflict: 'code' });
       if (error) {
         console.warn('Direct products chunk save notice:', error.message);
       }

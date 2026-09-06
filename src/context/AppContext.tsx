@@ -271,49 +271,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Initialize state with localStorage fallbacks, ensuring all core initial users are merged
   const [users, setUsers] = useState<User[]>(() => {
-    const userMap = new Map<string, User>();
-    const saved = localStorage.getItem(STORAGE_KEYS.USERS);
-    if (!saved) return [];
-    try {
-      const parsed: User[] = JSON.parse(saved);
-      parsed
-        .filter((u) => u.id !== 'u-branch-ashraf' && u.id !== 'u-sup-mahmoud' && u.id !== 'u-rep-ahmed')
-        .forEach((u) => {
-          const normBranch = normalizeBranchName(u.branchName);
-          const validRole =
-            u.role === 'developer' ||
-            u.role === 'admin' ||
-            u.role === 'branch_manager' ||
-            u.role === 'supervisor' ||
-            u.role === 'sales_rep'
-              ? u.role
-              : 'sales_rep';
-
-          const existing = userMap.get(u.id);
-          if (existing) {
-            userMap.set(u.id, {
-              ...existing,
-              ...u,
-              name: u.id === 'u-admin-osama' ? 'أسامة إسلام (المطور التقني)' : u.name,
-              branchName: normBranch,
-              role: validRole,
-            });
-          } else {
-            userMap.set(u.id, {
-              ...u,
-              name: u.id === 'u-admin-osama' ? 'أسامة إسلام (المطور التقني)' : u.name,
-              branchName: normBranch,
-              role: validRole,
-            });
-          }
-        });
-      const rawUsers = Array.from(userMap.values());
-      const dedupResult = sanitizeAndDeduplicateUsers(rawUsers);
-      return dedupResult.deduplicated;
-    } catch {
-      const dedupResult = sanitizeAndDeduplicateUsers(Array.from(userMap.values()));
-      return dedupResult.deduplicated;
-    }
+    return [];
   });
 
   const [branches, setBranches] = useState<Branch[]>(() => {
@@ -338,34 +296,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const isAuth = localStorage.getItem(STORAGE_KEYS.IS_AUTH) === 'true';
-    if (!isAuth) return null;
-
-    // 1. Try reading the full serialized session user object first (persists immediately across page reload)
-    const savedUserObj = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_DATA);
-    if (savedUserObj) {
-      try {
-        const parsed: User = JSON.parse(savedUserObj);
-        if (parsed && parsed.id && parsed.name && parsed.approvalStatus !== 'rejected' && parsed.isActive !== false) {
-          return {
-            ...parsed,
-            branchName: normalizeBranchName(parsed.branchName),
-          };
-        }
-      } catch (e) {
-        console.warn('Session user parse error:', e);
-      }
-    }
-
-    // 2. Fallback to finding by saved user ID in the loaded users list
-    const savedUserId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
-    if (savedUserId) {
-      const found = users.find((u) => u.id === savedUserId);
-      if (found && found.approvalStatus !== 'rejected' && found.isActive !== false) {
-        return found;
-      }
-    }
-
     return null;
   });
 
@@ -458,12 +388,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return companyInfo;
   };
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    const isAuth = localStorage.getItem(STORAGE_KEYS.IS_AUTH) === 'true';
-    const hasUserId = Boolean(localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID));
-    const hasUserData = Boolean(localStorage.getItem(STORAGE_KEYS.CURRENT_USER_DATA));
-    return isAuth && (hasUserId || hasUserData);
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+
+  // Never accept a user/session transferred through a URL or an old browser cache.
+  useEffect(() => {
+    if (window.location.search || window.location.hash) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    supabase.auth.getSession().catch(() => null);
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_DATA);
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
+    localStorage.removeItem(STORAGE_KEYS.IS_AUTH);
+  }, []);
 
   const sanitizeProducts = (list: Product[]): Product[] => {
     const byCode = new Map<string, Product>();
@@ -599,35 +535,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-    try {
-      const raw = saved ? JSON.parse(saved) : [];
-      return sanitizeProducts(raw);
-    } catch {
-      return [];
-    }
+    return [];
   });
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
-    try {
-      const raw = saved ? JSON.parse(saved) : [];
-      const sanitized = sanitizeCustomers(raw);
-      return sanitized;
-    } catch {
-      return [];
-    }
+    return [];
   });
 
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.INVOICES);
-      const deletedSet = getDeletedInvoiceIds();
-      const list: Invoice[] = saved ? JSON.parse(saved) : [];
-      return list.filter((i) => !deletedSet.has(i.id) && !deletedSet.has(i.invoiceNumber));
-    } catch {
-      return [];
-    }
+    return [];
   });
 
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -739,34 +655,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           // ignore
         }
 
-        const [idbProducts, idbInvoices, idbCustomers, idbUsers] = await Promise.all([
-          idbGet<Product[]>(STORAGE_KEYS.PRODUCTS),
-          idbGet<Invoice[]>(STORAGE_KEYS.INVOICES),
-          idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS),
-          idbGet<User[]>(STORAGE_KEYS.USERS),
-        ]);
-
         if (!isMounted) return;
-
-        if (idbProducts && Array.isArray(idbProducts) && idbProducts.length > 0) {
-          setProducts(sanitizeProducts(idbProducts));
-        }
-        if (idbInvoices && Array.isArray(idbInvoices) && idbInvoices.length > 0) {
-          const deletedSet = getDeletedInvoiceIds();
-          setInvoices(idbInvoices.filter((i) => !deletedSet.has(i.id) && !deletedSet.has(i.invoiceNumber)));
-        }
-        if (idbCustomers && Array.isArray(idbCustomers) && idbCustomers.length > 0) {
-          setCustomers(sanitizeCustomers(idbCustomers));
-        }
-        if (idbUsers && Array.isArray(idbUsers) && idbUsers.length > 0) {
-          setUsers((prev) => {
-            const map = new Map<string, User>();
-            prev.forEach((u) => map.set(u.id, u));
-            idbUsers.forEach((u) => map.set(u.id, u));
-            const dedup = sanitizeAndDeduplicateUsers(Array.from(map.values()));
-            return dedup.deduplicated;
-          });
-        }
       } catch (err) {
         console.warn('IndexedDB initial hydration notice:', err);
       }
