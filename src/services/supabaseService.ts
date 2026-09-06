@@ -117,17 +117,39 @@ export async function testSupabaseConnection(): Promise<SupabaseSyncStatus> {
 }
 
 /**
+ * Supabase REST returns at most 1,000 rows per request by default.
+ * Read the table in pages so imports and role-specific counts include the full dataset.
+ */
+async function fetchAllRows(table: 'customers' | 'clients'): Promise<{ data: any[]; error: any }> {
+  const pageSize = 1000;
+  const rows: any[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .range(from, from + pageSize - 1);
+
+    if (error) return { data: rows, error };
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+  }
+
+  return { data: rows, error: null };
+}
+
+/**
  * Fetch all customers from Supabase (checking 'customers' or 'clients')
  */
 export async function fetchCustomersFromSupabase(): Promise<{ success: boolean; customers?: Customer[]; error?: string }> {
   try {
     let rawCustomers: any[] | null = null;
-    const { data: custData, error: cErr } = await supabase.from('customers').select('*').order('name', { ascending: true });
-    if (!cErr && custData && custData.length > 0) {
+    const { data: custData, error: cErr } = await fetchAllRows('customers');
+    if (!cErr && custData.length > 0) {
       rawCustomers = custData;
     } else {
-      const { data: clientData, error: clErr } = await supabase.from('clients').select('*');
-      if (!clErr && clientData && clientData.length > 0) {
+      const { data: clientData, error: clErr } = await fetchAllRows('clients');
+      if (!clErr && clientData.length > 0) {
         rawCustomers = clientData;
       }
     }
