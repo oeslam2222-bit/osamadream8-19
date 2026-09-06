@@ -744,24 +744,55 @@ export async function deleteInvoiceFromSupabase(
   invoiceNumber?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // 1. Delete by primary ID from 'invoices'
-    await supabase.from('invoices').delete().eq('id', invoiceId);
+    const errors: string[] = [];
+    let atLeastOneTableSucceeded = false;
 
-    // 2. Delete by invoice_number from 'invoices' if available
+    // Delete from both possible invoice stores. One table may not exist in older deployments.
+    const invoiceById = await supabase.from('invoices').delete().eq('id', invoiceId);
+    if (invoiceById.error) errors.push(invoiceById.error.message);
+    else atLeastOneTableSucceeded = true;
+
     if (invoiceNumber) {
-      await supabase.from('invoices').delete().eq('invoice_number', invoiceNumber);
+      const invoiceByNumber = await supabase.from('invoices').delete().eq('invoice_number', invoiceNumber);
+      if (invoiceByNumber.error) errors.push(invoiceByNumber.error.message);
+      else atLeastOneTableSucceeded = true;
     }
 
-    // 3. Fallback table 'orders'
-    await supabase.from('orders').delete().eq('id', invoiceId);
+    const orderById = await supabase.from('orders').delete().eq('id', invoiceId);
+    if (orderById.error) errors.push(orderById.error.message);
+    else atLeastOneTableSucceeded = true;
+
     if (invoiceNumber) {
-      await supabase.from('orders').delete().eq('invoice_number', invoiceNumber);
+      const orderByNumber = await supabase.from('orders').delete().eq('invoice_number', invoiceNumber);
+      if (orderByNumber.error) errors.push(orderByNumber.error.message);
+      else atLeastOneTableSucceeded = true;
     }
 
-    return { success: true };
+    if (!atLeastOneTableSucceeded) {
+      return { success: false, error: errors.join(' | ') || 'تعذر حذف الفاتورة من قاعدة البيانات' };
+    }
+    return { success: true, error: errors.length > 0 ? errors.join(' | ') : undefined };
   } catch (e: any) {
     console.warn('Supabase delete invoice exception:', e);
     return { success: false, error: e?.message };
+  }
+}
+
+export async function deleteAllInvoicesFromSupabase(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const errors: string[] = [];
+    const invoiceResult = await supabase.from('invoices').delete().not('id', 'is', null);
+    if (invoiceResult.error) errors.push(invoiceResult.error.message);
+    const orderResult = await supabase
+      .from('orders')
+      .delete()
+      .not('id', 'is', null)
+      .not('id', 'eq', 'dream_catalog_manifest')
+      .not('id', 'like', 'dream_catalog_chunk_%');
+    if (orderResult.error) errors.push(orderResult.error.message);
+    return errors.length > 0 ? { success: false, error: errors.join(' | ') } : { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'تعذر مسح الفواتير من قاعدة البيانات' };
   }
 }
 
