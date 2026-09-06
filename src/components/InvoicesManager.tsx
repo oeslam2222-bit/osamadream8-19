@@ -494,11 +494,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
                   const canCancelAnytime =
                     (currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer') &&
-                    invoice.status !== 'تم التسليم' &&
-                    invoice.status !== 'إغلاق الطلبية' &&
-                    invoice.status !== 'مرتجع' &&
-                    invoice.status !== 'مرفوضة / ملغاة' &&
-                    invoice.status !== 'ملغاة';
+                    isPending;
 
                   const canMakeReturn =
                     (currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer') &&
@@ -770,9 +766,13 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             <button
                               onClick={async () => {
                                 if (window.confirm(`هل أنت متأكد من حذف الفاتورة رقم ${invoice.invoiceNumber} نهائياً من النظام والسيرفر؟`)) {
-                                  await deleteInvoice(invoice.id);
-                                  setSuccessToast(`تم حذف الفاتورة #${invoice.invoiceNumber} نهائياً بنجاح`);
-                                  setTimeout(() => setSuccessToast(null), 3500);
+                                  try {
+                                    await deleteInvoice(invoice.id);
+                                    setSuccessToast(`تم حذف الفاتورة #${invoice.invoiceNumber} نهائياً بنجاح`);
+                                    setTimeout(() => setSuccessToast(null), 3500);
+                                  } catch (error: any) {
+                                    alert(`تم إخفاء الفاتورة محلياً، لكن تعذر حذفها من قاعدة البيانات: ${error?.message || 'تحقق من اتصال Supabase وصلاحيات الحذف.'}`);
+                                  }
                                 }
                               }}
                               className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg transition cursor-pointer"
