@@ -93,6 +93,7 @@ export const ExcelImportExport: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [previewProducts, setPreviewProducts] = useState<Product[]>([]);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
+  const [importDataNotice, setImportDataNotice] = useState<string | null>(null);
   const [importMode, setImportMode] = useState<'merge' | 'replace'>('replace');
   const [importSuccessMsg, setImportSuccessMsg] = useState<string | null>(null);
 
@@ -107,6 +108,32 @@ export const ExcelImportExport: React.FC = () => {
   const [googleSheetSuccess, setGoogleSheetSuccess] = useState<string | null>(null);
   const [googleSheetError, setGoogleSheetError] = useState<string | null>(null);
   const [copiedScript, setCopiedScript] = useState(false);
+
+  const prepareImportedProducts = (incoming: Product[]): Product[] => {
+    const byIdentity = new Map<string, Product>();
+    const normalize = (value?: string) => String(value || '').trim().replace(/^#/, '').replace(/\s+/g, '').toLowerCase();
+    let duplicateCount = 0;
+    let missingCodeCount = 0;
+
+    incoming.forEach((product) => {
+      const code = normalize(product.code);
+      const unified = normalize(product.unifiedCode);
+      if (!code) missingCodeCount++;
+      const identity = code
+        ? `code:${code}`
+        : unified
+        ? `unified:${unified}:::${normalize(product.name)}:::${normalize(product.color)}:::${normalize(product.size)}`
+        : `id:${product.id}`;
+      if (byIdentity.has(identity)) duplicateCount++;
+      byIdentity.set(identity, product);
+    });
+
+    const notices: string[] = [];
+    if (duplicateCount > 0) notices.push(`تم دمج ${duplicateCount} صف مكرر`);
+    if (missingCodeCount > 0) notices.push(`${missingCodeCount} صف بدون كود أساسي واضح`);
+    setImportDataNotice(notices.length > 0 ? `${notices.join(' • ')}. آخر نسخة من كل كود هي التي ستُحفظ.` : null);
+    return Array.from(byIdentity.values());
+  };
 
   // Filtered preview products
   const filteredPreviewProducts = useMemo(() => {
@@ -150,7 +177,7 @@ export const ExcelImportExport: React.FC = () => {
       if (result.errors.length > 0) {
         setParseErrors(result.errors);
       }
-      setPreviewProducts(result.products);
+      setPreviewProducts(prepareImportedProducts(result.products));
     } catch (err: any) {
       setParseErrors([err.message || 'حدث خطأ أثناء معالجة ملف الإكسل']);
     } finally {
@@ -190,7 +217,7 @@ export const ExcelImportExport: React.FC = () => {
         if (result.errors.length > 0) {
           setParseErrors(result.errors);
         }
-        setPreviewProducts(result.products);
+        setPreviewProducts(prepareImportedProducts(result.products));
         setGoogleSheetSuccess(
           `تم بنجاح جلب ${result.products.length} صنف من شيت Google Sheets! راجع الجدول أدناه واضغط تأكيد الحفظ.`
         );
@@ -861,6 +888,12 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
             </div>
           </div>
 
+          {importDataNotice && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-3 text-xs font-bold">
+              {importDataNotice}
+            </div>
+          )}
+
           {/* Search and Page Size Controls inside Preview */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-amber-50/50 p-3 rounded-2xl border border-amber-200/70">
             <div className="relative w-full sm:w-80">
@@ -1033,6 +1066,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
               <button
                 onClick={() => {
                   setPreviewProducts([]);
+                  setImportDataNotice(null);
                   setPreviewSearchTerm('');
                 }}
                 className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-5 py-2.5 rounded-xl text-xs transition"
@@ -1564,7 +1598,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                                         salesRepName: selectedRepName || undefined,
                                         repName: selectedRepName || undefined,
                                         repId: matchedUser ? matchedUser.id : undefined,
-                                        branchName: c.branchName || matchedUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+                                        branchName: String(c.branchName || matchedUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)'),
                                       });
                                     }}
                                     aria-label={`تحديد مندوب العميل ${c.name}`}
