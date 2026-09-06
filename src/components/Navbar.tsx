@@ -45,6 +45,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     users,
     branches,
     invoices,
+    getVisibleInvoices,
     isOffline,
     getCartSummary,
     selectedBranchFilter,
@@ -90,7 +91,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
 
   const pendingApprovalsCount = users.filter((u) => u.approvalStatus === 'pending_approval').length;
   
-  const pendingOrdersCount = invoices.filter((i) =>
+  const userVisibleInvoices = getVisibleInvoices();
+  const pendingOrdersCount = userVisibleInvoices.filter((i) =>
     i.status === 'قيد مراجعة المشرف' ||
     i.status === 'معلقة بانتظار اعتماد الفرع' ||
     i.status === 'قيد المراجعة'
@@ -106,9 +108,9 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
 
   const navItems = [
     { id: 'catalog', label: 'كتالوج الأصناف والبيع', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'customers', label: 'قاعدة بيانات العملاء 👥', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'dashboard', label: 'لوحة المشرف والمتابعة 📊', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'invoices', label: 'الفواتير والطلبيات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
+    { id: 'customers', label: currentUser.role === 'sales_rep' ? 'عملائي المسندين 👥' : 'قاعدة بيانات العملاء 👥', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'dashboard', label: currentUser.role === 'sales_rep' ? 'متابعة طلبياتي 📊' : 'لوحة المشرف والمتابعة 📊', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'invoices', label: currentUser.role === 'sales_rep' ? 'طلبياتي وفواتيري 📑' : 'الفواتير والطلبيات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
     { id: 'inventory', label: 'إدارة المخزون والاعتمادات', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
     { id: 'excel', label: 'شيتات Google Sheets والإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },
     { id: 'guide', label: 'دليل دورة العمل 📖', icon: BookOpen, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },

@@ -53,6 +53,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 }) => {
   const {
     invoices,
+    getVisibleInvoices,
     products,
     users,
     currentUser,
@@ -87,7 +88,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   const [rejectModalInvoice, setRejectModalInvoice] = useState<Invoice | null>(null);
   const [rejectReason, setRejectReason] = useState('نفاذ الكمية أو عدم استيفاء الشروط');
 
-  // Real-Time Branch Sales Performance Calculation across all branches
+  // Real-Time Branch Sales Performance Calculation (Strict Branch Isolation)
   const branchSalesSummary = useMemo(() => {
     const branchMap = new Map<string, {
       name: string;
@@ -101,12 +102,19 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
       pendingCount: number;
     }>();
 
-    // 1. Initialize from registered branches
-    branches.forEach((b) => {
-      branchMap.set(b.name, {
-        name: b.name,
-        code: b.code || '',
-        city: b.city || '',
+    const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+    const sourceInvoices = isAdminOrDev ? invoices : getVisibleInvoices();
+
+    // 1. Initialize branches based on permission
+    const allowedBranches = isAdminOrDev
+      ? branches
+      : branches.filter((b) => currentUser?.branchName && isBranchMatch(b.name, currentUser.branchName, { allowUnassigned: false }));
+
+    if (allowedBranches.length === 0 && currentUser?.branchName) {
+      branchMap.set(currentUser.branchName, {
+        name: currentUser.branchName,
+        code: '',
+        city: currentUser.branchName.replace('فرع ', ''),
         totalSales: 0,
         totalCartons: 0,
         ordersCount: 0,
@@ -114,16 +122,12 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         deliveredSales: 0,
         pendingCount: 0,
       });
-    });
-
-    // 2. Populate from invoices in real-time
-    invoices.forEach((inv) => {
-      const bName = inv.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
-      if (!branchMap.has(bName)) {
-        branchMap.set(bName, {
-          name: bName,
-          code: '',
-          city: bName.replace('فرع ', ''),
+    } else {
+      allowedBranches.forEach((b) => {
+        branchMap.set(b.name, {
+          name: b.name,
+          code: b.code || '',
+          city: b.city || '',
           totalSales: 0,
           totalCartons: 0,
           ordersCount: 0,
@@ -131,9 +135,39 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           deliveredSales: 0,
           pendingCount: 0,
         });
+      });
+    }
+
+    // 2. Populate strictly from accessible invoices in real-time
+    sourceInvoices.forEach((inv) => {
+      const bName = inv.branchName || currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+      
+      // If non-admin, ensure invoice matches user's branch
+      if (!isAdminOrDev && currentUser?.branchName && !isBranchMatch(bName, currentUser.branchName, { allowUnassigned: false })) {
+        return;
       }
 
-      const branchData = branchMap.get(bName)!;
+      if (!branchMap.has(bName)) {
+        if (isAdminOrDev) {
+          branchMap.set(bName, {
+            name: bName,
+            code: '',
+            city: bName.replace('فرع ', ''),
+            totalSales: 0,
+            totalCartons: 0,
+            ordersCount: 0,
+            deliveredCount: 0,
+            deliveredSales: 0,
+            pendingCount: 0,
+          });
+        } else {
+          return;
+        }
+      }
+
+      const branchData = branchMap.get(bName);
+      if (!branchData) return;
+
       branchData.ordersCount += 1;
 
       if (inv.status !== 'مرفوضة / ملغاة' && inv.status !== 'ملغاة') {
@@ -154,42 +188,29 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     });
 
     return Array.from(branchMap.values());
-  }, [branches, invoices]);
+  }, [branches, invoices, getVisibleInvoices, currentUser]);
 
-  // Overall aggregate sales across all branches
+  // Overall aggregate sales across visible branches
   const totalAllBranchSales = useMemo(() => {
     return branchSalesSummary.reduce((acc, b) => acc + b.totalSales, 0);
   }, [branchSalesSummary]);
 
-  // Filter accessible invoices based on user role and branch selection
+  // Filter accessible invoices based on user role and branch selection (STRICT PRIVACY)
   const accessibleInvoices = useMemo(() => {
-    return invoices.filter((inv) => {
-      // 1. Branch filter (Dropdown & quick-chip selection)
-      if (currentUser?.role !== 'sales_rep' && selectedBranchFilter !== 'الكل' && inv.branchName !== selectedBranchFilter) {
+    // Start strictly from getVisibleInvoices() which enforces role-based privacy and branch isolation
+    const baseInvoices = getVisibleInvoices();
+
+    return baseInvoices.filter((inv) => {
+      // 1. Branch filter (Dropdown & quick-chip selection for Admin/Developer)
+      if (
+        (currentUser?.role === 'admin' || currentUser?.role === 'developer') &&
+        selectedBranchFilter !== 'الكل' &&
+        inv.branchName !== selectedBranchFilter
+      ) {
         return false;
       }
 
-      // 2. Strict Role-based scoping (Branch Isolation)
-      if (currentUser?.role === 'sales_rep') {
-        const isOwnerRep =
-          (Boolean(inv.repId) && (inv.repId === currentUser.id || (currentUser.username && inv.repId.toLowerCase() === currentUser.username.toLowerCase()))) ||
-          (Boolean(inv.repName) && (inv.repName.trim().toLowerCase() === currentUser.name.trim().toLowerCase() || isArabicNameMatch(inv.repName, currentUser.name)));
-        if (!isOwnerRep) return false;
-      } else if (currentUser?.role === 'supervisor') {
-        // Supervisor STRICTLY sees ONLY his branch and reps under him
-        const isSupervisedRep = users.some(
-          (u) =>
-            (u.id === inv.repId || (inv.repName && isArabicNameMatch(inv.repName, u.name))) &&
-            (u.supervisorId === currentUser.id || isBranchMatch(u.branchName, currentUser.branchName))
-        );
-        const isSameBranch = Boolean(inv.branchName) && isBranchMatch(inv.branchName, currentUser.branchName);
-        if (!isSameBranch && !isSupervisedRep && inv.repId !== currentUser.id) return false;
-      } else if (currentUser?.role === 'branch_manager') {
-        // Branch Manager STRICTLY sees ONLY his own branch
-        if (!inv.branchName || !isBranchMatch(inv.branchName, currentUser.branchName)) return false;
-      }
-
-      // 3. Status filter
+      // 2. Status filter
       if (activeStatusTab !== 'الكل') {
         if (activeStatusTab === 'فواتير النواقص') {
           if (!inv.isShortageInvoice && !(inv.invoiceNumber && inv.invoiceNumber.endsWith('-NQ'))) return false;
@@ -198,12 +219,12 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         }
       }
 
-      // 4. Rep filter
+      // 3. Rep filter
       if (selectedRepFilter !== 'الكل' && inv.repName !== selectedRepFilter) {
         return false;
       }
 
-      // 5. Search term
+      // 4. Search term
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase().trim();
         const numMatch = inv.invoiceNumber?.toLowerCase().includes(q);
@@ -218,7 +239,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
       return true;
     });
-  }, [invoices, currentUser, users, selectedBranchFilter, activeStatusTab, selectedRepFilter, searchTerm]);
+  }, [getVisibleInvoices, currentUser, selectedBranchFilter, activeStatusTab, selectedRepFilter, searchTerm]);
 
   // Reset pagination when filters change
   useEffect(() => {

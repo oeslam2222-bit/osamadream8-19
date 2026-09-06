@@ -281,13 +281,23 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     ) {
       colMap.stockMeq = idx;
     }
-    // 2. Unified Code (الكود الموحد / كود الموديل / Unified Code / Model Code)
+    // 2. Unified / Model / Display Code (الكود الموضح / كود موضح / الكود الموحد / كود الموديل / Unified Code / Model Code)
     else if (
+      norm === 'الكودالموضح' ||
+      norm === 'كودموضح' ||
+      norm === 'الكودموضح' ||
+      norm === 'كودالموضح' ||
+      norm === 'الموضح' ||
+      norm === 'كودتوضيحي' ||
+      norm === 'كودالصنفالموضح' ||
       norm === 'الكودالموحد' ||
       norm === 'كودموحد' ||
       norm === 'كودالموديل' ||
       norm === 'الموديل' ||
       norm === 'كودالموديلالموحد' ||
+      norm.includes('الكودالموضح') ||
+      norm.includes('كودموضح') ||
+      norm.includes('الموضح') ||
       norm.includes('الكودالموحد') ||
       norm.includes('كودموحد') ||
       norm.includes('unifiedcode') ||
@@ -296,32 +306,52 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     ) {
       colMap.unifiedCode = idx;
     }
-    // 3. Product Code (كود الصنف / كود المنتج / كود)
+    // 3. Product Code / Full SKU Code (الكود كامل / الكود الكامل / كود كامل / كود الصنف / كود المنتج / كود)
     else if (
-      (norm === 'كودالمنتج' ||
+      idx !== colMap.unifiedCode &&
+      (norm === 'الكودكامل' ||
+      norm === 'كودكامل' ||
+      norm === 'الكودالكامل' ||
+      norm === 'كودالصنفالكامل' ||
+      norm.includes('كودكامل') ||
+      norm.includes('الكودالكامل') ||
+      norm === 'كودالمنتج' ||
       norm === 'كودالصنف' ||
       norm.includes('كودالمنتج') ||
       norm.includes('كودالصنف') ||
       norm.includes('كود') ||
-      norm.includes('code')) &&
-      idx !== colMap.unifiedCode
+      norm.includes('code') ||
+      norm.includes('sku'))
     ) {
-      if (colMap.code === -1 || norm === 'كودالصنف' || norm === 'كودالمنتج') {
+      if (
+        colMap.code === -1 ||
+        norm === 'الكودكامل' ||
+        norm === 'كودكامل' ||
+        norm.includes('كامل') ||
+        norm === 'كودالصنف' ||
+        norm === 'كودالمنتج'
+      ) {
         colMap.code = idx;
       }
     }
-    // 3. Product Name (Product name / اسم المنتج / اسم الصنف)
+    // 4. Product Name (Product name / اسم الصنف / اسم المنتج / البيان)
     else if (
-      norm === 'اسمالمنتج' ||
+      !norm.includes('عائلة') &&
+      !norm.includes('عائله') &&
+      !norm.includes('فرع') &&
+      !norm.includes('مندوب') &&
+      (norm === 'اسمالمنتج' ||
       norm === 'اسمالصنف' ||
       norm === 'productname' ||
+      norm === 'itemname' ||
       norm.includes('اسمالمنتج') ||
       norm.includes('productname') ||
       norm.includes('اسمالصنف') ||
-      norm.includes('اسم') ||
-      norm.includes('البيان')
+      norm === 'الاسم' ||
+      norm === 'اسم' ||
+      norm.includes('البيان'))
     ) {
-      if (colMap.name === -1 || norm === 'اسمالمنتج' || norm === 'اسمالصنف') {
+      if (colMap.name === -1 || norm === 'اسمالمنتج' || norm === 'اسمالصنف' || norm.includes('اسمالصنف')) {
         colMap.name = idx;
       }
     }
@@ -502,10 +532,11 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       return isNaN(parsed) ? fallback : parsed;
     };
 
-    const code = getVal(colMap.code) || `DRM-${100 + r}`;
-    const name = getVal(colMap.name);
-
-    if (!name && !code) continue; // skip empty line
+    const rawCode = getVal(colMap.code);
+    const code = rawCode || `DRM-${100 + r}`;
+    const rawName = getVal(colMap.name);
+    const fallbackName = getVal(colMap.familyName) || getVal(colMap.itemGroup) || `صنف دريم ${code}`;
+    const name = rawName || fallbackName;
 
     const rawPriority = getVal(colMap.salesPriority);
     let salesPriority: SalesPriority = 'عادي';

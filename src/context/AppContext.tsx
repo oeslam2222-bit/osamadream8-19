@@ -417,22 +417,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const sanitizeProducts = (list: Product[]): Product[] => {
-    const byCode = new Map<string, Product>();
+    if (!Array.isArray(list)) return [];
+    const byId = new Map<string, Product>();
     list.forEach((rawProduct) => {
+      if (!rawProduct) return;
       const p = { ...rawProduct };
-      const normalizeProductPart = (value?: string | number) =>
-        String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
-      const code = normalizeProductPart(p.code);
-      const key = code && code !== '---'
-        ? [code, p.name, p.color, p.size, p.branchName].map(normalizeProductPart).join(':::')
-        : `id:${p.id}`;
-      const existing = byCode.get(key);
+      const key = p.id || (p.code ? `code:${p.code.trim().toLowerCase()}` : `id:${Math.random()}`);
+      const existing = byId.get(key);
       if (!existing || (!existing.imageUrl && p.imageUrl) || (!existing.name && p.name)) {
-        byCode.set(key, existing ? { ...existing, ...p } : p);
+        byId.set(key, existing ? { ...existing, ...p } : p);
       }
     });
 
-    return Array.from(byCode.values()).map((p) => {
+    return Array.from(byId.values()).map((p) => {
       const cartonQty = p.cartonQuantity && p.cartonQuantity > 0 ? p.cartonQuantity : 1;
       const cartonPrice = typeof p.cartonPrice === 'number' ? p.cartonPrice : 0;
 
@@ -3404,53 +3401,88 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {}
   };
 
-  // --- Role-Based Data Visibility (STRICT PRIVACY) ---
+  // --- Role-Based Data Visibility (STRICT PRIVACY & BRANCH ISOLATION) ---
   const getVisibleInvoices = (): Invoice[] => {
     if (!currentUser) return [];
+
+    // Admin & Developer: Full oversight, filtered by branch selector if selected
     if (currentUser.role === 'admin' || currentUser.role === 'developer') {
-      return selectedBranchFilter === 'الكل' ? invoices : invoices.filter((i) => i.branchName === selectedBranchFilter);
+      return selectedBranchFilter === 'الكل'
+        ? invoices
+        : invoices.filter((i) => Boolean(i.branchName) && isBranchMatch(i.branchName, selectedBranchFilter, { allowUnassigned: false }));
     }
+
+    // Branch Manager: STRICTLY sees ONLY invoices of his own branch
     if (currentUser.role === 'branch_manager') {
+      if (!currentUser.branchName) return [];
       return invoices.filter((i) => Boolean(i.branchName) && isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false }));
     }
+
+    // Supervisor: STRICTLY sees ONLY invoices belonging to his branch and his supervised reps
     if (currentUser.role === 'supervisor') {
+      if (!currentUser.branchName) return [];
       const repIds = new Set(
         users
-          .filter((u) => u.role === 'sales_rep' && (u.supervisorId === currentUser.id || isBranchMatch(u.branchName, currentUser.branchName)))
+          .filter((u) => u.role === 'sales_rep' && (u.supervisorId === currentUser.id || isBranchMatch(u.branchName, currentUser.branchName, { allowUnassigned: false })))
           .map((u) => u.id)
       );
-      const repNames = new Set(
-        users
-          .filter((u) => u.role === 'sales_rep' && (u.supervisorId === currentUser.id || isBranchMatch(u.branchName, currentUser.branchName)))
-          .map((u) => u.name.trim().toLowerCase())
-      );
       return invoices.filter((i) => {
-        const isSameBranch = Boolean(i.branchName) && isBranchMatch(i.branchName, currentUser.branchName);
-        const isSupervisedRep =
-          (Boolean(i.repId) && repIds.has(i.repId)) ||
-          (Boolean(i.repName) && repNames.has(i.repName.trim().toLowerCase()));
-        const isSelf = i.repId === currentUser.id || (Boolean(i.repName) && isArabicNameMatch(i.repName, currentUser.name));
+        // Strict Branch Isolation: must match supervisor's branch
+        if (i.branchName && !isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false })) {
+          return false;
+        }
+        const isSameBranch = Boolean(i.branchName) && isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false });
+        const isSupervisedRep = Boolean(i.repId) && repIds.has(i.repId);
+        const isSelf = i.repId === currentUser.id;
         return isSameBranch || isSupervisedRep || isSelf;
       });
     }
-    // Sales Rep: unconditionally sees all invoices belonging to him (both primary and shortage invoices)
-    return invoices.filter((i) => {
-      // Do not use the display name as an authorization key: duplicate names
-      // could expose one representative's invoices to another account.
-      return i.repId === currentUser.id ||
-        Boolean(currentUser.username && i.repId?.toLowerCase() === currentUser.username.toLowerCase());
-    });
+
+    // Sales Rep: STRICT PRIVACY - ONLY his own orders, NEVER another rep's orders!
+    if (currentUser.role === 'sales_rep') {
+      return invoices.filter((i) => {
+        // 1. Direct Rep ID match (highest authority)
+        const isDirectIdMatch = Boolean(i.repId) && (
+          i.repId === currentUser.id ||
+          Boolean(currentUser.username && i.repId.toLowerCase() === currentUser.username.toLowerCase())
+        );
+
+        // 2. Fallback: if repId is absent on legacy records, exact normalized name AND exact branch match
+        const isDirectNameMatch = !i.repId && Boolean(i.repName) &&
+          normalizeArabicText(i.repName) === normalizeArabicText(currentUser.name) &&
+          Boolean(currentUser.branchName && i.branchName && isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false }));
+
+        if (!isDirectIdMatch && !isDirectNameMatch) return false;
+
+        // Strict Branch Isolation: Rep cannot see invoices of another branch
+        if (currentUser.branchName && i.branchName) {
+          if (!isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false })) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+    }
+
+    return [];
   };
 
   const getVisibleCustomers = (): Customer[] => {
     if (!currentUser) return [];
-    if (currentUser.role === 'admin' || currentUser.role === 'developer') return customers;
+    if (currentUser.role === 'admin' || currentUser.role === 'developer') {
+      return selectedBranchFilter === 'الكل'
+        ? customers
+        : customers.filter((c) => Boolean(c.branchName) && isBranchMatch(c.branchName, selectedBranchFilter, { allowUnassigned: false }));
+    }
     if (currentUser.role === 'branch_manager') {
-      return customers.filter((c) => Boolean(c.branchName) && doesCustomerBelongToBranch(c, currentUser.branchName));
+      if (!currentUser.branchName) return [];
+      return customers.filter((c) => doesCustomerBelongToBranch(c, currentUser.branchName, users));
     }
     if (currentUser.role === 'supervisor') {
       return customers.filter((c) => doesCustomerBelongToSupervisor(c, currentUser, users));
     }
+    // Sales Rep: ONLY customers belonging directly to this rep
     return customers.filter((c) => doesCustomerBelongToRep(c, currentUser));
   };
 

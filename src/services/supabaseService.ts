@@ -765,21 +765,12 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
   try {
     if (!products || products.length === 0) return { success: true };
 
-    // One row per SKU/code before sending the batch. Supabase cannot upsert
-    // two rows with the same conflict key in a single request.
-    const productsByCode = new Map<string, Product>();
+    // Index products by their unique ID to preserve all 5500+ rows
+    const idMap = new Map<string, Product>();
     products.forEach((product) => {
-      const normalizeProductPart = (value?: string | number) =>
-        String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
-      const code = normalizeProductPart(product.code);
-      const key = code && code !== '---'
-        ? [code, product.name, product.color, product.size, product.branchName]
-            .map(normalizeProductPart)
-            .join(':::')
-        : `id:${product.id}`;
-      productsByCode.set(key, product);
+      idMap.set(product.id, product);
     });
-    const uniqueProducts = Array.from(productsByCode.values());
+    const uniqueProducts = Array.from(idMap.values());
 
     // 1. Save rich chunked snapshot into shared store so all 5000+ items and branch stocks are 100% preserved
     const totalChunks = Math.ceil(uniqueProducts.length / CHUNK_SIZE);
@@ -823,7 +814,7 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
 
     for (let i = 0; i < payload.length; i += 100) {
       const chunk = payload.slice(i, i + 100);
-      const { error } = await supabase.from('products').upsert(chunk, { onConflict: 'code' });
+      const { error } = await supabase.from('products').upsert(chunk, { onConflict: 'id' });
       if (error) {
         console.warn('Direct products chunk save notice:', error.message);
       }

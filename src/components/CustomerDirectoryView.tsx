@@ -213,11 +213,14 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     return allAvailableReps.filter((r) => !r.isRegisteredUser && r.name && r.name.length > 2);
   }, [allAvailableReps]);
 
-  // Extract ALL unique Branches from branches + customers
+  // Extract ALL unique Branches from branches + customers (strictly filtered for non-admins)
   const allAvailableBranches = useMemo(() => {
+    if (!isAdminOrDev) {
+      return currentUser?.branchName ? [currentUser.branchName] : [];
+    }
     const branchSet = new Set<string>();
     branches.filter((b) => !b.isMainWarehouse).forEach((b) => branchSet.add(b.name));
-    const visibleCustomers = isAdminOrDev ? customers : getVisibleCustomers();
+    const visibleCustomers = customers;
     visibleCustomers.forEach((c) => {
       if (c.branchName && c.branchName.trim()) {
         const norm = c.branchName.trim().startsWith('فرع') ? c.branchName.trim() : `فرع ${c.branchName.trim()}`;
@@ -225,17 +228,21 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       }
     });
     return Array.from(branchSet);
-  }, [branches, customers, isAdminOrDev, getVisibleCustomers]);
+  }, [branches, customers, isAdminOrDev, currentUser]);
 
   // The context owns the privacy boundary; tabs can only narrow that list.
   const scopedCustomers = useMemo(() => {
     const visibleCustomers = getVisibleCustomers();
-    if (!currentUser || isAdminOrDev) return visibleCustomers;
-    if (scopeTab === 'my_customers' && isRep) {
+    if (!currentUser) return [];
+    // Reps are strictly and unconditionally locked to their own customers
+    if (isRep) {
+      return visibleCustomers.filter((c) => doesCustomerBelongToRep(c, currentUser));
+    }
+    if (scopeTab === 'my_customers') {
       return visibleCustomers.filter((c) => doesCustomerBelongToRep(c, currentUser));
     }
     return visibleCustomers;
-  }, [getVisibleCustomers, currentUser, isAdminOrDev, isRep, scopeTab]);
+  }, [getVisibleCustomers, currentUser, isRep, scopeTab]);
 
   // Filter & Search Logic
   const filteredCustomers = useMemo(() => {
@@ -244,7 +251,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     return scopedCustomers.filter((c) => {
       // Branch filter
       if (selectedBranch !== 'الكل' && !(scopeTab === 'my_customers' && isRep)) {
-        if (!isBranchMatch(c.branchName, selectedBranch, { allowUnassigned: false })) {
+        if (!doesCustomerBelongToBranch(c, selectedBranch, users)) {
           return false;
         }
       }
@@ -950,7 +957,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         </button>
 
         <button
-          hidden={isRep}
+          hidden={!isAdminOrDev}
           onClick={() => {
             setScopeTab('all');
             setCurrentPage(1);
@@ -1220,12 +1227,12 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                         </p>
                         <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
                           {scopeTab === 'my_customers'
-                            ? 'يمكنك استعراض جميع عملاء الفرع أو الضغط أدناه للانتقال لعملاء الفرع والتنقل بحرية.'
+                            ? (isRep ? 'تأكد من أن اسم المندوب في ملف شيت العملاء يطابق اسم حسابك تماماً، أو أضف عميلاً جديداً.' : 'يمكنك استعراض عملاء الفرع أو تعديل الفلاتر.')
                             : 'جرب إزالة الفلاتر أو تغيير كلمة البحث لعرض العملاء.'}
                         </p>
                       </div>
 
-                      {scopeTab === 'my_customers' && (
+                      {scopeTab === 'my_customers' && !isRep && (
                         <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
                           <button
                             type="button"
@@ -1238,17 +1245,19 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                             <Building2 className="w-4 h-4" />
                             <span>عرض عملاء الفرع ({currentUser?.branchName || 'الفرع'})</span>
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setScopeTab('all');
-                              setCurrentPage(1);
-                            }}
-                            className="bg-slate-900 hover:bg-slate-800 text-white font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
-                          >
-                            <Users className="w-4 h-4" />
-                            <span>عرض جميع عملاء الفروع ({customers.length})</span>
-                          </button>
+                          {isAdminOrDev && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setScopeTab('all');
+                                setCurrentPage(1);
+                              }}
+                              className="bg-slate-900 hover:bg-slate-800 text-white font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                            >
+                              <Users className="w-4 h-4" />
+                              <span>عرض جميع عملاء الفروع ({customers.length})</span>
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>

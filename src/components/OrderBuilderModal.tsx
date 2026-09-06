@@ -136,19 +136,31 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
       return customers.filter((c) => doesCustomerBelongToSupervisor(c, activeRepUser, users));
     }
     if (activeRepUser.role === 'branch_manager') {
-      return customers.filter((c) => doesCustomerBelongToBranch(c, activeRepUser.branchName));
+      return customers.filter((c) => doesCustomerBelongToBranch(c, activeRepUser.branchName, users));
     }
     return customers.filter((c) => doesCustomerBelongToRep(c, activeRepUser));
   }, [customers, activeRepUser, users]);
 
   const branchScopedCustomers = useMemo(() => {
-    return customers.filter((c) => doesCustomerBelongToBranch(c, activeBranch));
-  }, [customers, activeBranch]);
+    return customers.filter((c) => doesCustomerBelongToBranch(c, activeBranch, users));
+  }, [customers, activeBranch, users]);
 
   const allScopedCustomers = customers;
 
-  // Active list strictly based on chosen scope
+  // Active list strictly based on chosen scope (Strict Role and Branch Isolation)
   const scopedCustomersList = useMemo(() => {
+    // 1. Sales Rep is strictly locked to his own customers only
+    if (isSalesRep) {
+      return repScopedCustomers;
+    }
+    // 2. Supervisor and Branch Manager cannot access other branches
+    if (currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager') {
+      if (customerScope === 'rep') {
+        return repScopedCustomers;
+      }
+      return branchScopedCustomers;
+    }
+    // 3. Admin & Developer
     if (customerScope === 'rep') {
       return repScopedCustomers;
     }
@@ -156,7 +168,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
       return branchScopedCustomers;
     }
     return allScopedCustomers;
-  }, [customerScope, repScopedCustomers, branchScopedCustomers, allScopedCustomers]);
+  }, [customerScope, repScopedCustomers, branchScopedCustomers, allScopedCustomers, isSalesRep, currentUser]);
 
   // Filtered customers for search dropdown by search query
   const filteredCustomers = useMemo(() => {

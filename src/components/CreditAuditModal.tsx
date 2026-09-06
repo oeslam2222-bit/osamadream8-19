@@ -54,7 +54,7 @@ export const CreditAuditModal: React.FC<CreditAuditModalProps> = ({
   onApprove,
   onReject,
 }) => {
-  const { customers, invoices, currentUser, companyInfo, updateOrderStatus } = useApp();
+  const { customers, invoices, getVisibleInvoices, currentUser, companyInfo, updateOrderStatus } = useApp();
 
   if (!isOpen || !invoice) return null;
 
@@ -106,8 +106,8 @@ export const CreditAuditModal: React.FC<CreditAuditModalProps> = ({
   // Utilization calculation
   const utilizationPercentage = creditLimit > 0 ? Math.round((debtAfter / creditLimit) * 100) : debtAfter > 0 ? 100 : 0;
 
-  // Previous invoices of this customer
-  const customerPastInvoices = invoices
+  // Previous invoices of this customer (Strict Data Privacy)
+  const customerPastInvoices = getVisibleInvoices()
     .filter(
       (inv) =>
         inv.id !== invoice.id &&

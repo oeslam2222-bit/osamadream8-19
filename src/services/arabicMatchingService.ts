@@ -591,7 +591,7 @@ export function isBranchMatch(
 export function doesCustomerBelongToRep(customer: Customer, repUser: User): boolean {
   if (!customer || !repUser) return false;
 
-  // 1. Direct ID / Username match (Highest authority)
+  // 1. Direct ID / Username match (Highest authority - unique identifier)
   if (
     customer.repId &&
     (customer.repId === repUser.id ||
@@ -599,6 +599,13 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
       (repUser.username && customer.repId.toLowerCase() === repUser.username.toLowerCase()))
   ) {
     return true;
+  }
+
+  // Strict Branch Isolation: If both rep and customer specify a branch, they MUST match!
+  if (customer.branchName && repUser.branchName) {
+    if (!isBranchMatch(customer.branchName, repUser.branchName, { allowUnassigned: false })) {
+      return false;
+    }
   }
 
   const normUserName = normalizeArabicText(repUser.name);
@@ -710,7 +717,14 @@ export function doesCustomerBelongToSupervisor(
   supervisorUser: User,
   allUsers: User[]
 ): boolean {
-  if (!supervisorUser) return false;
+  if (!supervisorUser || !customer) return false;
+
+  // Strict Branch Isolation: If customer specifies a branch and supervisor specifies a branch, they MUST match!
+  if (supervisorUser.branchName && customer.branchName) {
+    if (!isBranchMatch(customer.branchName, supervisorUser.branchName, { allowUnassigned: false })) {
+      return false;
+    }
+  }
 
   // 1. If customer belongs to the supervisor's branch, supervisor can view it
   if (supervisorUser.branchName && customer.branchName) {
@@ -724,11 +738,12 @@ export function doesCustomerBelongToSupervisor(
     return true;
   }
 
-  // 3. Find all sales reps belonging to this supervisor
+  // 3. Find all sales reps belonging to this supervisor in the same branch
   const supervisedReps = allUsers.filter(
     (u) =>
       u.supervisorId === supervisorUser.id ||
       (u.role === 'sales_rep' &&
+        supervisorUser.branchName &&
         isBranchMatch(u.branchName, supervisorUser.branchName, { allowUnassigned: false }))
   );
 
@@ -738,11 +753,53 @@ export function doesCustomerBelongToSupervisor(
 
 /**
  * Check if a customer belongs to a branch manager's branch
+ * Checks direct branchName match, inferred branch from address/city/notes,
+ * or if assigned to any sales rep registered to this branch.
  */
-export function doesCustomerBelongToBranch(customer: Customer, branchName?: string): boolean {
-  if (!branchName) return true;
-  if (!customer.branchName) return true;
-  return isBranchMatch(customer.branchName, branchName, { allowUnassigned: false });
+export function doesCustomerBelongToBranch(
+  customer: Customer,
+  branchName?: string,
+  allUsers?: User[]
+): boolean {
+  if (!branchName) return false;
+  if (!customer) return false;
+
+  // 1. Direct branch match on customer.branchName
+  if (customer.branchName && isBranchMatch(customer.branchName, branchName, { allowUnassigned: false })) {
+    return true;
+  }
+
+  // 2. Inferred branch from address, city, or notes
+  const rawCust = customer as any;
+  const textToScan = `${customer.branchName || ''} ${customer.address || ''} ${rawCust.city || ''} ${customer.notes || ''}`.trim();
+  if (textToScan) {
+    const inferred = inferBranchFromText(textToScan);
+    if (inferred && isBranchMatch(inferred, branchName, { allowUnassigned: false })) {
+      return true;
+    }
+  }
+
+  // 3. If customer is assigned to any rep who belongs to this branch
+  if (allUsers && allUsers.length > 0) {
+    const rawAny = customer as any;
+    const repCandidate = customer.salesRepName || customer.repName || customer.repId || rawAny.rep || rawAny.delegateName || rawAny.salesRep;
+    if (repCandidate && typeof repCandidate === 'string' && repCandidate.trim().length > 2) {
+      const isBranchRep = allUsers.some(
+        (u) =>
+          u.role === 'sales_rep' &&
+          u.branchName &&
+          isBranchMatch(u.branchName, branchName, { allowUnassigned: false }) &&
+          (u.id === customer.repId ||
+            isArabicNameMatch(u.name, repCandidate) ||
+            (u.username && u.username.toLowerCase() === repCandidate.toLowerCase()))
+      );
+      if (isBranchRep) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 /**

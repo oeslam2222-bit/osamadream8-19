@@ -46,6 +46,7 @@ export const InventoryStockView: React.FC = () => {
     branches,
     currentUser,
     invoices,
+    getVisibleInvoices,
     addProduct,
     updateProduct,
     deleteProduct,
@@ -131,21 +132,10 @@ export const InventoryStockView: React.FC = () => {
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
-      // Operating-branch stock is scoped to the user's branch. October's central
-      // warehouse balance remains visible to everyone for availability and booking.
+      // Operating-branch stock is dynamically resolved for the active branch via getProductBranchStock.
+      // October central warehouse balance is also visible for stock transfers and reserves.
       const bStock = getProductBranchStock(p);
       const oStock = p.mainWarehouseActual || 0;
-
-      if (
-        visibleBranch !== 'الكل' &&
-        visibleBranch &&
-        p.branchName &&
-        p.branchName !== visibleBranch &&
-        bStock <= 0 &&
-        oStock <= 0
-      ) {
-        return false;
-      }
 
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase().trim();
@@ -184,31 +174,16 @@ export const InventoryStockView: React.FC = () => {
     return filteredProducts.slice(start, start + itemsPerPage);
   }, [filteredProducts, currentPage, itemsPerPage]);
 
-  // Pending Approvals List (for Supervisors and Managers)
+  // Pending Approvals List (Strict Role and Branch Data Privacy)
   const pendingInvoices = useMemo(() => {
-    return invoices.filter((inv) => {
+    return getVisibleInvoices().filter((inv) => {
       const isPending =
         inv.status === 'قيد مراجعة المشرف' ||
         inv.status === 'معلقة بانتظار اعتماد الفرع' ||
         inv.status === 'قيد المراجعة';
-
-      if (!isPending) return false;
-
-      if (currentUser?.role === 'sales_rep') {
-        return inv.repId === currentUser.id;
-      }
-
-      if (currentUser?.role === 'supervisor') {
-        return inv.supervisorName === currentUser.name || inv.branchName === currentUser.branchName;
-      }
-
-      if (currentUser?.role === 'branch_manager') {
-        return inv.branchName === currentUser.branchName;
-      }
-
-      return true; // Admin sees all
+      return isPending;
     });
-  }, [invoices, currentUser]);
+  }, [getVisibleInvoices, invoices, currentUser]);
 
   // Stock Availability Metrics (In Branch vs Needs October Transfer vs Out of Stock)
   const stockMetrics = useMemo(() => {
