@@ -419,14 +419,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const sanitizeProducts = (list: Product[]): Product[] => {
     if (!Array.isArray(list)) return [];
     const byId = new Map<string, Product>();
+    const byCode = new Map<string, string>();
     list.forEach((rawProduct) => {
       if (!rawProduct) return;
       const p = { ...rawProduct };
-      const key = p.id || (p.code ? `code:${p.code.trim().toLowerCase()}` : `id:${Math.random()}`);
-      const existing = byId.get(key);
+      const codeKey = p.code ? p.code.trim().toLowerCase() : '';
+      const idKey = p.id || (codeKey ? `code:${codeKey}` : `id:${Math.random()}`);
+      // Deduplicate by both ID and product code to prevent the same
+      // product appearing twice when it arrives with different ID formats
+      // (e.g. original string ID vs UUID-hashed version from Supabase).
+      const existingCodeKey = codeKey ? byCode.get(codeKey) : undefined;
+      const existingKey = existingCodeKey || idKey;
+      const existing = byId.get(existingKey);
       if (!existing || (!existing.imageUrl && p.imageUrl) || (!existing.name && p.name)) {
-        byId.set(key, existing ? { ...existing, ...p } : p);
+        byId.set(existingKey, existing ? { ...existing, ...p } : p);
       }
+      if (codeKey) byCode.set(codeKey, existingKey);
     });
 
     return Array.from(byId.values()).map((p) => {
@@ -674,7 +682,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!isMounted) return;
         if (Array.isArray(savedProducts)) setProducts(sanitizeProducts(savedProducts));
         if (Array.isArray(savedCustomers)) setCustomers(sanitizeCustomers(savedCustomers));
-        if (Array.isArray(savedInvoices)) setInvoices(savedInvoices);
+        if (Array.isArray(savedInvoices)) {
+          const deletedSet = getDeletedInvoiceIds();
+          const filtered = savedInvoices.filter(
+            (inv: Invoice) => !deletedSet.has(inv.id) && !deletedSet.has(inv.invoiceNumber)
+          );
+          setInvoices(filtered);
+        }
         if (Array.isArray(savedCart)) setCart(savedCart);
         setIsLocalDataHydrated(true);
       } catch (err) {
@@ -794,13 +808,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const invMap = new Map<string, Invoice>();
             prev.filter((i) => !deletedSet.has(i.id) && !deletedSet.has(i.invoiceNumber)).forEach((i) => {
               invMap.set(i.id, i);
-              invMap.set(i.invoiceNumber, i);
             });
             validInvoices.forEach((si) => {
               invMap.set(si.id, si);
-              invMap.set(si.invoiceNumber, si);
             });
-            return Array.from(new Set(invMap.values()));
+            return Array.from(invMap.values());
           });
         }
       }
@@ -1027,13 +1039,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Don't poll if the tab is hidden or minimized to save mobile data and Supabase egress
       if (typeof document !== 'undefined' && document.hidden) return;
 
-      // Limit background refresh to the most recent 50 invoices
-      const result = await fetchInvoicesFromSupabase(50);
+      // Limit background refresh to the most recent 200 invoices so admin/developer
+      // see all new orders, not just the first 50.
+      const result = await fetchInvoicesFromSupabase(200);
       if (cancelled || !result.success || !result.invoices) return;
+      const deletedSet = getDeletedInvoiceIds();
       setInvoices((prev) => {
-        const remoteById = new Map(result.invoices!.map((invoice) => [invoice.id, invoice]));
-        const localOnly = prev.filter((invoice) => !remoteById.has(invoice.id));
-        return [...result.invoices!, ...localOnly];
+        const remoteById = new Map<string, Invoice>();
+        result.invoices!.forEach((inv) => {
+          if (deletedSet.has(inv.id) || (inv.invoiceNumber && deletedSet.has(inv.invoiceNumber))) return;
+          remoteById.set(inv.id, inv);
+        });
+        // Keep local-only invoices that aren't deleted and aren't in the remote set
+        const localOnly = prev.filter(
+          (inv) => !deletedSet.has(inv.id) && !deletedSet.has(inv.invoiceNumber) && !remoteById.has(inv.id)
+        );
+        return [...Array.from(remoteById.values()), ...localOnly];
       });
     };
 
