@@ -660,28 +660,34 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
 }
 
 /**
- * Fetch all invoices / orders from Supabase (capped to latest 200 by default to save Egress bandwidth)
+ * Fetch the complete invoice/order history from Supabase.
+ * Supabase REST pages responses, so fetch in 1,000-row pages instead of silently
+ * truncating the history to the latest 200 records.
  */
-export async function fetchInvoicesFromSupabase(limit = 200): Promise<{ success: boolean; invoices?: Invoice[]; error?: string }> {
+export async function fetchInvoicesFromSupabase(): Promise<{ success: boolean; invoices?: Invoice[]; error?: string }> {
   try {
-    let rawInvoices: any[] | null = null;
-    const { data: invData, error: invErr } = await supabase
-      .from('invoices')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    
-    if (!invErr && invData && invData.length > 0) {
-      rawInvoices = invData;
-    } else {
-      const { data: ordData, error: ordErr } = await supabase
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(limit);
-      if (!ordErr && ordData && ordData.length > 0) {
-        rawInvoices = ordData;
+    const fetchTable = async (table: 'invoices' | 'orders') => {
+      const rows: any[] = [];
+      const pageSize = 1000;
+      for (let page = 0; page < 100; page++) {
+        const { data, error } = await supabase
+          .from(table)
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        if (error) return { rows: [], error };
+        if (!data?.length) break;
+        rows.push(...data);
+        if (data.length < pageSize) break;
       }
+      return { rows, error: null };
+    };
+
+    const invoiceResult = await fetchTable('invoices');
+    const orderResult = invoiceResult.rows.length > 0 ? { rows: [], error: null } : await fetchTable('orders');
+    const rawInvoices = invoiceResult.rows.length > 0 ? invoiceResult.rows : orderResult.rows;
+    if (invoiceResult.error && orderResult.error) {
+      throw invoiceResult.error;
     }
 
     if (rawInvoices) {
@@ -736,20 +742,19 @@ export async function deleteInvoiceFromSupabase(
   invoiceNumber?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // 1. Delete by primary ID from 'invoices'
-    await supabase.from('invoices').delete().eq('id', invoiceId);
+    const errors: string[] = [];
+    const deleteFrom = async (table: 'invoices' | 'orders') => {
+      const byId = await supabase.from(table).delete().eq('id', invoiceId);
+      if (byId.error) errors.push(`${table}: ${byId.error.message}`);
+      if (invoiceNumber) {
+        const byNumber = await supabase.from(table).delete().eq('invoice_number', invoiceNumber);
+        if (byNumber.error) errors.push(`${table}: ${byNumber.error.message}`);
+      }
+    };
 
-    // 2. Delete by invoice_number from 'invoices' if available
-    if (invoiceNumber) {
-      await supabase.from('invoices').delete().eq('invoice_number', invoiceNumber);
-    }
-
-    // 3. Fallback table 'orders'
-    await supabase.from('orders').delete().eq('id', invoiceId);
-    if (invoiceNumber) {
-      await supabase.from('orders').delete().eq('invoice_number', invoiceNumber);
-    }
-
+    await deleteFrom('invoices');
+    await deleteFrom('orders');
+    if (errors.length > 0) return { success: false, error: errors.join(' | ') };
     return { success: true };
   } catch (e: any) {
     console.warn('Supabase delete invoice exception:', e);
@@ -888,7 +893,15 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
           }
         });
         if (allItems.length > 0) {
-          return { success: true, products: allItems };
+          const unique = new Map<string, Product>();
+          allItems.forEach((product) => {
+            const code = String(product.code || '').trim().toLowerCase();
+            const name = String(product.name || '').trim().toLowerCase();
+            const branch = String(product.branchName || '').trim().toLowerCase();
+            const key = code || `${name}::${branch}`;
+            if (!unique.has(key)) unique.set(key, product);
+          });
+          return { success: true, products: Array.from(unique.values()) };
         }
       }
     }

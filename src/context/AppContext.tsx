@@ -617,7 +617,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!fresh && currentUser.id !== 'u-admin-osama') {
           // User was permanently deleted from the database
           logout();
-          setAuthTerminationNotice('تم حذف هذا الحساب من قاعدة البيانات بواسطة إدارة الشركة. تم إنهاء الجلسة ولا يمكن تسجيل الدخول بهذا الحساب.');
+          setAuthTerminationNotice('تم حذف هذا الحساب من قاعد�� البيانات بواسطة إدارة الشركة. تم إنهاء الجلسة ولا يمكن تسجيل الدخول بهذا الحساب.');
         } else if (fresh) {
           if (fresh.approvalStatus === 'rejected' || fresh.isActive === false) {
             logout();
@@ -830,7 +830,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updatedConn = await testSupabaseConnection();
       setSupabaseStatus(updatedConn);
 
-      const msg = `تمت المزامنة السحابية بنجاح مع Supabase! (مستخدمين: ${fetchedUsersCount || pushedUsersCount}، فواتير وطلبيات: ${fetchedInvoicesCount || pushedInvoicesCount}).`;
+      const msg = `تمت المزام��ة السحابية بنجاح مع Supabase! (مستخدمين: ${fetchedUsersCount || pushedUsersCount}، فواتير وطلبيات: ${fetchedInvoicesCount || pushedInvoicesCount}).`;
       return { success: true, message: msg };
     } catch (err: any) {
       return {
@@ -1027,8 +1027,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Don't poll if the tab is hidden or minimized to save mobile data and Supabase egress
       if (typeof document !== 'undefined' && document.hidden) return;
 
-      // Limit background refresh to the most recent 50 invoices
-      const result = await fetchInvoicesFromSupabase(50);
+      // Refresh the complete invoice history so older and newer invoices stay visible.
+      const result = await fetchInvoicesFromSupabase();
       if (cancelled || !result.success || !result.invoices) return;
       setInvoices((prev) => {
         const remoteById = new Map(result.invoices!.map((invoice) => [invoice.id, invoice]));
@@ -2072,13 +2072,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       finalUpdated = sanitizeProducts(newProducts.map(protectReserved));
       setProducts(finalUpdated);
     } else {
-      // Merge mode: Preserve all imported rows without collapsing identical codes
-      const idMap = new Map<string, Product>();
-      products.forEach((p) => idMap.set(p.id, p));
-      newProducts.forEach((p) => {
-        idMap.set(p.id, protectReserved(p));
-      });
-      finalUpdated = sanitizeProducts(Array.from(idMap.values()));
+  // Merge by business identity, not generated row IDs. Spreadsheet imports often
+  // create a new ID for the same product and were the source of catalog doubling.
+  const productKey = (p: Product) => {
+    const code = normalizeArabicText(String(p.code || '')).replace(/\s+/g, '').toLowerCase();
+    return code || `${normalizeArabicText(p.name || '').replace(/\s+/g, '').toLowerCase()}::${normalizeArabicText(p.branchName || '').replace(/\s+/g, '').toLowerCase()}`;
+  };
+  const productMap = new Map<string, Product>();
+  products.forEach((p) => productMap.set(productKey(p), p));
+  newProducts.forEach((p) => {
+    const existing = productMap.get(productKey(p));
+    productMap.set(productKey(p), protectReserved({ ...existing, ...p, id: existing?.id || p.id }));
+  });
+  finalUpdated = sanitizeProducts(Array.from(productMap.values()));
       setProducts(finalUpdated);
     }
 
@@ -3261,11 +3267,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       badgeType: 'danger',
     });
 
-    // 5. Delete permanently from Supabase
-    try {
-      await deleteInvoiceFromSupabase(targetId, targetNumber);
-    } catch (e) {
-      console.warn('Supabase invoice deletion failed:', e);
+    // 5. Delete permanently from Supabase and surface failures instead of silently
+    // allowing a later sync to make the invoice appear to come back.
+    const deleteResult = await deleteInvoiceFromSupabase(targetId, targetNumber);
+    if (!deleteResult.success) {
+      console.warn('Supabase invoice deletion failed:', deleteResult.error);
+      await idbSet(STORAGE_KEYS.PENDING_INVOICES, (await idbGet<Invoice[]>(STORAGE_KEYS.PENDING_INVOICES) || []).filter((invoice) => invoice.id !== targetId && invoice.invoiceNumber !== targetNumber));
     }
   };
 
