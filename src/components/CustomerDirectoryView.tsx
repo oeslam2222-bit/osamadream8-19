@@ -388,8 +388,9 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       }
     });
 
+    const visibleCustomers = getVisibleCustomers();
     const myCustomersCount = currentUser
-      ? customers.filter((c) => doesCustomerBelongToRep(c, currentUser)).length
+      ? visibleCustomers.filter((c) => doesCustomerBelongToRep(c, currentUser)).length
       : 0;
 
     return {
@@ -403,7 +404,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       customersWithDebt,
       customersExceededLimit,
     };
-  }, [scopedCustomers, customers, currentUser]);
+  }, [scopedCustomers, getVisibleCustomers, currentUser]);
 
   // Handle Sort Click
   const handleSort = (field: 'name' | 'code' | 'overdue' | 'debt' | 'limit' | 'branch') => {
