@@ -290,15 +290,25 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
   const [approvalRole, setApprovalRole] = useState<UserRole>('sales_rep');
 
   // Pending users waiting for approval (Memoized)
-  const pendingUsers = useMemo(() => users.filter((u) => u.approvalStatus === 'pending_approval'), [users]);
+  const pendingUsers = useMemo(() => users.filter((u) => {
+    if (u.approvalStatus !== 'pending_approval') return false;
+    if (isSuperAdminOrDev) return true;
+    if (currentUser?.role === 'branch_manager') {
+      return u.branchName === currentUser.branchName;
+    }
+    return currentUser?.role === 'supervisor' &&
+      u.role === 'sales_rep' &&
+      u.branchName === currentUser.branchName;
+  }), [users, isSuperAdminOrDev, currentUser?.role, currentUser?.branchName]);
 
   // Active users are filtered once, then rendered in small pages to keep the table responsive.
   const activeUsers = useMemo(() => users.filter((u) => {
     if (u.approvalStatus === 'pending_approval') return false;
 
-    // Strict Branch Filter: Admin & Dev can see all branches, while Supervisor / Branch Manager / Rep only see their own branch
+    // Admin/developer see everyone; branch managers see their branch; supervisors see branch sales reps only.
     if (!isSuperAdminOrDev) {
       if (u.branchName !== currentUser?.branchName) return false;
+      if (currentUser?.role === 'supervisor' && u.role !== 'sales_rep') return false;
     } else {
       if (selectedBranchFilter !== 'الكل' && u.branchName !== selectedBranchFilter) return false;
     }
