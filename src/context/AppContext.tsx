@@ -215,6 +215,7 @@ const STORAGE_KEYS = {
   ACCOUNTING_LOGS: 'dream_dist_acc_logs_v9',
   CART: 'dream_dist_cart_v9',
   DELETED_INVOICE_IDS: 'dream_dist_deleted_invoices_v1',
+  PENDING_INVOICES: 'dream_dist_pending_invoices_v1',
 };
 
 const getDeletedInvoiceIds = (): Set<string> => {
@@ -564,6 +565,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return [];
   });
 
+  const [isLocalDataHydrated, setIsLocalDataHydrated] = useState(false);
+
   const [cart, setCart] = useState<CartItem[]>([]);
 
   const [cloudinaryConfig, setCloudinaryConfig] = useState<CloudinaryConfig>(() => {
@@ -664,18 +667,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let isMounted = true;
     async function hydrateFromIndexedDB() {
       try {
-        // Clean up legacy large keys from localStorage to prevent quota overflow
-        try {
-          localStorage.removeItem(STORAGE_KEYS.PRODUCTS);
-          localStorage.removeItem(STORAGE_KEYS.INVOICES);
-          localStorage.removeItem(STORAGE_KEYS.CUSTOMERS);
-        } catch {
-          // ignore
-        }
+        const [savedProducts, savedCustomers, savedInvoices, savedCart] = await Promise.all([
+          idbGet<Product[]>(STORAGE_KEYS.PRODUCTS),
+          idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS),
+          idbGet<Invoice[]>(STORAGE_KEYS.INVOICES),
+          idbGet<CartItem[]>(STORAGE_KEYS.CART),
+        ]);
 
         if (!isMounted) return;
+        if (Array.isArray(savedProducts)) setProducts(sanitizeProducts(savedProducts));
+        if (Array.isArray(savedCustomers)) setCustomers(sanitizeCustomers(savedCustomers));
+        if (Array.isArray(savedInvoices)) setInvoices(savedInvoices);
+        if (Array.isArray(savedCart)) setCart(savedCart);
+        setIsLocalDataHydrated(true);
       } catch (err) {
         console.warn('IndexedDB initial hydration notice:', err);
+        if (isMounted) setIsLocalDataHydrated(true);
       }
     }
 
@@ -734,6 +741,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [isSupabaseSyncing, setIsSupabaseSyncing] = useState<boolean>(false);
 
+  const queueInvoiceForSync = async (invoice: Invoice) => {
+    const queued = (await idbGet<Invoice[]>(STORAGE_KEYS.PENDING_INVOICES)) || [];
+    const next = [...queued.filter((item) => item.id !== invoice.id), invoice];
+    await idbSet(STORAGE_KEYS.PENDING_INVOICES, next);
+  };
+
+  const flushPendingInvoices = async () => {
+    const queued = (await idbGet<Invoice[]>(STORAGE_KEYS.PENDING_INVOICES)) || [];
+    if (queued.length === 0 || !navigator.onLine) return;
+
+    const remaining: Invoice[] = [];
+    for (const invoice of queued) {
+      const result = await saveInvoiceToSupabase(invoice);
+      if (!result.success) remaining.push(invoice);
+    }
+    await idbSet(STORAGE_KEYS.PENDING_INVOICES, remaining);
+  };
+
+  const saveInvoiceWithQueue = async (invoice: Invoice) => {
+    const result = await saveInvoiceToSupabase(invoice);
+    if (!result.success) await queueInvoiceForSync(invoice);
+    return result;
+  };
+
   // Sync with Supabase (Direction: fetch, push, or both)
   const syncWithSupabase = async (
     direction: 'fetch' | 'push' | 'both' = 'both'
@@ -785,6 +816,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
       if (direction === 'push' || direction === 'both') {
+        await flushPendingInvoices();
         if (users.length > 0) {
           await saveUsersToSupabase(users);
           pushedUsersCount = users.length;
@@ -976,6 +1008,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.warn('Realtime channel error:', e);
     }
+  }, []);
+
+  useEffect(() => {
+    const handleOnlineSync = () => {
+      flushPendingInvoices().catch((error) => console.warn('Pending invoice sync notice:', error));
+    };
+    window.addEventListener('online', handleOnlineSync);
+    if (navigator.onLine) handleOnlineSync();
+    return () => window.removeEventListener('online', handleOnlineSync);
   }, []);
 
   // Supabase Egress Protection:
@@ -1395,16 +1436,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Sync high-capacity data directly to IndexedDB (preventing LocalStorage quota overflow)
   useEffect(() => {
+    if (!isLocalDataHydrated) return;
     idbSet(STORAGE_KEYS.PRODUCTS, products);
-  }, [products]);
+  }, [products, isLocalDataHydrated]);
 
   useEffect(() => {
+    if (!isLocalDataHydrated) return;
     idbSet(STORAGE_KEYS.CUSTOMERS, customers);
-  }, [customers]);
+  }, [customers, isLocalDataHydrated]);
 
   useEffect(() => {
+    if (!isLocalDataHydrated) return;
     idbSet(STORAGE_KEYS.INVOICES, invoices);
-  }, [invoices]);
+  }, [invoices, isLocalDataHydrated]);
+
+  useEffect(() => {
+    if (!isLocalDataHydrated) return;
+    idbSet(STORAGE_KEYS.CART, cart);
+  }, [cart, isLocalDataHydrated]);
 
   useEffect(() => {
     idbSet(STORAGE_KEYS.USERS, users);
@@ -1997,7 +2046,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ) {
         inv.items.forEach((item) => {
           const current = reservedPiecesByProduct.get(item.productId) || 0;
-          reservedPiecesByProduct.set(item.productId, current + item.totalUnits);
+          reservedPiecesByProduct.set(item.productId, current + (item.totalUnits || 0));
         });
       }
     });
@@ -2483,9 +2532,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Auto push to Supabase Cloud Database
-    saveInvoiceToSupabase(primaryInvoice).catch((e) => console.warn('Supabase invoice save failed:', e));
+    saveInvoiceWithQueue(primaryInvoice).catch((e) => console.warn('Supabase invoice save failed:', e));
     if (createdShortageInvoice) {
-      saveInvoiceToSupabase(createdShortageInvoice).catch((e) => console.warn('Supabase shortage invoice save failed:', e));
+      saveInvoiceWithQueue(createdShortageInvoice).catch((e) => console.warn('Supabase shortage invoice save failed:', e));
     }
 
     clearCart();
@@ -2792,7 +2841,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cartonCount: item.cartonCount,
         pieceCount: item.pieceCount || 0,
         cartonQuantity: item.cartonQuantity || 1,
-        totalPieces: item.totalUnits,
+        totalPieces: item.totalUnits || 0,
         unitPrice: item.appliedPrice,
         pricePerPiece: item.pricePerPiece,
         totalPrice: item.totalBeforeTax,
