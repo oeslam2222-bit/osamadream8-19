@@ -684,8 +684,16 @@ export async function fetchInvoicesFromSupabase(limit = 1000): Promise<{ success
       }
     }
 
-    if (rawInvoices) {
-      const mapped: Invoice[] = rawInvoices.map((i: any) => ({
+    const invoiceRows = (rawInvoices || []).filter((row: any) => {
+      const id = String(row?.id || '');
+      const status = String(row?.status || '').toLowerCase();
+      return id !== 'dream_catalog_manifest' &&
+        !id.startsWith('dream_catalog_chunk_') &&
+        !status.startsWith('catalog_sync');
+    });
+
+    if (invoiceRows.length > 0) {
+      const mapped: Invoice[] = invoiceRows.map((i: any) => ({
         id: i.id || `inv-${Date.now()}`,
         invoiceNumber: i.invoice_number || i.invoiceNumber || 'DRM-INV',
         customerCode: i.customer_code || i.customerCode || undefined,
