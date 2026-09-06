@@ -89,7 +89,14 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     sales_rep: { label: 'المندوب', bg: 'bg-emerald-500/20 border-emerald-500/40', text: 'text-emerald-300' },
   };
 
-  const pendingApprovalsCount = users.filter((u) => u.approvalStatus === 'pending_approval').length;
+  const pendingApprovalsCount = users.filter((u) => {
+    if (u.approvalStatus !== 'pending_approval') return false;
+    if (currentUser.role === 'admin' || currentUser.role === 'developer') return true;
+    if (currentUser.role === 'branch_manager') return u.branchName === currentUser.branchName;
+    return currentUser.role === 'supervisor' &&
+      u.role === 'sales_rep' &&
+      u.branchName === currentUser.branchName;
+  }).length;
   
   const userVisibleInvoices = getVisibleInvoices();
   const pendingOrdersCount = userVisibleInvoices.filter((i) =>
@@ -114,7 +121,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     { id: 'inventory', label: 'إدارة المخزون والاعتمادات', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
     { id: 'excel', label: 'شيتات Google Sheets والإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },
     { id: 'guide', label: 'دليل دورة العمل 📖', icon: BookOpen, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'users', label: 'المستخدمين والصلاحيات', icon: UserCheck, roles: ['admin', 'developer'], badge: pendingApprovalsCount },
+    { id: 'users', label: 'فريق الفرع والموظفين', icon: UserCheck, roles: ['admin', 'developer', 'branch_manager', 'supervisor'], badge: pendingApprovalsCount },
   ];
 
   const filteredNavItems = navItems.filter((item) => item.roles.includes(currentUser.role));
