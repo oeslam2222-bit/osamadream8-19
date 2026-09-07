@@ -252,6 +252,8 @@ export interface Invoice {
   customerTaxNumber?: string;
   date: string;                  // التاريخ
   time: string;
+  createdAt?: string;            // تاريخ ووقت الإنشاء الدقيق للتتبع والتعديل
+  timestamp?: string;
   repId: string;
   repName: string;               // اسم المندوب
   supervisorName?: string;

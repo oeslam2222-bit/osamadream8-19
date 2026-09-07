@@ -103,6 +103,9 @@ const MainLayout: React.FC = () => {
               onOpenCart={() => setIsOrderModalOpen(true)}
               selectedCustomer={orderInitialCustomer}
               onClearSelectedCustomer={() => setOrderInitialCustomer(null)}
+              onNavigateToInvoices={(inv) => {
+                setActiveTab('invoices');
+              }}
             />
           )}
 
@@ -183,7 +186,7 @@ const MainLayout: React.FC = () => {
             onInvoiceCreated={(inv) => {
               setIsOrderModalOpen(false);
               setOrderInitialCustomer(null);
-              setViewingInvoice(inv);
+              setActiveTab('invoices');
             }}
           />
         )}

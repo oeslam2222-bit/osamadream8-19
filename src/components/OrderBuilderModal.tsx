@@ -87,6 +87,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [isNewCustomerMode, setIsNewCustomerMode] = useState(false);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
 
   const [customerName, setCustomerName] = useState('');
   const [customerCode, setCustomerCode] = useState('');
@@ -391,9 +392,9 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
       <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[94vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden text-slate-900" id="order-builder-modal-container">
         
         {/* Header */}
-        <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between border-b border-slate-800" id="order-builder-header">
+        <div className="bg-slate-900 text-white p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800" id="order-builder-header">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-md">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-md shrink-0">
               <Receipt className="w-5 h-5" />
             </div>
             <div>
@@ -403,14 +404,39 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            id="order-builder-close-btn"
-            onClick={onClose}
-            className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition cursor-pointer"
-            title="إغلاق النافذة"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            {/* Toggle Mode: Edit vs Preview */}
+            <div className="bg-slate-800 p-1 rounded-xl flex items-center gap-1 border border-slate-700">
+              <button
+                type="button"
+                onClick={() => setIsPreviewMode(false)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
+                  !isPreviewMode ? 'bg-amber-400 text-slate-950 shadow-xs' : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <span>✏️ تعديل البنود</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsPreviewMode(true)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
+                  isPreviewMode ? 'bg-amber-400 text-slate-950 shadow-xs' : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <span>👁️ معاينة الفاتورة</span>
+              </button>
+            </div>
+
+            <button
+              id="order-builder-close-btn"
+              onClick={onClose}
+              className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition cursor-pointer"
+              title="إغلاق النافذة"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Modal Scrollable Body */}
@@ -431,6 +457,117 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
             </div>
           )}
 
+          {isPreviewMode ? (
+            /* Direct Invoice Preview Before Transfer */
+            <div className="space-y-4 animate-in fade-in" id="order-builder-preview-view">
+              <div className="bg-amber-50 border-2 border-amber-300 p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                <div>
+                  <div className="text-xs font-black text-amber-900 flex items-center gap-1.5">
+                    <span>👁️ معاينة شكل الفاتورة قبل الترحيل الرسمي</span>
+                  </div>
+                  <p className="text-[11px] text-amber-700 font-medium mt-0.5">
+                    يمكنك مراجعة كافة البنود والكميات، أو الضغط على زر التعديل لإضافة وحذف أصناف.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPreviewMode(false)}
+                  className="bg-slate-900 hover:bg-slate-800 text-amber-300 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs shrink-0"
+                >
+                  <span>✏️ تعديل الفاتورة / العودة لتعديل الكميات</span>
+                </button>
+              </div>
+
+              {/* Customer & Branch Details Preview */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <span className="text-slate-400 block text-[10px] font-bold">اسم العميل:</span>
+                  <strong className="text-slate-900 font-black text-sm">{customerName || 'عميل نقدي كاش'}</strong>
+                  <span className="text-slate-500 block text-[10px]">كود: {customerCode || 'كاش'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] font-bold">المندوب والفرع:</span>
+                  <strong className="text-slate-900 font-bold block">{activeRepUser?.name || currentUser?.name}</strong>
+                  <span className="text-slate-500 text-[10px]">{customerBranch || activeBranch}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] font-bold">طريقة السداد:</span>
+                  <span className="bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-md inline-block mt-0.5">
+                    {paymentMethod}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] font-bold">الخصم التجاري:</span>
+                  <strong className="text-emerald-600 font-black">{discountPercent}%</strong>
+                </div>
+              </div>
+
+              {/* Items Table Preview */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                <div className="bg-slate-900 text-white p-2.5 px-4 text-xs font-black flex items-center justify-between">
+                  <span>أصناف الفاتورة ({cart.length} أصناف)</span>
+                  <span className="text-amber-400 font-bold">{summary.totalCartons} كرتونة • {summary.totalPieces} قطعة</span>
+                </div>
+                <div className="divide-y divide-slate-150 max-h-[300px] overflow-y-auto bg-white">
+                  {cart.map((item, idx) => (
+                    <div key={idx} className="p-3 flex items-center justify-between gap-3 text-xs hover:bg-slate-50">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-black text-slate-900 truncate">{item.product.name}</div>
+                        <div className="text-[10px] text-slate-500 font-mono">
+                          كود: {item.product.code} • {item.cartonQuantity ? `${item.cartonQuantity} ق/كرتونة` : ''}
+                        </div>
+                      </div>
+                      <div className="text-center font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg shrink-0">
+                        {item.cartonCount > 0 && <span className="text-amber-700 font-black">{item.cartonCount} كرتونة </span>}
+                        {item.pieceCount > 0 && <span className="text-blue-700 font-black">{item.pieceCount} قطعة</span>}
+                      </div>
+                      <div className="text-left font-black text-slate-900 shrink-0 w-24">
+                        {formatCurrency(item.totalPrice)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Financial Totals in Preview */}
+              <div className="bg-slate-900 text-white p-4 rounded-2xl space-y-2 text-xs">
+                <div className="flex items-center justify-between text-slate-300">
+                  <span>المجموع قبل الخصم:</span>
+                  <strong className="text-white">{formatCurrency(summary.subtotal)}</strong>
+                </div>
+                {discountPercent > 0 && (
+                  <div className="flex items-center justify-between text-emerald-400">
+                    <span>قيمة الخصم ({discountPercent}%):</span>
+                    <strong>-{formatCurrency(summary.discountAmount)}</strong>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-700">
+                  <span className="font-bold text-sm text-slate-200">الصافي المطلوب سداده:</span>
+                  <strong className="text-xl font-black text-amber-400">{formatCurrency(summary.grandTotal)}</strong>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPreviewMode(false)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-black px-4 py-2.5 rounded-xl text-xs transition cursor-pointer"
+                >
+                  ✏️ العودة للتعديل وإضافة أصناف
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmitting || cart.length === 0}
+                  onClick={() => handleSubmitOrder(false, false)}
+                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-6 py-2.5 rounded-xl text-xs sm:text-sm shadow-md transition cursor-pointer flex items-center gap-2"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>🚀 ترحيل الفاتورة وإصدارها الآن</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
           {/* Top Info Bar: Rep Name, Branch, Date */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs">
             <div className="flex items-center gap-2.5">
@@ -1386,6 +1523,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
             </div>
 
           </div>
+          </>)}
 
         </div>
 
@@ -1425,7 +1563,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               <span>حفظ وتحميل PDF 📄</span>
             </button>
 
-            {/* Save Order & Open E-Invoice */}
+            {/* Post & Issue Invoice Directly */}
             <button
               id="confirm-order-btn"
               disabled={isSubmitting || cart.length === 0}
@@ -1433,7 +1571,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               className="flex items-center justify-center gap-2 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black h-12 sm:h-11 px-5 rounded-xl text-xs sm:text-sm shadow-md transition transform active:scale-95 disabled:opacity-50 cursor-pointer"
             >
               <CheckCircle2 className="w-5 h-5 shrink-0 stroke-[2.5]" />
-              <span>تأكيد الحجز والفاتورة الإلكترونية</span>
+              <span>🚀 ترحيل الفاتورة وإصدارها</span>
             </button>
 
           </div>

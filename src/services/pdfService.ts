@@ -30,14 +30,15 @@ export async function downloadInvoicePDF(invoice: Invoice, customCompanyInfo?: R
   container.style.position = 'fixed';
   container.style.left = '0px';
   container.style.top = '0px';
-  container.style.width = '800px';
-  container.style.maxWidth = '800px';
+  container.style.width = '794px';
+  container.style.minWidth = '794px';
+  container.style.maxWidth = '794px';
   container.style.backgroundColor = '#ffffff';
   container.style.color = '#0f172a';
   container.style.fontFamily = 'Cairo, Tajawal, "Segoe UI", Tahoma, Arial, sans-serif';
   container.style.direction = 'rtl';
   container.style.textAlign = 'right';
-  container.style.padding = '24px 28px';
+  container.style.padding = '20px 24px';
   container.style.boxSizing = 'border-box';
   container.style.zIndex = '9999999';
   container.style.opacity = '1';
@@ -239,26 +240,34 @@ export async function downloadInvoicePDF(invoice: Invoice, customCompanyInfo?: R
   document.body.appendChild(container);
 
   try {
-    if (document.fonts?.ready) await document.fonts.ready;
+    if (document.fonts?.ready) {
+      try {
+        await document.fonts.ready;
+      } catch {
+        // ignore font loading error
+      }
+    }
     await new Promise<void>((resolve) => setTimeout(resolve, 150));
 
+    const totalHeight = container.scrollHeight || container.offsetHeight || 1000;
+
     const canvas = await html2canvas(container, {
-      scale: 2,
+      scale: 1.5,
       useCORS: true,
-      allowTaint: true,
+      allowTaint: false,
       logging: false,
       backgroundColor: '#ffffff',
       scrollX: 0,
       scrollY: 0,
       x: 0,
       y: 0,
-      width: container.offsetWidth || 800,
-      height: container.offsetHeight,
-      windowWidth: 850,
-      windowHeight: container.offsetHeight + 100,
+      width: 794,
+      height: totalHeight,
+      windowWidth: 794,
+      windowHeight: totalHeight + 50,
     });
 
-    const imgData = canvas.toDataURL('image/jpeg', 0.98);
+    const imgData = canvas.toDataURL('image/jpeg', 0.96);
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -268,33 +277,93 @@ export async function downloadInvoicePDF(invoice: Invoice, customCompanyInfo?: R
 
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 8;
+    const margin = 6;
     const imgWidth = pageWidth - margin * 2;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const printableHeight = pageHeight - margin * 2;
 
-    if (imgHeight <= pageHeight - margin * 2) {
+    if (imgHeight <= printableHeight) {
       pdf.addImage(imgData, 'JPEG', margin, margin, imgWidth, imgHeight);
     } else {
       let heightLeft = imgHeight;
       let position = margin;
 
       pdf.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+      heightLeft -= printableHeight;
 
       while (heightLeft > 0) {
-        position = heightLeft - imgHeight + margin;
+        position = margin - (imgHeight - heightLeft);
         pdf.addPage();
         pdf.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+        heightLeft -= printableHeight;
       }
     }
 
     const safeCustomer = (invoice.customerName || 'عميل').replace(/[^\w\u0621-\u064A]/g, '_');
     const fileName = `فاتورة_دريم_${invoice.invoiceNumber}_${safeCustomer}.pdf`;
-    pdf.save(fileName);
+
+    // Direct mobile download via Blob & Anchor (No print dialog, downloads directly to device)
+    const pdfBlob = pdf.output('blob');
+    const blobUrl = URL.createObjectURL(pdfBlob);
+    const downloadLink = document.createElement('a');
+    downloadLink.href = blobUrl;
+    downloadLink.download = fileName;
+    downloadLink.style.display = 'none';
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    setTimeout(() => {
+      if (document.body.contains(downloadLink)) {
+        document.body.removeChild(downloadLink);
+      }
+      URL.revokeObjectURL(blobUrl);
+    }, 2500);
   } catch (err) {
-    console.error('Failed to generate high-res PDF via canvas, using fallback print:', err);
-    window.print();
+    console.error('Failed to generate high-res canvas PDF, falling back to direct PDF file download:', err);
+    try {
+      const fallbackPdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      fallbackPdf.setFontSize(16);
+      fallbackPdf.text(`DREAM TRADING - INVOICE ${invoice.invoiceNumber}`, 14, 20);
+      fallbackPdf.setFontSize(11);
+      fallbackPdf.text(`Customer: ${invoice.customerName || '---'}`, 14, 28);
+      fallbackPdf.text(`Date: ${invoice.date} ${invoice.time || ''}`, 14, 35);
+      fallbackPdf.text(`Branch: ${invoice.branchName}`, 14, 42);
+      fallbackPdf.text(`Sales Rep: ${invoice.repName}`, 14, 49);
+      fallbackPdf.text(`Payment: ${invoice.paymentMethod}`, 14, 56);
+      fallbackPdf.text(`Cartons: ${invoice.totalCartons} | Pieces: ${invoice.totalPieces}`, 14, 63);
+      fallbackPdf.text(`Total: ${invoice.estimatedGrandTotal.toLocaleString()} EGP`, 14, 70);
+      fallbackPdf.text(`Status: ${invoice.status}`, 14, 77);
+
+      let y = 88;
+      fallbackPdf.setFontSize(9);
+      fallbackPdf.text('--- INVOICE ITEMS ---', 14, y);
+      y += 6;
+      invoice.items.forEach((item, idx) => {
+        const itemLine = `${idx + 1}. [${item.productCode}] ${item.productName} | ${item.cartonCount} Ctn / ${item.totalUnits} Pcs = ${(item.netTotal || 0).toLocaleString()} EGP`;
+        fallbackPdf.text(itemLine.slice(0, 95), 14, y);
+        y += 5.5;
+        if (y > 275) {
+          fallbackPdf.addPage();
+          y = 20;
+        }
+      });
+
+      const safeCustomer = (invoice.customerName || 'عميل').replace(/[^\w\u0621-\u064A]/g, '_');
+      const fileName = `فاتورة_دريم_${invoice.invoiceNumber}_${safeCustomer}.pdf`;
+      const fallbackBlob = fallbackPdf.output('blob');
+      const fallbackUrl = URL.createObjectURL(fallbackBlob);
+      const link = document.createElement('a');
+      link.href = fallbackUrl;
+      link.download = fileName;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        if (document.body.contains(link)) document.body.removeChild(link);
+        URL.revokeObjectURL(fallbackUrl);
+      }, 2500);
+    } catch (fallbackError) {
+      console.error('All PDF download mechanisms failed:', fallbackError);
+    }
   } finally {
     if (document.body.contains(container)) {
       document.body.removeChild(container);

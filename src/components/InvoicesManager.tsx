@@ -812,11 +812,15 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             <span>عرض</span>
                           </button>
 
-                          {/* Download PDF */}
+                          {/* Download PDF directly to mobile/desktop */}
                           <button
-                            onClick={() => downloadInvoicePDF(invoice)}
+                            onClick={async () => {
+                              await downloadInvoicePDF(invoice);
+                              setSuccessToast(`تم تنزيل ملف PDF للفاتورة #${invoice.invoiceNumber} على جهازك بنجاح! 📥`);
+                              setTimeout(() => setSuccessToast(null), 3500);
+                            }}
                             className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded-lg transition cursor-pointer shadow-xs"
-                            title="تحميل فاتورة PDF رسمية"
+                            title="تحميل فاتورة PDF مباشرة على الهاتف"
                           >
                             <Download className="w-3.5 h-3.5" />
                           </button>

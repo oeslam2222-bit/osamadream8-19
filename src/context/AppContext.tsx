@@ -950,10 +950,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             const raw = payload.new as any;
             if (raw && raw.id) {
-              const deletedSet = getDeletedInvoiceIds();
-              if (deletedSet.has(raw.id) || (raw.invoice_number && deletedSet.has(raw.invoice_number))) {
-                return;
-              }
               const mappedInv: Invoice = {
                 id: raw.id,
                 invoiceNumber: raw.invoice_number || raw.invoiceNumber || 'DRM-INV',
@@ -991,13 +987,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 const map = new Map<string, Invoice>();
                 prev.forEach((i) => map.set(i.id, i));
                 map.set(mappedInv.id, mappedInv);
-                return Array.from(map.values());
+                const next = Array.from(map.values());
+                idbSet(STORAGE_KEYS.INVOICES, next);
+                return next;
               });
             }
           } else if (payload.eventType === 'DELETE') {
             const deleted = payload.old as any;
             if (deleted?.id) {
-              setInvoices((prev) => prev.filter((invoice) => invoice.id !== deleted.id));
+              setInvoices((prev) => {
+                const next = prev.filter((invoice) => invoice.id !== deleted.id);
+                idbSet(STORAGE_KEYS.INVOICES, next);
+                return next;
+              });
             }
           }
         })
@@ -1067,10 +1069,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     };
 
-    // Low-frequency heartbeat fallback (90 seconds)
-    const interval = window.setInterval(refreshInvoices, 90000);
+    // Immediate initial sync
+    const initialTimer = window.setTimeout(refreshInvoices, 1000);
 
-    // Instant refresh whenever the user switches back to this tab
+    // High-responsiveness sync interval (12 seconds)
+    const interval = window.setInterval(refreshInvoices, 12000);
+
+    // Instant refresh whenever the user switches back to this tab or window gets focus
     const handleFocusOrVisibility = () => {
       if (typeof document !== 'undefined' && !document.hidden) {
         refreshInvoices();
@@ -1082,6 +1087,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return () => {
       cancelled = true;
+      window.clearTimeout(initialTimer);
       window.clearInterval(interval);
       window.removeEventListener('focus', handleFocusOrVisibility);
       document.removeEventListener('visibilitychange', handleFocusOrVisibility);
@@ -2897,14 +2903,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ) {
       return { success: false, message: 'لا يمكنك تعديل طلبية تابعة لفرع آخر.' };
     }
+    const isRecent = invoice.createdAt ? (Date.now() - new Date(invoice.createdAt).getTime() < 48 * 3600 * 1000) : true;
+    const canOverride = currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'branch_manager' || currentUser?.role === 'supervisor';
     const isPending =
       invoice.status === 'قيد مراجعة المشرف' ||
       invoice.status === 'معلقة بانتظار اعتماد الفرع' ||
       invoice.status === 'قيد المراجعة' ||
-      invoice.status === 'مسودة';
+      invoice.status === 'مسودة' ||
+      isRecent ||
+      canOverride;
 
     if (!isPending) {
-      return { success: false, message: 'لا يمكن تعديل الطلبية بعد اعتمادها وصرفها من المخزن.' };
+      return { success: false, message: 'لا يمكن تعديل هذه الفاتورة نظراً لمرور فترة طويلة على اعتمادها.' };
     }
 
     // Load items into cart. Pending orders reserve the generic available balance

@@ -61,17 +61,20 @@ import { Customer, ItemStatus, Product, SalesPriority } from '../types';
 import { DepartmentCategorySlicer } from './DepartmentCategorySlicer';
 import { getDepartmentMeta } from '../data/departmentMeta';
 import { getBranchStockForProduct } from '../services/arabicMatchingService';
+import { PosCashierSidebar } from './PosCashierSidebar';
 
 interface ProductCatalogProps {
   onOpenCart?: () => void;
   selectedCustomer?: Customer | null;
   onClearSelectedCustomer?: () => void;
+  onNavigateToInvoices?: (invoice?: any) => void;
 }
 
 export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   onOpenCart,
   selectedCustomer,
   onClearSelectedCustomer,
+  onNavigateToInvoices,
 }) => {
   const {
     products,
@@ -79,6 +82,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     currentUser,
     branches,
     addToCart,
+    cart,
+    getCartSummary,
     importProductsList,
     wipeAllProductsAndData,
     cloudinaryConfig,
@@ -88,6 +93,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     toggleDataSaverMode,
     setIsInstallModalOpen
   } = useApp();
+
+  // Lazy & Smart Cashier View States
+  const [showAllExplicitly, setShowAllExplicitly] = useState(false);
+  const [isMobileCashierOpen, setIsMobileCashierOpen] = useState(false);
 
   // Search & Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -506,6 +515,32 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     const startIndex = (currentPage - 1) * itemsPerPage;
     return filteredProducts.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredProducts, currentPage, itemsPerPage]);
+
+  // Filter-First Condition: hide products unless explicitly searched/filtered or user requests to view all
+  const isFiltered = Boolean(
+    searchTerm.trim().length > 0 ||
+    selectedOfficialDept !== 'الكل' ||
+    selectedSubCategory !== 'الكل' ||
+    stockAvailabilityFilter !== 'all' ||
+    selectedPriority !== 'الكل' ||
+    selectedStatus !== 'الكل' ||
+    showAllExplicitly
+  );
+
+  const resetAllFilters = () => {
+    setSearchTerm('');
+    setSelectedOfficialDept('الكل');
+    setSelectedSubCategory('الكل');
+    setSelectedPriority('الكل');
+    setSelectedStatus('الكل');
+    setStockAvailabilityFilter('all');
+    setSortBy('default');
+    setShowAllExplicitly(false);
+  };
+
+  const cartSummary = useMemo(() => {
+    return getCartSummary ? getCartSummary() : { totalCartons: 0, totalPieces: 0, grandTotal: 0, subtotal: 0, discountAmount: 0 };
+  }, [getCartSummary, cart]);
 
   // Card quantity & type handler
   const getCardState = (productId: string) => {
@@ -1028,8 +1063,167 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
       </div>
 
-      {/* 21 Official Departments & Power BI Subcategories / Classifications Slicer Panel */}
-      <DepartmentCategorySlicer
+      {/* Main Responsive Grid: Product Catalog / Slicer Hub (Cols 1-8) + Sticky POS Cashier Sidebar (Cols 9-12) */}
+      <div className="lg:grid lg:grid-cols-12 lg:gap-5 items-start mt-4">
+        {/* Left Main Catalog / Slicer Hub Column */}
+        <div className="lg:col-span-8 xl:col-span-8.5 space-y-4">
+          {!isFiltered ? (
+            /* Smart Slicer Hub: When no filter is active, products and images are hidden until user searches or picks Item Group / Family */
+            <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-6" id="smart-slicer-hub">
+              {/* Header Banner */}
+              <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-slate-800 shadow-md">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <h3 className="text-base sm:text-lg font-black text-white">
+                      محطة المبيعات والفلترة الذكية ⚡
+                    </h3>
+                  </div>
+                  <p className="text-xs text-amber-300 font-medium">
+                    اختر المجموعة الرئيسية أو العائلة أو ابحث بكود الصنف لإظهار المنتجات والصور فوراً دون استهلاك باقة الموبايل.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setShowAllExplicitly(true)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-700 transition cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
+                >
+                  <Eye className="w-4 h-4 text-amber-400" />
+                  <span>استعراض كافة الأصناف ({products.length})</span>
+                </button>
+              </div>
+
+              {/* 1. المجموعة الرئيسية (Item Group) */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shadow-xs">
+                      1
+                    </div>
+                    <h4 className="font-black text-slate-900 text-sm sm:text-base">
+                      المجموعة الرئيسية (Item Group)
+                    </h4>
+                  </div>
+                  <span className="text-[11px] text-slate-500 font-bold">
+                    {dynamicItemGroups.length} مجموعات
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                  {dynamicItemGroups.map((group) => {
+                    const count = deptCounts[group] || 0;
+                    return (
+                      <button
+                        key={group}
+                        onClick={() => {
+                          setSelectedOfficialDept(group);
+                          setSelectedSubCategory('الكل');
+                        }}
+                        className="p-3 rounded-2xl border border-slate-200 hover:border-amber-400 bg-slate-50/70 hover:bg-amber-50/60 transition text-right flex flex-col justify-between group cursor-pointer active:scale-98 shadow-2xs"
+                      >
+                        <div className="font-black text-slate-900 text-xs sm:text-sm group-hover:text-amber-800 transition line-clamp-2">
+                          {group}
+                        </div>
+                        <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-400 group-hover:text-amber-700">
+                          <span>عرض الأصناف</span>
+                          <span className="font-black bg-white px-2 py-0.5 rounded-lg border border-slate-200 text-slate-700 group-hover:border-amber-300">
+                            {count}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. عائلات الأصناف (Product Families) */}
+              {subCategories.length > 0 && (
+                <div className="space-y-3 pt-3 border-t border-slate-150">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-xs shadow-xs">
+                        2
+                      </div>
+                      <h4 className="font-black text-slate-900 text-sm sm:text-base">
+                        عائلات الأصناف (Product Families)
+                      </h4>
+                    </div>
+                    <span className="text-[11px] text-slate-500 font-bold">
+                      {subCategories.length} عائلة
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {subCategories.slice(0, 20).map((fam) => (
+                      <button
+                        key={fam}
+                        onClick={() => setSelectedSubCategory(fam)}
+                        className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-800 hover:text-blue-900 transition cursor-pointer active:scale-95 shadow-2xs"
+                      >
+                        {fam}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Quick Filter Shortcuts */}
+              <div className="space-y-2 pt-3 border-t border-slate-150">
+                <div className="text-xs font-black text-slate-700">فلاتر وصول سريعة ومميزة:</div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <button
+                    onClick={() => setStockAvailabilityFilter('offers')}
+                    className="p-2.5 rounded-xl border border-rose-200 bg-rose-50/60 hover:bg-rose-100/70 text-rose-900 font-black transition cursor-pointer text-center"
+                  >
+                    🏷️ عروض وتخفيضات ({stockCounts.offers})
+                  </button>
+                  <button
+                    onClick={() => setStockAvailabilityFilter('in_branch')}
+                    className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100/70 text-emerald-900 font-black transition cursor-pointer text-center"
+                  >
+                    🏢 متوفر بالفرع ({stockCounts.inBranch})
+                  </button>
+                  <button
+                    onClick={() => setSelectedPriority('عالي')}
+                    className="p-2.5 rounded-xl border border-amber-200 bg-amber-50/60 hover:bg-amber-100/70 text-amber-900 font-black transition cursor-pointer text-center"
+                  >
+                    🔥 الأكثر طلباً وتركيزاً
+                  </button>
+                  <button
+                    onClick={() => setStockAvailabilityFilter('in_warehouse')}
+                    className="p-2.5 rounded-xl border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/70 text-indigo-900 font-black transition cursor-pointer text-center"
+                  >
+                    🏬 متاح بأكتوبر ({stockCounts.inWarehouse})
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Active Filter Bar */}
+              <div className="bg-slate-900 text-white p-3 sm:p-3.5 rounded-2xl flex items-center justify-between gap-3 text-xs border border-slate-800 shadow-sm">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                  <div className="truncate font-bold text-slate-200">
+                    <span>نتائج الفلترة: </span>
+                    <strong className="text-amber-300 font-black">{filteredProducts.length}</strong> صنف
+                    {searchTerm && <span className="text-slate-400 text-[11px] mr-1.5 font-normal">بحث: &quot;{searchTerm}&quot;</span>}
+                    {selectedOfficialDept !== 'الكل' && <span className="text-amber-200 text-[11px] mr-1.5 font-normal">المجموعة: {selectedOfficialDept}</span>}
+                    {selectedSubCategory !== 'الكل' && <span className="text-blue-200 text-[11px] mr-1.5 font-normal">العائلة: {selectedSubCategory}</span>}
+                  </div>
+                </div>
+
+                <button
+                  onClick={resetAllFilters}
+                  className="bg-slate-800 hover:bg-rose-950/80 hover:text-rose-300 text-slate-300 px-3 py-1.5 rounded-xl text-[11px] font-black transition cursor-pointer flex items-center gap-1 shrink-0 border border-slate-700 hover:border-rose-700"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>إلغاء والعودة للمجموعات</span>
+                </button>
+              </div>
+
+              {/* 21 Official Departments & Power BI Subcategories / Classifications Slicer Panel */}
+              <DepartmentCategorySlicer
         products={products}
         selectedDepartment={selectedOfficialDept}
         onSelectDepartment={(dept) => {
@@ -1706,6 +1900,69 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 إعادة تعيين البحث
               </button>
             )}
+          </div>
+        </div>
+      )}
+            </>
+          )}
+        </div>
+
+        {/* Right Column: Sticky POS Cashier Terminal (Visible on Desktop / Tablet) */}
+        <div className="hidden lg:block lg:col-span-4 xl:col-span-3.5 sticky top-20">
+          <PosCashierSidebar
+            selectedCustomer={selectedCustomer}
+            onClearSelectedCustomer={onClearSelectedCustomer}
+            onInvoiceTransferred={(inv) => {
+              if (onNavigateToInvoices) onNavigateToInvoices(inv);
+            }}
+            onOpenDetailedModal={onOpenCart}
+          />
+        </div>
+      </div>
+
+      {/* Mobile Floating Cashier Trigger Bar */}
+      {cart.length > 0 && (
+        <div className="fixed bottom-16 left-3 right-3 z-40 lg:hidden animate-in slide-in-from-bottom">
+          <div className="bg-slate-950 text-white p-3 rounded-2xl shadow-2xl border-2 border-amber-400 flex items-center justify-between">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0">
+                <ShoppingCart className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] text-slate-400 font-bold">فاتورة الكاشير الحالية</div>
+                <div className="text-xs font-black text-amber-300 truncate">
+                  {cart.length} أصناف • {cartSummary.totalCartons} كرتونة • {formatCurrency(cartSummary.grandTotal)}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsMobileCashierOpen(true)}
+              className="bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 active:scale-95 shrink-0 cursor-pointer"
+            >
+              <span>فاتورة الكاشير 🧾</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Slide-Up Cashier Modal */}
+      {isMobileCashierOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex flex-col justify-end lg:hidden animate-in fade-in">
+          <div className="bg-slate-900 rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border-t-2 border-amber-400">
+            <PosCashierSidebar
+              selectedCustomer={selectedCustomer}
+              onClearSelectedCustomer={onClearSelectedCustomer}
+              onInvoiceTransferred={(inv) => {
+                setIsMobileCashierOpen(false);
+                if (onNavigateToInvoices) onNavigateToInvoices(inv);
+              }}
+              onOpenDetailedModal={() => {
+                setIsMobileCashierOpen(false);
+                if (onOpenCart) onOpenCart();
+              }}
+              isMobileDrawer={true}
+              onCloseMobileDrawer={() => setIsMobileCashierOpen(false)}
+            />
           </div>
         </div>
       )}

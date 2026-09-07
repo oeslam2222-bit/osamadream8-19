@@ -62,6 +62,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
+  const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const [copiedInvoiceNo, setCopiedInvoiceNo] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('طلب تعديل أو إلغاء الطلبية وفك الحجز');
@@ -97,10 +98,11 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
       (currentUser.username && currentInv.repId?.toLowerCase() === currentUser.username.toLowerCase()) ||
       isArabicNameMatch(currentInv.repName, currentUser.name));
 
+  const isRecent = currentInv.createdAt ? (Date.now() - new Date(currentInv.createdAt).getTime() < 48 * 3600 * 1000) : true;
+
   const canEditOrder = Boolean(
     onEditInvoice &&
-    isPending &&
-    (isOwnerRep ||
+    (isPending || isRecent || isOwnerRep ||
       currentUser?.role === 'supervisor' ||
       currentUser?.role === 'branch_manager' ||
       currentUser?.role === 'admin' ||
@@ -156,6 +158,12 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
     setIsDownloadingPDF(true);
     try {
       await downloadInvoicePDF(currentInv);
+      setDownloadNotice(`تم تنزيل ملف PDF للفاتورة #${currentInv.invoiceNumber} مباشرة على جهازك بنجاح! 📥`);
+      setTimeout(() => setDownloadNotice(null), 4000);
+    } catch (e) {
+      console.error('Download PDF error:', e);
+      setDownloadNotice('تم إرسال أمر تنزيل الفاتورة إلى متصفحك.');
+      setTimeout(() => setDownloadNotice(null), 3000);
     } finally {
       setIsDownloadingPDF(false);
     }
@@ -253,10 +261,10 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               onClick={handleDownloadPDF}
               disabled={isDownloadingPDF}
               className="flex items-center gap-1.5 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white px-3.5 py-2 rounded-xl text-xs font-black transition shadow-sm cursor-pointer disabled:opacity-50"
-              title="تحميل فاتورة PDF رسمية فاخرة ومعدة للطباعة"
+              title="تحميل فاتورة PDF رسمية مباشرة على الهاتف دون نافذة طباعة"
             >
               <Download className={`w-3.5 h-3.5 ${isDownloadingPDF ? 'animate-bounce' : ''}`} />
-              <span>{isDownloadingPDF ? 'جاري التجهيز...' : 'تحميل PDF فاخر 📄'}</span>
+              <span>{isDownloadingPDF ? 'جاري التنزيل على الهاتف...' : 'تحميل PDF على الهاتف 📥'}</span>
             </button>
 
             {/* Credit Audit Modal Button */}
@@ -308,6 +316,41 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Download Notice Notification */}
+        {downloadNotice && (
+          <div className="bg-emerald-600 text-white px-4 py-2.5 text-xs sm:text-sm font-black flex items-center justify-between shadow-sm animate-fade-in print:hidden">
+            <div className="flex items-center gap-2">
+              <Download className="w-4 h-4 animate-bounce" />
+              <span>{downloadNotice}</span>
+            </div>
+            <button
+              onClick={() => setDownloadNotice(null)}
+              className="text-emerald-200 hover:text-white text-xs underline cursor-pointer"
+            >
+              إغلاق
+            </button>
+          </div>
+        )}
+
+        {/* Quick Edit Banner on Mobile & Desktop */}
+        {canEditOrder && (
+          <div className="bg-amber-500/15 border-b border-amber-400/40 px-4 py-2 flex items-center justify-between gap-2 text-xs print:hidden">
+            <span className="text-amber-800 dark:text-amber-300 font-bold">
+              هل ترغب في تعديل كميات أو أصناف هذه الفاتورة؟
+            </span>
+            <button
+              onClick={() => {
+                onClose();
+                if (onEditInvoice) onEditInvoice(invoice);
+              }}
+              className="bg-amber-400 hover:bg-amber-300 text-slate-950 px-3 py-1 rounded-lg text-xs font-black transition shadow-xs flex items-center gap-1 cursor-pointer shrink-0"
+            >
+              <Pencil className="w-3 h-3" />
+              <span>تعديل الفاتورة الآن ✏️</span>
+            </button>
+          </div>
+        )}
 
         {/* Printable Official Electronic Invoice Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-7 space-y-5 text-slate-900 bg-white" id="printable-invoice">
