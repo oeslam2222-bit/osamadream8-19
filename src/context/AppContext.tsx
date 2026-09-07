@@ -803,10 +803,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const invRes = await fetchInvoicesFromSupabase();
         if (invRes.success) {
           const deletedSet = getDeletedInvoiceIds();
-          const validInvoices = (invRes.invoices || []).filter((si) => !deletedSet.has(si.id) && !deletedSet.has(si.invoiceNumber));
-          fetchedInvoicesCount = validInvoices.length;
-          setInvoices(validInvoices);
-          idbSet(STORAGE_KEYS.INVOICES, validInvoices);
+          const remoteInvoices = (invRes.invoices || []).filter((si) => !deletedSet.has(si.id) && !deletedSet.has(si.invoiceNumber));
+          fetchedInvoicesCount = remoteInvoices.length;
+          setInvoices((previous) => {
+            const merged = new Map<string, Invoice>();
+            previous.forEach((invoice) => merged.set(invoice.id, invoice));
+            remoteInvoices.forEach((invoice) => merged.set(invoice.id, invoice));
+            const next = Array.from(merged.values());
+            idbSet(STORAGE_KEYS.INVOICES, next);
+            return next;
+          });
         }
 
         const productRes = await fetchProductsFromSupabase();
@@ -914,9 +920,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetchInvoicesFromSupabase().then((res) => {
           if (res.success) {
             const deletedSet = getDeletedInvoiceIds();
-            const validInvoices = (res.invoices || []).filter((si) => !deletedSet.has(si.id) && !deletedSet.has(si.invoiceNumber));
-            setInvoices(validInvoices);
-            idbSet(STORAGE_KEYS.INVOICES, validInvoices);
+            const remoteInvoices = (res.invoices || []).filter((si) => !deletedSet.has(si.id) && !deletedSet.has(si.invoiceNumber));
+            setInvoices((previous) => {
+              const merged = new Map<string, Invoice>();
+              previous.forEach((invoice) => merged.set(invoice.id, invoice));
+              remoteInvoices.forEach((invoice) => merged.set(invoice.id, invoice));
+              const next = Array.from(merged.values());
+              idbSet(STORAGE_KEYS.INVOICES, next);
+              return next;
+            });
           }
         });
 
@@ -2618,7 +2630,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const allocations = new Map<string, { branch: number; main: number }>();
     for (const invItem of inv.items) {
       const product = products.find((p) => p.id === invItem.productId);
-      if (!product) return { success: false, message: `الصنف (${invItem.productName}) غير موجود في المخزو��` };
+      if (!product) return { success: false, message: `الصنف (${invItem.productName}) غير موجود في المخزو����` };
       const requested = Math.max(0, invItem.cartonCount || 0);
       const branchAvailable = Math.max(0, getBranchStockForProduct(product, inv.branchName));
       const mainAvailable = Math.max(0, product.mainWarehouseActual);
@@ -3298,7 +3310,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: inv.branchName,
       action: 'return_invoice',
       actionTitle: `تسجيل مرتجع مبيعات ${isFullReturn ? 'كلي' : 'جزئي'} للفاتورة #${inv.invoiceNumber}`,
-      details: `إذن #${returnVoucherNumber} • العمي��: ${inv.customerName} • القيمة المسترجعة: ${totalRefundAmount.toLocaleString()} ج.م • الكراتين: ${totalReturnedCartons} • السبب: ${reason}`,
+      details: `إذن #${returnVoucherNumber} • الع��ي��: ${inv.customerName} • القيمة المسترجعة: ${totalRefundAmount.toLocaleString()} ج.م • الكراتين: ${totalReturnedCartons} • السبب: ${reason}`,
       invoiceId: inv.id,
       invoiceNumber: inv.invoiceNumber,
       badgeType: 'warning',
@@ -3515,16 +3527,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .filter((u) => u.role === 'sales_rep' && (u.supervisorId === currentUser.id || isBranchMatch(u.branchName, currentUser.branchName, { allowUnassigned: false })))
           .map((u) => u.id)
       );
-      return invoices.filter((i) => {
-        // Strict Branch Isolation: must match supervisor's branch
-        if (i.branchName && !isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false })) {
-          return false;
-        }
-        const isSameBranch = Boolean(i.branchName) && isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false });
-        const isSupervisedRep = Boolean(i.repId) && repIds.has(i.repId);
-        const isSelf = i.repId === currentUser.id;
-        return isSameBranch || isSupervisedRep || isSelf;
-      });
+  return invoices.filter((i) => {
+    const isSameBranch = Boolean(i.branchName) && isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false });
+    const isSupervisedRep = Boolean(i.repId) && repIds.has(i.repId);
+    const isSameRepName = Boolean(i.repName) && users.some(
+      (u) => repIds.has(u.id) && normalizeArabicText(u.name) === normalizeArabicText(i.repName || '')
+    );
+    const isSelf = i.repId === currentUser.id || normalizeArabicText(i.repName) === normalizeArabicText(currentUser.name);
+    // Legacy invoices may carry a stale/missing branch name. A supervised rep match
+    // is authoritative so the invoice still reaches the supervisor.
+    return isSameBranch || isSupervisedRep || isSameRepName || isSelf;
+  });
     }
 
     // Sales Rep: STRICT PRIVACY - ONLY his own orders, NEVER another rep's orders!
