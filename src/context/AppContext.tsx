@@ -2618,7 +2618,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const allocations = new Map<string, { branch: number; main: number }>();
     for (const invItem of inv.items) {
       const product = products.find((p) => p.id === invItem.productId);
-      if (!product) return { success: false, message: `الصنف (${invItem.productName}) غير موجود في المخزون` };
+      if (!product) return { success: false, message: `الصنف (${invItem.productName}) غير موجود في المخزو��` };
       const requested = Math.max(0, invItem.cartonCount || 0);
       const branchAvailable = Math.max(0, getBranchStockForProduct(product, inv.branchName));
       const mainAvailable = Math.max(0, product.mainWarehouseActual);
@@ -3298,7 +3298,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: inv.branchName,
       action: 'return_invoice',
       actionTitle: `تسجيل مرتجع مبيعات ${isFullReturn ? 'كلي' : 'جزئي'} للفاتورة #${inv.invoiceNumber}`,
-      details: `إذن #${returnVoucherNumber} • العميل: ${inv.customerName} • القيمة المسترجعة: ${totalRefundAmount.toLocaleString()} ج.م • الكراتين: ${totalReturnedCartons} • السبب: ${reason}`,
+      details: `إذن #${returnVoucherNumber} • العمي��: ${inv.customerName} • القيمة المسترجعة: ${totalRefundAmount.toLocaleString()} ج.م • الكراتين: ${totalReturnedCartons} • السبب: ${reason}`,
       invoiceId: inv.id,
       invoiceNumber: inv.invoiceNumber,
       badgeType: 'warning',
@@ -3320,14 +3320,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     markInvoiceAsDeletedInStorage(targetId, targetNumber);
 
     // 2. Remove immediately from local state
-    setInvoices((prev) =>
-      prev.filter((inv) => inv.id !== targetId && (!targetNumber || inv.invoiceNumber !== targetNumber))
-    );
+    setInvoices((prev) => prev.filter((inv) => inv.id !== targetId));
 
     // 3. Immediately persist updated invoices to IndexedDB and LocalStorage
-    const remaining = invoices.filter(
-      (inv) => inv.id !== targetId && (!targetNumber || inv.invoiceNumber !== targetNumber)
-    );
+    const remaining = invoices.filter((inv) => inv.id !== targetId);
     idbSet(STORAGE_KEYS.INVOICES, remaining).catch(() => {});
     safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify(remaining));
 
