@@ -28,17 +28,19 @@ import {
   Pencil,
   PlusCircle,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { exportElectronicInvoiceToExcel, exportInvoiceForERP } from '../services/excelService';
+import { exportElectronicInvoiceToExcel, exportInvoiceForERP, downloadInvoiceBoth } from '../services/excelService';
 import { downloadInvoicePDF } from '../services/pdfService';
 import { formatArabicDate, formatCurrency } from '../services/invoiceService';
 import { Invoice, OrderStatus } from '../types';
 import { CreditAuditModal } from './CreditAuditModal';
 import { CreditStatusBadge } from './CreditStatusBadge';
 import { OrderReturnModal } from './OrderReturnModal';
+import { ExcelInvoicePreviewModal } from './ExcelInvoicePreviewModal';
 
 interface InvoicesManagerProps {
   onOpenNewOrder: () => void;
@@ -76,6 +78,8 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   const [returnReason, setReturnReason] = useState<string>('مرتجع بطلب العميل واسترجاع البضاعة للمخزن');
   const [auditInvoice, setAuditInvoice] = useState<Invoice | null>(null);
   const [isAuditOpen, setIsAuditOpen] = useState(false);
+  const [previewExcelInvoice, setPreviewExcelInvoice] = useState<Invoice | null>(null);
+  const [downloadingBothId, setDownloadingBothId] = useState<string | null>(null);
   const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
@@ -812,6 +816,29 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             <span>عرض</span>
                           </button>
 
+                          {/* Download Both (PDF + Excel) directly to device */}
+                          <button
+                            onClick={async () => {
+                              try {
+                                setDownloadingBothId(invoice.id);
+                                await downloadInvoiceBoth(invoice);
+                                setSuccessToast(`تم تنزيل ملف PDF وملف Excel للفاتورة #${invoice.invoiceNumber} مباشرة على جهازك! 📥⚡`);
+                                setTimeout(() => setSuccessToast(null), 4000);
+                              } catch (e) {
+                                setSuccessToast('تم إرسال أمر تنزيل الملفات إلى جهازك.');
+                                setTimeout(() => setSuccessToast(null), 3000);
+                              } finally {
+                                setDownloadingBothId(null);
+                              }
+                            }}
+                            disabled={downloadingBothId === invoice.id}
+                            className="bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 px-2 py-1 rounded-lg text-xs font-black transition cursor-pointer shadow-xs flex items-center gap-1 active:scale-95 disabled:opacity-50"
+                            title="تحميل ملف PDF وملف Excel معاً مباشرة على جهازك بضغطة واحدة"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span className="hidden xl:inline">{downloadingBothId === invoice.id ? '...' : 'PDF + Excel'}</span>
+                          </button>
+
                           {/* Download PDF directly to mobile/desktop */}
                           <button
                             onClick={async () => {
@@ -820,7 +847,29 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               setTimeout(() => setSuccessToast(null), 3500);
                             }}
                             className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded-lg transition cursor-pointer shadow-xs"
-                            title="تحميل فاتورة PDF مباشرة على الهاتف"
+                            title="تحميل فاتورة PDF مباشرة على الهاتف أو الكمبيوتر"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Preview Excel Modal */}
+                          <button
+                            onClick={() => setPreviewExcelInvoice(invoice)}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white p-1.5 rounded-lg transition cursor-pointer shadow-xs"
+                            title="معاينة شيت الإكسل المطور وتفاصيله قبل التنزيل"
+                          >
+                            <FileSpreadsheet className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Export Standard Excel (.xlsx) direct */}
+                          <button
+                            onClick={() => {
+                              exportElectronicInvoiceToExcel(invoice);
+                              setSuccessToast(`تم تنزيل ملف إكسل للفاتورة #${invoice.invoiceNumber} على جهازك 📊`);
+                              setTimeout(() => setSuccessToast(null), 3000);
+                            }}
+                            className="bg-emerald-800 hover:bg-emerald-900 text-white p-1.5 rounded-lg transition cursor-pointer shadow-xs"
+                            title="تحميل شيت إكسل رسمي فوري على جهازك"
                           >
                             <Download className="w-3.5 h-3.5" />
                           </button>
@@ -832,17 +881,8 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               setSuccessToast(`تم تصدير ملف إكسل منسق للسيستم الرئيسي (ERP) للفاتورة ${invoice.invoiceNumber}`);
                               setTimeout(() => setSuccessToast(null), 3000);
                             }}
-                            className="bg-amber-500 hover:bg-amber-400 text-slate-950 p-1.5 rounded-lg transition cursor-pointer shadow-xs font-bold"
+                            className="bg-amber-500 hover:bg-amber-400 text-slate-950 p-1.5 rounded-lg transition cursor-pointer shadow-xs font-bold hidden sm:inline-flex"
                             title="تصدير شيت إكسل جاهز للرفع على السيستم الرئيسي (ERP)"
-                          >
-                            <FileSpreadsheet className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Export Standard Excel (.xlsx) */}
-                          <button
-                            onClick={() => exportElectronicInvoiceToExcel(invoice)}
-                            className="bg-emerald-700 hover:bg-emerald-800 text-white p-1.5 rounded-lg transition cursor-pointer"
-                            title="تحميل شيت إكسل منسق لشركة دريم"
                           >
                             <FileSpreadsheet className="w-3.5 h-3.5" />
                           </button>
@@ -1105,6 +1145,15 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             setAuditInvoice(null);
           }}
           onViewInvoice={onViewInvoice}
+        />
+      )}
+
+      {/* Excel Invoice Preview & Direct Download Modal */}
+      {previewExcelInvoice && (
+        <ExcelInvoicePreviewModal
+          invoice={previewExcelInvoice}
+          isOpen={Boolean(previewExcelInvoice)}
+          onClose={() => setPreviewExcelInvoice(null)}
         />
       )}
 

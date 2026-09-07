@@ -977,7 +977,124 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, `فاتورة_${invoice.invoiceNumber}`);
+
+  // Tab 2: ERP Accounting Table (Auto-included in the official workbook)
+  try {
+    const erpItemHeaders = [
+      'رقم الفاتورة',
+      'تاريخ الفاتورة',
+      'كود المندوب',
+      'اسم المندوب',
+      'اسم الفرع',
+      'كود العميل',
+      'اسم العميل',
+      'رقم هاتف العميل',
+      'كود الصنف',
+      'الكود الموحد (#)',
+      'اسم الصنف',
+      'شدة الكرتونة',
+      'عدد الكراتين',
+      'قطع فردية',
+      'إجمالي القطع',
+      'سعر الكرتونة',
+      'سعر القطعة',
+      'الإجمالي قبل الخصم',
+      'نسبة خصم الفاتورة %',
+      'قيمة الخصم للصنف',
+      'الصافي النهائي',
+      'مصدر الصرف',
+      'طريقة الدفع',
+      'حالة الفاتورة'
+    ];
+
+    const erpRows = invoice.items.map((item) => {
+      const cartonQty = item.cartonQuantity || 1;
+      const cCount = item.cartonCount || 0;
+      const pCount = item.pieceCount || 0;
+      const totalPcs = item.totalUnits || (cCount * cartonQty + pCount);
+      const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round(((item.pricePerCarton || item.appliedPrice) / cartonQty) * 100) / 100 : 0);
+      const unified = item.unifiedCode || (item.product as any)?.unifiedCode || '---';
+
+      return [
+        invoice.invoiceNumber,
+        invoice.date,
+        invoice.repId || '',
+        invoice.repName,
+        invoice.branchName,
+        invoice.customerCode || '',
+        invoice.customerName,
+        invoice.customerPhone || '',
+        item.productCode,
+        unified,
+        item.productName,
+        cartonQty,
+        cCount,
+        pCount,
+        totalPcs,
+        item.pricePerCarton || item.appliedPrice,
+        pieceP,
+        item.totalBeforeTax,
+        invoice.discountPercentage || 0,
+        item.discountAmount || 0,
+        item.netTotal,
+        item.fulfilledFrom === 'main_warehouse' ? 'مخزن مركزي - 6 أكتوبر' : invoice.branchName,
+        invoice.paymentMethod,
+        invoice.status
+      ];
+    });
+
+    const wsErp = XLSX.utils.aoa_to_sheet([erpItemHeaders, ...erpRows]);
+    wsErp['!views'] = [{ RTL: true }];
+    wsErp['!sheetView'] = [{ rightToLeft: true }];
+    wsErp['!cols'] = [
+      { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 18 }, { wch: 22 },
+      { wch: 14 }, { wch: 25 }, { wch: 16 }, { wch: 14 }, { wch: 16 },
+      { wch: 32 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 },
+      { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
+      { wch: 16 }, { wch: 24 }, { wch: 16 }, { wch: 18 }
+    ];
+    XLSX.utils.book_append_sheet(wb, wsErp, 'ترحيل_محاسبي_ERP');
+
+    // Tab 3: Customer Credit & Statement Audit
+    const creditHeaders = [
+      ['شركة دريم للتجارة والتوزيع - كشف الحساب والائتمان المعتمد'],
+      [`العميل: ${invoice.customerName} (كود: ${invoice.customerCode || 'كاش'})`],
+      [],
+      ['البيان المالي', 'المبلغ (ج.م)', 'ملاحظات وتدقيق الحساب'],
+      ['المديونية السابقة قبل الفاتورة', debtBefore, 'رصيد سابق مسجل بالسيستم'],
+      ['قيمة فاتورة المبيعات الحالية', invoice.estimatedGrandTotal, `فاتورة رقم ${invoice.invoiceNumber}`],
+      ['إجمالي المديونية بعد الفاتورة', debtAfter, 'الرصيد التراكمي النهائي المطلوب سداده'],
+      ['الحد الائتماني المعتمد للعميل', creditLimit, 'السقف المالي الائتماني المصرح به'],
+      ['موقف الائتمان', isExceeded ? '⚠️ تجاوز الحد الائتماني' : '✅ ضمن الحد المسموح', isExceeded ? `دفعة نقدية مطلوبة: ${requiredDown.toLocaleString()} ج.م` : 'حساب سليم ومطابق للشروط'],
+      [],
+      ['مندوب التسليم:', invoice.repName, 'تاريخ وتوقيت الإصدار:', `${invoice.date} ${invoice.time || ''}`]
+    ];
+    const wsCredit = XLSX.utils.aoa_to_sheet(creditHeaders);
+    wsCredit['!views'] = [{ RTL: true }];
+    wsCredit['!sheetView'] = [{ rightToLeft: true }];
+    wsCredit['!cols'] = [{ wch: 32 }, { wch: 20 }, { wch: 38 }];
+    XLSX.utils.book_append_sheet(wb, wsCredit, 'موقف_الائتمان_والحساب');
+  } catch (err) {
+    console.warn('Failed to append auxiliary tabs to workbook, standard sheet preserved:', err);
+  }
+
   XLSX.writeFile(wb, `فاتورة_دريم_طنطاوي_${invoice.invoiceNumber}_${invoice.customerName.replace(/[^\w\u0621-\u064A]/g, '_')}.xlsx`);
+}
+
+/**
+ * Direct Dual Download: Downloads both PDF and Excel files directly to the device sequentially
+ */
+export async function downloadInvoiceBoth(
+  invoice: Invoice,
+  customCompanyInfo?: Record<string, any>
+): Promise<void> {
+  const { downloadInvoicePDF } = await import('./pdfService');
+  // 1. Download PDF directly to rep device
+  await downloadInvoicePDF(invoice, customCompanyInfo);
+  // 2. Wait 600ms so mobile/desktop browsers don't block concurrent file downloads
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  // 3. Download Excel directly to rep device
+  exportInvoiceToExcel(invoice);
 }
 
 /**

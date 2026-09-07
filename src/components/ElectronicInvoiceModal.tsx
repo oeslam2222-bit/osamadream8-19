@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { exportElectronicInvoiceToExcel, exportInvoiceForERP } from '../services/excelService';
+import { exportElectronicInvoiceToExcel, exportInvoiceForERP, downloadInvoiceBoth } from '../services/excelService';
 import { formatArabicDate, formatCurrency } from '../services/invoiceService';
 import { downloadInvoicePDF } from '../services/pdfService';
 import { isArabicNameMatch } from '../services/arabicMatchingService';
@@ -36,6 +36,7 @@ import { Invoice } from '../types';
 import { CompanySettingsModal } from './CompanySettingsModal';
 import { CreditAuditModal } from './CreditAuditModal';
 import { OrderReturnModal } from './OrderReturnModal';
+import { ExcelInvoicePreviewModal } from './ExcelInvoicePreviewModal';
 
 interface ElectronicInvoiceModalProps {
   invoice: Invoice | null;
@@ -69,6 +70,8 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   const [cancelFeedback, setCancelFeedback] = useState<string | null>(null);
   const [showCompanySettings, setShowCompanySettings] = useState(false);
   const [showCreditAudit, setShowCreditAudit] = useState(false);
+  const [showExcelPreview, setShowExcelPreview] = useState(false);
+  const [isDownloadingBoth, setIsDownloadingBoth] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnSuccessMsg, setReturnSuccessMsg] = useState<string | null>(null);
 
@@ -169,6 +172,22 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
     }
   };
 
+  const handleDownloadBoth = async () => {
+    if (!currentInv) return;
+    setIsDownloadingBoth(true);
+    try {
+      await downloadInvoiceBoth(currentInv, effectiveCompanyInfo);
+      setDownloadNotice(`تم تنزيل ملف PDF وملف Excel للفاتورة #${currentInv.invoiceNumber} مباشرة على جهازك بنجاح! 📥⚡`);
+      setTimeout(() => setDownloadNotice(null), 4500);
+    } catch (e) {
+      console.error('Download both error:', e);
+      setDownloadNotice('تم إرسال أمر تنزيل الفاتورة إلى جهازك.');
+      setTimeout(() => setDownloadNotice(null), 3000);
+    } finally {
+      setIsDownloadingBoth(false);
+    }
+  };
+
   const handlePrint = () => {
     const source = document.getElementById('printable-invoice');
     if (!source) {
@@ -256,15 +275,46 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               </button>
             )}
 
+            {/* Combined Direct Download: PDF + Excel together */}
+            <button
+              onClick={handleDownloadBoth}
+              disabled={isDownloadingBoth}
+              className="flex items-center gap-1.5 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-black transition shadow-sm cursor-pointer disabled:opacity-50 active:scale-95"
+              title="تحميل ملف PDF وملف Excel معاً مباشرة على جهازك بضغطة واحدة"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-slate-950" />
+              <span>{isDownloadingBoth ? 'جاري التنزيل المزدوج...' : 'تحميل الاثنين (PDF + Excel) ⚡'}</span>
+            </button>
+
             {/* Direct High-Quality PDF Download */}
             <button
               onClick={handleDownloadPDF}
               disabled={isDownloadingPDF}
               className="flex items-center gap-1.5 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white px-3.5 py-2 rounded-xl text-xs font-black transition shadow-sm cursor-pointer disabled:opacity-50"
-              title="تحميل فاتورة PDF رسمية مباشرة على الهاتف دون نافذة طباعة"
+              title="تحميل فاتورة PDF رسمية مباشرة على جهاز المندوب دون نافذة طباعة"
             >
               <Download className={`w-3.5 h-3.5 ${isDownloadingPDF ? 'animate-bounce' : ''}`} />
-              <span>{isDownloadingPDF ? 'جاري التنزيل على الهاتف...' : 'تحميل PDF على الهاتف 📥'}</span>
+              <span>{isDownloadingPDF ? 'جاري التنزيل على الجهاز...' : 'تحميل PDF على الجهاز 📥'}</span>
+            </button>
+
+            {/* Excel Preview Modal Trigger */}
+            <button
+              onClick={() => setShowExcelPreview(true)}
+              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl text-xs font-black transition shadow-xs cursor-pointer"
+              title="معاينة شيت الإكسل المطور والمحاسبي قبل التنزيل"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>معاينة شيت Excel 👁️</span>
+            </button>
+
+            {/* Direct Excel Download Standard */}
+            <button
+              onClick={() => exportElectronicInvoiceToExcel(currentInv)}
+              className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-2 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+              title="تصدير وتحميل شيت إكسل رسمي منسق مباشرة على جهازك"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">تحميل Excel فوري 📊</span>
             </button>
 
             {/* Credit Audit Modal Button */}
@@ -274,37 +324,17 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               title="عرض جدول تدقيق الائتمان والمديونية المعتمد"
             >
               <CreditCard className="w-3.5 h-3.5" />
-              <span>تدقيق الائتمان 💳</span>
+              <span className="hidden md:inline">تدقيق الائتمان 💳</span>
             </button>
 
-            {/* Excel Download Standard */}
-            <button
-              onClick={() => exportElectronicInvoiceToExcel(invoice)}
-              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-              title="تصدير شيت إكسل رسمي منسق"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>تصدير إكسل 📊</span>
-            </button>
-
-            {/* Excel Download ERP Format */}
-            <button
-              onClick={() => exportInvoiceForERP(invoice)}
-              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 px-3 py-2 rounded-xl text-xs font-black transition shadow-xs cursor-pointer"
-              title="تصدير شيت إكسل مهيأ للرفع على برنامج الحسابات الرئيسي (ERP)"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">شيت ERP للسيستم</span>
-            </button>
-
-            {/* Print Button */}
+            {/* Print Button (Subtle/Secondary) */}
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
-              title="طباعة فورية"
+              className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-2.5 py-2 rounded-xl text-xs font-medium transition cursor-pointer"
+              title="طباعة ورقية"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>طباعة</span>
+              <span className="hidden xl:inline">طباعة</span>
             </button>
 
             {/* Close Button */}
@@ -778,23 +808,46 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
         <div className="bg-slate-50 p-3.5 sm:p-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 print:hidden">
           
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Quick Combined Download */}
+            <button
+              onClick={handleDownloadBoth}
+              disabled={isDownloadingBoth}
+              className="flex items-center gap-1.5 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer disabled:opacity-50 active:scale-95"
+              title="تحميل ملف PDF وملف Excel معاً مباشرة على جهازك"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{isDownloadingBoth ? 'جاري التحميل...' : 'تحميل الاثنين (PDF + Excel) ⚡'}</span>
+            </button>
+
             {/* Quick PDF Button */}
             <button
               onClick={handleDownloadPDF}
               disabled={isDownloadingPDF}
               className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-black px-4 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer disabled:opacity-50"
+              title="تحميل ملف PDF مباشرة على جهازك"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>{isDownloadingPDF ? 'جاري التحميل...' : 'تحميل PDF 📄'}</span>
+              <span>{isDownloadingPDF ? 'جاري التحميل...' : 'تحميل PDF مباشر 📄'}</span>
             </button>
 
-            {/* Standard Excel Button */}
+            {/* Preview Excel Modal */}
             <button
-              onClick={() => exportElectronicInvoiceToExcel(invoice)}
-              className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer"
+              onClick={() => setShowExcelPreview(true)}
+              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer"
+              title="معاينة شيت الإكسيل قبل التحميل"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>تصدير شيت إكسل 📊</span>
+              <span>معاينة Excel 👁️</span>
+            </button>
+
+            {/* Direct Excel Button */}
+            <button
+              onClick={() => exportElectronicInvoiceToExcel(currentInv)}
+              className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer"
+              title="تحميل شيت إكسل رسمي فوري"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>تحميل Excel 📊</span>
             </button>
 
             {/* Copy Invoice Number */}
@@ -930,6 +983,15 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             invoice={invoice}
             isOpen={showCreditAudit}
             onClose={() => setShowCreditAudit(false)}
+          />
+        )}
+
+        {/* Excel Invoice Preview & Direct Download Modal */}
+        {showExcelPreview && (
+          <ExcelInvoicePreviewModal
+            invoice={currentInv}
+            isOpen={showExcelPreview}
+            onClose={() => setShowExcelPreview(false)}
           />
         )}
 
