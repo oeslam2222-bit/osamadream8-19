@@ -28,7 +28,7 @@ export async function downloadInvoicePDF(invoice: Invoice, customCompanyInfo?: R
   const container = document.createElement('div');
   container.id = 'temp-pdf-export-container';
   container.style.position = 'fixed';
-  container.style.left = '-9999px';
+  container.style.left = '0';
   container.style.top = '0';
   container.style.width = '820px';
   container.style.backgroundColor = '#ffffff';
@@ -236,6 +236,8 @@ export async function downloadInvoicePDF(invoice: Invoice, customCompanyInfo?: R
   document.body.appendChild(container);
 
   try {
+    if (document.fonts?.ready) await document.fonts.ready;
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
     const canvas = await html2canvas(container, {
       scale: 2,
       useCORS: true,
