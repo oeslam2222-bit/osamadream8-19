@@ -28,17 +28,20 @@ export async function downloadInvoicePDF(invoice: Invoice, customCompanyInfo?: R
   const container = document.createElement('div');
   container.id = 'temp-pdf-export-container';
   container.style.position = 'fixed';
-  container.style.left = '0';
-  container.style.top = '0';
-  container.style.width = '820px';
+  container.style.left = '0px';
+  container.style.top = '0px';
+  container.style.width = '800px';
+  container.style.maxWidth = '800px';
   container.style.backgroundColor = '#ffffff';
   container.style.color = '#0f172a';
   container.style.fontFamily = 'Cairo, Tajawal, "Segoe UI", Tahoma, Arial, sans-serif';
   container.style.direction = 'rtl';
   container.style.textAlign = 'right';
-  container.style.padding = '24px 30px';
+  container.style.padding = '24px 28px';
   container.style.boxSizing = 'border-box';
-  container.style.zIndex = '-1000';
+  container.style.zIndex = '9999999';
+  container.style.opacity = '1';
+  container.style.pointerEvents = 'none';
 
   const itemsHtml = invoice.items.map((item, idx) => {
     const cartonQty = item.cartonQuantity || 1;
@@ -237,13 +240,22 @@ export async function downloadInvoicePDF(invoice: Invoice, customCompanyInfo?: R
 
   try {
     if (document.fonts?.ready) await document.fonts.ready;
-    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    await new Promise<void>((resolve) => setTimeout(resolve, 150));
+
     const canvas = await html2canvas(container, {
       scale: 2,
       useCORS: true,
+      allowTaint: true,
       logging: false,
       backgroundColor: '#ffffff',
-      windowWidth: 1000,
+      scrollX: 0,
+      scrollY: 0,
+      x: 0,
+      y: 0,
+      width: container.offsetWidth || 800,
+      height: container.offsetHeight,
+      windowWidth: 850,
+      windowHeight: container.offsetHeight + 100,
     });
 
     const imgData = canvas.toDataURL('image/jpeg', 0.98);

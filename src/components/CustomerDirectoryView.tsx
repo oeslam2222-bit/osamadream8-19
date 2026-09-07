@@ -249,15 +249,15 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     const query = normalizeArabicText(searchQuery);
 
     return scopedCustomers.filter((c) => {
-      // Branch filter
-      if (selectedBranch !== 'الكل' && !(scopeTab === 'my_customers' && isRep)) {
+      // Branch filter (applied for supervisors/admins; reps are already strictly scoped to their own customers)
+      if (!isRep && selectedBranch !== 'الكل') {
         if (!doesCustomerBelongToBranch(c, selectedBranch, users)) {
           return false;
         }
       }
 
-      // Rep filter (works for both registered users and unregistered reps)
-      if (selectedRepFilter !== 'الكل') {
+      // Rep filter (applied for supervisors/admins; reps are already strictly scoped to their own customers)
+      if (!isRep && selectedRepFilter !== 'الكل') {
         const tempRepUser = users.find(
           (u) => u.id === selectedRepFilter || u.name === selectedRepFilter || isArabicNameMatch(u.name, selectedRepFilter)
         ) || {

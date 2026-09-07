@@ -71,6 +71,7 @@ interface AppContextType {
   isOffline: boolean;
   selectedBranchFilter: string;
   setSelectedBranchFilter: (branch: string) => void;
+  refreshInvoicesNow: () => Promise<{ success: boolean; count: number; message: string }>;
   
   // Supabase Sync
   supabaseStatus: SupabaseSyncStatus;
@@ -801,9 +802,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         const invRes = await fetchInvoicesFromSupabase();
-        if (invRes.success) {
-          const deletedSet = getDeletedInvoiceIds();
-          const remoteInvoices = (invRes.invoices || []).filter((si) => !deletedSet.has(si.id) && !deletedSet.has(si.invoiceNumber));
+        if (invRes.success && invRes.invoices) {
+          const remoteInvoices = invRes.invoices;
           fetchedInvoicesCount = remoteInvoices.length;
           setInvoices((previous) => {
             const merged = new Map<string, Invoice>();
@@ -918,9 +918,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         // 3. Fetch Invoices
         fetchInvoicesFromSupabase().then((res) => {
-          if (res.success) {
-            const deletedSet = getDeletedInvoiceIds();
-            const remoteInvoices = (res.invoices || []).filter((si) => !deletedSet.has(si.id) && !deletedSet.has(si.invoiceNumber));
+          if (res.success && res.invoices) {
+            const remoteInvoices = res.invoices;
             setInvoices((previous) => {
               const merged = new Map<string, Invoice>();
               previous.forEach((invoice) => merged.set(invoice.id, invoice));
@@ -1053,22 +1052,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Don't poll if the tab is hidden or minimized to save mobile data and Supabase egress
       if (typeof document !== 'undefined' && document.hidden) return;
 
-      // Limit background refresh to the most recent 200 invoices so admin/developer
-      // see all new orders, not just the first 50.
-      const result = await fetchInvoicesFromSupabase(200);
+      // Background refresh to keep admin/dev and supervisors updated in real-time
+      const result = await fetchInvoicesFromSupabase(300);
       if (cancelled || !result.success || !result.invoices) return;
-      const deletedSet = getDeletedInvoiceIds();
       setInvoices((prev) => {
         const remoteById = new Map<string, Invoice>();
         result.invoices!.forEach((inv) => {
-          if (deletedSet.has(inv.id) || (inv.invoiceNumber && deletedSet.has(inv.invoiceNumber))) return;
           remoteById.set(inv.id, inv);
         });
-        // Keep local-only invoices that aren't deleted and aren't in the remote set
-        const localOnly = prev.filter(
-          (inv) => !deletedSet.has(inv.id) && !deletedSet.has(inv.invoiceNumber) && !remoteById.has(inv.id)
-        );
-        return [...Array.from(remoteById.values()), ...localOnly];
+        const localOnly = prev.filter((inv) => !remoteById.has(inv.id));
+        const next = [...Array.from(remoteById.values()), ...localOnly];
+        idbSet(STORAGE_KEYS.INVOICES, next);
+        return next;
       });
     };
 
@@ -1092,6 +1087,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       document.removeEventListener('visibilitychange', handleFocusOrVisibility);
     };
   }, []);
+
+  // Explicit, on-demand invoice refresh callable from any component (e.g. InvoicesManager)
+  const refreshInvoicesNow = async (): Promise<{ success: boolean; count: number; message: string }> => {
+    try {
+      const result = await fetchInvoicesFromSupabase(300);
+      if (!result.success || !result.invoices) {
+        return { success: false, count: 0, message: result.error || 'تعذر الاتصال بقاعدة البيانات لجلب الفواتير' };
+      }
+      const remoteInvoices = result.invoices;
+      setInvoices((prev) => {
+        const remoteById = new Map<string, Invoice>();
+        remoteInvoices.forEach((inv) => remoteById.set(inv.id, inv));
+        const localOnly = prev.filter((inv) => !remoteById.has(inv.id));
+        const next = [...Array.from(remoteById.values()), ...localOnly];
+        idbSet(STORAGE_KEYS.INVOICES, next);
+        return next;
+      });
+      return {
+        success: true,
+        count: remoteInvoices.length,
+        message: `تم تحديث الفواتير من السيرفر بنجاح (إجمالي: ${remoteInvoices.length} فاتورة).`,
+      };
+    } catch (err: any) {
+      return { success: false, count: 0, message: err?.message || 'خطأ غير متوقع أثناء تحديث الفواتير' };
+    }
+  };
 
   // Customer CRUD Actions
   const addCustomer = (newCust: Customer) => {
@@ -3635,6 +3656,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isOffline,
         selectedBranchFilter,
         setSelectedBranchFilter,
+        refreshInvoicesNow,
         supabaseStatus,
         isSupabaseSyncing,
         syncWithSupabase,

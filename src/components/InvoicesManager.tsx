@@ -27,7 +27,8 @@ import {
   AlertCircle,
   Pencil,
   PlusCircle,
-  ExternalLink
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -60,7 +61,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     approveOrder,
     forwardOrderToManager,
     rejectOrder,
-    selectedBranchFilter
+    branches,
+    selectedBranchFilter,
+    setSelectedBranchFilter,
+    refreshInvoicesNow
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -73,7 +77,31 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   const [auditInvoice, setAuditInvoice] = useState<Invoice | null>(null);
   const [isAuditOpen, setIsAuditOpen] = useState(false);
   const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
+
+  // Auto-refresh invoices on component mount to immediately show invoices created by reps
+  useEffect(() => {
+    let mounted = true;
+    refreshInvoicesNow().catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const res = await refreshInvoicesNow();
+      setSuccessToast(res.message);
+      setTimeout(() => setSuccessToast(null), 4000);
+    } catch (err: any) {
+      setSuccessToast(`حدث خطأ أثناء التحديث: ${err?.message || ''}`);
+      setTimeout(() => setSuccessToast(null), 4000);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Pagination state for responsive multi-page browsing
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -283,13 +311,25 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </p>
           </div>
 
-          <button
-            onClick={onOpenNewOrder}
-            className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>إنشاء فاتورة / طلبية جديدة</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-2.5 rounded-xl text-xs border border-slate-200 transition active:scale-95 cursor-pointer disabled:opacity-50"
+              title="تحديث ومزامنة الفواتير مباشرة من قاعدة بيانات السيرفر"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-amber-600' : 'text-slate-500'}`} />
+              <span>{isRefreshing ? 'جاري التحديث...' : 'تحديث من السيرفر'}</span>
+            </button>
+
+            <button
+              onClick={onOpenNewOrder}
+              className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>إنشاء فاتورة / طلبية جديدة</span>
+            </button>
+          </div>
         </div>
 
         {/* Dashboard Aggregate Stat Cards */}
@@ -395,7 +435,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         </div>
 
         {/* Search & Filter Controls */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 text-xs">
           <div className="relative">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
@@ -408,7 +448,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
-            <span className="text-slate-500 font-bold">الحالة:</span>
+            <span className="text-slate-500 font-bold whitespace-nowrap">الحالة:</span>
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
@@ -424,9 +464,28 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </select>
           </div>
 
+          {/* Branch Filter for Admin, Developer & Supervisor */}
+          {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor') && (
+            <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+              <span className="text-slate-500 font-bold whitespace-nowrap">الفرع:</span>
+              <select
+                value={selectedBranchFilter}
+                onChange={(e) => setSelectedBranchFilter(e.target.value)}
+                className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer w-full"
+              >
+                <option value="الكل">🏢 كل الفروع</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.name}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {currentUser?.role !== 'sales_rep' && (
             <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
-              <span className="text-slate-500 font-bold">المندوب:</span>
+              <span className="text-slate-500 font-bold whitespace-nowrap">المندوب:</span>
               <select
                 value={selectedRepFilter}
                 onChange={(e) => setSelectedRepFilter(e.target.value)}
@@ -441,6 +500,24 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </div>
           )}
         </div>
+
+        {/* Active Branch Notification for Admin/Dev */}
+        {selectedBranchFilter !== 'الكل' && (currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+          <div className="bg-amber-50 border border-amber-300/80 rounded-2xl p-3 flex items-center justify-between text-xs text-amber-950 font-bold">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-amber-700" />
+              <span>
+                يتم الآن تصفية الفواتير بحسب الفرع: <span className="underline decoration-amber-500 underline-offset-4">{selectedBranchFilter}</span>. أي فواتير لمندوبين من فروع أخرى لن تظهر حتى تلغي التصفية.
+              </span>
+            </div>
+            <button
+              onClick={() => setSelectedBranchFilter('الكل')}
+              className="bg-amber-500 hover:bg-amber-600 text-slate-950 px-3 py-1 rounded-xl text-[11px] font-black cursor-pointer transition shadow-xs"
+            >
+              عرض فواتير كل الفروع
+            </button>
+          </div>
+        )}
 
       </div>
 

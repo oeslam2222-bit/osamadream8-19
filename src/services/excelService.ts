@@ -783,7 +783,7 @@ export async function fetchAndParseGoogleSheet(googleSheetUrlOrId: string): Prom
 }
 
 /**
- * Export Invoice to Excel (Electronic Tax Layout with Smart Carton/Piece Breakdown)
+ * Export Invoice to Excel (Professional Executive Tax Layout with Structured Grid & RTL)
  */
 export function exportInvoiceToExcel(invoice: Invoice): void {
   const wb = XLSX.utils.book_new();
@@ -795,17 +795,45 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
   const requiredDown = invoice.requiredDownPayment ?? (isExceeded ? debtAfter - creditLimit : 0);
 
   const titleRows = [
-    ['مجموعة الطنطاوي - دريم للتجارة والتوزيع (TANTAWY GROUP)'],
-    ['فاتورة مبيعات إلكترونية معتمدة - بيان صرف واستلام بضاعة وموقف حساب العميل'],
-    [`رقم الفاتورة: ${invoice.invoiceNumber}`, `التاريخ: ${invoice.date}`, `الوقت: ${invoice.time || ''}`, `طريقة السداد: ${invoice.paymentMethod}`],
-    [`كود العميل: ${invoice.customerCode || '---'}`, `اسم العميل / المحل: ${invoice.customerName}`, `هاتف العميل: ${invoice.customerPhone || '---'}`, `الرقم الضريبي: ${invoice.customerTaxNumber || '---'}`],
-    [`الفرع المنفذ: ${invoice.branchName}`, `المخزن المركزي: 6 أكتوبر`, `المندوب المسؤول: ${invoice.repName}`, `المشرف: ${invoice.supervisorName || '---'}`],
-    [`حالة الفاتورة: ${invoice.status}`, `إجمالي الكراتين: ${invoice.totalCartons} كرتونة`, `إجمالي القطع: ${invoice.totalPieces} قطعة`, `نوع الاعتماد: صادر رسمي`],
+    ['شركة دريم للتجارة والتوزيع - مجموعة الطنطاوي (TANTAWY GROUP)'],
+    ['فاتورة مبيعات إلكترونية معتمدة - إذن صرف واستلام بضاعة وموقف حساب العميل'],
+    [],
+    // Row 4: Invoice Meta
+    ['رقم الفاتورة:', invoice.invoiceNumber, '', 'تاريخ الإصدار:', invoice.date, '', 'وقت الإصدار:', invoice.time || '', '', 'طريقة السداد:', invoice.paymentMethod],
+    // Row 5: Customer Meta
+    ['اسم العميل / المحل:', invoice.customerName, '', 'كود العميل:', invoice.customerCode || '---', '', 'هاتف العميل:', invoice.customerPhone || '---', '', 'الرقم الضريبي:', invoice.customerTaxNumber || '---'],
+    // Row 6: Organization Meta
+    ['الفرع المنفذ:', invoice.branchName, '', 'المندوب المسؤول:', invoice.repName, '', 'المشرف المعتمد:', invoice.supervisorName || '---', '', 'حالة الفاتورة:', invoice.status],
+    // Row 7: Warehouse Meta
+    ['مستودع الصرف:', invoice.items.some((it) => it.fulfilledFrom === 'main_warehouse') ? 'مخزن 6 أكتوبر المركزي + الفرع' : invoice.branchName, '', 'إجمالي الكراتين:', `${invoice.totalCartons} كرتونة`, '', 'إجمالي القطع:', `${invoice.totalPieces} قطعة`, '', 'النوع:', (invoice.isShortageInvoice || invoice.invoiceNumber?.endsWith('-NQ')) ? 'فاتورة نواقص (-NQ)' : 'فاتورة مبيعات'],
+    [],
+    // Row 9-10: Financial KPI Cards
+    ['الموقف المالي والائتماني للعميل:', '', '', '', '', '', '', '', '', '', ''],
     [
-      `المديونية السابقة: ${debtBefore.toLocaleString()} ج.م`,
-      `الحد الائتماني المعتمد: ${creditLimit.toLocaleString()} ج.م`,
-      `إجمالي المديونية بعد الفاتورة: ${debtAfter.toLocaleString()} ج.م`,
-      isExceeded ? `⚠️ تجاوز الحد الائتماني (مطلوب سداد نقدي: ${requiredDown.toLocaleString()} ج.م)` : '✅ الحساب سليم وضمن الحد الائتماني'
+      'المديونية السابقة:',
+      debtBefore,
+      '',
+      'صافي الفاتورة الحالية:',
+      invoice.estimatedGrandTotal,
+      '',
+      'إجمالي المديونية بعد الفاتورة:',
+      debtAfter,
+      '',
+      'الحد الائتماني المعتمد:',
+      creditLimit
+    ],
+    [
+      'حالة الائتمان:',
+      isExceeded ? `⚠️ تجاوز الحد الائتماني (مطلوب دفعة نقدية: ${requiredDown.toLocaleString()} ج.م)` : '✅ الحساب سليم وضمن الحد الائتماني المعتمد',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      ''
     ],
     []
   ];
@@ -846,7 +874,7 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
       smartDesc = '0';
     }
 
-    const pieceP = item.pricePerPiece || Math.round((item.pricePerCarton || item.appliedPrice) / cartonQty);
+    const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round((item.pricePerCarton || item.appliedPrice) / cartonQty) : 0);
     const promoP = (item as any).promoPrice || (item as any).offerPrice ? `${(item as any).promoPrice || (item as any).offerPrice} ج.م` : '---';
     const unified = item.unifiedCode || (item.product as any)?.unifiedCode || '---';
     const fulfillmentSource = item.fulfilledFrom === 'main_warehouse' ? 'مخزن 6 أكتوبر المركزي (نواقص)' : (invoice.branchName || 'مخزن الفرع');
@@ -875,15 +903,18 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
     [],
     ['', '', '', '', '', '', '', '', '', '', '', 'إجمالي البضاعة قبل الخصم:', '', invoice.subtotal],
     ['', '', '', '', '', '', '', '', '', '', '', `إجمالي الخصم التجاري (${invoice.discountPercentage}%):`, '', -invoice.discountAmount],
-    ['', '', '', '', '', '', '', '', '', '', '', 'الإجمالي النهائي المطلوب سداده:', '', invoice.estimatedGrandTotal],
+    ['', '', '', '', '', '', '', '', '', '', '', 'الإجمالي النهائي المطلوب سداده (الصافي):', '', invoice.estimatedGrandTotal],
     ['', '', '', '', '', '', '', '', '', '', '', 'المديونية السابقة للعميل:', '', debtBefore],
     ['', '', '', '', '', '', '', '', '', '', '', 'إجمالي مديونية العميل بعد الفاتورة:', '', debtAfter],
     ['', '', '', '', '', '', '', '', '', '', '', 'الحد الائتماني المعتمد للعميل:', '', creditLimit],
     ['', '', '', '', '', '', '', '', '', '', '', 'الدفعة النقدية المطلوب تحصيلها فوراً:', '', isExceeded ? requiredDown : 0],
     [],
-    ['رسالة شكر وتقدير:', '✨ شكرًا لثقتكم بشركة دريم للتجارة والتوزيع - مجموعة الطنطاوي ❤️'],
-    ['ملاحظات الفاتورة:', invoice.notes || 'بضاعة مستلمة بحالة جيدة'],
-    [`خدمة العملاء: ${COMPANY_INFO.customerService}`, 'الإدارة العامة والمخازن المركزية: 6 أكتوبر - الجيزة']
+    ['ملاحظات الفاتورة والتسليم:', invoice.notes || 'بضاعة مستلمة كاملة وبحالة جيدة ومطابقة للمواصفات.'],
+    ['رسالة تقدير:', '✨ شكرًا لتعاملكم مع شركة دريم للتجارة والتوزيع - مجموعة الطنطاوي ❤️'],
+    [`خدمة العملاء والشكاوى: ${COMPANY_INFO.customerService}`, 'الإدارة العامة والمخازن المركزية: المنطقة الصناعية - 6 أكتوبر - الجيزة'],
+    [],
+    ['توقيع واستلام العميل / المحل:', '', 'مندوب التوزيع والتسليم:', '', 'أمين مخزن الصرف:', '', 'اعتماد الإدارة والحسابات:', ''],
+    ['....................................', '', `................ (${invoice.repName})`, '', '....................................', '', '....................................', '']
   ];
 
   const fullSheetData = [...titleRows, tableHeaders, ...itemRows, ...summaryRows];
@@ -891,14 +922,23 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
   const lastColumn = tableHeaders.length - 1;
   const lastRow = fullSheetData.length - 1;
 
-  // Professional, editable invoice layout: merged title, clear sections, RTL-friendly alignment.
+  // Merged headers and executive layout
   ws['!merges'] = [
     { s: { r: 0, c: 0 }, e: { r: 0, c: lastColumn } },
     { s: { r: 1, c: 0 }, e: { r: 1, c: lastColumn } },
+    { s: { r: 3, c: 1 }, e: { r: 3, c: 2 } },
+    { s: { r: 3, c: 4 }, e: { r: 3, c: 5 } },
+    { s: { r: 4, c: 1 }, e: { r: 4, c: 2 } },
+    { s: { r: 4, c: 4 }, e: { r: 4, c: 5 } },
+    { s: { r: 5, c: 1 }, e: { r: 5, c: 2 } },
+    { s: { r: 5, c: 4 }, e: { r: 5, c: 5 } },
+    { s: { r: 8, c: 0 }, e: { r: 8, c: lastColumn } },
+    { s: { r: 10, c: 1 }, e: { r: 10, c: lastColumn } },
   ];
   ws['!freeze'] = { xSplit: 0, ySplit: titleRows.length + 1 };
   ws['!autofilter'] = { ref: `A${titleRows.length + 1}:P${titleRows.length + 1 + itemRows.length}` };
   ws['!sheetView'] = [{ rightToLeft: true }];
+  ws['!views'] = [{ RTL: true }];
   ws['!rows'] = fullSheetData.map((_, rowIndex) => ({
     hpt: rowIndex === 0 ? 32 : rowIndex === 1 ? 24 : rowIndex === titleRows.length ? 28 : 22,
   }));
