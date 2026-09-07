@@ -224,7 +224,11 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
   const handleRejectConfirm = () => {
     if (!rejectModalInvoiceId) return;
-    const res = rejectOrder(rejectModalInvoiceId, rejectReason);
+    const selectedInvoice = invoices.find((invoice) => invoice.id === rejectModalInvoiceId);
+    const pendingStatuses = ['قيد مراجعة المشرف', 'معلقة بانتظار اعتماد الفرع', 'قيد المراجعة', 'مسودة'];
+    const res = selectedInvoice && pendingStatuses.includes(selectedInvoice.status)
+      ? rejectOrder(rejectModalInvoiceId, rejectReason)
+      : updateOrderStatus(rejectModalInvoiceId, 'ملغاة', rejectReason);
     if (res.success) {
       setSuccessToast(res.message);
       setRejectModalInvoiceId(null);
@@ -492,9 +496,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                     (currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer') &&
                     isPending;
 
-                  const canCancelAnytime =
-                    (currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer') &&
-                    isPending;
+  const canCancelAnytime =
+    (currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer') &&
+    !isPending &&
+    !['مرتجع', 'مرتجع جزئي', 'مرفوضة / ملغاة', 'ملغاة'].includes(invoice.status);
 
                   const canMakeReturn =
                     (currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer') &&
