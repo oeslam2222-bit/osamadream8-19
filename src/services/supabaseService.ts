@@ -746,27 +746,26 @@ export async function deleteInvoiceFromSupabase(
   try {
     const errors: string[] = [];
     let atLeastOneTableSucceeded = false;
+    const safeInvoiceId = invoiceId.trim();
+    const safeInvoiceNumber = invoiceNumber?.trim();
 
-    // Delete from both possible invoice stores. One table may not exist in older deployments.
-    const invoiceById = await supabase.from('invoices').delete().eq('id', invoiceId);
-    if (invoiceById.error) errors.push(invoiceById.error.message);
-    else atLeastOneTableSucceeded = true;
-
-    if (invoiceNumber) {
-      const invoiceByNumber = await supabase.from('invoices').delete().eq('invoice_number', invoiceNumber);
-      if (invoiceByNumber.error) errors.push(invoiceByNumber.error.message);
-      else atLeastOneTableSucceeded = true;
+    if (!safeInvoiceId && !safeInvoiceNumber) {
+      return { success: false, error: 'معرّف الفاتورة غير صالح' };
     }
 
-    const orderById = await supabase.from('orders').delete().eq('id', invoiceId);
-    if (orderById.error) errors.push(orderById.error.message);
+    // Prefer the unique invoice id. Only use the invoice number as a legacy fallback;
+    // deleting by both values could remove duplicate invoices with the same number.
+    const invoiceResult = safeInvoiceId
+      ? await supabase.from('invoices').delete().eq('id', safeInvoiceId)
+      : await supabase.from('invoices').delete().eq('invoice_number', safeInvoiceNumber!);
+    if (invoiceResult.error) errors.push(invoiceResult.error.message);
     else atLeastOneTableSucceeded = true;
 
-    if (invoiceNumber) {
-      const orderByNumber = await supabase.from('orders').delete().eq('invoice_number', invoiceNumber);
-      if (orderByNumber.error) errors.push(orderByNumber.error.message);
-      else atLeastOneTableSucceeded = true;
-    }
+    const orderResult = safeInvoiceId
+      ? await supabase.from('orders').delete().eq('id', safeInvoiceId)
+      : await supabase.from('orders').delete().eq('invoice_number', safeInvoiceNumber!);
+    if (orderResult.error) errors.push(orderResult.error.message);
+    else atLeastOneTableSucceeded = true;
 
     if (!atLeastOneTableSucceeded) {
       return { success: false, error: errors.join(' | ') || 'تعذر حذف الفاتورة من قاعدة البيانات' };
