@@ -25,6 +25,12 @@ export interface PowerAutomateOrderPayload {
   attachments: PowerAutomateAttachment[];
 }
 
+function cleanBase64(str: string | null | undefined): string {
+  if (!str) return '';
+  const trimmed = String(str).trim();
+  return trimmed.includes(',') ? trimmed.split(',')[1] : trimmed;
+}
+
 export async function sendInvoiceToPowerAutomate(invoice: Invoice): Promise<void> {
   if (!POWER_AUTOMATE_URL) {
     console.info('[Power Automate] VITE_POWER_AUTOMATE_URL is not configured; skipping notification.');
@@ -52,12 +58,12 @@ export async function sendInvoiceToPowerAutomate(invoice: Invoice): Promise<void
     attachments: [
       {
         name: `فاتورة_دريم_${invoice.invoiceNumber}_${safeCustomer}.pdf`,
-        contentBytes: pdfBase64,
+        contentBytes: cleanBase64(pdfBase64),
         contentType: 'application/pdf',
       },
       {
         name: `فاتورة_دريم_${invoice.invoiceNumber}_${safeCustomer}.xlsx`,
-        contentBytes: excelBase64,
+        contentBytes: cleanBase64(excelBase64),
         contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       },
     ],
