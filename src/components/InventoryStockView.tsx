@@ -51,14 +51,10 @@ export const InventoryStockView: React.FC = () => {
     updateProduct,
     deleteProduct,
     adjustStock,
-    approveOrder,
-    forwardOrderToManager,
-    rejectOrder,
     selectedBranchFilter,
     setSelectedBranchFilter
   } = useApp();
 
-  const [activeSubTab, setActiveSubTab] = useState<'matrix' | 'pending_approvals'>('matrix');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('الكل');
   const [stockLevelFilter, setStockLevelFilter] = useState<'all' | 'offers' | 'in_branch' | 'needs_transfer' | 'low_stock' | 'out_of_stock'>('all');
@@ -78,10 +74,6 @@ export const InventoryStockView: React.FC = () => {
   const [supplyModal, setSupplyModal] = useState<Product | null>(null);
   const [supplyCartons, setSupplyCartons] = useState<number>(10);
   const [supplyReason, setSupplyReason] = useState<string>('توريد واستلام شحنة جديدة من المصنع');
-
-  // Reject Order Reason Prompt Modal
-  const [rejectModalInvoiceId, setRejectModalInvoiceId] = useState<string | null>(null);
-  const [rejectReasonText, setRejectReasonText] = useState<string>('نفاذ الكمية أو عدم استيفاء شروط الائتمان');
 
   // Success Notification Toast
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
@@ -174,17 +166,6 @@ export const InventoryStockView: React.FC = () => {
     return filteredProducts.slice(start, start + itemsPerPage);
   }, [filteredProducts, currentPage, itemsPerPage]);
 
-  // Pending Approvals List (Strict Role and Branch Data Privacy)
-  const pendingInvoices = useMemo(() => {
-    return getVisibleInvoices().filter((inv) => {
-      const isPending =
-        inv.status === 'قيد مراجعة المشرف' ||
-        inv.status === 'معلقة بانتظار اعتماد الفرع' ||
-        inv.status === 'قيد المراجعة';
-      return isPending;
-    });
-  }, [getVisibleInvoices, invoices, currentUser]);
-
   // Stock Availability Metrics (In Branch vs Needs October Transfer vs Out of Stock)
   const stockMetrics = useMemo(() => {
     let inBranchCount = 0;
@@ -225,9 +206,8 @@ export const InventoryStockView: React.FC = () => {
       offersCount,
       totalCartonsActual,
       totalCartonsReserved,
-      pendingApprovalsCount: pendingInvoices.length
     };
-  }, [products, pendingInvoices, currentActiveBranch]);
+  }, [products, currentActiveBranch]);
 
   const handleSaveProduct = (e: React.FormEvent) => {
     e.preventDefault();
@@ -300,34 +280,6 @@ export const InventoryStockView: React.FC = () => {
     setTimeout(() => setActionSuccessMsg(null), 4000);
   };
 
-  const handleApprove = (invoiceId: string) => {
-    const res = approveOrder(invoiceId, 'تم الفحص والموافقة والصرف الفعلي من المخزن');
-    if (res.success) {
-      setActionSuccessMsg(res.message);
-      setTimeout(() => setActionSuccessMsg(null), 4500);
-    } else {
-      alert(res.message);
-    }
-  };
-
-  const handleForwardToManager = (invoiceId: string) => {
-    const res = forwardOrderToManager(invoiceId, 'تتطلب موافقة واعتماد مدير الفرع للكميات الكبيرة');
-    if (res.success) {
-      setActionSuccessMsg(res.message);
-      setTimeout(() => setActionSuccessMsg(null), 4000);
-    }
-  };
-
-  const handleRejectConfirm = () => {
-    if (!rejectModalInvoiceId) return;
-    const res = rejectOrder(rejectModalInvoiceId, rejectReasonText);
-    if (res.success) {
-      setActionSuccessMsg(res.message);
-      setRejectModalInvoiceId(null);
-      setTimeout(() => setActionSuccessMsg(null), 4500);
-    }
-  };
-
   return (
     <div className="space-y-4 pb-16">
       
@@ -348,10 +300,7 @@ export const InventoryStockView: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
         {/* In Branch Available Card */}
         <div
-          onClick={() => {
-            setActiveSubTab('matrix');
-            setStockLevelFilter('in_branch');
-          }}
+          onClick={() => setStockLevelFilter('in_branch')}
           className={`p-3.5 sm:p-4 rounded-3xl border transition cursor-pointer flex flex-col justify-between ${
             stockLevelFilter === 'in_branch'
               ? 'bg-emerald-500/15 border-emerald-500 ring-2 ring-emerald-400'
@@ -377,10 +326,7 @@ export const InventoryStockView: React.FC = () => {
 
         {/* Needs Transfer from October Card */}
         <div
-          onClick={() => {
-            setActiveSubTab('matrix');
-            setStockLevelFilter('needs_transfer');
-          }}
+          onClick={() => setStockLevelFilter('needs_transfer')}
           className={`p-3.5 sm:p-4 rounded-3xl border transition cursor-pointer flex flex-col justify-between ${
             stockLevelFilter === 'needs_transfer'
               ? 'bg-blue-500/15 border-blue-500 ring-2 ring-blue-400'
@@ -404,42 +350,37 @@ export const InventoryStockView: React.FC = () => {
           </div>
         </div>
 
-        {/* Pending Approvals Card */}
+        {/* Low Stock Warning Card */}
         <div
-          onClick={() => setActiveSubTab('pending_approvals')}
+          onClick={() => setStockLevelFilter('low_stock')}
           className={`p-3.5 sm:p-4 rounded-3xl border transition cursor-pointer flex flex-col justify-between ${
-            activeSubTab === 'pending_approvals'
+            stockLevelFilter === 'low_stock'
               ? 'bg-amber-500/15 border-amber-500 ring-2 ring-amber-400'
-              : stockMetrics.pendingApprovalsCount > 0
-              ? 'bg-amber-50 border-amber-300 hover:bg-amber-100'
-              : 'bg-white border-slate-200'
+              : 'bg-white border-slate-200 hover:border-amber-300'
           }`}
         >
           <div className="flex items-center justify-between">
             <div className="w-9 h-9 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
-              <Clock className="w-5 h-5" />
+              <AlertTriangle className="w-5 h-5" />
             </div>
-            {stockMetrics.pendingApprovalsCount > 0 && (
-              <span className="text-[10px] font-black bg-rose-600 text-white px-2 py-0.5 rounded-full animate-pulse">
-                {stockMetrics.pendingApprovalsCount} طلبية
+            {stockMetrics.lowStockCount > 0 && (
+              <span className="text-[10px] font-black bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">
+                مخزون منخفض ⚠️
               </span>
             )}
           </div>
           <div className="mt-2">
-            <div className="text-[11px] text-slate-500 font-bold">بانتظار الاعتماد والصرف</div>
+            <div className="text-[11px] text-slate-500 font-bold">أصناف قاربت على النفاذ</div>
             <div className="text-xl sm:text-2xl font-black text-amber-950">
-              {stockMetrics.pendingApprovalsCount} <span className="text-xs font-bold text-slate-500">طلبية</span>
+              {stockMetrics.lowStockCount} <span className="text-xs font-bold text-slate-500">صنف</span>
             </div>
-            <div className="text-[10px] text-amber-800 font-semibold mt-0.5">مراجعة المشرف وإذن الصرف المخزني</div>
+            <div className="text-[10px] text-amber-800 font-semibold mt-0.5">رصيد الفرع 10 كراتين أو أقل</div>
           </div>
         </div>
 
-        {/* Low / Out of Stock Warning Card */}
+        {/* Out of Stock Warning Card */}
         <div
-          onClick={() => {
-            setActiveSubTab('matrix');
-            setStockLevelFilter('out_of_stock');
-          }}
+          onClick={() => setStockLevelFilter('out_of_stock')}
           className={`p-3.5 sm:p-4 rounded-3xl border transition cursor-pointer flex flex-col justify-between ${
             stockLevelFilter === 'out_of_stock'
               ? 'bg-rose-500/15 border-rose-500 ring-2 ring-rose-400'
@@ -464,39 +405,8 @@ export const InventoryStockView: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Sub-Navigation Tabs */}
-      <div className="bg-slate-900 p-1.5 rounded-2xl flex items-center gap-1.5 overflow-x-auto text-xs font-bold text-white shadow-md">
-        <button
-          onClick={() => setActiveSubTab('matrix')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl transition cursor-pointer whitespace-nowrap ${
-            activeSubTab === 'matrix' ? 'bg-amber-400 text-slate-950 font-black shadow' : 'text-slate-300 hover:text-white'
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          <span>مصفوفة المخزون والأرصدة ({filteredProducts.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveSubTab('pending_approvals')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl transition cursor-pointer whitespace-nowrap ${
-            activeSubTab === 'pending_approvals'
-              ? 'bg-amber-400 text-slate-950 font-black shadow'
-              : 'text-slate-300 hover:text-white'
-          }`}
-        >
-          <UserCheck className="w-4 h-4" />
-          <span>اعتمادات المشرف والفرع</span>
-          {stockMetrics.pendingApprovalsCount > 0 && (
-            <span className="bg-rose-600 text-white text-[10px] px-2 py-0.5 rounded-full font-black animate-pulse">
-              {stockMetrics.pendingApprovalsCount}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {/* TAB 1: INVENTORY MATRIX */}
-      {activeSubTab === 'matrix' && (
-        <div className="space-y-4 animate-in fade-in">
+      {/* INVENTORY MATRIX */}
+      <div className="space-y-4 animate-in fade-in">
           {/* Header Controls */}
           <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-slate-200 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1208,129 +1118,6 @@ export const InventoryStockView: React.FC = () => {
             </div>
           )}
         </div>
-      )}
-
-      {/* TAB 2: PENDING APPROVALS WORKFLOW */}
-      {activeSubTab === 'pending_approvals' && (
-        <div className="space-y-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200">
-            <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-amber-500" />
-              <span>طلبيات المناديب المعلقة بانتظار اعتماد المشرف ومدير الفرع</span>
-              <span className="bg-amber-100 text-amber-900 text-xs px-2.5 py-0.5 rounded-full font-bold">
-                {pendingInvoices.length} طلبيات
-              </span>
-            </h3>
-            <p className="text-xs text-slate-500 mt-1">
-              عند قيام المندوب بعمل طلبية يتم حجز الكمية تلقائياً لمنع تكرار الحجز. عند ضغط المشرف على (اعتماد وصرف)، يتم خصم المخزون الفعلي من الفرع.
-            </p>
-          </div>
-
-          {pendingInvoices.length === 0 ? (
-            <div className="bg-white rounded-3xl p-12 text-center space-y-3 border border-slate-200">
-              <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
-              <h4 className="font-bold text-slate-800 text-sm">لا توجد أي طلبيات معلقة حالياً!</h4>
-              <p className="text-xs text-slate-400">
-                جميع طلبيات المناديب تم اعتمادها وصرفها من المخزن أو إلغاؤها بنجاح.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {pendingInvoices.map((inv) => (
-                <div
-                  key={inv.id}
-                  className="bg-white rounded-3xl p-5 border-2 border-amber-300 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
-                >
-                  <div className="space-y-2 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono font-black bg-slate-900 text-amber-300 px-2.5 py-1 rounded-xl text-xs">
-                        {inv.invoiceNumber}
-                      </span>
-                      <span className="bg-amber-100 text-amber-950 font-bold text-xs px-2.5 py-1 rounded-xl border border-amber-300">
-                        {inv.status}
-                      </span>
-                      <span className="text-xs text-slate-400">
-                        {inv.date} - {inv.time}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                      <div>
-                        <span className="text-slate-400 block text-[10px]">العميل:</span>
-                        <strong className="text-slate-900">{inv.customerName}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block text-[10px]">المندوب المسؤول:</span>
-                        <strong className="text-slate-900">{inv.repName}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block text-[10px]">فرع التحميل:</span>
-                        <strong className="text-slate-900">{inv.branchName}</strong>
-                      </div>
-                    </div>
-
-                    {/* Order items preview */}
-                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs space-y-1">
-                      <div className="font-bold text-slate-700 flex items-center justify-between">
-                        <span>الأصناف المحجوزة في هذه الطلبية:</span>
-                        <span className="text-amber-900 font-black text-sm">
-                          الإجمالي: {formatCurrency(inv.estimatedGrandTotal)}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {inv.items.map((item, i) => (
-                          <span
-                            key={i}
-                            className="bg-white border border-slate-300 text-slate-800 px-2 py-0.5 rounded-lg text-[11px] font-semibold"
-                          >
-                            {item.productName} ({item.cartonCount > 0 ? `${item.cartonCount} كرتونة ` : ''}
-                            {item.pieceCount > 0 ? `${item.pieceCount} قطعة` : ''})
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons for Supervisor & Manager */}
-                  <div className="flex flex-col sm:flex-row md:flex-col gap-2 w-full md:w-auto shrink-0">
-                    {/* 1. Approve & Discharge */}
-                    <button
-                      onClick={() => handleApprove(inv.id)}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>اعتماد وصرف المخزون</span>
-                    </button>
-
-                    {/* 2. Forward to Manager (Supervisor only) */}
-                    {currentUser?.role === 'supervisor' && (
-                      <button
-                        onClick={() => handleForwardToManager(inv.id)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        <Send className="w-3.5 h-3.5" />
-                        <span>تحويل لمدير الفرع</span>
-                      </button>
-                    )}
-
-                    {/* 3. Reject Order & Release Reserved Stock */}
-                    <button
-                      onClick={() => {
-                        setRejectModalInvoiceId(inv.id);
-                        setRejectReasonText('نفاذ الكمية أو طلب العميل إلغاء الطلبية');
-                      }}
-                      className="bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold px-4 py-2 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer border border-rose-300"
-                    >
-                      <XCircle className="w-4 h-4" />
-                      <span>رفض وإلغاء الحجز</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Quick Supply / Replenish Modal */}
       {supplyModal && (
@@ -1455,53 +1242,6 @@ export const InventoryStockView: React.FC = () => {
               </button>
               <button
                 onClick={() => setStockTransferModal(null)}
-                className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200 cursor-pointer"
-              >
-                إلغاء
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reject Order Reason Prompt Modal */}
-      {rejectModalInvoiceId && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-black text-sm text-rose-700 flex items-center gap-2">
-                <XCircle className="w-4 h-4" />
-                <span>رفض الطلبية وإرجاع الرصيد المحجوز للمخزن</span>
-              </h3>
-              <button onClick={() => setRejectModalInvoiceId(null)}>
-                <X className="w-4 h-4 text-slate-400 hover:text-slate-700" />
-              </button>
-            </div>
-
-            <div className="text-xs space-y-3">
-              <p className="text-slate-600">
-                سيتم فك حجز الأصناف وإرجاع الكميات فوراً للرصيد المتاح للبيع حتى يتمكن باقي المناديب من بيعها.
-              </p>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">سبب الرفض:</label>
-                <textarea
-                  rows={3}
-                  value={rejectReasonText}
-                  onChange={(e) => setRejectReasonText(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-rose-400"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                onClick={handleRejectConfirm}
-                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer"
-              >
-                تأكيد الرفض وإرجاع المخزون
-              </button>
-              <button
-                onClick={() => setRejectModalInvoiceId(null)}
                 className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200 cursor-pointer"
               >
                 إلغاء

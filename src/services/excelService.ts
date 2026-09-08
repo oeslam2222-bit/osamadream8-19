@@ -783,9 +783,9 @@ export async function fetchAndParseGoogleSheet(googleSheetUrlOrId: string): Prom
 }
 
 /**
- * Export Invoice to Excel (Professional Executive Tax Layout with Structured Grid & RTL)
+ * Build Complete Invoice Excel Workbook (Executive Tax Layout with Structured Grid, RTL & Multi-tabs)
  */
-export function exportInvoiceToExcel(invoice: Invoice): void {
+export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
   const wb = XLSX.utils.book_new();
 
   const {
@@ -1080,7 +1080,24 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
     console.warn('Failed to append auxiliary tabs to workbook, standard sheet preserved:', err);
   }
 
-  XLSX.writeFile(wb, `فاتورة_دريم_طنطاوي_${invoice.invoiceNumber}_${invoice.customerName.replace(/[^\w\u0621-\u064A]/g, '_')}.xlsx`);
+  return wb;
+}
+
+/**
+ * Export and download invoice directly to user's device as XLSX
+ */
+export function exportInvoiceToExcel(invoice: Invoice): void {
+  const wb = buildInvoiceExcelWorkbook(invoice);
+  const safeCustomer = (invoice.customerName || 'عميل').replace(/[^\w\u0621-\u064A]/g, '_');
+  XLSX.writeFile(wb, `فاتورة_دريم_طنطاوي_${invoice.invoiceNumber}_${safeCustomer}.xlsx`);
+}
+
+/**
+ * Generate Base64 string of the Excel invoice for Microsoft Power Automate / Webhook sync
+ */
+export function generateInvoiceExcelBase64(invoice: Invoice): string {
+  const wb = buildInvoiceExcelWorkbook(invoice);
+  return XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
 }
 
 /**

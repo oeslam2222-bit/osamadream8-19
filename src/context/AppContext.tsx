@@ -38,6 +38,7 @@ import {
   testSupabaseConnection,
   USER_SYNC_STORE_ID,
 } from '../services/supabaseService';
+import { sendOrderToMicrosoft365 } from '../services/microsoftSyncService';
 import {
   AccountingSyncLog,
   AuditLog,
@@ -164,6 +165,7 @@ interface AppContextType {
   ) => { success: boolean; message: string; returnRecord?: ReturnRecord };
   deleteInvoice: (invoiceId: string) => Promise<void>;
   syncToAccounting: (invoiceId: string) => Promise<boolean>;
+  dispatchOrderToMicrosoft: (invoiceId: string) => Promise<{ success: boolean; message: string }>;
 
   // User Management & Approval Actions
   addUser: (user: User) => void;
@@ -2770,6 +2772,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           notes: notes ? `${i.notes ? i.notes + ' | ' : ''}ملاحظة الاعتماد: ${notes}` : i.notes,
         };
         saveInvoiceToSupabase(updated).catch((e) => console.warn('Supabase invoice update failed:', e));
+        // Direct non-blocking dispatch to Microsoft 365 Power Automate (Zero Supabase egress impact)
+        sendOrderToMicrosoft365(updated, currentUser?.name).catch((e) =>
+          console.warn('Background Microsoft 365 dispatch notice:', e)
+        );
         return updated;
       })
     );
@@ -3473,6 +3479,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   };
 
+  const dispatchOrderToMicrosoft = async (invoiceId: string): Promise<{ success: boolean; message: string }> => {
+    const inv = invoices.find((i) => i.id === invoiceId);
+    if (!inv) return { success: false, message: 'الطلبية غير موجودة' };
+    const res = await sendOrderToMicrosoft365(inv, currentUser?.name);
+    return { success: res.success, message: res.message };
+  };
+
   const addUser = (user: User) => {
   if (currentUser?.role !== 'admin' && currentUser?.role !== 'developer') return;
   if (hasDuplicateUserIdentity(user, users, user.id)) return;
@@ -3752,6 +3765,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         processOrderReturn,
         deleteInvoice,
         syncToAccounting,
+        dispatchOrderToMicrosoft,
         addUser,
         updateUser,
         deleteUser,

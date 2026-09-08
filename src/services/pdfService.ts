@@ -5,11 +5,9 @@ import { COMPANY_INFO } from '../data/mockData';
 import { resolveCustomerFinancials } from './arabicMatchingService';
 
 /**
- * Generate and download ultra-high-resolution, beautifully styled PDF invoice for Dream Distribution
- * Works from anywhere (Dashboard, Invoices Manager, Order Builder, or Modal)
- * Renders an off-screen, pixel-perfect A4 invoice template with full Arabic text & typography
+ * Render and construct pixel-perfect jsPDF Document for Dream Distribution
  */
-export async function downloadInvoicePDF(invoice: Invoice, customCompanyInfo?: Record<string, any>): Promise<void> {
+export async function createInvoicePDFDocument(invoice: Invoice, customCompanyInfo?: Record<string, any>): Promise<jsPDF> {
   const comp = {
     nameArabic: customCompanyInfo?.nameArabic || COMPANY_INFO.nameArabic,
     nameEnglish: customCompanyInfo?.nameEnglish || COMPANY_INFO.nameEnglish,
@@ -314,26 +312,9 @@ export async function downloadInvoicePDF(invoice: Invoice, customCompanyInfo?: R
       }
     }
 
-    const safeCustomer = (invoice.customerName || 'عميل').replace(/[^\w\u0621-\u064A]/g, '_');
-    const fileName = `فاتورة_دريم_${invoice.invoiceNumber}_${safeCustomer}.pdf`;
-
-    // Direct mobile download via Blob & Anchor (No print dialog, downloads directly to device)
-    const pdfBlob = pdf.output('blob');
-    const blobUrl = URL.createObjectURL(pdfBlob);
-    const downloadLink = document.createElement('a');
-    downloadLink.href = blobUrl;
-    downloadLink.download = fileName;
-    downloadLink.style.display = 'none';
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    setTimeout(() => {
-      if (document.body.contains(downloadLink)) {
-        document.body.removeChild(downloadLink);
-      }
-      URL.revokeObjectURL(blobUrl);
-    }, 2500);
+    return pdf;
   } catch (err) {
-    console.error('Failed to generate high-res canvas PDF, falling back to direct PDF file download:', err);
+    console.error('Failed to generate high-res canvas PDF, falling back to direct PDF file generation:', err);
     try {
       const fallbackPdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       fallbackPdf.setFontSize(16);
@@ -362,26 +343,47 @@ export async function downloadInvoicePDF(invoice: Invoice, customCompanyInfo?: R
         }
       });
 
-      const safeCustomer = (invoice.customerName || 'عميل').replace(/[^\w\u0621-\u064A]/g, '_');
-      const fileName = `فاتورة_دريم_${invoice.invoiceNumber}_${safeCustomer}.pdf`;
-      const fallbackBlob = fallbackPdf.output('blob');
-      const fallbackUrl = URL.createObjectURL(fallbackBlob);
-      const link = document.createElement('a');
-      link.href = fallbackUrl;
-      link.download = fileName;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        if (document.body.contains(link)) document.body.removeChild(link);
-        URL.revokeObjectURL(fallbackUrl);
-      }, 2500);
+      return fallbackPdf;
     } catch (fallbackError) {
-      console.error('All PDF download mechanisms failed:', fallbackError);
+      console.error('All PDF generation mechanisms failed:', fallbackError);
+      throw fallbackError;
     }
   } finally {
     if (document.body.contains(container)) {
       document.body.removeChild(container);
     }
   }
+}
+
+/**
+ * Generate and download ultra-high-resolution PDF invoice to device
+ */
+export async function downloadInvoicePDF(invoice: Invoice, customCompanyInfo?: Record<string, any>): Promise<void> {
+  const pdf = await createInvoicePDFDocument(invoice, customCompanyInfo);
+  const safeCustomer = (invoice.customerName || 'عميل').replace(/[^\w\u0621-\u064A]/g, '_');
+  const fileName = `فاتورة_دريم_${invoice.invoiceNumber}_${safeCustomer}.pdf`;
+
+  const pdfBlob = pdf.output('blob');
+  const blobUrl = URL.createObjectURL(pdfBlob);
+  const downloadLink = document.createElement('a');
+  downloadLink.href = blobUrl;
+  downloadLink.download = fileName;
+  downloadLink.style.display = 'none';
+  document.body.appendChild(downloadLink);
+  downloadLink.click();
+  setTimeout(() => {
+    if (document.body.contains(downloadLink)) {
+      document.body.removeChild(downloadLink);
+    }
+    URL.revokeObjectURL(blobUrl);
+  }, 2500);
+}
+
+/**
+ * Generate Base64 string of the PDF invoice for Microsoft Power Automate / Webhook sync
+ */
+export async function generateInvoicePDFBase64(invoice: Invoice, customCompanyInfo?: Record<string, any>): Promise<string> {
+  const pdf = await createInvoicePDFDocument(invoice, customCompanyInfo);
+  const dataUri = pdf.output('datauristring');
+  return dataUri.includes(',') ? dataUri.split(',')[1] : dataUri;
 }
