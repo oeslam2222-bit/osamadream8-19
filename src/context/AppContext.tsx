@@ -39,6 +39,7 @@ import {
   USER_SYNC_STORE_ID,
 } from '../services/supabaseService';
 import { sendOrderToMicrosoft365 } from '../services/microsoftSyncService';
+import { sendInvoiceToPowerAutomate } from '../services/powerAutomateService';
 import {
   AccountingSyncLog,
   AuditLog,
@@ -152,6 +153,7 @@ interface AppContextType {
     message?: string;
   };
   approveOrder: (invoiceId: string, notes?: string) => { success: boolean; message: string };
+  resendInvoiceEmail: (invoiceId: string) => Promise<{ success: boolean; message: string }>;
   forwardOrderToManager: (invoiceId: string, notes?: string) => { success: boolean; message: string };
   rejectOrder: (invoiceId: string, reason: string) => { success: boolean; message: string };
   editPendingOrder: (invoice: Invoice) => { success: boolean; message: string; customer?: Customer | null };
@@ -2242,7 +2244,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         branchName: prod.branchName || currentUser?.branchName || 'الفرع الرئيسي',
         action: 'stock_adjustment',
         actionTitle: `تعديل رصيد الصنف (${prod.code} - ${prod.name})`,
-        details: `تعديل الفرع: ${branchChange > 0 ? `+${branchChange}` : branchChange} قطعة • تعديل أكتوبر: ${mainWarehouseChange > 0 ? `+${mainWarehouseChange}` : mainWarehouseChange} قطعة • السبب: ${reason || 'تسوية جردية'}`,
+        details: `تعديل الفرع: ${branchChange > 0 ? `+${branchChange}` : branchChange} قطعة • تعديل أكتوبر: ${mainWarehouseChange > 0 ? `+${mainWarehouseChange}` : mainWarehouseChange} قطعة �� السبب: ${reason || 'تسوية جردية'}`,
         badgeType: 'warning',
       });
     }
@@ -2676,7 +2678,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       invoice: primaryInvoice,
       shortageInvoice: createdShortageInvoice,
       message: createdShortageInvoice
-        ? `تم إصدار الفاتورة الأساسية #${primaryInvoice.invoiceNumber} وفاتورة النواقص المحولة #${createdShortageInvoice.invoiceNumber} بنجاح!`
+        ? `تم إصدار الفاتورة الأساسية #${primaryInvoice.invoiceNumber} وفات��رة النواقص المحولة #${createdShortageInvoice.invoiceNumber} ب��جاح!`
         : `تم تسجيل الطلبية #${primaryInvoice.invoiceNumber} وإرسالها للمراجعة والاعتماد!`
     };
   };
@@ -2776,6 +2778,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sendOrderToMicrosoft365(updated, currentUser?.name).catch((e) =>
           console.warn('Background Microsoft 365 dispatch notice:', e)
         );
+        sendInvoiceToPowerAutomate(updated).catch((e) =>
+          console.warn('[Power Automate] Approved invoice email notification failed:', e)
+        );
         return updated;
       })
     );
@@ -2797,6 +2802,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       success: true,
       message: `تم اعتماد وصرف الطلبية #${inv.invoiceNumber} وخصم المخزون الفعلي (${inv.totalCartons} كرتونة) من الفرع بنجاح!`,
     };
+  };
+
+  const resendInvoiceEmail = async (invoiceId: string): Promise<{ success: boolean; message: string }> => {
+    if (!currentUser || !['supervisor', 'branch_manager', 'admin', 'developer'].includes(currentUser.role)) {
+      return { success: false, message: 'إعادة إرسال الفاتورة متاحة للإدارة والمشرفين فقط.' };
+    }
+
+    const invoice = invoices.find((item) => item.id === invoiceId);
+    if (!invoice) return { success: false, message: 'الفاتورة غير موجودة.' };
+    if (!['معتمدة ومصروفة من المخزن', 'معتمدة'].includes(invoice.status)) {
+      return { success: false, message: 'لا يمكن إرسال الفاتورة قبل اعتمادها.' };
+    }
+    if (
+      !['admin', 'developer'].includes(currentUser.role) &&
+      (!currentUser.branchName || !invoice.branchName || !isBranchMatch(invoice.branchName, currentUser.branchName, { allowUnassigned: false }))
+    ) {
+      return { success: false, message: 'لا يمكنك إعادة إرسال فاتورة تابعة لفرع آخر.' };
+    }
+
+    try {
+      await sendInvoiceToPowerAutomate(invoice);
+      recordAuditLog({
+        userId: currentUser.id,
+        userName: currentUser.name,
+        userRole: currentUser.role,
+        branchName: invoice.branchName,
+        action: 'update_invoice_status',
+        actionTitle: `إعادة إرسال الفاتورة #${invoice.invoiceNumber} بالبريد`,
+        details: 'تم إرسال PDF وExcel إلى Power Automate بطلب يدوي.',
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        badgeType: 'info',
+      });
+      return { success: true, message: `تم إعادة إرسال الفاتورة #${invoice.invoiceNumber} بالبريد مع PDF وExcel.` };
+    } catch (error: any) {
+      return { success: false, message: `تعذر إرسال الفاتورة: ${error?.message || 'تحقق من إعداد Power Automate.'}` };
+    }
   };
 
   // Supervisor escalates / forwards to Branch Manager
@@ -3756,8 +3798,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         recordInventoryTransaction,
         checkProductAvailability,
         createOrder,
-        approveOrder,
-        forwardOrderToManager,
+  approveOrder,
+  resendInvoiceEmail,
+  forwardOrderToManager,
         rejectOrder,
         editPendingOrder,
         cancelPendingOrderByRep,
