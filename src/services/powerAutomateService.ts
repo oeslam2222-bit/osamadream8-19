@@ -40,7 +40,7 @@ export async function sendInvoiceToPowerAutomate(invoice: Invoice): Promise<void
   const payload: PowerAutomateOrderPayload = {
     invoiceNumber: invoice.invoiceNumber,
     customerName: invoice.customerName,
-    customerCode: invoice.customerCode,
+    customerCode: invoice.customerCode || invoice.customerId,
     branchName: invoice.branchName,
     repName: invoice.repName,
     date: invoice.date,
