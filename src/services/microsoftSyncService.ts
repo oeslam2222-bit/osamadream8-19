@@ -32,11 +32,17 @@ export interface MicrosoftOrderPayload {
   submitted_by: string;
   salesman_name: string;
   customer_name: string;
-  total_amount: number;
+  total_amount: string;
   pdf_name: string;
   pdf_content: string;
   excel_name: string;
   excel_content: string;
+}
+
+function cleanBase64(str: string | null | undefined): string {
+  if (!str) return '';
+  const trimmed = String(str).trim();
+  return trimmed.includes(',') ? trimmed.split(',')[1] : trimmed;
 }
 
 export interface MicrosoftSyncResponse {
@@ -84,15 +90,15 @@ export async function sendOrderToMicrosoft365(
 
     // 3. Prepare payload strictly adhering to Power Automate Trigger Schema
     const payload: MicrosoftOrderPayload = {
-      branch_name: invoice.branchName || 'الفرع الرئيسي',
-      submitted_by: submittedBy || invoice.supervisorName || 'مشرف الفرع',
-      salesman_name: invoice.repName || 'مندوب المبيعات',
-      customer_name: invoice.customerName || 'عميل عام',
-      total_amount: Number(invoice.estimatedGrandTotal || 0),
-      pdf_name: pdfName,
-      pdf_content: pdfContent,
-      excel_name: excelName,
-      excel_content: excelContent,
+      branch_name: String(invoice.branchName || 'الفرع الرئيسي'),
+      submitted_by: String(submittedBy || invoice.supervisorName || 'مشرف الفرع'),
+      salesman_name: String(invoice.repName || 'مندوب المبيعات'),
+      customer_name: String(invoice.customerName || 'عميل عام'),
+      total_amount: String(invoice.estimatedGrandTotal || 0),
+      pdf_name: String(pdfName),
+      pdf_content: cleanBase64(pdfContent),
+      excel_name: String(excelName),
+      excel_content: cleanBase64(excelContent),
     };
 
     // 4. HTTP POST to Microsoft Power Automate
