@@ -1,4 +1,4 @@
-import { Customer, Product, User } from '../types';
+import { Customer, Product, User, Invoice } from '../types';
 
 /**
  * Universal Arabic Text Normalizer
@@ -990,4 +990,223 @@ export function sanitizeAndDeduplicateUsers(userList: User[]): UserDeduplication
     mergedPairs,
   };
 }
+
+// ---------------------------------------------------------
+// In-Memory Customers Cache & Dynamic Customer Lookup
+// ---------------------------------------------------------
+let _activeCustomersCache: Customer[] = [];
+
+export function setActiveCustomersCache(custs: Customer[]): void {
+  if (Array.isArray(custs)) {
+    _activeCustomersCache = custs;
+  }
+}
+
+export function getActiveCustomersCache(): Customer[] {
+  return _activeCustomersCache;
+}
+
+export function cleanCustomerCode(code?: string): string {
+  if (!code) return '';
+  return code
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/^cust[-_ ]*/i, '')
+    .replace(/^c[-_ ]*/i, '')
+    .replace(/\s+/g, '');
+}
+
+export function cleanPhoneNumber(phone?: string): string {
+  if (!phone) return '';
+  const western = phone.replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
+  const digits = western.replace(/\D/g, '');
+  return digits.length >= 7 ? digits.slice(-9) : digits;
+}
+
+/**
+ * Intelligent Customer Matcher
+ * Finds a customer accurately by ID, code, normalized Arabic name, or phone number.
+ */
+export function findCustomerMatch(
+  customers: Customer[],
+  query: {
+    customerId?: string;
+    customerCode?: string;
+    customerName?: string;
+    customerPhone?: string;
+  }
+): Customer | undefined {
+  if (!customers || customers.length === 0) return undefined;
+
+  // 1. Direct ID match
+  if (query.customerId) {
+    const byId = customers.find((c) => c.id === query.customerId);
+    if (byId) return byId;
+  }
+
+  // 2. Strict / Cleaned Customer Code match
+  if (query.customerCode) {
+    const rawCode = query.customerCode.trim().toLowerCase();
+    const cleanedCode = cleanCustomerCode(query.customerCode);
+    const byCode = customers.find((c) => {
+      if (!c.code) return false;
+      const cRaw = c.code.trim().toLowerCase();
+      if (cRaw === rawCode) return true;
+      if (cleanedCode && cleanCustomerCode(c.code) === cleanedCode) return true;
+      return false;
+    });
+    if (byCode) return byCode;
+  }
+
+  // 3. Exact Normalized Name match
+  if (query.customerName) {
+    const normTarget = normalizeArabicText(query.customerName);
+    if (normTarget) {
+      const byExactNormName = customers.find((c) => {
+        if (!c.name) return false;
+        return normalizeArabicText(c.name) === normTarget;
+      });
+      if (byExactNormName) return byExactNormName;
+    }
+  }
+
+  // 4. Phone Number match
+  if (query.customerPhone) {
+    const targetPhone = cleanPhoneNumber(query.customerPhone);
+    if (targetPhone && targetPhone.length >= 7) {
+      const byPhone = customers.find((c) => {
+        if (!c.phone) return false;
+        const cPhone = cleanPhoneNumber(c.phone);
+        return cPhone && cPhone === targetPhone;
+      });
+      if (byPhone) return byPhone;
+    }
+  }
+
+  // 5. Intelligent Arabic Name matching (handles compound names, prefixes, etc.)
+  if (query.customerName) {
+    const byFuzzyArabic = customers.find((c) => {
+      if (!c.name) return false;
+      return isArabicNameMatch(c.name, query.customerName);
+    });
+    if (byFuzzyArabic) return byFuzzyArabic;
+  }
+
+  return undefined;
+}
+
+export interface CustomerFinancialPosition {
+  debtBefore: number;
+  creditLimit: number;
+  debtAfter: number;
+  isExceeded: boolean;
+  requiredDown: number;
+  overdue: number;
+  matchedCustomer?: Customer;
+}
+
+/**
+ * Universal Financial Position Resolver
+ * Resolves the true previous debt, approved credit limit, and current debt after invoice.
+ * Falls back safely to customer database/cache if invoice fields are missing.
+ */
+export function resolveCustomerFinancials(
+  invoice: Partial<Invoice>,
+  customCustomersList?: Customer[]
+): CustomerFinancialPosition {
+  const invoiceTotal = Number(invoice.estimatedGrandTotal || 0);
+
+  // 1. Gather all candidate customers
+  let candidateCustomers = customCustomersList && customCustomersList.length > 0
+    ? customCustomersList
+    : getActiveCustomersCache();
+
+  // If empty, check localStorage
+  if ((!candidateCustomers || candidateCustomers.length === 0) && typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const stored = localStorage.getItem('dream_dist_customers_v9') || localStorage.getItem('dream_dist_customers_v3');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          candidateCustomers = parsed;
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Find matching customer
+  const matchedCustomer = findCustomerMatch(candidateCustomers || [], {
+    customerId: invoice.customerId,
+    customerCode: invoice.customerCode,
+    customerName: invoice.customerName,
+    customerPhone: invoice.customerPhone,
+  });
+
+  // 3. Resolve Previous Debt (المديونية السابقة)
+  let debtBefore: number;
+  if (invoice.customerBalanceBefore !== undefined && invoice.customerBalanceBefore !== null) {
+    debtBefore = Number(invoice.customerBalanceBefore);
+  } else if (matchedCustomer) {
+    debtBefore = Number(matchedCustomer.currentBalance ?? matchedCustomer.balance ?? 0);
+  } else {
+    debtBefore = 0;
+  }
+
+  // 4. Resolve Credit Limit (الحد الائتماني)
+  let creditLimit: number;
+  if (invoice.customerCreditLimit !== undefined && invoice.customerCreditLimit !== null) {
+    creditLimit = Number(invoice.customerCreditLimit);
+  } else if (matchedCustomer?.creditLimit !== undefined && matchedCustomer?.creditLimit !== null) {
+    creditLimit = Number(matchedCustomer.creditLimit);
+  } else {
+    creditLimit = 0;
+  }
+
+  // 5. Resolve Overdue Debt (المتأخرات)
+  let overdue: number;
+  if (invoice.customerOverdueBalance !== undefined && invoice.customerOverdueBalance !== null) {
+    overdue = Number(invoice.customerOverdueBalance);
+  } else if (matchedCustomer) {
+    overdue = Number(matchedCustomer.totalOverdueAndDue ?? matchedCustomer.overdueBalance ?? 0);
+  } else {
+    overdue = 0;
+  }
+
+  // 6. Resolve Debt After Invoice (إجمالي المديونية بعد الفاتورة)
+  let debtAfter: number;
+  if (invoice.customerBalanceAfter !== undefined && invoice.customerBalanceAfter !== null) {
+    debtAfter = Number(invoice.customerBalanceAfter);
+  } else {
+    debtAfter = debtBefore + invoiceTotal;
+  }
+
+  // 7. Resolve Credit Limit Exceeded & Required Down Payment
+  // IMPORTANT: A credit limit of 0 means cash customer (no credit facility).
+  // A customer has exceeded their credit limit ONLY if creditLimit > 0 and debtAfter > creditLimit.
+  let isExceeded: boolean;
+  if (invoice.creditLimitExceeded !== undefined) {
+    isExceeded = Boolean(invoice.creditLimitExceeded);
+  } else {
+    isExceeded = creditLimit > 0 && debtAfter > creditLimit;
+  }
+
+  let requiredDown: number;
+  if (invoice.requiredDownPayment !== undefined && invoice.requiredDownPayment !== null) {
+    requiredDown = Number(invoice.requiredDownPayment);
+  } else {
+    requiredDown = isExceeded ? Math.max(0, debtAfter - creditLimit) : 0;
+  }
+
+  return {
+    debtBefore,
+    creditLimit,
+    debtAfter,
+    isExceeded,
+    requiredDown,
+    overdue,
+    matchedCustomer,
+  };
+}
+
 

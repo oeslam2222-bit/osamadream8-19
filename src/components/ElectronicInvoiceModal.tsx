@@ -31,7 +31,7 @@ import { useApp } from '../context/AppContext';
 import { exportElectronicInvoiceToExcel, exportInvoiceForERP, downloadInvoiceBoth } from '../services/excelService';
 import { formatArabicDate, formatCurrency } from '../services/invoiceService';
 import { downloadInvoicePDF } from '../services/pdfService';
-import { isArabicNameMatch } from '../services/arabicMatchingService';
+import { isArabicNameMatch, resolveCustomerFinancials } from '../services/arabicMatchingService';
 import { Invoice } from '../types';
 import { CompanySettingsModal } from './CompanySettingsModal';
 import { CreditAuditModal } from './CreditAuditModal';
@@ -51,7 +51,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   onClose,
   onEditInvoice,
 }) => {
-  const { syncToAccounting, currentUser, rejectOrder, companyInfo, getCompanyInfoForBranch, invoices } = useApp();
+  const { syncToAccounting, currentUser, rejectOrder, companyInfo, getCompanyInfoForBranch, invoices, customers } = useApp();
   const [activeInvoice, setActiveInvoice] = useState<Invoice | null>(invoice);
 
   useEffect(() => {
@@ -78,6 +78,14 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   if (!isOpen || !currentInv) return null;
 
   const effectiveCompanyInfo = getCompanyInfoForBranch ? getCompanyInfoForBranch(currentInv.branchName) : companyInfo;
+
+  const {
+    debtBefore,
+    creditLimit,
+    debtAfter,
+    isExceeded,
+    requiredDown,
+  } = resolveCustomerFinancials(currentInv, customers);
 
   const linkedShortageInvoice = currentInv.shortageInvoiceNumber
     ? invoices.find((i) => i.invoiceNumber === currentInv.shortageInvoiceNumber)
@@ -758,25 +766,25 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               <div className="pt-2 border-t border-slate-700/80 space-y-1.5 text-[11px]">
                 <div className="flex justify-between items-center text-slate-300">
                   <span>مديونية العميل السابقة:</span>
-                  <span className="font-bold font-mono">{formatCurrency(invoice.customerBalanceBefore || 0)}</span>
+                  <span className="font-bold font-mono">{formatCurrency(debtBefore)}</span>
                 </div>
                 <div className="flex justify-between items-center text-slate-300">
                   <span>المديونية الإجمالية بعد الفاتورة:</span>
-                  <span className={`font-black font-mono ${invoice.creditLimitExceeded ? 'text-rose-400' : 'text-emerald-400'}`}>
-                    {formatCurrency(invoice.customerBalanceAfter || ((invoice.customerBalanceBefore || 0) + invoice.estimatedGrandTotal))}
+                  <span className={`font-black font-mono ${isExceeded ? 'text-rose-400' : 'text-emerald-400'}`}>
+                    {formatCurrency(debtAfter)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-slate-400">
                   <span>الحد الائتماني المعتمد:</span>
-                  {(invoice.customerCreditLimit || 0) <= 0 ? (
+                  {creditLimit <= 0 ? (
                     <span className="font-bold text-amber-300 text-[10px] bg-amber-950/60 border border-amber-500/50 px-2 py-0.5 rounded">
                       لا يوجد حد ائتماني (سداد نقدي)
                     </span>
                   ) : (
-                    <span className="font-bold font-mono text-blue-300">{formatCurrency(invoice.customerCreditLimit || 0)}</span>
+                    <span className="font-bold font-mono text-blue-300">{formatCurrency(creditLimit)}</span>
                   )}
                 </div>
-                {invoice.creditLimitExceeded && (
+                {isExceeded && (
                   <div className="bg-rose-950/90 border border-rose-500/80 p-2 rounded-xl text-rose-200 text-[10px] space-y-0.5 mt-1">
                     <div className="font-black text-rose-300 flex items-center gap-1">
                       <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
@@ -784,7 +792,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                     </div>
                     <div>
                       مبلغ السداد النقدي المطلوب فوراً:{' '}
-                      <strong className="text-amber-300 font-mono font-black">{formatCurrency(invoice.requiredDownPayment || 0)}</strong>
+                      <strong className="text-amber-300 font-mono font-black">{formatCurrency(requiredDown)}</strong>
                     </div>
                   </div>
                 )}
@@ -884,37 +892,19 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             )}
           </div>
 
-          {/* Sync to Accounting / Close */}
+          {/* Close / Action Feedback */}
           <div className="flex items-center gap-2 flex-wrap">
             {cancelFeedback && (
               <span className="text-xs font-black text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200">
                 {cancelFeedback}
               </span>
             )}
-            <button
-              onClick={handleAccountingSync}
-              disabled={isSyncing || invoice.syncedToAccounting}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs transition ${
-                invoice.syncedToAccounting || syncSuccess
-                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                  : 'bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer'
-              }`}
-            >
-              <Server className="w-3.5 h-3.5" />
-              <span>
-                {invoice.syncedToAccounting || syncSuccess
-                  ? 'مرحلة لنظام الحسابات المركزي (ERP)'
-                  : isSyncing
-                  ? 'جاري الترحيل...'
-                  : 'ترحيل الفاتورة لنظام الحسابات'}
-              </span>
-            </button>
 
             <button
               onClick={onClose}
-              className="bg-slate-900 hover:bg-slate-800 text-white font-black px-5 py-2 rounded-xl text-xs shadow transition cursor-pointer"
+              className="bg-slate-900 hover:bg-slate-800 text-white font-black px-6 py-2 rounded-xl text-xs shadow transition cursor-pointer"
             >
-              إغلاق
+              إغلاق النافذة
             </button>
           </div>
 

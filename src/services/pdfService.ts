@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas-pro';
 import { Invoice } from '../types';
 import { COMPANY_INFO } from '../data/mockData';
+import { resolveCustomerFinancials } from './arabicMatchingService';
 
 /**
  * Generate and download ultra-high-resolution, beautifully styled PDF invoice for Dream Distribution
@@ -76,9 +77,13 @@ export async function downloadInvoicePDF(invoice: Invoice, customCompanyInfo?: R
     `;
   }).join('');
 
-  const debtBefore = invoice.customerBalanceBefore || 0;
-  const debtAfter = invoice.customerBalanceAfter || (debtBefore + invoice.estimatedGrandTotal);
-  const creditLimit = invoice.customerCreditLimit || 50000;
+  const {
+    debtBefore,
+    debtAfter,
+    creditLimit,
+    isExceeded,
+    requiredDown,
+  } = resolveCustomerFinancials(invoice);
 
   container.innerHTML = `
     <div style="border: 2px solid #0f172a; border-radius: 12px; padding: 18px; background: #ffffff;">
@@ -166,25 +171,35 @@ export async function downloadInvoicePDF(invoice: Invoice, customCompanyInfo?: R
         
         <!-- Customer Balance Position -->
         <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; font-size: 10.5px;">
-          <div style="font-weight: 800; color: #0f172a; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px;">
-            📊 موقف حساب العميل المالي والائتماني:
+          <div style="font-weight: 800; color: #0f172a; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px; display: flex; justify-content: space-between; align-items: center;">
+            <span>📊 موقف حساب العميل المالي والائتماني:</span>
+            <span style="font-size: 9px; padding: 1px 6px; border-radius: 4px; ${isExceeded ? 'background: #fee2e2; color: #991b1b; font-weight: 800;' : (creditLimit > 0 ? 'background: #ecfdf5; color: #065f46; font-weight: 700;' : 'background: #f1f5f9; color: #475569; font-weight: 700;')}">
+              ${isExceeded ? '⚠️ تجاوز الائتمان' : (creditLimit > 0 ? '✅ ائتمان سليم' : 'سداد نقدي')}
+            </span>
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-            <span>المديونية السابقة:</span>
-            <strong>${debtBefore.toLocaleString()} ج.م</strong>
+            <span style="color: #475569;">المديونية السابقة للعميل:</span>
+            <strong style="font-family: monospace;">${debtBefore.toLocaleString()} ج.م</strong>
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-            <span>قيمة هذه الفاتورة:</span>
-            <strong>${invoice.estimatedGrandTotal.toLocaleString()} ج.م</strong>
+            <span style="color: #475569;">قيمة هذه الفاتورة:</span>
+            <strong style="font-family: monospace;">${invoice.estimatedGrandTotal.toLocaleString()} ج.م</strong>
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 2px; color: #b45309; font-weight: bold;">
             <span>إجمالي المديونية بعد الفاتورة:</span>
-            <strong>${debtAfter.toLocaleString()} ج.م</strong>
+            <strong style="font-family: monospace; color: ${isExceeded ? '#dc2626' : '#b45309'};">${debtAfter.toLocaleString()} ج.م</strong>
           </div>
           <div style="display: flex; justify-content: space-between; color: #475569;">
             <span>الحد الائتماني المعتمد:</span>
-            <strong>${creditLimit.toLocaleString()} ج.م</strong>
+            <strong style="font-family: monospace; color: #1e40af;">
+              ${creditLimit > 0 ? `${creditLimit.toLocaleString()} ج.م` : 'لا يوجد حد ائتماني (نقدي)'}
+            </strong>
           </div>
+          ${isExceeded ? `
+            <div style="margin-top: 5px; padding: 4px 6px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; color: #b91c1c; font-size: 9.5px; font-weight: bold;">
+              ⚠️ تجاوز الحد الائتماني — دفعة نقدية مطلوبة: <span style="font-family: monospace;">${requiredDown.toLocaleString()} ج.م</span>
+            </div>
+          ` : ''}
         </div>
 
         <!-- Invoice Calculation Summary -->

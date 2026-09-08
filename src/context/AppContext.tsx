@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { COMPANY_INFO, INITIAL_AUDIT_LOGS, INITIAL_BRANCHES, INITIAL_USERS } from '../data/mockData';
 import { DEFAULT_CLOUDINARY_CONFIG } from '../services/cloudinaryService';
 import { clearCachedImages } from '../services/imageCacheService';
@@ -13,6 +13,9 @@ import {
   getBranchStockForProduct,
   inferBranchFromText,
   sanitizeAndDeduplicateUsers,
+  findCustomerMatch,
+  resolveCustomerFinancials,
+  setActiveCustomersCache,
 } from '../services/arabicMatchingService';
 import {
   deleteInvoiceFromSupabase,
@@ -71,7 +74,7 @@ interface AppContextType {
   isOffline: boolean;
   selectedBranchFilter: string;
   setSelectedBranchFilter: (branch: string) => void;
-  refreshInvoicesNow: () => Promise<{ success: boolean; count: number; message: string }>;
+  refreshInvoicesNow: (force?: boolean) => Promise<{ success: boolean; count: number; message: string }>;
   
   // Supabase Sync
   supabaseStatus: SupabaseSyncStatus;
@@ -598,6 +601,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
   }, []);
 
+  // Keep active customers cache in sync for instant financial auditing across Excel & PDF exports
+  useEffect(() => {
+    if (customers && customers.length > 0) {
+      setActiveCustomersCache(customers);
+      try {
+        safeLocalStorageSet(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers.slice(0, 300)));
+      } catch {}
+    }
+  }, [customers]);
+
   // Persist users to IndexedDB and localStorage so offline sessions and registered reps are immediately available
   useEffect(() => {
     if (users && users.length > 0) {
@@ -907,17 +920,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         });
 
-        // 2. Fetch Central Catalog from Supabase (Propagates Admin/Developer uploads to all reps and supervisors)
-        fetchProductsFromSupabase().then((res) => {
-          if (res.success) {
-            const validProducts = sanitizeProducts(res.products || []);
-            setProducts(validProducts);
-            idbSet(STORAGE_KEYS.PRODUCTS, validProducts);
+        // 2. Fetch Central Catalog from Supabase (Only if local IndexedDB cache is empty; Realtime pushes changes automatically)
+        idbGet<Product[]>(STORAGE_KEYS.PRODUCTS).then((cached) => {
+          if (!cached || cached.length === 0) {
+            fetchProductsFromSupabase().then((res) => {
+              if (res.success && res.products) {
+                const validProducts = sanitizeProducts(res.products);
+                setProducts(validProducts);
+                idbSet(STORAGE_KEYS.PRODUCTS, validProducts);
+              }
+            });
           }
         });
 
-        // 3. Fetch Invoices
-        fetchInvoicesFromSupabase().then((res) => {
+        // 3. Fetch Invoices (Fetch recent 30 on startup to save egress; Realtime stream catches newly created ones)
+        fetchInvoicesFromSupabase(30).then((res) => {
           if (res.success && res.invoices) {
             const remoteInvoices = res.invoices;
             setInvoices((previous) => {
@@ -931,12 +948,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         });
 
-        // 4. Fetch Customers from Supabase and link them to user accounts
-        fetchCustomersFromSupabase().then((res) => {
-          if (res.success) {
-            const validCustomers = sanitizeCustomers(linkCustomersToUsers(res.customers || [], users));
-            setCustomers(validCustomers);
-            idbSet(STORAGE_KEYS.CUSTOMERS, validCustomers);
+        // 4. Fetch Customers from Supabase (Only if local cache is empty to avoid downloading customer table on every reload)
+        idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS).then((cached) => {
+          if (!cached || cached.length === 0) {
+            fetchCustomersFromSupabase().then((res) => {
+              if (res.success && res.customers) {
+                const validCustomers = sanitizeCustomers(linkCustomersToUsers(res.customers, users));
+                setCustomers(validCustomers);
+                idbSet(STORAGE_KEYS.CUSTOMERS, validCustomers);
+              }
+            });
           }
         });
       }
@@ -1044,41 +1065,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   // Supabase Egress Protection:
-  // Instead of polling every 7 seconds 24/7 (which consumes gigabytes of egress bandwidth),
-  // we rely on Supabase Realtime for instant updates, and use an intelligent, low-frequency
-  // fallback (every 90s + on tab focus) only when the tab is active and visible.
+  // Instead of polling 24/7 (which consumes gigabytes of egress bandwidth),
+  // we rely on Supabase Realtime WebSockets for instant sub-second updates, and use an intelligent,
+  // throttled fallback (only on tab focus with a 5-minute cooldown) for the latest 30 records.
   useEffect(() => {
     let cancelled = false;
+    let lastSyncTimestamp = Date.now();
 
-    const refreshInvoices = async () => {
-      // Don't poll if the tab is hidden or minimized to save mobile data and Supabase egress
+    const refreshInvoicesSafely = async () => {
       if (typeof document !== 'undefined' && document.hidden) return;
+      const now = Date.now();
+      // Cooldown: at least 5 minutes between background focus syncs
+      if (now - lastSyncTimestamp < 5 * 60 * 1000) return;
+      lastSyncTimestamp = now;
 
-      // Background refresh to keep admin/dev and supervisors updated in real-time
-      const result = await fetchInvoicesFromSupabase(300);
-      if (cancelled || !result.success || !result.invoices) return;
-      setInvoices((prev) => {
-        const remoteById = new Map<string, Invoice>();
-        result.invoices!.forEach((inv) => {
-          remoteById.set(inv.id, inv);
+      try {
+        const result = await fetchInvoicesFromSupabase(30);
+        if (cancelled || !result.success || !result.invoices) return;
+        setInvoices((prev) => {
+          const remoteById = new Map<string, Invoice>();
+          result.invoices!.forEach((inv) => {
+            remoteById.set(inv.id, inv);
+          });
+          const localOnly = prev.filter((inv) => !remoteById.has(inv.id));
+          const next = [...Array.from(remoteById.values()), ...localOnly];
+          idbSet(STORAGE_KEYS.INVOICES, next);
+          return next;
         });
-        const localOnly = prev.filter((inv) => !remoteById.has(inv.id));
-        const next = [...Array.from(remoteById.values()), ...localOnly];
-        idbSet(STORAGE_KEYS.INVOICES, next);
-        return next;
-      });
+      } catch (err) {
+        console.warn('Silent invoice background sync notice:', err);
+      }
     };
 
-    // Immediate initial sync
-    const initialTimer = window.setTimeout(refreshInvoices, 1000);
-
-    // High-responsiveness sync interval (12 seconds)
-    const interval = window.setInterval(refreshInvoices, 12000);
-
-    // Instant refresh whenever the user switches back to this tab or window gets focus
+    // Refresh only when the user switches back to this tab and 5+ minutes have passed
     const handleFocusOrVisibility = () => {
       if (typeof document !== 'undefined' && !document.hidden) {
-        refreshInvoices();
+        refreshInvoicesSafely();
       }
     };
 
@@ -1087,17 +1109,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return () => {
       cancelled = true;
-      window.clearTimeout(initialTimer);
-      window.clearInterval(interval);
       window.removeEventListener('focus', handleFocusOrVisibility);
       document.removeEventListener('visibilitychange', handleFocusOrVisibility);
     };
   }, []);
 
   // Explicit, on-demand invoice refresh callable from any component (e.g. InvoicesManager)
-  const refreshInvoicesNow = async (): Promise<{ success: boolean; count: number; message: string }> => {
+  // Protected with a 2-minute cooldown when called in the background (force=false)
+  const lastManualRefreshRef = React.useRef<number>(0);
+
+  const refreshInvoicesNow = async (force = false): Promise<{ success: boolean; count: number; message: string }> => {
     try {
-      const result = await fetchInvoicesFromSupabase(300);
+      const now = Date.now();
+      if (!force && now - lastManualRefreshRef.current < 120_000 && invoices.length > 0) {
+        return {
+          success: true,
+          count: invoices.length,
+          message: `الفواتير محدثة بالفعل ومحفوظة محلياً (${invoices.length} فاتورة).`,
+        };
+      }
+      lastManualRefreshRef.current = now;
+
+      const result = await fetchInvoicesFromSupabase(50);
       if (!result.success || !result.invoices) {
         return { success: false, count: 0, message: result.error || 'تعذر الاتصال بقاعدة البيانات لجلب الفواتير' };
       }
@@ -1113,7 +1146,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return {
         success: true,
         count: remoteInvoices.length,
-        message: `تم تحديث الفواتير من السيرفر بنجاح (إجمالي: ${remoteInvoices.length} فاتورة).`,
+        message: `تم تحديث أحدث ${remoteInvoices.length} فاتورة من السيرفر بنجاح.`,
       };
     } catch (err: any) {
       return { success: false, count: 0, message: err?.message || 'خطأ غير متوقع أثناء تحديث الفواتير' };
@@ -2374,29 +2407,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ? (orderData.branchName || defaultBranch)
       : defaultBranch;
 
-    // Match customer for credit limit & debt validation
-    const matchedCustomer = customers.find(
-      (c) =>
-        (orderData.customerCode && c.code === orderData.customerCode) ||
-        (orderData.customerName && c.name.trim().toLowerCase() === orderData.customerName.trim().toLowerCase()) ||
-        (orderData.customerPhone && c.phone && c.phone.trim() === orderData.customerPhone.trim())
-    );
+    // Match customer for credit limit & debt validation using intelligent matcher
+    const matchedCustomer = findCustomerMatch(customers, {
+      customerId: orderData.customerId,
+      customerCode: orderData.customerCode,
+      customerName: orderData.customerName,
+      customerPhone: orderData.customerPhone,
+    });
 
-    const custBalanceBefore = Number(matchedCustomer?.currentBalance ?? matchedCustomer?.balance ?? 0);
-    const custOverdue = Number(matchedCustomer?.totalOverdueAndDue ?? matchedCustomer?.overdueBalance ?? 0);
-    const custCreditLimit = Number(
-      matchedCustomer?.creditLimit !== undefined && matchedCustomer?.creditLimit !== null
-        ? matchedCustomer.creditLimit
-        : 0
-    );
-    const custBalanceAfter = custBalanceBefore + primaryTotals.estimatedGrandTotal;
-    const isCreditExceeded = custCreditLimit > 0 && custBalanceAfter > custCreditLimit;
-    const reqPayment = isCreditExceeded ? Math.max(0, custBalanceAfter - custCreditLimit) : 0;
+    const custBalanceBefore = orderData.customerBalanceBefore !== undefined && orderData.customerBalanceBefore !== null
+      ? Number(orderData.customerBalanceBefore)
+      : Number(matchedCustomer?.currentBalance ?? matchedCustomer?.balance ?? 0);
+
+    const custCreditLimit = orderData.customerCreditLimit !== undefined && orderData.customerCreditLimit !== null
+      ? Number(orderData.customerCreditLimit)
+      : Number(matchedCustomer?.creditLimit !== undefined && matchedCustomer?.creditLimit !== null ? matchedCustomer.creditLimit : 0);
+
+    const custOverdue = orderData.customerOverdueBalance !== undefined && orderData.customerOverdueBalance !== null
+      ? Number(orderData.customerOverdueBalance)
+      : Number(matchedCustomer?.totalOverdueAndDue ?? matchedCustomer?.overdueBalance ?? 0);
+
+    const custBalanceAfter = orderData.customerBalanceAfter !== undefined && orderData.customerBalanceAfter !== null
+      ? Number(orderData.customerBalanceAfter)
+      : (custBalanceBefore + primaryTotals.estimatedGrandTotal);
+
+    const isCreditExceeded = orderData.creditLimitExceeded !== undefined
+      ? Boolean(orderData.creditLimitExceeded)
+      : (custCreditLimit > 0 && custBalanceAfter > custCreditLimit);
+
+    const reqPayment = orderData.requiredDownPayment !== undefined && orderData.requiredDownPayment !== null
+      ? Number(orderData.requiredDownPayment)
+      : (isCreditExceeded ? Math.max(0, custBalanceAfter - custCreditLimit) : 0);
 
     const primaryInvoice: Invoice = {
       id: `inv-${Date.now()}`,
       invoiceNumber: newInvoiceNumber,
-      customerName: orderData.customerName || 'عميل تجزئة عام',
+      customerId: orderData.customerId || (matchedCustomer ? matchedCustomer.id : undefined),
+      customerName: orderData.customerName || (matchedCustomer ? matchedCustomer.name : 'عميل تجزئة عام'),
       customerCode: orderData.customerCode || (matchedCustomer ? matchedCustomer.code : undefined),
       customerPhone: orderData.customerPhone || (matchedCustomer ? matchedCustomer.phone : ''),
       customerAddress: orderData.customerAddress || (matchedCustomer ? matchedCustomer.address : ''),
@@ -2444,6 +2491,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdShortageInvoice = {
         id: `inv-${Date.now() + 1}`,
         invoiceNumber: shortageInvoiceNumber,
+        customerId: orderData.customerId || (matchedCustomer ? matchedCustomer.id : undefined),
         customerName: orderData.customerName || (matchedCustomer ? matchedCustomer.name : 'عميل تجزئة عام'),
         customerCode: orderData.customerCode || (matchedCustomer ? matchedCustomer.code : undefined),
         customerPhone: orderData.customerPhone || (matchedCustomer ? matchedCustomer.phone : ''),
@@ -2468,15 +2516,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         status: 'قيد مراجعة المشرف',
         notes: `فاتورة تحويل نواقص من المخزن المركزي (6 أكتوبر) تابعة للفاتورة الأساسية #${newInvoiceNumber}`,
         syncedToAccounting: false,
-        isShortageInvoice: true,
-        parentInvoiceId: primaryInvoice.id,
-        parentInvoiceNumber: primaryInvoice.invoiceNumber,
         customerBalanceBefore: custBalanceBefore,
         customerCreditLimit: custCreditLimit,
         customerBalanceAfter: shortageBalanceAfter,
         customerOverdueBalance: custOverdue,
         creditLimitExceeded: shortageCreditExceeded,
         requiredDownPayment: shortageReqPayment,
+        isShortageInvoice: true,
+        parentInvoiceId: primaryInvoice.id,
+        parentInvoiceNumber: primaryInvoice.invoiceNumber,
         qrPayload: `DREAM-EINV-${shortageInvoiceNumber}|${orderData.customerTaxNumber || 'GEN'}|${shortageTotals.estimatedGrandTotal.toFixed(2)}|${shortageTotals.taxAmount.toFixed(2)}|${formattedDate}`,
       };
     }
@@ -2959,14 +3007,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setCart(loadedCartItems);
 
-    // 3. Match customer
-    const matchedCustomer = customers.find(
-      (c) =>
-        (invoice.customerCode && c.code === invoice.customerCode) ||
-        (invoice.customerName && c.name.trim().toLowerCase() === invoice.customerName.trim().toLowerCase()) ||
-        (invoice.customerPhone && c.phone && c.phone.trim() === invoice.customerPhone.trim())
-    ) || (invoice.customerName ? {
-      id: `c-temp-${Date.now()}`,
+    // 3. Match customer using intelligent matcher
+    const matchedCustomer = findCustomerMatch(customers, {
+      customerId: invoice.customerId,
+      customerCode: invoice.customerCode,
+      customerName: invoice.customerName,
+      customerPhone: invoice.customerPhone,
+    }) || (invoice.customerName ? {
+      id: invoice.customerId || `c-temp-${Date.now()}`,
       code: invoice.customerCode || 'CUST-NEW',
       name: invoice.customerName,
       phone: invoice.customerPhone || '',
@@ -2978,8 +3026,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       repName: invoice.repName,
       repId: invoice.repId,
       tier: 'عادي',
-      balance: invoice.customerBalanceBefore || 0,
-      creditLimit: invoice.customerCreditLimit || 50000,
+      balance: Number(invoice.customerBalanceBefore || 0),
+      currentBalance: Number(invoice.customerBalanceBefore || 0),
+      creditLimit: Number(invoice.customerCreditLimit !== undefined && invoice.customerCreditLimit !== null ? invoice.customerCreditLimit : 0),
       notes: '',
     } : null);
 

@@ -34,6 +34,7 @@ import { useApp } from '../context/AppContext';
 import { exportElectronicInvoiceToExcel } from '../services/excelService';
 import { formatCurrency } from '../services/invoiceService';
 import { Customer, Invoice } from '../types';
+import { findCustomerMatch, resolveCustomerFinancials } from '../services/arabicMatchingService';
 
 interface CreditAuditModalProps {
   invoice: Invoice | null;
@@ -58,50 +59,31 @@ export const CreditAuditModal: React.FC<CreditAuditModalProps> = ({
 
   if (!isOpen || !invoice) return null;
 
-  // Resolve customer object from context or props
+  // Resolve customer object from context or props using intelligent matcher
   const matchedCustomer =
     propCustomer ||
-    customers.find(
-      (c) =>
-        (invoice.customerId && c.id === invoice.customerId) ||
-        (invoice.customerCode && c.code && c.code.toLowerCase() === invoice.customerCode.toLowerCase()) ||
-        (invoice.customerName && c.name && c.name.trim().toLowerCase() === invoice.customerName.trim().toLowerCase())
-    );
+    findCustomerMatch(customers, {
+      customerId: invoice.customerId,
+      customerCode: invoice.customerCode,
+      customerName: invoice.customerName,
+      customerPhone: invoice.customerPhone,
+    });
 
-  // Financial calculations
+  // Accurate financial position resolution
   const invoiceTotal = invoice.estimatedGrandTotal || 0;
-  const debtBefore = invoice.customerBalanceBefore !== undefined && invoice.customerBalanceBefore !== null
-    ? invoice.customerBalanceBefore
-    : matchedCustomer?.currentBalance !== undefined
-    ? matchedCustomer.currentBalance
-    : matchedCustomer?.balance || 0;
+  const {
+    debtBefore,
+    creditLimit,
+    debtAfter,
+    overdue: overdueDebt,
+    isExceeded,
+    requiredDown: requiredDownPayment,
+  } = resolveCustomerFinancials(invoice, customers);
 
-  const debtAfter = invoice.customerBalanceAfter !== undefined && invoice.customerBalanceAfter !== null
-    ? invoice.customerBalanceAfter
-    : debtBefore + invoiceTotal;
-
-  const creditLimit = invoice.customerCreditLimit !== undefined && invoice.customerCreditLimit !== null
-    ? Number(invoice.customerCreditLimit)
-    : matchedCustomer?.creditLimit !== undefined
-    ? Number(matchedCustomer.creditLimit)
-    : 0;
-
-  const overdueDebt = Number(
-    invoice.customerOverdueBalance !== undefined && invoice.customerOverdueBalance !== null
-      ? invoice.customerOverdueBalance
-      : matchedCustomer?.totalOverdueAndDue !== undefined && matchedCustomer?.totalOverdueAndDue !== null
-      ? matchedCustomer.totalOverdueAndDue
-      : matchedCustomer?.overdueBalance !== undefined && matchedCustomer?.overdueBalance !== null
-      ? matchedCustomer.overdueBalance
-      : 0
-  );
   const hasOverdue = overdueDebt > 0;
-
   const hasNoCredit = creditLimit <= 0;
-  const isExceeded = !hasNoCredit && (invoice.creditLimitExceeded ?? (debtAfter > creditLimit));
-  const excessAmount = isExceeded ? debtAfter - creditLimit : 0;
-  const remainingCredit = !hasNoCredit && !isExceeded ? creditLimit - debtAfter : 0;
-  const requiredDownPayment = invoice.requiredDownPayment || excessAmount;
+  const excessAmount = isExceeded ? Math.max(0, debtAfter - creditLimit) : 0;
+  const remainingCredit = !hasNoCredit && !isExceeded ? Math.max(0, creditLimit - debtAfter) : 0;
 
   // Utilization calculation
   const utilizationPercentage = creditLimit > 0 ? Math.round((debtAfter / creditLimit) * 100) : debtAfter > 0 ? 100 : 0;

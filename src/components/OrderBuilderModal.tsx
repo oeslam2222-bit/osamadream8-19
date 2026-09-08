@@ -345,17 +345,24 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     setIsSubmitting(true);
     try {
       const result = createOrder({
-        customerName: customerName.trim(),
-        customerCode: customerCode.trim() || undefined,
-        customerPhone: customerPhone.trim(),
-        customerAddress: customerAddress.trim(),
-        customerTaxNumber: customerTaxNumber.trim(),
+        customerId: activeCustomer?.id || selectedCustomerId || undefined,
+        customerName: customerName.trim() || activeCustomer?.name || 'عميل عام',
+        customerCode: customerCode.trim() || activeCustomer?.code || undefined,
+        customerPhone: customerPhone.trim() || activeCustomer?.phone || '',
+        customerAddress: customerAddress.trim() || activeCustomer?.address || '',
+        customerTaxNumber: customerTaxNumber.trim() || activeCustomer?.taxNumber || '',
         repName: customerRep.trim() || (currentUser?.role === 'sales_rep' ? currentUser.name : undefined),
-        branchName: customerBranch.trim() || currentUser?.branchName,
+        branchName: customerBranch.trim() || activeCustomer?.branchName || currentUser?.branchName,
         paymentMethod: paymentMethod,
         discountPercentage: discountPercent,
         notes: effectiveNotes,
         splitShortagesToBackorder: splitShortagesToBackorder,
+        customerBalanceBefore: customerCurrentBalance,
+        customerCreditLimit: customerCreditLimit,
+        customerBalanceAfter: balanceAfterInvoice,
+        customerOverdueBalance: customerOverdueAndDue,
+        creditLimitExceeded: isCreditLimitExceeded,
+        requiredDownPayment: requiredDownPayment,
       });
 
       if (!result.success || !result.invoice) {
@@ -463,10 +470,10 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               <div className="bg-amber-50 border-2 border-amber-300 p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
                 <div>
                   <div className="text-xs font-black text-amber-900 flex items-center gap-1.5">
-                    <span>👁️ معاينة شكل الفاتورة قبل الترحيل الرسمي</span>
+                    <span>👁️ معاينة تفاصيل الطلبية والأسعار قبل الحفظ</span>
                   </div>
                   <p className="text-[11px] text-amber-700 font-medium mt-0.5">
-                    يمكنك مراجعة كافة البنود والكميات، أو الضغط على زر التعديل لإضافة وحذف أصناف.
+                    يمكنك مراجعة كافة البنود والكميات، أو حفظ وتصدير الطلبية فوراً بملف Excel أو PDF.
                   </p>
                 </div>
                 <button
@@ -547,23 +554,46 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-2 pt-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsPreviewMode(false)}
                   className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-black px-4 py-2.5 rounded-xl text-xs transition cursor-pointer"
                 >
-                  ✏️ العودة للتعديل وإضافة أصناف
+                  ✏️ العودة للتعديل
                 </button>
-                <button
-                  type="button"
-                  disabled={isSubmitting || cart.length === 0}
-                  onClick={() => handleSubmitOrder(false, false)}
-                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-6 py-2.5 rounded-xl text-xs sm:text-sm shadow-md transition cursor-pointer flex items-center gap-2"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>🚀 ترحيل الفاتورة وإصدارها الآن</span>
-                </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    disabled={isSubmitting || cart.length === 0}
+                    onClick={() => handleSubmitOrder(true, false)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2.5 rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                    title="حفظ الطلبية وتنزيل شيت إكسل رسمي لرفعه على السيستم"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>حفظ وتحميل إكسل 📊</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSubmitting || cart.length === 0}
+                    onClick={() => handleSubmitOrder(false, true)}
+                    className="bg-rose-600 hover:bg-rose-700 text-white font-black px-4 py-2.5 rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                    title="حفظ الطلبية وتنزيل ملف PDF"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>حفظ وتحميل PDF 📄</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSubmitting || cart.length === 0}
+                    onClick={() => handleSubmitOrder(false, false)}
+                    className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-black px-4 py-2.5 rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                    title="حفظ الطلبية فقط وإرسالها للمشرف ومدير الفرع للمراجعة والاعتماد"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>حفظ الطلبية للمشرف ✅</span>
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
@@ -1539,39 +1569,40 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             
-            {/* Direct Export to Excel */}
+            {/* Direct Save & Export to Excel */}
             <button
               id="export-excel-order-btn"
               disabled={isSubmitting || cart.length === 0}
               onClick={() => handleSubmitOrder(true, false)}
-              className="flex items-center justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-black h-11 px-3.5 rounded-xl text-xs shadow-sm transition disabled:opacity-50 cursor-pointer"
-              title="تصدير شيت إكسل رسمي مع كود العميل والكراتين والقطع"
+              className="flex items-center justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-black h-11 px-4 rounded-xl text-xs shadow-sm transition disabled:opacity-50 cursor-pointer"
+              title="حفظ الطلبية وتصدير شيت إكسل رسمي بالأكواد والكميات لرفعه على السيستم"
             >
               <FileSpreadsheet className="w-4 h-4 shrink-0" />
-              <span>حفظ وتصدير شيت إكسل</span>
+              <span>حفظ وتحميل إكسل 📊</span>
             </button>
 
-            {/* Direct Export to PDF */}
+            {/* Direct Save & Export to PDF */}
             <button
               id="export-pdf-order-btn"
               disabled={isSubmitting || cart.length === 0}
               onClick={() => handleSubmitOrder(false, true)}
-              className="flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-black h-11 px-3.5 rounded-xl text-xs shadow-sm transition disabled:opacity-50 cursor-pointer"
-              title="حفظ الطلبية وتحميل فاتورة PDF فورية"
+              className="flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-black h-11 px-4 rounded-xl text-xs shadow-sm transition disabled:opacity-50 cursor-pointer"
+              title="حفظ الطلبية وتحميل فاتورة PDF فورية على الجهاز"
             >
               <Download className="w-4 h-4 shrink-0" />
               <span>حفظ وتحميل PDF 📄</span>
             </button>
 
-            {/* Post & Issue Invoice Directly */}
+            {/* Save Order Directly for Supervisor & Branch Manager */}
             <button
               id="confirm-order-btn"
               disabled={isSubmitting || cart.length === 0}
               onClick={() => handleSubmitOrder(false, false)}
-              className="flex items-center justify-center gap-2 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black h-12 sm:h-11 px-5 rounded-xl text-xs sm:text-sm shadow-md transition transform active:scale-95 disabled:opacity-50 cursor-pointer"
+              className="flex items-center justify-center gap-2 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black h-11 px-4 rounded-xl text-xs sm:text-sm shadow-md transition transform active:scale-95 disabled:opacity-50 cursor-pointer"
+              title="حفظ الطلبية بالسيستم وإرسالها لمدير الفرع والمشرف للمراجعة والاعتماد"
             >
-              <CheckCircle2 className="w-5 h-5 shrink-0 stroke-[2.5]" />
-              <span>🚀 ترحيل الفاتورة وإصدارها</span>
+              <CheckCircle2 className="w-4 h-4 shrink-0 stroke-[2.5]" />
+              <span>حفظ الطلبية (إرسال للمشرف) ✅</span>
             </button>
 
           </div>

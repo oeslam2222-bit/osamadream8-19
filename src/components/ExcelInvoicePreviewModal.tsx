@@ -20,6 +20,7 @@ import { exportElectronicInvoiceToExcel, exportInvoiceForERP } from '../services
 import { downloadInvoicePDF } from '../services/pdfService';
 import { formatCurrency } from '../services/invoiceService';
 import { COMPANY_INFO } from '../data/mockData';
+import { resolveCustomerFinancials } from '../services/arabicMatchingService';
 
 interface ExcelInvoicePreviewModalProps {
   invoice: Invoice | null;
@@ -41,11 +42,13 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
 
   if (!isOpen || !invoice) return null;
 
-  const debtBefore = invoice.customerBalanceBefore ?? 0;
-  const debtAfter = invoice.customerBalanceAfter ?? (debtBefore + invoice.estimatedGrandTotal);
-  const creditLimit = invoice.customerCreditLimit ?? 50000;
-  const isExceeded = invoice.creditLimitExceeded ?? (debtAfter > creditLimit);
-  const requiredDown = invoice.requiredDownPayment ?? (isExceeded ? debtAfter - creditLimit : 0);
+  const {
+    debtBefore,
+    debtAfter,
+    creditLimit,
+    isExceeded,
+    requiredDown,
+  } = resolveCustomerFinancials(invoice);
 
   // 1. Direct Excel Download
   const handleDownloadExcel = () => {
@@ -293,7 +296,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
             }`}
           >
             <Layers className="w-3.5 h-3.5 text-amber-600" />
-            <span>ورقة 2: ترحيل محاسبي للسيستم (ERP Table)</span>
+            <span>ورقة 2: جدول التكويد للسيستم (ERP / D365 Table)</span>
           </button>
 
           <button
@@ -523,10 +526,10 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
                 <div>
                   <h4 className="font-black text-slate-900 text-sm">
-                    شيت الترحيل المحاسبي للسيستم الرئيسي (ERP Accounting Integration)
+                    جدول البيانات والأكواد للرفع على السيستم الرئيسي (ERP & D365 Integration)
                   </h4>
                   <p className="text-xs text-slate-500">
-                    جدول أعمدة مسطح (Flat Table) جاهز للرفع على برامج الحسابات (SAP, Oracle, Odoo, السيستم الرئيسي)
+                    جدول أعمدة مسطح (Flat Table) جاهز للرفع المباشر بالكود على سيستم الشركة (Microsoft Dynamics 365 / ERP)
                   </p>
                 </div>
                 <button

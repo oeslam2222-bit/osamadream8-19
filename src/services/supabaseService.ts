@@ -660,9 +660,9 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
 }
 
 /**
- * Fetch all invoices / orders from Supabase (capped to latest 200 by default to save Egress bandwidth)
+ * Fetch invoices / orders from Supabase (capped to latest 150 by default to save Egress bandwidth)
  */
-export async function fetchInvoicesFromSupabase(limit = 1000): Promise<{ success: boolean; invoices?: Invoice[]; error?: string }> {
+export async function fetchInvoicesFromSupabase(limit = 150): Promise<{ success: boolean; invoices?: Invoice[]; error?: string }> {
   try {
     let rawInvoices: any[] | null = null;
     const { data: invData, error: invErr } = await supabase

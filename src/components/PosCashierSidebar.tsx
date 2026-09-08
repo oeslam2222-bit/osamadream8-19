@@ -24,6 +24,8 @@ import {
 import { useApp } from '../context/AppContext';
 import { Customer, Invoice, PaymentMethod } from '../types';
 import { formatCurrency } from '../services/invoiceService';
+import { exportElectronicInvoiceToExcel } from '../services/excelService';
+import { downloadInvoicePDF } from '../services/pdfService';
 import { ProductImage } from './ProductImage';
 
 interface PosCashierSidebarProps {
@@ -94,8 +96,8 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
       .slice(0, 8);
   }, [getVisibleCustomers, customers, customerSearch]);
 
-  // Handle direct posting of the invoice (ترحيل الفاتورة)
-  const handlePostInvoice = async () => {
+  // Handle saving the order (حفظ الطلبية للمشرف وتصدير Excel / PDF)
+  const handleSaveOrder = async (andExportExcel?: boolean, andDownloadPDF?: boolean) => {
     if (cart.length === 0) {
       setErrorMessage('سلة الفاتورة فارغة! يرجى إضافة أصناف أولاً.');
       setTimeout(() => setErrorMessage(null), 3500);
@@ -116,26 +118,57 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
     setIsSubmitting(true);
     setErrorMessage(null);
 
+    const balBefore = Number(effectiveCustomer.currentBalance ?? effectiveCustomer.balance ?? 0);
+    const credLimit = Number(effectiveCustomer.creditLimit ?? 0);
+    const balAfter = balBefore + cartSummary.grandTotal;
+    const isExceeded = credLimit > 0 && balAfter > credLimit;
+    const reqDown = isExceeded ? Math.max(0, balAfter - credLimit) : 0;
+    const overdue = Number(effectiveCustomer.totalOverdueAndDue ?? effectiveCustomer.overdueBalance ?? 0);
+
     try {
       const result = createOrder({
+        customerId: effectiveCustomer.id,
         customerName: effectiveCustomer.name,
         customerCode: effectiveCustomer.code,
         customerPhone: effectiveCustomer.phone,
         customerAddress: effectiveCustomer.address,
+        customerTaxNumber: effectiveCustomer.taxNumber,
         repName: currentUser?.name || 'مندوب المبيعات',
         branchName: effectiveCustomer.branchName || currentUser?.branchName,
         paymentMethod: paymentMethod,
         discountPercentage: discountPercent,
-        notes: `فاتورة مبيعات كاشير دريم - تسجيل سريع بواسطة ${currentUser?.name || 'المندوب'}`,
+        notes: `طلبية مبيعات كاشير دريم - تسجيل سريع بواسطة ${currentUser?.name || 'المندوب'}`,
+        customerBalanceBefore: balBefore,
+        customerCreditLimit: credLimit,
+        customerBalanceAfter: balAfter,
+        customerOverdueBalance: overdue,
+        creditLimitExceeded: isExceeded,
+        requiredDownPayment: reqDown,
       });
 
       if (!result.success || !result.invoice) {
-        setErrorMessage(result.message || 'تعذر ترحيل الفاتورة.');
+        setErrorMessage(result.message || 'تعذر حفظ الطلبية.');
         setIsSubmitting(false);
         return;
       }
 
-      setSuccessToast(`تم ترحيل الفاتورة #${result.invoice.invoiceNumber} بنجاح! 🚀`);
+      // Export to Excel if requested
+      if (andExportExcel) {
+        exportElectronicInvoiceToExcel(result.invoice);
+      }
+
+      // Download PDF if requested
+      if (andDownloadPDF) {
+        await downloadInvoicePDF(result.invoice);
+      }
+
+      const msg = andExportExcel
+        ? `تم حفظ الطلبية #${result.invoice.invoiceNumber} وتنزيل شيت إكسل بنجاح! 📊`
+        : andDownloadPDF
+        ? `تم حفظ الطلبية #${result.invoice.invoiceNumber} وتنزيل ملف PDF بنجاح! 📄`
+        : `تم حفظ الطلبية #${result.invoice.invoiceNumber} وإرسالها للمشرف للاعتماد بنجاح! ✅`;
+
+      setSuccessToast(msg);
       clearCart();
 
       // If mobile drawer, close it
@@ -149,7 +182,7 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
       }
     } catch (err: any) {
       console.error(err);
-      setErrorMessage('حدث خطأ أثناء ترحيل الفاتورة.');
+      setErrorMessage('حدث خطأ أثناء حفظ الطلبية.');
     } finally {
       setIsSubmitting(false);
     }
@@ -497,16 +530,41 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
 
         {/* Action Buttons */}
         <div className="space-y-2 pt-1">
-          {/* Main Button: Post Invoice (ترحيل الفاتورة مباشرة لصفحة الفواتير) */}
+          {/* Quick Export Row: Excel & PDF */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              id="pos-export-excel-btn"
+              disabled={isSubmitting || cart.length === 0}
+              onClick={() => handleSaveOrder(true, false)}
+              className="h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+              title="حفظ الطلبية وتنزيل شيت إكسل جاهز بالأكواد لرفعه على السيستم"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>حفظ وإكسل 📊</span>
+            </button>
+
+            <button
+              id="pos-export-pdf-btn"
+              disabled={isSubmitting || cart.length === 0}
+              onClick={() => handleSaveOrder(false, true)}
+              className="h-10 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+              title="حفظ الطلبية وتنزيل فاتورة PDF فورية"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>حفظ و PDF 📄</span>
+            </button>
+          </div>
+
+          {/* Main Button: Save for Supervisor & Branch Manager */}
           <button
             id="pos-post-invoice-btn"
             disabled={isSubmitting || cart.length === 0}
-            onClick={handlePostInvoice}
+            onClick={() => handleSaveOrder(false, false)}
             className="w-full h-11 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg transition transform active:scale-98 disabled:opacity-40 flex items-center justify-center gap-2 cursor-pointer"
-            title="ترحيل الفاتورة فوراً والانتقال لصفحة الفواتير"
+            title="حفظ الطلبية وإرسالها مباشرة للمشرف ومدير الفرع للمراجعة والاعتماد"
           >
             <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
-            <span>{isSubmitting ? 'جاري ترحيل الفاتورة...' : '🚀 ترحيل الفاتورة وإصدارها'}</span>
+            <span>{isSubmitting ? 'جاري حفظ الطلبية...' : 'حفظ الطلبية (إرسال للمشرف) ✅'}</span>
           </button>
 
           {/* Secondary Button: Full Preview & Editing */}
@@ -516,10 +574,10 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
               disabled={cart.length === 0}
               onClick={onOpenDetailedModal}
               className="w-full h-9 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
-              title="معاينة تفاصيل الفاتورة كاملة والطباعة"
+              title="معاينة تفاصيل الطلبية كاملة وتعديل البنود"
             >
               <Eye className="w-3.5 h-3.5" />
-              <span>معاينة الفاتورة كاملة وتعديل البنود 👁️</span>
+              <span>معاينة الطلبية كاملة وتعديل البنود 👁️</span>
             </button>
           )}
         </div>

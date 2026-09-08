@@ -84,10 +84,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
-  // Auto-refresh invoices on component mount to immediately show invoices created by reps
+  // Auto-refresh invoices on component mount (uses cached data if refreshed recently)
   useEffect(() => {
     let mounted = true;
-    refreshInvoicesNow().catch(() => {});
+    refreshInvoicesNow(false).catch(() => {});
     return () => {
       mounted = false;
     };
@@ -96,7 +96,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
     try {
-      const res = await refreshInvoicesNow();
+      const res = await refreshInvoicesNow(true);
       setSuccessToast(res.message);
       setTimeout(() => setSuccessToast(null), 4000);
     } catch (err: any) {

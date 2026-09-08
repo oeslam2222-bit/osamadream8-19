@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import { COMPANY_INFO } from '../data/mockData';
 import { Customer, CustomerTier, Invoice, ItemStatus, Product, SalesPriority } from '../types';
-import { inferBranchFromText } from './arabicMatchingService';
+import { inferBranchFromText, resolveCustomerFinancials } from './arabicMatchingService';
 
 /**
  * Smart Branch Name normalizer for Excel input
@@ -788,11 +788,13 @@ export async function fetchAndParseGoogleSheet(googleSheetUrlOrId: string): Prom
 export function exportInvoiceToExcel(invoice: Invoice): void {
   const wb = XLSX.utils.book_new();
 
-  const debtBefore = invoice.customerBalanceBefore ?? 0;
-  const debtAfter = invoice.customerBalanceAfter ?? (debtBefore + invoice.estimatedGrandTotal);
-  const creditLimit = invoice.customerCreditLimit ?? 0;
-  const isExceeded = invoice.creditLimitExceeded ?? (debtAfter > creditLimit);
-  const requiredDown = invoice.requiredDownPayment ?? (isExceeded ? debtAfter - creditLimit : 0);
+  const {
+    debtBefore,
+    debtAfter,
+    creditLimit,
+    isExceeded,
+    requiredDown,
+  } = resolveCustomerFinancials(invoice);
 
   const titleRows = [
     ['شركة دريم للتجارة والتوزيع - مجموعة الطنطاوي (TANTAWY GROUP)'],
@@ -1053,7 +1055,7 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
       { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
       { wch: 16 }, { wch: 24 }, { wch: 16 }, { wch: 18 }
     ];
-    XLSX.utils.book_append_sheet(wb, wsErp, 'ترحيل_محاسبي_ERP');
+    XLSX.utils.book_append_sheet(wb, wsErp, 'بيانات_السيستم_ERP');
 
     // Tab 3: Customer Credit & Statement Audit
     const creditHeaders = [
@@ -1200,11 +1202,13 @@ export function exportInvoiceForERP(invoice: Invoice): void {
   XLSX.utils.book_append_sheet(wb, wsItems, 'أصناف_الفاتورة_للسيستم_ERP');
 
   // Tab 2: Header Summary (Invoice Level)
-  const debtBefore = invoice.customerBalanceBefore ?? 0;
-  const debtAfter = invoice.customerBalanceAfter ?? (debtBefore + invoice.estimatedGrandTotal);
-  const creditLimit = invoice.customerCreditLimit ?? 0;
-  const isExceeded = invoice.creditLimitExceeded ?? (debtAfter > creditLimit);
-  const requiredDown = invoice.requiredDownPayment ?? (isExceeded ? debtAfter - creditLimit : 0);
+  const {
+    debtBefore,
+    debtAfter,
+    creditLimit,
+    isExceeded,
+    requiredDown,
+  } = resolveCustomerFinancials(invoice);
 
   const headerData = [
     ['رقم الفاتورة', invoice.invoiceNumber],
