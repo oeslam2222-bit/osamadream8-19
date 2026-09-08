@@ -30,7 +30,6 @@ import { ProductImage } from './ProductImage';
 import { exportElectronicInvoiceToExcel } from '../services/excelService';
 import { formatCurrency } from '../services/invoiceService';
 import { downloadInvoicePDF } from '../services/pdfService';
-import { sendInvoiceToPowerAutomate } from '../services/powerAutomateService';
 import { Customer, PaymentMethod } from '../types';
 import { getDepartmentMeta } from '../data/departmentMeta';
 import {
@@ -374,12 +373,6 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
       const createdInvoice = result.invoice;
 
-      try {
-        await sendInvoiceToPowerAutomate(createdInvoice);
-      } catch (notificationError) {
-        console.error('[v0] Power Automate notification failed:', notificationError);
-      }
-
       if (andExportExcel) {
         exportElectronicInvoiceToExcel(createdInvoice);
         if (result.shortageInvoice) {
@@ -667,7 +660,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   title="إعادة فحص وربط العملاء بالمناديب تلقائياً"
                 >
                   <RefreshCw className="w-3.5 h-3.5 text-blue-700" />
-                  <span>🔄 مزامنة وربط العملاء بالمناديب</span>
+                  <span>🔄 مزامنة وربط العملا�� بالمناديب</span>
                 </button>
                 <button
                   type="button"
@@ -1048,7 +1041,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     </div>
                     <p className="text-[11px] text-slate-200 font-medium leading-relaxed">
                       هذا العميل غير مصرح له بالسحب الآجل. <strong className="text-amber-300 font-black">يجب تحصيل قيمة الفاتورة ({orderGrandTotal.toLocaleString()} ج.م) نقداً بالكامل (كاش) عند الاستلام </strong>
-                      {customerCurrentBalance > 0 ? ` بالإضافة إلى سداد المديونية السابقة (${customerCurrentBalance.toLocaleString()} ج.م).` : '.'}
+                      {customerCurrentBalance > 0 ? ` بالإض��فة إلى سداد المديونية السابقة (${customerCurrentBalance.toLocaleString()} ج.م).` : '.'}
                     </p>
                     <div className="pt-1 flex items-center flex-wrap gap-2">
                       <button
@@ -1399,7 +1392,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
                   className="w-full p-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-black text-slate-900 shadow-xs"
                 >
-                  <option value="نقدي (كاش)">نقدي (كاش عند الاستلام)</option>
+                  <option value="نقدي (كاش)">نقدي (كاش عند الا��تلام)</option>
                   <option value="آجل (30 يوم)">آجل تجاري (30 يوم)</option>
                   <option value="آجل (60 يوم)">آجل تجاري (60 يوم)</option>
                   <option value="تحويل بنكي">تحويل بنكي / إلكتروني</option>
