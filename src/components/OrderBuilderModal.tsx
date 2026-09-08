@@ -30,6 +30,7 @@ import { ProductImage } from './ProductImage';
 import { exportElectronicInvoiceToExcel } from '../services/excelService';
 import { formatCurrency } from '../services/invoiceService';
 import { downloadInvoicePDF } from '../services/pdfService';
+import { sendInvoiceToPowerAutomate } from '../services/powerAutomateService';
 import { Customer, PaymentMethod } from '../types';
 import { getDepartmentMeta } from '../data/departmentMeta';
 import {
@@ -372,6 +373,12 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
       }
 
       const createdInvoice = result.invoice;
+
+      try {
+        await sendInvoiceToPowerAutomate(createdInvoice);
+      } catch (notificationError) {
+        console.error('[v0] Power Automate notification failed:', notificationError);
+      }
 
       if (andExportExcel) {
         exportElectronicInvoiceToExcel(createdInvoice);
