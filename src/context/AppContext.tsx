@@ -39,6 +39,7 @@ import {
   USER_SYNC_STORE_ID,
 } from '../services/supabaseService';
 import { sendOrderToMicrosoft365 } from '../services/microsoftSyncService';
+import { sendInvoiceToPowerAutomate } from '../services/powerAutomateService';
 import {
   AccountingSyncLog,
   AuditLog,
@@ -2676,7 +2677,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       invoice: primaryInvoice,
       shortageInvoice: createdShortageInvoice,
       message: createdShortageInvoice
-        ? `تم إصدار الفاتورة الأساسية #${primaryInvoice.invoiceNumber} وفاتورة النواقص المحولة #${createdShortageInvoice.invoiceNumber} بنجاح!`
+        ? `تم إصدار الفاتورة الأساسية #${primaryInvoice.invoiceNumber} وفاتورة النواقص المحولة #${createdShortageInvoice.invoiceNumber} ب��جاح!`
         : `تم تسجيل الطلبية #${primaryInvoice.invoiceNumber} وإرسالها للمراجعة والاعتماد!`
     };
   };
@@ -2775,6 +2776,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Direct non-blocking dispatch to Microsoft 365 Power Automate (Zero Supabase egress impact)
         sendOrderToMicrosoft365(updated, currentUser?.name).catch((e) =>
           console.warn('Background Microsoft 365 dispatch notice:', e)
+        );
+        sendInvoiceToPowerAutomate(updated).catch((e) =>
+          console.warn('[Power Automate] Approved invoice email notification failed:', e)
         );
         return updated;
       })

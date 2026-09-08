@@ -82,6 +82,7 @@ export async function createInvoicePDFDocument(invoice: Invoice, customCompanyIn
     isExceeded,
     requiredDown,
   } = resolveCustomerFinancials(invoice);
+  const displayCustomerCode = invoice.customerCode || invoice.customerId || '---';
 
   container.innerHTML = `
     <div style="border: 2px solid #0f172a; border-radius: 12px; padding: 18px; background: #ffffff;">
@@ -131,7 +132,7 @@ export async function createInvoicePDFDocument(invoice: Invoice, customCompanyIn
       <div style="margin-top: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px;">
         <div>
           <div>اسم العميل: <strong style="color: #0f172a; font-size: 12px;">${invoice.customerName}</strong></div>
-          <div style="margin-top: 3px; color: #475569;">كود العميل: <strong>${invoice.customerCode || '---'}</strong> • هاتف: <strong>${invoice.customerPhone || '---'}</strong></div>
+          <div style="margin-top: 3px; color: #475569;">كود العميل: <strong style="color: #3730a3; font-size: 12px;">${displayCustomerCode}</strong> • هاتف: <strong>${invoice.customerPhone || '---'}</strong></div>
           <div style="margin-top: 3px; color: #475569;">العنوان: <strong>${invoice.customerAddress || '---'}</strong> ${invoice.customerTaxNumber ? `• ب.ض: <strong>${invoice.customerTaxNumber}</strong>` : ''}</div>
         </div>
         <div>
