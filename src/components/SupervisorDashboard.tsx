@@ -23,6 +23,7 @@ import {
   Search,
   ShieldAlert,
   ShoppingCart,
+  Send,
   TrendingUp,
   Truck,
   UserCheck,
@@ -62,6 +63,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     setSelectedBranchFilter,
     updateOrderStatus,
     approveOrder,
+    resendInvoiceEmail,
     forwardOrderToManager,
     rejectOrder,
     deleteInvoice,
@@ -458,7 +460,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   };
 
   const statusBadges: Record<string, { bg: string; text: string; label: string }> = {
-    'قيد مراجعة المشرف': { bg: 'bg-amber-100 border-amber-300', text: 'text-amber-900', label: 'قيد مراجعة المشرف ⏳' },
+    'قيد مراجعة المش��ف': { bg: 'bg-amber-100 border-amber-300', text: 'text-amber-900', label: 'قيد مراجعة المشرف ⏳' },
     'معلقة بانتظار اعتماد الفرع': { bg: 'bg-blue-100 border-blue-300', text: 'text-blue-900', label: 'بانتظار مدير الفرع 🏛️' },
     'جاري تحضير المنتجات': { bg: 'bg-orange-100 border-orange-300', text: 'text-orange-900', label: 'جاري تحضير المنتجات 📦' },
     'تم وصول المنتجات': { bg: 'bg-teal-100 border-teal-300', text: 'text-teal-900', label: 'تم وصول المنتجات 🏢' },
@@ -1246,9 +1248,25 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                           )}
 
                           {/* General Actions: View, Excel, PDF */}
-                          {onViewInvoice && (
-                            <button
-                              onClick={() => onViewInvoice(inv)}
+  {['admin', 'developer', 'branch_manager', 'supervisor'].includes(currentUser?.role || '') &&
+  ['معتمدة ومصروفة من المخزن', 'معتمدة'].includes(inv.status) && (
+  <button
+  onClick={async () => {
+  const result = await resendInvoiceEmail(inv.id);
+  setSuccessToast(result.message);
+  setTimeout(() => setSuccessToast(null), 4500);
+  }}
+  className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer"
+  title="إعادة إرسال الفاتورة بالبريد مع PDF وExcel"
+  >
+  <Send className="w-3.5 h-3.5" />
+  <span>إعادة الإرسال على الميل</span>
+  </button>
+  )}
+
+  {onViewInvoice && (
+  <button
+  onClick={() => onViewInvoice(inv)}
                               className="bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer"
                               title="معاينة الفاتورة الإلكترونية"
                             >

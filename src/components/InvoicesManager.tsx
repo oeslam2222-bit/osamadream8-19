@@ -61,6 +61,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     updateOrderStatus,
     deleteInvoice,
     approveOrder,
+    resendInvoiceEmail,
     forwardOrderToManager,
     rejectOrder,
     branches,
@@ -244,6 +245,12 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     } else {
       alert(res.message);
     }
+  };
+
+  const handleResendInvoice = async (invoice: Invoice) => {
+    const result = await resendInvoiceEmail(invoice.id);
+    setSuccessToast(result.message);
+    setTimeout(() => setSuccessToast(null), 4500);
   };
 
   const handleForwardClick = (invoiceId: string) => {
@@ -816,6 +823,18 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             <span>عرض</span>
                           </button>
 
+                          {['admin', 'developer', 'branch_manager', 'supervisor'].includes(currentUser?.role || '') &&
+                            ['معتمدة ومصروفة من المخزن', 'معتمدة'].includes(invoice.status) && (
+                            <button
+                              onClick={() => void handleResendInvoice(invoice)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1"
+                              title="إعادة إرسال الفاتورة بالبريد مع PDF وExcel"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              <span>إعادة الإرسال على الميل</span>
+                            </button>
+                          )}
+
                           {/* Download Both (PDF + Excel) directly to device */}
                           <button
                             onClick={async () => {
@@ -878,7 +897,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           <button
                             onClick={() => {
                               exportInvoiceForERP(invoice);
-                              setSuccessToast(`تم تصدير ملف إكسل منسق للسيستم الرئيسي (ERP) للفاتورة ${invoice.invoiceNumber}`);
+                              setSuccessToast(`تم تصدير ملف إ��سل منسق للسيستم الرئيسي (ERP) للفاتورة ${invoice.invoiceNumber}`);
                               setTimeout(() => setSuccessToast(null), 3000);
                             }}
                             className="bg-amber-500 hover:bg-amber-400 text-slate-950 p-1.5 rounded-lg transition cursor-pointer shadow-xs font-bold hidden sm:inline-flex"
