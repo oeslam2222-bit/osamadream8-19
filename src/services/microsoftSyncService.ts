@@ -165,7 +165,7 @@ export async function testMicrosoftWebhookConnection(): Promise<MicrosoftSyncRes
       submitted_by: 'فحص الربط السحابي - مسؤول النظام',
       salesman_name: 'نظام التجربة',
       customer_name: 'شركة دريم - اختبار مايكروسوفت 365',
-      total_amount: 1.0,
+      total_amount: '1.0',
       pdf_name: 'test_sample.pdf',
       pdf_content: '',
       excel_name: 'test_sample.xlsx',
