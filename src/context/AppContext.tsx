@@ -2778,7 +2778,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sendOrderToMicrosoft365(updated, currentUser?.name).catch((e) =>
           console.warn('Background Microsoft 365 dispatch notice:', e)
         );
-        sendInvoiceToPowerAutomate(updated).catch((e) =>
+        sendInvoiceToPowerAutomate(updated, currentUser?.name).catch((e) =>
           console.warn('[Power Automate] Approved invoice email notification failed:', e)
         );
         return updated;
@@ -2822,7 +2822,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
-      await sendInvoiceToPowerAutomate(invoice);
+      await sendInvoiceToPowerAutomate(invoice, currentUser?.name);
       recordAuditLog({
         userId: currentUser.id,
         userName: currentUser.name,
