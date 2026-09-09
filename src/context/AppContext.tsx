@@ -668,7 +668,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!fresh && currentUser.id !== 'u-admin-osama') {
           // User was permanently deleted from the database
           logout();
-          setAuthTerminationNotice('تم حذف هذا الحساب من قاعدة البيانات بواسطة إدارة الشركة. تم إنهاء الجلسة ولا يمكن تسجيل الدخول بهذا الحساب.');
+          setAuthTerminationNotice('تم حذف هذا الحساب من قاعدة البيانات بو��سطة إدارة الشركة. تم إنهاء الجلسة ولا يمكن تسجيل الدخول بهذا الحساب.');
         } else if (fresh) {
           if (fresh.approvalStatus === 'rejected' || fresh.isActive === false) {
             logout();
@@ -1002,8 +1002,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const mappedInv: Invoice = {
                 id: raw.id,
                 invoiceNumber: raw.invoice_number || raw.invoiceNumber || 'DRM-INV',
-                customerName: raw.customer_name || raw.customerName || 'عميل',
-                customerPhone: raw.customer_phone || raw.customerPhone || '',
+  customerName: raw.customer_name || raw.customerName || 'عميل',
+  customerCode: raw.customer_code || raw.customerCode || undefined,
+  customerPhone: raw.customer_phone || raw.customerPhone || '',
                 customerAddress: raw.customer_address || raw.customerAddress || '',
                 customerTaxNumber: raw.customer_tax_number || raw.customerTaxNumber || '',
                 date: raw.date || (raw.created_at ? raw.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10)),
@@ -1607,7 +1608,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setAuthTerminationNotice('تم حذف هذا الحساب من قبل إدارة شركة دريم. تم إنهاء الجلسة فوراً.');
       } else if (!activeAccount.isActive || activeAccount.approvalStatus === 'rejected') {
         logout();
-        setAuthTerminationNotice('تم إيقاف هذا الحساب من قبل إدارة شركة دريم. تم إنهاء الجلسة فوراً.');
+        setAuthTerminationNotice('تم إيقاف ��ذا الحساب من قبل إدارة شركة دريم. تم إنهاء الجلسة فوراً.');
       }
     }
   }, [users, currentUser, isAuthenticated]);
@@ -3020,7 +3021,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return {
       success: true,
-      message: `تم إلغاء الطلبية #${inv.invoiceNumber} وفك حجز ${inv.totalCartons} كرتونة وإعادتها للرصيد المتاح!`,
+      message: `تم إلغا�� الطلبية #${inv.invoiceNumber} وفك حجز ${inv.totalCartons} كرتونة وإعادتها للرصيد المتاح!`,
     };
   };
 

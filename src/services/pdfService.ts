@@ -3,6 +3,7 @@ import html2canvas from 'html2canvas-pro';
 import { Invoice } from '../types';
 import { COMPANY_INFO } from '../data/mockData';
 import { resolveCustomerFinancials } from './arabicMatchingService';
+import { resolveSafeCustomerCode } from './excelService';
 
 /**
  * Render and construct pixel-perfect jsPDF Document for Dream Distribution
@@ -82,7 +83,7 @@ export async function createInvoicePDFDocument(invoice: Invoice, customCompanyIn
     isExceeded,
     requiredDown,
   } = resolveCustomerFinancials(invoice);
-  const displayCustomerCode = invoice.customerCode || invoice.customerId || '---';
+  const displayCustomerCode = resolveSafeCustomerCode(invoice);
 
   container.innerHTML = `
     <div style="border: 2px solid #0f172a; border-radius: 12px; padding: 18px; background: #ffffff;">
