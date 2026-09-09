@@ -456,26 +456,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const sanitizeProducts = (list: Product[]): Product[] => {
     if (!Array.isArray(list)) return [];
-    const byId = new Map<string, Product>();
-    const byIdentity = new Map<string, string>();
-    const normalizeProductCode = (value?: string) => String(value || '').trim().replace(/^#/, '').replace(/\s+/g, '').toLowerCase();
-    list.forEach((rawProduct) => {
-      if (!rawProduct) return;
-      const p = { ...rawProduct };
-      const codeKey = normalizeProductCode(p.code);
-      const unifiedKey = normalizeProductCode(p.unifiedCode);
-      const fallbackKey = [unifiedKey, p.name, p.color, p.size]
-        .map((value) => String(value || '').trim().toLowerCase())
-        .join(':::');
-      const identityKey = codeKey ? `code:${codeKey}` : unifiedKey ? `unified:${fallbackKey}` : `id:${p.id || Math.random()}`;
-      const idKey = p.id || identityKey;
-      const existingKey = byIdentity.get(identityKey) || idKey;
-      const existing = byId.get(existingKey);
-      byId.set(existingKey, existing ? { ...existing, ...p } : p);
-      byIdentity.set(identityKey, existingKey);
-    });
+    const usedIds = new Set<string>();
 
-    return Array.from(byId.values()).map((p) => {
+    // Product codes are display/search values, not unique row identifiers.
+    // Keep every spreadsheet row, including repeated product codes with different
+    // unified codes, colors, sizes, prices, or stock values.
+    return list.filter(Boolean).map((rawProduct, index) => {
+      const p = { ...rawProduct };
+      const originalId = String(p.id || '').trim();
+      let rowId = originalId || `product-row-${index + 1}`;
+      if (usedIds.has(rowId)) {
+        rowId = `${rowId}-${index + 1}`;
+      }
+      usedIds.add(rowId);
+      return { ...p, id: rowId };
+    }).map((p) => {
       const cartonQty = p.cartonQuantity && p.cartonQuantity > 0 ? p.cartonQuantity : 1;
       const cartonPrice = typeof p.cartonPrice === 'number' ? p.cartonPrice : 0;
 
@@ -1182,7 +1177,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         message: `تم تحديث أحدث ${remoteInvoices.length} فاتورة من السيرفر بنجاح.`,
       };
     } catch (err: any) {
-      return { success: false, count: 0, message: err?.message || 'خطأ غير متوقع أثناء تحديث الفواتير' };
+      return { success: false, count: 0, message: err?.message || 'خطأ ��ير متوقع أثناء تحديث الفواتير' };
     }
   };
 
