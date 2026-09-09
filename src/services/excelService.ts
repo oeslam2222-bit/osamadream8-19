@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 import { COMPANY_INFO } from '../data/mockData';
 import { Customer, CustomerTier, Invoice, ItemStatus, Product, SalesPriority } from '../types';
 import { inferBranchFromText, resolveCustomerFinancials } from './arabicMatchingService';
@@ -954,10 +954,33 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
       }
     }
   };
-  applyRangeStyle(`A1:P2`, { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 14 }, fill: { fgColor: { rgb: '0F172A' } }, alignment: { horizontal: 'center', vertical: 'center' } });
-  applyRangeStyle(`A${titleRows.length + 1}:P${titleRows.length + 1}`, { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: 'D97706' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: { top: { style: 'thin', color: { rgb: '94A3B8' } }, bottom: { style: 'thin', color: { rgb: '94A3B8' } } } });
-  applyRangeStyle(`A${titleRows.length + 2}:P${titleRows.length + 1 + itemRows.length}`, { alignment: { vertical: 'center', wrapText: true }, border: { top: { style: 'thin', color: { rgb: 'CBD5E1' } }, bottom: { style: 'thin', color: { rgb: 'CBD5E1' } }, left: { style: 'thin', color: { rgb: 'CBD5E1' } }, right: { style: 'thin', color: { rgb: 'CBD5E1' } } } });
+  const navy = '123047';
+  const gold = 'C88A2B';
+  const paleGold = 'FFF7E6';
+  const paleBlue = 'F2F7FA';
+  const borderColor = 'D6E0E7';
+  const baseCellStyle = {
+    font: { name: 'Arial', sz: 10, color: { rgb: '243746' } },
+    alignment: { vertical: 'center', wrapText: true },
+    border: {
+      top: { style: 'thin', color: { rgb: borderColor } },
+      bottom: { style: 'thin', color: { rgb: borderColor } },
+      left: { style: 'thin', color: { rgb: borderColor } },
+      right: { style: 'thin', color: { rgb: borderColor } },
+    },
+  };
+  applyRangeStyle(`A1:P${lastRow + 1}`, baseCellStyle);
+  applyRangeStyle('A1:P1', { font: { name: 'Arial', bold: true, color: { rgb: 'FFFFFF' }, sz: 16 }, fill: { fgColor: { rgb: navy } }, alignment: { horizontal: 'center', vertical: 'center' }, border: { bottom: { style: 'medium', color: { rgb: gold } } } });
+  applyRangeStyle('A2:P2', { font: { name: 'Arial', bold: true, color: { rgb: 'FFFFFF' }, sz: 11 }, fill: { fgColor: { rgb: '1F526B' } }, alignment: { horizontal: 'center', vertical: 'center' } });
+  applyRangeStyle('A4:P7', { fill: { fgColor: { rgb: 'F8FAFC' } }, font: { name: 'Arial', sz: 10, color: { rgb: '243746' } } });
+  applyRangeStyle('A9:P9', { font: { name: 'Arial', bold: true, color: { rgb: 'FFFFFF' }, sz: 11 }, fill: { fgColor: { rgb: navy } }, alignment: { horizontal: 'right', vertical: 'center' } });
+  applyRangeStyle('A11:P11', { fill: { fgColor: { rgb: paleGold } }, font: { name: 'Arial', bold: true, color: { rgb: '7A4B00' }, sz: 10 } });
+  applyRangeStyle(`A${titleRows.length + 1}:P${titleRows.length + 1}`, { font: { name: 'Arial', bold: true, color: { rgb: 'FFFFFF' }, sz: 10 }, fill: { fgColor: { rgb: gold } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: { top: { style: 'medium', color: { rgb: navy } }, bottom: { style: 'medium', color: { rgb: navy } } } });
+  for (let itemIndex = 0; itemIndex < itemRows.length; itemIndex += 1) {
+    if (itemIndex % 2 === 0) applyRangeStyle(`A${titleRows.length + 2 + itemIndex}:P${titleRows.length + 2 + itemIndex}`, { fill: { fgColor: { rgb: paleBlue } } });
+  }
   applyRangeStyle(`M${titleRows.length + 2}:P${lastRow + 1}`, { alignment: { horizontal: 'right', vertical: 'center', wrapText: true } });
+  applyRangeStyle(`M${titleRows.length + 2 + itemRows.length + 2}:P${titleRows.length + 2 + itemRows.length + 7}`, { fill: { fgColor: { rgb: paleGold } }, font: { name: 'Arial', bold: true, color: { rgb: navy } } });
 
   ws['!cols'] = [
     { wch: 6 },  // م
@@ -1089,7 +1112,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
 export function exportInvoiceToExcel(invoice: Invoice): void {
   const wb = buildInvoiceExcelWorkbook(invoice);
   const safeCustomer = (invoice.customerName || 'عميل').replace(/[^\w\u0621-\u064A]/g, '_');
-  XLSX.writeFile(wb, `فاتورة_دريم_طنطاوي_${invoice.invoiceNumber}_${safeCustomer}.xlsx`);
+  XLSX.writeFile(wb, `فاتورة_دريم_طنطاوي_${invoice.invoiceNumber}_${safeCustomer}.xlsx`, { cellStyles: true });
 }
 
 /**
@@ -1097,7 +1120,7 @@ export function exportInvoiceToExcel(invoice: Invoice): void {
  */
 export function generateInvoiceExcelBase64(invoice: Invoice): string {
   const wb = buildInvoiceExcelWorkbook(invoice);
-  return XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+  return XLSX.write(wb, { bookType: 'xlsx', type: 'base64', cellStyles: true });
 }
 
 /**
