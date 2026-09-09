@@ -4,18 +4,12 @@ import { Customer, CustomerTier, Invoice, ItemStatus, Product, SalesPriority } f
 import { inferBranchFromText, resolveCustomerFinancials, getBranchStockForProduct } from './arabicMatchingService';
 
 /**
- * Strips DRM- prefix and cleans product code to guarantee clean numeric or alphanumeric format
+ * Preserves the product code exactly as supplied by the sheet, including prefixes
+ * such as DRM- and any meaningful separators.
  */
 export function cleanProductCode(code?: string | number): string {
   if (code === undefined || code === null) return '';
-  const trimmed = String(code).trim();
-  if (!trimmed) return '';
-  // Strip drm-, DRM-, drm_, DRM_ prefixes (e.g. DRM-228 -> 228)
-  const match = trimmed.match(/^drm[-_]?([0-9a-zA-Z]+)$/i);
-  if (match) {
-    return match[1];
-  }
-  return trimmed;
+  return String(code).trim();
 }
 
 /**
@@ -654,13 +648,11 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const rawCode = getVal(colMap.code);
     const rawUnifiedCode = getVal(colMap.unifiedCode);
 
-    // Clean product code: numbers must remain pure numbers, remove DRM- prefixes
-    let cleanCode = cleanProductCode(rawCode);
-    if (!cleanCode && rawUnifiedCode) {
-      cleanCode = rawUnifiedCode.replace(/^#/, '').trim();
-    }
-    // Pure numeric sequence fallback if missing entirely (never DRM-)
-    const code = cleanCode || String(1000 + r);
+    // Keep the product-code column authoritative. The unified/model code is only
+    // a fallback for rows where the product-code cell is genuinely empty.
+    const productCode = cleanProductCode(rawCode);
+    const fallbackCode = rawUnifiedCode.replace(/^#/, '').trim();
+    const code = productCode || fallbackCode || String(1000 + r);
 
     let cleanUnified = rawUnifiedCode.trim();
     if (cleanUnified && /^drm[-_]?([0-9a-zA-Z]+)$/i.test(cleanUnified)) {
@@ -1612,7 +1604,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('مسؤولالتوزيع') ||
       norm.includes('مسئولالتوزيع') ||
       norm.includes('مسؤولالخط') ||
-      norm.includes('مسئولالخط') ||
+      norm.includes('مسئو��الخط') ||
       norm.includes('مندوبالبيع') ||
       norm.includes('كودالمندوب') ||
       norm.includes('المندوب') ||
