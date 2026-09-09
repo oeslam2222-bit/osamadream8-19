@@ -483,11 +483,11 @@ function onEdit(e) {
                 <div className="flex items-center gap-2">
                   <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
                   <h4 className="text-xs sm:text-sm font-black text-white">
-                    الأعمدة الرئيسية المعتمدة في الشيت (مطابقة 100% لجدولك):
+                    الأعمدة الـ 19 المعتمدة لرفع المنتجات والمخزون (مطابقة 100% لجدولك):
                   </h4>
                 </div>
                 <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-md border border-emerald-500/30">
-                  محدث وفقاً للشيت الرسمي
+                  19 عمود معتمد
                 </span>
               </div>
 
@@ -495,6 +495,7 @@ function onEdit(e) {
                 <table className="w-full text-right border-collapse">
                   <thead>
                     <tr className="bg-slate-800 text-slate-200 border-b border-slate-700 font-bold">
+                      <th className="p-2 whitespace-nowrap">#</th>
                       <th className="p-2 whitespace-nowrap">اسم العمود بالشيت</th>
                       <th className="p-2 whitespace-nowrap">البيان والوظيفة في النظام</th>
                       <th className="p-2 whitespace-nowrap text-left">مثال توضيحي</th>
@@ -502,59 +503,78 @@ function onEdit(e) {
                   </thead>
                   <tbody className="divide-y divide-slate-800 text-slate-300">
                     <tr>
-                      <td className="p-2 font-mono font-black text-amber-300">كود موحد / كود المنتج</td>
-                      <td className="p-2">الكود الفريد للصنف في الكتالوج والفواتير</td>
-                      <td className="p-2 text-left font-mono text-slate-400">1000061</td>
+                      <td className="p-2 font-mono text-slate-500">1</td>
+                      <td className="p-2 font-mono font-black text-purple-300">الكود الموحد</td>
+                      <td className="p-2">كود الموديل / الكود الرئيسي الموحد</td>
+                      <td className="p-2 text-left font-mono text-purple-200">#1000061</td>
                     </tr>
                     <tr>
-                      <td className="p-2 font-black text-white">اسم المنتج / البيان</td>
+                      <td className="p-2 font-mono text-slate-500">2</td>
+                      <td className="p-2 font-mono font-black text-amber-300">كود المنتج</td>
+                      <td className="p-2">كود الصنف الفريد (أرقام نظيفة دون دمج)</td>
+                      <td className="p-2 text-left font-mono text-amber-300">1000061</td>
+                    </tr>
+                    <tr>
+                      <td className="p-2 font-mono text-slate-500">3</td>
+                      <td className="p-2 font-black text-white">اسم المنتج</td>
                       <td className="p-2">الاسم الكامل للصنف في الكتالوج وفواتير البيع</td>
-                      <td className="p-2 text-left text-slate-400">بمبونيرة 15010 جليز الوان</td>
+                      <td className="p-2 text-left text-slate-300">بمبونيرة 15010 جليز الوان</td>
                     </tr>
                     <tr>
-                      <td className="p-2 font-black text-slate-200">الحجم / الوزن</td>
-                      <td className="p-2">مقاس وحجم الصنف (اختياري)</td>
-                      <td className="p-2 text-left text-slate-400">كبير / 24 سم</td>
+                      <td className="p-2 font-mono text-slate-500">4</td>
+                      <td className="p-2 font-black text-slate-200">الحجم</td>
+                      <td className="p-2">مقاس أو حجم الصنف</td>
+                      <td className="p-2 text-left text-slate-400">وسط / 24 سم</td>
                     </tr>
                     <tr>
-                      <td className="p-2 font-black text-amber-400">عدد القطع (Factor)</td>
-                      <td className="p-2">شدة الكرتونة (عدد القطع الفردية داخل الكرتونة)</td>
+                      <td className="p-2 font-mono text-slate-500">5</td>
+                      <td className="p-2 font-black text-amber-400">عدد القطع</td>
+                      <td className="p-2">شدة الكرتونة (Factor - عدد القطع بالكرتونة)</td>
                       <td className="p-2 text-left font-mono text-amber-300">6</td>
                     </tr>
                     <tr>
-                      <td className="p-2 font-black text-emerald-400">سعر الكرتونة</td>
+                      <td className="p-2 font-mono text-slate-500">6</td>
+                      <td className="p-2 font-black text-emerald-400">سعر الكرتونه</td>
                       <td className="p-2">سعر البيع الإجمالي للكرتونة بالجملة</td>
                       <td className="p-2 text-left font-mono text-emerald-300">350 ج.م</td>
                     </tr>
                     <tr>
-                      <td className="p-2 font-black text-cyan-300">المجموعة الرئيسية (Item group)</td>
-                      <td className="p-2">المجموعة الرئيسية بالعربي كما هي في الشيت (لوتس، ألفا، دريم هوم، لاينز، كازان، إلخ)</td>
-                      <td className="p-2 text-left font-mono text-cyan-200">لوتس / ألفا / دريم هوم</td>
+                      <td className="p-2 font-mono text-slate-500">7</td>
+                      <td className="p-2 font-black text-cyan-300">Item group</td>
+                      <td className="p-2">المجموعة الرئيسية للصنف (لوتس، ألفا، دريم هوم، إلخ)</td>
+                      <td className="p-2 text-left font-mono text-cyan-200">لوتس</td>
                     </tr>
                     <tr>
-                      <td className="p-2 font-black text-purple-300">الفئة / عائلة الصنف (Family Name)</td>
-                      <td className="p-2">اسم الفئة أو العائلة التابعة للمجموعة الرئيسية</td>
-                      <td className="p-2 text-left text-purple-200">حلل وجرانيت / كاسات / بمبونيرة</td>
+                      <td className="p-2 font-mono text-slate-500">8</td>
+                      <td className="p-2 font-black text-pink-300">Family Name</td>
+                      <td className="p-2">اسم الفئة أو العائلة التابعة للمجموعة</td>
+                      <td className="p-2 text-left text-pink-200">بمبونيرة</td>
                     </tr>
                     <tr>
+                      <td className="p-2 font-mono text-slate-500">9</td>
                       <td className="p-2 font-black text-slate-200">اللون</td>
                       <td className="p-2">لون الصنف المتاح</td>
-                      <td className="p-2 text-left text-slate-400">ألوان مشكلة / أبيض</td>
+                      <td className="p-2 text-left text-slate-400">ألوان مشكلة</td>
                     </tr>
                     <tr>
-                      <td className="p-2 font-black text-blue-400">الفروع الـ 7 + مخزن أكتوبر</td>
-                      <td className="p-2">أعمدة الأرصدة (البحيرة، الفيوم، القاهرة، المنيا، ديمشلت، مخزون اكتوبر، منوف، منيا القمح)</td>
-                      <td className="p-2 text-left font-mono text-blue-300">أرقام عدد الكراتين</td>
+                      <td className="p-2 font-mono text-slate-500">10-17</td>
+                      <td className="p-2 font-black text-blue-400">فروع المحافظات + مخزون اكتوبر</td>
+                      <td className="p-2">
+                        الأعمدة: <span className="text-blue-300 font-bold">البحيرة، الفيوم، القاهرة، المنيا، ديمشلت، مخزون اكتوبر، منوف، منيا القمح</span>
+                      </td>
+                      <td className="p-2 text-left font-mono text-blue-300">أرصدة الكراتين بكل فرع</td>
                     </tr>
                     <tr>
+                      <td className="p-2 font-mono text-slate-500">18</td>
                       <td className="p-2 font-black text-rose-400">سعر العرض</td>
-                      <td className="p-2">سعر الخصم/العرض الترويجي للكرتونة (إذا وجد)</td>
+                      <td className="p-2">سعر الخصم/العرض الترويجي للكرتونة (إن وجد)</td>
                       <td className="p-2 text-left font-mono text-rose-300">320 ج.م</td>
                     </tr>
                     <tr>
+                      <td className="p-2 font-mono text-slate-500">19</td>
                       <td className="p-2 font-black text-sky-400">لينك الصوره</td>
-                      <td className="p-2">رابط صورة المنتج المباشر من Google Drive أو CDN</td>
-                      <td className="p-2 text-left font-mono text-[10px] text-sky-300 truncate max-w-xs">googleusercontent.com/d/...</td>
+                      <td className="p-2">رابط صورة المنتج المباشر من Google Drive أو الويب</td>
+                      <td className="p-2 text-left font-mono text-[10px] text-sky-300 truncate max-w-xs">lh3.googleusercontent.com/d/...</td>
                     </tr>
                   </tbody>
                 </table>
@@ -1687,31 +1707,32 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
 
         <div className="flex flex-wrap gap-1.5 text-[11px]">
           {[
-            'كود العميل',
-            'اسم العميل',
-            'الفرع التابع له',
-            'اسم المندوب',
-            'اسم الصنف',
-            'اولوية البيع',
-            'التصنيف',
-            'حالة الصنف',
-            'شدة الكرتونة',
+            'الكود الموحد',
+            'كود المنتج',
+            'اسم المنتج',
             'الحجم',
+            'عدد القطع',
+            'سعر الكرتونه',
+            'Item group',
+            'Family Name',
             'اللون',
-            'الفرع - فعلى',
-            'الفرع - بعد الحجز',
-            'المخزن الرئيسي - فعلى',
-            'المخزن الرئيسي - بعد الحجز',
-            'القسم',
-            'الفئة',
+            'البحيرة',
+            'الفيوم',
+            'القاهرة',
+            'المنيا',
+            'ديمشلت',
+            'مخزون اكتوبر',
+            'منوف',
+            'منيا القمح',
             'سعر العرض',
-            'سعر الكرتونة',
-            'اسم الفرع',
-            'رابط صورة Google Drive / مباشر'
+            'لينك الصوره',
+            'كود العميل (CUST...)',
+            'اسم العميل',
+            'رصيد العميل'
           ].map((col, idx) => (
             <span
               key={idx}
-              className="bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700"
+              className="bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700 font-medium"
             >
               {idx + 1}. {col}
             </span>

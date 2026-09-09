@@ -1,5 +1,5 @@
 import { Invoice, Branch } from '../types';
-import { generateInvoiceExcelBase64 } from './excelService';
+import { generateInvoiceExcelBase64, resolveSafeCustomerCode } from './excelService';
 import { generateInvoicePDFBase64 } from './pdfService';
 import { resolveCustomerFinancials, isBranchMatch, normalizeBranchName } from './arabicMatchingService';
 
@@ -273,12 +273,7 @@ export async function sendOrderToMicrosoft365(
 
     // Resolve true customer code & financials
     const financials = resolveCustomerFinancials(invoice);
-    const resolvedCustomerCode = (
-      invoice.customerCode?.trim() ||
-      financials.matchedCustomer?.code?.trim() ||
-      invoice.customerId?.trim() ||
-      'غير محدد'
-    );
+    const resolvedCustomerCode = resolveSafeCustomerCode(invoice, financials.matchedCustomer);
 
     const debtNum = Number(
       invoice.customerBalanceBefore !== undefined && invoice.customerBalanceBefore !== null

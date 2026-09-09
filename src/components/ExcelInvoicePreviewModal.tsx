@@ -16,7 +16,7 @@ import {
   ShoppingBag
 } from 'lucide-react';
 import { Invoice } from '../types';
-import { exportElectronicInvoiceToExcel, exportInvoiceForERP } from '../services/excelService';
+import { exportElectronicInvoiceToExcel, exportInvoiceForERP, cleanProductCode, resolveSafeCustomerCode } from '../services/excelService';
 import { downloadInvoicePDF } from '../services/pdfService';
 import { formatCurrency } from '../services/invoiceService';
 import { COMPANY_INFO } from '../data/mockData';
@@ -48,7 +48,10 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
     creditLimit,
     isExceeded,
     requiredDown,
+    matchedCustomer,
   } = resolveCustomerFinancials(invoice);
+
+  const resolvedCustomerCode = resolveSafeCustomerCode(invoice, matchedCustomer);
 
   // 1. Direct Excel Download
   const handleDownloadExcel = () => {
@@ -360,7 +363,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                 </div>
                 <div className="p-2 bg-white rounded-lg border border-slate-200">
                   <span className="text-slate-400 block text-[10px] font-bold">كود العميل:</span>
-                  <strong className="text-slate-900 font-mono">{invoice.customerCode || 'كاش'}</strong>
+                  <strong className="text-slate-900 font-mono">{resolvedCustomerCode}</strong>
                 </div>
                 <div className="p-2 bg-white rounded-lg border border-slate-200">
                   <span className="text-slate-400 block text-[10px] font-bold">الفرع المنفذ:</span>
@@ -443,7 +446,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                           className={`hover:bg-amber-50/50 transition ${idx % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'}`}
                         >
                           <td className="p-2 text-center border-l border-slate-200 font-bold text-slate-500">{idx + 1}</td>
-                          <td className="p-2 border-l border-slate-200 font-mono font-bold text-slate-800">{item.productCode}</td>
+                          <td className="p-2 border-l border-slate-200 font-mono font-bold text-slate-800">{cleanProductCode(item.productCode)}</td>
                           <td className="p-2 border-l border-slate-200 font-mono text-blue-700">{unified}</td>
                           <td className="p-2 border-l border-slate-200 font-bold text-slate-900">{item.productName}</td>
                           <td className="p-2 text-center border-l border-slate-200 text-slate-600">{cartonQty}</td>
@@ -570,9 +573,9 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                         <td className="p-2 border-l border-slate-200">{invoice.date}</td>
                         <td className="p-2 border-l border-slate-200 font-sans">{invoice.repName}</td>
                         <td className="p-2 border-l border-slate-200 font-sans">{invoice.branchName}</td>
-                        <td className="p-2 border-l border-slate-200">{invoice.customerCode || '---'}</td>
+                        <td className="p-2 border-l border-slate-200">{resolvedCustomerCode}</td>
                         <td className="p-2 border-l border-slate-200 font-sans">{invoice.customerName}</td>
-                        <td className="p-2 border-l border-slate-200 font-bold">{item.productCode}</td>
+                        <td className="p-2 border-l border-slate-200 font-bold">{cleanProductCode(item.productCode)}</td>
                         <td className="p-2 border-l border-slate-200 text-blue-700">{item.unifiedCode || '---'}</td>
                         <td className="p-2 border-l border-slate-200 font-sans">{item.productName}</td>
                         <td className="p-2 text-center border-l border-slate-200">{item.cartonCount}</td>
@@ -614,7 +617,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">كود العميل:</span>
-                    <strong className="text-slate-900 font-mono">{invoice.customerCode || 'كاش'}</strong>
+                    <strong className="text-slate-900 font-mono">{resolvedCustomerCode}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">رقم الهاتف:</span>

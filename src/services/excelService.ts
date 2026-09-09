@@ -1,7 +1,65 @@
 import * as XLSX from 'xlsx-js-style';
 import { COMPANY_INFO } from '../data/mockData';
 import { Customer, CustomerTier, Invoice, ItemStatus, Product, SalesPriority } from '../types';
-import { inferBranchFromText, resolveCustomerFinancials } from './arabicMatchingService';
+import { inferBranchFromText, resolveCustomerFinancials, getBranchStockForProduct } from './arabicMatchingService';
+
+/**
+ * Strips DRM- prefix and cleans product code to guarantee clean numeric or alphanumeric format
+ */
+export function cleanProductCode(code?: string | number): string {
+  if (code === undefined || code === null) return '';
+  const trimmed = String(code).trim();
+  if (!trimmed) return '';
+  // Strip drm-, DRM-, drm_, DRM_ prefixes (e.g. DRM-228 -> 228)
+  const match = trimmed.match(/^drm[-_]?([0-9a-zA-Z]+)$/i);
+  if (match) {
+    return match[1];
+  }
+  return trimmed;
+}
+
+/**
+ * Resolves true customer code, prioritizing valid ERP codes (e.g. CUST012295)
+ * and strictly forbidding placeholder words like "كاش" or "نقدي".
+ */
+export function resolveSafeCustomerCode(invoice: Partial<Invoice>, matchedCustomer?: Customer): string {
+  const isInvalidPlaceholder = (val?: string) => {
+    if (!val) return true;
+    const v = val.trim().toLowerCase();
+    return (
+      v === 'كاش' ||
+      v === 'نقدي' ||
+      v === 'نقدى' ||
+      v === 'cash' ||
+      v === 'غير محدد' ||
+      v === '---' ||
+      v === 'cash-direct' ||
+      v === 'undefined' ||
+      v === 'null'
+    );
+  };
+
+  // 1. Matched customer from database (e.g. CUST012295)
+  if (matchedCustomer?.code && !isInvalidPlaceholder(matchedCustomer.code)) {
+    return matchedCustomer.code.trim();
+  }
+
+  // 2. Customer code already set on invoice (if not a placeholder)
+  if (invoice.customerCode && !isInvalidPlaceholder(invoice.customerCode)) {
+    return invoice.customerCode.trim();
+  }
+
+  // 3. Customer ID if it has CUST prefix
+  if (invoice.customerId && !isInvalidPlaceholder(invoice.customerId)) {
+    const cid = invoice.customerId.trim();
+    if (cid.toUpperCase().startsWith('CUST')) {
+      return cid.replace(/^cust[-_]/i, 'CUST');
+    }
+  }
+
+  // 4. Default standard fallback code for customer (never output "كاش" as customer code)
+  return 'CUST012295';
+}
 
 /**
  * Smart Branch Name normalizer for Excel input
@@ -214,75 +272,10 @@ export function parseRawRowsToProducts(rawRows: any[]): {
   headers.forEach((h, idx) => {
     const norm = normalizeHeader(h);
 
-    // 1. Exact Branch Stock Columns from Dream Sheet
+    // 1. الكود الموحد (Unified Code / Model Code)
     if (
-      norm === 'البحيرة' ||
-      norm === 'البحيره' ||
-      norm === 'البحير' ||
-      norm.includes('مخزونالبحير') ||
-      norm.includes('فرعالبحير')
-    ) {
-      colMap.stockBeheira = idx;
-      if (colMap.branchStockActual === -1) colMap.branchStockActual = idx;
-    } else if (
-      norm === 'الفيوم' ||
-      norm.includes('مخزونالفيوم') ||
-      norm.includes('فرعالفيوم')
-    ) {
-      colMap.stockFayoum = idx;
-    } else if (
-      norm === 'القاهرة' ||
-      norm === 'القاهره' ||
-      norm === 'القاهر' ||
-      norm.includes('مخزونالقاهر') ||
-      norm.includes('فرعالقاهر')
-    ) {
-      colMap.stockCairo = idx;
-    } else if (
-      norm === 'المنيا' ||
-      norm === 'المني' ||
-      (norm.includes('المنيا') && !norm.includes('القمح')) ||
-      norm.includes('مخزونالمنيا')
-    ) {
-      colMap.stockMinya = idx;
-    } else if (
-      norm === 'ديمشلت' ||
-      norm === 'ديمشل' ||
-      norm.includes('مخزونديمشلت') ||
-      norm.includes('فرعديمشلت')
-    ) {
-      colMap.stockDimeshalt = idx;
-    } else if (
-      norm === 'مخزوناكتوبر' ||
-      norm === 'مخزونأكتوبر' ||
-      norm === 'مخزوناكتوب' ||
-      norm === 'مخزونكتوب' ||
-      norm === 'اكتوبر' ||
-      norm === 'أكتوبر' ||
-      norm.includes('مخزوناكتوبر') ||
-      norm.includes('مخزنالمركزي') ||
-      norm.includes('مخزنمركزي') ||
-      norm.includes('المخزنالمركزي')
-    ) {
-      colMap.stockOctober = idx;
-      colMap.mainWarehouseActual = idx;
-    } else if (
-      norm === 'منوف' ||
-      norm.includes('مخزونمنوف') ||
-      norm.includes('فرعمنوف')
-    ) {
-      colMap.stockMenouf = idx;
-    } else if (
-      norm === 'منياالقمح' ||
-      norm === 'منياالقم' ||
-      norm === 'متياالقم' ||
-      norm.includes('منياالقمح') ||
-      norm.includes('القمح')
-    ) {
-      colMap.stockMeq = idx;
-    }
-    // 2. Unified / Model / Display Code (الكود الموضح / كود موضح / الكود الموحد / كود الموديل / Unified Code / Model Code)
-    else if (
+      norm === 'الكودالموحد' ||
+      norm === 'كودموحد' ||
       norm === 'الكودالموضح' ||
       norm === 'كودموضح' ||
       norm === 'الكودموضح' ||
@@ -290,72 +283,84 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       norm === 'الموضح' ||
       norm === 'كودتوضيحي' ||
       norm === 'كودالصنفالموضح' ||
-      norm === 'الكودالموحد' ||
-      norm === 'كودموحد' ||
       norm === 'كودالموديل' ||
       norm === 'الموديل' ||
       norm === 'كودالموديلالموحد' ||
-      norm.includes('الكودالموضح') ||
-      norm.includes('كودموضح') ||
-      norm.includes('الموضح') ||
       norm.includes('الكودالموحد') ||
       norm.includes('كودموحد') ||
+      norm.includes('الكودالموضح') ||
       norm.includes('unifiedcode') ||
       norm.includes('modelcode') ||
       norm.includes('mastercode')
     ) {
       colMap.unifiedCode = idx;
     }
-    // 3. Product Code / Full SKU Code (الكود كامل / الكود الكامل / كود كامل / كود الصنف / كود المنتج / كود)
+    // 2. كود المنتج (Product Code / SKU) - strictly separated from unifiedCode
     else if (
       idx !== colMap.unifiedCode &&
-      (norm === 'الكودكامل' ||
-      norm === 'كودكامل' ||
-      norm === 'الكودالكامل' ||
-      norm === 'كودالصنفالكامل' ||
-      norm.includes('كودكامل') ||
-      norm.includes('الكودالكامل') ||
-      norm === 'كودالمنتج' ||
-      norm === 'كودالصنف' ||
-      norm.includes('كودالمنتج') ||
-      norm.includes('كودالصنف') ||
-      norm.includes('كود') ||
-      norm.includes('code') ||
-      norm.includes('sku'))
+      !norm.includes('موحد') &&
+      !norm.includes('موضح') &&
+      !norm.includes('موديل') &&
+      (norm === 'كودالمنتج' ||
+        norm === 'كودالصنف' ||
+        norm === 'الكودكامل' ||
+        norm === 'كودكامل' ||
+        norm === 'الكودالكامل' ||
+        norm === 'كودالصنفالكامل' ||
+        norm === 'الكود' ||
+        norm === 'كود' ||
+        norm.includes('كودالمنتج') ||
+        norm.includes('كودالصنف') ||
+        norm.includes('productcode') ||
+        norm.includes('itemcode') ||
+        norm.includes('sku') ||
+        norm === 'code')
     ) {
       if (
         colMap.code === -1 ||
-        norm === 'الكودكامل' ||
-        norm === 'كودكامل' ||
-        norm.includes('كامل') ||
+        norm === 'كودالمنتج' ||
         norm === 'كودالصنف' ||
-        norm === 'كودالمنتج'
+        norm === 'الكودكامل' ||
+        norm === 'كودكامل'
       ) {
         colMap.code = idx;
       }
     }
-    // 4. Product Name (Product name / اسم الصنف / اسم المنتج / البيان)
+    // 3. اسم المنتج (Product Name / البيان)
     else if (
       !norm.includes('عائلة') &&
       !norm.includes('عائله') &&
       !norm.includes('فرع') &&
       !norm.includes('مندوب') &&
       (norm === 'اسمالمنتج' ||
-      norm === 'اسمالصنف' ||
-      norm === 'productname' ||
-      norm === 'itemname' ||
-      norm.includes('اسمالمنتج') ||
-      norm.includes('productname') ||
-      norm.includes('اسمالصنف') ||
-      norm === 'الاسم' ||
-      norm === 'اسم' ||
-      norm.includes('البيان'))
+        norm === 'اسمالصنف' ||
+        norm === 'productname' ||
+        norm === 'itemname' ||
+        norm.includes('اسمالمنتج') ||
+        norm.includes('productname') ||
+        norm.includes('اسمالصنف') ||
+        norm === 'الاسم' ||
+        norm === 'اسم' ||
+        norm.includes('البيان'))
     ) {
       if (colMap.name === -1 || norm === 'اسمالمنتج' || norm === 'اسمالصنف' || norm.includes('اسمالصنف')) {
         colMap.name = idx;
       }
     }
-    // 4. Factor / عدد القطع (شدة الكرتونة / عدد القطع / عدد القطع بالكرتونة)
+    // 4. الحجم (Size / Weight)
+    else if (
+      norm === 'الحجم' ||
+      norm === 'حجم' ||
+      norm === 'الوزن' ||
+      norm === 'وزن' ||
+      norm === 'المقاس' ||
+      norm === 'مقاس' ||
+      norm.includes('حجم') ||
+      norm.includes('size')
+    ) {
+      colMap.size = idx;
+    }
+    // 5. عدد القطع (Factor / شدة الكرتونة / عدد القطع بالكرتونة)
     else if (
       norm === 'عددالقطع' ||
       norm === 'القطع' ||
@@ -366,6 +371,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       norm.includes('فاكتور') ||
       norm.includes('شدةالكرتون') ||
       norm.includes('شدةالكرتونه') ||
+      norm.includes('شدةالكرتونة') ||
       norm.includes('شدة') ||
       norm.includes('شده') ||
       norm.includes('عددالقطع') ||
@@ -375,35 +381,21 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       colMap.factor = idx;
       colMap.cartonQuantity = idx;
     }
-    // 5. Carton Price / Wholesale Price (سعر الكرتونة / سعر الكرتون)
+    // 6. سعر الكرتونه (Carton Price / سعر الكرتونة / سعر الكرتون)
     else if (
-      norm === 'سعرالكرتونة' ||
       norm === 'سعرالكرتونه' ||
+      norm === 'سعرالكرتونة' ||
       norm === 'سعرالكرتون' ||
       norm === 'سعرالكر' ||
       norm.includes('سعرالكرتون') ||
       norm.includes('سعرالكرتونه') ||
+      norm.includes('سعرالكرتونة') ||
       norm.includes('cartonprice') ||
       norm.includes('wholesaleprice')
     ) {
       colMap.cartonPrice = idx;
     }
-    // 6. Sales Price / Piece Price (سعر القطعة / سعر البيع)
-    else if (
-      norm === 'سعرالقطعة' ||
-      norm === 'سعرالقطعه' ||
-      norm === 'سعرالبيع' ||
-      norm === 'salesprice' ||
-      norm.includes('salesprice') ||
-      norm.includes('سعرالقطعة') ||
-      norm.includes('سعرالقطعه') ||
-      norm.includes('سعرالبيع') ||
-      norm.includes('sales_price')
-    ) {
-      colMap.salesPrice = idx;
-      colMap.piecePrice = idx;
-    }
-    // 7. Item group (المجموعة الرئيسية / مجموعة الأصناف / القسم / الماركة)
+    // 7. Item group (المجموعة الرئيسية / القسم / الماركة / البراند)
     else if (
       norm === 'itemgroup' ||
       norm === 'item_group' ||
@@ -426,7 +418,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       colMap.itemGroup = idx;
       colMap.department = idx;
     }
-    // 8. Family Name (العائلة / الفئة / المجموعة الفرعية / التصنيف)
+    // 8. Family Name (عائلة الصنف / الفئة / المجموعة الفرعية / التصنيف)
     else if (
       norm === 'familyname' ||
       norm === 'family_name' ||
@@ -451,15 +443,107 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       colMap.familyName = idx;
       colMap.classification = idx;
     }
-    // 9. Promo Offer Price (سعر العرض)
+    // 9. اللون (Color)
+    else if (norm === 'اللون' || norm === 'لون' || norm.includes('اللون') || norm.includes('color')) {
+      colMap.color = idx;
+    }
+    // 10. البحيرة (Beheira Branch Stock)
+    else if (
+      norm === 'البحيرة' ||
+      norm === 'البحيره' ||
+      norm === 'البحير' ||
+      norm.includes('مخزونالبحير') ||
+      norm.includes('فرعالبحير') ||
+      norm.includes('البحير')
+    ) {
+      colMap.stockBeheira = idx;
+      if (colMap.branchStockActual === -1) colMap.branchStockActual = idx;
+    }
+    // 11. الفيوم (Fayoum Branch Stock)
+    else if (
+      norm === 'الفيوم' ||
+      norm.includes('مخزونالفيوم') ||
+      norm.includes('فرعالفيوم') ||
+      norm.includes('الفيوم')
+    ) {
+      colMap.stockFayoum = idx;
+    }
+    // 12. القاهرة (Cairo Branch Stock)
+    else if (
+      norm === 'القاهرة' ||
+      norm === 'القاهره' ||
+      norm === 'القاهر' ||
+      norm.includes('مخزونالقاهر') ||
+      norm.includes('فرعالقاهر') ||
+      norm.includes('القاهر')
+    ) {
+      colMap.stockCairo = idx;
+    }
+    // 13. المنيا (Minya Branch Stock - Upper Egypt, strictly separated from Minya El Qamh)
+    else if (
+      (norm === 'المنيا' || norm === 'المني' || norm.includes('المنيا')) &&
+      !norm.includes('القمح') &&
+      !norm.includes('قمح')
+    ) {
+      colMap.stockMinya = idx;
+    }
+    // 14. ديمشلت (Dimeshalt Branch Stock)
+    else if (
+      norm === 'ديمشلت' ||
+      norm === 'ديمشل' ||
+      norm.includes('مخزونديمشلت') ||
+      norm.includes('فرعديمشلت') ||
+      norm.includes('ديمشلت')
+    ) {
+      colMap.stockDimeshalt = idx;
+    }
+    // 15. مخزون اكتوبر (October Central Warehouse Stock - المخزن الرئيسي المركزي)
+    else if (
+      norm === 'مخزوناكتوبر' ||
+      norm === 'مخزونأكتوبر' ||
+      norm === 'مخزوناكتوب' ||
+      norm === 'مخزونكتوب' ||
+      norm === 'اكتوبر' ||
+      norm === 'أكتوبر' ||
+      norm.includes('مخزوناكتوبر') ||
+      norm.includes('مخزنالمركزي') ||
+      norm.includes('مخزنمركزي') ||
+      norm.includes('المخزنالمركزي') ||
+      norm.includes('المخزنالرئيسي') ||
+      norm.includes('المخزنالرئيسى')
+    ) {
+      colMap.stockOctober = idx;
+      colMap.mainWarehouseActual = idx;
+    }
+    // 16. منوف (Menouf Branch Stock)
+    else if (
+      norm === 'منوف' ||
+      norm.includes('مخزونمنوف') ||
+      norm.includes('فرعمنوف') ||
+      norm.includes('منوف')
+    ) {
+      colMap.stockMenouf = idx;
+    }
+    // 17. منيا القمح (Minya El Qamh Branch Stock)
+    else if (
+      norm === 'منياالقمح' ||
+      norm === 'منياالقم' ||
+      norm === 'متياالقم' ||
+      norm.includes('منياالقمح') ||
+      norm.includes('القمح') ||
+      norm.includes('قمح')
+    ) {
+      colMap.stockMeq = idx;
+    }
+    // 18. سعر العرض (Offer / Promo Price for Carton)
     else if (
       norm === 'سعرالعرض' ||
       norm === 'سعرالعرضكرتون' ||
       norm === 'سعرالعرضبالكرتون' ||
       norm === 'سعرعرضكرتون' ||
+      norm === 'سعرعرض' ||
       norm.includes('سعرالعرض') ||
       norm.includes('سعرخاص') ||
-      norm.includes('عرض') ||
       norm.includes('promo') ||
       norm.includes('promoprice') ||
       norm.includes('offerprice')
@@ -472,25 +556,36 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     ) {
       colMap.promoPiecePrice = idx;
     }
-    // 10. Image URL (لينك الصوره / لينك الصورة / صوره / رابط)
+    // 19. لينك الصوره (Image URL / Link)
     else if (
       norm === 'لينكالصوره' ||
       norm === 'لينكالصورة' ||
+      norm === 'رابطالصورة' ||
+      norm === 'رابطالصوره' ||
+      norm.includes('لينكالصور') ||
       norm.includes('لينك') ||
       norm.includes('صوره') ||
-      norm.includes('صور') ||
+      norm.includes('صورة') ||
       norm.includes('image') ||
       norm.includes('url')
     ) {
       colMap.imageUrl = idx;
     }
-    // 11. Color & Size (اللون / الحجم / الوزن)
-    else if (norm === 'اللون' || norm === 'لون' || norm.includes('لون') || norm.includes('color')) {
-      colMap.color = idx;
-    } else if (norm === 'الحجم' || norm === 'حجم' || norm === 'الوزن' || norm === 'وزن' || norm.includes('حجم') || norm.includes('size')) {
-      colMap.size = idx;
+    // Fallback piece price
+    else if (
+      norm === 'سعرالقطعة' ||
+      norm === 'سعرالقطعه' ||
+      norm === 'سعرالبيع' ||
+      norm === 'salesprice' ||
+      norm.includes('salesprice') ||
+      norm.includes('سعرالقطعة') ||
+      norm.includes('سعرالقطعه') ||
+      norm.includes('سعرالبيع')
+    ) {
+      colMap.salesPrice = idx;
+      colMap.piecePrice = idx;
     }
-    // 12. General matchers fallback
+    // General matchers fallback
     else if (norm.includes('كود') || norm.includes('code')) {
       if (colMap.code === -1) colMap.code = idx;
     } else if (norm.includes('اسم') || norm.includes('البيان')) {
@@ -509,6 +604,30 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       colMap.branchName = idx;
     }
   });
+
+  // Positional fallback for the exact 19 columns:
+  // [الكود الموحد, كود المنتج, اسم المنتج, الحجم, عدد القطع, سعر الكرتونه, Item group, Family Name, اللون, البحيرة, الفيوم, القاهرة, المنيا, ديمشلت, مخزون اكتوبر, منوف, منيا القمح, سعر العرض, لينك الصوره]
+  if ((colMap.unifiedCode === -1 || colMap.code === -1) && headers.length >= 10) {
+    if (colMap.unifiedCode === -1) colMap.unifiedCode = 0;
+    if (colMap.code === -1) colMap.code = 1;
+    if (colMap.name === -1 && headers.length > 2) colMap.name = 2;
+    if (colMap.size === -1 && headers.length > 3) colMap.size = 3;
+    if (colMap.factor === -1 && headers.length > 4) { colMap.factor = 4; colMap.cartonQuantity = 4; }
+    if (colMap.cartonPrice === -1 && headers.length > 5) colMap.cartonPrice = 5;
+    if (colMap.itemGroup === -1 && headers.length > 6) { colMap.itemGroup = 6; colMap.department = 6; }
+    if (colMap.familyName === -1 && headers.length > 7) { colMap.familyName = 7; colMap.classification = 7; }
+    if (colMap.color === -1 && headers.length > 8) colMap.color = 8;
+    if (colMap.stockBeheira === -1 && headers.length > 9) colMap.stockBeheira = 9;
+    if (colMap.stockFayoum === -1 && headers.length > 10) colMap.stockFayoum = 10;
+    if (colMap.stockCairo === -1 && headers.length > 11) colMap.stockCairo = 11;
+    if (colMap.stockMinya === -1 && headers.length > 12) colMap.stockMinya = 12;
+    if (colMap.stockDimeshalt === -1 && headers.length > 13) colMap.stockDimeshalt = 13;
+    if (colMap.stockOctober === -1 && headers.length > 14) { colMap.stockOctober = 14; colMap.mainWarehouseActual = 14; }
+    if (colMap.stockMenouf === -1 && headers.length > 15) colMap.stockMenouf = 15;
+    if (colMap.stockMeq === -1 && headers.length > 16) colMap.stockMeq = 16;
+    if (colMap.promoPrice === -1 && headers.length > 17) colMap.promoPrice = 17;
+    if (colMap.imageUrl === -1 && headers.length > 18) colMap.imageUrl = 18;
+  }
 
   // Track code occurrences to ensure 100% of rows (all 5500+) get unique IDs without overwriting
   const codeOccurrences: Record<string, number> = {};
@@ -533,7 +652,24 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     };
 
     const rawCode = getVal(colMap.code);
-    const code = rawCode || `DRM-${100 + r}`;
+    const rawUnifiedCode = getVal(colMap.unifiedCode);
+
+    // Clean product code: numbers must remain pure numbers, remove DRM- prefixes
+    let cleanCode = cleanProductCode(rawCode);
+    if (!cleanCode && rawUnifiedCode) {
+      cleanCode = rawUnifiedCode.replace(/^#/, '').trim();
+    }
+    // Pure numeric sequence fallback if missing entirely (never DRM-)
+    const code = cleanCode || String(1000 + r);
+
+    let cleanUnified = rawUnifiedCode.trim();
+    if (cleanUnified && /^drm[-_]?([0-9a-zA-Z]+)$/i.test(cleanUnified)) {
+      cleanUnified = cleanUnified.replace(/^drm[-_]?/i, '');
+    }
+    const unifiedCode = cleanUnified
+      ? (cleanUnified.startsWith('#') ? cleanUnified : `#${cleanUnified}`)
+      : undefined;
+
     const rawName = getVal(colMap.name);
     const fallbackName = getVal(colMap.familyName) || getVal(colMap.itemGroup) || `صنف دريم ${code}`;
     const name = rawName || fallbackName;
@@ -637,21 +773,15 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const sizeVal = getVal(colMap.size) || '';
     const colorVal = getVal(colMap.color) || '';
 
-    // Generate deterministic product ID from Code + Name + Color + Size + Row to guarantee preservation of all rows even with duplicate codes
+    // Generate distinct product ID to guarantee preservation of all rows and prevent unwanted code merging
     const baseCode = (code || `prd_${r}`).replace(/\s+/g, '_').toLowerCase();
+    const cleanUnifiedSlug = unifiedCode ? `_u${unifiedCode.replace(/[^a-zA-Z0-9]/g, '')}` : '';
     const cleanName = (name || '').replace(/[^a-zA-Z0-9\u0621-\u064A]/g, '_').slice(0, 20).toLowerCase();
     const colorSlug = colorVal ? `_${colorVal.replace(/[^a-zA-Z0-9\u0621-\u064A]/g, '_').toLowerCase()}` : '';
     const sizeSlug = sizeVal ? `_${sizeVal.replace(/[^a-zA-Z0-9\u0621-\u064A]/g, '_').toLowerCase()}` : '';
     
-    const uniqueVariantKey = `${baseCode}:::${cleanName}:::${colorSlug}:::${sizeSlug}`;
-    codeOccurrences[uniqueVariantKey] = (codeOccurrences[uniqueVariantKey] || 0) + 1;
-    const occSuffix = codeOccurrences[uniqueVariantKey] > 1 ? `_row${r}` : '';
-    const deterministicId = `prod-${baseCode}${cleanName ? '_' + cleanName : ''}${colorSlug}${sizeSlug}${occSuffix}`;
-
-    const rawUnifiedCode = getVal(colMap.unifiedCode);
-    const unifiedCode = rawUnifiedCode
-      ? (rawUnifiedCode.startsWith('#') ? rawUnifiedCode : `#${rawUnifiedCode}`)
-      : undefined;
+    // Each row gets a distinct ID to completely prevent code merging as requested by user
+    const deterministicId = `prod-${baseCode}${cleanUnifiedSlug}${cleanName ? '_' + cleanName : ''}${colorSlug}${sizeSlug}_r${r}`;
 
     const product: Product = {
       id: deterministicId,
@@ -797,12 +927,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
     matchedCustomer,
   } = resolveCustomerFinancials(invoice);
 
-  const resolvedCustomerCode = (
-    invoice.customerCode?.trim() ||
-    matchedCustomer?.code?.trim() ||
-    invoice.customerId?.trim() ||
-    'غير محدد'
-  );
+  const resolvedCustomerCode = resolveSafeCustomerCode(invoice, matchedCustomer);
 
   const titleRows = [
     ['شركة دريم للتجارة والتوزيع - مجموعة الطنطاوي (TANTAWY GROUP)'],
@@ -818,7 +943,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
     ['مستودع الصرف:', invoice.items.some((it) => it.fulfilledFrom === 'main_warehouse') ? 'مخزن 6 أكتوبر المركزي + الفرع' : invoice.branchName, '', 'إجمالي الكراتين:', `${invoice.totalCartons} كرتونة`, '', 'إجمالي القطع:', `${invoice.totalPieces} قطعة`, '', 'النوع:', (invoice.isShortageInvoice || invoice.invoiceNumber?.endsWith('-NQ')) ? 'فاتورة نواقص (-NQ)' : 'فاتورة مبيعات'],
     [],
     // Row 9-10: Financial KPI Cards
-    ['الموقف المالي والائتماني للعميل:', '', '', '', '', '', '', '', '', '', ''],
+    ['الموقف المالي والائتماني للعميل:', '', '', '', '', '', '', '', '', '', '', '', '', ''],
     [
       'المديونية السابقة:',
       debtBefore,
@@ -830,11 +955,17 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
       debtAfter,
       '',
       'الحد الائتماني المعتمد:',
-      creditLimit
+      creditLimit,
+      '',
+      '',
+      ''
     ],
     [
       'حالة الائتمان:',
       isExceeded ? `⚠️ تجاوز الحد الائتماني (مطلوب دفعة نقدية: ${requiredDown.toLocaleString()} ج.م)` : '✅ الحساب سليم وضمن الحد الائتماني المعتمد',
+      '',
+      '',
+      '',
       '',
       '',
       '',
@@ -848,22 +979,21 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
     []
   ];
 
+  // Exactly matching the 14 columns of the in-app Excel Invoice Preview Modal
   const tableHeaders = [
     'م',
     'كود الصنف',
-    'الكود الموحد (#)',
+    'الكود الموحد',
     'اسم الصنف والبيان التفصيلي',
-    'شدة الكرتونة (ق/ك)',
-    'بيان الكمية بالكرتون والقطع',
-    'عدد الكراتين',
-    'قطع فردية',
+    'شدة',
+    'كرتون',
+    'قطع',
     'إجمالي القطع',
-    'سعر القطعة (ج.م)',
-    'سعر الكرتونة (ج.م)',
-    'سعر العرض (إن وُجد)',
-    'الإجمالي قبل الخصم (ج.م)',
-    'قيمة الخصم (ج.م)',
-    'الصافي المطلوب (ج.م)',
+    'سعر كرتونة',
+    'سعر قطعة',
+    'الإجمالي',
+    'الخصم',
+    'الصافي',
     'مصدر الصرف'
   ];
 
@@ -872,38 +1002,24 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
     const cCount = item.cartonCount || 0;
     const pCount = item.pieceCount || 0;
     const totalPcs = item.totalUnits || (cCount * cartonQty + pCount);
-    
-    let smartDesc = '';
-    if (cCount > 0 && pCount > 0) {
-      smartDesc = `${cCount} كرتونة و ${pCount} قطعة`;
-    } else if (cCount > 0) {
-      smartDesc = `${cCount} كرتونة`;
-    } else if (pCount > 0) {
-      smartDesc = `${pCount} قطعة`;
-    } else {
-      smartDesc = '0';
-    }
-
     const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round(((item.pricePerCarton || item.appliedPrice) / cartonQty) * 100) / 100 : 0);
-    const promoP = (item as any).promoPrice || (item as any).offerPrice ? `${(item as any).promoPrice || (item as any).offerPrice} ج.م` : '---';
     const unified = item.unifiedCode || (item.product as any)?.unifiedCode || '---';
+    const cleanPCode = cleanProductCode(item.productCode);
     const fulfillmentSource = item.fulfilledFrom === 'main_warehouse' ? 'مخزن 6 أكتوبر المركزي (نواقص)' : (invoice.branchName || 'مخزن الفرع');
 
     return [
       index + 1,
-      item.productCode,
+      cleanPCode,
       unified,
       item.productName,
       cartonQty,
-      item.quantityDescription || smartDesc,
       cCount,
       pCount,
       totalPcs,
-      pieceP,
       item.pricePerCarton || item.appliedPrice,
-      promoP,
+      pieceP,
       item.totalBeforeTax,
-      item.discountAmount,
+      item.discountAmount > 0 ? -item.discountAmount : 0,
       item.netTotal,
       fulfillmentSource
     ];
@@ -911,13 +1027,13 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
 
   const summaryRows = [
     [],
-    ['', '', '', '', '', '', '', '', '', '', '', 'إجمالي البضاعة قبل الخصم:', '', invoice.subtotal],
-    ['', '', '', '', '', '', '', '', '', '', '', `إجمالي الخصم التجاري (${invoice.discountPercentage}%):`, '', -invoice.discountAmount],
-    ['', '', '', '', '', '', '', '', '', '', '', 'الإجمالي النهائي المطلوب سداده (الصافي):', '', invoice.estimatedGrandTotal],
-    ['', '', '', '', '', '', '', '', '', '', '', 'المديونية السابقة للعميل:', '', debtBefore],
-    ['', '', '', '', '', '', '', '', '', '', '', 'إجمالي مديونية العميل بعد الفاتورة:', '', debtAfter],
-    ['', '', '', '', '', '', '', '', '', '', '', 'الحد الائتماني المعتمد للعميل:', '', creditLimit],
-    ['', '', '', '', '', '', '', '', '', '', '', 'الدفعة النقدية المطلوب تحصيلها فوراً:', '', isExceeded ? requiredDown : 0],
+    ['', '', '', '', '', '', '', '', '', '', 'إجمالي البضاعة قبل الخصم:', '', invoice.subtotal, ''],
+    ['', '', '', '', '', '', '', '', '', '', `إجمالي الخصم التجاري (${invoice.discountPercentage}%):`, '', invoice.discountAmount > 0 ? -invoice.discountAmount : 0, ''],
+    ['', '', '', '', '', '', '', '', '', '', 'الإجمالي النهائي المطلوب سداده (الصافي):', '', invoice.estimatedGrandTotal, ''],
+    ['', '', '', '', '', '', '', '', '', '', 'المديونية السابقة للعميل:', '', debtBefore, ''],
+    ['', '', '', '', '', '', '', '', '', '', 'إجمالي مديونية العميل بعد الفاتورة:', '', debtAfter, ''],
+    ['', '', '', '', '', '', '', '', '', '', 'الحد الائتماني المعتمد للعميل:', '', creditLimit, ''],
+    ['', '', '', '', '', '', '', '', '', '', 'الدفعة النقدية المطلوب تحصيلها فوراً:', '', isExceeded ? requiredDown : 0, ''],
     [],
     ['ملاحظات الفاتورة والتسليم:', invoice.notes || 'بضاعة مستلمة كاملة وبحالة جيدة ومطابقة للمواصفات.'],
     ['رسالة تقدير:', '✨ شكرًا لتعاملكم مع شركة دريم للتجارة والتوزيع - مجموعة الطنطاوي ❤️'],
@@ -929,7 +1045,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
 
   const fullSheetData = [...titleRows, tableHeaders, ...itemRows, ...summaryRows];
   const ws = XLSX.utils.aoa_to_sheet(fullSheetData);
-  const lastColumn = tableHeaders.length - 1;
+  const lastColumn = tableHeaders.length - 1; // index 13 (N)
   const lastRow = fullSheetData.length - 1;
 
   // Merged headers and executive layout
@@ -946,7 +1062,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
     { s: { r: 10, c: 1 }, e: { r: 10, c: lastColumn } },
   ];
   ws['!freeze'] = { xSplit: 0, ySplit: titleRows.length + 1 };
-  ws['!autofilter'] = { ref: `A${titleRows.length + 1}:P${titleRows.length + 1 + itemRows.length}` };
+  ws['!autofilter'] = { ref: `A${titleRows.length + 1}:N${titleRows.length + 1 + itemRows.length}` };
   ws['!sheetView'] = [{ rightToLeft: true }];
   ws['!views'] = [{ RTL: true }];
   ws['!rows'] = fullSheetData.map((_, rowIndex) => ({
@@ -982,48 +1098,48 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
     },
   };
 
-  applyRangeStyle(`A1:P${lastRow + 1}`, baseCellStyle);
+  applyRangeStyle(`A1:N${lastRow + 1}`, baseCellStyle);
 
   // Row 1 & 2: Header Banners
-  applyRangeStyle('A1:P1', {
+  applyRangeStyle('A1:N1', {
     font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 16 },
     fill: { fgColor: { rgb: navy } },
     alignment: { horizontal: 'center', vertical: 'center' },
     border: { bottom: { style: 'medium', color: { rgb: gold } } }
   });
-  applyRangeStyle('A2:P2', {
+  applyRangeStyle('A2:N2', {
     font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
     fill: { fgColor: { rgb: slateBlue } },
     alignment: { horizontal: 'center', vertical: 'center' }
   });
 
   // Rows 4-7: Metadata Cards
-  applyRangeStyle('A4:P7', {
+  applyRangeStyle('A4:N7', {
     fill: { fgColor: { rgb: 'F8FAFC' } },
     font: { name: 'Segoe UI', sz: 10, color: { rgb: '1E293B' } }
   });
 
   // Row 9: Financial Section Title
-  applyRangeStyle('A9:P9', {
+  applyRangeStyle('A9:N9', {
     font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
     fill: { fgColor: { rgb: navy } },
     alignment: { horizontal: 'right', vertical: 'center' }
   });
 
   // Row 10: Financial Values Row
-  applyRangeStyle('A10:P10', {
+  applyRangeStyle('A10:N10', {
     fill: { fgColor: { rgb: 'F1F5F9' } },
     font: { name: 'Segoe UI', bold: true, color: { rgb: '0F172A' }, sz: 10.5 }
   });
 
   // Row 11: Credit Status Banner
-  applyRangeStyle('A11:P11', {
+  applyRangeStyle('A11:N11', {
     fill: { fgColor: { rgb: isExceeded ? paleGold : softGreen } },
     font: { name: 'Segoe UI', bold: true, color: { rgb: isExceeded ? '92400E' : '166534' }, sz: 10.5 }
   });
 
   // Table Headers Row
-  applyRangeStyle(`A${titleRows.length + 1}:P${titleRows.length + 1}`, {
+  applyRangeStyle(`A${titleRows.length + 1}:N${titleRows.length + 1}`, {
     font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 10.5 },
     fill: { fgColor: { rgb: navy } },
     alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
@@ -1033,7 +1149,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
   // Zebra striping for item rows
   for (let itemIndex = 0; itemIndex < itemRows.length; itemIndex += 1) {
     if (itemIndex % 2 === 0) {
-      applyRangeStyle(`A${titleRows.length + 2 + itemIndex}:P${titleRows.length + 2 + itemIndex}`, {
+      applyRangeStyle(`A${titleRows.length + 2 + itemIndex}:N${titleRows.length + 2 + itemIndex}`, {
         fill: { fgColor: { rgb: paleBlue } }
       });
     }
@@ -1041,14 +1157,14 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
 
   // Summary Rows Styling
   const summaryStartRow = titleRows.length + 2 + itemRows.length;
-  applyRangeStyle(`L${summaryStartRow}:N${summaryStartRow + 7}`, {
+  applyRangeStyle(`K${summaryStartRow}:M${summaryStartRow + 7}`, {
     alignment: { horizontal: 'right', vertical: 'center' },
     font: { name: 'Segoe UI', bold: true, color: { rgb: '1E293B' } }
   });
 
   // Grand Total Highlight Row
   const grandTotalRow = summaryStartRow + 3;
-  applyRangeStyle(`L${grandTotalRow}:N${grandTotalRow}`, {
+  applyRangeStyle(`K${grandTotalRow}:M${grandTotalRow}`, {
     fill: { fgColor: { rgb: paleGold } },
     font: { name: 'Segoe UI', bold: true, color: { rgb: '92400E' }, sz: 11.5 },
     border: {
@@ -1060,22 +1176,20 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
   });
 
   ws['!cols'] = [
-    { wch: 6 },  // م
-    { wch: 14 }, // كود الصنف
-    { wch: 16 }, // الكود الموحد (#)
-    { wch: 38 }, // اسم الصنف والبيان
-    { wch: 15 }, // شدة الكرتونة
-    { wch: 22 }, // بيان الكمية
-    { wch: 13 }, // عدد الكراتين
-    { wch: 12 }, // قطع فردية
-    { wch: 14 }, // إجمالي القطع
-    { wch: 15 }, // سعر القطعة
-    { wch: 16 }, // سعر الكرتونة
-    { wch: 15 }, // سعر العرض
-    { wch: 18 }, // قبل الخصم
-    { wch: 14 }, // الخصم
-    { wch: 18 }, // الصافي
-    { wch: 24 }  // مصدر الصرف
+    { wch: 6 },   // م
+    { wch: 15 },  // كود الصنف
+    { wch: 15 },  // الكود الموحد
+    { wch: 38 },  // اسم الصنف والبيان التفصيلي
+    { wch: 10 },  // شدة
+    { wch: 10 },  // كرتون
+    { wch: 10 },  // قطع
+    { wch: 14 },  // إجمالي القطع
+    { wch: 14 },  // سعر كرتونة
+    { wch: 14 },  // سعر قطعة
+    { wch: 16 },  // الإجمالي
+    { wch: 14 },  // الخصم
+    { wch: 16 },  // الصافي
+    { wch: 22 }   // مصدر الصرف
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, `فاتورة_${invoice.invoiceNumber}`);
@@ -1126,7 +1240,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
         resolvedCustomerCode,
         invoice.customerName,
         invoice.customerPhone || '',
-        item.productCode,
+        cleanProductCode(item.productCode),
         unified,
         item.productName,
         cartonQty,
@@ -2190,79 +2304,97 @@ export function exportCustomersToExcel(customers: Customer[]): void {
 }
 
 /**
- * Export Products Catalog & Inventory to Excel matching Dream spreadsheet format
+ * Standard 19 Columns for Dream Group Product & Multi-branch Inventory
+ */
+export const DREAM_INVENTORY_EXCEL_COLUMNS = [
+  'الكود الموحد',
+  'كود المنتج',
+  'اسم المنتج',
+  'الحجم',
+  'عدد القطع',
+  'سعر الكرتونه',
+  'Item group',
+  'Family Name',
+  'اللون',
+  'البحيرة',
+  'الفيوم',
+  'القاهرة',
+  'المنيا',
+  'ديمشلت',
+  'مخزون اكتوبر',
+  'منوف',
+  'منيا القمح',
+  'سعر العرض',
+  'لينك الصوره',
+];
+
+/**
+ * Export Products Catalog & Inventory to Excel matching the exact Dream 19-column spreadsheet format
  */
 export function exportProductsToExcel(products: Product[], branchName = 'الكل'): void {
   const wb = XLSX.utils.book_new();
 
-  const headers = [
-    'الكود',
-    'الكود الموحد (#)',
-    'اسم الصنف',
-    'اولوية البيع',
-    'التصنيف',
-    'حالة الصنف',
-    'شدة الكرتونة',
-    'الحجم',
-    'اللون',
-    'الفرع - فعلى',
-    'الفرع - بعد الحجز',
-    'المخزن الرئيسي - فعلى',
-    'المخزن الرئيسي - بعد الحجز',
-    'القسم',
-    'الفئة',
-    'سعر العرض',
-    'سعر الكرتونة',
-    'اسم الفرع',
-    'رابط الصورة'
-  ];
+  const headers = [...DREAM_INVENTORY_EXCEL_COLUMNS];
 
-  const rows = products.map(p => [
-    p.code,
-    p.unifiedCode || '',
-    p.name,
-    p.salesPriority,
-    p.category,
-    p.status,
-    p.cartonQuantity,
-    p.size,
-    p.color,
-    p.branchStockActual,
-    p.branchStockReserved,
-    p.mainWarehouseActual,
-    p.mainWarehouseReserved,
-    p.department,
-    p.classification,
-    p.promoPrice || '',
-    p.cartonPrice,
-    p.branchName,
-    p.imageUrl || ''
-  ]);
+  const rows = products.map((p) => {
+    const stockBeheira = getBranchStockForProduct(p, 'البحيرة');
+    const stockFayoum = getBranchStockForProduct(p, 'الفيوم');
+    const stockCairo = getBranchStockForProduct(p, 'القاهرة');
+    const stockMinya = getBranchStockForProduct(p, 'المنيا');
+    const stockDimeshalt = getBranchStockForProduct(p, 'ديمشلت');
+    const stockOctober =
+      typeof p.mainWarehouseActual === 'number' && p.mainWarehouseActual > 0
+        ? p.mainWarehouseActual
+        : getBranchStockForProduct(p, 'أكتوبر');
+    const stockMenouf = getBranchStockForProduct(p, 'منوف');
+    const stockMeq = getBranchStockForProduct(p, 'منيا القمح');
+
+    return [
+      p.unifiedCode || '',
+      cleanProductCode(p.code),
+      p.name,
+      p.size || '',
+      p.cartonQuantity || p.factor || 1,
+      p.cartonPrice || 0,
+      p.itemGroup || p.department || p.category || '',
+      p.familyName || p.classification || '',
+      p.color || '',
+      stockBeheira,
+      stockFayoum,
+      stockCairo,
+      stockMinya,
+      stockDimeshalt,
+      stockOctober,
+      stockMenouf,
+      stockMeq,
+      p.promoPrice || p.offerPrice || '',
+      p.imageUrl || '',
+    ];
+  });
 
   const data = [headers, ...rows];
   const ws = XLSX.utils.aoa_to_sheet(data);
 
   ws['!cols'] = [
-    { wch: 14 },
-    { wch: 16 },
-    { wch: 35 },
-    { wch: 14 },
-    { wch: 18 },
-    { wch: 14 },
-    { wch: 14 },
-    { wch: 12 },
-    { wch: 14 },
-    { wch: 14 },
-    { wch: 16 },
-    { wch: 20 },
-    { wch: 22 },
-    { wch: 18 },
-    { wch: 14 },
-    { wch: 12 },
-    { wch: 12 },
-    { wch: 14 },
-    { wch: 24 },
-    { wch: 45 }
+    { wch: 16 }, // الكود الموحد
+    { wch: 16 }, // كود المنتج
+    { wch: 40 }, // اسم المنتج
+    { wch: 12 }, // الحجم
+    { wch: 12 }, // عدد القطع
+    { wch: 14 }, // سعر الكرتونه
+    { wch: 18 }, // Item group
+    { wch: 18 }, // Family Name
+    { wch: 14 }, // اللون
+    { wch: 12 }, // البحيرة
+    { wch: 12 }, // الفيوم
+    { wch: 12 }, // القاهرة
+    { wch: 12 }, // المنيا
+    { wch: 12 }, // ديمشلت
+    { wch: 16 }, // مخزون اكتوبر
+    { wch: 12 }, // منوف
+    { wch: 14 }, // منيا القمح
+    { wch: 14 }, // سعر العرض
+    { wch: 48 }, // لينك الصوره
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, 'مخزون_دريم');
@@ -2270,14 +2402,51 @@ export function exportProductsToExcel(products: Product[], branchName = 'الك�
 }
 
 /**
- * Generate a blank template Excel file ready for import
+ * Generate a blank template Excel file ready for import matching the exact 19 columns
  */
 export function generateSampleExcelTemplate(): void {
   const sampleProducts: Product[] = [
     {
       id: 'sample-1',
-      code: 'LHL-101',
-      name: 'طقم لوتس كلاسيك زجاجي 6 قطع',
+      code: '1000061',
+      unifiedCode: '#1000061',
+      name: 'بمبونيرة 15010 جليز الوان',
+      salesPriority: 'مرتفع',
+      category: 'لوتس',
+      itemGroup: 'لوتس',
+      familyName: 'بمبونيرة',
+      status: 'متاح',
+      cartonQuantity: 6,
+      size: 'وسط',
+      color: 'ألوان مشكلة',
+      branchStockActual: 150,
+      branchStockReserved: 130,
+      mainWarehouseActual: 2000,
+      mainWarehouseReserved: 1800,
+      branchStocks: {
+        'البحيرة': 45,
+        'الفيوم': 30,
+        'القاهرة': 150,
+        'المنيا': 60,
+        'ديمشلت': 25,
+        'مخزون اكتوبر': 2000,
+        'أكتوبر': 2000,
+        'منوف': 40,
+        'منيا القمح': 55,
+      },
+      department: 'لوتس',
+      classification: 'بمبونيرة',
+      promoPrice: 320,
+      piecePrice: 58.33,
+      cartonPrice: 350,
+      branchName: 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+      imageUrl: 'https://lh3.googleusercontent.com/d/1sample_drive_id=w800',
+    },
+    {
+      id: 'sample-2',
+      code: '1000062',
+      unifiedCode: '#1000062',
+      name: 'طقم كاسات لوتس كلاسيك 6 ق كريستال',
       salesPriority: 'مرتفع',
       category: 'لوتس',
       itemGroup: 'لوتس',
@@ -2286,42 +2455,29 @@ export function generateSampleExcelTemplate(): void {
       cartonQuantity: 12,
       size: '300 مل',
       color: 'شفاف كرستال',
-      branchStockActual: 150,
-      branchStockReserved: 130,
-      mainWarehouseActual: 2000,
-      mainWarehouseReserved: 1800,
-      department: 'لوتس',
-      classification: 'كاسات زجاج',
-      promoPrice: 85,
-      piecePrice: 95,
-      cartonPrice: 1020,
-      branchName: 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
-      imageUrl: 'https://res.cloudinary.com/dream-dist/image/upload/products/LHL-101.jpg'
-    },
-    {
-      id: 'sample-2',
-      code: 'FHL-111',
-      name: 'طقم لومينارك فرنسي أصلي 6 قطع',
-      salesPriority: 'مرتفع',
-      category: 'لومينارك',
-      itemGroup: 'لومينارك',
-      familyName: 'أطقم عشاء',
-      status: 'متاح',
-      cartonQuantity: 6,
-      size: 'كبير',
-      color: 'أبيض ناصع',
       branchStockActual: 80,
       branchStockReserved: 70,
-      mainWarehouseActual: 1200,
-      mainWarehouseReserved: 1100,
-      department: 'لومينارك',
-      classification: 'أطقم عشاء',
-      promoPrice: 140,
-      piecePrice: 160,
-      cartonPrice: 960,
-      branchName: 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
-      imageUrl: 'https://res.cloudinary.com/dream-dist/image/upload/products/FHL-111.jpg'
-    }
+      mainWarehouseActual: 1500,
+      mainWarehouseReserved: 1400,
+      branchStocks: {
+        'البحيرة': 20,
+        'الفيوم': 15,
+        'القاهرة': 80,
+        'المنيا': 35,
+        'ديمشلت': 10,
+        'مخزون اكتوبر': 1500,
+        'أكتوبر': 1500,
+        'منوف': 25,
+        'منيا القمح': 30,
+      },
+      department: 'لوتس',
+      classification: 'كاسات زجاج',
+      promoPrice: 480,
+      piecePrice: 43.33,
+      cartonPrice: 520,
+      branchName: 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+      imageUrl: 'https://lh3.googleusercontent.com/d/2sample_drive_id=w800',
+    },
   ];
 
   exportProductsToExcel(sampleProducts, 'نموذج_إدخال_الأصناف_دريم');
