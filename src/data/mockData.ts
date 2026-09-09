@@ -49,6 +49,8 @@ export const INITIAL_BRANCHES: Branch[] = [
     managerName: 'أشرف عبد العزيز',
     phone: '01012345678',
     isMainWarehouse: true,
+    email: 'october@dream-dist.com',
+    notificationEmails: ['october@dream-dist.com'],
   },
   {
     id: 'b-cairo',
@@ -59,6 +61,8 @@ export const INITIAL_BRANCHES: Branch[] = [
     managerName: 'عمرو عبد اللطيف',
     phone: '01023456789',
     isMainWarehouse: false,
+    email: 'cairo@dream-dist.com',
+    notificationEmails: ['cairo@dream-dist.com'],
   },
   {
     id: 'b-fayoum',
@@ -69,6 +73,8 @@ export const INITIAL_BRANCHES: Branch[] = [
     managerName: 'حسين عبد الرحمن',
     phone: '01123456780',
     isMainWarehouse: false,
+    email: 'fayoum@dream-dist.com',
+    notificationEmails: ['fayoum@dream-dist.com'],
   },
   {
     id: 'b-minya',
@@ -79,6 +85,8 @@ export const INITIAL_BRANCHES: Branch[] = [
     managerName: 'ماجد القوصي',
     phone: '01066554433',
     isMainWarehouse: false,
+    email: 'minya@dream-dist.com',
+    notificationEmails: ['minya@dream-dist.com'],
   },
   {
     id: 'b-dimeshalt',
@@ -89,6 +97,8 @@ export const INITIAL_BRANCHES: Branch[] = [
     managerName: 'سامح المغازي',
     phone: '01234567891',
     isMainWarehouse: false,
+    email: 'dimeshalt@dream-dist.com',
+    notificationEmails: ['dimeshalt@dream-dist.com'],
   },
   {
     id: 'b-menouf',
@@ -99,6 +109,8 @@ export const INITIAL_BRANCHES: Branch[] = [
     managerName: 'طارق عبد السلام',
     phone: '01099887766',
     isMainWarehouse: false,
+    email: 'menouf@dream-dist.com',
+    notificationEmails: ['menouf@dream-dist.com'],
   },
   {
     id: 'b-minya-elqamh',
@@ -109,6 +121,8 @@ export const INITIAL_BRANCHES: Branch[] = [
     managerName: 'عصام عبد الفتاح',
     phone: '01155443322',
     isMainWarehouse: false,
+    email: 'minyaqamh@dream-dist.com',
+    notificationEmails: ['minyaqamh@dream-dist.com'],
   },
   {
     id: 'b-beheira',
@@ -119,6 +133,8 @@ export const INITIAL_BRANCHES: Branch[] = [
     managerName: 'أشرف عبد العاطي',
     phone: '01044332211',
     isMainWarehouse: false,
+    email: 'beheira@dream-dist.com',
+    notificationEmails: ['beheira@dream-dist.com'],
   },
 ];
 
