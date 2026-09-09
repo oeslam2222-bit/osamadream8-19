@@ -48,6 +48,8 @@ export interface Branch {
   managerName: string;
   phone: string;
   isMainWarehouse?: boolean;
+  email?: string;
+  notificationEmails?: string[];
 }
 
 export type SalesPriority = 'مرتفع' | 'متوسط' | 'عادي' | 'منخفض';
