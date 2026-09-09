@@ -884,12 +884,16 @@ export async function fetchAndParseGoogleSheet(googleSheetUrlOrId: string): Prom
       throw new Error(`تعذر جلب الشيت (كود ${response.status}). يرجى التأكد من أن الشيت منشور للعامة (Anyone with the link can view).`);
     }
 
-    const csvText = await response.text();
-    if (!csvText || csvText.trim().length === 0) {
-      throw new Error('تم جلب الشيت لكنه لا يحتوي على أي بيانات.');
-    }
+  // Read the CSV as bytes so Arabic text is decoded explicitly as UTF-8.
+  // response.text() may use a wrong charset when the sheet response omits it,
+  // which turns Arabic characters into replacement/question marks.
+  const csvBytes = new Uint8Array(await response.arrayBuffer());
+  const csvText = new TextDecoder('utf-8').decode(csvBytes).replace(/^\uFEFF/, '');
+  if (!csvText || csvText.trim().length === 0) {
+    throw new Error('تم جلب الشيت لكنه لا يحتوي على أي بيانات.');
+  }
 
-    const workbook = XLSX.read(csvText, { type: 'string' });
+  const workbook = XLSX.read(csvText, { type: 'string', codepage: 65001 });
     const firstSheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[firstSheetName];
     const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
