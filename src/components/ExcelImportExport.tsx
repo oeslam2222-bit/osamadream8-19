@@ -110,29 +110,13 @@ export const ExcelImportExport: React.FC = () => {
   const [copiedScript, setCopiedScript] = useState(false);
 
   const prepareImportedProducts = (incoming: Product[]): Product[] => {
-    const byIdentity = new Map<string, Product>();
-    const normalize = (value?: string) => String(value || '').trim().replace(/^#/, '').replace(/\s+/g, '').toLowerCase();
-    let duplicateCount = 0;
-    let missingCodeCount = 0;
-
-    incoming.forEach((product) => {
-      const code = normalize(product.code);
-      const unified = normalize(product.unifiedCode);
-      if (!code) missingCodeCount++;
-      const identity = code
-        ? `code:${code}`
-        : unified
-        ? `unified:${unified}:::${normalize(product.name)}:::${normalize(product.color)}:::${normalize(product.size)}`
-        : `id:${product.id}`;
-      if (byIdentity.has(identity)) duplicateCount++;
-      byIdentity.set(identity, product);
-    });
-
-    const notices: string[] = [];
-    if (duplicateCount > 0) notices.push(`تم دمج ${duplicateCount} صف مكرر`);
+    const missingCodeCount = incoming.filter((product) => !String(product?.code || '').trim()).length;
+    const notices: string[] = [
+      `تم الاحتفاظ بكل ${incoming.length} صف كما هو، بما في ذلك الأكواد المكررة`,
+    ];
     if (missingCodeCount > 0) notices.push(`${missingCodeCount} صف بدون كود أساسي واضح`);
-    setImportDataNotice(notices.length > 0 ? `${notices.join(' • ')}. آخر نسخة من كل كود هي التي ستُحفظ.` : null);
-    return Array.from(byIdentity.values());
+    setImportDataNotice(`${notices.join(' • ')}.`);
+    return incoming;
   };
 
   // Filtered preview products
@@ -1751,7 +1735,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
             <div className="text-center space-y-1">
               <h3 className="text-lg font-black text-slate-900">تأكيد مسح وتصفير كافة البيانات</h3>
               <p className="text-xs text-slate-500 leading-relaxed">
-                هل أنت متأكد من رغبتك في مسح كافة المنتجات والصور الحالية؟ سيتم تفريغ النظام لتتمكن من رفع شيت الإكسل الجديد الخاص بك من البداية.
+                هل أنت متأكد ��ن رغبتك في مسح كافة المنتجات والصور الحالية؟ سيتم تفريغ النظام ��تتمكن من رفع شيت الإكسل الجديد الخاص بك من البداية.
               </p>
             </div>
 
