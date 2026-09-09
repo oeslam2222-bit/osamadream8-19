@@ -37,6 +37,7 @@ export interface CompanyInfo {
   logoLetter?: string;
   logoUrl?: string;
   footerNotes?: string;
+  notificationEmails?: string[];
 }
 
 export interface Branch {

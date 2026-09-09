@@ -12,11 +12,13 @@ import {
   Mail,
   MapPin,
   Phone,
+  Plus,
   RotateCcw,
   Save,
   ShieldCheck,
   Sparkles,
   Store,
+  Trash2,
   X,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -66,16 +68,67 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
 
   // When selected scope changes, reload the appropriate data
   useEffect(() => {
+    let initial: CompanyInfo;
     if (selectedScope === '__GLOBAL__') {
-      setFormData({ ...COMPANY_INFO, ...companyInfo });
+      initial = { ...COMPANY_INFO, ...companyInfo };
     } else {
-      setFormData(getCompanyInfoForBranch(selectedScope));
+      initial = getCompanyInfoForBranch(selectedScope);
     }
+
+    const allEmails = Array.from(
+      new Set([
+        ...(initial.email ? [initial.email.trim()] : []),
+        ...(initial.notificationEmails || []).map((e) => e.trim()).filter(Boolean),
+      ])
+    );
+    const primary = allEmails[0] || initial.email || '';
+    const others = allEmails.slice(1);
+
+    setFormData({
+      ...initial,
+      email: primary,
+      notificationEmails: others,
+    });
   }, [selectedScope, companyInfo, branchCompanyInfo]);
 
   if (!isOpen) return null;
 
   const isEditingBranch = selectedScope !== '__GLOBAL__';
+
+  const MAX_BRANCH_EMAILS = 7;
+  const additionalEmails: string[] = formData.notificationEmails || [];
+  const currentTotalEmailsCount = (formData.email?.trim() ? 1 : 0) + additionalEmails.filter((e) => e.trim().length > 0).length;
+  const canAddMoreEmails = (1 + additionalEmails.length) < MAX_BRANCH_EMAILS;
+
+  const handleAddEmail = () => {
+    if (!canAddMoreEmails) return;
+    setFormData((prev) => ({
+      ...prev,
+      notificationEmails: [...(prev.notificationEmails || []), ''],
+    }));
+  };
+
+  const handleUpdateAdditionalEmail = (index: number, val: string) => {
+    setFormData((prev) => {
+      const nextList = [...(prev.notificationEmails || [])];
+      nextList[index] = val;
+      return {
+        ...prev,
+        notificationEmails: nextList,
+      };
+    });
+  };
+
+  const handleRemoveAdditionalEmail = (index: number) => {
+    setFormData((prev) => {
+      const nextList = [...(prev.notificationEmails || [])];
+      nextList.splice(index, 1);
+      return {
+        ...prev,
+        notificationEmails: nextList,
+      };
+    });
+  };
 
   const handleChange = (field: keyof CompanyInfo, value: string) => {
     setFormData((prev) => ({
@@ -86,10 +139,25 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanedAdditional = (formData.notificationEmails || [])
+      .map((e) => e.trim())
+      .filter((e) => Boolean(e && e.includes('@')));
+
+    let primary = formData.email?.trim() || '';
+    if (!primary && cleanedAdditional.length > 0) {
+      primary = cleanedAdditional[0];
+    }
+
+    const cleanedData: CompanyInfo = {
+      ...formData,
+      email: primary,
+      notificationEmails: cleanedAdditional,
+    };
+
     if (selectedScope === '__GLOBAL__') {
-      updateCompanyInfo(formData);
+      updateCompanyInfo(cleanedData);
     } else {
-      updateBranchCompanyInfo(selectedScope, formData);
+      updateBranchCompanyInfo(selectedScope, cleanedData);
     }
     setSavedSuccess(true);
     setTimeout(() => {
@@ -408,16 +476,98 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
               />
             </div>
 
-            {/* Email */}
-            <div className="sm:col-span-6">
-              <label className="block font-bold text-slate-700 mb-1">البريد الإلكتروني الرسمي (Email)</label>
-              <input
-                type="email"
-                value={formData.email || ''}
-                onChange={(e) => handleChange('email', e.target.value)}
-                placeholder="oeslam2222@gmail.com"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
-              />
+            {/* Multi-Email Manager (Up to 7 emails for Microsoft 365 Notifications) */}
+            <div className="sm:col-span-12 bg-slate-50/90 border border-slate-200/90 rounded-2xl p-4 shadow-2xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-800 text-sm">
+                      {isEditingBranch ? `عناوين البريد الإلكتروني للفرع (${selectedScope})` : 'عناوين البريد الإلكتروني الرسمي العام'}
+                    </label>
+                    <span className="text-[11px] text-slate-500 block">
+                      إشعارات Microsoft 365 Power Automate (إرسال تلقائي للطلبيات وملفات الإكسل والـ PDF)
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                    {Math.min(MAX_BRANCH_EMAILS, currentTotalEmailsCount)} من {MAX_BRANCH_EMAILS} إيميلات
+                  </span>
+                </div>
+              </div>
+
+              {/* Emails List */}
+              <div className="space-y-3">
+                {/* Primary Email */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <span>البريد الأساسي (الرئيسي):</span>
+                      <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-md font-semibold">أساسي</span>
+                    </span>
+                  </div>
+                  <input
+                    type="email"
+                    value={formData.email || ''}
+                    onChange={(e) => handleChange('email', e.target.value)}
+                    placeholder="oeslam2222@gmail.com أو branch@dream-dist.com"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  />
+                </div>
+
+                {/* Additional Notification Emails */}
+                {additionalEmails.map((emailVal, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-slate-600">
+                          بريد إضافي #{idx + 2} (مستلم إشعار):
+                        </span>
+                      </div>
+                      <input
+                        type="email"
+                        value={emailVal}
+                        onChange={(e) => handleUpdateAdditionalEmail(idx, e.target.value)}
+                        placeholder={`additional${idx + 1}@dream-dist.com`}
+                        className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAdditionalEmail(idx)}
+                      className="mt-5 p-2.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 active:bg-rose-100 border border-rose-200 rounded-xl transition cursor-pointer flex items-center justify-center shrink-0"
+                      title="حذف هذا البريد الإضافي"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+
+                {/* Action Row */}
+                <div className="pt-1">
+                  {canAddMoreEmails ? (
+                    <button
+                      type="button"
+                      onClick={handleAddEmail}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 active:bg-blue-200 border border-blue-200 rounded-xl transition cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>إضافة بريد إلكتروني آخر (+ حتى {MAX_BRANCH_EMAILS} إيميلات)</span>
+                    </button>
+                  ) : (
+                    <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-2 font-medium">
+                      وصلت للحد الأقصى ({MAX_BRANCH_EMAILS} إيميلات). جميع هذه العناوين ستستلم إشعارات الطلبيات المعتمدة سوياً.
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-slate-500 pt-1">
+                  💡 <strong>ملاحظة:</strong> يمكنك إضافة حتى {MAX_BRANCH_EMAILS} إيميلات للفرع (مثل: مدير الفرع، مسؤول المخزن، المحاسب، المشرف...). ستصلهم جميعاً إشعارات الطلبيات المعتمدة وملفات الإكسل والـ PDF في نفس اللحظة عبر Microsoft 365 Power Automate.
+                </p>
+              </div>
             </div>
 
             {/* Website */}

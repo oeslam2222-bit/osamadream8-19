@@ -794,7 +794,15 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
     creditLimit,
     isExceeded,
     requiredDown,
+    matchedCustomer,
   } = resolveCustomerFinancials(invoice);
+
+  const resolvedCustomerCode = (
+    invoice.customerCode?.trim() ||
+    matchedCustomer?.code?.trim() ||
+    invoice.customerId?.trim() ||
+    'غير محدد'
+  );
 
   const titleRows = [
     ['شركة دريم للتجارة والتوزيع - مجموعة الطنطاوي (TANTAWY GROUP)'],
@@ -803,7 +811,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
     // Row 4: Invoice Meta
     ['رقم الفاتورة:', invoice.invoiceNumber, '', 'تاريخ الإصدار:', invoice.date, '', 'وقت الإصدار:', invoice.time || '', '', 'طريقة السداد:', invoice.paymentMethod],
     // Row 5: Customer Meta
-    ['اسم العميل / المحل:', invoice.customerName, '', 'كود العميل:', invoice.customerCode || '---', '', 'هاتف العميل:', invoice.customerPhone || '---', '', 'الرقم الضريبي:', invoice.customerTaxNumber || '---'],
+    ['اسم العميل / المحل:', invoice.customerName, '', 'كود العميل:', resolvedCustomerCode, '', 'هاتف العميل:', invoice.customerPhone || '---', '', 'الرقم الضريبي:', invoice.customerTaxNumber || '---'],
     // Row 6: Organization Meta
     ['الفرع المنفذ:', invoice.branchName, '', 'المندوب المسؤول:', invoice.repName, '', 'المشرف المعتمد:', invoice.supervisorName || '---', '', 'حالة الفاتورة:', invoice.status],
     // Row 7: Warehouse Meta
@@ -876,7 +884,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
       smartDesc = '0';
     }
 
-    const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round((item.pricePerCarton || item.appliedPrice) / cartonQty) : 0);
+    const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round(((item.pricePerCarton || item.appliedPrice) / cartonQty) * 100) / 100 : 0);
     const promoP = (item as any).promoPrice || (item as any).offerPrice ? `${(item as any).promoPrice || (item as any).offerPrice} ج.م` : '---';
     const unified = item.unifiedCode || (item.product as any)?.unifiedCode || '---';
     const fulfillmentSource = item.fulfilledFrom === 'main_warehouse' ? 'مخزن 6 أكتوبر المركزي (نواقص)' : (invoice.branchName || 'مخزن الفرع');
@@ -942,7 +950,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
   ws['!sheetView'] = [{ rightToLeft: true }];
   ws['!views'] = [{ RTL: true }];
   ws['!rows'] = fullSheetData.map((_, rowIndex) => ({
-    hpt: rowIndex === 0 ? 32 : rowIndex === 1 ? 24 : rowIndex === titleRows.length ? 28 : 22,
+    hpt: rowIndex === 0 ? 34 : rowIndex === 1 ? 26 : rowIndex === titleRows.length ? 28 : 22,
   }));
 
   const applyRangeStyle = (range: string, style: Record<string, unknown>) => {
@@ -954,13 +962,17 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
       }
     }
   };
-  const navy = '123047';
+
+  const navy = '0F2942';
+  const slateBlue = '1E3A5F';
   const gold = 'C88A2B';
-  const paleGold = 'FFF7E6';
-  const paleBlue = 'F2F7FA';
-  const borderColor = 'D6E0E7';
+  const paleGold = 'FEF3C7';
+  const paleBlue = 'F8FAFC';
+  const softGreen = 'DCFCE7';
+  const borderColor = 'CBD5E1';
+
   const baseCellStyle = {
-    font: { name: 'Arial', sz: 10, color: { rgb: '243746' } },
+    font: { name: 'Segoe UI', sz: 10, color: { rgb: '1E293B' } },
     alignment: { vertical: 'center', wrapText: true },
     border: {
       top: { style: 'thin', color: { rgb: borderColor } },
@@ -969,18 +981,83 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
       right: { style: 'thin', color: { rgb: borderColor } },
     },
   };
+
   applyRangeStyle(`A1:P${lastRow + 1}`, baseCellStyle);
-  applyRangeStyle('A1:P1', { font: { name: 'Arial', bold: true, color: { rgb: 'FFFFFF' }, sz: 16 }, fill: { fgColor: { rgb: navy } }, alignment: { horizontal: 'center', vertical: 'center' }, border: { bottom: { style: 'medium', color: { rgb: gold } } } });
-  applyRangeStyle('A2:P2', { font: { name: 'Arial', bold: true, color: { rgb: 'FFFFFF' }, sz: 11 }, fill: { fgColor: { rgb: '1F526B' } }, alignment: { horizontal: 'center', vertical: 'center' } });
-  applyRangeStyle('A4:P7', { fill: { fgColor: { rgb: 'F8FAFC' } }, font: { name: 'Arial', sz: 10, color: { rgb: '243746' } } });
-  applyRangeStyle('A9:P9', { font: { name: 'Arial', bold: true, color: { rgb: 'FFFFFF' }, sz: 11 }, fill: { fgColor: { rgb: navy } }, alignment: { horizontal: 'right', vertical: 'center' } });
-  applyRangeStyle('A11:P11', { fill: { fgColor: { rgb: paleGold } }, font: { name: 'Arial', bold: true, color: { rgb: '7A4B00' }, sz: 10 } });
-  applyRangeStyle(`A${titleRows.length + 1}:P${titleRows.length + 1}`, { font: { name: 'Arial', bold: true, color: { rgb: 'FFFFFF' }, sz: 10 }, fill: { fgColor: { rgb: gold } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: { top: { style: 'medium', color: { rgb: navy } }, bottom: { style: 'medium', color: { rgb: navy } } } });
+
+  // Row 1 & 2: Header Banners
+  applyRangeStyle('A1:P1', {
+    font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 16 },
+    fill: { fgColor: { rgb: navy } },
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: { bottom: { style: 'medium', color: { rgb: gold } } }
+  });
+  applyRangeStyle('A2:P2', {
+    font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+    fill: { fgColor: { rgb: slateBlue } },
+    alignment: { horizontal: 'center', vertical: 'center' }
+  });
+
+  // Rows 4-7: Metadata Cards
+  applyRangeStyle('A4:P7', {
+    fill: { fgColor: { rgb: 'F8FAFC' } },
+    font: { name: 'Segoe UI', sz: 10, color: { rgb: '1E293B' } }
+  });
+
+  // Row 9: Financial Section Title
+  applyRangeStyle('A9:P9', {
+    font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+    fill: { fgColor: { rgb: navy } },
+    alignment: { horizontal: 'right', vertical: 'center' }
+  });
+
+  // Row 10: Financial Values Row
+  applyRangeStyle('A10:P10', {
+    fill: { fgColor: { rgb: 'F1F5F9' } },
+    font: { name: 'Segoe UI', bold: true, color: { rgb: '0F172A' }, sz: 10.5 }
+  });
+
+  // Row 11: Credit Status Banner
+  applyRangeStyle('A11:P11', {
+    fill: { fgColor: { rgb: isExceeded ? paleGold : softGreen } },
+    font: { name: 'Segoe UI', bold: true, color: { rgb: isExceeded ? '92400E' : '166534' }, sz: 10.5 }
+  });
+
+  // Table Headers Row
+  applyRangeStyle(`A${titleRows.length + 1}:P${titleRows.length + 1}`, {
+    font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 10.5 },
+    fill: { fgColor: { rgb: navy } },
+    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+    border: { top: { style: 'medium', color: { rgb: gold } }, bottom: { style: 'medium', color: { rgb: gold } } }
+  });
+
+  // Zebra striping for item rows
   for (let itemIndex = 0; itemIndex < itemRows.length; itemIndex += 1) {
-    if (itemIndex % 2 === 0) applyRangeStyle(`A${titleRows.length + 2 + itemIndex}:P${titleRows.length + 2 + itemIndex}`, { fill: { fgColor: { rgb: paleBlue } } });
+    if (itemIndex % 2 === 0) {
+      applyRangeStyle(`A${titleRows.length + 2 + itemIndex}:P${titleRows.length + 2 + itemIndex}`, {
+        fill: { fgColor: { rgb: paleBlue } }
+      });
+    }
   }
-  applyRangeStyle(`M${titleRows.length + 2}:P${lastRow + 1}`, { alignment: { horizontal: 'right', vertical: 'center', wrapText: true } });
-  applyRangeStyle(`M${titleRows.length + 2 + itemRows.length + 2}:P${titleRows.length + 2 + itemRows.length + 7}`, { fill: { fgColor: { rgb: paleGold } }, font: { name: 'Arial', bold: true, color: { rgb: navy } } });
+
+  // Summary Rows Styling
+  const summaryStartRow = titleRows.length + 2 + itemRows.length;
+  applyRangeStyle(`L${summaryStartRow}:N${summaryStartRow + 7}`, {
+    alignment: { horizontal: 'right', vertical: 'center' },
+    font: { name: 'Segoe UI', bold: true, color: { rgb: '1E293B' } }
+  });
+
+  // Grand Total Highlight Row
+  const grandTotalRow = summaryStartRow + 3;
+  applyRangeStyle(`L${grandTotalRow}:N${grandTotalRow}`, {
+    fill: { fgColor: { rgb: paleGold } },
+    font: { name: 'Segoe UI', bold: true, color: { rgb: '92400E' }, sz: 11.5 },
+    border: {
+      top: { style: 'thin', color: { rgb: gold } },
+      bottom: { style: 'double', color: { rgb: gold } },
+      left: { style: 'thin', color: { rgb: gold } },
+      right: { style: 'thin', color: { rgb: gold } }
+    }
+  });
 
   ws['!cols'] = [
     { wch: 6 },  // م
@@ -1046,7 +1123,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
         invoice.repId || '',
         invoice.repName,
         invoice.branchName,
-        invoice.customerCode || '',
+        resolvedCustomerCode,
         invoice.customerName,
         invoice.customerPhone || '',
         item.productCode,
@@ -1078,12 +1155,42 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
       { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
       { wch: 16 }, { wch: 24 }, { wch: 16 }, { wch: 18 }
     ];
+
+    // Style Header & Cells for Tab 2
+    const erpRange = XLSX.utils.decode_range(wsErp['!ref'] || 'A1:X1');
+    for (let r = erpRange.s.r; r <= erpRange.e.r; r++) {
+      for (let c = erpRange.s.c; c <= erpRange.e.c; c++) {
+        const cell = wsErp[XLSX.utils.encode_cell({ r, c })];
+        if (!cell) continue;
+        if (r === 0) {
+          cell.s = {
+            font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 10 },
+            fill: { fgColor: { rgb: navy } },
+            alignment: { horizontal: 'center', vertical: 'center' },
+            border: { bottom: { style: 'medium', color: { rgb: gold } } }
+          };
+        } else {
+          cell.s = {
+            font: { name: 'Segoe UI', sz: 9.5, color: { rgb: '1E293B' } },
+            fill: r % 2 === 0 ? { fgColor: { rgb: paleBlue } } : undefined,
+            alignment: { vertical: 'center' },
+            border: {
+              top: { style: 'thin', color: { rgb: borderColor } },
+              bottom: { style: 'thin', color: { rgb: borderColor } },
+              left: { style: 'thin', color: { rgb: borderColor } },
+              right: { style: 'thin', color: { rgb: borderColor } }
+            }
+          };
+        }
+      }
+    }
+
     XLSX.utils.book_append_sheet(wb, wsErp, 'بيانات_السيستم_ERP');
 
     // Tab 3: Customer Credit & Statement Audit
     const creditHeaders = [
       ['شركة دريم للتجارة والتوزيع - كشف الحساب والائتمان المعتمد'],
-      [`العميل: ${invoice.customerName} (كود: ${invoice.customerCode || 'كاش'})`],
+      [`العميل: ${invoice.customerName} (كود: ${resolvedCustomerCode})`],
       [],
       ['البيان المالي', 'المبلغ (ج.م)', 'ملاحظات وتدقيق الحساب'],
       ['المديونية السابقة قبل الفاتورة', debtBefore, 'رصيد سابق مسجل بالسيستم'],
@@ -1098,6 +1205,47 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
     wsCredit['!views'] = [{ RTL: true }];
     wsCredit['!sheetView'] = [{ rightToLeft: true }];
     wsCredit['!cols'] = [{ wch: 32 }, { wch: 20 }, { wch: 38 }];
+
+    // Style Tab 3
+    const creditRange = XLSX.utils.decode_range(wsCredit['!ref'] || 'A1:C11');
+    for (let r = creditRange.s.r; r <= creditRange.e.r; r++) {
+      for (let c = creditRange.s.c; c <= creditRange.e.c; c++) {
+        const cell = wsCredit[XLSX.utils.encode_cell({ r, c })];
+        if (!cell) continue;
+        if (r === 0) {
+          cell.s = {
+            font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 14 },
+            fill: { fgColor: { rgb: navy } },
+            alignment: { horizontal: 'center', vertical: 'center' }
+          };
+        } else if (r === 1) {
+          cell.s = {
+            font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+            fill: { fgColor: { rgb: slateBlue } },
+            alignment: { horizontal: 'center', vertical: 'center' }
+          };
+        } else if (r === 3) {
+          cell.s = {
+            font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 10.5 },
+            fill: { fgColor: { rgb: navy } },
+            alignment: { horizontal: 'center', vertical: 'center' }
+          };
+        } else if (r >= 4 && r <= 8) {
+          cell.s = {
+            font: { name: 'Segoe UI', sz: 10, bold: r === 6 || r === 8, color: { rgb: '0F172A' } },
+            fill: r === 8 ? { fgColor: { rgb: isExceeded ? paleGold : softGreen } } : (r % 2 === 0 ? { fgColor: { rgb: paleBlue } } : undefined),
+            alignment: { vertical: 'center' },
+            border: {
+              top: { style: 'thin', color: { rgb: borderColor } },
+              bottom: { style: 'thin', color: { rgb: borderColor } },
+              left: { style: 'thin', color: { rgb: borderColor } },
+              right: { style: 'thin', color: { rgb: borderColor } }
+            }
+          };
+        }
+      }
+    }
+
     XLSX.utils.book_append_sheet(wb, wsCredit, 'موقف_الائتمان_والحساب');
   } catch (err) {
     console.warn('Failed to append auxiliary tabs to workbook, standard sheet preserved:', err);

@@ -168,6 +168,7 @@ interface AppContextType {
   deleteInvoice: (invoiceId: string) => Promise<void>;
   syncToAccounting: (invoiceId: string) => Promise<boolean>;
   dispatchOrderToMicrosoft: (invoiceId: string) => Promise<{ success: boolean; message: string }>;
+  updateBranchEmails: (branchId: string, email: string, notificationEmails: string[]) => void;
 
   // User Management & Approval Actions
   addUser: (user: User) => void;
@@ -376,6 +377,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       safeLocalStorageSet('dream_dist_branch_company_info_v1', JSON.stringify(updated));
       return updated;
     });
+
+    const notifEmails = (newInfo.notificationEmails || [])
+      .filter((e) => Boolean(e && typeof e === 'string' && e.includes('@')))
+      .map((e) => e.trim());
+    const primaryEmail = newInfo.email?.trim() || notifEmails[0] || '';
+
+    setBranches((prev) => {
+      const next = prev.map((b) => {
+        if (b.name === branchName || isBranchMatch(b.name, branchName)) {
+          const combined = Array.from(new Set([
+            ...(primaryEmail ? [primaryEmail] : []),
+            ...notifEmails,
+          ]));
+          return {
+            ...b,
+            email: primaryEmail || b.email,
+            notificationEmails: combined.length > 0 ? combined : b.notificationEmails,
+          };
+        }
+        return b;
+      });
+      safeLocalStorageSet(STORAGE_KEYS.BRANCHES, JSON.stringify(next));
+      return next;
+    });
   };
 
   const resetBranchCompanyInfo = (branchName: string) => {
@@ -393,19 +418,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!branchName) return companyInfo;
     const norm = normalizeBranchName(branchName);
     const branchOverride = branchCompanyInfo[norm] || branchCompanyInfo[branchName];
+    const matchedBranch = branches.find(
+      (b) => b.name === norm || isBranchMatch(b.name, branchName)
+    );
+
     if (branchOverride && Object.keys(branchOverride).length > 0) {
       return {
         ...companyInfo,
+        notificationEmails: branchOverride.notificationEmails || matchedBranch?.notificationEmails || [],
         ...branchOverride,
       };
     }
     // Fallback: match branch data
-    const matchedBranch = branches.find(
-      (b) => b.name === norm || isBranchMatch(b.name, branchName)
-    );
-    if (matchedBranch && matchedBranch.address) {
+    if (matchedBranch) {
       return {
         ...companyInfo,
+        email: matchedBranch.email || companyInfo.email,
+        notificationEmails: matchedBranch.notificationEmails || [],
         address: matchedBranch.address || companyInfo.address,
         phone: matchedBranch.phone ? `${matchedBranch.phone} / ${companyInfo.customerService}` : companyInfo.phone,
       };
@@ -2765,24 +2794,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     });
 
+    const updatedInv: Invoice = {
+      ...inv,
+      status: 'معتمدة ومصروفة من المخزن' as OrderStatus,
+      notes: notes ? `${inv.notes ? inv.notes + ' | ' : ''}ملاحظة الاعتماد: ${notes}` : inv.notes,
+    };
+
     setInvoices((prev) =>
-      prev.map((i) => {
-        if (i.id !== invoiceId) return i;
-        const updated: Invoice = {
-          ...i,
-          status: 'معتمدة ومصروفة من المخزن' as OrderStatus,
-          notes: notes ? `${i.notes ? i.notes + ' | ' : ''}ملاحظة الاعتماد: ${notes}` : i.notes,
-        };
-        saveInvoiceToSupabase(updated).catch((e) => console.warn('Supabase invoice update failed:', e));
-        // Direct non-blocking dispatch to Microsoft 365 Power Automate (Zero Supabase egress impact)
-        sendOrderToMicrosoft365(updated, currentUser?.name, branches, companyInfo.email).catch((e) =>
-          console.warn('Background Microsoft 365 dispatch notice:', e)
-        );
-        sendInvoiceToPowerAutomate(updated, currentUser?.name, branches, companyInfo.email).catch((e) =>
-          console.warn('[Power Automate] Approved invoice email notification failed:', e)
-        );
-        return updated;
-      })
+      prev.map((i) => (i.id === invoiceId ? updatedInv : i))
+    );
+
+    saveInvoiceToSupabase(updatedInv).catch((e) => console.warn('Supabase invoice update failed:', e));
+    // Direct non-blocking dispatch to Microsoft 365 Power Automate (Outside React state updater to prevent duplicate dispatches)
+    sendInvoiceToPowerAutomate(updatedInv, currentUser?.name, branches, companyInfo.email).catch((e) =>
+      console.warn('[Power Automate] Approved invoice email notification failed:', e)
     );
 
     recordAuditLog({
@@ -2822,7 +2847,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
-      await sendInvoiceToPowerAutomate(invoice, currentUser?.name, branches, companyInfo.email);
+      await sendInvoiceToPowerAutomate(invoice, currentUser?.name, branches, companyInfo.email, { force: true });
       recordAuditLog({
         userId: currentUser.id,
         userName: currentUser.name,
@@ -3524,8 +3549,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const dispatchOrderToMicrosoft = async (invoiceId: string): Promise<{ success: boolean; message: string }> => {
     const inv = invoices.find((i) => i.id === invoiceId);
     if (!inv) return { success: false, message: 'الطلبية غير موجودة' };
-    const res = await sendOrderToMicrosoft365(inv, currentUser?.name, branches, companyInfo.email);
+    const res = await sendOrderToMicrosoft365(inv, currentUser?.name, branches, companyInfo.email, { force: true });
     return { success: res.success, message: res.message };
+  };
+
+  const updateBranchEmails = (branchId: string, email: string, notificationEmails: string[]) => {
+    setBranches((prev) => {
+      const next = prev.map((b) => {
+        if (b.id === branchId) {
+          return {
+            ...b,
+            email: email.trim(),
+            notificationEmails: notificationEmails.filter(Boolean).map((e) => e.trim()),
+          };
+        }
+        return b;
+      });
+      safeLocalStorageSet(STORAGE_KEYS.BRANCHES, JSON.stringify(next));
+      return next;
+    });
   };
 
   const addUser = (user: User) => {
@@ -3809,6 +3851,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteInvoice,
         syncToAccounting,
         dispatchOrderToMicrosoft,
+        updateBranchEmails,
         addUser,
         updateUser,
         deleteUser,

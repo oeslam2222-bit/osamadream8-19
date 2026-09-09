@@ -1,6 +1,7 @@
 import { Invoice, Branch } from '../types';
 import { generateInvoiceExcelBase64 } from './excelService';
 import { generateInvoicePDFBase64 } from './pdfService';
+import { resolveCustomerFinancials, isBranchMatch, normalizeBranchName } from './arabicMatchingService';
 
 /**
  * Microsoft 365 Power Automate Official Direct Invoke Webhook URL
@@ -32,36 +33,62 @@ export function setMicrosoftWebhookUrl(url: string): void {
   }
 }
 
+// In-memory cache to prevent duplicate automatic dispatches within 25 seconds
+const recentDispatches = new Map<string, number>();
+
+export function isRecentlyDispatched(invoiceId: string, windowMs = 25000): boolean {
+  if (!invoiceId) return false;
+  const lastTime = recentDispatches.get(invoiceId);
+  if (!lastTime) return false;
+  return Date.now() - lastTime < windowMs;
+}
+
+export function markInvoiceDispatched(invoiceId: string): void {
+  if (invoiceId) {
+    recentDispatches.set(invoiceId, Date.now());
+  }
+}
+
 export interface MicrosoftOrderPayload {
+  // Direct Power Automate Schema keys (exact matching trigger expressions)
   branch_name: string;
-  branch_email: string;
-  notification_emails: string;
-  submitted_by: string;
   salesman_name: string;
   customer_name: string;
   customer_code: string;
-  customer_phone: string;
-  customer_address: string;
-  customer_balance_before: string;
-  customer_credit_limit: string;
-  customer_overdue: string;
-  customer_due: string;
-  total_amount: string;
-  payment_method: string;
-  invoice_number: string;
-  invoice_date: string;
-  invoice_time: string;
-  total_cartons: string;
-  total_pieces: string;
-  subtotal: string;
-  discount_amount: string;
-  tax_amount: string;
+  debt: number | string;
+  due_amount: number | string;
+  total_amount: number | string;
+  approved_by: string;
+
+  // Email Routing & Attachments
+  branch_email: string;
+  notification_emails: string;
   email_subject: string;
   email_body: string;
   pdf_name: string;
   pdf_content: string;
   excel_name: string;
   excel_content: string;
+
+  // Compatibility & extended fields
+  submitted_by?: string;
+  approver_name?: string;
+  customer_balance_before?: number | string;
+  customer_due?: number | string;
+  debt_amount?: number | string;
+  customer_phone?: string;
+  customer_address?: string;
+  customer_credit_limit?: number | string;
+  customer_overdue?: number | string;
+  payment_method?: string;
+  invoice_number?: string;
+  invoice_date?: string;
+  invoice_time?: string;
+  total_cartons?: number | string;
+  total_pieces?: number | string;
+  subtotal?: number | string;
+  discount_amount?: number | string;
+  tax_amount?: number | string;
 }
 
 export function cleanBase64(str: string | null | undefined): string {
@@ -86,99 +113,132 @@ export interface MicrosoftSyncResponse {
 
 /**
  * Resolves the notification email(s) for a given branch.
+ * Uses smart Arabic normalization to match branches like "فرع ديمشلت" with "ديمشلت".
  * Falls back to the company-level email if the branch has none.
  */
 export function getBranchEmails(branchName: string, branches: Branch[], companyEmail?: string): string[] {
-  const branch = branches.find((b) => b.name === branchName);
-  if (branch?.notificationEmails && branch.notificationEmails.length > 0) {
-    return branch.notificationEmails;
+  const emails: string[] = [];
+
+  // 1. Check custom saved branch settings (from CompanySettingsModal)
+  try {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('dream_dist_branch_company_info_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const norm = normalizeBranchName(branchName);
+        const branchCustom = parsed[norm] || parsed[branchName];
+        if (branchCustom) {
+          if (Array.isArray(branchCustom.notificationEmails)) {
+            for (const ne of branchCustom.notificationEmails) {
+              if (ne && typeof ne === 'string' && ne.includes('@') && !emails.includes(ne.trim())) {
+                emails.push(ne.trim());
+              }
+            }
+          }
+          const customEmail = branchCustom.email;
+          if (customEmail && typeof customEmail === 'string' && customEmail.includes('@') && !emails.includes(customEmail.trim())) {
+            emails.push(customEmail.trim());
+          }
+        }
+      }
+    }
+  } catch {
+    // ignore parse error
   }
-  if (branch?.email) {
-    return [branch.email];
+
+  // 2. Check branches list
+  if (branchName) {
+    const branch = branches.find((b) => 
+      b.name === branchName || 
+      isBranchMatch(b.name, branchName, { allowUnassigned: false })
+    );
+
+    if (branch?.notificationEmails && branch.notificationEmails.length > 0) {
+      for (const ne of branch.notificationEmails) {
+        if (ne && ne.includes('@') && !emails.includes(ne.trim())) {
+          emails.push(ne.trim());
+        }
+      }
+    }
+    if (branch?.email && branch.email.includes('@') && !emails.includes(branch.email.trim())) {
+      emails.push(branch.email.trim());
+    }
   }
-  if (companyEmail) {
-    return [companyEmail];
+
+  // 3. Fallback to company level email if nothing found
+  if (emails.length === 0 && companyEmail && companyEmail.includes('@')) {
+    emails.push(companyEmail.trim());
   }
-  return [];
+
+  return emails;
 }
 
 /**
- * Builds the email subject and HTML body for the Power Automate email action.
+ * Builds the exact Arabic HTML body requested by the user for Power Automate email notification.
+ * Note: Approval Date is intentionally omitted as requested.
  */
-function buildEmailContent(invoice: Invoice, submittedBy: string): { subject: string; body: string } {
+function buildEmailContent(
+  invoice: Invoice,
+  approver: string,
+  customerCode: string,
+  debtAmount: number,
+  dueAmount: number,
+  totalAmount: number
+): { subject: string; body: string } {
   const subject = `اعتماد طلبية بيع #${invoice.invoiceNumber} - ${invoice.customerName} - ${invoice.branchName}`;
 
-  const rows = invoice.items.map((item) => {
-    return `<tr>
-      <td style="padding:6px;border:1px solid #ddd;text-align:right">${item.productCode}</td>
-      <td style="padding:6px;border:1px solid #ddd;text-align:right">${item.productName}</td>
-      <td style="padding:6px;border:1px solid #ddd;text-align:center">${item.cartonCount}</td>
-      <td style="padding:6px;border:1px solid #ddd;text-align:center">${item.totalUnits || item.totalPieces || 0}</td>
-      <td style="padding:6px;border:1px solid #ddd;text-align:left">${item.appliedPrice.toLocaleString('ar-EG')}</td>
-      <td style="padding:6px;border:1px solid #ddd;text-align:left">${item.netTotal.toLocaleString('ar-EG')}</td>
-    </tr>`;
-  }).join('');
+  const body = `<div dir="rtl" style="font-family: 'Segoe UI', Tahoma, Arial, sans-serif; color: #1e293b; line-height: 1.6; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; background-color: #ffffff;">
+  <p style="font-size: 16px; margin-bottom: 16px;">السلام عليكم ورحمة الله وبركاته،</p>
+  <p style="font-size: 14px; color: #475569; margin-bottom: 20px;">تم اعتماد طلب العميل بنجاح، وفيما يلي تفاصيل الطلب:</p>
+  
+  <!-- بيانات العميل -->
+  <div style="background-color: #f8fafc; border-right: 4px solid #2563eb; padding: 12px 16px; margin-bottom: 16px; border-radius: 4px;">
+    <h3 style="margin: 0 0 8px 0; color: #1e40af; font-size: 15px;">👤 بيانات العميل</h3>
+    <p style="margin: 4px 0; font-size: 14px;"><strong>اسم العميل:</strong> ${invoice.customerName || 'عميل عام'}</p>
+    <p style="margin: 4px 0; font-size: 14px;"><strong>كود العميل:</strong> ${customerCode || 'غير محدد'}</p>
+    <p style="margin: 4px 0; font-size: 14px;"><strong>الفرع:</strong> ${invoice.branchName || 'الفرع الرئيسي'}</p>
+    <p style="margin: 4px 0; font-size: 14px;"><strong>المندوب:</strong> ${invoice.repName || 'مندوب المبيعات'}</p>
+  </div>
 
-  const body = `<div dir="rtl" style="font-family:'Segoe UI',Tahoma,sans-serif;font-size:14px;color:#333;max-width:800px;margin:0 auto">
-    <h2 style="color:#1a73e8;border-bottom:2px solid #1a73e8;padding-bottom:8px">طلبية بيع معتمدة - دريم للتوزيع</h2>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
-      <tr><td style="padding:6px;font-weight:bold;width:30%">رقم الفاتورة:</td><td style="padding:6px">${invoice.invoiceNumber}</td></tr>
-      <tr><td style="padding:6px;font-weight:bold">الفرع:</td><td style="padding:6px">${invoice.branchName}</td></tr>
-      <tr><td style="padding:6px;font-weight:bold">تاريخ الاعتماد:</td><td style="padding:6px">${invoice.date} ${invoice.time || ''}</td></tr>
-      <tr><td style="padding:6px;font-weight:bold">تمت الموافقة بواسطة:</td><td style="padding:6px">${submittedBy}</td></tr>
-      <tr><td style="padding:6px;font-weight:bold">المندوب:</td><td style="padding:6px">${invoice.repName}</td></tr>
-    </table>
-    <h3 style="color:#1a73e8">تفاصيل العميل</h3>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
-      <tr><td style="padding:6px;font-weight:bold;width:30%">اسم العميل:</td><td style="padding:6px">${invoice.customerName}</td></tr>
-      <tr><td style="padding:6px;font-weight:bold">كود العميل:</td><td style="padding:6px">${invoice.customerCode || '—'}</td></tr>
-      <tr><td style="padding:6px;font-weight:bold">رقم الهاتف:</td><td style="padding:6px">${invoice.customerPhone || '—'}</td></tr>
-      <tr><td style="padding:6px;font-weight:bold">العنوان:</td><td style="padding:6px">${invoice.customerAddress || '—'}</td></tr>
-      <tr><td style="padding:6px;font-weight:bold">المديونية الحالية:</td><td style="padding:6px">${(invoice.customerBalanceBefore ?? 0).toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م</td></tr>
-      <tr><td style="padding:6px;font-weight:bold">الحد الائتماني:</td><td style="padding:6px">${(invoice.customerCreditLimit ?? 0).toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م</td></tr>
-      <tr><td style="padding:6px;font-weight:bold">المتأخرات:</td><td style="padding:6px">${(invoice.customerOverdueBalance ?? 0).toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م</td></tr>
-      <tr><td style="padding:6px;font-weight:bold">المستحقات:</td><td style="padding:6px">${(invoice.customerBalanceAfter ?? 0).toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م</td></tr>
-      <tr><td style="padding:6px;font-weight:bold">طريقة الدفع:</td><td style="padding:6px">${invoice.paymentMethod}</td></tr>
-    </table>
-    <h3 style="color:#1a73e8">ملخص الفاتورة</h3>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
-      <tr><td style="padding:6px;font-weight:bold;width:30%">إجمالي الكراتين:</td><td style="padding:6px">${invoice.totalCartons}</td></tr>
-      <tr><td style="padding:6px;font-weight:bold">إجمالي القطع:</td><td style="padding:6px">${invoice.totalPieces}</td></tr>
-      <tr><td style="padding:6px;font-weight:bold">الإجمالي قبل الضريبة:</td><td style="padding:6px">${invoice.subtotal.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م</td></tr>
-      <tr><td style="padding:6px;font-weight:bold">قيمة الخصم:</td><td style="padding:6px">${invoice.discountAmount.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م</td></tr>
-      <tr><td style="padding:6px;font-weight:bold">قيمة الضريبة:</td><td style="padding:6px">${invoice.taxAmount.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م</td></tr>
-      <tr style="background:#e8f0fe"><td style="padding:8px;font-weight:bold;font-size:16px">الإجمالي النهائي:</td><td style="padding:8px;font-size:16px;font-weight:bold">${invoice.estimatedGrandTotal.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م</td></tr>
-    </table>
-    <h3 style="color:#1a73e8">أصناف الطلبية</h3>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:13px">
-      <thead>
-        <tr style="background:#f5f5f5">
-          <th style="padding:6px;border:1px solid #ddd">الكود</th>
-          <th style="padding:6px;border:1px solid #ddd">الصنف</th>
-          <th style="padding:6px;border:1px solid #ddd">كراتين</th>
-          <th style="padding:6px;border:1px solid #ddd">قطع</th>
-          <th style="padding:6px;border:1px solid #ddd">سعر الكرتونة</th>
-          <th style="padding:6px;border:1px solid #ddd">الإجمالي</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <p style="color:#666;font-size:12px;margin-top:20px">تم إنشاء وإرسال هذا البريد تلقائياً من نظام دريم للتوزيع عند اعتماد الطلبية.</p>
-  </div>`;
+  <!-- البيانات المالية -->
+  <div style="background-color: #f8fafc; border-right: 4px solid #059669; padding: 12px 16px; margin-bottom: 16px; border-radius: 4px;">
+    <h3 style="margin: 0 0 8px 0; color: #065f46; font-size: 15px;">💰 البيانات المالية</h3>
+    <p style="margin: 4px 0; font-size: 14px;"><strong>المديونية:</strong> ${debtAmount.toLocaleString('ar-EG')} جنيه</p>
+    <p style="margin: 4px 0; font-size: 14px;"><strong>المبلغ المستحق:</strong> ${dueAmount.toLocaleString('ar-EG')} جنيه</p>
+    <p style="margin: 4px 0; font-size: 14px;"><strong>الإجمالي:</strong> ${totalAmount.toLocaleString('ar-EG')} جنيه</p>
+  </div>
+
+  <!-- بيانات الاعتماد -->
+  <div style="background-color: #f8fafc; border-right: 4px solid #d97706; padding: 12px 16px; margin-bottom: 20px; border-radius: 4px;">
+    <h3 style="margin: 0 0 8px 0; color: #92400e; font-size: 15px;">✅ بيانات الاعتماد</h3>
+    <p style="margin: 4px 0; font-size: 14px;"><strong>تمت الموافقة بواسطة:</strong> ${approver || 'الإدارة'}</p>
+  </div>
+
+  <div style="font-size: 13px; background-color: #eff6ff; color: #1d4ed8; padding: 10px 14px; border-radius: 6px; text-align: center; margin-bottom: 16px;">
+    📎 <strong>تم إرفاق الملفات الخاصة بالطلب:</strong> ملف PDF وملف Excel
+  </div>
+
+  <p style="font-size: 14px; color: #475569;">برجاء مراجعة المرفقات واتخاذ ما يلزم.</p>
+  
+  <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+  <p style="font-size: 13px; color: #64748b; margin: 0;">مع خالص التحية،<br><strong>شركة دريم للتجارة والتوزيع</strong></p>
+</div>`;
 
   return { subject, body };
 }
 
 /**
  * Dispatches an approved order directly to Microsoft 365 Power Automate
+ * - Resolves customer code, debt, due amount accurately
+ * - Prevents duplicate automatic dispatches
  * - Generates PDF (base64) and Excel (base64) in-memory
- * - Communicates directly with Microsoft Cloud (0 KB Supabase egress consumed!)
  */
 export async function sendOrderToMicrosoft365(
   invoice: Invoice,
   submittedBy?: string,
-  branches?: Branch[],
+  branches: Branch[] = [],
   companyEmail?: string,
+  options?: { force?: boolean }
 ): Promise<MicrosoftSyncResponse> {
   const webhookUrl = getMicrosoftWebhookUrl();
   if (!webhookUrl) {
@@ -189,14 +249,54 @@ export async function sendOrderToMicrosoft365(
     };
   }
 
+  if (!invoice) {
+    return {
+      success: false,
+      message: 'بيانات الفاتورة غير صحيحة.',
+    };
+  }
+
+  // Prevent duplicate automated notifications within 25 seconds unless forced
+  if (!options?.force && isRecentlyDispatched(invoice.id)) {
+    console.info(`[Power Automate] Invoice #${invoice.invoiceNumber} already dispatched recently. Skipping duplicate.`);
+    return {
+      success: true,
+      message: `تم إرسال إشعار الفاتورة #${invoice.invoiceNumber} مسبقاً (تم منع التكرار التلقائي).`,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
   try {
     const safeInvNum = invoice.invoiceNumber || 'INV';
     const safeCust = (invoice.customerName || 'عميل').replace(/[^\w\u0621-\u064A]/g, '_');
-    const approver = safeStr(submittedBy || invoice.supervisorName, 'مشرف الفرع');
+    const approver = safeStr(submittedBy || invoice.supervisorName, 'الإدارة');
+
+    // Resolve true customer code & financials
+    const financials = resolveCustomerFinancials(invoice);
+    const resolvedCustomerCode = (
+      invoice.customerCode?.trim() ||
+      financials.matchedCustomer?.code?.trim() ||
+      invoice.customerId?.trim() ||
+      'غير محدد'
+    );
+
+    const debtNum = Number(
+      invoice.customerBalanceBefore !== undefined && invoice.customerBalanceBefore !== null
+        ? invoice.customerBalanceBefore
+        : financials.debtBefore ?? 0
+    );
+
+    const totalNum = Number(invoice.estimatedGrandTotal || 0);
+
+    const dueNum = Number(
+      invoice.customerBalanceAfter !== undefined && invoice.customerBalanceAfter !== null
+        ? invoice.customerBalanceAfter
+        : financials.debtAfter ?? (debtNum + totalNum)
+    );
 
     // Resolve branch notification emails
     const emails = getBranchEmails(invoice.branchName, branches || [], companyEmail);
-    const branchEmail = emails.length > 0 ? emails[0] : '';
+    const branchEmail = emails.length > 0 ? emails[0] : (companyEmail || '');
     const allEmails = emails.join(';');
 
     // 1. Generate Base64 for Excel
@@ -212,41 +312,61 @@ export async function sendOrderToMicrosoft365(
     }
     const pdfName = `طلب_بيع_${safeInvNum}_${safeCust}.pdf`;
 
-    // 3. Build email content
-    const { subject, body } = buildEmailContent(invoice, approver);
+    // 3. Build email content using requested template
+    const { subject, body } = buildEmailContent(
+      invoice,
+      approver,
+      resolvedCustomerCode,
+      debtNum,
+      dueNum,
+      totalNum
+    );
 
-    // 4. Prepare payload strictly adhering to Power Automate Trigger Schema
+    // 4. Prepare payload adhering strictly to Power Automate Trigger Schema & Flow Expressions
     const payload: MicrosoftOrderPayload = {
+      // Primary keys expected in triggerBody()?['...']
       branch_name: safeStr(invoice.branchName, 'الفرع الرئيسي'),
-      branch_email: branchEmail,
-      notification_emails: allEmails,
-      submitted_by: approver,
       salesman_name: safeStr(invoice.repName, 'مندوب المبيعات'),
       customer_name: safeStr(invoice.customerName, 'عميل عام'),
-      customer_code: safeStr(invoice.customerCode),
-      customer_phone: safeStr(invoice.customerPhone),
-      customer_address: safeStr(invoice.customerAddress),
-      customer_balance_before: safeStr(invoice.customerBalanceBefore, '0'),
-      customer_credit_limit: safeStr(invoice.customerCreditLimit, '0'),
-      customer_overdue: safeStr(invoice.customerOverdueBalance, '0'),
-      customer_due: safeStr(invoice.customerBalanceAfter, '0'),
-      total_amount: safeStr(invoice.estimatedGrandTotal, '0'),
-      payment_method: safeStr(invoice.paymentMethod, 'نقدي (كاش)'),
-      invoice_number: safeInvNum,
-      invoice_date: safeStr(invoice.date),
-      invoice_time: safeStr(invoice.time),
-      total_cartons: safeStr(invoice.totalCartons, '0'),
-      total_pieces: safeStr(invoice.totalPieces, '0'),
-      subtotal: safeStr(invoice.subtotal, '0'),
-      discount_amount: safeStr(invoice.discountAmount, '0'),
-      tax_amount: safeStr(invoice.taxAmount, '0'),
+      customer_code: resolvedCustomerCode,
+      debt: debtNum,
+      due_amount: dueNum,
+      total_amount: totalNum,
+      approved_by: approver,
+
+      // Routing & attachments
+      branch_email: branchEmail,
+      notification_emails: allEmails,
       email_subject: subject,
       email_body: body,
       pdf_name: pdfName,
       pdf_content: cleanBase64(pdfContent),
       excel_name: excelName,
       excel_content: cleanBase64(excelContent),
+
+      // Aliases for maximum compatibility with any Power Automate step variations
+      submitted_by: approver,
+      approver_name: approver,
+      customer_balance_before: debtNum,
+      customer_due: dueNum,
+      debt_amount: debtNum,
+      customer_phone: safeStr(invoice.customerPhone),
+      customer_address: safeStr(invoice.customerAddress),
+      customer_credit_limit: financials.creditLimit || 0,
+      customer_overdue: financials.overdue || 0,
+      payment_method: safeStr(invoice.paymentMethod, 'نقدي (كاش)'),
+      invoice_number: safeInvNum,
+      invoice_date: safeStr(invoice.date),
+      invoice_time: safeStr(invoice.time),
+      total_cartons: Number(invoice.totalCartons || 0),
+      total_pieces: Number(invoice.totalPieces || 0),
+      subtotal: Number(invoice.subtotal || 0),
+      discount_amount: Number(invoice.discountAmount || 0),
+      tax_amount: Number(invoice.taxAmount || 0),
     };
+
+    // Mark as dispatched before fetch to prevent double hits
+    markInvoiceDispatched(invoice.id);
 
     // 5. HTTP POST to Microsoft Power Automate
     const response = await fetch(webhookUrl, {
@@ -321,6 +441,9 @@ export async function testMicrosoftWebhookConnection(): Promise<MicrosoftSyncRes
       customer_credit_limit: '0',
       customer_overdue: '0',
       customer_due: '0',
+      debt: '0',
+      due_amount: '0',
+      approved_by: 'مسؤول النظام',
       total_amount: '1.0',
       payment_method: 'نقدي (كاش)',
       invoice_number: 'TEST-001',
