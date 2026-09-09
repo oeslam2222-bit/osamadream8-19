@@ -1864,11 +1864,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!prod) return { available: false, remainingPieces: 0, message: 'الصنف غير موجود بالسيستم' };
 
     const branchActual = prod.branchStockActual || 0;
-    const branchAvailable = Math.max(0, prod.branchStockReserved);
-    const branchReservedCount = Math.max(0, branchActual - branchAvailable);
+  const branchAvailable = typeof prod.branchStockReserved === 'number' && prod.branchStockReserved > 0
+    ? Math.min(branchActual, prod.branchStockReserved)
+    : branchActual;
+  const branchReservedCount = Math.max(0, branchActual - branchAvailable);
 
-    const mainActual = prod.mainWarehouseActual || 0;
-    const mainAvailable = Math.max(0, prod.mainWarehouseReserved);
+  const mainActual = prod.mainWarehouseActual || 0;
+  const mainAvailable = typeof prod.mainWarehouseReserved === 'number' && prod.mainWarehouseReserved > 0
+    ? Math.min(mainActual, prod.mainWarehouseReserved)
+    : mainActual;
     const mainReservedCount = Math.max(0, mainActual - mainAvailable);
 
     const totalAvailable = branchAvailable + mainAvailable;
@@ -1936,11 +1940,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const totalRequiredCartonFraction = cartonsToAdd + (piecesToAdd / cartonQty);
 
     const branchActual = latestProd.branchStockActual || 0;
-    const availableInBranch = Math.max(0, latestProd.branchStockReserved);
+    const availableInBranch = typeof latestProd.branchStockReserved === 'number' && latestProd.branchStockReserved > 0
+      ? Math.min(branchActual, latestProd.branchStockReserved)
+      : branchActual;
     const branchReservedCount = Math.max(0, branchActual - availableInBranch);
 
     const mainActual = latestProd.mainWarehouseActual || 0;
-    const availableInWarehouse = Math.max(0, latestProd.mainWarehouseReserved);
+    const availableInWarehouse = typeof latestProd.mainWarehouseReserved === 'number' && latestProd.mainWarehouseReserved > 0
+      ? Math.min(mainActual, latestProd.mainWarehouseReserved)
+      : mainActual;
     const mainReservedCount = Math.max(0, mainActual - availableInWarehouse);
 
     const totalActual = branchActual + mainActual;
@@ -2173,10 +2181,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const protectReserved = (prod: Product): Product => {
       const activePending = reservedPiecesByProduct.get(prod.id) || 0;
-      const safeReserved = Math.max(0, prod.branchStockActual - activePending);
+      const branchActual = Math.max(0, prod.branchStockActual || 0);
+      const warehouseActual = Math.max(0, prod.mainWarehouseActual || 0);
+      const branchReserved = Math.max(0, branchActual - activePending);
+      const warehouseReserved =
+        typeof prod.mainWarehouseReserved === 'number' && prod.mainWarehouseReserved > 0
+          ? Math.min(warehouseActual, prod.mainWarehouseReserved)
+          : warehouseActual;
       return {
         ...prod,
-        branchStockReserved: safeReserved,
+        branchStockReserved: branchReserved,
+        mainWarehouseReserved: warehouseReserved,
       };
     };
 
@@ -2831,7 +2846,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const invoice = invoices.find((item) => item.id === invoiceId);
     if (!invoice) return { success: false, message: 'الفاتورة غير موجودة.' };
-    if (!['معتمدة ومصروفة من المخزن', 'معتمدة'].includes(invoice.status)) {
+    if (!['معتمدة ومصروفة من المخزن', 'معتم��ة'].includes(invoice.status)) {
       return { success: false, message: 'لا يمكن إرسال الفاتورة قبل اعتمادها.' };
     }
     if (
