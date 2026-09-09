@@ -2775,10 +2775,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
         saveInvoiceToSupabase(updated).catch((e) => console.warn('Supabase invoice update failed:', e));
         // Direct non-blocking dispatch to Microsoft 365 Power Automate (Zero Supabase egress impact)
-        sendOrderToMicrosoft365(updated, currentUser?.name).catch((e) =>
+        sendOrderToMicrosoft365(updated, currentUser?.name, branches, companyInfo.email).catch((e) =>
           console.warn('Background Microsoft 365 dispatch notice:', e)
         );
-        sendInvoiceToPowerAutomate(updated, currentUser?.name).catch((e) =>
+        sendInvoiceToPowerAutomate(updated, currentUser?.name, branches, companyInfo.email).catch((e) =>
           console.warn('[Power Automate] Approved invoice email notification failed:', e)
         );
         return updated;
@@ -2822,7 +2822,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
-      await sendInvoiceToPowerAutomate(invoice, currentUser?.name);
+      await sendInvoiceToPowerAutomate(invoice, currentUser?.name, branches, companyInfo.email);
       recordAuditLog({
         userId: currentUser.id,
         userName: currentUser.name,
@@ -3524,7 +3524,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const dispatchOrderToMicrosoft = async (invoiceId: string): Promise<{ success: boolean; message: string }> => {
     const inv = invoices.find((i) => i.id === invoiceId);
     if (!inv) return { success: false, message: 'الطلبية غير موجودة' };
-    const res = await sendOrderToMicrosoft365(inv, currentUser?.name);
+    const res = await sendOrderToMicrosoft365(inv, currentUser?.name, branches, companyInfo.email);
     return { success: res.success, message: res.message };
   };
 
