@@ -87,7 +87,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [isNewCustomerMode, setIsNewCustomerMode] = useState(false);
-  const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [isPreviewMode, setIsPreviewMode] = useState(true);
 
   const [customerName, setCustomerName] = useState('');
   const [customerCode, setCustomerCode] = useState('');
