@@ -41,6 +41,17 @@ import {
 import { sendOrderToMicrosoft365 } from '../services/microsoftSyncService';
 import { sendInvoiceToPowerAutomate } from '../services/powerAutomateService';
 import {
+  exportTargetsToExcel,
+  filterTargetsForUser,
+  generateSampleTargets,
+  parseTargetExcel,
+  fetchTargetsFromGoogleSheetUrl,
+} from '../services/targetService';
+import {
+  fetchAndParseGoogleSheet,
+  fetchCustomersFromGoogleSheetUrl,
+} from '../services/excelService';
+import {
   AccountingSyncLog,
   AuditLog,
   Branch,
@@ -51,9 +62,11 @@ import {
   InventoryTransaction,
   Invoice,
   OrderStatus,
+  PinnedGoogleSheetConfig,
   Product,
   ReturnedItem,
   ReturnRecord,
+  TargetRecord,
   User,
   UserApprovalStatus,
   UserRole,
@@ -208,6 +221,24 @@ interface AppContextType {
   getSupervisorsInBranch: (branchName?: string) => User[];
   getSalesRepsForSupervisor: (supervisorId: string) => User[];
   loginAs: (userId: string) => void;
+
+  // Targets & KPIs Dashboard
+  targets: TargetRecord[];
+  getVisibleTargets: () => TargetRecord[];
+  importTargetsFromExcel: (file: File) => Promise<{ success: boolean; count: number; message: string }>;
+  exportTargetsReport: () => void;
+  resetTargetsToDefault: () => void;
+  addOrUpdateTargetRecord: (record: TargetRecord) => void;
+  deleteTargetRecord: (id: string) => void;
+
+  // Pinned Cloud Sheets & Auto-Sync Hub
+  pinnedSheets: PinnedGoogleSheetConfig[];
+  updatePinnedSheetUrl: (id: 'products' | 'customers' | 'targets', url: string) => void;
+  syncPinnedSheet: (id: 'products' | 'customers' | 'targets') => Promise<{ success: boolean; count: number; message: string }>;
+  syncAllPinnedSheets: () => Promise<{ success: boolean; results: { id: string; count: number; message: string }[] }>;
+  isSyncingPinnedSheets: boolean;
+  autoSyncOnLaunch: boolean;
+  setAutoSyncOnLaunch: (enabled: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -226,6 +257,9 @@ const STORAGE_KEYS = {
   CART: 'dream_dist_cart_v9',
   DELETED_INVOICE_IDS: 'dream_dist_deleted_invoices_v1',
   PENDING_INVOICES: 'dream_dist_pending_invoices_v1',
+  TARGETS: 'dream_dist_targets_v1',
+  PINNED_SHEETS: 'dream_dist_pinned_sheets_v1',
+  AUTO_SYNC_ON_LAUNCH: 'dream_dist_auto_sync_launch_v1',
 };
 
 const getDeletedInvoiceIds = (): Set<string> => {
@@ -247,6 +281,33 @@ const markInvoiceAsDeletedInStorage = (id: string, invoiceNumber?: string) => {
     localStorage.setItem(STORAGE_KEYS.DELETED_INVOICE_IDS, JSON.stringify(Array.from(current)));
   } catch {}
 };
+
+const DEFAULT_PINNED_SHEETS: PinnedGoogleSheetConfig[] = [
+  {
+    id: 'products',
+    title: 'شيت الأصناف والمخزون اليومي والأسعار',
+    subtitle: 'أرصدة الفروع ومخزن أكتوبر • شدة الكرتونة • أسعار الجملة والقطاعي',
+    description: 'يتم تحديث الكتالوج فوراً، وتحديث رصيد فرع كل مندوب وأسعار القطعة والكرتونة تلقائياً.',
+    url: '',
+    status: 'idle',
+  },
+  {
+    id: 'customers',
+    title: 'شيت كافة العملاء والمديونيات وتحليل 2025/2026',
+    subtitle: 'قاعدة بيانات 4000+ عميل • مبيعات كل شهر (يناير - ديسمبر) • المديونيات الحالية',
+    description: 'يتم تحديث بيانات العملاء، وربط كل عميل بمندوبه ومشرفه وفرعه، وتحديث المديونيات وحجم المبيعات.',
+    url: '',
+    status: 'idle',
+  },
+  {
+    id: 'targets',
+    title: 'شيت تارجت ومستهدفات المناديب والفروع',
+    subtitle: 'مستهدفات البيع والتحصيل الشهرية والكوارتر (Q1-Q4) • المحققات والنسب',
+    description: 'يتم تحديث لوحة متابعة التارجت والمحققات لكل مندوب ومشرف ومدير فرع بدقة تامة.',
+    url: '',
+    status: 'idle',
+  },
+];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Helper to normalize branch names across legacy stored data
@@ -362,6 +423,115 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return {};
   });
+
+  // Target Records state (KPIs and Goals) - Strictly real data only
+  const [targets, setTargets] = useState<TargetRecord[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.TARGETS);
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        // Discard any dummy sample records to ensure 100% real data
+        return parsed.filter((r) => r && !String(r.id).startsWith('sample-trg'));
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.TARGETS, JSON.stringify(targets));
+    } catch (e) {
+      console.error('Error saving targets to localStorage', e);
+    }
+  }, [targets]);
+
+  const getVisibleTargets = () => {
+    return filterTargetsForUser(targets, currentUser, users);
+  };
+
+  const importTargetsFromExcel = async (file: File): Promise<{ success: boolean; count: number; message: string }> => {
+    try {
+      const parsed = await parseTargetExcel(file);
+      if (!parsed || parsed.length === 0) {
+        return { success: false, count: 0, message: 'لم يتم العثور على أي صفوف أهداف صالحة في الملف.' };
+      }
+      setTargets(parsed);
+      return { success: true, count: parsed.length, message: `تم استيراد ${parsed.length} هدف بنجاح وتم تحديث لوحة المتابعة!` };
+    } catch (err: any) {
+      return { success: false, count: 0, message: err?.message || 'حدث خطأ أثناء قراءة ملف الإكسل' };
+    }
+  };
+
+  const exportTargetsReport = () => {
+    const visible = getVisibleTargets();
+    exportTargetsToExcel(visible);
+  };
+
+  const resetTargetsToDefault = () => {
+    setTargets([]);
+  };
+
+  const addOrUpdateTargetRecord = (record: TargetRecord) => {
+    setTargets((prev) => {
+      const idx = prev.findIndex((r) => r.id === record.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = record;
+        return next;
+      }
+      return [record, ...prev];
+    });
+  };
+
+  const deleteTargetRecord = (id: string) => {
+    setTargets((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  // Pinned Google Sheets State & Auto-Sync configuration
+  const [pinnedSheets, setPinnedSheets] = useState<PinnedGoogleSheetConfig[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.PINNED_SHEETS);
+    if (!saved) return DEFAULT_PINNED_SHEETS;
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return DEFAULT_PINNED_SHEETS.map((def) => {
+          const found = parsed.find((p: any) => p.id === def.id);
+          return found ? { ...def, ...found } : def;
+        });
+      }
+      return DEFAULT_PINNED_SHEETS;
+    } catch {
+      return DEFAULT_PINNED_SHEETS;
+    }
+  });
+
+  const [autoSyncOnLaunch, setAutoSyncOnLaunchState] = useState<boolean>(() => {
+    return localStorage.getItem(STORAGE_KEYS.AUTO_SYNC_ON_LAUNCH) === 'true';
+  });
+
+  const setAutoSyncOnLaunch = (enabled: boolean) => {
+    setAutoSyncOnLaunchState(enabled);
+    localStorage.setItem(STORAGE_KEYS.AUTO_SYNC_ON_LAUNCH, enabled ? 'true' : 'false');
+  };
+
+  const [isSyncingPinnedSheets, setIsSyncingPinnedSheets] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.PINNED_SHEETS, JSON.stringify(pinnedSheets));
+    } catch (e) {
+      console.error('Error saving pinned sheets to localStorage', e);
+    }
+  }, [pinnedSheets]);
+
+  const updatePinnedSheetUrl = (id: 'products' | 'customers' | 'targets', url: string) => {
+    setPinnedSheets((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, url: url.trim(), status: 'idle', errorMessage: undefined } : s))
+    );
+  };
 
   const updateBranchCompanyInfo = (branchName: string, newInfo: Partial<CompanyInfo>) => {
     if (!branchName) return;
@@ -545,6 +715,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!existing.address && c.address) existing.address = c.address;
         if (!existing.taxNumber && c.taxNumber) existing.taxNumber = c.taxNumber;
         if (!existing.notes && c.notes) existing.notes = c.notes;
+        if (!existing.region && c.region) existing.region = c.region;
+        if (!existing.supervisorName && c.supervisorName) existing.supervisorName = c.supervisorName;
+        if (c.sales2025 !== undefined) existing.sales2025 = Number(c.sales2025);
+        if (c.sales2026 !== undefined) existing.sales2026 = Number(c.sales2026);
+        if (c.collections2025 !== undefined) existing.collections2025 = Number(c.collections2025);
+        if (c.collections2026 !== undefined) existing.collections2026 = Number(c.collections2026);
+        if (c.monthlySales2026) existing.monthlySales2026 = { ...(existing.monthlySales2026 || {}), ...c.monthlySales2026 };
+        if (c.monthlyCollections2026) existing.monthlyCollections2026 = { ...(existing.monthlyCollections2026 || {}), ...c.monthlyCollections2026 };
+        if (c.hasDealtIn2026 !== undefined) existing.hasDealtIn2026 = c.hasDealtIn2026;
+        if (c.hasPreviousDeals !== undefined) existing.hasPreviousDeals = c.hasPreviousDeals;
+        if (c.status2026) existing.status2026 = c.status2026;
+        if (c.lastVisitDate) existing.lastVisitDate = c.lastVisitDate;
+        if (c.nextVisitDate) existing.nextVisitDate = c.nextVisitDate;
+        if (c.visitCount2026 !== undefined) existing.visitCount2026 = Number(c.visitCount2026);
+        if (c.visitHistory && c.visitHistory.length > 0) {
+          existing.visitHistory = [...c.visitHistory, ...(existing.visitHistory || [])];
+        }
         if (c.branchName && c.branchName.trim()) {
           existing.branchName = normalizeBranchName(c.branchName);
         }
@@ -1865,15 +2052,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!prod) return { available: false, remainingPieces: 0, message: 'الصنف غير موجود بالسيستم' };
 
     const branchActual = prod.branchStockActual || 0;
-  const branchAvailable = typeof prod.branchStockReserved === 'number' && prod.branchStockReserved > 0
-    ? Math.min(branchActual, prod.branchStockReserved)
-    : branchActual;
-  const branchReservedCount = Math.max(0, branchActual - branchAvailable);
+    const branchAvailable = typeof prod.branchStockReserved === 'number'
+      ? Math.min(branchActual, Math.max(0, prod.branchStockReserved))
+      : branchActual;
+    const branchReservedCount = Math.max(0, branchActual - branchAvailable);
 
-  const mainActual = prod.mainWarehouseActual || 0;
-  const mainAvailable = typeof prod.mainWarehouseReserved === 'number' && prod.mainWarehouseReserved > 0
-    ? Math.min(mainActual, prod.mainWarehouseReserved)
-    : mainActual;
+    const mainActual = prod.mainWarehouseActual || 0;
+    const mainAvailable = typeof prod.mainWarehouseReserved === 'number'
+      ? Math.min(mainActual, Math.max(0, prod.mainWarehouseReserved))
+      : mainActual;
     const mainReservedCount = Math.max(0, mainActual - mainAvailable);
 
     const totalAvailable = branchAvailable + mainAvailable;
@@ -1941,14 +2128,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const totalRequiredCartonFraction = cartonsToAdd + (piecesToAdd / cartonQty);
 
     const branchActual = latestProd.branchStockActual || 0;
-    const availableInBranch = typeof latestProd.branchStockReserved === 'number' && latestProd.branchStockReserved > 0
-      ? Math.min(branchActual, latestProd.branchStockReserved)
+    const availableInBranch = typeof latestProd.branchStockReserved === 'number'
+      ? Math.min(branchActual, Math.max(0, latestProd.branchStockReserved))
       : branchActual;
     const branchReservedCount = Math.max(0, branchActual - availableInBranch);
 
     const mainActual = latestProd.mainWarehouseActual || 0;
-    const availableInWarehouse = typeof latestProd.mainWarehouseReserved === 'number' && latestProd.mainWarehouseReserved > 0
-      ? Math.min(mainActual, latestProd.mainWarehouseReserved)
+    const availableInWarehouse = typeof latestProd.mainWarehouseReserved === 'number'
+      ? Math.min(mainActual, Math.max(0, latestProd.mainWarehouseReserved))
       : mainActual;
     const mainReservedCount = Math.max(0, mainActual - availableInWarehouse);
 
@@ -2175,7 +2362,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ) {
         inv.items.forEach((item) => {
           const current = reservedPiecesByProduct.get(item.productId) || 0;
-          reservedPiecesByProduct.set(item.productId, current + (item.totalUnits || 0));
+          reservedPiecesByProduct.set(item.productId, current + (item.cartonCount || 0));
         });
       }
     });
@@ -2584,8 +2771,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (cartItem.fulfillFromMainWarehouse) {
           // Explicit full central warehouse reservation
           const mainUnits = Math.min(cartonUnits, Math.max(0, p.mainWarehouseReserved));
+          const updatedBranchStocks = p.branchStocks ? { ...p.branchStocks } : undefined;
+          if (updatedBranchStocks) {
+            for (const bKey of Object.keys(updatedBranchStocks)) {
+              if (isBranchMatch(bKey, 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)', { allowUnassigned: false })) {
+                updatedBranchStocks[bKey] = Math.max(0, (updatedBranchStocks[bKey] || 0) - mainUnits);
+              }
+            }
+          }
           return {
             ...p,
+            branchStocks: updatedBranchStocks || p.branchStocks,
             mainWarehouseActual: isDirectManager ? Math.max(0, p.mainWarehouseActual - mainUnits) : p.mainWarehouseActual,
             mainWarehouseReserved: Math.max(0, p.mainWarehouseReserved - mainUnits),
           };
@@ -2595,8 +2791,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const takeFromBranch = Math.min(cartonUnits, availableInBranch);
           const takeFromMain = Math.max(0, cartonUnits - takeFromBranch);
 
+          const updatedBranchStocks = p.branchStocks ? { ...p.branchStocks } : undefined;
+          if (updatedBranchStocks && orderBranch) {
+            for (const bKey of Object.keys(updatedBranchStocks)) {
+              if (isBranchMatch(bKey, orderBranch, { allowUnassigned: false })) {
+                updatedBranchStocks[bKey] = Math.max(0, (updatedBranchStocks[bKey] || 0) - takeFromBranch);
+              }
+            }
+          }
+          if (updatedBranchStocks && takeFromMain > 0) {
+            for (const bKey of Object.keys(updatedBranchStocks)) {
+              if (isBranchMatch(bKey, 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)', { allowUnassigned: false })) {
+                updatedBranchStocks[bKey] = Math.max(0, (updatedBranchStocks[bKey] || 0) - takeFromMain);
+              }
+            }
+          }
+
           return {
             ...p,
+            branchStocks: updatedBranchStocks || p.branchStocks,
             branchStockActual: isDirectManager ? Math.max(0, p.branchStockActual - takeFromBranch) : p.branchStockActual,
             branchStockReserved: Math.max(0, p.branchStockReserved - takeFromBranch),
             mainWarehouseActual: isDirectManager ? Math.max(0, p.mainWarehouseActual - takeFromMain) : p.mainWarehouseActual,
@@ -2954,14 +3167,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return prev.map((p) => {
         const invItem = inv.items.find((it) => it.productId === p.id);
         if (!invItem) return p;
+        const updatedBranchStocks = p.branchStocks ? { ...p.branchStocks } : undefined;
         if (invItem.fulfilledFrom === 'main_warehouse') {
+          if (updatedBranchStocks) {
+            for (const bKey of Object.keys(updatedBranchStocks)) {
+              if (isBranchMatch(bKey, 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)', { allowUnassigned: false })) {
+                updatedBranchStocks[bKey] = (updatedBranchStocks[bKey] || 0) + invItem.cartonCount;
+              }
+            }
+          }
           return {
             ...p,
+            branchStocks: updatedBranchStocks || p.branchStocks,
             mainWarehouseReserved: p.mainWarehouseReserved + invItem.cartonCount,
           };
         } else {
+          if (updatedBranchStocks && inv.branchName) {
+            for (const bKey of Object.keys(updatedBranchStocks)) {
+              if (isBranchMatch(bKey, inv.branchName, { allowUnassigned: false })) {
+                updatedBranchStocks[bKey] = (updatedBranchStocks[bKey] || 0) + invItem.cartonCount;
+              }
+            }
+          }
           return {
             ...p,
+            branchStocks: updatedBranchStocks || p.branchStocks,
             branchStockReserved: p.branchStockReserved + invItem.cartonCount,
           };
         }
@@ -3690,6 +3920,134 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {}
   };
 
+  // --- Pinned Cloud Sheets & Auto-Sync Engine ---
+  const syncPinnedSheet = async (
+    id: 'products' | 'customers' | 'targets'
+  ): Promise<{ success: boolean; count: number; message: string }> => {
+    const targetSheet = pinnedSheets.find((s) => s.id === id);
+    if (!targetSheet) {
+      return { success: false, count: 0, message: 'الشيت غير موجود' };
+    }
+    if (!targetSheet.url || !targetSheet.url.trim()) {
+      return { success: false, count: 0, message: 'يرجى إدخال رابط Google Sheet أو Google Drive أولاً وحفظه.' };
+    }
+
+    setPinnedSheets((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, status: 'syncing', errorMessage: undefined } : s))
+    );
+
+    const timeStr = new Intl.DateTimeFormat('ar-EG', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }).format(new Date());
+
+    try {
+      if (id === 'products') {
+        const res = await fetchAndParseGoogleSheet(targetSheet.url);
+        if (res.products.length === 0) {
+          throw new Error(res.errors.join(' | ') || 'لم يتم العثور على أي أصناف داخل الشيت.');
+        }
+        importProductsList(res.products, 'replace');
+        setPinnedSheets((prev) =>
+          prev.map((s) =>
+            s.id === id
+              ? { ...s, status: 'success', lastSyncTime: timeStr, lastSyncCount: res.products.length, errorMessage: undefined }
+              : s
+          )
+        );
+        return {
+          success: true,
+          count: res.products.length,
+          message: `تم تحديث ${res.products.length} صنف بنجاح وربط المخازن والأسعار!`,
+        };
+      } else if (id === 'customers') {
+        const res = await fetchCustomersFromGoogleSheetUrl(targetSheet.url);
+        if (res.customers.length === 0) {
+          throw new Error(res.errors.join(' | ') || 'لم يتم العثور على أي عملاء داخل الشيت.');
+        }
+        importCustomersList(res.customers, 'merge');
+        setPinnedSheets((prev) =>
+          prev.map((s) =>
+            s.id === id
+              ? { ...s, status: 'success', lastSyncTime: timeStr, lastSyncCount: res.customers.length, errorMessage: undefined }
+              : s
+          )
+        );
+        return {
+          success: true,
+          count: res.customers.length,
+          message: `تم تحديث قاعدة بيانات ${res.customers.length} عميل ومبيعات 2025/2026 والمديونيات بنجاح!`,
+        };
+      } else if (id === 'targets') {
+        const records = await fetchTargetsFromGoogleSheetUrl(targetSheet.url);
+        if (records.length === 0) {
+          throw new Error('لم يتم العثور على أهداف أو مستهدفات صالحة داخل الشيت.');
+        }
+        setTargets(records);
+        setPinnedSheets((prev) =>
+          prev.map((s) =>
+            s.id === id
+              ? { ...s, status: 'success', lastSyncTime: timeStr, lastSyncCount: records.length, errorMessage: undefined }
+              : s
+          )
+        );
+        return {
+          success: true,
+          count: records.length,
+          message: `تم تحديث مستهدفات ${records.length} مندوب وفرع بنجاح!`,
+        };
+      }
+
+      return { success: false, count: 0, message: 'نوع شيت غير معروف' };
+    } catch (err: any) {
+      const errMsg = err?.message || 'فشل الاتصال بـ Google Sheets';
+      setPinnedSheets((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, status: 'error', errorMessage: errMsg } : s))
+      );
+      return { success: false, count: 0, message: errMsg };
+    }
+  };
+
+  const syncAllPinnedSheets = async (): Promise<{ success: boolean; results: { id: string; count: number; message: string }[] }> => {
+    setIsSyncingPinnedSheets(true);
+    const results: { id: string; count: number; message: string }[] = [];
+    let overallSuccess = true;
+
+    try {
+      for (const sheet of pinnedSheets) {
+        if (sheet.url && sheet.url.trim()) {
+          const res = await syncPinnedSheet(sheet.id as 'products' | 'customers' | 'targets');
+          results.push({ id: sheet.id, count: res.count, message: res.message });
+          if (!res.success) overallSuccess = false;
+        }
+      }
+
+      if (results.length === 0) {
+        return {
+          success: false,
+          results: [{ id: 'none', count: 0, message: 'يرجى إدخال روابط الشيتات أولاً لتفعيل التحديث التلقائي.' }],
+        };
+      }
+
+      return { success: overallSuccess, results };
+    } finally {
+      setIsSyncingPinnedSheets(false);
+    }
+  };
+
+  // Optional background launch sync when internet is connected
+  useEffect(() => {
+    if (!autoSyncOnLaunch || !navigator.onLine) return;
+    const hasAnyConfigured = pinnedSheets.some((s) => s.url && s.url.trim().length > 10);
+    if (!hasAnyConfigured) return;
+
+    const timer = setTimeout(() => {
+      syncAllPinnedSheets().catch((err) => console.warn('Auto sync on launch warning:', err));
+    }, 2500);
+
+    return () => clearTimeout(timer);
+  }, [autoSyncOnLaunch]);
+
   // --- Role-Based Data Visibility (STRICT PRIVACY & BRANCH ISOLATION) ---
   const getVisibleInvoices = (): Invoice[] => {
     if (!currentUser) return [];
@@ -3896,6 +4254,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getSupervisorsInBranch,
         getSalesRepsForSupervisor,
         loginAs,
+        targets,
+        getVisibleTargets,
+        importTargetsFromExcel,
+        exportTargetsReport,
+        resetTargetsToDefault,
+        addOrUpdateTargetRecord,
+        deleteTargetRecord,
+        pinnedSheets,
+        updatePinnedSheetUrl,
+        syncPinnedSheet,
+        syncAllPinnedSheets,
+        isSyncingPinnedSheets,
+        autoSyncOnLaunch,
+        setAutoSyncOnLaunch,
       }}
     >
       {children}

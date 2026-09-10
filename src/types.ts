@@ -99,6 +99,17 @@ export interface Product {
 
 export type CustomerTier = 'مميز' | 'راقي' | 'متوسط' | 'عادي';
 
+export interface CustomerVisit {
+  id: string;
+  date: string;                      // تاريخ الزيارة (YYYY-MM-DD)
+  repName: string;                   // اسم المندوب القائم بالزيارة
+  type?: 'زيارة تحصيل' | 'زيارة بيع وطلبية' | 'زيارة دورية' | 'متابعة حساب' | 'أخرى';
+  outcome?: 'تم عمل طلبية' | 'تم التحصيل' | 'تأجيل سداد' | 'المحل مغلق' | 'متابعة فقط';
+  collectedAmount?: number;          // المبلغ المحصل إن وجد
+  notes?: string;                    // ملاحظات الزيارة
+  createdAt?: string;
+}
+
 export interface Customer {
   id: string;
   code: string;                      // كود العميل (كود العميل)
@@ -108,10 +119,12 @@ export interface Customer {
   phone: string;                     // رقم الهاتف
   address?: string;                  // العنوان التفصيلي
   governorate?: string;              // المحافظة
+  region?: string;                   // المنطقة / الحي / المركز
   branchName: string;                // اسم الفرع (الفرع)
   repName?: string;                  // اسم المندوب المسئول (المندوب الحالي)
   salesRepName?: string;             // المندوب المسئول (alias)
   repId?: string;                    // كود المندوب
+  supervisorName?: string;           // المشرف المسؤول
   taxNumber?: string;                // الرقم الضريبي
   balance?: number;                  // رصيد الحساب الحالي
   currentBalance?: number;           // المديونية الحالية
@@ -122,6 +135,24 @@ export interface Customer {
   lastOrderDate?: string;            // تاريخ آخر طلبية
   totalOrdersCount?: number;         // إجمالي عدد الطلبيات
   totalSpent?: number;               // إجمالي المبيعات للعميل
+
+  // --- التحليلات والمبيعات السنوية والشهرية (2025 - 2026) ---
+  sales2025?: number;                // إجمالي مبيعات عام 2025
+  sales2026?: number;                // إجمالي مبيعات عام 2026
+  collections2025?: number;          // إجمالي تحصيلات عام 2025
+  collections2026?: number;          // إجمالي تحصيلات عام 2026
+  monthlySales2026?: Record<number, number>;        // مبيعات شهور 2026 (1 إلى 12: يناير إلى ديسمبر)
+  monthlyCollections2026?: Record<number, number>;  // تحصيلات شهور 2026 (1 إلى 12: يناير إلى ديسمبر)
+  hasPreviousDeals?: boolean;        // هل تعامل العميل مسبقاً قبل 2026
+  hasDealtIn2026?: boolean;          // هل تعامل العميل وسحب طلبيات في 2026
+  status2026?: 'active' | 'inactive' | 'churn_risk' | 'new_customer'; // حالة النشاط
+
+  // --- سجل ومتابعة الزيارات ---
+  lastVisitDate?: string;            // تاريخ آخر زيارة تمت للعميل
+  nextVisitDate?: string;            // تاريخ الزيارة القادمة المجدولة
+  visitCount2026?: number;           // عدد الزيارات المنفذة في 2026
+  visitHistory?: CustomerVisit[];    // سجل تفاصيل الزيارات
+
   notes?: string;
   createdAt?: string;
 }
@@ -375,4 +406,58 @@ export interface AuditLog {
   invoiceNumber?: string;
   ipAddress?: string;
   badgeType?: 'success' | 'warning' | 'info' | 'danger' | 'neutral';
+}
+
+export type TargetQuarter = 'Q1' | 'Q2' | 'Q3' | 'Q4';
+
+export interface TargetRecord {
+  id: string;
+  branch: string;                     // الفرع
+  repName: string;                    // المندوب
+  salesTarget: number;                // هدف البيع
+  salesAchieved: number;              // المحقق بيع
+  salesPercentage: number;            // نسبه البيع (%)
+  collectionTarget: number;           // هدف التحصيل
+  collectionAchieved: number;         // المحقق تحصيل
+  collectionPercentage: number;       // نسبه تحصيل (%)
+  date: string;                       // تاريخ (YYYY-MM-DD أو YYYY-MM)
+  month: number;                      // 1 - 12
+  year: number;                       // e.g. 2026
+  quarter: TargetQuarter;             // الكوارتر (Q1: 1,2,3 | Q2: 4,5,6 | Q3: 7,8,9 | Q4: 10,11,12)
+  remainingSales: number;             // المتبقي للبيع
+  remainingCollection: number;        // المتبقي للتحصيل
+  updatedAt?: string;
+  notes?: string;
+}
+
+export interface PinnedGoogleSheetConfig {
+  id: 'products' | 'customers' | 'targets';
+  title: string;
+  subtitle: string;
+  description: string;
+  url: string;
+  sheetGid?: string;
+  lastSyncTime?: string;
+  lastSyncCount?: number;
+  status?: 'idle' | 'syncing' | 'success' | 'error';
+  errorMessage?: string;
+}
+
+export interface OrderDraftData {
+  customerId?: string;
+  customerName?: string;
+  customerCode?: string;
+  customerPhone?: string;
+  customerAddress?: string;
+  customerTaxNumber?: string;
+  customerBranch?: string;
+  customerRep?: string;
+  customerTier?: string;
+  discountPercent?: number;
+  paymentMethod?: PaymentMethod;
+  orderNotes?: string;
+  splitShortagesToBackorder?: boolean;
+  selectedRepId?: string;
+  customerScope?: 'rep' | 'branch' | 'all';
+  isNewCustomerMode?: boolean;
 }

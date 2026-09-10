@@ -143,6 +143,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   // Pagination & Progressive Loading state to avoid network choke and high data consumption
   const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(16);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isMobileInfoExpanded, setIsMobileInfoExpanded] = useState(false);
 
   // Auto-reset pagination when filters or search change
   useEffect(() => {
@@ -712,8 +713,76 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
       )}
 
-      {/* Offline Image Cache & Data-Saver Bar (Works 100% Offline with Zero Data Consumption) */}
-      <div className="bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-slate-100 border border-amber-300/60 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+      {/* Mobile Streamlined Micro-Bar (Replaces stacked banners to save screen space on phones) */}
+      <div className="sm:hidden bg-slate-900 border border-slate-800 rounded-2xl p-2.5 shadow-sm space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+            <span className="text-[11px] font-bold text-slate-300 truncate">
+              {currentActiveBranch || 'الفرع الرئيسي'}
+            </span>
+            <span className="text-[10px] bg-slate-800 text-amber-300 font-bold px-1.5 py-0.5 rounded">
+              {cacheStats.count} أوفلاين
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={handleCacheAllImages}
+              disabled={isCaching || products.length === 0}
+              className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-2.5 py-1.5 rounded-lg text-[11px] flex items-center gap-1 transition active:scale-95 cursor-pointer disabled:opacity-50"
+              title="تحميل الصور للعمل أوفلاين"
+            >
+              {isCaching ? (
+                <>
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  <span>جاري الحفظ...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3 h-3" />
+                  <span>حفظ الصور 📲</span>
+                </>
+              )}
+            </button>
+
+            {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+              <button
+                type="button"
+                onClick={() => setIsMobileInfoExpanded((prev) => !prev)}
+                className="bg-slate-800 text-slate-300 p-1.5 rounded-lg text-xs hover:text-white"
+                title="تغيير الفرع"
+              >
+                <Building className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Expanded Branch Switcher for Admin on Mobile */}
+        {isMobileInfoExpanded && (currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+          <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2 text-xs">
+            <span className="text-slate-400 font-bold">تبديل الفرع:</span>
+            <select
+              value={selectedBranchFilter}
+              onChange={(e) => setSelectedBranchFilter(e.target.value)}
+              className="bg-slate-950 border border-slate-700 text-white font-black rounded-lg px-2.5 py-1 text-xs focus:ring-1 focus:ring-amber-400"
+            >
+              <option value="الكل">الفرع الرئيسي (كل الفروع)</option>
+              {branches
+                .filter((b) => !b.isMainWarehouse && !b.name.includes('المخزن المركزي'))
+                .map((b) => (
+                  <option key={b.id} value={b.name}>
+                    {b.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* Desktop Offline Image Cache & Data-Saver Bar (Tablet & Desktop) */}
+      <div className="hidden sm:flex bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-slate-100 border border-amber-300/60 rounded-2xl p-3 sm:p-4 flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-xs">
             <Download className="w-5 h-5" />
@@ -771,8 +840,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
       )}
 
-      {/* Active Branch Scope Indicator & Switcher for Admin / Developer / Sales Reps */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-slate-100 border border-slate-300/80 rounded-2xl p-3 sm:p-3.5 shadow-xs">
+      {/* Desktop Active Branch Scope Indicator & Switcher (Tablet & Desktop) */}
+      <div className="hidden sm:flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-slate-100 border border-slate-300/80 rounded-2xl p-3 sm:p-3.5 shadow-xs">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-xs">
             <Building className="w-4 h-4" />
@@ -1326,9 +1395,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             const priorityConfig = priorityBadges[product.salesPriority];
             const dynamicBranchStock = getProductBranchStock(product);
             const hasBranchStock = dynamicBranchStock > 0;
-            const hasMainWhStock = product.mainWarehouseActual > 0;
-            const dynamicBranchReserved = Math.max(0, dynamicBranchStock - 5);
-            const totalCartonsAvailable = Math.max(0, dynamicBranchReserved) + Math.max(0, product.mainWarehouseReserved);
+            const octoberAvail = typeof product.mainWarehouseReserved === 'number'
+              ? Math.max(0, product.mainWarehouseReserved)
+              : (product.mainWarehouseActual || 0);
+            const hasMainWhStock = octoberAvail > 0 || (product.mainWarehouseActual || 0) > 0;
+            const totalCartonsAvailable = dynamicBranchStock + octoberAvail;
             const orderState = getCardState(product.id);
 
             return (
@@ -1434,22 +1505,33 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
                   {/* Stock Availability Health - Crisp Contrast */}
                   <div className="bg-slate-100/90 p-1.5 sm:p-2 rounded-xl border border-slate-200 space-y-1 text-[10px] sm:text-xs font-bold text-slate-800">
-                    {/* Low Stock / Out of Stock / October warehouse Visual Warning */}
+                    {/* Safety Stock Buffer / Out of Stock / October warehouse Visual Warning */}
                     {totalCartonsAvailable <= 0 ? (
                       <div className="bg-rose-600 text-white text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-md flex items-center justify-center gap-1">
                         <AlertTriangle className="w-3 h-3" />
                         <span>بدون مخزون (منتهي بالفرع وأكتوبر) 🚫</span>
                       </div>
-                    ) : dynamicBranchStock <= 0 && product.mainWarehouseActual > 0 ? (
+                    ) : dynamicBranchStock <= 0 && octoberAvail > 0 ? (
                       <div className="bg-blue-600 text-white text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-md flex items-center justify-center gap-1">
                         <Truck className="w-3 h-3 text-blue-200" />
-                        <span>متاح بمخزن أكتوبر ({product.mainWarehouseActual} ك) 🚚</span>
+                        <span>متاح بمخزن أكتوبر ({octoberAvail} ك) 🚚</span>
                       </div>
-                    ) : dynamicBranchReserved <= 5 && dynamicBranchReserved > 0 ? (
-                      <div className="bg-amber-500 text-slate-950 text-[9px] sm:text-[10px] font-black px-1 py-0.5 rounded-md flex items-center justify-center gap-1">
-                        <span>متبقي بالفرع {dynamicBranchReserved} كرتونة فقط ⚠️</span>
+                    ) : dynamicBranchStock <= 5 && dynamicBranchStock > 0 ? (
+                      <div className="bg-amber-400 text-slate-950 text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-md flex items-center justify-center gap-1 border border-amber-500 shadow-xs">
+                        <AlertTriangle className="w-3 h-3 text-amber-950 shrink-0" />
+                        <span>مخزون حرج ({dynamicBranchStock} ك فقط) - تأكد من الفرع ⚠️</span>
                       </div>
-                    ) : null}
+                    ) : dynamicBranchStock <= 10 && dynamicBranchStock > 5 ? (
+                      <div className="bg-amber-100 text-amber-900 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center justify-center gap-1 border border-amber-300">
+                        <AlertCircle className="w-3 h-3 text-amber-700 shrink-0" />
+                        <span>رصيد محدود بالفرع ({dynamicBranchStock} ك) ⚡</span>
+                      </div>
+                    ) : (
+                      <div className="bg-emerald-50 text-emerald-800 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center justify-center gap-1 border border-emerald-200">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <span>متوفر بالفرع ({dynamicBranchStock} كرتونة) ✅</span>
+                      </div>
+                    )}
 
                     {/* Branch Stock */}
                     <div className="flex items-center justify-between">
@@ -1458,7 +1540,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       </span>
                       <div className="text-left font-black shrink-0">
                         {hasBranchStock ? (
-                          <span className="text-emerald-800 font-black">
+                          <span className={dynamicBranchStock <= 5 ? 'text-amber-800 font-black' : 'text-emerald-800 font-black'}>
                             {dynamicBranchStock} ك
                           </span>
                         ) : (
@@ -1466,11 +1548,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         )}
                         {hasBranchStock && (
                           <span className={`text-[10px] font-black mr-1 px-1 py-0.2 rounded ${
-                            dynamicBranchReserved < dynamicBranchStock 
-                              ? 'bg-amber-100 text-amber-900 border border-amber-300' 
+                            dynamicBranchStock <= 5 
+                              ? 'bg-amber-200 text-amber-950 border border-amber-400' 
                               : 'text-slate-600'
-                          }`} title={`الفعلي: ${dynamicBranchStock} | المحجوز: ${Math.max(0, dynamicBranchStock - dynamicBranchReserved)} | الصافي المتاح: ${Math.max(0, dynamicBranchReserved)}`}>
-                            (متاح {Math.max(0, dynamicBranchReserved)})
+                          }`}>
+                            (متاح {dynamicBranchStock})
                           </span>
                         )}
                       </div>
@@ -1657,8 +1739,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <tbody className="divide-y divide-slate-100">
                 {displayedProducts.map((product) => {
                   const branchCartons = getProductBranchStock(product);
-                  const branchReservedCartons = Math.max(0, branchCartons - 5);
-                  const mainWhCartons = product.mainWarehouseActual;
+                  const mainWhCartons = typeof product.mainWarehouseReserved === 'number'
+                    ? product.mainWarehouseReserved
+                    : (product.mainWarehouseActual || 0);
 
                   return (
                     <tr key={product.id} className="hover:bg-amber-50/40 transition">
@@ -1699,14 +1782,22 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       <td className="p-2.5 font-bold text-slate-600">{product.department || product.category}</td>
                       <td className="p-2.5 text-center font-black text-slate-800">{product.cartonQuantity} قطعة</td>
                       <td className="p-2.5 text-center">
-                        <span className={branchCartons > 0 ? 'text-emerald-700 font-black' : 'text-red-600 font-bold'}>
+                        <span className={branchCartons > 0 ? (branchCartons <= 5 ? 'text-amber-900 font-black' : 'text-emerald-700 font-black') : 'text-red-600 font-bold'}>
                           {branchCartons} كرتونة
                         </span>
-                        <div className="text-[10px]">
-                          {branchReservedCartons <= 0 ? (
-                            <span className="text-rose-600 font-black">نفذ (0 متاح)</span>
+                        <div className="text-[10px] mt-0.5">
+                          {branchCartons <= 0 ? (
+                            <span className="text-rose-600 font-black">نفد (0 متاح)</span>
+                          ) : branchCartons <= 5 ? (
+                            <span className="text-amber-950 bg-amber-200 border border-amber-400 font-black px-1.5 py-0.5 rounded text-[9px] inline-block shadow-2xs">
+                              ⚠️ مخزون حرج ({branchCartons} ك)
+                            </span>
+                          ) : branchCartons <= 10 ? (
+                            <span className="text-amber-800 bg-amber-50 border border-amber-200 font-bold px-1.5 py-0.5 rounded text-[9px] inline-block">
+                              ⚡ محدود ({branchCartons} ك)
+                            </span>
                           ) : (
-                            <span className="text-slate-500 font-bold">متاح: {branchReservedCartons} كرتونة</span>
+                            <span className="text-emerald-700 font-bold">متاح: {branchCartons} ك</span>
                           )}
                         </div>
                       </td>
@@ -1729,7 +1820,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         )}
                       </td>
                       <td className="p-2.5 text-center">
-                        {(branchReservedCartons + mainWhCartons) > 0 ? (
+                        {(branchCartons + mainWhCartons) > 0 ? (
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               onClick={() => handleDirectAdd(product, 'carton', 1)}
@@ -2167,9 +2258,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 {(() => {
                   const activeBranchLabel = currentActiveBranch || selectedProductForModal.branchName || 'الفرع الحالي';
                   const branchStock = getBranchStockForProduct(selectedProductForModal, currentActiveBranch);
-                  const branchReserved = Math.max(0, branchStock - 5);
+                  const branchReserved = branchStock;
                   const octoberStock = selectedProductForModal.mainWarehouseActual || 0;
-                  const octoberReserved = Math.max(0, selectedProductForModal.mainWarehouseReserved || 0);
+                  const octoberReserved = typeof selectedProductForModal.mainWarehouseReserved === 'number'
+                    ? selectedProductForModal.mainWarehouseReserved
+                    : octoberStock;
 
                   return (
                     <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2.5">
@@ -2182,11 +2275,17 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       <div className="grid grid-cols-2 gap-2">
                         <div className="bg-white p-2.5 rounded-xl border border-slate-100">
                           <div className="text-[10px] text-slate-400">رصيد {activeBranchLabel}:</div>
-                          <div className="font-black text-sm text-emerald-700">
+                          <div className={`font-black text-sm ${branchStock <= 5 && branchStock > 0 ? 'text-amber-900' : 'text-emerald-700'}`}>
                             {branchStock} كرتونة
                           </div>
                           <div className="text-[10px] text-slate-500 font-bold">
-                            متاح للطلب: {branchReserved} كرتونة
+                            {branchStock <= 0 ? (
+                              <span className="text-rose-600 font-black">نفد بالفرع</span>
+                            ) : branchStock <= 5 ? (
+                              <span className="text-amber-800 font-black">⚠️ مخزون حرج (متاح {branchStock} ك)</span>
+                            ) : (
+                              <span>متاح للطلب: {branchReserved} كرتونة</span>
+                            )}
                           </div>
                         </div>
                         <div className="bg-white p-2.5 rounded-xl border border-slate-100">
@@ -2266,14 +2365,24 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 {/* Quick Add Action in Modal */}
                 <div className="pt-2">
                   {(() => {
-                    const branchAvail = Math.max(0, selectedProductForModal.branchStockReserved);
-                    const octoberAvail = Math.max(0, selectedProductForModal.mainWarehouseReserved);
+                    const branchStock = getBranchStockForProduct(selectedProductForModal, currentActiveBranch);
+                    const branchAvail = Math.max(0, branchStock);
+                    const octoberAvail = Math.max(0, typeof selectedProductForModal.mainWarehouseReserved === 'number'
+                      ? selectedProductForModal.mainWarehouseReserved
+                      : (selectedProductForModal.mainWarehouseActual || 0));
                     const totalAvail = branchAvail + octoberAvail;
                     const isFromOctober = branchAvail <= 0 && octoberAvail > 0;
+                    const isCriticalStock = branchAvail <= 5 && branchAvail > 0;
 
                     if (totalAvail > 0) {
                       return (
                         <div className="space-y-2">
+                          {isCriticalStock && (
+                            <div className="bg-amber-100 text-amber-950 border border-amber-300 p-2.5 rounded-xl text-xs font-black flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 text-amber-800 shrink-0" />
+                              <span>⚠️ <strong>هامش الأمان:</strong> رصيد الصنف حرج ({branchAvail} كرتونة فقط متبقية بالفرع) - يُرجى التأكد من مسؤولي الفرع قبل تأكيد البيع.</span>
+                            </div>
+                          )}
                           {isFromOctober && (
                             <div className="bg-blue-50 text-blue-900 border border-blue-200 p-2 rounded-xl text-[11px] font-bold flex items-center gap-1.5">
                               <Truck className="w-4 h-4 text-blue-600 shrink-0" />

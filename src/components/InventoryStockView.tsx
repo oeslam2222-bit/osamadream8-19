@@ -195,7 +195,7 @@ export const InventoryStockView: React.FC = () => {
         outOfStockCount++;
       }
       totalCartonsActual += bStock;
-      totalCartonsReserved += Math.max(0, bStock - 5);
+      totalCartonsReserved += typeof p.branchStockReserved === 'number' ? p.branchStockReserved : bStock;
     });
 
     return {

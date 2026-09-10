@@ -1146,8 +1146,8 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
                   const targetBranchForStock = customerBranch || currentUser?.branchName || '';
                   const branchActual = getBranchStockForProduct(p, targetBranchForStock);
-                  const branchAvail = Math.max(0, branchActual - 5);
-                  const mainAvail = Math.max(0, p.mainWarehouseReserved || (p.mainWarehouseActual - 20));
+                  const branchAvail = Math.max(0, branchActual);
+                  const mainAvail = Math.max(0, typeof p.mainWarehouseReserved === 'number' ? p.mainWarehouseReserved : p.mainWarehouseActual);
                   const totalAvail = branchAvail + mainAvail;
 
                   const currentCarton = item.cartonCount || 0;
@@ -1273,6 +1273,14 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                           )}
                         </div>
                       </div>
+
+                      {/* Safety Stock Alert if Branch Stock is Critical (<= 5 cartons) */}
+                      {branchAvail <= 5 && branchAvail > 0 && (
+                        <div className="bg-amber-50 border border-amber-300 text-amber-950 rounded-xl px-3 py-1.5 text-[11px] font-bold flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+                          <span>⚠️ <strong>هامش الأمان:</strong> مخزون الفرع لهذا الصنف حرج ({branchAvail} ك فقط متبقية) - يُرجى التأكد من مسؤولي الفرع قبل تأكيد الطلبية.</span>
+                        </div>
+                      )}
 
                       {/* Smart Quantity Controls: Cartons & Pieces with Automatic Conversion */}
                       <div className="bg-amber-50/40 border border-amber-200/80 rounded-2xl p-3 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">

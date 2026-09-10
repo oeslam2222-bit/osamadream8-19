@@ -20,12 +20,14 @@ import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { ProductCatalog } from './components/ProductCatalog';
 import { CustomerDirectoryView } from './components/CustomerDirectoryView';
+import { AllCustomersAnalyticsView } from './components/AllCustomersAnalyticsView';
 import { SupervisorDashboard } from './components/SupervisorDashboard';
 import { InvoicesManager } from './components/InvoicesManager';
 import { InventoryStockView } from './components/InventoryStockView';
 import { ExcelImportExport } from './components/ExcelImportExport';
 import { UserManager } from './components/UserManager';
 import { SystemWorkflowGuide } from './components/SystemWorkflowGuide';
+import { TargetPerformanceDashboard } from './components/TargetPerformanceDashboard';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
 import { AppProvider, useApp } from './context/AppContext';
@@ -115,12 +117,20 @@ const MainLayout: React.FC = () => {
             />
           )}
 
+          {activeTab === 'all_customers' && (
+            <AllCustomersAnalyticsView
+              onOpenNewOrderForCustomer={(cust) => handleOpenOrderForCustomer(cust)}
+            />
+          )}
+
           {activeTab === 'dashboard' && (
             <SupervisorDashboard
               onOpenNewOrder={() => setIsOrderModalOpen(true)}
               onViewInvoice={(inv) => setViewingInvoice(inv)}
             />
           )}
+
+          {activeTab === 'targets' && <TargetPerformanceDashboard />}
 
           {activeTab === 'invoices' && (
             <InvoicesManager
@@ -143,30 +153,27 @@ const MainLayout: React.FC = () => {
         </Suspense>
       </main>
 
-      {/* Floating Action / Cart Bar for Mobile Sales Reps */}
+      {/* Floating Action / Cart Bar for Mobile Sales Reps - Carefully positioned above bottom bar */}
       {cart && cart.length > 0 && activeTab === 'catalog' && (
-        <div className="fixed bottom-16 md:bottom-4 left-4 right-4 z-40 max-w-md mx-auto animate-in slide-in-from-bottom-5">
-          <div className="bg-slate-900 text-white p-3 sm:p-3.5 rounded-2xl shadow-2xl border border-slate-750 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
-                <ShoppingCart className="w-5 h-5" />
+        <div className="fixed bottom-[74px] sm:bottom-[80px] md:bottom-5 left-3 right-3 sm:left-4 sm:right-4 z-30 max-w-md mx-auto animate-in slide-in-from-bottom-3 pointer-events-auto">
+          <div className="bg-slate-950/95 backdrop-blur-md text-white p-2.5 sm:p-3.5 rounded-2xl shadow-2xl border border-amber-500/30 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-md">
+                <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <div>
-                <div className="text-xs text-slate-400">سلة الطلبية الحالية</div>
-                <div className="text-sm font-black text-amber-300">
-                  {cart.length} صنف مختار ({cartSummary.totalPieces} قطعة)
+              <div className="min-w-0">
+                <div className="text-[10px] sm:text-xs text-slate-400 truncate">سلة الطلبية الحالية</div>
+                <div className="text-xs sm:text-sm font-black text-amber-300 truncate">
+                  {cart.length} صنف ({cartSummary.totalPieces} قطعة)
                 </div>
               </div>
             </div>
 
             <button
               onClick={() => setIsOrderModalOpen(true)}
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs shadow-md transition transform active:scale-95 flex items-center gap-1.5 cursor-pointer"
+              className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs shadow-md transition transform active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0"
             >
-              <span>معاينة الفاتورة</span>
-              <span className="font-bold text-[11px] bg-slate-950 text-amber-300 px-1.5 py-0.5 rounded-md">
-                {cart.length}
-              </span>
+              <span>معاينة الفاتورة 🛒</span>
             </button>
           </div>
         </div>
