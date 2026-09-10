@@ -79,6 +79,20 @@ const MainLayout: React.FC = () => {
     }
   };
 
+  const sectionDetails: Record<string, { eyebrow: string; title: string; description: string }> = {
+    catalog: { eyebrow: 'المبيعات اليومية', title: 'كتالوج الأصناف والبيع', description: 'أنشئ طلباتك بسرعة مع متابعة المخزون والعملاء في مكان واحد.' },
+    customers: { eyebrow: 'إدارة العملاء', title: 'قاعدة بيانات العملاء', description: 'تابع بيانات العملاء والأرصدة والطلبات السابقة بسهولة.' },
+    all_customers: { eyebrow: 'التحليلات', title: 'كافة العملاء والتحليل', description: 'رؤية أوضح لحركة العملاء والتحصيل والمبيعات.' },
+    dashboard: { eyebrow: 'مركز المتابعة', title: 'لوحة المتابعة', description: 'ملخص سريع لأداء المبيعات والطلبات والفواتير.' },
+    targets: { eyebrow: 'الأداء والتحصيل', title: 'التارجت والأهداف', description: 'راقب مؤشرات الأداء والتقدم نحو أهداف الفرع.' },
+    invoices: { eyebrow: 'المستندات المالية', title: 'الفواتير والطلبيات', description: 'راجع الفواتير وعدّلها واطبع نسخة منظمة في أي وقت.' },
+    inventory: { eyebrow: 'المخزون', title: 'إدارة المخزون والاعتمادات', description: 'تابع الكميات وحركة الأصناف والاعتمادات.' },
+    excel: { eyebrow: 'الأدوات', title: 'الشيتات والاستيراد', description: 'استورد وصدّر بياناتك بأمان من مكان واحد.' },
+    users: { eyebrow: 'إدارة الفريق', title: 'فريق الفرع والموظفين', description: 'إدارة المستخدمين والصلاحيات وحالات الاعتماد.' },
+    guide: { eyebrow: 'المساعدة', title: 'دليل دورة العمل', description: 'خطوات واضحة لاستخدام المنظومة بكفاءة.' },
+  };
+  const activeSection = sectionDetails[activeTab] || { eyebrow: 'منظومة الطنطاوي', title: 'إدارة المبيعات والتوزيع', description: 'كل أدوات العمل اليومية في شاشة واحدة.' };
+
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col text-slate-900 font-sans antialiased selection:bg-amber-400 selection:text-slate-950">
       
@@ -97,9 +111,24 @@ const MainLayout: React.FC = () => {
         onOpenCart={() => setIsOrderModalOpen(true)}
       />
 
-      {/* Content Container with optimal tight padding for mobile and standard padding for desktop */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-2 sm:px-4 md:px-6 py-2.5 sm:py-5 pb-24 md:pb-8">
-        <Suspense fallback={<TabLoadingSkeleton />}>
+      {/* Responsive workspace shell shared by every page */}
+      <main className="flex-1 w-full bg-[radial-gradient(circle_at_top_right,_rgba(245,158,11,0.08),_transparent_32%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)]">
+        <div className="max-w-[1600px] w-full mx-auto px-3 sm:px-5 lg:px-8 py-4 sm:py-6 lg:py-8 pb-24 md:pb-10">
+          <section className="mb-5 sm:mb-7 flex flex-col sm:flex-row sm:items-end justify-between gap-4 rounded-3xl border border-slate-200/80 bg-white/85 p-4 sm:p-6 shadow-sm backdrop-blur-sm">
+            <div className="min-w-0">
+              <div className="mb-2 flex items-center gap-2 text-[11px] font-black tracking-wide text-amber-700 sm:text-xs">
+                <span className="h-2 w-2 rounded-full bg-amber-500 shadow-[0_0_0_4px_rgba(245,158,11,0.14)]" />
+                <span>{activeSection.eyebrow}</span>
+              </div>
+              <h2 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl lg:text-3xl">{activeSection.title}</h2>
+              <p className="mt-1.5 max-w-2xl text-xs leading-6 text-slate-500 sm:text-sm">{activeSection.description}</p>
+            </div>
+            <div className="hidden shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500 md:flex">
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+              بياناتك محفوظة وآمنة
+            </div>
+          </section>
+          <Suspense fallback={<TabLoadingSkeleton />}>
           {activeTab === 'catalog' && (
             <ProductCatalog
               onOpenCart={() => setIsOrderModalOpen(true)}
@@ -150,7 +179,8 @@ const MainLayout: React.FC = () => {
             <SystemWorkflowGuide onNavigateToTab={(tab) => setActiveTab(tab)} />
           )}
 
-        </Suspense>
+          </Suspense>
+        </div>
       </main>
 
       {/* Floating Action / Cart Bar for Mobile Sales Reps - Carefully positioned above bottom bar */}
