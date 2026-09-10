@@ -37,6 +37,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { Customer, User } from '../types';
 import { formatCurrency } from '../services/invoiceService';
+import { CustomerDetailsSheet } from './CustomerDetailsSheet';
 import {
   doesCustomerBelongToRep,
   doesCustomerBelongToBranch,
@@ -111,6 +112,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+  const [detailsCustomer, setDetailsCustomer] = useState<Customer | null>(null);
   const [syncFeedback, setSyncFeedback] = useState<{
     show: boolean;
     msg: string;
@@ -673,7 +675,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       'اسم العميل',
       'الفرع',
       'المندوب',
-      'اجمالي المتأخرات والمستحق',
+      'ا��مالي المتأخرات والمستحق',
       'مديونيه العميل',
       'الحد الائتماني',
       'المتبقي من الائتمان',
@@ -1406,6 +1408,16 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                       <td className="py-3 px-4 text-center">
                         <div className="flex items-center justify-center gap-1.5">
                           
+                          {/* Customer Details & Ledger */}
+                          <button
+                            onClick={() => setDetailsCustomer(customer)}
+                            className="bg-slate-800 hover:bg-slate-700 text-white font-black px-2.5 py-1.5 rounded-xl text-xs flex items-center gap-1 shadow-sm transition active:scale-95 cursor-pointer"
+                            title="عرض بيانات العميل وكشف الحساب"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>بيانات</span>
+                          </button>
+
                           {/* Fast Order Builder Launch */}
                           <button
                             onClick={() => onOpenNewOrderForCustomer?.(customer)}
@@ -1531,6 +1543,12 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         </div>
 
       </div>
+
+      <CustomerDetailsSheet
+        isOpen={!!detailsCustomer}
+        customer={detailsCustomer}
+        onClose={() => setDetailsCustomer(null)}
+      />
 
       {/* Import Modal for 3400+ Customers (Google Sheets & Excel - Admin & Developer Only) */}
       {isAdminOrDev && isImportModalOpen && (
