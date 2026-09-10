@@ -429,16 +429,3 @@ export interface TargetRecord {
   updatedAt?: string;
   notes?: string;
 }
-
-export interface PinnedGoogleSheetConfig {
-  id: 'products' | 'customers' | 'targets';
-  title: string;
-  subtitle: string;
-  description: string;
-  url: string;
-  sheetGid?: string;
-  lastSyncTime?: string;
-  lastSyncCount?: number;
-  status?: 'idle' | 'syncing' | 'success' | 'error';
-  errorMessage?: string;
-}

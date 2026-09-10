@@ -1,25 +1,11 @@
 @import "tailwindcss";
 
 @layer base {
-  :root {
-    color-scheme: light;
-    --app-ink: #0f172a;
-    --app-muted: #64748b;
-    --app-surface: #ffffff;
-    --app-canvas: #eef2f7;
-    --app-brand: #f59e0b;
-  }
-
   html, body {
-    min-width: 320px;
-    min-height: 100%;
-    background: var(--app-canvas);
     font-family: 'Cairo', 'Tajawal', 'IBM Plex Sans Arabic', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans Arabic', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    overflow-x: hidden;
-    max-width: 100vw;
   }
 
   button, input, select, textarea {

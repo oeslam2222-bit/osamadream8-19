@@ -45,12 +45,7 @@ import {
   filterTargetsForUser,
   generateSampleTargets,
   parseTargetExcel,
-  fetchTargetsFromGoogleSheetUrl,
 } from '../services/targetService';
-import {
-  fetchAndParseGoogleSheet,
-  fetchCustomersFromGoogleSheetUrl,
-} from '../services/excelService';
 import {
   AccountingSyncLog,
   AuditLog,
@@ -62,7 +57,6 @@ import {
   InventoryTransaction,
   Invoice,
   OrderStatus,
-  PinnedGoogleSheetConfig,
   Product,
   ReturnedItem,
   ReturnRecord,
@@ -230,15 +224,6 @@ interface AppContextType {
   resetTargetsToDefault: () => void;
   addOrUpdateTargetRecord: (record: TargetRecord) => void;
   deleteTargetRecord: (id: string) => void;
-
-  // Pinned Cloud Sheets & Auto-Sync Hub
-  pinnedSheets: PinnedGoogleSheetConfig[];
-  updatePinnedSheetUrl: (id: 'products' | 'customers' | 'targets', url: string) => void;
-  syncPinnedSheet: (id: 'products' | 'customers' | 'targets') => Promise<{ success: boolean; count: number; message: string }>;
-  syncAllPinnedSheets: () => Promise<{ success: boolean; results: { id: string; count: number; message: string }[] }>;
-  isSyncingPinnedSheets: boolean;
-  autoSyncOnLaunch: boolean;
-  setAutoSyncOnLaunch: (enabled: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -258,8 +243,6 @@ const STORAGE_KEYS = {
   DELETED_INVOICE_IDS: 'dream_dist_deleted_invoices_v1',
   PENDING_INVOICES: 'dream_dist_pending_invoices_v1',
   TARGETS: 'dream_dist_targets_v1',
-  PINNED_SHEETS: 'dream_dist_pinned_sheets_v1',
-  AUTO_SYNC_ON_LAUNCH: 'dream_dist_auto_sync_launch_v1',
 };
 
 const getDeletedInvoiceIds = (): Set<string> => {
@@ -281,33 +264,6 @@ const markInvoiceAsDeletedInStorage = (id: string, invoiceNumber?: string) => {
     localStorage.setItem(STORAGE_KEYS.DELETED_INVOICE_IDS, JSON.stringify(Array.from(current)));
   } catch {}
 };
-
-const DEFAULT_PINNED_SHEETS: PinnedGoogleSheetConfig[] = [
-  {
-    id: 'products',
-    title: 'شيت الأصناف والمخزون اليومي والأسعار',
-    subtitle: 'أرصدة الفروع ومخزن أكتوبر • شدة الكرتونة • أسعار الجملة والقطاعي',
-    description: 'يتم تحديث الكتالوج فوراً، وتحديث رصيد فرع كل مندوب وأسعار القطعة والكرتونة تلقائياً.',
-    url: '',
-    status: 'idle',
-  },
-  {
-    id: 'customers',
-    title: 'شيت كافة العملاء والمديونيات وتحليل 2025/2026',
-    subtitle: 'قاعدة بيانات 4000+ عميل • مبيعات كل شهر (يناير - ديسمبر) • المديونيات الحالية',
-    description: 'يتم تحديث بيانات العملاء، وربط كل عميل بمندوبه ومشرفه وفرعه، وتحديث المديونيات وحجم المبيعات.',
-    url: '',
-    status: 'idle',
-  },
-  {
-    id: 'targets',
-    title: 'شيت تارجت ومستهدفات المناديب والفروع',
-    subtitle: 'مستهدفات البيع والتحصيل الشهرية والكوارتر (Q1-Q4) • المحققات والنسب',
-    description: 'يتم تحديث لوحة متابعة التارجت والمحققات لكل مندوب ومشرف ومدير فرع بدقة تامة.',
-    url: '',
-    status: 'idle',
-  },
-];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Helper to normalize branch names across legacy stored data
@@ -488,49 +444,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteTargetRecord = (id: string) => {
     setTargets((prev) => prev.filter((r) => r.id !== id));
-  };
-
-  // Pinned Google Sheets State & Auto-Sync configuration
-  const [pinnedSheets, setPinnedSheets] = useState<PinnedGoogleSheetConfig[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PINNED_SHEETS);
-    if (!saved) return DEFAULT_PINNED_SHEETS;
-    try {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return DEFAULT_PINNED_SHEETS.map((def) => {
-          const found = parsed.find((p: any) => p.id === def.id);
-          return found ? { ...def, ...found } : def;
-        });
-      }
-      return DEFAULT_PINNED_SHEETS;
-    } catch {
-      return DEFAULT_PINNED_SHEETS;
-    }
-  });
-
-  const [autoSyncOnLaunch, setAutoSyncOnLaunchState] = useState<boolean>(() => {
-    return localStorage.getItem(STORAGE_KEYS.AUTO_SYNC_ON_LAUNCH) === 'true';
-  });
-
-  const setAutoSyncOnLaunch = (enabled: boolean) => {
-    setAutoSyncOnLaunchState(enabled);
-    localStorage.setItem(STORAGE_KEYS.AUTO_SYNC_ON_LAUNCH, enabled ? 'true' : 'false');
-  };
-
-  const [isSyncingPinnedSheets, setIsSyncingPinnedSheets] = useState<boolean>(false);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.PINNED_SHEETS, JSON.stringify(pinnedSheets));
-    } catch (e) {
-      console.error('Error saving pinned sheets to localStorage', e);
-    }
-  }, [pinnedSheets]);
-
-  const updatePinnedSheetUrl = (id: 'products' | 'customers' | 'targets', url: string) => {
-    setPinnedSheets((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, url: url.trim(), status: 'idle', errorMessage: undefined } : s))
-    );
   };
 
   const updateBranchCompanyInfo = (branchName: string, newInfo: Partial<CompanyInfo>) => {
@@ -3920,134 +3833,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {}
   };
 
-  // --- Pinned Cloud Sheets & Auto-Sync Engine ---
-  const syncPinnedSheet = async (
-    id: 'products' | 'customers' | 'targets'
-  ): Promise<{ success: boolean; count: number; message: string }> => {
-    const targetSheet = pinnedSheets.find((s) => s.id === id);
-    if (!targetSheet) {
-      return { success: false, count: 0, message: 'الشيت غير موجود' };
-    }
-    if (!targetSheet.url || !targetSheet.url.trim()) {
-      return { success: false, count: 0, message: 'يرجى إدخال رابط Google Sheet أو Google Drive أولاً وحفظه.' };
-    }
-
-    setPinnedSheets((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status: 'syncing', errorMessage: undefined } : s))
-    );
-
-    const timeStr = new Intl.DateTimeFormat('ar-EG', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }).format(new Date());
-
-    try {
-      if (id === 'products') {
-        const res = await fetchAndParseGoogleSheet(targetSheet.url);
-        if (res.products.length === 0) {
-          throw new Error(res.errors.join(' | ') || 'لم يتم العثور على أي أصناف داخل الشيت.');
-        }
-        importProductsList(res.products, 'replace');
-        setPinnedSheets((prev) =>
-          prev.map((s) =>
-            s.id === id
-              ? { ...s, status: 'success', lastSyncTime: timeStr, lastSyncCount: res.products.length, errorMessage: undefined }
-              : s
-          )
-        );
-        return {
-          success: true,
-          count: res.products.length,
-          message: `تم تحديث ${res.products.length} صنف بنجاح وربط المخازن والأسعار!`,
-        };
-      } else if (id === 'customers') {
-        const res = await fetchCustomersFromGoogleSheetUrl(targetSheet.url);
-        if (res.customers.length === 0) {
-          throw new Error(res.errors.join(' | ') || 'لم يتم العثور على أي عملاء داخل الشيت.');
-        }
-        importCustomersList(res.customers, 'merge');
-        setPinnedSheets((prev) =>
-          prev.map((s) =>
-            s.id === id
-              ? { ...s, status: 'success', lastSyncTime: timeStr, lastSyncCount: res.customers.length, errorMessage: undefined }
-              : s
-          )
-        );
-        return {
-          success: true,
-          count: res.customers.length,
-          message: `تم تحديث قاعدة بيانات ${res.customers.length} عميل ومبيعات 2025/2026 والمديونيات بنجاح!`,
-        };
-      } else if (id === 'targets') {
-        const records = await fetchTargetsFromGoogleSheetUrl(targetSheet.url);
-        if (records.length === 0) {
-          throw new Error('لم يتم العثور على أهداف أو مستهدفات صالحة داخل الشيت.');
-        }
-        setTargets(records);
-        setPinnedSheets((prev) =>
-          prev.map((s) =>
-            s.id === id
-              ? { ...s, status: 'success', lastSyncTime: timeStr, lastSyncCount: records.length, errorMessage: undefined }
-              : s
-          )
-        );
-        return {
-          success: true,
-          count: records.length,
-          message: `تم تحديث مستهدفات ${records.length} مندوب وفرع بنجاح!`,
-        };
-      }
-
-      return { success: false, count: 0, message: 'نوع شيت غير معروف' };
-    } catch (err: any) {
-      const errMsg = err?.message || 'فشل الاتصال بـ Google Sheets';
-      setPinnedSheets((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, status: 'error', errorMessage: errMsg } : s))
-      );
-      return { success: false, count: 0, message: errMsg };
-    }
-  };
-
-  const syncAllPinnedSheets = async (): Promise<{ success: boolean; results: { id: string; count: number; message: string }[] }> => {
-    setIsSyncingPinnedSheets(true);
-    const results: { id: string; count: number; message: string }[] = [];
-    let overallSuccess = true;
-
-    try {
-      for (const sheet of pinnedSheets) {
-        if (sheet.url && sheet.url.trim()) {
-          const res = await syncPinnedSheet(sheet.id as 'products' | 'customers' | 'targets');
-          results.push({ id: sheet.id, count: res.count, message: res.message });
-          if (!res.success) overallSuccess = false;
-        }
-      }
-
-      if (results.length === 0) {
-        return {
-          success: false,
-          results: [{ id: 'none', count: 0, message: 'يرجى إدخال روابط الشيتات أولاً لتفعيل التحديث التلقائي.' }],
-        };
-      }
-
-      return { success: overallSuccess, results };
-    } finally {
-      setIsSyncingPinnedSheets(false);
-    }
-  };
-
-  // Optional background launch sync when internet is connected
-  useEffect(() => {
-    if (!autoSyncOnLaunch || !navigator.onLine) return;
-    const hasAnyConfigured = pinnedSheets.some((s) => s.url && s.url.trim().length > 10);
-    if (!hasAnyConfigured) return;
-
-    const timer = setTimeout(() => {
-      syncAllPinnedSheets().catch((err) => console.warn('Auto sync on launch warning:', err));
-    }, 2500);
-
-    return () => clearTimeout(timer);
-  }, [autoSyncOnLaunch]);
-
   // --- Role-Based Data Visibility (STRICT PRIVACY & BRANCH ISOLATION) ---
   const getVisibleInvoices = (): Invoice[] => {
     if (!currentUser) return [];
@@ -4261,13 +4046,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetTargetsToDefault,
         addOrUpdateTargetRecord,
         deleteTargetRecord,
-        pinnedSheets,
-        updatePinnedSheetUrl,
-        syncPinnedSheet,
-        syncAllPinnedSheets,
-        isSyncingPinnedSheets,
-        autoSyncOnLaunch,
-        setAutoSyncOnLaunch,
       }}
     >
       {children}

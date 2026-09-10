@@ -33,12 +33,10 @@ import {
   Users,
   X,
   Trash2,
-  ShieldAlert,
-  Zap
+  ShieldAlert
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { PinnedSheetsSyncHub } from './PinnedSheetsSyncHub';
 import { getProductImageUrl } from '../services/cloudinaryService';
 import {
   exportCustomersToExcel,
@@ -71,7 +69,7 @@ export const ExcelImportExport: React.FC = () => {
     selectedBranchFilter
   } = useApp();
 
-  const [activeSubTab, setActiveSubTab] = useState<'pinned_hub' | 'google_sheets' | 'excel_file' | 'drive_scanner' | 'customers'>('pinned_hub');
+  const [activeSubTab, setActiveSubTab] = useState<'google_sheets' | 'excel_file' | 'drive_scanner' | 'customers'>('google_sheets');
 
   // Customer Management State
   const [customerGoogleSheetUrl, setCustomerGoogleSheetUrl] = useState('');
@@ -307,19 +305,6 @@ function onEdit(e) {
         {/* Tab Navigation */}
         <div className="flex items-center gap-2 border-b border-slate-200 pt-2 overflow-x-auto no-scrollbar">
           <button
-            onClick={() => setActiveSubTab('pinned_hub')}
-            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
-              activeSubTab === 'pinned_hub'
-                ? 'border-amber-500 text-amber-600 bg-amber-500/5'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Zap className="w-4 h-4 text-amber-500" />
-            <span>تثبيت شيتات درايف والتحديث التلقائي ⚡</span>
-            <span className="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded-full font-bold">جديد مباشر</span>
-          </button>
-
-          <button
             onClick={() => setActiveSubTab('google_sheets')}
             className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
               activeSubTab === 'google_sheets'
@@ -371,9 +356,6 @@ function onEdit(e) {
           </button>
         </div>
       </div>
-
-      {/* SUB-TAB 0: Pinned Google Sheets & Auto Sync Hub */}
-      {activeSubTab === 'pinned_hub' && <PinnedSheetsSyncHub />}
 
       {/* SUB-TAB 1: Google Sheets Live Sync */}
       {activeSubTab === 'google_sheets' && (

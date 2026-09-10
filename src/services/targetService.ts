@@ -1,7 +1,6 @@
 import * as XLSX from 'xlsx-js-style';
 import { TargetQuarter, TargetRecord, User } from '../types';
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from './arabicMatchingService';
-import { buildGoogleSheetsPublicCsvUrl } from './excelService';
 
 /**
  * Maps a month number (1-12) to its respective quarter:
@@ -535,21 +534,4 @@ export function downloadTargetTemplateExcel() {
 
   XLSX.utils.book_append_sheet(wb, ws, 'قالب أهداف المبيعات');
   XLSX.writeFile(wb, 'قالب_شيت_تارجت_المبيعات_والتحصيل.xlsx');
-}
-
-/**
- * Fetch and parse Target records directly from a Google Sheet URL
- */
-export async function fetchTargetsFromGoogleSheetUrl(urlOrId: string): Promise<TargetRecord[]> {
-  const csvUrl = buildGoogleSheetsPublicCsvUrl(urlOrId);
-  if (!csvUrl) {
-    throw new Error('رابط Google Sheet غير صالح');
-  }
-  const response = await fetch(csvUrl);
-  if (!response.ok) {
-    throw new Error(`فشل فتح رابط جوجل شيت للأهداف (${response.statusText}). تأكد من أن الرابط متاح للعامة (Anyone with the link can view).`);
-  }
-
-  const arrayBuf = await response.arrayBuffer();
-  return parseTargetExcel(arrayBuf);
 }
