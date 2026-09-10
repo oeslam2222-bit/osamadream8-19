@@ -59,30 +59,44 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 flex flex-col justify-center items-center p-3 sm:p-6 antialiased selection:bg-amber-500 selection:text-slate-950">
-      {/* Background glow visual accents */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-amber-500/20 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-blue-600/15 rounded-full blur-3xl"></div>
-      </div>
-
-      <div className="w-full max-w-md z-10 my-4">
-        {/* Header Branding */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white p-1 shadow-2xl shadow-amber-500/20 mb-3 border-2 border-amber-400">
-            <img src="/tantawy-brand-logo.svg?v=3.1" alt="Tantawy Group - مجموعة الطنطاوي" className="w-full h-full object-contain rounded-full" />
+    <main dir="rtl" className="min-h-screen bg-slate-100 text-slate-950 flex items-center justify-center px-3 py-6 sm:px-6 lg:px-10 antialiased selection:bg-amber-400 selection:text-slate-950">
+      <div className="w-full max-w-6xl grid lg:grid-cols-[1.05fr_0.95fr] overflow-hidden rounded-[2rem] bg-slate-950 shadow-2xl shadow-slate-950/20">
+        <section className="hidden lg:flex flex-col justify-between p-10 xl:p-14 text-white bg-slate-950">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="size-12 rounded-2xl bg-white p-1.5 shadow-lg shadow-amber-500/10">
+                <img src="/tantawy-brand-logo.svg?v=3.1" alt="شعار مجموعة الطنطاوي" className="size-full object-contain rounded-xl" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-amber-300">TANTAWY GROUP</p>
+                <p className="text-xs text-slate-400">منظومة إدارة المبيعات والتوزيع</p>
+              </div>
+            </div>
+            <div className="mt-20 max-w-md">
+              <p className="text-sm font-bold text-amber-300">إدارة أسهل. متابعة أوضح.</p>
+              <h1 className="mt-4 text-4xl xl:text-5xl font-black leading-tight text-balance">كل عمليات البيع والمخزون في شاشة واحدة.</h1>
+              <p className="mt-6 text-base leading-8 text-slate-400">تابع العملاء والفواتير والمخازن والفروع من منظومة واحدة مصممة للعمل اليومي بسرعة ووضوح.</p>
+            </div>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center justify-center gap-2">
-            <span>مجموعة الطنطاوي للتجارة والتوزيع</span>
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-sm mx-auto font-medium">
-            TANTAWY GROUP • منظومة إدارة المبيعات والفروع والمخازن المركزية
-          </p>
-        </div>
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <ShieldCheck className="size-4 text-amber-400" />
+            <span>بياناتك محمية وصلاحيات الاستخدام يحددها مدير النظام</span>
+          </div>
+        </section>
 
-        {/* Card Box */}
-        <div className="bg-slate-900/95 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-md">
-          <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-800">
+        <section className="flex flex-col justify-center bg-slate-900 px-5 py-8 sm:px-10 sm:py-12 lg:px-12">
+          <div className="mx-auto w-full max-w-md">
+            <div className="mb-8 text-center lg:text-right">
+              <div className="mx-auto mb-4 flex size-20 items-center justify-center rounded-3xl border-2 border-amber-400 bg-white p-1.5 shadow-xl shadow-amber-500/10 lg:hidden">
+                <img src="/tantawy-brand-logo.svg?v=3.1" alt="شعار مجموعة الطنطاوي" className="size-full object-contain rounded-2xl" />
+              </div>
+              <p className="text-xs font-black tracking-widest text-amber-300">TANTAWY GROUP</p>
+              <h1 className="mt-2 text-2xl sm:text-3xl font-black leading-tight text-white">مجموعة الطنطاوي للتجارة والتوزيع</h1>
+              <p className="mt-2 text-sm leading-6 text-slate-400">منظومة إدارة المبيعات والفروع والمخازن المركزية</p>
+            </div>
+
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5 sm:p-7 shadow-xl">
+              <div className="flex items-center gap-3 border-b border-slate-800 pb-4 mb-5">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
                 <LogIn className="w-4 h-4" />
@@ -92,9 +106,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                 <p className="text-[11px] text-slate-400">للمطورين، المديرين، المشرفين، والمناديب</p>
               </div>
             </div>
-          </div>
+              </div>
 
-          <form onSubmit={handleLoginSubmit} className="space-y-4">
+              <form onSubmit={handleLoginSubmit} className="space-y-4">
             {authTerminationNotice && (
               <div className="bg-rose-950/80 border border-rose-500/50 text-rose-200 p-3.5 rounded-2xl text-xs flex items-start gap-2.5 shadow-lg shadow-rose-950/50 animate-in fade-in">
                 <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
@@ -183,6 +197,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
 
         </div>
       </div>
-    </div>
+        </section>
+      </div>
+    </main>
   );
 };
