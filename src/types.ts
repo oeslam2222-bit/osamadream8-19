@@ -442,22 +442,3 @@ export interface PinnedGoogleSheetConfig {
   status?: 'idle' | 'syncing' | 'success' | 'error';
   errorMessage?: string;
 }
-
-export interface OrderDraftData {
-  customerId?: string;
-  customerName?: string;
-  customerCode?: string;
-  customerPhone?: string;
-  customerAddress?: string;
-  customerTaxNumber?: string;
-  customerBranch?: string;
-  customerRep?: string;
-  customerTier?: string;
-  discountPercent?: number;
-  paymentMethod?: PaymentMethod;
-  orderNotes?: string;
-  splitShortagesToBackorder?: boolean;
-  selectedRepId?: string;
-  customerScope?: 'rep' | 'branch' | 'all';
-  isNewCustomerMode?: boolean;
-}
