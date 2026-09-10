@@ -61,7 +61,6 @@ import { Customer, ItemStatus, Product, SalesPriority } from '../types';
 import { DepartmentCategorySlicer } from './DepartmentCategorySlicer';
 import { getDepartmentMeta } from '../data/departmentMeta';
 import { getBranchStockForProduct } from '../services/arabicMatchingService';
-import { PosCashierSidebar } from './PosCashierSidebar';
 
 interface ProductCatalogProps {
   onOpenCart?: () => void;
@@ -94,9 +93,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setIsInstallModalOpen
   } = useApp();
 
-  // Lazy & Smart Cashier View States
+  // Progressive catalog view state
   const [showAllExplicitly, setShowAllExplicitly] = useState(false);
-  const [isMobileCashierOpen, setIsMobileCashierOpen] = useState(false);
 
   // Search & Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -1998,65 +1996,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           )}
         </div>
 
-        {/* Right Column: Sticky POS Cashier Terminal (Visible on Desktop / Tablet) */}
-        <div className="hidden lg:block lg:col-span-4 xl:col-span-3.5 sticky top-20">
-          <PosCashierSidebar
-            selectedCustomer={selectedCustomer}
-            onClearSelectedCustomer={onClearSelectedCustomer}
-            onInvoiceTransferred={(inv) => {
-              if (onNavigateToInvoices) onNavigateToInvoices(inv);
-            }}
-            onOpenDetailedModal={onOpenCart}
-          />
-        </div>
+        {/* The invoice preview is opened from the shared order modal. */}
       </div>
-
-      {/* Mobile Floating Cashier Trigger Bar */}
-      {cart.length > 0 && (
-        <div className="fixed bottom-16 left-3 right-3 z-40 lg:hidden animate-in slide-in-from-bottom">
-          <div className="bg-slate-950 text-white p-3 rounded-2xl shadow-2xl border-2 border-amber-400 flex items-center justify-between">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0">
-                <ShoppingCart className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-[10px] text-slate-400 font-bold">فاتورة الكاشير الحالية</div>
-                <div className="text-xs font-black text-amber-300 truncate">
-                  {cart.length} أصناف • {cartSummary.totalCartons} كرتونة • {formatCurrency(cartSummary.grandTotal)}
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => setIsMobileCashierOpen(true)}
-              className="bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 active:scale-95 shrink-0 cursor-pointer"
-            >
-              <span>فاتورة الكاشير 🧾</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Mobile Slide-Up Cashier Modal */}
-      {isMobileCashierOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex flex-col justify-end lg:hidden animate-in fade-in">
-          <div className="bg-slate-900 rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border-t-2 border-amber-400">
-            <PosCashierSidebar
-              selectedCustomer={selectedCustomer}
-              onClearSelectedCustomer={onClearSelectedCustomer}
-              onInvoiceTransferred={(inv) => {
-                setIsMobileCashierOpen(false);
-                if (onNavigateToInvoices) onNavigateToInvoices(inv);
-              }}
-              onOpenDetailedModal={() => {
-                setIsMobileCashierOpen(false);
-                if (onOpenCart) onOpenCart();
-              }}
-              isMobileDrawer={true}
-              onCloseMobileDrawer={() => setIsMobileCashierOpen(false)}
-            />
-          </div>
-        </div>
-      )}
 
       {/* Wipe All Data Confirmation Modal (Admin & Developer Only) */}
       {isAdminOrDev && isWipeModalOpen && (
