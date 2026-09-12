@@ -50,6 +50,7 @@ import {
 } from '../services/excelService';
 import { formatCurrency } from '../services/invoiceService';
 import { Customer, Product } from '../types';
+import { PublishedDataSourcesPanel } from './PublishedDataSourcesPanel';
 
 export const ExcelImportExport: React.FC = () => {
   const {
@@ -257,6 +258,8 @@ function onEdit(e) {
           </button>
         </div>
       )}
+
+      <PublishedDataSourcesPanel />
 
       {/* Main Header */}
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-4">

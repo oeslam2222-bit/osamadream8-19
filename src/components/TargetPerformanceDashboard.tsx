@@ -43,6 +43,7 @@ import {
   QUARTER_LABELS
 } from '../services/targetService';
 import { TargetQuarter, TargetRecord } from '../types';
+import { getPublishedDataSources } from '../services/dataSourceService';
 
 export const TargetPerformanceDashboard: React.FC = () => {
   const {
@@ -74,6 +75,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
   const [selectedBranch, setSelectedBranch] = useState<string>('ALL');
   const [selectedRep, setSelectedRep] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [powerBiUrl] = useState(() => getPublishedDataSources().targets);
 
   // Admin tabs: overview | quarters | table
   const [adminTab, setAdminTab] = useState<'overview' | 'quarters' | 'table'>('overview');
@@ -398,7 +400,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
           <h2 className="text-lg sm:text-xl font-black text-slate-900">
             {isAdminOrDev
               ? 'لا توجد بيانات أهداف مسجلة حالياً 🎯'
-              : `أهلاً بك يا ${currentUser?.name || ''} 🎯`}
+              : `أهلاً بك يا ${currentUser?.name || ''} ��`}
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 leading-relaxed max-w-lg mx-auto">
             {isAdminOrDev ? (
