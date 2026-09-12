@@ -116,8 +116,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
 
   const navItems = [
     { id: 'catalog', label: 'كتالوج الأصناف والبيع', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'customers', label: currentUser.role === 'sales_rep' ? 'عملائي المسندين 👥' : 'قاعدة بيانات العملاء 👥', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'all_customers', label: currentUser.role === 'sales_rep' ? 'كافة العملاء والتحليل 📈' : 'كافة العملاء والتحليل 👥', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'all_customers', label: currentUser.role === 'sales_rep' ? 'كافة العملاء والتحليل 👥' : 'كافة العملاء والتحليل 👥', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'dashboard', label: currentUser.role === 'sales_rep' ? 'متابعة طلبياتي 📊' : 'لوحة المشرف والمتابعة 📊', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'targets', label: currentUser.role === 'sales_rep' ? 'هدفي والتارجت 🎯' : 'تارجت المبيعات والتحصيل 🎯', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'invoices', label: currentUser.role === 'sales_rep' ? 'طلبياتي وفواتيري 📑' : 'الفواتير والطلبيات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },

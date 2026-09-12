@@ -27,6 +27,8 @@ import { formatCurrency } from '../services/invoiceService';
 import { exportElectronicInvoiceToExcel } from '../services/excelService';
 import { downloadInvoicePDF } from '../services/pdfService';
 import { ProductImage } from './ProductImage';
+import { CustomerFinancialSummaryCard } from './CustomerFinancialSummaryCard';
+import { findCustomerMatch } from '../services/arabicMatchingService';
 
 interface PosCashierSidebarProps {
   selectedCustomer?: Customer | null;
@@ -64,6 +66,7 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
   const [customerSearch, setCustomerSearch] = useState('');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [localCustomer, setLocalCustomer] = useState<Customer | null>(selectedCustomer || null);
+  const [isSidebarPreviewMode, setIsSidebarPreviewMode] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
@@ -104,7 +107,17 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
       return;
     }
 
-    const effectiveCustomer = activeCustomer || {
+    // Single source of truth: Bind active customer directly to "All Customers" database
+    const matchedMaster = activeCustomer
+      ? findCustomerMatch(customers, {
+          customerId: activeCustomer.id,
+          customerCode: activeCustomer.code,
+          customerName: activeCustomer.name,
+          customerPhone: activeCustomer.phone,
+        }) || activeCustomer
+      : null;
+
+    const effectiveCustomer = matchedMaster || {
       id: `c-cash-${Date.now()}`,
       code: 'CASH-DIRECT',
       name: 'عميل نقدي كاش (مباشر)',
@@ -264,34 +277,21 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
         </div>
       )}
 
-      {/* Customer Selector / Info Card */}
-      <div className="p-3 bg-slate-850 border-b border-slate-800 text-xs">
+      {/* Customer Selector / Accordion Info Card */}
+      <div className="p-2 sm:p-2.5 bg-slate-850 border-b border-slate-800 text-xs">
         {activeCustomer ? (
-          <div className="bg-slate-800 p-2.5 rounded-xl border border-slate-700 flex items-center justify-between">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-amber-400/20 text-amber-400 flex items-center justify-center shrink-0">
-                <User className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-[10px] text-slate-400">العميل:</div>
-                <div className="font-black text-amber-300 truncate">{activeCustomer.name}</div>
-                <div className="text-[10px] text-slate-400">
-                  كود: {activeCustomer.code || 'كاش'} 
-                  {activeCustomer.currentBalance ? ` • مديونية: ${formatCurrency(activeCustomer.currentBalance)}` : ''}
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                setLocalCustomer(null);
-                if (onClearSelectedCustomer) onClearSelectedCustomer();
-              }}
-              className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-700 transition cursor-pointer"
-              title="تغيير العميل"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+          <CustomerFinancialSummaryCard
+            customer={activeCustomer}
+            currentInvoiceAmount={cartSummary.grandTotal}
+            theme="dark"
+            initiallyOpen={false}
+            showCustomerDetails={true}
+            title="بيانات وموقف العميل المالي"
+            onChangeCustomer={() => {
+              setLocalCustomer(null);
+              if (onClearSelectedCustomer) onClearSelectedCustomer();
+            }}
+          />
         ) : (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold">
@@ -365,96 +365,185 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
         )}
       </div>
 
-      {/* Cart Items List (Cashier Slip Items) */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-[160px] max-h-[320px] sm:max-h-[360px] bg-slate-900/60 divide-y divide-slate-800/80">
-        {cart.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center py-8 text-center text-slate-500">
-            <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center mb-2 text-slate-600">
-              <ShoppingCart className="w-6 h-6" />
-            </div>
-            <div className="text-xs font-bold text-slate-400">فاتورة الكاشير فارغة حالياً</div>
-            <p className="text-[11px] text-slate-500 mt-1 max-w-[200px]">
-              اختر مجموعة من الأعلى أو ابحث بالكود لإضافة الأصناف هنا مباشرة 🛍️
-            </p>
-          </div>
-        ) : (
-          cart.map((item, index) => {
-            const prod = item.product;
-            const cartonPrice = item.unitPrice || prod.cartonPrice;
-            const piecePrice = item.pricePerPiece || prod.piecePrice || (prod.cartonPrice / (prod.cartonQuantity || 1));
-            const lineTotal = item.totalPrice;
+      {/* Switcher Tab: Cart Items vs Instant Mobile Preview */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-slate-800/90 border-b border-slate-700/80 text-xs">
+        <div className="flex items-center gap-1 bg-slate-900/90 p-0.5 rounded-lg border border-slate-700/80">
+          <button
+            type="button"
+            onClick={() => setIsSidebarPreviewMode(false)}
+            className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition flex items-center gap-1 cursor-pointer ${
+              !isSidebarPreviewMode
+                ? 'bg-amber-400 text-slate-950 shadow-xs'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <ShoppingCart className="w-3.5 h-3.5" />
+            <span>السلة والبنود ({cart.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsSidebarPreviewMode(true)}
+            className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition flex items-center gap-1 cursor-pointer ${
+              isSidebarPreviewMode
+                ? 'bg-amber-400 text-slate-950 shadow-xs'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>معاينة الفاتورة 👁️</span>
+          </button>
+        </div>
 
-            return (
-              <div key={`${item.product.id}-${index}`} className="pt-2.5 first:pt-0 space-y-1.5">
-                {/* Item Row Top: Title & Line Total */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-black text-white truncate">{prod.name}</div>
-                    <div className="text-[10px] text-amber-400 font-mono">
-                      {prod.code} {prod.cartonQuantity ? `(${prod.cartonQuantity} ق/كرتونة)` : ''}
-                    </div>
-                  </div>
-                  <div className="text-left shrink-0">
-                    <strong className="text-xs font-black text-amber-300 block">
-                      {formatCurrency(lineTotal)}
-                    </strong>
-                    <button
-                      onClick={() => removeFromCart(item.product.id)}
-                      className="text-slate-500 hover:text-rose-400 p-0.5 rounded transition cursor-pointer text-[10px]"
-                      title="حذف من الفاتورة"
-                    >
-                      <Trash2 className="w-3 h-3 inline" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Carton & Piece Controls */}
-                <div className="flex items-center justify-between gap-2 bg-slate-800/80 p-1.5 rounded-xl text-xs">
-                  {/* Cartons */}
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-slate-400 font-bold">كرتونة:</span>
-                    <button
-                      onClick={() => updateCartItem(item.product.id, { cartonCount: Math.max(0, item.cartonCount - 1) })}
-                      className="w-6 h-6 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center cursor-pointer transition active:scale-95"
-                    >
-                      <Minus className="w-3 h-3" />
-                    </button>
-                    <span className="font-black text-amber-400 text-xs w-5 text-center">
-                      {item.cartonCount}
-                    </span>
-                    <button
-                      onClick={() => updateCartItem(item.product.id, { cartonCount: item.cartonCount + 1 })}
-                      className="w-6 h-6 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center cursor-pointer transition active:scale-95"
-                    >
-                      <Plus className="w-3 h-3" />
-                    </button>
-                  </div>
-
-                  {/* Pieces */}
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-slate-400 font-bold">قطعة:</span>
-                    <button
-                      onClick={() => updateCartItem(item.product.id, { pieceCount: Math.max(0, item.pieceCount - 1) })}
-                      className="w-6 h-6 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center cursor-pointer transition active:scale-95"
-                    >
-                      <Minus className="w-3 h-3" />
-                    </button>
-                    <span className="font-black text-blue-300 text-xs w-5 text-center">
-                      {item.pieceCount}
-                    </span>
-                    <button
-                      onClick={() => updateCartItem(item.product.id, { pieceCount: item.pieceCount + 1 })}
-                      className="w-6 h-6 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center cursor-pointer transition active:scale-95"
-                    >
-                      <Plus className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })
+        {cart.length > 0 && (
+          <span className="text-[10px] text-amber-400 font-mono font-bold">
+            {cartSummary.totalCartons} كرتونة • {cartSummary.totalPieces} ق
+          </span>
         )}
       </div>
+
+      {/* Cart Content: Either Interactive Items or Instant Preview */}
+      {isSidebarPreviewMode ? (
+        /* Instant Mobile-Optimized Invoice Preview */
+        <div className="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-[160px] max-h-[42vh] lg:max-h-[380px] bg-slate-900/90 divide-y divide-slate-800">
+          {cart.length === 0 ? (
+            <div className="py-8 text-center text-slate-500 text-xs">
+              السلة فارغة. أضف أصناف لمعاينتها هنا فوراً 🛍️
+            </div>
+          ) : (
+            <>
+              <div className="bg-slate-800/90 p-2.5 rounded-xl border border-slate-700 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-400">العميل:</span>
+                  <strong className="text-amber-300">{activeCustomer?.name || 'عميل نقدي كاش'}</strong>
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-400">طريقة السداد:</span>
+                  <strong className="text-white">{paymentMethod}</strong>
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-400">الفرع:</span>
+                  <strong className="text-slate-300">{currentUser?.branchName || 'الفرع الرئيسي'}</strong>
+                </div>
+              </div>
+
+              {/* Items List in Preview Mode */}
+              <div className="space-y-1.5 pt-2">
+                <div className="text-[11px] font-bold text-slate-400 flex items-center justify-between">
+                  <span>بيان الأصناف والكميات:</span>
+                  <span>{cart.length} أصناف</span>
+                </div>
+                {cart.map((item, idx) => {
+                  const prod = item.product;
+                  const cartonQty = prod.cartonQuantity || 1;
+                  const totalUnits = (item.cartonCount * cartonQty) + item.pieceCount;
+                  return (
+                    <div key={`prev-${item.product.id}-${idx}`} className="bg-slate-800/60 p-2 rounded-lg border border-slate-700/60 text-xs flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-white truncate">{prod.name}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">
+                          {prod.code} • {item.cartonCount} كرتونة {item.pieceCount > 0 ? `+ ${item.pieceCount} ق` : ''} ({totalUnits} قطعة)
+                        </div>
+                      </div>
+                      <div className="text-left shrink-0 font-black text-amber-300 text-xs">
+                        {formatCurrency(item.totalPrice)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        /* Standard Interactive Items List */
+        <div className="flex-1 overflow-y-auto p-2.5 sm:p-3 space-y-2 min-h-[160px] max-h-[42vh] lg:max-h-[380px] bg-slate-900/60 divide-y divide-slate-800/80">
+          {cart.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center py-8 text-center text-slate-500">
+              <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center mb-2 text-slate-600">
+                <ShoppingCart className="w-6 h-6" />
+              </div>
+              <div className="text-xs font-bold text-slate-400">فاتورة الكاشير فارغة حالياً</div>
+              <p className="text-[11px] text-slate-500 mt-1 max-w-[200px]">
+                اختر مجموعة من الأعلى أو ابحث بالكود لإضافة الأصناف هنا مباشرة 🛍️
+              </p>
+            </div>
+          ) : (
+            cart.map((item, index) => {
+              const prod = item.product;
+              const lineTotal = item.totalPrice;
+
+              return (
+                <div key={`${item.product.id}-${index}`} className="pt-2 first:pt-0 space-y-1.5">
+                  {/* Item Row Top: Title & Line Total */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-black text-white truncate">{prod.name}</div>
+                      <div className="text-[10px] text-amber-400 font-mono">
+                        {prod.code} {prod.cartonQuantity ? `(${prod.cartonQuantity} ق/كرتونة)` : ''}
+                      </div>
+                    </div>
+                    <div className="text-left shrink-0">
+                      <strong className="text-xs font-black text-amber-300 block">
+                        {formatCurrency(lineTotal)}
+                      </strong>
+                      <button
+                        onClick={() => removeFromCart(item.product.id)}
+                        className="text-slate-500 hover:text-rose-400 p-0.5 rounded transition cursor-pointer text-[10px]"
+                        title="حذف من الفاتورة"
+                      >
+                        <Trash2 className="w-3 h-3 inline" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Carton & Piece Controls */}
+                  <div className="flex items-center justify-between gap-2 bg-slate-800/80 p-1.5 rounded-xl text-xs">
+                    {/* Cartons */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-slate-400 font-bold">كرتونة:</span>
+                      <button
+                        onClick={() => updateCartItem(item.product.id, { cartonCount: Math.max(0, item.cartonCount - 1) })}
+                        className="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center cursor-pointer transition active:scale-95"
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="font-black text-amber-400 text-xs w-6 text-center">
+                        {item.cartonCount}
+                      </span>
+                      <button
+                        onClick={() => updateCartItem(item.product.id, { cartonCount: item.cartonCount + 1 })}
+                        className="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center cursor-pointer transition active:scale-95"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Pieces */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-slate-400 font-bold">قطعة:</span>
+                      <button
+                        onClick={() => updateCartItem(item.product.id, { pieceCount: Math.max(0, item.pieceCount - 1) })}
+                        className="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center cursor-pointer transition active:scale-95"
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="font-black text-blue-300 text-xs w-6 text-center">
+                        {item.pieceCount}
+                      </span>
+                      <button
+                        onClick={() => updateCartItem(item.product.id, { pieceCount: item.pieceCount + 1 })}
+                        className="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center cursor-pointer transition active:scale-95"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
 
       {/* Discount & Payment Controls */}
       {cart.length > 0 && (

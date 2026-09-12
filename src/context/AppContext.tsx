@@ -30,6 +30,7 @@ import {
   sanitizeIdentifier,
   saveCustomersToSupabase,
   saveInvoiceToSupabase,
+  saveInvoicesToSupabase,
   saveProductsToSupabase,
   saveUsersToSupabase,
   saveUserToSupabase,
@@ -81,6 +82,8 @@ interface AppContextType {
   recordAuditLog: (logData: Omit<AuditLog, 'id' | 'timestamp' | 'formattedTime'>) => void;
   clearAuditLogs: () => void;
   isOffline: boolean;
+  pendingInvoicesCount: number;
+  flushPendingInvoices: () => Promise<{ success: boolean; syncedCount: number }>;
   selectedBranchFilter: string;
   setSelectedBranchFilter: (branch: string) => void;
   refreshInvoicesNow: (force?: boolean) => Promise<{ success: boolean; count: number; message: string }>;
@@ -834,6 +837,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         if (Array.isArray(savedCart)) setCart(savedCart);
         setIsLocalDataHydrated(true);
+        refreshPendingInvoicesCount();
       } catch (err) {
         console.warn('IndexedDB initial hydration notice:', err);
         if (isMounted) setIsLocalDataHydrated(true);
@@ -894,26 +898,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     tableFound: 'جاري الفحص والاتصال...',
   });
   const [isSupabaseSyncing, setIsSupabaseSyncing] = useState<boolean>(false);
+  const [pendingInvoicesCount, setPendingInvoicesCount] = useState<number>(0);
+
+  const refreshPendingInvoicesCount = async () => {
+    try {
+      const queued = (await idbGet<Invoice[]>(STORAGE_KEYS.PENDING_INVOICES)) || [];
+      setPendingInvoicesCount(queued.length);
+    } catch (e) {
+      // Ignore
+    }
+  };
 
   const queueInvoiceForSync = async (invoice: Invoice) => {
     const queued = (await idbGet<Invoice[]>(STORAGE_KEYS.PENDING_INVOICES)) || [];
     const next = [...queued.filter((item) => item.id !== invoice.id), invoice];
     await idbSet(STORAGE_KEYS.PENDING_INVOICES, next);
+    setPendingInvoicesCount(next.length);
   };
 
-  const flushPendingInvoices = async () => {
+  const flushPendingInvoices = async (): Promise<{ success: boolean; syncedCount: number }> => {
     const queued = (await idbGet<Invoice[]>(STORAGE_KEYS.PENDING_INVOICES)) || [];
-    if (queued.length === 0 || !navigator.onLine) return;
-
-    const remaining: Invoice[] = [];
-    for (const invoice of queued) {
-      const result = await saveInvoiceToSupabase(invoice);
-      if (!result.success) remaining.push(invoice);
+    if (queued.length === 0) {
+      setPendingInvoicesCount(0);
+      return { success: true, syncedCount: 0 };
     }
-    await idbSet(STORAGE_KEYS.PENDING_INVOICES, remaining);
+    if (!navigator.onLine) {
+      return { success: false, syncedCount: 0 };
+    }
+
+    try {
+      // Batch save with zero freezing and minimal Supabase egress
+      const batchResult = await saveInvoicesToSupabase(queued);
+      if (batchResult.success) {
+        await idbSet(STORAGE_KEYS.PENDING_INVOICES, []);
+        setPendingInvoicesCount(0);
+        return { success: true, syncedCount: queued.length };
+      } else {
+        setPendingInvoicesCount(queued.length);
+        return { success: false, syncedCount: 0 };
+      }
+    } catch (e) {
+      console.warn('flushPendingInvoices error:', e);
+      setPendingInvoicesCount(queued.length);
+      return { success: false, syncedCount: 0 };
+    }
   };
 
   const saveInvoiceWithQueue = async (invoice: Invoice) => {
+    if (!navigator.onLine) {
+      // Instant offline queuing without hanging or waiting for network failure
+      await queueInvoiceForSync(invoice);
+      return { success: true, queued: true };
+    }
     const result = await saveInvoiceToSupabase(invoice);
     if (!result.success) await queueInvoiceForSync(invoice);
     return result;
@@ -979,9 +1015,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           await saveUsersToSupabase(users);
           pushedUsersCount = users.length;
         }
-        for (const inv of invoices) {
-          await saveInvoiceToSupabase(inv);
-          pushedInvoicesCount++;
+        if (invoices.length > 0) {
+          // Batch push recent invoices (up to 100) to drastically reduce egress and protect free tier
+          const recentInvoices = invoices.slice(0, 100);
+          const invBatchRes = await saveInvoicesToSupabase(recentInvoices);
+          pushedInvoicesCount = invBatchRes.savedCount;
         }
         if (products.length > 0) {
           await saveProductsToSupabase(products);
@@ -2059,7 +2097,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (totalAvailable <= 0) {
       return {
         success: false,
-        message: `⚠️ تنبيه رصيد محجوز: الصنف (${latestProd.name}) غير متاح للبيع!\n(الرصيد الفعلي بالمخزن: ${totalActual} كرتونة، ولكن تم حجز ${totalReserved} كرتونة بفواتير قيد المراجعة ⬅️ المتاح الصافي: 0 كرتونة).`
+        message: `⚠️ تنبيه رصيد محجوز: الصنف (${latestProd.name}) غير متاح للبيع حالياً!\n(الرصيد الفعلي بالمخزن: ${totalActual} كرتونة، ولكن تم حجز ${totalReserved} كرتونة لطلبيات أخرى قيد مراجعة المشرف ⬅️ المتاح الصافي: 0 كرتونة).`
+      };
+    }
+
+    if (cartonsToAdd > totalAvailable) {
+      return {
+        success: false,
+        message: `⚠️ الكمية المطلوبة (${cartonsToAdd} كرتونة) أكبر من الرصيد المتاح للطلب (${totalAvailable} كرتونة) للصنف (${latestProd.name}).\n(المتاح بالفرع: ${availableInBranch} كرتونة • متاح بأكتوبر: ${availableInWarehouse} كرتونة • محجوز لطلبيات أخرى: ${totalReserved} كرتونة).`
       };
     }
 
@@ -3964,6 +4009,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         recordAuditLog,
         clearAuditLogs,
         isOffline,
+        pendingInvoicesCount,
+        flushPendingInvoices,
         selectedBranchFilter,
         setSelectedBranchFilter,
         refreshInvoicesNow,

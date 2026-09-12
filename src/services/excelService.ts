@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx-js-style';
 import { COMPANY_INFO } from '../data/mockData';
 import { Customer, CustomerTier, Invoice, ItemStatus, Product, SalesPriority } from '../types';
 import { inferBranchFromText, resolveCustomerFinancials, getBranchStockForProduct } from './arabicMatchingService';
+import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
 
 /**
  * Preserves the product code exactly as supplied by the sheet, including prefixes
@@ -831,8 +832,8 @@ export async function parseExcelProducts(file: File): Promise<{
 
     reader.onload = (e) => {
       try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const buffer = e.target?.result as ArrayBuffer;
+        const workbook = parseExcelOrCsvBuffer(buffer, file.name);
 
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
@@ -884,16 +885,13 @@ export async function fetchAndParseGoogleSheet(googleSheetUrlOrId: string): Prom
       throw new Error(`تعذر جلب الشيت (كود ${response.status}). يرجى التأكد من أن الشيت منشور للعامة (Anyone with the link can view).`);
     }
 
-  // Read the CSV as bytes so Arabic text is decoded explicitly as UTF-8.
-  // response.text() may use a wrong charset when the sheet response omits it,
-  // which turns Arabic characters into replacement/question marks.
-  const csvBytes = new Uint8Array(await response.arrayBuffer());
-  const csvText = new TextDecoder('utf-8').decode(csvBytes).replace(/^\uFEFF/, '');
-  if (!csvText || csvText.trim().length === 0) {
-    throw new Error('تم جلب الشيت لكنه لا يحتوي على أي بيانات.');
-  }
+    const arrayBuffer = await response.arrayBuffer();
+    const csvText = decodeBufferSmart(arrayBuffer).replace(/^\uFEFF/, '');
+    if (!csvText || csvText.trim().length === 0) {
+      throw new Error('تم جلب الشيت لكنه لا يحتوي على أي بيانات.');
+    }
 
-  const workbook = XLSX.read(csvText, { type: 'string', codepage: 65001 });
+    const workbook = XLSX.read(csvText, { type: 'string', codepage: 65001 });
     const firstSheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[firstSheetName];
     const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
@@ -2126,7 +2124,8 @@ export async function fetchCustomersFromGoogleSheetUrl(urlOrId: string): Promise
     throw new Error(`فشل فتح رابط جوجل شيت (${response.statusText}). تأكد من أن الرابط متاح للعامة (Anyone with the link can view).`);
   }
 
-  const csvText = await response.text();
+  const arrayBuffer = await response.arrayBuffer();
+  const csvText = decodeBufferSmart(arrayBuffer).replace(/^\uFEFF/, '');
   const wb = XLSX.read(csvText, { type: 'string', codepage: 65001 });
   const firstSheet = wb.Sheets[wb.SheetNames[0]];
   const rawRows: any[][] = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
@@ -2147,8 +2146,8 @@ export async function parseExcelCustomers(file: File): Promise<{
 
     reader.onload = (e) => {
       try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array', codepage: 65001 });
+        const buffer = e.target?.result as ArrayBuffer;
+        const workbook = parseExcelOrCsvBuffer(buffer, file.name);
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
         const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });

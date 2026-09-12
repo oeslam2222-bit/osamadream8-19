@@ -9,6 +9,7 @@ import {
   normalizeArabicText
 } from './arabicMatchingService';
 import { buildGoogleSheetsPublicCsvUrl } from './excelService';
+import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
 
 export const MONTH_NAMES_AR = [
   'يناير',
@@ -457,8 +458,8 @@ export async function fetchDetailedCustomersFromGoogleSheet(urlOrId: string): Pr
     );
   }
 
-  const csvBytes = new Uint8Array(await response.arrayBuffer());
-  const csvText = new TextDecoder('utf-8').decode(csvBytes).replace(/^\uFEFF/, '');
+  const arrayBuffer = await response.arrayBuffer();
+  const csvText = decodeBufferSmart(arrayBuffer).replace(/^\uFEFF/, '');
   if (!csvText || csvText.trim().length === 0) {
     throw new Error('تم جلب الشيت لكنه لا يحتوي على أي بيانات.');
   }
@@ -483,8 +484,8 @@ export async function parseDetailedCustomersExcel(file: File): Promise<{
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array', codepage: 65001 });
+        const buffer = e.target?.result as ArrayBuffer;
+        const workbook = parseExcelOrCsvBuffer(buffer, file.name);
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
         const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });

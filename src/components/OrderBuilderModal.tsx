@@ -1,6 +1,8 @@
 import {
   AlertCircle,
   AlertTriangle,
+  ArrowRight,
+  Boxes,
   Building,
   Calendar,
   CheckCircle2,
@@ -8,43 +10,42 @@ import {
   CreditCard,
   Download,
   FileSpreadsheet,
+  Flame,
+  Grid,
+  Layers,
+  List,
   Minus,
+  Package,
   Phone,
   Plus,
   Receipt,
-  RefreshCw,
   Search,
   ShoppingCart,
   Sparkles,
   Store,
+  Tag,
   Trash2,
   User,
-  UserCheck,
   Users,
   Warehouse,
-  X
+  X,
+  Zap,
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { Customer, Invoice, PaymentMethod, Product } from '../types';
 import { ProductImage } from './ProductImage';
-import { exportElectronicInvoiceToExcel } from '../services/excelService';
+import { CustomerFinancialSummaryCard } from './CustomerFinancialSummaryCard';
 import { formatCurrency } from '../services/invoiceService';
+import { exportElectronicInvoiceToExcel } from '../services/excelService';
 import { downloadInvoicePDF } from '../services/pdfService';
-import { Customer, PaymentMethod } from '../types';
+import { findCustomerMatch, getBranchStockForProduct, isBranchMatch } from '../services/arabicMatchingService';
 import { getDepartmentMeta } from '../data/departmentMeta';
-import {
-  doesCustomerBelongToBranch,
-  doesCustomerBelongToRep,
-  doesCustomerBelongToSupervisor,
-  isArabicNameMatch,
-  isBranchMatch,
-  getBranchStockForProduct,
-} from '../services/arabicMatchingService';
 
 interface OrderBuilderModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onInvoiceCreated: (invoice: any) => void;
+  onInvoiceCreated: (invoice: Invoice) => void;
   initialCustomer?: Customer | null;
 }
 
@@ -65,16 +66,13 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     clearCart,
     getCartSummary,
     createOrder,
+    addToCart,
     currentUser,
     cloudinaryConfig,
-    refreshCustomerRepLinks,
   } = useApp();
 
-  // Active Representative selection for the invoice
+  // Representative Selection
   const [selectedRepId, setSelectedRepId] = useState<string>(() => currentUser?.id || '');
-  const [customerScope, setCustomerScope] = useState<'rep' | 'branch' | 'all'>('rep');
-  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
-
   const activeRepUser = useMemo(() => {
     return users.find((u) => u.id === selectedRepId) || currentUser;
   }, [users, selectedRepId, currentUser]);
@@ -83,338 +81,270 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     return activeRepUser?.branchName || currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
   }, [activeRepUser, currentUser]);
 
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  // Customer Management - Bound to "All Customers"
+  const [activeCustomer, setActiveCustomer] = useState<Customer | null>(initialCustomer || null);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
-  const [isNewCustomerMode, setIsNewCustomerMode] = useState(false);
-  const [isPreviewMode, setIsPreviewMode] = useState(false);
 
-  const [customerName, setCustomerName] = useState('');
-  const [customerCode, setCustomerCode] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerAddress, setCustomerAddress] = useState('');
-  const [customerTaxNumber, setCustomerTaxNumber] = useState('');
-  const [customerBranch, setCustomerBranch] = useState('');
-  const [customerRep, setCustomerRep] = useState('');
-  const [customerTier, setCustomerTier] = useState<string>('');
+  // Sync initialCustomer if prop changes
+  useEffect(() => {
+    if (initialCustomer) {
+      setActiveCustomer(initialCustomer);
+    }
+  }, [initialCustomer]);
 
+  // Financial & Order Options
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('نقدي (كاش)');
-  const [orderNotes, setOrderNotes] = useState('');
-  const [splitShortagesToBackorder, setSplitShortagesToBackorder] = useState(true);
+  const [invoiceNotes, setInvoiceNotes] = useState('');
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formErrors, setFormErrors] = useState<string[]>([]);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
 
-  // List of all sales representatives and staff available for assignment
-  const availableRepsList = useMemo(() => {
-    if (!users || users.length === 0) return [];
-    if (currentUser?.role === 'sales_rep') {
-      return [currentUser];
-    }
-    if (currentUser?.role === 'supervisor') {
-      return users.filter(
-        (u) =>
-          u.role === 'sales_rep' &&
-          (u.supervisorId === currentUser.id || isBranchMatch(u.branchName, currentUser.branchName))
-      );
-    }
-    if (currentUser?.role === 'branch_manager') {
-      return users.filter(
-        (u) =>
-          (u.role === 'sales_rep' || u.role === 'supervisor') &&
-          isBranchMatch(u.branchName, currentUser.branchName)
-      );
-    }
-    return users.filter((u) => u.role === 'sales_rep' || u.role === 'supervisor' || u.role === 'branch_manager');
-  }, [users, currentUser]);
+  // Mobile View Switcher: 'cart' (الفاتورة والسداد) vs 'catalog' (إضافة أصناف)
+  const [mobileActiveTab, setMobileActiveTab] = useState<'cart' | 'catalog'>(() =>
+    cart.length === 0 ? 'catalog' : 'cart'
+  );
 
-  const isSalesRep = currentUser?.role === 'sales_rep';
+  // Product Catalog Search & Filter within Cashier
+  const [productSearch, setProductSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [catalogPage, setCatalogPage] = useState<number>(1);
+  const itemsPerPage = 24;
 
-  // Compute customers by scope — "rep" means "my customers" which differs by role
-  const repScopedCustomers = useMemo(() => {
-    if (!activeRepUser) return customers;
-    if (activeRepUser.role === 'supervisor') {
-      return customers.filter((c) => doesCustomerBelongToSupervisor(c, activeRepUser, users));
-    }
-    if (activeRepUser.role === 'branch_manager') {
-      return customers.filter((c) => doesCustomerBelongToBranch(c, activeRepUser.branchName, users));
-    }
-    return customers.filter((c) => doesCustomerBelongToRep(c, activeRepUser));
-  }, [customers, activeRepUser, users]);
+  const todayDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
-  const branchScopedCustomers = useMemo(() => {
-    return customers.filter((c) => doesCustomerBelongToBranch(c, activeBranch, users));
-  }, [customers, activeBranch, users]);
-
-  const allScopedCustomers = customers;
-
-  // Active list strictly based on chosen scope (Strict Role and Branch Isolation)
-  const scopedCustomersList = useMemo(() => {
-    // 1. Sales Rep is strictly locked to his own customers only
-    if (isSalesRep) {
-      return repScopedCustomers;
-    }
-    // 2. Supervisor and Branch Manager cannot access other branches
-    if (currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager') {
-      if (customerScope === 'rep') {
-        return repScopedCustomers;
-      }
-      return branchScopedCustomers;
-    }
-    // 3. Admin & Developer
-    if (customerScope === 'rep') {
-      return repScopedCustomers;
-    }
-    if (customerScope === 'branch') {
-      return branchScopedCustomers;
-    }
-    return allScopedCustomers;
-  }, [customerScope, repScopedCustomers, branchScopedCustomers, allScopedCustomers, isSalesRep, currentUser]);
-
-  // Filtered customers for search dropdown by search query
+  // Filtered master customers for quick customer lookup
   const filteredCustomers = useMemo(() => {
-    const isSearchActive = customerSearchQuery.trim().length > 0;
-    const baseList = scopedCustomersList;
-
-    if (!isSearchActive) {
-      return baseList.slice(0, 300);
-    }
-
+    const list = getVisibleCustomers ? getVisibleCustomers() : customers;
+    if (!customerSearchQuery.trim()) return list.slice(0, 8);
     const q = customerSearchQuery.toLowerCase().trim();
-    const filtered = baseList.filter((c) => {
-      return (
-        (c.name && isArabicNameMatch(c.name, q)) ||
-        (c.name && c.name.toLowerCase().includes(q)) ||
-        (c.code && c.code.toLowerCase().includes(q)) ||
-        (c.phone && c.phone.includes(q)) ||
-        (c.storeName && c.storeName.toLowerCase().includes(q)) ||
-        (c.branchName && c.branchName.toLowerCase().includes(q)) ||
-        (c.salesRepName && c.salesRepName.toLowerCase().includes(q)) ||
-        (c.repName && c.repName.toLowerCase().includes(q)) ||
-        (c.governorate && c.governorate.toLowerCase().includes(q)) ||
-        (c.address && c.address.toLowerCase().includes(q))
-      );
+    return list
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          (c.code && c.code.toLowerCase().includes(q)) ||
+          (c.phone && c.phone.includes(q))
+      )
+      .slice(0, 8);
+  }, [getVisibleCustomers, customers, customerSearchQuery]);
+
+  // Available Categories from active products
+  const availableCategories = useMemo(() => {
+    const cats = new Set<string>();
+    products.forEach((p) => {
+      const c = p.department || p.category;
+      if (c && c.trim()) cats.add(c.trim());
     });
+    return Array.from(cats);
+  }, [products]);
 
-    return filtered.slice(0, 300);
-  }, [scopedCustomersList, customerSearchQuery]);
+  // Filtered Products for quick add in Cashier
+  const filteredProducts = useMemo(() => {
+    let result = products;
 
-  // Keep selected rep in sync with active user on modal open, and prefill initial customer if provided
-  useEffect(() => {
-    if (isOpen) {
-      if (currentUser?.id) {
-        setSelectedRepId(currentUser.id);
-      }
-      setCustomerScope('rep');
-      setIsCustomerDropdownOpen(false);
-      setCustomerSearchQuery('');
-
-      if (initialCustomer) {
-        setSelectedCustomerId(initialCustomer.id);
-        setIsNewCustomerMode(false);
-        setCustomerName(initialCustomer.name);
-        setCustomerCode(initialCustomer.code || '');
-        setCustomerPhone(initialCustomer.phone || '');
-        setCustomerAddress(initialCustomer.address || initialCustomer.governorate || '');
-        setCustomerTaxNumber(initialCustomer.taxNumber || '');
-        setCustomerBranch(initialCustomer.branchName || activeBranch);
-        setCustomerRep(initialCustomer.salesRepName || initialCustomer.repName || currentUser?.name || '');
-        setCustomerTier(initialCustomer.tier || 'عادي');
-      }
+    if (selectedCategory === 'promo') {
+      result = result.filter((p) => p.promoPrice && p.promoPrice > 0);
+    } else if (selectedCategory === 'available') {
+      result = result.filter((p) => (p.branchStockReserved > 0) || (p.branchStockActual > 0));
+    } else if (selectedCategory !== 'all') {
+      result = result.filter((p) => (p.department || p.category) === selectedCategory);
     }
-  }, [isOpen, currentUser, initialCustomer]);
 
-  const handleSyncLinks = () => {
-    if (typeof refreshCustomerRepLinks === 'function') {
-      const res = refreshCustomerRepLinks();
-      setSyncFeedback(`تم ربط وتحديث ${res.updatedCount} عميل بالمناديب بنجاح!`);
-      setTimeout(() => setSyncFeedback(null), 4000);
+    if (productSearch.trim()) {
+      const q = productSearch.toLowerCase().trim();
+      result = result.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.code.toLowerCase().includes(q) ||
+          (p.unifiedCode && p.unifiedCode.toLowerCase().includes(q)) ||
+          (p.category && p.category.toLowerCase().includes(q)) ||
+          (p.color && p.color.toLowerCase().includes(q))
+      );
     }
-  };
 
-  const handleSelectCustomer = (c: Customer) => {
-    setSelectedCustomerId(c.id);
-    setIsNewCustomerMode(false);
-    setCustomerName(c.name);
-    setCustomerCode(c.code || '');
-    setCustomerPhone(c.phone || '');
-    setCustomerAddress(c.address || c.governorate || '');
-    setCustomerTaxNumber(c.taxNumber || '');
-    setCustomerBranch(c.branchName || activeBranch);
-    setCustomerRep(c.salesRepName || c.repName || activeRepUser?.name || currentUser?.name || '');
-    setCustomerTier(c.tier || 'عادي');
-    setIsCustomerDropdownOpen(false);
-    setCustomerSearchQuery('');
-  };
+    return result;
+  }, [products, selectedCategory, productSearch]);
 
-  const handleStartNewCustomer = (customName?: string) => {
-    setSelectedCustomerId('');
-    setIsNewCustomerMode(true);
-    const typedName = customName !== undefined ? customName : customerSearchQuery;
-    setCustomerName(typedName);
-    setCustomerCode(`CUST-${Date.now().toString().slice(-4)}`);
-    setCustomerPhone('');
-    setCustomerAddress('');
-    setCustomerTaxNumber('');
-    setCustomerBranch(activeBranch);
-    setCustomerRep(activeRepUser?.name || currentUser?.name || 'مندوب المبيعات');
-    setCustomerTier('عادي');
-    setIsCustomerDropdownOpen(false);
-    setCustomerSearchQuery('');
-  };
+  const totalCatalogPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const pagedProducts = useMemo(() => {
+    const start = (catalogPage - 1) * itemsPerPage;
+    return filteredProducts.slice(start, start + itemsPerPage);
+  }, [filteredProducts, catalogPage]);
 
-  const handleClearSelectedCustomer = () => {
-    setSelectedCustomerId('');
-    setIsNewCustomerMode(false);
-    setCustomerName('');
-    setCustomerCode('');
-    setCustomerPhone('');
-    setCustomerAddress('');
-    setCustomerTaxNumber('');
-    setCustomerBranch('');
-    setCustomerRep('');
-    setCustomerTier('');
-  };
+  // Cart summary calculation
+  const summary = useMemo(() => {
+    return getCartSummary(discountPercent);
+  }, [getCartSummary, discountPercent]);
 
   if (!isOpen) return null;
 
-  const summary = getCartSummary(discountPercent);
-  const todayDate = new Date().toISOString().slice(0, 10);
-  const hasWarehouseItems = cart.some((c) => c.fulfillFromMainWarehouse);
+  // Quick select a customer or default to Cash
+  const handleSelectCustomer = (cust: Customer) => {
+    // Re-resolve from master customers to guarantee single source of truth
+    const matched = findCustomerMatch(customers, {
+      customerId: cust.id,
+      customerCode: cust.code,
+      customerName: cust.name,
+      customerPhone: cust.phone,
+    });
+    setActiveCustomer(matched || cust);
+    setIsCustomerDropdownOpen(false);
+    setCustomerSearchQuery('');
+  };
 
-  const activeCustomer = useMemo(() => {
-    return (
-      customers.find(
-        (c) =>
-          (selectedCustomerId && c.id === selectedCustomerId) ||
-          (customerCode && c.code === customerCode) ||
-          (customerName && c.name.trim().toLowerCase() === customerName.trim().toLowerCase())
-      ) || null
-    );
-  }, [customers, selectedCustomerId, customerCode, customerName]);
+  const handleSelectDirectCash = () => {
+    setActiveCustomer({
+      id: `c-cash-${Date.now()}`,
+      code: 'CASH-DIRECT',
+      name: 'عميل نقدي كاش (مباشر)',
+      phone: '',
+      address: 'بيع نقدي مباشر بالفرع',
+      governorate: 'الفرع',
+      branchName: activeBranch,
+      currentBalance: 0,
+      creditLimit: 0,
+      overdueBalance: 0,
+    });
+    setIsCustomerDropdownOpen(false);
+    setCustomerSearchQuery('');
+  };
 
-  const customerCurrentBalance = Number(activeCustomer?.balance ?? activeCustomer?.currentBalance ?? 0);
-  const customerOverdueAndDue = Number(activeCustomer?.totalOverdueAndDue !== undefined ? activeCustomer.totalOverdueAndDue : customerCurrentBalance);
-  const rawCreditLimit = activeCustomer?.creditLimit !== undefined && activeCustomer?.creditLimit !== null ? Number(activeCustomer.creditLimit) : 0;
-  const hasNoCreditLimit = rawCreditLimit <= 0;
-  const customerCreditLimit = rawCreditLimit;
-  const orderGrandTotal = summary.grandTotal;
-  const balanceAfterInvoice = customerCurrentBalance + orderGrandTotal;
-  const isCreditLimitExceeded = customerCreditLimit > 0 && balanceAfterInvoice > customerCreditLimit;
-  const requiredDownPayment = isCreditLimitExceeded ? Math.max(0, balanceAfterInvoice - customerCreditLimit) : 0;
-
-  const handleSubmitOrder = async (andExportExcel = false, andDownloadPDF = false) => {
-    const errors: string[] = [];
-    if (!customerName.trim()) {
-      errors.push('يرجى اختيار عميل من القائمة أو كتابة اسم العميل / المحل');
+  // Quick Add Item from Cashier Catalog
+  const handleQuickAddProduct = (product: Product, count: number, orderType: 'carton' | 'piece' = 'carton') => {
+    const res = addToCart(product, orderType, count, 0);
+    if (!res.success) {
+      setFeedbackError(res.message || 'تعذر إضافة الصنف.');
+      setTimeout(() => setFeedbackError(null), 4500);
+    } else {
+      setFeedbackSuccess(`تم إضافة ${count} ${orderType === 'carton' ? 'كرتونة' : 'قطعة'} من (${product.name})`);
+      setTimeout(() => setFeedbackSuccess(null), 2500);
     }
+  };
+
+  // Order Submission & Stock Reservation Handling
+  const handleSubmitOrder = async (andExportExcel: boolean = false, andDownloadPDF: boolean = false) => {
     if (cart.length === 0) {
-      errors.push('الطلبية فارغة! يرجى إضافة أصناف أولاً من الكتالوج');
-    }
-
-    // Stock check
-    for (const item of cart) {
-      const liveProd = products.find((p) => p.id === item.product.id) || item.product;
-      const branchAvail = Math.max(0, liveProd.branchStockReserved);
-      const mainAvail = Math.max(0, liveProd.mainWarehouseReserved);
-      const totalAvail = branchAvail + mainAvail;
-
-      if (totalAvail <= 0) {
-        errors.push(`الصنف (${liveProd.name}) نفد تماماً من المخزن ورصيده الحالي 0 كرتونة.`);
-      } else if (item.cartonCount > totalAvail) {
-        errors.push(`الصنف (${liveProd.name}) المطلوب (${item.cartonCount} ك) يتجاوز الحد الأقصى المتاح (${totalAvail} كرتونة فقط).`);
-      }
-    }
-
-    // Credit limit exceeded warning note validation
-    let effectiveNotes = orderNotes.trim();
-    if (isCreditLimitExceeded) {
-      const downPaymentClarification = `[توضيح الدفعة المقدمة]: سيتم تحصيل دفعة نقدية بقيمة (${requiredDownPayment.toLocaleString('ar-EG')} ج.م) لتنزيل المديونية دون الحد الائتماني المسموح به (${customerCreditLimit.toLocaleString('ar-EG')} ج.م).`;
-      if (!effectiveNotes) {
-        effectiveNotes = downPaymentClarification;
-      } else if (!effectiveNotes.includes('الدفعة المقدمة') && !effectiveNotes.includes('دفعة')) {
-        effectiveNotes = `${effectiveNotes} | ${downPaymentClarification}`;
-      }
-    }
-
-    if (errors.length > 0) {
-      setFormErrors(errors);
+      setFeedbackError('سلة الفاتورة فارغة! يرجى إضافة أصناف للطلبية أولاً.');
+      setTimeout(() => setFeedbackError(null), 4000);
       return;
     }
 
+    // Single source of truth customer resolution
+    const effectiveCustomer = activeCustomer
+      ? findCustomerMatch(customers, {
+          customerId: activeCustomer.id,
+          customerCode: activeCustomer.code,
+          customerName: activeCustomer.name,
+          customerPhone: activeCustomer.phone,
+        }) || activeCustomer
+      : {
+          id: `c-cash-${Date.now()}`,
+          code: 'CASH-DIRECT',
+          name: 'عميل نقدي كاش (مباشر)',
+          phone: '',
+          address: 'بيع نقدي مباشر',
+          governorate: 'الفرع',
+          branchName: activeBranch,
+          currentBalance: 0,
+        };
+
     setIsSubmitting(true);
+    setFeedbackError(null);
+
+    const balBefore = Number(effectiveCustomer.currentBalance ?? effectiveCustomer.balance ?? 0);
+    const credLimit = Number(effectiveCustomer.creditLimit ?? 0);
+    const balAfter = balBefore + summary.grandTotal;
+    const isExceeded = credLimit > 0 && balAfter > credLimit;
+    const reqDown = isExceeded ? Math.max(0, balAfter - credLimit) : 0;
+    const overdue = Number(effectiveCustomer.totalOverdueAndDue ?? effectiveCustomer.overdueBalance ?? 0);
+
     try {
       const result = createOrder({
-        customerId: activeCustomer?.id || selectedCustomerId || undefined,
-        customerName: customerName.trim() || activeCustomer?.name || 'عميل عام',
-        customerCode: customerCode.trim() || activeCustomer?.code || undefined,
-        customerPhone: customerPhone.trim() || activeCustomer?.phone || '',
-        customerAddress: customerAddress.trim() || activeCustomer?.address || '',
-        customerTaxNumber: customerTaxNumber.trim() || activeCustomer?.taxNumber || '',
-        repName: customerRep.trim() || (currentUser?.role === 'sales_rep' ? currentUser.name : undefined),
-        branchName: customerBranch.trim() || activeCustomer?.branchName || currentUser?.branchName,
+        customerId: effectiveCustomer.id,
+        customerName: effectiveCustomer.name,
+        customerCode: effectiveCustomer.code,
+        customerPhone: effectiveCustomer.phone,
+        customerAddress: effectiveCustomer.address,
+        customerTaxNumber: effectiveCustomer.taxNumber,
+        repName: activeRepUser?.name || currentUser?.name || 'مندوب المبيعات',
+        repId: activeRepUser?.id || currentUser?.id,
+        branchName: effectiveCustomer.branchName || activeBranch,
         paymentMethod: paymentMethod,
         discountPercentage: discountPercent,
-        notes: effectiveNotes,
-        splitShortagesToBackorder: splitShortagesToBackorder,
-        customerBalanceBefore: customerCurrentBalance,
-        customerCreditLimit: customerCreditLimit,
-        customerBalanceAfter: balanceAfterInvoice,
-        customerOverdueBalance: customerOverdueAndDue,
-        creditLimitExceeded: isCreditLimitExceeded,
-        requiredDownPayment: requiredDownPayment,
+        notes: invoiceNotes || `فاتورة مبيعات كاشير دريم - تسجيل بواسطة ${currentUser?.name || 'المندوب'}`,
+        customerBalanceBefore: balBefore,
+        customerCreditLimit: credLimit,
+        customerBalanceAfter: balAfter,
+        customerOverdueBalance: overdue,
+        creditLimitExceeded: isExceeded,
+        requiredDownPayment: reqDown,
       });
 
       if (!result.success || !result.invoice) {
-        setFormErrors([result.message || 'تعذر تسجيل الطلبية بسبب نفاذ المخزون.']);
+        setFeedbackError(result.message || 'تعذر حفظ الطلبية.');
         setIsSubmitting(false);
         return;
       }
 
-      const createdInvoice = result.invoice;
-
+      // Download Excel if requested
       if (andExportExcel) {
-        exportElectronicInvoiceToExcel(createdInvoice);
-        if (result.shortageInvoice) {
-          exportElectronicInvoiceToExcel(result.shortageInvoice);
-        }
+        exportElectronicInvoiceToExcel(result.invoice);
       }
 
+      // Download PDF if requested
       if (andDownloadPDF) {
-        await downloadInvoicePDF(createdInvoice);
+        await downloadInvoicePDF(result.invoice);
       }
 
-      onInvoiceCreated(createdInvoice);
+      clearCart();
+      onInvoiceCreated(result.invoice);
       onClose();
-    } catch (err) {
-      console.error(err);
-      setFormErrors(['حدث خطأ أثناء حفظ الطلبية. يرجى المحاولة ثانية.']);
+    } catch (err: any) {
+      console.error('Invoice creation error:', err);
+      setFeedbackError('حدث خطأ غير متوقع أثناء معالجة الفاتورة.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200" id="order-builder-modal-overlay">
-      <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[94vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden text-slate-900" id="order-builder-modal-container">
+    <div
+      id="dream-cashier-modal"
+      className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in"
+      dir="rtl"
+    >
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-7xl max-h-[96vh] flex flex-col shadow-2xl overflow-hidden text-white">
         
-        {/* Header */}
-        <div className="bg-slate-900 text-white p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800" id="order-builder-header">
+        {/* ================= HEADER ================= */}
+        <div className="p-3.5 sm:p-4 bg-slate-950 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-md shrink-0">
               <Receipt className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-black tracking-tight text-white">إنشاء فاتورة مبيعات ذكية جديدة</h2>
-              <p className="text-xs text-amber-300 font-semibold mt-0.5">
-                شركة دريم للتجارة والتوزيع • حساب ذكي للكراتين والقطع مع قاعدة بيانات العملاء ومخزون الفروع
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-black text-white tracking-tight">
+                  فاتورة مبيعات كاشير دريم
+                </h2>
+                <span className="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                  <Zap className="w-3 h-3" />
+                  <span>DREAM POS</span>
+                </span>
+                <span className="hidden sm:inline-flex bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[10px] font-bold px-2 py-0.5 rounded-full items-center gap-1">
+                  <span>🔒 حجز فوري للمخزون لمنع التضارب</span>
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {activeBranch} • المندوب: <strong className="text-amber-300">{activeRepUser?.name}</strong> • التاريخ: {todayDate}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto">
-            {/* Toggle Mode: Edit vs Preview */}
-            <div className="bg-slate-800 p-1 rounded-xl flex items-center gap-1 border border-slate-700">
+          <div className="flex items-center gap-2">
+            {/* View Mode Toggle */}
+            <div className="bg-slate-800/90 p-1 rounded-xl flex items-center gap-1 border border-slate-700">
               <button
                 type="button"
                 onClick={() => setIsPreviewMode(false)}
@@ -422,7 +352,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   !isPreviewMode ? 'bg-amber-400 text-slate-950 shadow-xs' : 'text-slate-300 hover:text-white'
                 }`}
               >
-                <span>✏️ تعديل البنود</span>
+                <span>⚡ شاشة الكاشير والسلة</span>
               </button>
               <button
                 type="button"
@@ -436,99 +366,87 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
             </div>
 
             <button
-              id="order-builder-close-btn"
               onClick={onClose}
               className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition cursor-pointer"
-              title="إغلاق النافذة"
+              title="إغلاق"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Modal Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 bg-white" id="order-builder-body">
-          
-          {/* Error Banner */}
-          {formErrors.length > 0 && (
-            <div className="bg-red-50 border-2 border-red-300 text-red-900 p-4 rounded-2xl text-xs space-y-1.5 shadow-sm" id="order-builder-errors">
-              <div className="font-black flex items-center gap-2 text-sm text-red-700">
-                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-                <span>يرجى مراجعة الملاحظات التالية قبل الحفظ:</span>
-              </div>
-              <ul className="list-disc list-inside pr-4 space-y-1 font-bold">
-                {formErrors.map((err, i) => (
-                  <li key={i}>{err}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+        {/* ================= NOTIFICATIONS BANNER ================= */}
+        {feedbackError && (
+          <div className="bg-rose-900/90 text-white p-3 px-4 text-xs font-black flex items-center gap-2 border-b border-rose-700 shrink-0 animate-in fade-in">
+            <AlertCircle className="w-4 h-4 text-rose-300 shrink-0" />
+            <span>{feedbackError}</span>
+          </div>
+        )}
+        {feedbackSuccess && (
+          <div className="bg-emerald-600 text-white p-2.5 px-4 text-xs font-black flex items-center gap-2 border-b border-emerald-500 shrink-0 animate-in fade-in">
+            <CheckCircle2 className="w-4 h-4 text-emerald-200 shrink-0" />
+            <span>{feedbackSuccess}</span>
+          </div>
+        )}
 
+        {/* ================= BODY CONTENT ================= */}
+        <div className="flex-1 overflow-hidden flex flex-col">
           {isPreviewMode ? (
-            /* Direct Invoice Preview Before Transfer */
-            <div className="space-y-4 animate-in fade-in" id="order-builder-preview-view">
-              <div className="bg-amber-50 border-2 border-amber-300 p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+            /* ================= FULL INVOICE PREVIEW ================= */
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-900">
+              <div className="bg-amber-500/15 border border-amber-400/40 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
                 <div>
-                  <div className="text-xs font-black text-amber-900 flex items-center gap-1.5">
-                    <span>👁️ معاينة تفاصيل الطلبية والأسعار قبل الحفظ</span>
-                  </div>
-                  <p className="text-[11px] text-amber-700 font-medium mt-0.5">
-                    يمكنك مراجعة كافة البنود والكميات، أو حفظ وتصدير الطلبية فوراً بملف Excel أو PDF.
+                  <h3 className="font-black text-amber-300 text-sm flex items-center gap-1.5">
+                    <span>👁️ معاينة الفاتورة قبل الحفظ وتأكيد حجز المخزون</span>
+                  </h3>
+                  <p className="text-slate-300 text-[11px] mt-0.5">
+                    يمكنك مراجعة كافة الأسعار والكميات وتأكيد الحفظ للمشرف أو تحميلها مباشرة كملف إكسل أو PDF.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsPreviewMode(false)}
-                  className="bg-slate-900 hover:bg-slate-800 text-amber-300 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs shrink-0"
+                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-4 py-2 rounded-xl text-xs transition cursor-pointer shrink-0"
                 >
-                  <span>✏️ تعديل الفاتورة / العودة لتعديل الكميات</span>
+                  ✏️ العودة للتعديل وإضافة أصناف
                 </button>
               </div>
 
-              {/* Customer & Branch Details Preview */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                <div>
-                  <span className="text-slate-400 block text-[10px] font-bold">اسم العميل:</span>
-                  <strong className="text-slate-900 font-black text-sm">{customerName || 'عميل نقدي كاش'}</strong>
-                  <span className="text-slate-500 block text-[10px]">كود: {customerCode || 'كاش'}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px] font-bold">المندوب والفرع:</span>
-                  <strong className="text-slate-900 font-bold block">{activeRepUser?.name || currentUser?.name}</strong>
-                  <span className="text-slate-500 text-[10px]">{customerBranch || activeBranch}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px] font-bold">طريقة السداد:</span>
-                  <span className="bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-md inline-block mt-0.5">
-                    {paymentMethod}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px] font-bold">الخصم التجاري:</span>
-                  <strong className="text-emerald-600 font-black">{discountPercent}%</strong>
-                </div>
-              </div>
+              {/* Customer Accordion in Preview */}
+              <CustomerFinancialSummaryCard
+                customer={activeCustomer}
+                currentInvoiceAmount={summary.grandTotal}
+                theme="dark"
+                initiallyOpen={true}
+                showCustomerDetails={true}
+                title="موقف العميل المالي المعتمد بالفاتورة"
+              />
 
-              {/* Items Table Preview */}
-              <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-                <div className="bg-slate-900 text-white p-2.5 px-4 text-xs font-black flex items-center justify-between">
+              {/* Invoice Items Summary Table */}
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden">
+                <div className="bg-slate-800 p-3 px-4 text-xs font-black flex items-center justify-between text-slate-200">
                   <span>أصناف الفاتورة ({cart.length} أصناف)</span>
                   <span className="text-amber-400 font-bold">{summary.totalCartons} كرتونة • {summary.totalPieces} قطعة</span>
                 </div>
-                <div className="divide-y divide-slate-150 max-h-[300px] overflow-y-auto bg-white">
+                <div className="divide-y divide-slate-850 max-h-[320px] overflow-y-auto">
                   {cart.map((item, idx) => (
-                    <div key={idx} className="p-3 flex items-center justify-between gap-3 text-xs hover:bg-slate-50">
+                    <div key={idx} className="p-3 flex items-center justify-between gap-3 text-xs hover:bg-slate-850/50">
                       <div className="min-w-0 flex-1">
-                        <div className="font-black text-slate-900 truncate">{item.product.name}</div>
-                        <div className="text-[10px] text-slate-500 font-mono">
-                          كود: {item.product.code} • {item.cartonQuantity ? `${item.cartonQuantity} ق/كرتونة` : ''}
+                        <div className="font-black text-white truncate">{item.product.name}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">
+                          كود: {item.product.code} • الشدة: {item.cartonQuantity} ق/كرتونة
+                          {item.fulfillFromMainWarehouse && (
+                            <span className="text-blue-400 font-bold mr-2 bg-blue-900/40 px-1.5 py-0.2 rounded">
+                              نواقص من مخزن أكتوبر 🚚
+                            </span>
+                          )}
                         </div>
                       </div>
-                      <div className="text-center font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg shrink-0">
-                        {item.cartonCount > 0 && <span className="text-amber-700 font-black">{item.cartonCount} كرتونة </span>}
-                        {item.pieceCount > 0 && <span className="text-blue-700 font-black">{item.pieceCount} قطعة</span>}
+                      <div className="text-center font-bold text-slate-300 bg-slate-800 px-3 py-1 rounded-xl shrink-0">
+                        {item.cartonCount > 0 && <span className="text-amber-300 font-black">{item.cartonCount} كرتونة </span>}
+                        {item.pieceCount > 0 && <span className="text-blue-300 font-black">{item.pieceCount} قطعة</span>}
                       </div>
-                      <div className="text-left font-black text-slate-900 shrink-0 w-24">
+                      <div className="text-left font-black text-amber-400 shrink-0 w-28">
                         {formatCurrency(item.totalPrice)}
                       </div>
                     </div>
@@ -536,1085 +454,633 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                 </div>
               </div>
 
-              {/* Financial Totals in Preview */}
-              <div className="bg-slate-900 text-white p-4 rounded-2xl space-y-2 text-xs">
+              {/* Financial Totals */}
+              <div className="bg-slate-950 border border-slate-800 p-4 rounded-2xl space-y-2 text-xs">
                 <div className="flex items-center justify-between text-slate-300">
                   <span>المجموع قبل الخصم:</span>
-                  <strong className="text-white">{formatCurrency(summary.subtotal)}</strong>
+                  <strong className="text-white font-mono text-sm">{formatCurrency(summary.subtotal)}</strong>
                 </div>
                 {discountPercent > 0 && (
                   <div className="flex items-center justify-between text-emerald-400">
-                    <span>قيمة الخصم ({discountPercent}%):</span>
-                    <strong>-{formatCurrency(summary.discountAmount)}</strong>
+                    <span>قيمة الخصم التجاري ({discountPercent}%):</span>
+                    <strong className="font-mono">-{formatCurrency(summary.discountAmount)}</strong>
                   </div>
                 )}
-                <div className="flex items-center justify-between pt-2 border-t border-slate-700">
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800">
                   <span className="font-bold text-sm text-slate-200">الصافي المطلوب سداده:</span>
-                  <strong className="text-xl font-black text-amber-400">{formatCurrency(summary.grandTotal)}</strong>
+                  <strong className="text-xl font-black text-amber-400 font-mono">{formatCurrency(summary.grandTotal)}</strong>
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+              {/* Preview Action Buttons */}
+              <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsPreviewMode(false)}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-black px-4 py-2.5 rounded-xl text-xs transition cursor-pointer"
+                  disabled={isSubmitting || cart.length === 0}
+                  onClick={() => handleSubmitOrder(true, false)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2.5 rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                  title="حفظ الطلبية وتنزيل شيت إكسل"
                 >
-                  ✏️ العودة للتعديل
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>حفظ وتحميل إكسل 📊</span>
                 </button>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    disabled={isSubmitting || cart.length === 0}
-                    onClick={() => handleSubmitOrder(true, false)}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2.5 rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
-                    title="حفظ الطلبية وتنزيل شيت إكسل رسمي لرفعه على السيستم"
-                  >
-                    <FileSpreadsheet className="w-4 h-4" />
-                    <span>حفظ وتحميل إكسل 📊</span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isSubmitting || cart.length === 0}
-                    onClick={() => handleSubmitOrder(false, true)}
-                    className="bg-rose-600 hover:bg-rose-700 text-white font-black px-4 py-2.5 rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
-                    title="حفظ الطلبية وتنزيل ملف PDF"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>حفظ وتحميل PDF 📄</span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isSubmitting || cart.length === 0}
-                    onClick={() => handleSubmitOrder(false, false)}
-                    className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-black px-4 py-2.5 rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
-                    title="حفظ الطلبية فقط وإرسالها للمشرف ومدير الفرع للمراجعة والاعتماد"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>حفظ الطلبية للمشرف ✅</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  disabled={isSubmitting || cart.length === 0}
+                  onClick={() => handleSubmitOrder(false, true)}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-black px-4 py-2.5 rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                  title="حفظ الطلبية وتنزيل PDF"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>حفظ وتحميل PDF 📄</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmitting || cart.length === 0}
+                  onClick={() => handleSubmitOrder(false, false)}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>حفظ الطلبية للمشرف (حجز الرصيد فوراً) ✅</span>
+                </button>
               </div>
             </div>
           ) : (
-            <>
-          {/* Top Info Bar: Rep Name, Branch, Date */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-amber-100 text-amber-800 rounded-xl shrink-0">
-                <User className="w-4 h-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="text-slate-500 block text-[10px] font-bold">المندوب المسئول عن الفاتورة:</span>
-                {currentUser?.role === 'sales_rep' ? (
-                  <strong className="text-slate-900 font-black truncate block">{currentUser.name}</strong>
-                ) : (
-                  <select
-                    value={selectedRepId}
-                    onChange={(e) => setSelectedRepId(e.target.value)}
-                    className="bg-white border border-slate-300 text-slate-900 font-black text-xs rounded-lg px-2 py-1 w-full mt-0.5 focus:ring-2 focus:ring-amber-500"
-                  >
-                    {availableRepsList.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-blue-100 text-blue-800 rounded-xl shrink-0">
-                <Building className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-slate-500 block text-[10px] font-bold">فرع التحميل / الصرف:</span>
-                <strong className="text-slate-900 font-black truncate block">{activeBranch}</strong>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl shrink-0">
-                <Calendar className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-slate-500 block text-[10px] font-bold">تاريخ الطلبية:</span>
-                <strong className="text-slate-900 font-black">{todayDate}</strong>
-              </div>
-            </div>
-          </div>
-
-          {/* Customer Selection & Details (Smart Searchable Dropdown) */}
-          <div className="bg-slate-50/80 border border-slate-200 p-4 rounded-2xl space-y-3.5" id="customer-selection-section">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 flex-wrap gap-2">
-              <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                <span>1. بيانات العميل المسند / تسجيل عميل جديد</span>
-                <span className="text-rose-600 font-black">*</span>
-              </h3>
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={handleSyncLinks}
-                  className="text-[11px] font-black text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-300 px-2.5 py-1 rounded-xl cursor-pointer flex items-center gap-1 transition shadow-xs"
-                  title="إعادة فحص وربط العملاء بالمناديب تلقائياً"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-blue-700" />
-                  <span>🔄 مزامنة وربط العملا�� بالمناديب</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleStartNewCustomer('')}
-                  className="text-[11px] font-black text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 px-2.5 py-1 rounded-xl cursor-pointer flex items-center gap-1 transition shadow-xs"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ عميل جديد</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Sync Feedback Alert */}
-            {syncFeedback && (
-              <div className="p-2.5 bg-emerald-100 text-emerald-900 font-black text-xs rounded-xl border border-emerald-300 flex items-center gap-2 animate-in fade-in">
-                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                <span>{syncFeedback}</span>
-              </div>
-            )}
-
-            {/* Scope Selection Tabs */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
-                <button
-                  type="button"
-                  onClick={() => setCustomerScope('rep')}
-                  className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer flex items-center gap-1.5 text-xs ${
-                    customerScope === 'rep'
-                      ? 'bg-amber-500 text-slate-950 shadow-md font-black ring-2 ring-amber-400'
-                      : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
-                  }`}
-                >
-                  <UserCheck className="w-3.5 h-3.5" />
-                  <span>عملاء المندوب ({activeRepUser?.name || currentUser?.name || 'المحدد'}) ({repScopedCustomers.length})</span>
-                </button>
-
-                <button
-                  type="button"
-                  hidden={isSalesRep}
-                  onClick={() => setCustomerScope('branch')}
-                  className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer flex items-center gap-1.5 text-xs ${
-                    customerScope === 'branch'
-                      ? 'bg-blue-600 text-white shadow-md font-black ring-2 ring-blue-400'
-                      : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
-                  }`}
-                >
-                  <Building className="w-3.5 h-3.5" />
-                  <span>كل عملاء الفرع ({activeBranch}) ({branchScopedCustomers.length})</span>
-                </button>
-
-                <button
-                  type="button"
-                  hidden={isSalesRep || currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager'}
-                  onClick={() => setCustomerScope('all')}
-                  className={`px-3 py-1.5 rounded-xl font-black shrink-0 transition cursor-pointer flex items-center gap-1.5 text-xs ${
-                    customerScope === 'all'
-                      ? 'bg-slate-900 text-amber-300 shadow-md font-black ring-2 ring-slate-700'
-                      : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>كافة عملاء الشركة ({allScopedCustomers.length})</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Searchable Customer Dropdown */}
-            <div className="relative">
-              <label className="block text-slate-900 font-black text-xs mb-1">
-                بحث في سجل العملاء (بالاسم، الكود، الهاتف، اسم المحل، المندوب):
-              </label>
+            /* ================= LIVE CASHIER TERMINAL ================= */
+            <div className="flex-1 overflow-hidden flex flex-col">
               
-              <div className="relative">
-                <input
-                  id="customer-search-input"
-                  type="text"
-                  value={customerSearchQuery}
-                  onFocus={() => setIsCustomerDropdownOpen(true)}
-                  onChange={(e) => {
-                    setCustomerSearchQuery(e.target.value);
-                    setIsCustomerDropdownOpen(true);
-                  }}
-                  placeholder="🔍 اكتب اسم العميل، الكود، المحافظة أو رقم الهاتف لاختياره مباشرة..."
-                  className="w-full h-11 pr-10 pl-10 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-950 shadow-xs placeholder:text-slate-400"
-                />
-                <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5 pointer-events-none" />
+              {/* Mobile Tab Switcher */}
+              <div className="lg:hidden bg-slate-950 border-b border-slate-800 p-2 flex items-center gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setIsCustomerDropdownOpen(!isCustomerDropdownOpen)}
-                  className="absolute left-2.5 top-2.5 p-1 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+                  onClick={() => setMobileActiveTab('cart')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    mobileActiveTab === 'cart'
+                      ? 'bg-amber-400 text-slate-950 shadow-md'
+                      : 'bg-slate-800 text-slate-300'
+                  }`}
                 >
-                  <ChevronDown className={`w-4 h-4 transition-transform ${isCustomerDropdownOpen ? 'rotate-180' : ''}`} />
+                  <ShoppingCart className="w-4 h-4" />
+                  <span>فاتورة الكاشير ({cart.length})</span>
+                  {cart.length > 0 && (
+                    <span className="bg-slate-950 text-amber-400 text-[10px] px-1.5 py-0.2 rounded-md font-mono">
+                      {formatCurrency(summary.grandTotal)}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setMobileActiveTab('catalog')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    mobileActiveTab === 'catalog'
+                      ? 'bg-amber-400 text-slate-950 shadow-md'
+                      : 'bg-slate-800 text-slate-300'
+                  }`}
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>إضافة أصناف ({products.length})</span>
                 </button>
               </div>
 
-              {/* Customer Dropdown Results */}
-              {isCustomerDropdownOpen && (
-                <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-2xl shadow-xl max-h-72 overflow-y-auto divide-y divide-slate-100">
-                  {customerSearchQuery.trim() && (
-                    <div className="p-2.5 bg-emerald-50 border-b border-emerald-200">
-                      <button
-                        type="button"
-                        onClick={() => handleStartNewCustomer(customerSearchQuery.trim())}
-                        className="w-full text-right p-2.5 bg-white hover:bg-emerald-100/60 rounded-xl border border-emerald-300 text-emerald-950 font-black text-xs flex items-center justify-between gap-2 cursor-pointer shadow-xs transition"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="bg-emerald-600 text-white p-1 rounded-lg">
-                            <Plus className="w-3.5 h-3.5" />
-                          </span>
-                          <span>إضافة "{customerSearchQuery.trim()}" كعميل جديد مسند للمندوب</span>
-                        </div>
-                        <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded font-black">
-                          عميل جديد ✨
-                        </span>
-                      </button>
-                    </div>
-                  )}
-
-                  {filteredCustomers.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-slate-600 space-y-2">
-                      {scopedCustomersList.length === 0 ? (
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-900 space-y-1 text-right">
-                          <p className="font-bold">⚠️ لا يوجد عملاء مسندين لهذا المندوب ({activeRepUser?.name || currentUser?.name}) في الشيت المرفوع حالياً.</p>
-                          <p className="text-[11px] text-amber-800">
-                            تأكد من أن اسم المندوب في شيت Google Sheets يطابق اسم المندوب، أو اكتب اسم العميل أعلاه للبدء فوراً بإضافته كعميل جديد.
-                          </p>
-                        </div>
-                      ) : (
-                        <p>لا يوجد عميل مطابق لبحثك في القائمة الحالية.</p>
-                      )}
-                      {customerSearchQuery.trim() && (
-                        <button
-                          type="button"
-                          onClick={() => handleStartNewCustomer(customerSearchQuery.trim())}
-                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs cursor-pointer shadow-xs"
-                        >
-                          + إضافة "{customerSearchQuery.trim()}" كعميل جديد مسند للمندوب
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    filteredCustomers.map((c) => {
-                      const isMyCustomer = currentUser ? doesCustomerBelongToRep(c, currentUser) : true;
-                      return (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => handleSelectCustomer(c)}
-                          className="w-full text-right p-3 hover:bg-amber-50/80 transition flex items-center justify-between gap-3 text-xs cursor-pointer"
-                        >
-                          <div>
-                            <div className="font-black text-slate-900 flex items-center flex-wrap gap-1.5">
-                              <span>{c.name}</span>
-                              {c.storeName && (
-                                <span className="text-slate-500 font-normal">({c.storeName})</span>
-                              )}
-                              {c.code && (
-                                <span className="bg-slate-900 text-amber-300 text-[10px] font-mono px-1.5 py-0.2 rounded">
-                                  {c.code}
-                                </span>
-                              )}
-                              {isMyCustomer ? (
-                                <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 text-[9px] font-black px-1.5 py-0.2 rounded">
-                                  مسند لك ✓
-                                </span>
-                              ) : (
-                                (c.salesRepName || c.repName) && (
-                                  <span className="bg-slate-100 text-slate-700 text-[9px] font-bold px-1.5 py-0.2 rounded">
-                                    المندوب: {c.salesRepName || c.repName}
-                                  </span>
-                                )
-                              )}
-                            </div>
-                            <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
-                              {c.phone && <span>📞 {c.phone}</span>}
-                              {c.branchName && <span>🏢 الفرع: {c.branchName}</span>}
-                              {c.governorate && <span>📍 {c.governorate}</span>}
-                            </div>
-                          </div>
-                          <span className="text-[10px] text-amber-800 bg-amber-100 hover:bg-amber-200 font-bold px-2.5 py-1 rounded-xl shrink-0 border border-amber-300">
-                            اختيار العميل
-                          </span>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Selected Customer Card or Manual / New Customer Input */}
-            {selectedCustomerId ? (
-              <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-3.5 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
-                    <Store className="w-5 h-5" />
-                  </div>
-                  <div className="text-xs">
-                    <div className="font-black text-slate-950 text-sm flex items-center flex-wrap gap-2">
-                      <span>{customerName}</span>
-                      {customerCode && (
-                        <span className="bg-slate-900 text-amber-300 text-[10px] font-mono px-1.5 py-0.5 rounded">
-                          كود: {customerCode}
-                        </span>
-                      )}
-                      {customerTier && (
-                        <span className="bg-amber-400 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded">
-                          {customerTier}
-                        </span>
-                      )}
-                      {customerBranch && (
-                        <span className="bg-blue-100 text-blue-900 text-[10px] font-bold px-1.5 py-0.5 rounded border border-blue-200">
-                          🏢 {customerBranch}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[11px] text-slate-600 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                      {customerPhone && <span>📞 {customerPhone}</span>}
-                      {customerAddress && <span>📍 {customerAddress}</span>}
-                      {customerRep && (
-                        <span className="bg-amber-100/70 text-amber-900 font-bold px-1.5 py-0.5 rounded">
-                          👤 المندوب المسند: {customerRep}
-                        </span>
-                      )}
-                      {customerTaxNumber && <span>🏛️ ضريبي: {customerTaxNumber}</span>}
-                    </div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleClearSelectedCustomer}
-                  className="text-xs text-rose-600 hover:text-rose-800 font-bold bg-white px-2.5 py-1.5 rounded-xl border border-rose-200 shadow-xs cursor-pointer shrink-0"
+              {/* Main Responsive Layout: 2 Columns on Desktop/Tablet */}
+              <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
+                
+                {/* COLUMN 1: Cart Items & Financials (Left on Desktop, 5 cols) */}
+                <div
+                  className={`lg:col-span-5 xl:col-span-5 flex flex-col overflow-hidden border-b lg:border-b-0 lg:border-l border-slate-800 bg-slate-900/90 ${
+                    mobileActiveTab === 'catalog' ? 'hidden lg:flex' : 'flex'
+                  }`}
                 >
-                  تغيير العميل
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {/* NEW CUSTOMER NOTIFICATION BADGE */}
-                <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs">
-                  <div className="flex items-start gap-2.5">
-                    <span className="bg-amber-500 text-slate-950 text-[10px] font-black px-2.5 py-1 rounded-lg shrink-0 mt-0.5 flex items-center gap-1 shadow-xs">
-                      <span>عميل جديد (قيد التكويد) ⏳</span>
-                    </span>
-                    <div className="text-amber-950">
-                      <p className="font-bold text-xs">
-                        {customerName.trim()
-                          ? `العميل: "${customerName}" قيد التسجيل الأولي والتكويد.`
-                          : `تسجيل عميل جديد مؤقت لحين تكويده الرسمي في النظام.`}
-                      </p>
-                      <p className="text-[11px] text-amber-900 mt-0.5 leading-relaxed">
-                        سيتم إصدار الفاتورة باسم العميل وإسناده للمندوب ({customerRep || currentUser?.name || "المندوب الحالي"})، مع تمرير بياناته للمشرف والإدارة للمراجعة والتكويد الرسمي.
-                      </p>
-                    </div>
-                  </div>
-                  {isNewCustomerMode && (
-                    <button
-                      type="button"
-                      onClick={() => setIsCustomerDropdownOpen(true)}
-                      className="text-[11px] text-amber-950 hover:text-slate-950 font-black underline cursor-pointer shrink-0 self-end sm:self-auto bg-amber-200/70 px-2 py-1 rounded-lg"
-                    >
-                      أو اختر من المسجلين
-                    </button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                  <div>
-                    <label className="block text-slate-900 font-black mb-1">
-                      اسم العميل / السوبر ماركت <span className="text-rose-600">*</span>
-                    </label>
-                    <input
-                      id="customer-name-input"
-                      type="text"
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      placeholder="مثال: هايبر ماركت التوحيد والنور، محل سنتر شاهين..."
-                      className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-950 shadow-xs placeholder:text-slate-400"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-900 font-black mb-1">
-                      رقم هاتف العميل (لإرسال الفاتورة عبر واتساب)
-                    </label>
-                    <input
-                      id="customer-phone-input"
-                      type="tel"
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      placeholder="مثال: 01011122233"
-                      className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-950 shadow-xs placeholder:text-slate-400"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-900 font-black mb-1">عنوان العميل / المنطقة</label>
-                    <input
-                      id="customer-address-input"
-                      type="text"
-                      value={customerAddress}
-                      onChange={(e) => setCustomerAddress(e.target.value)}
-                      placeholder="مثال: شارع مكرم عبيد، المنطقة السادسة، مدينة نصر"
-                      className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-semibold text-slate-950 shadow-xs placeholder:text-slate-400"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-900 font-black mb-1">المندوب المسئول المسند إليه</label>
-                    <input
-                      type="text"
-                      disabled
-                      value={currentUser?.name || 'مندوب المبيعات'}
-                      className="w-full h-11 px-3 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-xs cursor-not-allowed"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Customer Financial Profile & Credit Limit Analysis */}
-            {(customerName.trim() || selectedCustomerId) && (
-              <div className="bg-slate-900 text-white rounded-2xl p-3.5 sm:p-4 border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-amber-400 text-slate-950 rounded-lg">
-                      <CreditCard className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-black text-amber-300">
-                      موقف حساب ومديونية العميل والحد الائتماني
-                    </span>
-                  </div>
-                  <span className="text-[11px] font-bold text-slate-400">
-                    {activeCustomer ? `العميل: ${activeCustomer.name}` : 'عميل جديد'}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
-                  <div className={`p-2.5 rounded-xl border ${customerOverdueAndDue > 0 ? 'bg-amber-950/40 border-amber-500/80 text-amber-100' : 'bg-slate-800/80 border-slate-700'}`}>
-                    <span className="text-[10px] text-amber-300/90 block font-bold">إجمالي المتأخرات والمستحق:</span>
-                    <strong className={`text-sm font-black ${customerOverdueAndDue > 0 ? 'text-amber-400' : 'text-slate-300'}`}>
-                      {customerOverdueAndDue.toLocaleString()} ج.م
-                    </strong>
-                  </div>
-                  <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
-                    <span className="text-[10px] text-slate-400 block font-bold">المديونية الحالية:</span>
-                    <strong className="text-sm font-black text-slate-100">{customerCurrentBalance.toLocaleString()} ج.م</strong>
-                  </div>
-                  <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
-                    <span className="text-[10px] text-amber-300/80 block font-bold">قيمة الفاتورة الحالية:</span>
-                    <strong className="text-sm font-black text-amber-400">{orderGrandTotal.toLocaleString()} ج.م</strong>
-                  </div>
-                  <div className={`p-2.5 rounded-xl border ${isCreditLimitExceeded ? 'bg-rose-950/80 border-rose-600 text-rose-200' : 'bg-slate-800/80 border-slate-700 text-slate-100'}`}>
-                    <span className="text-[10px] block font-bold">المديونية بعد الفاتورة:</span>
-                    <strong className={`text-sm font-black ${isCreditLimitExceeded ? 'text-rose-400' : hasNoCreditLimit ? 'text-amber-300' : 'text-emerald-400'}`}>
-                      {balanceAfterInvoice.toLocaleString()} ج.م
-                    </strong>
-                  </div>
-                  <div className={`p-2.5 rounded-xl border ${hasNoCreditLimit ? 'bg-slate-800/90 border-amber-400/40 text-amber-300' : 'bg-slate-800/80 border-slate-700'}`}>
-                    <span className="text-[10px] text-slate-400 block font-bold">الحد الائتماني المعتمد:</span>
-                    {hasNoCreditLimit ? (
-                      <div className="space-y-0.5">
-                        <strong className="text-xs font-black text-amber-300 block">لا يوجد حد ائتماني</strong>
-                        <span className="text-[9px] text-slate-300 block font-bold">(كاش فقط)</span>
-                      </div>
+                  {/* Customer Accordion Card */}
+                  <div className="p-3 bg-slate-950 border-b border-slate-800 shrink-0">
+                    {activeCustomer ? (
+                      <CustomerFinancialSummaryCard
+                        customer={activeCustomer}
+                        currentInvoiceAmount={summary.grandTotal}
+                        theme="dark"
+                        initiallyOpen={false}
+                        showCustomerDetails={true}
+                        title="بيانات وموقف العميل المالي (كافة العملاء)"
+                        onChangeCustomer={() => setActiveCustomer(null)}
+                      />
                     ) : (
-                      <strong className="text-sm font-black text-blue-400">{customerCreditLimit.toLocaleString()} ج.م</strong>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-slate-300">تحديد عميل الفاتورة:</span>
+                          <button
+                            type="button"
+                            onClick={handleSelectDirectCash}
+                            className="text-amber-400 hover:text-amber-300 font-black text-xs cursor-pointer underline flex items-center gap-1"
+                          >
+                            <span>⚡ بيع نقدي مباشر (كاش)</span>
+                          </button>
+                        </div>
+
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            value={customerSearchQuery}
+                            onChange={(e) => {
+                              setCustomerSearchQuery(e.target.value);
+                              setIsCustomerDropdownOpen(true);
+                            }}
+                            onFocus={() => setIsCustomerDropdownOpen(true)}
+                            placeholder="ابحث بالاسم، الكود، أو رقم الهاتف من كافة العملاء..."
+                            className="w-full bg-slate-900 border border-slate-700 rounded-xl pr-9 pl-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          />
+                        </div>
+
+                        {/* Customer Search Dropdown */}
+                        {isCustomerDropdownOpen && (
+                          <div className="bg-slate-950 border border-slate-700 rounded-2xl mt-1 shadow-2xl max-h-48 overflow-y-auto divide-y divide-slate-850 z-30">
+                            <button
+                              type="button"
+                              onClick={handleSelectDirectCash}
+                              className="w-full p-2.5 text-right hover:bg-slate-800 transition flex items-center justify-between text-xs font-black text-amber-300 cursor-pointer"
+                            >
+                              <span>⚡ عميل نقدي كاش (مباشر)</span>
+                              <span className="text-[10px] bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded">كاش</span>
+                            </button>
+                            {filteredCustomers.map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => handleSelectCustomer(c)}
+                                className="w-full p-2.5 text-right hover:bg-slate-800 transition flex items-center justify-between text-xs cursor-pointer"
+                              >
+                                <div>
+                                  <div className="font-black text-white">{c.name}</div>
+                                  <div className="text-[10px] text-slate-400 font-mono">
+                                    كود: {c.code || '---'} • هاتف: {c.phone || '---'}
+                                  </div>
+                                </div>
+                                <span className="text-[10px] text-emerald-400 font-mono font-bold">
+                                  {formatCurrency(c.currentBalance || c.balance || 0)}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
-                </div>
 
-                {/* Scenario 1: Customer has NO Credit Limit */}
-                {hasNoCreditLimit && (
-                  <div className="p-3 bg-amber-500/15 border-2 border-amber-500/80 rounded-xl text-xs space-y-2 text-amber-200">
-                    <div className="flex items-center gap-2 text-amber-300 font-black text-xs sm:text-sm">
-                      <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
-                      <span>توضيح هام للمندوب: لا يوجد حد ائتماني معتمد للعميل (سداد نقدي فقط)</span>
-                    </div>
-                    <p className="text-[11px] text-slate-200 font-medium leading-relaxed">
-                      هذا العميل غير مصرح له بالسحب الآجل. <strong className="text-amber-300 font-black">يجب تحصيل قيمة الفاتورة ({orderGrandTotal.toLocaleString()} ج.م) نقداً بالكامل (كاش) عند الاستلام </strong>
-                      {customerCurrentBalance > 0 ? ` بالإض��فة إلى سداد المديونية السابقة (${customerCurrentBalance.toLocaleString()} ج.م).` : '.'}
-                    </p>
-                    <div className="pt-1 flex items-center flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const noteText = `توضيح السداد: العميل ليس لديه حد ائتماني معتمد ويتم التعامل نقداً (كاش) بالكامل بقيمة ${orderGrandTotal.toLocaleString()} ج.م عند الاستلام.`;
-                          setOrderNotes((prev) => (prev && prev.includes('العميل ليس لديه حد ائتماني') ? prev : prev ? `${prev} | ${noteText}` : noteText));
-                        }}
-                        className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm cursor-pointer transition transform active:scale-95"
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>📝 إدراج بيان التعامل النقدي التام في الملاحظات</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Scenario 2: Customer has a credit limit but EXCEEDED */}
-                {isCreditLimitExceeded && (
-                  <div className="p-3 bg-rose-500/15 border-2 border-rose-500 rounded-xl text-xs space-y-2 text-rose-200">
-                    <div className="flex items-center gap-2 text-rose-400 font-black text-xs sm:text-sm">
-                      <AlertTriangle className="w-4 h-4 shrink-0" />
-                      <span>تنبيه هام للمندوب: تم تجاوز الحد الائتماني للعميل بمقدار ({requiredDownPayment.toLocaleString()} ج.م)!</span>
-                    </div>
-                    <p className="text-[11px] text-slate-300 font-medium leading-relaxed">
-                      إجمالي مديونية العميل بعد إصدار الفاتورة ({balanceAfterInvoice.toLocaleString()} ج.م) ستتجاوز الحد الائتماني المسموح به ({customerCreditLimit.toLocaleString()} ج.م). 
-                      <strong className="text-amber-300 font-black"> لابد من تحصيل مبلغ نقدي لا يقل عن ({requiredDownPayment.toLocaleString()} ج.م) </strong>
-                      لتصبح المديونية أقل من الحد الائتماني ويتمكن المشرف ومدير الفرع من اعتماد وصرف الطلبية.
-                    </p>
-                    <div className="pt-1 flex items-center flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const noteText = `توضيح الدفعة المقدمة: سيتم تحصيل دفعة نقدية بقيمة (${requiredDownPayment.toLocaleString()} ج.م) لتنزيل المديونية دون الحد الائتماني (${customerCreditLimit.toLocaleString()} ج.م).`;
-                          setOrderNotes((prev) => (prev && prev.includes('توضيح الدفعة المقدمة') ? prev : prev ? `${prev} | ${noteText}` : noteText));
-                        }}
-                        className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm cursor-pointer transition transform active:scale-95"
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>📝 إدراج بيان الدفعة المقدمة تلقائياً في بند الملاحظات</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Scenario 3: Customer has Overdue and Due Balance */}
-                {customerOverdueAndDue > 0 && !isCreditLimitExceeded && (
-                  <div className="p-3 bg-amber-950/40 border border-amber-500/50 rounded-xl text-xs space-y-1.5 text-amber-200">
-                    <div className="flex items-center gap-2 text-amber-300 font-black text-xs">
-                      <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
-                      <span>تنبيه المندوب بخصوص المتأخرات والمستحق ({customerOverdueAndDue.toLocaleString()} ج.م):</span>
-                    </div>
-                    <p className="text-[11px] text-slate-300 font-medium leading-relaxed">
-                      العميل مقيد عليه إجمالي متأخرات ومستحقات سابقة بقيمة <strong className="text-amber-300 font-black">{customerOverdueAndDue.toLocaleString()} ج.م</strong>. يرجى التنسيق مع العميل للتحصيل أثناء تسليم الطلبية الحالية.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Cart Items Table with Smart Carton & Piece Conversion */}
-          <div className="space-y-3" id="cart-items-section">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-2">
-                <span>2. الأصناف المحجوزة والكميات الذكية (كراتين + قطع)</span>
-                <span className="bg-amber-100 text-amber-950 text-xs px-2.5 py-0.5 rounded-full font-black border border-amber-300">
-                  {cart.length} أصناف
-                </span>
-              </h3>
-              {cart.length > 0 && (
-                <button
-                  onClick={clearCart}
-                  className="text-xs text-rose-600 hover:text-rose-800 font-black flex items-center gap-1 cursor-pointer bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 transition"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>تفريغ الطلبية</span>
-                </button>
-              )}
-            </div>
-
-            {cart.length === 0 ? (
-              <div className="bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center space-y-3">
-                <ShoppingCart className="w-12 h-12 text-slate-400 mx-auto" />
-                <div className="font-black text-slate-800 text-sm">الطلبية فارغة حالياً!</div>
-                <p className="text-slate-500 text-xs">
-                  توجه إلى كتالوج المنتجات واضغط على (+1 كرتونة) لإضافة أصناف دريم.
-                </p>
-                <button
-                  onClick={onClose}
-                  className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-5 py-2 rounded-xl text-xs shadow transition cursor-pointer"
-                >
-                  العودة للكتالوج
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3.5">
-                {cart.map((item) => {
-                  const liveProd = products.find((p) => p.id === item.product.id) || item.product;
-                  const p = liveProd;
-                  const cartonQty = p.cartonQuantity && p.cartonQuantity > 0 ? p.cartonQuantity : 1;
-
-                  const targetBranchForStock = customerBranch || currentUser?.branchName || '';
-                  const branchActual = getBranchStockForProduct(p, targetBranchForStock);
-                  const branchAvail = Math.max(0, branchActual);
-                  const mainAvail = Math.max(0, typeof p.mainWarehouseReserved === 'number' ? p.mainWarehouseReserved : p.mainWarehouseActual);
-                  const totalAvail = branchAvail + mainAvail;
-
-                  const currentCarton = item.cartonCount || 0;
-                  const currentPieces = item.pieceCount || 0;
-                  const totalUnits = (currentCarton * cartonQty) + currentPieces;
-
-                  const appliedCartonPrice = p.promoPrice && p.promoPrice > 0 ? p.promoPrice : p.cartonPrice;
-                  const piecePrice = p.piecePrice && p.piecePrice > 0 ? p.piecePrice : Math.round((appliedCartonPrice / cartonQty) * 100) / 100;
-
-                  // Stock Fulfillment Allocation Breakdown
-                  const fromBranch = Math.min(currentCarton, branchAvail);
-                  const fromMain = Math.max(0, currentCarton - fromBranch);
-                  const isOverTotalStock = currentCarton > totalAvail;
-
-                  return (
-                    <div
-                      key={p.id}
-                      className={`bg-white border rounded-2xl p-4 shadow-xs space-y-3.5 transition ${
-                        isOverTotalStock ? 'border-red-400 bg-red-50/20' : 'border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      {/* Product Header */}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <ProductImage
-                            product={p}
-                            cloudinaryConfig={cloudinaryConfig}
-                            containerClassName="w-14 h-14 rounded-xl bg-slate-100 shrink-0 border border-slate-200"
-                            className="w-full h-full object-cover"
-                            showBadgeOnFallback={false}
-                          />
-                          <div>
-                            <div className="flex items-center flex-wrap gap-1.5 mb-1">
-                              <span className="bg-slate-900 text-amber-300 font-mono font-black text-xs px-2 py-0.5 rounded-md">
-                                {p.code}
-                              </span>
-                              {p.unifiedCode && (
-                                <span className="bg-indigo-950 text-indigo-300 font-mono font-black text-xs px-2 py-0.5 rounded-md border border-indigo-700/60" title="الكود الموحد للموديل والألوان">
-                                  #{p.unifiedCode.replace('#', '')}
-                                </span>
-                              )}
-                              {(() => {
-                                const deptMeta = getDepartmentMeta(p.department || p.category);
-                                const DeptIcon = deptMeta.icon;
-                                return (
-                                  <span className="bg-amber-100/90 text-amber-950 border border-amber-300/80 text-[10px] font-black px-1.5 py-0.5 rounded-md flex items-center gap-1">
-                                    <DeptIcon className="w-3 h-3 text-amber-800" />
-                                    <span>{p.department || p.category || 'دريم'}</span>
-                                  </span>
-                                );
-                              })()}
-                              {p.classification && (
-                                <span className="bg-slate-100 text-slate-800 border border-slate-200 text-[10px] font-bold px-1.5 py-0.5 rounded-md">
-                                  🏷️ {p.classification}
-                                </span>
-                              )}
-                              {p.color && p.color.trim() && p.color !== 'افتراضي' && (
-                                <span className="bg-indigo-50 text-indigo-900 border border-indigo-200 text-[10px] font-black px-1.5 py-0.5 rounded-md">
-                                  🎨 {p.color}
-                                </span>
-                              )}
-                              {p.size && p.size.trim() && p.size !== 'حجم قياسي' && (
-                                <span className="bg-slate-100 text-slate-700 text-[10px] font-bold px-1.5 py-0.5 rounded-md">
-                                  📐 {p.size}
-                                </span>
-                              )}
-                              <span className="bg-amber-100 text-amber-950 font-black text-[10px] px-2 py-0.5 rounded-md border border-amber-200">
-                                شدة الكرتونة: {cartonQty} ق
-                              </span>
-                            </div>
-                            <h4 className="font-black text-slate-900 text-xs sm:text-sm">{p.name}</h4>
-                            <div className="text-[11px] text-slate-600 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 mt-0.5">
-                              <span>
-                                سعر الكرتونة: <strong className="text-amber-900 font-black">{formatCurrency(appliedCartonPrice)}</strong>
-                              </span>
-                              <span>•</span>
-                              <span>
-                                سعر القطعة: <strong className="text-blue-900 font-bold">{formatCurrency(piecePrice)}</strong>
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
+                  {/* Cart Items List */}
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-black text-slate-400 px-1">
+                      <span>الأصناف المختارة بالفاتورة ({cart.length})</span>
+                      {cart.length > 0 && (
                         <button
-                          onClick={() => removeFromCart(p.id)}
-                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer transition"
-                          title="حذف الصنف من الطلبية"
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm('هل تريد تفريغ سلة الكاشير بالكامل؟')) clearCart();
+                          }}
+                          className="text-rose-400 hover:text-rose-300 text-[11px] font-bold cursor-pointer flex items-center gap-1"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3 h-3" />
+                          <span>مسح السلة</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {cart.length === 0 ? (
+                      <div className="bg-slate-950/60 border border-dashed border-slate-800 rounded-2xl p-8 text-center space-y-2">
+                        <ShoppingCart className="w-8 h-8 text-slate-600 mx-auto" />
+                        <p className="text-xs font-bold text-slate-400">سلة الفاتورة فارغة حالياً</p>
+                        <p className="text-[11px] text-slate-500">
+                          اختر من قائمة الأصناف الجانبية لإضافتها فوراً للفاتورة.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setMobileActiveTab('catalog')}
+                          className="lg:hidden bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs cursor-pointer"
+                        >
+                          استعراض الكتالوج 🛒
                         </button>
                       </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {cart.map((item) => (
+                          <div
+                            key={item.product.id}
+                            className="bg-slate-950 border border-slate-800 rounded-2xl p-2.5 space-y-2 hover:border-slate-700 transition shadow-xs"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <ProductImage
+                                  product={item.product}
+                                  cloudinaryConfig={cloudinaryConfig}
+                                  sizeVariant="thumbnail"
+                                  containerClassName="w-10 h-10 rounded-lg bg-slate-900 border border-slate-800 overflow-hidden shrink-0"
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="min-w-0">
+                                  <div className="text-xs font-black text-white truncate">{item.product.name}</div>
+                                  <div className="text-[10px] text-slate-400 font-mono">
+                                    كود: {item.product.code} • شدة الكرتونة: {item.cartonQuantity} ق
+                                  </div>
+                                </div>
+                              </div>
 
-                      {/* Stock Allocation & Availability */}
-                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <Warehouse className="w-4 h-4 text-slate-600 shrink-0" />
-                          <div className="text-[11px] text-slate-700">
-                            <span>المتاح: </span>
-                            <strong className="text-emerald-700 font-black">{branchAvail} ك بالفرع</strong>
-                            <span> | </span>
-                            <strong className="text-blue-700 font-black">{mainAvail} ك بالمركزي</strong>
-                            <span> (إجمالي: <strong className="text-slate-950 font-black">{totalAvail} ك</strong>)</span>
+                              <button
+                                type="button"
+                                onClick={() => removeFromCart(item.product.id)}
+                                className="text-slate-500 hover:text-rose-400 p-1 rounded-lg transition cursor-pointer shrink-0"
+                                title="حذف الصنف"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            {/* Steppers: Carton & Piece */}
+                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-850">
+                              <div className="flex items-center gap-3">
+                                {/* Cartons Stepper */}
+                                <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateCartItem(item.product.id, {
+                                        cartonCount: Math.max(0, item.cartonCount - 1),
+                                      })
+                                    }
+                                    className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-white rounded-lg cursor-pointer"
+                                  >
+                                    <Minus className="w-3 h-3" />
+                                  </button>
+                                  <span className="w-8 text-center text-xs font-black text-amber-300 font-mono">
+                                    {item.cartonCount}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateCartItem(item.product.id, {
+                                        cartonCount: item.cartonCount + 1,
+                                      })
+                                    }
+                                    className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-white rounded-lg cursor-pointer"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </button>
+                                  <span className="text-[10px] text-slate-400 px-1 font-bold">ك</span>
+                                </div>
+
+                                {/* Pieces Stepper */}
+                                <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateCartItem(item.product.id, {
+                                        pieceCount: Math.max(0, (item.pieceCount || 0) - 1),
+                                      })
+                                    }
+                                    className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-white rounded-lg cursor-pointer"
+                                  >
+                                    <Minus className="w-3 h-3" />
+                                  </button>
+                                  <span className="w-8 text-center text-xs font-black text-blue-300 font-mono">
+                                    {item.pieceCount || 0}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateCartItem(item.product.id, {
+                                        pieceCount: (item.pieceCount || 0) + 1,
+                                      })
+                                    }
+                                    className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-white rounded-lg cursor-pointer"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </button>
+                                  <span className="text-[10px] text-slate-400 px-1 font-bold">ق</span>
+                                </div>
+                              </div>
+
+                              {/* Row Total */}
+                              <div className="text-left font-black text-amber-400 text-xs font-mono">
+                                {formatCurrency(item.totalPrice)}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-
-                        <div className="text-[11px] font-black">
-                          {isOverTotalStock ? (
-                            <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded-md border border-red-300">
-                              ⚠️ الكمية تتجاوز الإجمالي المتاح ({totalAvail} ك فقط)!
-                            </span>
-                          ) : fromBranch > 0 && fromMain > 0 ? (
-                            <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md border border-amber-300 flex items-center gap-1">
-                              ⚡ حجز مشترك: {fromBranch} ك فرع + {fromMain} ك مخزن مركزي
-                            </span>
-                          ) : fromBranch > 0 ? (
-                            <span className="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-md border border-emerald-300">
-                              ✓ حجز كامل من رصيد الفرع ({fromBranch} ك)
-                            </span>
-                          ) : (
-                            <span className="bg-blue-100 text-blue-900 px-2 py-0.5 rounded-md border border-blue-300">
-                              🏢 حجز كامل من المخزن المركزي بأكتوبر ({fromMain} ك)
-                            </span>
-                          )}
-                        </div>
+                        ))}
                       </div>
-
-                      {/* Safety Stock Alert if Branch Stock is Critical (<= 5 cartons) */}
-                      {branchAvail <= 5 && branchAvail > 0 && (
-                        <div className="bg-amber-50 border border-amber-300 text-amber-950 rounded-xl px-3 py-1.5 text-[11px] font-bold flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
-                          <span>⚠️ <strong>هامش الأمان:</strong> مخزون الفرع لهذا الصنف حرج ({branchAvail} ك فقط متبقية) - يُرجى التأكد من مسؤولي الفرع قبل تأكيد الطلبية.</span>
-                        </div>
-                      )}
-
-                      {/* Smart Quantity Controls: Cartons & Pieces with Automatic Conversion */}
-                      <div className="bg-amber-50/40 border border-amber-200/80 rounded-2xl p-3 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                        
-                        {/* Cartons Counter */}
-                        <div className="sm:col-span-5 flex items-center gap-2">
-                          <span className="text-slate-900 font-black text-xs shrink-0">الكراتين:</span>
-                          <div className="flex items-center bg-white rounded-xl border border-slate-300 p-0.5 shadow-xs">
-                            <button
-                              type="button"
-                              onClick={() => updateCartItem(p.id, { cartonCount: Math.max(0, currentCarton - 1) })}
-                              className="w-8 h-8 flex items-center justify-center text-slate-800 hover:bg-slate-100 rounded-lg transition font-black cursor-pointer"
-                              title="تقليل كرتونة"
-                            >
-                              <Minus className="w-3.5 h-3.5" />
-                            </button>
-                            <input
-                              type="number"
-                              min="0"
-                              value={currentCarton}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value) || 0;
-                                updateCartItem(p.id, { cartonCount: Math.max(0, val) });
-                              }}
-                              className="w-12 text-center bg-transparent font-black text-slate-900 focus:outline-none text-xs"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => updateCartItem(p.id, { cartonCount: currentCarton + 1 })}
-                              className="w-8 h-8 flex items-center justify-center text-slate-800 hover:bg-slate-100 rounded-lg transition font-black cursor-pointer"
-                              title="زيادة كرتونة"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                          <span className="text-[11px] text-slate-500 font-bold">ك</span>
-                        </div>
-
-                        {/* Pieces Counter (Automatic Conversion) */}
-                        <div className="sm:col-span-4 flex items-center gap-2">
-                          <span className="text-slate-900 font-black text-xs shrink-0">القطع:</span>
-                          <div className="flex items-center bg-white rounded-xl border border-slate-300 p-0.5 shadow-xs">
-                            <button
-                              type="button"
-                              onClick={() => updateCartItem(p.id, { pieceCount: Math.max(0, currentPieces - 1) })}
-                              className="w-8 h-8 flex items-center justify-center text-slate-800 hover:bg-slate-100 rounded-lg transition font-black cursor-pointer"
-                              title="تقليل قطعة"
-                            >
-                              <Minus className="w-3.5 h-3.5" />
-                            </button>
-                            <input
-                              type="number"
-                              min="0"
-                              value={currentPieces}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value) || 0;
-                                updateCartItem(p.id, { pieceCount: Math.max(0, val) });
-                              }}
-                              className="w-12 text-center bg-transparent font-black text-slate-900 focus:outline-none text-xs"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => updateCartItem(p.id, { pieceCount: currentPieces + 1 })}
-                              className="w-8 h-8 flex items-center justify-center text-slate-800 hover:bg-slate-100 rounded-lg transition font-black cursor-pointer"
-                              title="زيادة قطعة (تتحول لكرتونة تلقائياً عند اكتمال الشدة)"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                          <span className="text-[11px] text-slate-500 font-bold">ق</span>
-                        </div>
-
-                        {/* Item Total Price */}
-                        <div className="sm:col-span-3 text-left">
-                          <span className="text-[10px] text-slate-500 block font-bold">إجمالي الصنف:</span>
-                          <div className="text-xs sm:text-sm font-black text-amber-950 bg-amber-200/80 px-2.5 py-1 rounded-xl border border-amber-300 inline-block">
-                            {formatCurrency(item.totalPrice)}
-                          </div>
-                        </div>
-
-                      </div>
-
-                      {/* Smart Quantity Status Banner */}
-                      <div className="bg-slate-50 rounded-xl p-2 text-[11px] flex flex-wrap items-center justify-between gap-2 text-slate-700">
-                        <div className="flex items-center gap-1.5">
-                          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                          <span>البيان بالفاتورة: <strong className="text-slate-950 font-black">{item.quantityDescription || `${currentCarton} كرتونة`}</strong></span>
-                        </div>
-                        <div className="text-slate-500 font-bold">
-                          إجمالي القطع الكلي: <strong className="text-slate-900">{totalUnits} قطعة</strong>
-                        </div>
-                      </div>
-
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Payment Method & Commercial Discount & Notes */}
-          <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200 space-y-3 text-xs" id="payment-and-discount-section">
-            <h3 className="text-xs font-black text-slate-900 flex items-center justify-between border-b border-slate-200 pb-2">
-              <span className="flex items-center gap-1.5">
-                <span>3. شروط السداد والخصم التجاري</span>
-              </span>
-              <span className="text-[10px] text-slate-500 font-bold">يمكنك تحديد أو إلغاء الخصم (0%) بحرية</span>
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Payment Method */}
-              <div>
-                <label className="block text-slate-800 font-bold mb-1">طريقة سداد الفاتورة</label>
-                <select
-                  id="payment-method-select"
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-black text-slate-900 shadow-xs"
-                >
-                  <option value="نقدي (كاش)">نقدي (كاش عند الا��تلام)</option>
-                  <option value="آجل (30 يوم)">آجل تجاري (30 يوم)</option>
-                  <option value="آجل (60 يوم)">آجل تجاري (60 يوم)</option>
-                  <option value="تحويل بنكي">تحويل بنكي / إلكتروني</option>
-                  <option value="شيك">شيك بنكي معتمد</option>
-                </select>
-              </div>
-
-              {/* Commercial Discount % */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-slate-800 font-bold">الخصم التجاري الممنوح (%)</label>
-                  <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded">
-                    {discountPercent > 0 ? `-${formatCurrency(summary.discountAmount)}` : 'بدون خصم (0 ج.م)'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="relative flex-1">
-                    <input
-                      id="discount-percent-input"
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.5"
-                      value={discountPercent}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        setDiscountPercent(isNaN(val) ? 0 : Math.max(0, Math.min(100, val)));
-                      }}
-                      className="w-full p-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-black text-slate-900 shadow-xs text-center"
-                      placeholder="0"
-                    />
-                    <span className="absolute left-2.5 top-2.5 text-slate-400 font-black text-xs">%</span>
+                    )}
                   </div>
 
-                  {/* Quick Preset Buttons */}
-                  <div className="flex items-center gap-1">
-                    {[0, 2, 3.5, 5].map((pct) => (
+                  {/* Financial Summary & Action Bar */}
+                  <div className="p-3.5 bg-slate-950 border-t border-slate-800 space-y-3 shrink-0">
+                    {/* Discount & Payment Method */}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold block mb-1">الخصم التجاري (%):</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={discountPercent || ''}
+                          onChange={(e) => setDiscountPercent(Math.max(0, Number(e.target.value)))}
+                          placeholder="0%"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono focus:ring-2 focus:ring-amber-500"
+                        />
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold block mb-1">طريقة السداد:</span>
+                        <select
+                          value={paymentMethod}
+                          onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-white font-bold focus:ring-2 focus:ring-amber-500"
+                        >
+                          <option value="نقدي (كاش)">نقدي (كاش)</option>
+                          <option value="آجل (على الحساب)">آجل (على الحساب)</option>
+                          <option value="تحويل بنكي / فودافون كاش">تحويل بنكي / كاش</option>
+                          <option value="شيك بنكي">شيك بنكي</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Grand Total Bar */}
+                    <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-2xl flex items-center justify-between text-xs">
+                      <div>
+                        <span className="text-slate-400 text-[10px] block">المجموع: {formatCurrency(summary.subtotal)}</span>
+                        <span className="text-amber-400 font-black text-sm">الصافي المطلوب:</span>
+                      </div>
+                      <div className="text-left font-black text-amber-400 text-lg font-mono">
+                        {formatCurrency(summary.grandTotal)}
+                      </div>
+                    </div>
+
+                    {/* Submit Actions */}
+                    <div className="flex items-center gap-2">
                       <button
-                        key={pct}
                         type="button"
-                        onClick={() => setDiscountPercent(pct)}
-                        className={`px-2 py-2 rounded-lg text-[11px] font-black transition cursor-pointer ${
-                          discountPercent === pct
-                            ? 'bg-amber-500 text-slate-950 shadow-xs'
-                            : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'
+                        disabled={isSubmitting || cart.length === 0}
+                        onClick={() => handleSubmitOrder(false, false)}
+                        className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black py-2.5 px-3 rounded-2xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>{isSubmitting ? 'جاري الحفظ...' : 'حفظ الطلبية للمشرف (حجز الرصيد) ✅'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isSubmitting || cart.length === 0}
+                        onClick={() => handleSubmitOrder(true, false)}
+                        className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black p-2.5 rounded-2xl transition cursor-pointer shrink-0"
+                        title="حفظ وتحميل إكسل"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isSubmitting || cart.length === 0}
+                        onClick={() => handleSubmitOrder(false, true)}
+                        className="bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-black p-2.5 rounded-2xl transition cursor-pointer shrink-0"
+                        title="حفظ وتحميل PDF"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* COLUMN 2: Fast Product Catalog & Quick-Add (Right on Desktop, 7 cols) */}
+                <div
+                  className={`lg:col-span-7 xl:col-span-7 flex flex-col overflow-hidden bg-slate-950 ${
+                    mobileActiveTab === 'cart' ? 'hidden lg:flex' : 'flex'
+                  }`}
+                >
+                  {/* Search Bar & Filters */}
+                  <div className="p-3 bg-slate-900 border-b border-slate-800 space-y-2 shrink-0">
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={productSearch}
+                        onChange={(e) => {
+                          setProductSearch(e.target.value);
+                          setCatalogPage(1);
+                        }}
+                        placeholder="بحث سريع بمئات الأصناف بالاسم، الكود، الكود الموحد (#) أو الباركود..."
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl pr-9 pl-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+
+                    {/* Category Filter Chips */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] scrollbar-none">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedCategory('all');
+                          setCatalogPage(1);
+                        }}
+                        className={`px-3 py-1 rounded-xl font-bold whitespace-nowrap transition cursor-pointer ${
+                          selectedCategory === 'all'
+                            ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
+                            : 'bg-slate-800 text-slate-300 hover:text-white'
                         }`}
                       >
-                        {pct === 0 ? '0%' : `${pct}%`}
+                        الكل ({products.length})
                       </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
 
-              {/* Notes */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-slate-800 font-bold">ملاحظات التحميل والتسليم</label>
-                  {isCreditLimitExceeded && (
-                    <span className="text-[10px] font-black text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">
-                      ⚠️ مطلوب توضيح الدفعة المقدمة
-                    </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedCategory('promo');
+                          setCatalogPage(1);
+                        }}
+                        className={`px-3 py-1 rounded-xl font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1 ${
+                          selectedCategory === 'promo'
+                            ? 'bg-rose-600 text-white font-black shadow-xs'
+                            : 'bg-rose-950/40 text-rose-300 hover:bg-rose-900/50'
+                        }`}
+                      >
+                        <Flame className="w-3 h-3" />
+                        <span>عروض ترويجية 🔥</span>
+                      </button>
+
+                      {availableCategories.map((cat) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCategory(cat);
+                            setCatalogPage(1);
+                          }}
+                          className={`px-3 py-1 rounded-xl font-bold whitespace-nowrap transition cursor-pointer ${
+                            selectedCategory === cat
+                              ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
+                              : 'bg-slate-800 text-slate-300 hover:text-white'
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Products Grid */}
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    {filteredProducts.length === 0 ? (
+                      <div className="p-8 text-center text-slate-500 text-xs font-bold">
+                        لا توجد أصناف مطابقة للبحث
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+                        {pagedProducts.map((prod) => {
+                          const branchCartonsAvailable = typeof prod.branchStockReserved === 'number'
+                            ? Math.max(0, prod.branchStockReserved)
+                            : Math.max(0, prod.branchStockActual);
+
+                          const mainWhCartonsAvailable = typeof prod.mainWarehouseReserved === 'number'
+                            ? Math.max(0, prod.mainWarehouseReserved)
+                            : Math.max(0, prod.mainWarehouseActual);
+
+                          const totalAvailable = branchCartonsAvailable + mainWhCartonsAvailable;
+                          const activePendingReserved = Math.max(0, prod.branchStockActual - branchCartonsAvailable);
+
+                          const appliedPrice = prod.promoPrice && prod.promoPrice > 0 ? prod.promoPrice : prod.cartonPrice;
+
+                          return (
+                            <div
+                              key={prod.id}
+                              className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-2.5 flex flex-col justify-between space-y-2 shadow-xs transition"
+                            >
+                              <div className="flex items-start gap-2 min-w-0">
+                                <ProductImage
+                                  product={prod}
+                                  cloudinaryConfig={cloudinaryConfig}
+                                  sizeVariant="thumbnail"
+                                  containerClassName="w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden shrink-0"
+                                  className="w-full h-full object-cover"
+                                />
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="bg-slate-950 text-amber-300 text-[10px] font-mono font-black px-1.5 py-0.2 rounded">
+                                      {prod.code}
+                                    </span>
+                                    {prod.promoPrice ? (
+                                      <span className="bg-rose-600 text-white text-[9px] font-black px-1.5 py-0.2 rounded">
+                                        عرض
+                                      </span>
+                                    ) : null}
+                                  </div>
+
+                                  <div className="text-xs font-black text-white truncate mt-0.5" title={prod.name}>
+                                    {prod.name}
+                                  </div>
+
+                                  <div className="text-[10px] text-slate-400">
+                                    شدة: <strong className="text-slate-200">{prod.cartonQuantity} ق</strong>
+                                    {' • '}
+                                    <span className="font-mono text-amber-300 font-bold">
+                                      {formatCurrency(appliedPrice)}/ك
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Live Stock Indicators (Prevent Double-Booking) */}
+                              <div className="bg-slate-950 p-1.5 rounded-xl text-[10px] space-y-0.5 font-bold">
+                                <div className="flex items-center justify-between text-slate-300">
+                                  <span>متاح بالفرع:</span>
+                                  <span className={branchCartonsAvailable > 0 ? 'text-emerald-400 font-black' : 'text-rose-400'}>
+                                    {branchCartonsAvailable} كرتونة
+                                  </span>
+                                </div>
+
+                                {activePendingReserved > 0 && (
+                                  <div className="flex items-center justify-between text-amber-400 text-[9px]">
+                                    <span>محجوز لطلبيات معلقة:</span>
+                                    <span className="font-black">{activePendingReserved} ك</span>
+                                  </div>
+                                )}
+
+                                <div className="flex items-center justify-between text-slate-400 text-[9px]">
+                                  <span>مخزن أكتوبر الرئيسي:</span>
+                                  <span className="text-blue-300 font-bold">{mainWhCartonsAvailable} ك</span>
+                                </div>
+                              </div>
+
+                              {/* Quick Action Add Buttons */}
+                              <div className="flex items-center gap-1 pt-1">
+                                {totalAvailable > 0 ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleQuickAddProduct(prod, 1, 'carton')}
+                                      className="flex-1 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black py-1.5 rounded-xl text-[11px] transition cursor-pointer shadow-xs"
+                                    >
+                                      + 1 كرتونة
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleQuickAddProduct(prod, 5, 'carton')}
+                                      className="bg-slate-800 hover:bg-slate-700 text-amber-300 font-black px-2 py-1.5 rounded-xl text-[11px] transition cursor-pointer"
+                                      title="إضافة 5 كراتين"
+                                    >
+                                      +5 ك
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleQuickAddProduct(prod, 1, 'piece')}
+                                      className="bg-slate-800 hover:bg-slate-700 text-blue-300 font-black px-2 py-1.5 rounded-xl text-[11px] transition cursor-pointer"
+                                      title="إضافة قطعة مفردة"
+                                    >
+                                      +1 ق
+                                    </button>
+                                  </>
+                                ) : (
+                                  <div className="w-full bg-slate-950 text-rose-400 text-center py-1.5 rounded-xl text-[10px] font-black border border-rose-900/40">
+                                    ⚠️ محجوز بالكامل لطلبيات معلقة
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Catalog Pagination */}
+                  {totalCatalogPages > 1 && (
+                    <div className="p-2.5 bg-slate-900 border-t border-slate-800 flex items-center justify-between text-xs shrink-0">
+                      <span className="text-slate-400 text-[11px]">
+                        صفحة {catalogPage} من {totalCatalogPages} ({filteredProducts.length} صنف)
+                      </span>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={catalogPage <= 1}
+                          onClick={() => setCatalogPage((p) => Math.max(1, p - 1))}
+                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-xs font-bold transition cursor-pointer"
+                        >
+                          السابق
+                        </button>
+                        <button
+                          type="button"
+                          disabled={catalogPage >= totalCatalogPages}
+                          onClick={() => setCatalogPage((p) => Math.min(totalCatalogPages, p + 1))}
+                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-xs font-bold transition cursor-pointer"
+                        >
+                          التالي
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
-                <input
-                  id="order-notes-input"
-                  type="text"
-                  value={orderNotes}
-                  onChange={(e) => setOrderNotes(e.target.value)}
-                  placeholder={
-                    isCreditLimitExceeded
-                      ? `مثال: سيتم تحصيل دفعة مقدمة بقيمة ${requiredDownPayment.toLocaleString()} ج.م عند الاستلام...`
-                      : 'مثال: تسليم صباحاً، إرفاق إشعار الخصم...'
-                  }
-                  className={`w-full p-2.5 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-semibold text-slate-900 shadow-xs placeholder:text-slate-400 ${
-                    isCreditLimitExceeded
-                      ? 'border-2 border-amber-400 bg-amber-50/20'
-                      : 'border border-slate-300'
-                  }`}
-                />
-              </div>
-            </div>
-          </div>
 
-          {/* Shortage Backorder Splitting Option */}
-          {hasWarehouseItems && (
-            <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3.5 space-y-2 text-xs">
-              <label className="flex items-start gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={splitShortagesToBackorder}
-                  onChange={(e) => setSplitShortagesToBackorder(e.target.checked)}
-                  className="w-4 h-4 mt-0.5 accent-amber-500 rounded cursor-pointer"
-                />
-                <div>
-                  <span className="font-black text-slate-900 block">
-                    فصل أصناف النواقص تلقائياً في فاتورة توريد مستقلة (-NQ) محولة من المخزن المركزي بأكتوبر
-                  </span>
-                  <p className="text-[11px] text-slate-600 mt-0.5">
-                    تضمن هذه الميزة إصدار فاتورة فورية لما هو متاح بالفرع، وفاتورة ملحقة بنواقص الطلبية لطلب تحويلها من المخزن الرئيسي المركزي دون تعطيل تسليم العميل.
-                  </p>
-                </div>
-              </label>
+              </div>
             </div>
           )}
-
-          {/* Customer Appreciation Note */}
-          <div className="bg-gradient-to-r from-amber-50 to-amber-100/70 border border-amber-300/80 rounded-2xl p-3.5 text-center shadow-xs">
-            <p className="text-xs sm:text-sm font-black text-amber-950 flex items-center justify-center gap-2">
-              <span>✨ شكراً لتعاملكم معنا، يسعدنا دائماً أن تكونوا جزءاً من عائلة شركة دريم للتجارة والتوزيع ❤️</span>
-            </p>
-          </div>
-
-          {/* Financial Summary Box */}
-          <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-white rounded-3xl p-5 shadow-xl border border-slate-700 space-y-3" id="financial-summary-box">
-            <div className="flex items-center justify-between border-b border-slate-700 pb-3">
-              <h4 className="font-black text-sm text-amber-300">الملخص المالي للفاتورة الإلكترونية</h4>
-              <span className="text-xs text-slate-300 font-bold">شركة دريم • حساب سعر الكرتونة والقطع والخصم المباشر</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-              <div className="bg-slate-800/90 p-3 rounded-2xl border border-slate-700">
-                <span className="text-slate-400 block text-[10px] font-bold">إجمالي الكراتين</span>
-                <strong className="text-base font-black text-amber-400">{summary.totalCartons} كرتونة</strong>
-              </div>
-
-              <div className="bg-slate-800/90 p-3 rounded-2xl border border-slate-700">
-                <span className="text-slate-400 block text-[10px] font-bold">إجمالي القطع الكلي</span>
-                <strong className="text-sm font-black text-blue-300">{summary.totalPieces} قطعة</strong>
-              </div>
-
-              <div className="bg-slate-800/90 p-3 rounded-2xl border border-slate-700">
-                <span className="text-slate-400 block text-[10px] font-bold">المجموع قبل الخصم</span>
-                <strong className="text-sm font-black text-slate-200">{formatCurrency(summary.subtotal)}</strong>
-              </div>
-
-              <div className="bg-slate-800/90 p-3 rounded-2xl border border-slate-700">
-                <span className="text-slate-400 block text-[10px] font-bold">
-                  الخصم التجاري ({discountPercent}%)
-                </span>
-                <strong className={`text-sm font-black ${discountPercent > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                  {discountPercent > 0 ? `-${formatCurrency(summary.discountAmount)}` : '0 ج.م'}
-                </strong>
-              </div>
-            </div>
-
-            {/* Grand Total */}
-            <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-700">
-              <div>
-                <span className="text-xs text-slate-300 block font-bold">إجمالي الفاتورة الصافي النهائي:</span>
-                <div className="text-2xl font-black text-yellow-400 tracking-tight">
-                  {formatCurrency(summary.grandTotal)}
-                </div>
-              </div>
-              <div className="text-xs text-emerald-300 font-bold bg-emerald-950/60 px-3 py-1.5 rounded-xl border border-emerald-500/30">
-                صافي مطلوب سداده: {formatCurrency(summary.grandTotal)}
-              </div>
-            </div>
-
-          </div>
-          </>)}
-
-        </div>
-
-        {/* Modal Actions Footer */}
-        <div className="bg-slate-50 p-3 sm:p-4 border-t border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5" id="order-builder-footer">
-          
-          <button
-            onClick={onClose}
-            className="w-full sm:w-auto h-11 px-4 text-xs font-black text-slate-700 hover:text-slate-900 bg-white border border-slate-300 rounded-xl hover:bg-slate-100 transition cursor-pointer shadow-xs order-last sm:order-first flex items-center justify-center"
-          >
-            إلغاء الطلبية
-          </button>
-
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-            
-            {/* Direct Save & Export to Excel */}
-            <button
-              id="export-excel-order-btn"
-              disabled={isSubmitting || cart.length === 0}
-              onClick={() => handleSubmitOrder(true, false)}
-              className="flex items-center justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-black h-11 px-4 rounded-xl text-xs shadow-sm transition disabled:opacity-50 cursor-pointer"
-              title="حفظ الطلبية وتصدير شيت إكسل رسمي بالأكواد والكميات لرفعه على السيستم"
-            >
-              <FileSpreadsheet className="w-4 h-4 shrink-0" />
-              <span>حفظ وتحميل إكسل 📊</span>
-            </button>
-
-            {/* Direct Save & Export to PDF */}
-            <button
-              id="export-pdf-order-btn"
-              disabled={isSubmitting || cart.length === 0}
-              onClick={() => handleSubmitOrder(false, true)}
-              className="flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-black h-11 px-4 rounded-xl text-xs shadow-sm transition disabled:opacity-50 cursor-pointer"
-              title="حفظ الطلبية وتحميل فاتورة PDF فورية على الجهاز"
-            >
-              <Download className="w-4 h-4 shrink-0" />
-              <span>حفظ وتحميل PDF 📄</span>
-            </button>
-
-            {/* Save Order Directly for Supervisor & Branch Manager */}
-            <button
-              id="confirm-order-btn"
-              disabled={isSubmitting || cart.length === 0}
-              onClick={() => handleSubmitOrder(false, false)}
-              className="flex items-center justify-center gap-2 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black h-11 px-4 rounded-xl text-xs sm:text-sm shadow-md transition transform active:scale-95 disabled:opacity-50 cursor-pointer"
-              title="حفظ الطلبية بالسيستم وإرسالها لمدير الفرع والمشرف للمراجعة والاعتماد"
-            >
-              <CheckCircle2 className="w-4 h-4 shrink-0 stroke-[2.5]" />
-              <span>حفظ الطلبية (إرسال للمشرف) ✅</span>
-            </button>
-
-          </div>
-
         </div>
 
       </div>

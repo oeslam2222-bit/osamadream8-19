@@ -21,6 +21,7 @@ import { downloadInvoicePDF } from '../services/pdfService';
 import { formatCurrency } from '../services/invoiceService';
 import { COMPANY_INFO } from '../data/mockData';
 import { resolveCustomerFinancials } from '../services/arabicMatchingService';
+import { CustomerFinancialSummaryCard } from './CustomerFinancialSummaryCard';
 
 interface ExcelInvoicePreviewModalProps {
   invoice: Invoice | null;
@@ -375,42 +376,102 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                 </div>
               </div>
 
-              {/* Financial Position Card (Excel Formula View) */}
-              <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 text-xs space-y-2">
-                <div className="flex items-center justify-between border-b border-amber-200 pb-1.5">
-                  <div className="font-black text-amber-900 flex items-center gap-1.5">
-                    <CreditCard className="w-4 h-4 text-amber-700" />
-                    <span>الموقف المالي والائتماني للعميل (Financial Audit):</span>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-md font-bold text-[11px] ${
-                    isExceeded ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
-                  }`}>
-                    {isExceeded ? '⚠️ تجاوز الحد الائتماني' : '✅ ضمن الحد الائتماني المعتمد'}
+              {/* Financial Position Card (Unified CustomerFinancialSummaryCard) */}
+              <CustomerFinancialSummaryCard
+                customer={matchedCustomer || {
+                  name: invoice.customerName,
+                  code: resolvedCustomerCode,
+                  currentBalance: debtBefore,
+                  creditLimit: creditLimit,
+                  totalOverdueAndDue: debtBefore
+                }}
+                currentInvoiceAmount={invoice.estimatedGrandTotal}
+                theme="light"
+                initiallyOpen={true}
+                title="الموقف المالي والائتماني للعميل (Financial Audit)"
+              />
+
+              {/* Items Section: Responsive Mobile Cards for Phones, Full Spreadsheet Table for Desktop */}
+              
+              {/* Mobile View: Cards (phones & narrow screens) */}
+              <div className="block md:hidden space-y-2">
+                <div className="text-xs font-black text-slate-800 flex items-center justify-between pb-1 border-b border-slate-200">
+                  <span>أصناف الفاتورة ({invoice.items.length})</span>
+                  <span className="text-[11px] text-slate-500 font-bold">
+                    {invoice.totalCartons} كرتونة • {invoice.totalPieces} قطعة
                   </span>
                 </div>
+                {invoice.items.map((item, idx) => {
+                  const cartonQty = item.cartonQuantity || 1;
+                  const cCount = item.cartonCount || 0;
+                  const pCount = item.pieceCount || 0;
+                  const totalUnits = item.totalUnits || (cCount * cartonQty + pCount);
+                  const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round((item.pricePerCarton || item.appliedPrice) / cartonQty) : 0);
+                  const unified = item.unifiedCode || (item.product as any)?.unifiedCode;
+                  const fulfillment = item.fulfilledFrom === 'main_warehouse' ? 'مخزن 6 أكتوبر' : (invoice.branchName || 'مخزن الفرع');
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center pt-1">
-                  <div className="bg-white p-2 rounded-lg border border-amber-200">
-                    <span className="text-[10px] text-slate-500 block">المديونية السابقة:</span>
-                    <strong className="text-slate-800 font-black">{formatCurrency(debtBefore)}</strong>
-                  </div>
-                  <div className="bg-white p-2 rounded-lg border border-amber-200">
-                    <span className="text-[10px] text-slate-500 block">صافي الفاتورة الحالية:</span>
-                    <strong className="text-amber-800 font-black">{formatCurrency(invoice.estimatedGrandTotal)}</strong>
-                  </div>
-                  <div className="bg-white p-2 rounded-lg border border-amber-200">
-                    <span className="text-[10px] text-slate-500 block">إجمالي المديونية بعد الفاتورة:</span>
-                    <strong className="text-rose-700 font-black">{formatCurrency(debtAfter)}</strong>
-                  </div>
-                  <div className="bg-white p-2 rounded-lg border border-amber-200">
-                    <span className="text-[10px] text-slate-500 block">الحد الائتماني المعتمد:</span>
-                    <strong className="text-blue-800 font-black">{formatCurrency(creditLimit)}</strong>
-                  </div>
-                </div>
+                  return (
+                    <div
+                      key={item.productCode + idx}
+                      className="p-3 bg-white rounded-xl border border-slate-200 shadow-xs space-y-2 text-xs"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 font-black text-[10px] flex items-center justify-center shrink-0">
+                              {idx + 1}
+                            </span>
+                            <span className="font-mono font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">
+                              {cleanProductCode(item.productCode)}
+                            </span>
+                            {unified && unified !== '---' && (
+                              <span className="font-mono text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded text-[11px]">
+                                #{unified.replace('#', '')}
+                              </span>
+                            )}
+                          </div>
+                          <div className="font-black text-slate-900 mt-1 leading-snug">
+                            {item.productName}
+                          </div>
+                        </div>
+
+                        <div className="text-left shrink-0">
+                          <span className="text-[10px] text-slate-400 block font-bold">الصافي</span>
+                          <strong className="text-amber-800 font-black text-sm">
+                            {formatCurrency(item.netTotal)}
+                          </strong>
+                        </div>
+                      </div>
+
+                      {/* Quantity & Packaging breakdown */}
+                      <div className="grid grid-cols-3 gap-1.5 bg-slate-50 p-2 rounded-lg text-center text-[11px]">
+                        <div className="bg-white p-1 rounded border border-slate-200">
+                          <span className="text-slate-400 block text-[9px] font-bold">كرتون</span>
+                          <strong className="text-slate-900 font-black">{cCount}</strong>
+                        </div>
+                        <div className="bg-white p-1 rounded border border-slate-200">
+                          <span className="text-slate-400 block text-[9px] font-bold">قطع فردية</span>
+                          <strong className="text-blue-700 font-black">{pCount}</strong>
+                        </div>
+                        <div className="bg-amber-100/80 p-1 rounded border border-amber-200">
+                          <span className="text-amber-800 block text-[9px] font-bold">إجمالي القطع</span>
+                          <strong className="text-amber-950 font-black">{totalUnits}</strong>
+                        </div>
+                      </div>
+
+                      {/* Pricing & Source */}
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
+                        <span>سعر الكرتونة: <strong className="text-slate-700">{formatCurrency(item.pricePerCarton || item.appliedPrice)}</strong></span>
+                        <span>سعر القطعة: <strong className="text-slate-700">{formatCurrency(pieceP)}</strong></span>
+                        <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-bold">{fulfillment}</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* Items Grid (Excel Table Styled) */}
-              <div className="border border-slate-300 rounded-xl overflow-x-auto">
+              {/* Desktop View: Full Excel Spreadsheet Table */}
+              <div className="hidden md:block border border-slate-300 rounded-xl overflow-x-auto">
                 <table className="w-full text-right text-xs border-collapse">
                   <thead>
                     <tr className="bg-slate-900 text-white font-bold border-b border-slate-700">

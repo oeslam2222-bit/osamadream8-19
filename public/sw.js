@@ -111,8 +111,12 @@ self.addEventListener('fetch', (event) => {
             return cachedResponse;
           }
           return fetch(request).then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              cache.put(request, networkResponse.clone());
+            if (networkResponse && (networkResponse.status === 200 || networkResponse.type === 'opaque')) {
+              try {
+                cache.put(request, networkResponse.clone());
+              } catch (e) {
+                // Ignore quota errors
+              }
             }
             return networkResponse;
           }).catch(() => {

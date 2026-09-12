@@ -98,6 +98,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const [showAllExplicitly, setShowAllExplicitly] = useState(false);
   const [isMobileCashierOpen, setIsMobileCashierOpen] = useState(false);
 
+  // Auto-open mobile cashier drawer when customer is selected so user sees their financial details immediately
+  useEffect(() => {
+    if (selectedCustomer && typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsMobileCashierOpen(true);
+    }
+  }, [selectedCustomer]);
+
   // Search & Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOfficialDept, setSelectedOfficialDept] = useState<string>('الكل');
@@ -1943,17 +1950,21 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       </div>
 
       {/* Mobile Floating Cashier Trigger Bar */}
-      {cart.length > 0 && (
+      {(cart.length > 0 || selectedCustomer) && (
         <div className="fixed bottom-16 left-3 right-3 z-40 lg:hidden animate-in slide-in-from-bottom">
-          <div className="bg-slate-950 text-white p-3 rounded-2xl shadow-2xl border-2 border-amber-400 flex items-center justify-between">
+          <div className="bg-slate-950 text-white p-2.5 sm:p-3 rounded-2xl shadow-2xl border-2 border-amber-400 flex items-center justify-between">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0">
                 <ShoppingCart className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <div className="text-[10px] text-slate-400 font-bold">فاتورة الكاشير الحالية</div>
+                <div className="text-[10px] text-slate-400 font-bold truncate">
+                  {selectedCustomer ? `العميل: ${selectedCustomer.name}` : 'فاتورة الكاشير الحالية'}
+                </div>
                 <div className="text-xs font-black text-amber-300 truncate">
-                  {cart.length} أصناف • {cartSummary.totalCartons} كرتونة • {formatCurrency(cartSummary.grandTotal)}
+                  {cart.length > 0
+                    ? `${cart.length} أصناف • ${cartSummary.totalCartons} كرتونة • ${formatCurrency(cartSummary.grandTotal)}`
+                    : selectedCustomer ? 'الموقف المالي جاهز - ابدأ إضافة الأصناف' : 'السلة فارغة'}
                 </div>
               </div>
             </div>
@@ -1970,7 +1981,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* Mobile Slide-Up Cashier Modal */}
       {isMobileCashierOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex flex-col justify-end lg:hidden animate-in fade-in">
-          <div className="bg-slate-900 rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border-t-2 border-amber-400">
+          <div className="bg-slate-900 rounded-t-3xl h-[92vh] max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border-t-2 border-amber-400">
             <PosCashierSidebar
               selectedCustomer={selectedCustomer}
               onClearSelectedCustomer={onClearSelectedCustomer}

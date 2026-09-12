@@ -44,17 +44,18 @@ export const ProductImage: React.FC<ProductImageProps> = ({
     return `${product.code || product.id || 'item'}_${product.imageUrl || ''}`;
   }, [product.code, product.id, product.imageUrl]);
 
-  // Determine optimal size based on variant and data saver mode (optimized for mobile speed)
+  // Determine optimal size based on variant and data saver mode (crisp quality + lightweight WebP)
   const effectiveSize = useMemo(() => {
     if (targetSize) return targetSize;
     if (dataSaverMode) {
-      if (sizeVariant === 'thumbnail') return 100;
-      if (sizeVariant === 'card') return 180; // Ultra lightweight ~10-15KB WebP for mobile
-      return 360; // for modal
+      if (sizeVariant === 'thumbnail') return 120;
+      if (sizeVariant === 'card') return 220;
+      return 480; // for modal in data saver
     }
-    if (sizeVariant === 'thumbnail') return 140;
-    if (sizeVariant === 'card') return 220;
-    return 500; // modal
+    // High-definition mode for crisp viewing on modern mobile OLED/Retina screens
+    if (sizeVariant === 'thumbnail') return 180;
+    if (sizeVariant === 'card') return 360;
+    return 800; // full high-res modal
   }, [targetSize, sizeVariant, dataSaverMode]);
 
   // IntersectionObserver for lazy rendering off-screen items

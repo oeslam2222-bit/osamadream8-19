@@ -63,7 +63,7 @@ const MainLayout: React.FC = () => {
 
   const handleOpenOrderForCustomer = (cust: Customer) => {
     setOrderInitialCustomer(cust);
-    setIsOrderModalOpen(true);
+    setActiveTab('catalog');
   };
 
   const handleEditInvoice = (invoice: Invoice) => {
@@ -111,13 +111,7 @@ const MainLayout: React.FC = () => {
             />
           )}
 
-          {activeTab === 'customers' && (
-            <CustomerDirectoryView
-              onOpenNewOrderForCustomer={(cust) => handleOpenOrderForCustomer(cust)}
-            />
-          )}
-
-          {activeTab === 'all_customers' && (
+          {(activeTab === 'all_customers' || activeTab === 'customers') && (
             <AllCustomersAnalyticsView
               onOpenNewOrderForCustomer={(cust) => handleOpenOrderForCustomer(cust)}
             />
@@ -264,7 +258,7 @@ class MobileErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBound
           <div className="w-16 h-16 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black mb-4 shadow-xl">
             <Package className="w-8 h-8" />
           </div>
-          <h2 className="text-xl font-black text-amber-300 mb-2">منظومة دريم طنطاوي للتوزيع</h2>
+          <h2 className="text-xl font-black text-amber-300 mb-2">منظومة مجموعة الطنطاوي للتجارة والتوزيع</h2>
           <p className="text-sm text-slate-300 max-w-md mb-6 leading-relaxed">
             تم استعادة بيانات التطبيق بنجاح لمنع توقف الشاشة. اضغط على الزر أدناه لإعادة تشغيل الكتالوج.
           </p>

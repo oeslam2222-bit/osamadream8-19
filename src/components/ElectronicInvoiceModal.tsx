@@ -37,6 +37,7 @@ import { CompanySettingsModal } from './CompanySettingsModal';
 import { CreditAuditModal } from './CreditAuditModal';
 import { OrderReturnModal } from './OrderReturnModal';
 import { ExcelInvoicePreviewModal } from './ExcelInvoicePreviewModal';
+import { CustomerFinancialSummaryCard } from './CustomerFinancialSummaryCard';
 
 interface ElectronicInvoiceModalProps {
   invoice: Invoice | null;
@@ -586,6 +587,25 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               </span>
             </div>
           </div>
+
+          {/* Unified Financial Position Card (Synchronized with All Customers database and POS Cashier) */}
+          <CustomerFinancialSummaryCard
+            customer={{
+              id: currentInv.customerId,
+              code: currentInv.customerCode,
+              name: currentInv.customerName,
+              phone: currentInv.customerPhone,
+              address: currentInv.customerAddress,
+              branchName: currentInv.branchName,
+              currentBalance: currentInv.customerBalanceBefore,
+              creditLimit: currentInv.customerCreditLimit,
+              totalOverdueAndDue: currentInv.customerOverdueBalance,
+            }}
+            currentInvoiceAmount={currentInv.estimatedGrandTotal}
+            theme="light"
+            initiallyOpen={true}
+            title="الموقف المالي والائتماني المعتمد للعميل (كافة العملاء)"
+          />
 
           {/* Items Table */}
           <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
