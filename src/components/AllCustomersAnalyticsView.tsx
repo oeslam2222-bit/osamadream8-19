@@ -272,6 +272,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     let totalCollections2025 = 0;
     let totalCollections2026 = 0;
     let totalDebt = 0;
+    let totalOverdue = 0;
+    let totalDue = 0;
+    let customersWithOverdue = 0;
     let active2026Count = 0;
     let churnRiskCount = 0;
     let totalVisits2026 = 0;
@@ -296,6 +299,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       totalCollections2025 += c25;
       totalCollections2026 += c26;
       totalDebt += bal;
+      const overdue = c.overdueBalance ?? 0;
+      const due = c.dueBalance ?? Math.max(0, bal - overdue);
+      totalOverdue += overdue;
+      totalDue += due;
+      if (overdue > 0) customersWithOverdue++;
       totalVisits2026 += c.visitCount2026 || (c.lastVisitDate ? 1 : 0);
 
       if (c.hasDealtIn2026 || s26 > 0) {
@@ -342,6 +350,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       totalCollections2026,
       collectionRate,
       totalDebt,
+      totalOverdue,
+      totalDue,
+      customersWithOverdue,
       totalVisits2026,
       monthlyChartData,
     };
@@ -496,7 +507,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       </div>
 
       {/* KPI Cards Strip (High Contrast & Clear Readability) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-2.5">
         {/* Total Customers */}
         <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm">
           <div className="text-[11px] font-bold text-slate-400 flex items-center justify-between">
@@ -587,6 +598,34 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           </div>
           <div className="text-[10px] text-purple-600 font-bold mt-0.5">
             {kpiStats.totalVisits2026} زيارة مسجلة
+          </div>
+        </div>
+
+        {/* Overdue */}
+        <div className="bg-white rounded-2xl p-3 border border-rose-200/60 bg-rose-50/20 shadow-sm">
+          <div className="text-[11px] font-bold text-rose-700 flex items-center justify-between">
+            <span>المتأخرات</span>
+            <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+          </div>
+          <div className="text-base sm:text-lg font-black text-rose-900 mt-1 truncate">
+            {formatCurrency(kpiStats.totalOverdue)}
+          </div>
+          <div className="text-[10px] text-rose-600 font-bold mt-0.5">
+            {kpiStats.customersWithOverdue.toLocaleString()} عميل متأخر
+          </div>
+        </div>
+
+        {/* Due */}
+        <div className="bg-white rounded-2xl p-3 border border-cyan-200/60 bg-cyan-50/20 shadow-sm">
+          <div className="text-[11px] font-bold text-cyan-700 flex items-center justify-between">
+            <span>المستحق للدفع</span>
+            <Clock className="w-3.5 h-3.5 text-cyan-600" />
+          </div>
+          <div className="text-base sm:text-lg font-black text-cyan-900 mt-1 truncate">
+            {formatCurrency(kpiStats.totalDue)}
+          </div>
+          <div className="text-[10px] text-cyan-600 font-bold mt-0.5">
+            من إجمالي الرصيد الحالي
           </div>
         </div>
       </div>
@@ -1349,7 +1388,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 <div className="space-y-2">
                   <h4 className="font-black text-xs text-slate-800 flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-blue-500" />
-                    <span>سجل الزيارات الميدانية المسجلة ({selectedCustomer.visitHistory.length})</span>
+                    <span>سجل الزيارات الميدانية الم��جلة ({selectedCustomer.visitHistory.length})</span>
                   </h4>
 
                   <div className="space-y-2 max-h-48 overflow-y-auto">
