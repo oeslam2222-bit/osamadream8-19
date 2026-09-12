@@ -65,7 +65,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
         await installPromptEvent.prompt();
         const choice = await installPromptEvent.userChoice;
         if (choice?.outcome === 'accepted') {
-          setInstallStatusMsg('تم قبول التثبيت بنجاح! يتم الآن تنزيل التطبيق على هاتفك بأيقونة الطنطاوي الأصلية بدون علامة كروم.');
+          setInstallStatusMsg('تم قبول التثبيت بنجاح! افتح التطبيق من درج التطبيقات بعد اكتمال التثبيت.');
           setIsInstalled(true);
           setTimeout(() => onClose(), 2500);
         } else {
@@ -119,7 +119,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
 
           <h3 className="text-xl font-black text-white">تثبيت التطبيق على الموبايل بدون علامة كروم</h3>
           <p className="text-xs text-slate-300 mt-1 max-w-sm mx-auto leading-relaxed">
-            احصل على التطبيق الأصلي كبرنامج حقيقي في شاشة التطبيقات وهاتفك بدون شريط المتصفح وبأيقونة الطنطاوي الصافية.
+            ثبّت التطبيق كبرنامج مستقل في شاشة التطبيقات، بدون شريط المتصفح وبأيقونة الطنطاوي الرسمية.
           </p>
         </div>
 
