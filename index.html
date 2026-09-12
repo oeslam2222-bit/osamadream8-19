@@ -46,27 +46,7 @@
       </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      // Clear legacy cache storage keys
-      if ('caches' in window) {
-        caches.keys().then(function(keys) {
-          keys.forEach(function(key) {
-            if (key.indexOf('dream-tantawy') !== -1 || key.indexOf('v1') !== -1 || key.indexOf('v2') !== -1) {
-              caches.delete(key);
-            }
-          });
-        });
-      }
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(function(reg) {
-            reg.update();
-          }).catch(function(err) {
-            console.warn('SW registration:', err);
-          });
-        });
-      }
-    </script>
+
   </body>
 </html>
 
