@@ -43,6 +43,7 @@ import {
   QUARTER_LABELS
 } from '../services/targetService';
 import { TargetQuarter, TargetRecord } from '../types';
+import { getPublishedDataSources } from '../services/dataSourceService';
 
 export const TargetPerformanceDashboard: React.FC = () => {
   const {
@@ -74,6 +75,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
   const [selectedBranch, setSelectedBranch] = useState<string>('ALL');
   const [selectedRep, setSelectedRep] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [powerBiUrl] = useState(() => getPublishedDataSources().targets);
 
   // Admin tabs: overview | quarters | table
   const [adminTab, setAdminTab] = useState<'overview' | 'quarters' | 'table'>('overview');
@@ -296,6 +298,15 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 pb-12">
+      {powerBiUrl.enabled && powerBiUrl.kind === 'power_bi' && powerBiUrl.url.trim() && (
+        <section className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between gap-3 p-4 border-b border-slate-200">
+            <div><h2 className="font-black text-slate-900">لوحة Power BI الشاملة</h2><p className="text-xs text-slate-500 mt-1">تفاصيل المناديب ومحققات الفروع</p></div>
+            <a href={powerBiUrl.url} target="_blank" rel="noreferrer" className="text-xs font-black text-emerald-700 hover:underline">فتح في نافذة جديدة</a>
+          </div>
+          <iframe title="لوحة أهداف المبيعات والتحصيل Power BI" src={powerBiUrl.url} className="w-full min-h-[520px] border-0" loading="lazy" allowFullScreen />
+        </section>
+      )}
       {/* Top Header Card */}
       <div className="bg-slate-900 text-white rounded-3xl p-4 sm:p-6 shadow-xl border border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -398,7 +409,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
           <h2 className="text-lg sm:text-xl font-black text-slate-900">
             {isAdminOrDev
               ? 'لا توجد بيانات أهداف مسجلة حالياً 🎯'
-              : `أهلاً بك يا ${currentUser?.name || ''} 🎯`}
+              : `أهلاً بك يا ${currentUser?.name || ''} ��`}
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 leading-relaxed max-w-lg mx-auto">
             {isAdminOrDev ? (
