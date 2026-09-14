@@ -33,23 +33,32 @@ import {
   Users,
   X,
   Trash2,
-  ShieldAlert
+  ShieldAlert,
+  Target,
+  BadgePercent,
+  Calendar,
+  CreditCard,
+  FileCheck
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { getProductImageUrl } from '../services/cloudinaryService';
 import {
+  CUSTOMER_SALES_TARGET_COLUMNS,
   exportCustomersToExcel,
+  exportCustomerTargetSheetToExcel,
   exportProductsToExcel,
   fetchAndParseGoogleSheet,
   fetchCustomersFromGoogleSheetUrl,
   generateSampleCustomersTemplate,
+  generateSampleCustomerTargetTemplate,
   generateSampleExcelTemplate,
   parseExcelCustomers,
   parseExcelProducts
 } from '../services/excelService';
 import { formatCurrency } from '../services/invoiceService';
 import { Customer, Product } from '../types';
+import { PublishedDataSourcesPanel } from './PublishedDataSourcesPanel';
 
 export const ExcelImportExport: React.FC = () => {
   const {
@@ -69,7 +78,7 @@ export const ExcelImportExport: React.FC = () => {
     selectedBranchFilter
   } = useApp();
 
-  const [activeSubTab, setActiveSubTab] = useState<'google_sheets' | 'excel_file' | 'drive_scanner' | 'customers'>('google_sheets');
+  const [activeSubTab, setActiveSubTab] = useState<'google_sheets' | 'excel_file' | 'drive_scanner' | 'customers' | 'published_sources'>('google_sheets');
 
   // Customer Management State
   const [customerGoogleSheetUrl, setCustomerGoogleSheetUrl] = useState('');
@@ -82,6 +91,8 @@ export const ExcelImportExport: React.FC = () => {
   const [customerSelectedBranchFilter, setCustomerSelectedBranchFilter] = useState<string>('all');
   const [customerImportMode, setCustomerImportMode] = useState<'merge' | 'replace'>('merge');
   const [customerDisplayLimit, setCustomerDisplayLimit] = useState<number>(50);
+  const [customerTableTab, setCustomerTableTab] = useState<'standard' | 'target'>('target');
+  const [showTargetColumnsExplainer, setShowTargetColumnsExplainer] = useState(false);
 
   // Wipe / Reset Modal State
   const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
@@ -353,6 +364,19 @@ function onEdit(e) {
             <FolderOpen className="w-4 h-4 text-blue-500" />
             <span>ماسح مجلدات Google Drive</span>
             <span className="bg-blue-100 text-blue-900 text-[10px] px-1.5 py-0.5 rounded-full font-bold">Apps Script</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('published_sources')}
+            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
+              activeSubTab === 'published_sources'
+                ? 'border-emerald-600 text-emerald-700'
+                : 'border-transparent text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Globe className="w-4 h-4 text-emerald-600" />
+            <span>شيتات Google Sheets المباشرة</span>
+            <span className="bg-emerald-100 text-emerald-900 text-[10px] px-1.5 py-0.5 rounded-full font-bold">Cloud Live 🟢</span>
           </button>
         </div>
       </div>
@@ -1138,21 +1162,94 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                 </button>
                 <button
                   type="button"
+                  onClick={generateSampleCustomerTargetTemplate}
+                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black px-4 py-2.5 rounded-xl transition shadow-md flex items-center gap-2 cursor-pointer"
+                  title="تحميل قالب إكسل معتمد بكافة أعمدة تارجت المبيعات والشهور والمتأخرات"
+                >
+                  <Target className="w-4 h-4 text-slate-900" />
+                  <span>🎯 تحميل قالب شيت تارجت المبيعات والعملاء</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => exportCustomerTargetSheetToExcel(customers)}
+                  className="bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 text-xs font-black px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer"
+                  title="تصدير بيانات العملاء الحالية بشيت تارجت المبيعات والتحصيلات والمتأخرات"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-amber-400" />
+                  <span>🎯 تصدير شيت تارجت المبيعات الحالي ({customers.length})</span>
+                </button>
+                <button
+                  type="button"
                   onClick={generateSampleCustomersTemplate}
                   className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-black px-4 py-2.5 rounded-xl transition flex items-center gap-2"
                 >
                   <Download className="w-4 h-4 text-amber-400" />
-                  <span>تحميل نموذج شيت العملاء</span>
+                  <span>تحميل نموذج شيت العملاء المبسط</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => exportCustomersToExcel(customers)}
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-2"
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-2"
                 >
                   <FileSpreadsheet className="w-4 h-4" />
-                  <span>تصدير العملاء المسجلين ({customers.length})</span>
+                  <span>تصدير العملاء القياسي ({customers.length})</span>
                 </button>
               </div>
+            </div>
+
+            {/* Sales Target & Debts Sheet Dedicated Feature Card */}
+            <div className="bg-gradient-to-r from-amber-950/50 via-slate-900 to-slate-950 border border-amber-500/40 rounded-2xl p-4 sm:p-5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0">
+                    <Target className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm sm:text-base font-black text-amber-300 flex items-center gap-2">
+                      <span>شيت تارجت المبيعات والعملاء والمتأخرات (الشيت المعتمد بالحسابات)</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        معتمد ومفعل بالكامل
+                      </span>
+                    </h4>
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      يتم التعرف تلقائياً على أعمدة شيت التارجت، وحساب شهور المبيعات والتحصيل ديناميكياً (مبيعات 1..9، تحصيل 1..9 وأي شهور إضافية) واعتماد <strong>إجمالي المتأخرات</strong> كمبلغ مستحق يظهر للمندوب مباشرة عند طلب طلبية جديدة.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowTargetColumnsExplainer(!showTargetColumnsExplainer)}
+                  className="text-xs text-amber-400 hover:text-amber-300 font-bold bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 px-3 py-1.5 rounded-xl transition shrink-0 cursor-pointer"
+                >
+                  {showTargetColumnsExplainer ? 'إخفاء دليل الأعمدة' : 'استعراض الأعمدة المعتمدة (45 عمود)'}
+                </button>
+              </div>
+
+              {showTargetColumnsExplainer && (
+                <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800 text-xs text-slate-300 space-y-2 animate-in fade-in duration-150">
+                  <div className="font-bold text-amber-200">الأعمدة المعتمدة في الشيت والمدعومة تلقائياً:</div>
+                  <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-1">
+                    {CUSTOMER_SALES_TARGET_COLUMNS.map((col, idx) => (
+                      <span
+                        key={idx}
+                        className={`px-2 py-1 rounded-md text-[11px] font-mono border ${
+                          col.includes('المتأخرات')
+                            ? 'bg-rose-950/70 border-rose-500/50 text-rose-200 font-bold'
+                            : col.includes('مبيعات') || col.includes('تحصيل')
+                            ? 'bg-amber-950/50 border-amber-500/30 text-amber-200'
+                            : 'bg-slate-900 border-slate-700 text-slate-300'
+                        }`}
+                      >
+                        {col}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="text-[11px] text-slate-400 border-t border-slate-800 pt-2">
+                    💡 <strong>ملاحظة للمستخدم:</strong> كلما أضفت شهوراً جديدة (مثل 10 مبيعات أو 10 تحصيل)، سيقوم النظام بجمعها ديناميكياً وإضافتها لإجمالي المبيعات والتحصيلات بدون الحاجة لتعديل الكود.
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Supabase Free Tier Protection Info */}
@@ -1341,10 +1438,15 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                 <div>
                   <h4 className="text-base font-black text-slate-900 flex items-center gap-2">
                     <UserCheck className="w-5 h-5 text-emerald-600" />
-                    <span>معاينة العملاء المستوردين ({customerPreviewList.length} عميل)</span>
+                    <span>معاينة شيت العملاء والتارجت ({customerPreviewList.length} عميل)</span>
+                    {customerPreviewList.some((c) => c.annualTarget || c.totalMonthlySales || c.totalOverdueAndDue) && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-300">
+                        🎯 شيت تارجت ومبيعات
+                      </span>
+                    )}
                   </h4>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    تحقق من الفرع، المندوب، المديونية الحالية، والحد الائتماني قبل تأكيد الحفظ في المنظومة.
+                    تحقق من الفرع، المندوب، الهدف السنوي، المبيعات والتحصيلات، وإجمالي المتأخرات قبل تأكيد الحفظ في المنظومة.
                   </p>
                 </div>
 
@@ -1363,7 +1465,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                     onClick={() => {
                       importCustomersList(customerPreviewList, customerImportMode);
                       setCustomerPreviewList([]);
-                      setCustomerSheetSuccess('تم حفظ وتحديث قاعدة بيانات العملاء بنجاح في المنظومة!');
+                      setCustomerSheetSuccess(`تم حفظ وتحديث ${customerPreviewList.length} عميل بنجاح مع كافة بيانات التارجت والمبيعات والمتأخرات في المنظومة!`);
                     }}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-5 py-2 rounded-xl text-xs shadow transition flex items-center gap-1.5 cursor-pointer"
                   >
@@ -1381,50 +1483,123 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                 </div>
               </div>
 
+              {/* Preview Target Summary Metrics (if Target data detected) */}
+              {customerPreviewList.some((c) => c.annualTarget || c.totalMonthlySales || c.totalOverdueAndDue) && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-2xl bg-amber-50/70 border border-amber-200 text-xs">
+                  <div>
+                    <div className="text-[10px] text-slate-500 font-bold">إجمالي الهدف السنوي</div>
+                    <div className="font-mono font-black text-amber-900 text-sm">
+                      {formatCurrency(customerPreviewList.reduce((acc, c) => acc + (c.annualTarget || 0), 0))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-500 font-bold">إجمالي المبيعات المحققة</div>
+                    <div className="font-mono font-black text-emerald-800 text-sm">
+                      {formatCurrency(customerPreviewList.reduce((acc, c) => acc + (c.totalMonthlySales || 0), 0))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-500 font-bold">إجمالي التحصيلات</div>
+                    <div className="font-mono font-black text-blue-800 text-sm">
+                      {formatCurrency(customerPreviewList.reduce((acc, c) => acc + (c.totalMonthlyCollections || 0), 0))}
+                    </div>
+                  </div>
+                  <div className="bg-rose-100/80 p-1.5 rounded-xl border border-rose-300">
+                    <div className="text-[10px] text-rose-800 font-black">إجمالي المتأخرات (مستحق الطلبيات)</div>
+                    <div className="font-mono font-black text-rose-700 text-sm">
+                      {formatCurrency(customerPreviewList.reduce((acc, c) => acc + (c.totalOverdueAndDue || c.overdueBalance || c.currentBalance || c.balance || 0), 0))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Preview Customer Table */}
-              <div className="overflow-x-auto max-h-80 border border-slate-200 rounded-2xl">
+              <div className="overflow-x-auto max-h-96 border border-slate-200 rounded-2xl">
                 <table className="w-full text-right text-xs">
                   <thead className="bg-slate-100 text-slate-700 font-black sticky top-0">
                     <tr>
                       <th className="p-3">#</th>
-                      <th className="p-3">كود العميل</th>
+                      <th className="p-3">كود / Account Name</th>
                       <th className="p-3">اسم العميل</th>
-                      <th className="p-3">الفرع التابع له</th>
-                      <th className="p-3">اسم المندوب</th>
-                      <th className="p-3 text-rose-700">المديونية (ج.م)</th>
-                      <th className="p-3 text-blue-700">الحد الائتماني (ج.م)</th>
-                      <th className="p-3">الهاتف</th>
-                      <th className="p-3">العنوان</th>
+                      <th className="p-3">الفرع</th>
+                      <th className="p-3">المندوب الحالي</th>
+                      <th className="p-3 text-amber-900">الهدف السنوي</th>
+                      <th className="p-3 text-emerald-700">إجمالي المبيعات</th>
+                      <th className="p-3 text-blue-700">إجمالي التحصيلات</th>
+                      <th className="p-3 text-rose-700 bg-rose-50/70">إجمالي المتأخرات (عند الطلب)</th>
+                      <th className="p-3 text-slate-700">الحد الائتماني</th>
+                      <th className="p-3">حالة الدين</th>
+                      <th className="p-3">التعامل</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-800">
-                    {customerPreviewList.map((c, i) => (
-                      <tr key={c.id || i} className="hover:bg-amber-50/50">
-                        <td className="p-3 text-slate-400">{i + 1}</td>
-                        <td className="p-3 font-mono font-bold text-amber-800">{c.code || '---'}</td>
-                        <td className="p-3 font-bold text-slate-950">{c.name}</td>
-                        <td className="p-3">
-                          <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-800 text-[11px] font-bold">
-                            {c.branchName || 'الفرع الرئيسي'}
-                          </span>
-                        </td>
-                        <td className="p-3 font-bold text-emerald-700">
-                          {c.repName || c.salesRepName || <span className="text-slate-400">غير مرتبط</span>}
-                        </td>
-                        <td className="p-3 font-mono font-bold text-rose-600">
-                          {(c.currentBalance || c.balance || 0) > 0
-                            ? formatCurrency(c.currentBalance || c.balance || 0)
-                            : '0 ج.م'}
-                        </td>
-                        <td className="p-3 font-mono font-bold text-blue-700">
-                          {(c.creditLimit || 0) > 0
-                            ? formatCurrency(c.creditLimit || 0)
-                            : 'غير محدد'}
-                        </td>
-                        <td className="p-3 font-mono text-slate-600">{c.phone || '---'}</td>
-                        <td className="p-3 text-slate-500">{c.address || c.governorate || '---'}</td>
-                      </tr>
-                    ))}
+                    {customerPreviewList.map((c, i) => {
+                      const overdue = Number(c.totalOverdueAndDue ?? c.overdueBalance ?? c.currentBalance ?? c.balance ?? 0);
+                      const salesMonthsCount = c.activeSalesMonths?.length || (c.monthlySales2026 ? Object.keys(c.monthlySales2026).length : 0);
+                      const collMonthsCount = c.activeCollectionMonths?.length || (c.monthlyCollections2026 ? Object.keys(c.monthlyCollections2026).length : 0);
+
+                      return (
+                        <tr key={c.id || i} className="hover:bg-amber-50/50">
+                          <td className="p-3 text-slate-400">{i + 1}</td>
+                          <td className="p-3 font-mono font-bold text-amber-800">{c.code || '---'}</td>
+                          <td className="p-3 font-bold text-slate-950">
+                            <div>{c.name}</div>
+                            {c.activityType && (
+                              <div className="text-[10px] text-slate-400 font-normal">{c.activityType}</div>
+                            )}
+                          </td>
+                          <td className="p-3">
+                            <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-800 text-[11px] font-bold">
+                              {c.branchName || 'الفرع الرئيسي'}
+                            </span>
+                          </td>
+                          <td className="p-3 font-bold text-slate-700">
+                            {c.salesRepName || c.repName || <span className="text-slate-400">غير مرتبط</span>}
+                          </td>
+                          <td className="p-3 font-mono font-bold text-amber-900">
+                            {(c.annualTarget || 0) > 0 ? formatCurrency(c.annualTarget || 0) : '---'}
+                          </td>
+                          <td className="p-3 font-mono font-bold text-emerald-700">
+                            <div>{(c.totalMonthlySales || 0) > 0 ? formatCurrency(c.totalMonthlySales || 0) : '0 ج.م'}</div>
+                            {salesMonthsCount > 0 && (
+                              <div className="text-[10px] text-emerald-600 font-normal">({salesMonthsCount} شهور)</div>
+                            )}
+                          </td>
+                          <td className="p-3 font-mono font-bold text-blue-700">
+                            <div>{(c.totalMonthlyCollections || 0) > 0 ? formatCurrency(c.totalMonthlyCollections || 0) : '0 ج.م'}</div>
+                            {collMonthsCount > 0 && (
+                              <div className="text-[10px] text-blue-600 font-normal">({collMonthsCount} شهور)</div>
+                            )}
+                          </td>
+                          <td className="p-3 font-mono font-black text-rose-700 bg-rose-50/70">
+                            {overdue > 0 ? formatCurrency(overdue) : '0 ج.م'}
+                          </td>
+                          <td className="p-3 font-mono text-slate-700">
+                            {(c.creditLimit || 0) > 0 ? formatCurrency(c.creditLimit || 0) : 'غير محدد'}
+                          </td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              c.debtStatus === 'متعثر' || (overdue > (c.creditLimit || 0) && (c.creditLimit || 0) > 0)
+                                ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                : overdue > 0
+                                ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            }`}>
+                              {c.debtStatus || (overdue > 0 ? 'متأخر' : 'منتظم')}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              c.dealEligibility === 'غير' || c.dealEligibility === 'غير قابل'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {c.dealEligibility || 'قابل'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1443,10 +1618,75 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                     سجل العملاء النشط بالمنظومة ({customers.length} عميل)
                   </h4>
                   <p className="text-xs text-slate-500">
-                    يتم استدعاء هؤلاء العملاء تلقائياً في شاشة الفواتير للمندوبين مع متابعة المديونية والحد الائتماني
+                    يتم استدعاء هؤلاء العملاء تلقائياً في شاشة الفواتير للمندوبين مع متابعة المديونية، تارجت المبيعات، والحد الائتماني
                   </p>
                 </div>
               </div>
+
+              {/* View Tab Switcher: Target View vs Standard View */}
+              <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setCustomerTableTab('target')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer ${
+                    customerTableTab === 'target'
+                      ? 'bg-amber-400 text-slate-950 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Target className="w-3.5 h-3.5" />
+                  <span>تارجت المبيعات والمتأخرات</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomerTableTab('standard')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer ${
+                    customerTableTab === 'standard'
+                      ? 'bg-amber-400 text-slate-950 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>العرض الأساسي</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Overall Target Stats Bar */}
+            {customerTableTab === 'target' && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
+                <div>
+                  <div className="text-[10px] text-slate-500 font-bold">إجمالي الهدف السنوي بالمنظومة</div>
+                  <div className="font-mono font-black text-amber-900 text-sm">
+                    {formatCurrency(customers.reduce((sum, c) => sum + (c.annualTarget || 0), 0))}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-500 font-bold">إجمالي مبيعات الشهور المسجلة</div>
+                  <div className="font-mono font-black text-emerald-800 text-sm">
+                    {formatCurrency(customers.reduce((sum, c) => sum + (c.totalMonthlySales || 0), 0))}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-500 font-bold">إجمالي التحصيلات المسجلة</div>
+                  <div className="font-mono font-black text-blue-800 text-sm">
+                    {formatCurrency(customers.reduce((sum, c) => sum + (c.totalMonthlyCollections || 0), 0))}
+                  </div>
+                </div>
+                <div className="bg-rose-50 p-2 rounded-xl border border-rose-200">
+                  <div className="text-[10px] text-rose-800 font-black">إجمالي المتأخرات (المستحق لطلبيات المندوب)</div>
+                  <div className="font-mono font-black text-rose-700 text-sm">
+                    {formatCurrency(
+                      customers.reduce(
+                        (sum, c) =>
+                          sum + (c.totalOverdueAndDue ?? c.overdueBalance ?? c.currentBalance ?? c.balance ?? 0),
+                        0
+                      )
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
               {/* Filters Bar: Rep Filter, Branch Filter, and Search */}
               <div className="flex items-center gap-2 flex-wrap">
@@ -1504,7 +1744,6 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                   <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
                 </div>
               </div>
-            </div>
 
             {customers.length === 0 ? (
               <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-300 text-slate-500 text-xs">
@@ -1514,19 +1753,37 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
               <div className="overflow-x-auto border border-slate-200 rounded-2xl max-h-96">
                 <table className="w-full text-right text-xs">
                   <thead className="bg-slate-100 text-slate-700 font-black sticky top-0">
-                    <tr>
-                      <th className="p-3">#</th>
-                      <th className="p-3">كود العميل</th>
-                      <th className="p-3">اسم العميل / المحل</th>
-                      <th className="p-3">الفرع</th>
-                      <th className="p-3">المندوب المسؤول</th>
-                      <th className="p-3 text-rose-700">المديونية (ج.م)</th>
-                      <th className="p-3 text-blue-700">الحد الائتماني (ج.م)</th>
-                      <th className="p-3 text-emerald-700">المتاح من الائتمان</th>
-                      <th className="p-3">الهاتف</th>
-                      <th className="p-3">العنوان</th>
-                      <th className="p-3 text-center">إجراءات</th>
-                    </tr>
+                    {customerTableTab === 'target' ? (
+                      <tr>
+                        <th className="p-3">#</th>
+                        <th className="p-3">Account Name / كود</th>
+                        <th className="p-3">اسم العميل والمحل</th>
+                        <th className="p-3">الفرع</th>
+                        <th className="p-3">المندوب الحالي</th>
+                        <th className="p-3 text-amber-900">الهدف السنوي</th>
+                        <th className="p-3 text-emerald-700">مبيعات الشهور</th>
+                        <th className="p-3 text-blue-700">تحصيلات الشهور</th>
+                        <th className="p-3 text-rose-700 bg-rose-50/80">إجمالي المتأخرات (عند الطلب)</th>
+                        <th className="p-3 text-slate-700">الحد الائتماني</th>
+                        <th className="p-3">أوراق الضمان</th>
+                        <th className="p-3">حالة الدين</th>
+                        <th className="p-3 text-center">إجراءات</th>
+                      </tr>
+                    ) : (
+                      <tr>
+                        <th className="p-3">#</th>
+                        <th className="p-3">كود العميل</th>
+                        <th className="p-3">اسم العميل / المحل</th>
+                        <th className="p-3">الفرع</th>
+                        <th className="p-3">المندوب المسؤول</th>
+                        <th className="p-3 text-rose-700">المديونية (ج.م)</th>
+                        <th className="p-3 text-blue-700">الحد الائتماني (ج.م)</th>
+                        <th className="p-3 text-emerald-700">المتاح من الائتمان</th>
+                        <th className="p-3">الهاتف</th>
+                        <th className="p-3">العنوان</th>
+                        <th className="p-3 text-center">إجراءات</th>
+                      </tr>
+                    )}
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
                     {(() => {
@@ -1574,6 +1831,83 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                             const debt = c.currentBalance || c.balance || 0;
                             const limit = c.creditLimit || 0;
                             const availableCredit = limit > 0 ? Math.max(0, limit - debt) : null;
+                            const overdue = Number(c.totalOverdueAndDue ?? c.overdueBalance ?? debt);
+                            const salesMonthsCount = c.activeSalesMonths?.length || (c.monthlySales2026 ? Object.keys(c.monthlySales2026).length : 0);
+                            const collMonthsCount = c.activeCollectionMonths?.length || (c.monthlyCollections2026 ? Object.keys(c.monthlyCollections2026).length : 0);
+
+                            if (customerTableTab === 'target') {
+                              return (
+                                <tr key={c.id} className="hover:bg-amber-50/40">
+                                  <td className="p-3 text-slate-400 font-bold">{i + 1}</td>
+                                  <td className="p-3 font-mono font-bold text-amber-900">{c.code || '---'}</td>
+                                  <td className="p-3">
+                                    <div className="font-black text-slate-900">{c.name}</div>
+                                    {c.storeName && (
+                                      <div className="text-[10px] text-slate-500 font-semibold">{c.storeName}</div>
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-slate-600">
+                                    <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[11px]">
+                                      {c.branchName || 'الفرع الرئيسي'}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 font-bold text-emerald-800">
+                                    {c.salesRepName || c.repName || <span className="text-slate-400">غير محدد</span>}
+                                  </td>
+                                  <td className="p-3 font-mono font-bold text-amber-900">
+                                    {(c.annualTarget || 0) > 0 ? formatCurrency(c.annualTarget || 0) : '---'}
+                                  </td>
+                                  <td className="p-3 font-mono font-bold text-emerald-700">
+                                    <div>{(c.totalMonthlySales || 0) > 0 ? formatCurrency(c.totalMonthlySales || 0) : '0 ج.م'}</div>
+                                    {salesMonthsCount > 0 && (
+                                      <div className="text-[10px] text-emerald-600 font-normal">({salesMonthsCount} شهور)</div>
+                                    )}
+                                  </td>
+                                  <td className="p-3 font-mono font-bold text-blue-700">
+                                    <div>{(c.totalMonthlyCollections || 0) > 0 ? formatCurrency(c.totalMonthlyCollections || 0) : '0 ج.م'}</div>
+                                    {collMonthsCount > 0 && (
+                                      <div className="text-[10px] text-blue-600 font-normal">({collMonthsCount} شهور)</div>
+                                    )}
+                                  </td>
+                                  <td className="p-3 font-mono font-black text-rose-700 bg-rose-50/80">
+                                    {overdue > 0 ? formatCurrency(overdue) : '0 ج.م'}
+                                  </td>
+                                  <td className="p-3 font-mono text-slate-700">
+                                    {limit > 0 ? formatCurrency(limit) : 'غير محدد'}
+                                  </td>
+                                  <td className="p-3 text-[11px] text-slate-600 font-medium">
+                                    {c.guaranteeDocs || '---'}
+                                  </td>
+                                  <td className="p-3">
+                                    <span
+                                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                        c.debtStatus === 'متعثر' || (overdue > limit && limit > 0)
+                                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                          : overdue > 0
+                                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                          : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                      }`}
+                                    >
+                                      {c.debtStatus || (overdue > 0 ? 'متأخر' : 'منتظم')}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (window.confirm(`هل أنت متأكد من حذف العميل (${c.name})؟`)) {
+                                          deleteCustomer(c.id);
+                                        }
+                                      }}
+                                      className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer transition"
+                                      title="حذف العميل"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            }
 
                             return (
                               <tr key={c.id} className="hover:bg-amber-50/40">
@@ -1677,6 +2011,13 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 5: Live Google Sheets Sources */}
+      {activeSubTab === 'published_sources' && (
+        <div className="space-y-6">
+          <PublishedDataSourcesPanel />
         </div>
       )}
 

@@ -147,6 +147,32 @@ export interface Customer {
   hasDealtIn2026?: boolean;          // هل تعامل العميل وسحب طلبيات في 2026
   status2026?: 'active' | 'inactive' | 'churn_risk' | 'new_customer'; // حالة النشاط
 
+  // --- أعمدة شيت تارجت المبيعات والعملاء والتحصيلات المتطورة ---
+  guaranteeDocs?: string;            // اورق الضمان (شيك، كمبيالة، إيصال أمانة، رهن، بدون)
+  paymentTerms?: string;             // طريقة الدفع (نقدي، آجل، أسبوعي، شهري...)
+  activityType?: string;             // طبيعة النشاط (سوبرماركت، جملة، قطاعي، توكيلات...)
+  district?: string;                 // المركز / المنطقة
+  route?: string;                    // الخط / خط السير
+  clientType?: string;               // خ/ك (خاص / كبار / عادي / خط)
+  adjustments?: number;              // تعديلات التارجت
+  annualTarget?: number;             // الهدف السنوي
+  openingBalance2026?: number;       // اول المدة 2026
+  dealt2026?: string;                // متعامل 2026 (متعامل / غير متعامل / نعم / لا)
+  dealEligibility?: string;          // قابل /غير (قابل للتعامل / غير قابل / موقوف)
+  debtStatus?: string;               // حالة دين العميل (منتظم / متأخر / متعثر / محمي)
+  totalMonthlySales?: number;        // اجمالي المبيعات (مجموع شهور المبيعات)
+  totalMonthlyCollections?: number;  // اجمالي التحصيلات (مجموع شهور التحصيل)
+  overdue2025?: number;              // متاخرات 2025
+  overdue2026?: number;              // متاخرات 2026
+  dueUntilPeriod?: number;           // مستحق حتي نهاية اغسطس (أو الفترة)
+  duePeriodLabel?: string;           // وصف عمود المستحق (مثل مستحق حتى نهاية أغسطس)
+  totalOverallSales?: number;        // اجمالي مبيعات
+  totalOverallCollections?: number;  // تحصيلات
+  sales2024?: number;                // مبيعات 2024
+  collections2024?: number;          // تحصيلات 2024
+  activeSalesMonths?: number[];      // الشهور المتوفرة للمبيعات ديناميكياً [1, 2, 3, ...]
+  activeCollectionMonths?: number[]; // الشهور المتوفرة للتحصيل ديناميكياً [1, 2, 3, ...]
+
   // --- سجل ومتابعة الزيارات ---
   lastVisitDate?: string;            // تاريخ آخر زيارة تمت للعميل
   nextVisitDate?: string;            // تاريخ الزيارة القادمة المجدولة

@@ -3,6 +3,7 @@ import { COMPANY_INFO } from '../data/mockData';
 import { Customer, CustomerTier, Invoice, ItemStatus, Product, SalesPriority } from '../types';
 import { inferBranchFromText, resolveCustomerFinancials, getBranchStockForProduct } from './arabicMatchingService';
 import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
+import { deduplicateAndMergeCustomers } from './customerDeduplicationService';
 
 /**
  * Preserves the product code exactly as supplied by the sheet, including prefixes
@@ -1587,13 +1588,57 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     overdueBalance: -1,
     dueBalance: -1,
     notes: -1,
+
+    // Comprehensive Sales Target, Collections & Debts Sheet columns
+    guaranteeDocs: -1,           // اورق الضمان
+    paymentTerms: -1,            // طريقة الدفع
+    activityType: -1,            // طبيعة النشاط
+    governorate: -1,             // المحافظة
+    district: -1,                // المركز
+    route: -1,                   // الخط
+    clientType: -1,              // خ/ك
+    adjustments: -1,             // تعديلات
+    annualTarget: -1,            // الهدف السنوي
+    openingBalance2026: -1,      // اول المدة 2026
+    dealt2026: -1,               // متعامل 2026
+    dealEligibility: -1,         // قابل /غير
+    debtStatus: -1,              // حالة دين العميل
+    totalMonthlySales: -1,       // اجمالي المبيعات
+    totalMonthlyCollections: -1, // اجمالي التحصيلات
+    totalOverdue: -1,            // اجمالي المتأخرات (المستحقات التي تظهر للمندوب عند طلب طلبية)
+    overdue2025: -1,             // متاخرات 2025
+    overdue2026: -1,             // متاخرات 2026
+    dueUntilPeriod: -1,          // مستحق حتي نهاية اغسطس
+    totalOverallSales: -1,       // اجمالي مبيعات
+    totalOverallCollections: -1, // تحصيلات
+    sales2024: -1,               // مبيعات 2024
+    collections2024: -1,         // تحصيلات 2024
   };
+
+  const monthlySalesCols: { month: number; colIdx: number }[] = [];
+  const monthlyCollectionCols: { month: number; colIdx: number }[] = [];
+  let detectedDuePeriodLabel = 'مستحق حتي نهاية اغسطس';
 
   headers.forEach((h, idx) => {
     const norm = normalizeHeader(h);
-    
-    // 1. Check Sales Rep first (to prevent "اسم المندوب" from being captured as customer name)
+    const rawLower = String(h).trim().toLowerCase();
+
+    // 0. Explicit Account Name (Customer Target Sheet standard header)
     if (
+      rawLower === 'account name' ||
+      rawLower === 'accountname' ||
+      rawLower === 'account_name' ||
+      norm === 'accountname' ||
+      norm.includes('accountname') ||
+      norm === 'اسمالحساب' ||
+      norm.includes('اسمالحساب')
+    ) {
+      if (colMap.name === -1) colMap.name = idx;
+    }
+    // 1. Check Sales Rep first (to prevent "اسم المندوب" from being captured as customer name)
+    else if (
+      norm.includes('المندوبالحالي') ||
+      norm.includes('المندوبالحالى') ||
       norm.includes('اسمالمندوب') ||
       norm.includes('اسمالبائع') ||
       norm.includes('المندوبالمسؤول') ||
@@ -1606,7 +1651,6 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('مسؤولالتوزيع') ||
       norm.includes('مسئولالتوزيع') ||
       norm.includes('مسؤولالخط') ||
-      norm.includes('مسئو��الخط') ||
       norm.includes('مندوبالبيع') ||
       norm.includes('كودالمندوب') ||
       norm.includes('المندوب') ||
@@ -1626,8 +1670,8 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     // 2. Check Branch
     else if (
       norm.includes('اسمالفرع') ||
-      norm.includes('فرع') ||
       norm.includes('الفرع') ||
+      norm.includes('فرع') ||
       norm.includes('المنطقه') ||
       norm.includes('منطقة') ||
       norm.includes('branch') ||
@@ -1635,23 +1679,223 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     ) {
       if (colMap.branchName === -1) colMap.branchName = idx;
     }
-    // 3. Check Customer Code
+    // 3. Check Guarantee Documents (اورق الضمان)
     else if (
-      norm.includes('كودالعميل') ||
-      norm.includes('رقمالعميل') ||
-      norm.includes('رقمالمحل') ||
-      norm.includes('كودالمحل') ||
-      norm.includes('كودالحساب') ||
-      norm.includes('رقمالحساب') ||
-      norm.includes('كود') ||
-      norm.includes('code') ||
-      norm.includes('cust_id') ||
-      norm.includes('custid') ||
-      norm.includes('customercode')
+      norm.includes('اورقالضمان') ||
+      norm.includes('اوراقالضمان') ||
+      norm.includes('ورقالضمان') ||
+      norm.includes('اوراقضمان') ||
+      norm.includes('اورقضمان') ||
+      norm.includes('سنداتالضمان') ||
+      norm.includes('الضمانات') ||
+      norm.includes('ضمانات') ||
+      norm.includes('ضمان')
     ) {
-      if (colMap.code === -1) colMap.code = idx;
+      if (colMap.guaranteeDocs === -1) colMap.guaranteeDocs = idx;
     }
-    // 4. Check Credit Limit (الحد الائتماني)
+    // 4. Check Payment Terms (طريقة الدفع)
+    else if (
+      norm.includes('طريقةالدفع') ||
+      norm.includes('طريقهالدفع') ||
+      norm.includes('طرقالدفع') ||
+      norm.includes('نظامالدفع') ||
+      norm.includes('شروطالدفع') ||
+      norm.includes('شروطالسداد') ||
+      norm.includes('طريقةالسداد') ||
+      norm.includes('paymentterms') ||
+      norm.includes('paymentmethod')
+    ) {
+      if (colMap.paymentTerms === -1) colMap.paymentTerms = idx;
+    }
+    // 5. Check Activity Type (طبيعة النشاط)
+    else if (
+      norm.includes('طبيعةالنشاط') ||
+      norm.includes('طبيعهالنشاط') ||
+      norm.includes('نوعالنشاط') ||
+      norm.includes('مجالالنشاط') ||
+      norm.includes('النشاط') ||
+      norm.includes('نشاط') ||
+      norm.includes('activitytype') ||
+      norm.includes('activity')
+    ) {
+      if (colMap.activityType === -1) colMap.activityType = idx;
+    }
+    // 6. Check Governorate (المحافظة)
+    else if (
+      norm.includes('المحافظة') ||
+      norm.includes('المحافظه') ||
+      norm.includes('محافظة') ||
+      norm.includes('محافظه') ||
+      norm.includes('governorate')
+    ) {
+      if (colMap.governorate === -1) colMap.governorate = idx;
+    }
+    // 7. Check District / Center (المركز)
+    else if (
+      norm === 'المركز' ||
+      norm === 'مركز' ||
+      norm.includes('المركز') ||
+      norm.includes('مركز') ||
+      norm === 'الحي' ||
+      norm.includes('district')
+    ) {
+      if (colMap.district === -1) colMap.district = idx;
+    }
+    // 8. Check Route / Line (الخط)
+    else if (
+      norm === 'الخط' ||
+      norm === 'خط' ||
+      norm.includes('الخط') ||
+      norm.includes('خطالسير') ||
+      norm.includes('خطالتوزيع') ||
+      norm.includes('route') ||
+      norm.includes('line')
+    ) {
+      if (colMap.route === -1) colMap.route = idx;
+    }
+    // 9. Check Client Classification (خ/ك)
+    else if (
+      norm === 'خ/ك' ||
+      norm === 'خك' ||
+      norm.includes('خ/ك') ||
+      norm.includes('خاص/كبار') ||
+      norm.includes('خاصكبار') ||
+      norm.includes('كبارعملاء') ||
+      norm.includes('كبارالعملاء') ||
+      norm.includes('فئةالعميل') ||
+      norm.includes('فئهالعميل')
+    ) {
+      if (colMap.clientType === -1) colMap.clientType = idx;
+    }
+    // 10. Check Adjustments (تعديلات)
+    else if (
+      norm.includes('تعديلات') ||
+      norm.includes('تعديلالهدف') ||
+      norm.includes('تعديل') ||
+      norm.includes('adjustment')
+    ) {
+      if (colMap.adjustments === -1) colMap.adjustments = idx;
+    }
+    // 11. Check Annual Target (الهدف السنوي)
+    else if (
+      norm.includes('الهدفالسنوي') ||
+      norm.includes('الهدفالسنوى') ||
+      norm.includes('الهدفالسنوي2026') ||
+      norm.includes('هدفسنوي') ||
+      norm.includes('تارجتسنوي') ||
+      norm.includes('الهدف') ||
+      norm.includes('annualtarget') ||
+      norm === 'target'
+    ) {
+      if (colMap.annualTarget === -1) colMap.annualTarget = idx;
+    }
+    // 12. Check Opening Balance 2026 (اول المدة 2026)
+    else if (
+      norm.includes('اولالمده2026') ||
+      norm.includes('اولالمدة2026') ||
+      norm.includes('اولالمده') ||
+      norm.includes('اولالمدة') ||
+      norm.includes('رصيداولالمدة') ||
+      norm.includes('رصيداولالمده') ||
+      norm.includes('رصيدافتتاحي2026') ||
+      norm.includes('openingbalance')
+    ) {
+      if (colMap.openingBalance2026 === -1) colMap.openingBalance2026 = idx;
+    }
+    // 13. Check Dealt in 2026 (متعامل 2026)
+    else if (
+      norm.includes('متعامل2026') ||
+      norm.includes('تعامل2026') ||
+      norm.includes('متعامل') ||
+      norm.includes('حالةالتعامل') ||
+      norm.includes('حالهالتعامل')
+    ) {
+      if (colMap.dealt2026 === -1) colMap.dealt2026 = idx;
+    }
+    // 14. Check Deal Eligibility (قابل /غير)
+    else if (
+      norm.includes('قابل/غير') ||
+      norm.includes('قابلغير') ||
+      norm.includes('قابل/غيرقابل') ||
+      norm.includes('قابليةالتعامل') ||
+      norm.includes('صلاحيةالتعامل') ||
+      norm.includes('eligibility')
+    ) {
+      if (colMap.dealEligibility === -1) colMap.dealEligibility = idx;
+    }
+    // 15. Check Customer Debt Status (حالة دين العميل)
+    else if (
+      norm.includes('حالهدينالعميل') ||
+      norm.includes('حالةدينالعميل') ||
+      norm.includes('حالهدين') ||
+      norm.includes('حالةدين') ||
+      norm.includes('موقفالدين') ||
+      norm.includes('وضعالدين') ||
+      norm.includes('debtstatus')
+    ) {
+      if (colMap.debtStatus === -1) colMap.debtStatus = idx;
+    }
+    // 16. Check Year 2024 Sales & Collections (مبيعات 2024 / تحصيلات 2024)
+    else if (norm.includes('2024') && (norm.includes('مبيعات') || norm.includes('بيع'))) {
+      if (colMap.sales2024 === -1) colMap.sales2024 = idx;
+    } else if (norm.includes('2024') && (norm.includes('تحصيل') || norm.includes('تحصيلات'))) {
+      if (colMap.collections2024 === -1) colMap.collections2024 = idx;
+    }
+    // 17. Check Overdue 2025 & Overdue 2026 (متاخرات 2025 / متاخرات 2026)
+    else if ((norm.includes('متاخرات') || norm.includes('متاخر')) && norm.includes('2025')) {
+      if (colMap.overdue2025 === -1) colMap.overdue2025 = idx;
+    } else if ((norm.includes('متاخرات') || norm.includes('متاخر')) && norm.includes('2026')) {
+      if (colMap.overdue2026 === -1) colMap.overdue2026 = idx;
+    }
+    // 18. Check Due Until Period (مستحق حتي نهاية اغسطس)
+    else if (
+      norm.includes('مستحقحتي') ||
+      norm.includes('مستحقحتى') ||
+      (norm.includes('مستحق') && (norm.includes('نهايه') || norm.includes('نهاية') || norm.includes('اغسطس')))
+    ) {
+      if (colMap.dueUntilPeriod === -1) {
+        colMap.dueUntilPeriod = idx;
+        detectedDuePeriodLabel = h.trim();
+      }
+    }
+    // 19. Check Total Overdue (اجمالي المتأخرات) - CRITICAL: User specified this is the overdue shown to rep on order!
+    else if (
+      norm === 'اجماليالمتاخرات' ||
+      norm === 'اجماليمتاخرات' ||
+      norm.includes('اجماليالمتاخرات') ||
+      norm.includes('اجماليمتاخرات') ||
+      (norm.includes('اجمالي') && norm.includes('متاخر')) ||
+      norm === 'المتاخرات' ||
+      norm === 'متاخرات' ||
+      norm.includes('totaloverdue')
+    ) {
+      if (colMap.totalOverdue === -1) colMap.totalOverdue = idx;
+      if (colMap.totalOverdueAndDue === -1) colMap.totalOverdueAndDue = idx;
+      if (colMap.overdueBalance === -1) colMap.overdueBalance = idx;
+    }
+    // 20. Check Total Sales (اجمالي المبيعات)
+    else if (
+      norm === 'اجماليمبيعات' ||
+      norm === 'اجماليالمبيعات' ||
+      (norm.includes('اجمالي') && norm.includes('مبيعات')) ||
+      norm === 'totalsales'
+    ) {
+      if (colMap.totalMonthlySales === -1) colMap.totalMonthlySales = idx;
+      if (colMap.totalOverallSales === -1) colMap.totalOverallSales = idx;
+    }
+    // 21. Check Total Collections (تحصيلات / اجمالي التحصيلات)
+    else if (
+      norm === 'تحصيلات' ||
+      norm === 'اجماليالتحصيلات' ||
+      norm === 'اجماليتحصيلات' ||
+      norm === 'اجماليالتحصيل' ||
+      (norm.includes('اجمالي') && norm.includes('تحصيل')) ||
+      norm === 'totalcollections'
+    ) {
+      if (colMap.totalMonthlyCollections === -1) colMap.totalMonthlyCollections = idx;
+      if (colMap.totalOverallCollections === -1) colMap.totalOverallCollections = idx;
+    }
+    // 22. Check Credit Limit (الحد الائتماني)
     else if (
       norm.includes('حدائتمان') ||
       norm.includes('الحدالائتماني') ||
@@ -1677,28 +1921,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     ) {
       if (colMap.creditLimit === -1) colMap.creditLimit = idx;
     }
-    // 4. Check Total Overdue & Due (إجمالي المتأخرات والمستحق / المتأخرات)
-    else if (
-      (norm.includes('متاخر') && norm.includes('مستحق')) ||
-      norm.includes('المتاخراتوالمستحق') ||
-      norm.includes('المتاخراتومستحق') ||
-      norm.includes('متاخراتوالمستحق') ||
-      norm.includes('متاخراتومستحق') ||
-      norm.includes('المستحقوالمتاخرات') ||
-      norm.includes('مستحقومتاخرات') ||
-      norm.includes('اجماليالمتاخرات') ||
-      norm.includes('اجماليمتاخرات') ||
-      norm.includes('اجماليالمستحق') ||
-      norm.includes('المتاخرات') ||
-      norm.includes('متاخرات') ||
-      norm.includes('totaloverduedue') ||
-      norm.includes('overdueanddue') ||
-      norm.includes('totaloverdue') ||
-      norm.includes('overdue')
-    ) {
-      if (colMap.totalOverdueAndDue === -1) colMap.totalOverdueAndDue = idx;
-    }
-    // 5. Check Balance / Debt (المديونية / الرصيد السابق)
+    // 23. Check Balance / Debt (المديونية / الرصيد)
     else if (
       norm.includes('المديونيةالسابقة') ||
       norm.includes('المديونيهالسابقه') ||
@@ -1742,8 +1965,6 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('عليهالعميل') ||
       norm.includes('الديون') ||
       norm.includes('ديون') ||
-      norm.includes('دفع') ||
-      norm.includes('مطلوب') ||
       norm.includes('currentbalance') ||
       norm.includes('prevbalance') ||
       norm.includes('previousbalance') ||
@@ -1752,7 +1973,23 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     ) {
       if (colMap.balance === -1) colMap.balance = idx;
     }
-    // 6. Check Customer Name
+    // 24. Check Customer Code
+    else if (
+      norm.includes('كودالعميل') ||
+      norm.includes('رقمالعميل') ||
+      norm.includes('رقمالمحل') ||
+      norm.includes('كودالمحل') ||
+      norm.includes('كودالحساب') ||
+      norm.includes('رقمالحساب') ||
+      norm.includes('كود') ||
+      norm.includes('code') ||
+      norm.includes('cust_id') ||
+      norm.includes('custid') ||
+      norm.includes('customercode')
+    ) {
+      if (colMap.code === -1) colMap.code = idx;
+    }
+    // 25. Check Customer Name
     else if (
       norm.includes('اسمالعميل') ||
       norm.includes('اسمالمحل') ||
@@ -1771,7 +2008,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     ) {
       if (colMap.name === -1) colMap.name = idx;
     }
-    // 7. Optional extra fields
+    // 26. Optional extra fields
     else if (
       norm.includes('تليفون') ||
       norm.includes('هاتف') ||
@@ -1785,7 +2022,6 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     } else if (
       norm.includes('عنوان') ||
       norm.includes('منطقة') ||
-      norm.includes('محافظة') ||
       norm.includes('مدينة') ||
       norm.includes('address') ||
       norm.includes('city')
@@ -1805,7 +2041,38 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     } else if (norm.includes('ملاحظ') || norm.includes('note')) {
       if (colMap.notes === -1) colMap.notes = idx;
     }
+
+    // Dynamic Monthly Sales Recognition (e.g. '1 مبيعات', '2 مبيعات', 'مبيعات 1', 'مبيعات شهر 1')
+    // Exclude 4-digit years (2024, 2025, 2026) and 'اجمالي'
+    if (!norm.includes('202') && !norm.includes('اجمالي')) {
+      const salesMatch = norm.match(/^(\d{1,2})مبيعات/) ||
+                         norm.match(/مبيعات(\d{1,2})$/) ||
+                         norm.match(/(\d{1,2})مبيعات/) ||
+                         norm.match(/مبيعات.*?(\d{1,2})/);
+      if (salesMatch) {
+        const m = parseInt(salesMatch[1], 10);
+        if (m >= 1 && m <= 12 && !monthlySalesCols.some((item) => item.month === m)) {
+          monthlySalesCols.push({ month: m, colIdx: idx });
+        }
+      }
+
+      // Dynamic Monthly Collections Recognition (e.g. '1 تحصيل', '2 تحصيل', 'تحصيل3', 'تحصيل 1')
+      const collMatch = norm.match(/^(\d{1,2})تحصيل/) ||
+                        norm.match(/تحصيل(\d{1,2})$/) ||
+                        norm.match(/(\d{1,2})تحصيل/) ||
+                        norm.match(/تحصيل.*?(\d{1,2})/);
+      if (collMatch) {
+        const m = parseInt(collMatch[1], 10);
+        if (m >= 1 && m <= 12 && !monthlyCollectionCols.some((item) => item.month === m)) {
+          monthlyCollectionCols.push({ month: m, colIdx: idx });
+        }
+      }
+    }
   });
+
+  // Sort monthly columns in ascending month order
+  monthlySalesCols.sort((a, b) => a.month - b.month);
+  monthlyCollectionCols.sort((a, b) => a.month - b.month);
 
   // Positional fallback if standard 4-column format without specific header keywords
   if (colMap.code === -1 && colMap.name === -1 && headers.length >= 4) {
@@ -1903,18 +2170,95 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     const parsedCredit = parseNumberValue(colMap.creditLimit);
     const parsedBalance = parseNumberValue(colMap.balance);
     const parsedTotalOverdueAndDue = parseNumberValue(colMap.totalOverdueAndDue);
+    const parsedTotalOverdue = parseNumberValue(colMap.totalOverdue);
+
+    // Sales Target & Extra Financial fields
+    const rawGuaranteeDocs = getVal(row, colMap.guaranteeDocs);
+    const rawPaymentTerms = getVal(row, colMap.paymentTerms);
+    const rawActivityType = getVal(row, colMap.activityType);
+    const rawGov = getVal(row, colMap.governorate);
+    const rawDistrict = getVal(row, colMap.district);
+    const rawRoute = getVal(row, colMap.route);
+    const rawClientType = getVal(row, colMap.clientType);
+    const parsedAdjustments = parseNumberValue(colMap.adjustments);
+    const parsedAnnualTarget = parseNumberValue(colMap.annualTarget);
+    const parsedOpeningBalance2026 = parseNumberValue(colMap.openingBalance2026);
+    const rawDealt2026 = getVal(row, colMap.dealt2026);
+    const rawDealEligibility = getVal(row, colMap.dealEligibility);
+    const rawDebtStatus = getVal(row, colMap.debtStatus);
+    const parsedTotalMonthlySalesCol = parseNumberValue(colMap.totalMonthlySales);
+    const parsedTotalMonthlyCollectionsCol = parseNumberValue(colMap.totalMonthlyCollections);
+    const parsedOverdue2025 = parseNumberValue(colMap.overdue2025);
+    const parsedOverdue2026 = parseNumberValue(colMap.overdue2026);
+    const parsedDueUntilPeriod = parseNumberValue(colMap.dueUntilPeriod);
+    const parsedTotalOverallSales = parseNumberValue(colMap.totalOverallSales);
+    const parsedTotalOverallCollections = parseNumberValue(colMap.totalOverallCollections);
+    const parsedSales2024 = parseNumberValue(colMap.sales2024);
+    const parsedCollections2024 = parseNumberValue(colMap.collections2024);
+
+    // Dynamic Monthly Sales & Collections parsing (Months 1-12)
+    const rowMonthlySales: Record<number, number> = {};
+    let dynamicMonthlySalesSum = 0;
+    const activeSalesMonthsList: number[] = [];
+
+    monthlySalesCols.forEach(({ month, colIdx }) => {
+      const val = parseNumberValue(colIdx);
+      if (val !== undefined) {
+        rowMonthlySales[month] = val;
+        dynamicMonthlySalesSum += val;
+        if (val > 0) activeSalesMonthsList.push(month);
+      }
+    });
+
+    const rowMonthlyCollections: Record<number, number> = {};
+    let dynamicMonthlyCollectionsSum = 0;
+    const activeCollectionMonthsList: number[] = [];
+
+    monthlyCollectionCols.forEach(({ month, colIdx }) => {
+      const val = parseNumberValue(colIdx);
+      if (val !== undefined) {
+        rowMonthlyCollections[month] = val;
+        dynamicMonthlyCollectionsSum += val;
+        if (val > 0) activeCollectionMonthsList.push(month);
+      }
+    });
+
+    // Sum totals: prefer explicit column in sheet, fallback to dynamic sum
+    const finalTotalMonthlySales = parsedTotalMonthlySalesCol !== undefined
+      ? parsedTotalMonthlySalesCol
+      : (monthlySalesCols.length > 0 ? dynamicMonthlySalesSum : undefined);
+
+    const finalTotalMonthlyCollections = parsedTotalMonthlyCollectionsCol !== undefined
+      ? parsedTotalMonthlyCollectionsCol
+      : (monthlyCollectionCols.length > 0 ? dynamicMonthlyCollectionsSum : undefined);
 
     const finalCreditLimit = parsedCredit !== undefined ? parsedCredit : 0;
-    // If balance was not explicitly provided in a separate column but totalOverdueAndDue was, use it
-    const finalBalance = parsedBalance !== undefined ? parsedBalance : (parsedTotalOverdueAndDue !== undefined ? parsedTotalOverdueAndDue : 0);
-    const finalTotalOverdueAndDue = parsedTotalOverdueAndDue !== undefined ? parsedTotalOverdueAndDue : (finalBalance > 0 ? finalBalance : 0);
+
+    // Overdue balance calculation: User noted: "اجمالي المتأخرات دي المبالغ المستحقة الي بتظهر للمندوب عند طلب طلبية"
+    const finalTotalOverdue = parsedTotalOverdue !== undefined
+      ? parsedTotalOverdue
+      : (parsedTotalOverdueAndDue !== undefined
+          ? parsedTotalOverdueAndDue
+          : (parsedBalance !== undefined ? parsedBalance : 0));
+
+    // Current balance / debt
+    const finalBalance = parsedBalance !== undefined
+      ? parsedBalance
+      : (parsedOpeningBalance2026 !== undefined
+          ? parsedOpeningBalance2026
+          : finalTotalOverdue);
 
     const existing = customerMap.get(dedupKey);
 
     if (existing) {
       // Merge records - keep the richest data available
       if (!existing.phone && rawPhone) existing.phone = rawPhone;
-      if (!existing.address && rawAddress) existing.address = rawAddress;
+      if (!existing.address && (rawAddress || rawDistrict || rawGov)) {
+        existing.address = rawAddress || [rawDistrict, rawGov].filter(Boolean).join(' - ');
+      }
+      if (!existing.governorate && rawGov) existing.governorate = rawGov;
+      if (!existing.district && rawDistrict) existing.district = rawDistrict;
+      if (!existing.route && rawRoute) existing.route = rawRoute;
       if (!existing.taxNumber && rawTax) existing.taxNumber = rawTax;
       if (!existing.notes && rawNotes) existing.notes = rawNotes;
       if (parsedCredit !== undefined) existing.creditLimit = parsedCredit;
@@ -1922,10 +2266,9 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
         existing.currentBalance = parsedBalance;
         existing.balance = parsedBalance;
       }
-      if (parsedTotalOverdueAndDue !== undefined) {
-        existing.totalOverdueAndDue = parsedTotalOverdueAndDue;
-      } else if (existing.totalOverdueAndDue === undefined && (existing.currentBalance || existing.balance)) {
-        existing.totalOverdueAndDue = existing.currentBalance || existing.balance || 0;
+      if (finalTotalOverdue !== undefined) {
+        existing.totalOverdueAndDue = finalTotalOverdue;
+        existing.overdueBalance = finalTotalOverdue;
       }
       if (rawRep && rawRep.trim()) {
         existing.repName = rawRep.trim();
@@ -1937,7 +2280,42 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       if (tier === 'مميز' || (tier === 'راقي' && existing.tier === 'متوسط')) {
         existing.tier = tier;
       }
+
+      // Merge Target Sheet fields
+      if (rawGuaranteeDocs) existing.guaranteeDocs = rawGuaranteeDocs;
+      if (rawPaymentTerms) existing.paymentTerms = rawPaymentTerms;
+      if (rawActivityType) existing.activityType = rawActivityType;
+      if (rawClientType) existing.clientType = rawClientType;
+      if (parsedAdjustments !== undefined) existing.adjustments = parsedAdjustments;
+      if (parsedAnnualTarget !== undefined) existing.annualTarget = parsedAnnualTarget;
+      if (parsedOpeningBalance2026 !== undefined) existing.openingBalance2026 = parsedOpeningBalance2026;
+      if (rawDealt2026) existing.dealt2026 = rawDealt2026;
+      if (rawDealEligibility) existing.dealEligibility = rawDealEligibility;
+      if (rawDebtStatus) existing.debtStatus = rawDebtStatus;
+      if (parsedOverdue2025 !== undefined) existing.overdue2025 = parsedOverdue2025;
+      if (parsedOverdue2026 !== undefined) existing.overdue2026 = parsedOverdue2026;
+      if (parsedDueUntilPeriod !== undefined) {
+        existing.dueUntilPeriod = parsedDueUntilPeriod;
+        existing.duePeriodLabel = detectedDuePeriodLabel;
+      }
+      if (parsedTotalOverallSales !== undefined) existing.totalOverallSales = parsedTotalOverallSales;
+      if (parsedTotalOverallCollections !== undefined) existing.totalOverallCollections = parsedTotalOverallCollections;
+      if (parsedSales2024 !== undefined) existing.sales2024 = parsedSales2024;
+      if (parsedCollections2024 !== undefined) existing.collections2024 = parsedCollections2024;
+
+      // Merge monthly maps
+      if (Object.keys(rowMonthlySales).length > 0) {
+        existing.monthlySales2026 = { ...(existing.monthlySales2026 || {}), ...rowMonthlySales };
+      }
+      if (Object.keys(rowMonthlyCollections).length > 0) {
+        existing.monthlyCollections2026 = { ...(existing.monthlyCollections2026 || {}), ...rowMonthlyCollections };
+      }
+      if (finalTotalMonthlySales !== undefined) existing.totalMonthlySales = finalTotalMonthlySales;
+      if (finalTotalMonthlyCollections !== undefined) existing.totalMonthlyCollections = finalTotalMonthlyCollections;
+      if (activeSalesMonthsList.length > 0) existing.activeSalesMonths = activeSalesMonthsList;
+      if (activeCollectionMonthsList.length > 0) existing.activeCollectionMonths = activeCollectionMonthsList;
     } else {
+      const resolvedAddress = rawAddress || [rawDistrict, rawGov].filter(Boolean).join(' - ') || '';
       const newCustomer: Customer = {
         id: safeCustId,
         code: assignedCode,
@@ -1945,25 +2323,57 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
         storeName: rawName || `محل / سوبر ماركت ${assignedCode}`,
         tier: tier,
         phone: rawPhone,
-        address: rawAddress,
+        address: resolvedAddress,
+        governorate: rawGov,
+        district: rawDistrict,
+        route: rawRoute,
         creditLimit: finalCreditLimit,
         currentBalance: finalBalance,
         balance: finalBalance,
-        totalOverdueAndDue: finalTotalOverdueAndDue,
+        totalOverdueAndDue: finalTotalOverdue,
+        overdueBalance: finalTotalOverdue,
         branchName: normalizeExcelBranchName(rawBranch),
         repName: rawRep ? rawRep.trim() : '',
         salesRepName: rawRep ? rawRep.trim() : '',
         taxNumber: rawTax,
         notes: rawNotes,
+
+        // Sales Target & Due Debts
+        guaranteeDocs: rawGuaranteeDocs,
+        paymentTerms: rawPaymentTerms,
+        activityType: rawActivityType,
+        clientType: rawClientType,
+        adjustments: parsedAdjustments,
+        annualTarget: parsedAnnualTarget,
+        openingBalance2026: parsedOpeningBalance2026,
+        dealt2026: rawDealt2026,
+        dealEligibility: rawDealEligibility,
+        debtStatus: rawDebtStatus,
+        monthlySales2026: Object.keys(rowMonthlySales).length > 0 ? rowMonthlySales : undefined,
+        totalMonthlySales: finalTotalMonthlySales,
+        monthlyCollections2026: Object.keys(rowMonthlyCollections).length > 0 ? rowMonthlyCollections : undefined,
+        totalMonthlyCollections: finalTotalMonthlyCollections,
+        overdue2025: parsedOverdue2025,
+        overdue2026: parsedOverdue2026,
+        dueUntilPeriod: parsedDueUntilPeriod,
+        duePeriodLabel: detectedDuePeriodLabel,
+        totalOverallSales: parsedTotalOverallSales,
+        totalOverallCollections: parsedTotalOverallCollections,
+        sales2024: parsedSales2024,
+        collections2024: parsedCollections2024,
+        activeSalesMonths: activeSalesMonthsList.length > 0 ? activeSalesMonthsList : undefined,
+        activeCollectionMonths: activeCollectionMonthsList.length > 0 ? activeCollectionMonthsList : undefined,
+
         createdAt: new Date().toISOString(),
       };
       customerMap.set(dedupKey, newCustomer);
     }
   }
 
-  const uniqueCustomers = Array.from(customerMap.values());
+  const rawUnique = Array.from(customerMap.values());
+  const { customers: strictlyDeduplicated } = deduplicateAndMergeCustomers(rawUnique);
   return {
-    customers: uniqueCustomers,
+    customers: strictlyDeduplicated,
     errors,
     totalRows: totalRawRowsProcessed,
   };
@@ -2296,6 +2706,315 @@ export function exportCustomersToExcel(customers: Customer[]): void {
 
   XLSX.utils.book_append_sheet(wb, ws, 'سجل_العملاء');
   XLSX.writeFile(wb, `سجل_عملاء_دريم_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+/**
+ * Standard Columns for Sales Target & Customer Debts Sheet (شيت تارجت المبيعات والعملاء والمتأخرات)
+ * Matches the official Dream Group master accounting format
+ */
+export const CUSTOMER_SALES_TARGET_COLUMNS = [
+  'Account Name',
+  'الفرع',
+  'المديونيه',
+  'اورق الضمان',
+  'الحد الائتماني',
+  'طريقة الدفع',
+  'طبيعة النشاط',
+  'المحافظة',
+  'المركز',
+  'الخط',
+  'خ/ك',
+  'المندوب الحالي',
+  'تعديلات',
+  'الهدف السنوي',
+  'اول المدة 2026',
+  'متعامل 2026',
+  'قابل /غير',
+  'حالة دين العميل',
+  '1 مبيعات',
+  '2 مبيعات',
+  '3 مبيعات',
+  '4 مبيعات',
+  '5 مبيعات',
+  '6 مبيعات',
+  '7 مبيعات',
+  '8 مبيعات',
+  '9 مبيعات',
+  'اجمالي المبيعات',
+  '1 تحصيل',
+  '2 تحصيل',
+  'تحصيل3',
+  '4 تحصيل',
+  '5 تحصيل',
+  '6 تحصيل',
+  '7 تحصيل',
+  '8 تحصيل',
+  '9 تحصيل',
+  'اجمالي المتأخرات',
+  'متاخرات 2025',
+  'متاخرات 2026',
+  'مستحق حتي نهاية اغسطس',
+  'اجمالي مبيعات',
+  'تحصيلات',
+  'مبيعات 2024',
+  'تحصيلات 2024',
+];
+
+/**
+ * Export Sales Target & Debts Sheet to Excel with all detailed monthly columns
+ */
+export function exportCustomerTargetSheetToExcel(customers: Customer[]): void {
+  const wb = XLSX.utils.book_new();
+
+  // Find max active month across customers (at least 9)
+  let maxMonth = 9;
+  customers.forEach((c) => {
+    if (c.monthlySales2026) {
+      Object.keys(c.monthlySales2026).forEach((k) => {
+        const m = parseInt(k, 10);
+        if (m > maxMonth && m <= 12) maxMonth = m;
+      });
+    }
+    if (c.monthlyCollections2026) {
+      Object.keys(c.monthlyCollections2026).forEach((k) => {
+        const m = parseInt(k, 10);
+        if (m > maxMonth && m <= 12) maxMonth = m;
+      });
+    }
+  });
+
+  // Build dynamic headers based on maxMonth
+  const salesHeaders: string[] = [];
+  for (let m = 1; m <= maxMonth; m++) {
+    salesHeaders.push(`${m} مبيعات`);
+  }
+
+  const collHeaders: string[] = [];
+  for (let m = 1; m <= maxMonth; m++) {
+    collHeaders.push(`${m} تحصيل`);
+  }
+
+  const headers = [
+    'Account Name',
+    'الفرع',
+    'المديونيه',
+    'اورق الضمان',
+    'الحد الائتماني',
+    'طريقة الدفع',
+    'طبيعة النشاط',
+    'المحافظة',
+    'المركز',
+    'الخط',
+    'خ/ك',
+    'المندوب الحالي',
+    'تعديلات',
+    'الهدف السنوي',
+    'اول المدة 2026',
+    'متعامل 2026',
+    'قابل /غير',
+    'حالة دين العميل',
+    ...salesHeaders,
+    'اجمالي المبيعات',
+    ...collHeaders,
+    'اجمالي المتأخرات',
+    'متاخرات 2025',
+    'متاخرات 2026',
+    'مستحق حتي نهاية اغسطس',
+    'اجمالي مبيعات',
+    'تحصيلات',
+    'مبيعات 2024',
+    'تحصيلات 2024',
+  ];
+
+  const rows = customers.map((c) => {
+    // Dynamic monthly sales row values
+    const salesVals: number[] = [];
+    let sumSales = 0;
+    for (let m = 1; m <= maxMonth; m++) {
+      const v = Number(c.monthlySales2026?.[m] ?? 0);
+      salesVals.push(v);
+      sumSales += v;
+    }
+    const totalSales = c.totalMonthlySales !== undefined && c.totalMonthlySales > 0 ? c.totalMonthlySales : sumSales;
+
+    // Dynamic monthly collections row values
+    const collVals: number[] = [];
+    let sumColl = 0;
+    for (let m = 1; m <= maxMonth; m++) {
+      const v = Number(c.monthlyCollections2026?.[m] ?? 0);
+      collVals.push(v);
+      sumColl += v;
+    }
+    const totalColl = c.totalMonthlyCollections !== undefined && c.totalMonthlyCollections > 0 ? c.totalMonthlyCollections : sumColl;
+
+    const overdue = Number(c.totalOverdueAndDue ?? c.overdueBalance ?? c.currentBalance ?? c.balance ?? 0);
+
+    return [
+      c.name,
+      c.branchName || 'الفرع الرئيسي',
+      Number(c.currentBalance ?? c.balance ?? 0),
+      c.guaranteeDocs || 'إيصال أمانة',
+      Number(c.creditLimit || 0),
+      c.paymentTerms || 'آجل 15 يوم',
+      c.activityType || 'سوبر ماركت',
+      c.governorate || 'المنيا',
+      c.district || '',
+      c.route || '',
+      c.clientType || 'خاص',
+      c.salesRepName || c.repName || 'المندوب العام',
+      Number(c.adjustments || 0),
+      Number(c.annualTarget || 0),
+      Number(c.openingBalance2026 ?? c.balance ?? 0),
+      c.dealt2026 || (sumSales > 0 ? 'متعامل' : 'غير متعامل'),
+      c.dealEligibility || 'قابل',
+      c.debtStatus || (overdue > 0 ? 'متأخر' : 'منتظم'),
+      ...salesVals,
+      totalSales,
+      ...collVals,
+      overdue,
+      Number(c.overdue2025 || 0),
+      Number(c.overdue2026 || 0),
+      Number(c.dueUntilPeriod || overdue),
+      Number(c.totalOverallSales || totalSales),
+      Number(c.totalOverallCollections || totalColl),
+      Number(c.sales2024 || 0),
+      Number(c.collections2024 || 0),
+    ];
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  XLSX.utils.book_append_sheet(wb, ws, 'تارجت_المبيعات_والعملاء');
+  XLSX.writeFile(wb, `شيت_تارجت_المبيعات_والعملاء_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+/**
+ * Generate Sample Customer Target Template with realistic rows matching user format
+ */
+export function generateSampleCustomerTargetTemplate(): void {
+  const sampleCustomers: Customer[] = [
+    {
+      id: 'target-sample-1',
+      code: 'CUST-TARGET-001',
+      name: 'شركة وماركت الفيروز للتجارة والتوزيع',
+      phone: '01012345678',
+      address: 'شارع الجمهورية - بندر المنيا',
+      branchName: 'فرع المنيا',
+      currentBalance: 45000,
+      balance: 45000,
+      guaranteeDocs: 'شيك بنكي + إيصال أمانة',
+      creditLimit: 150000,
+      paymentTerms: 'آجل 21 يوم',
+      activityType: 'هايبر ماركت وتجزئة',
+      governorate: 'المنيا',
+      district: 'بندر المنيا',
+      route: 'خط الكورنيش والسوق',
+      clientType: 'كبار',
+      salesRepName: 'حسن محمد',
+      repName: 'حسن محمد',
+      adjustments: 10000,
+      annualTarget: 1200000,
+      openingBalance2026: 35000,
+      dealt2026: 'متعامل',
+      dealEligibility: 'قابل',
+      debtStatus: 'منتظم',
+      monthlySales2026: {
+        1: 85000,
+        2: 92000,
+        3: 110000,
+        4: 95000,
+        5: 105000,
+        6: 98000,
+        7: 115000,
+        8: 120000,
+        9: 108000,
+      },
+      totalMonthlySales: 928000,
+      monthlyCollections2026: {
+        1: 80000,
+        2: 90000,
+        3: 100000,
+        4: 95000,
+        5: 100000,
+        6: 95000,
+        7: 110000,
+        8: 115000,
+        9: 105000,
+      },
+      totalMonthlyCollections: 890000,
+      totalOverdueAndDue: 38000,
+      overdueBalance: 38000,
+      overdue2025: 0,
+      overdue2026: 38000,
+      dueUntilPeriod: 38000,
+      duePeriodLabel: 'مستحق حتي نهاية اغسطس',
+      totalOverallSales: 928000,
+      totalOverallCollections: 890000,
+      sales2024: 850000,
+      collections2024: 820000,
+    },
+    {
+      id: 'target-sample-2',
+      code: 'CUST-TARGET-002',
+      name: 'محلات الأمانة لتجارة المواد الغذائية',
+      phone: '01123456789',
+      address: 'طريق إطسا الزراعي - الفيوم',
+      branchName: 'فرع الفيوم',
+      currentBalance: 22000,
+      balance: 22000,
+      guaranteeDocs: 'إيصال أمانة معتمد',
+      creditLimit: 60000,
+      paymentTerms: 'آجل 14 يوم',
+      activityType: 'سوبر ماركت',
+      governorate: 'الفيوم',
+      district: 'مركز إطسا',
+      route: 'خط إطسا الزراعي',
+      clientType: 'خاص',
+      salesRepName: 'علاء عمر',
+      repName: 'علاء عمر',
+      adjustments: 0,
+      annualTarget: 480000,
+      openingBalance2026: 15000,
+      dealt2026: 'متعامل',
+      dealEligibility: 'قابل',
+      debtStatus: 'متأخر جزئي',
+      monthlySales2026: {
+        1: 35000,
+        2: 40000,
+        3: 45000,
+        4: 38000,
+        5: 42000,
+        6: 41000,
+        7: 46000,
+        8: 44000,
+        9: 47000,
+      },
+      totalMonthlySales: 378000,
+      monthlyCollections2026: {
+        1: 30000,
+        2: 35000,
+        3: 40000,
+        4: 35000,
+        5: 40000,
+        6: 38000,
+        7: 42000,
+        8: 40000,
+        9: 42000,
+      },
+      totalMonthlyCollections: 342000,
+      totalOverdueAndDue: 22000,
+      overdueBalance: 22000,
+      overdue2025: 5000,
+      overdue2026: 17000,
+      dueUntilPeriod: 22000,
+      duePeriodLabel: 'مستحق حتي نهاية اغسطس',
+      totalOverallSales: 378000,
+      totalOverallCollections: 342000,
+      sales2024: 320000,
+      collections2024: 310000,
+    },
+  ];
+
+  exportCustomerTargetSheetToExcel(sampleCustomers);
 }
 
 /**

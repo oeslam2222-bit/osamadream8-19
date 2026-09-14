@@ -19,6 +19,7 @@ import {
   User,
   Users,
   Wallet,
+  ExternalLink,
   X
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
@@ -43,7 +44,12 @@ import {
   QUARTER_LABELS
 } from '../services/targetService';
 import { TargetQuarter, TargetRecord } from '../types';
-import { getPublishedDataSources } from '../services/dataSourceService';
+import {
+  getPublishedDataSources,
+  getSavedSourceUrl,
+  saveSingleSourceUrl,
+  getGoogleSheetEmbedUrl
+} from '../services/dataSourceService';
 
 export const TargetPerformanceDashboard: React.FC = () => {
   const {
@@ -52,6 +58,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
     targets,
     getVisibleTargets,
     importTargetsFromExcel,
+    importTargetsFromGoogleSheet,
     exportTargetsReport,
     resetTargetsToDefault,
   } = useApp();
@@ -75,7 +82,12 @@ export const TargetPerformanceDashboard: React.FC = () => {
   const [selectedBranch, setSelectedBranch] = useState<string>('ALL');
   const [selectedRep, setSelectedRep] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [powerBiUrl] = useState(() => getPublishedDataSources().targets);
+
+  // Persistent Google Sheets Live URL State
+  const [targetsSheetUrl, setTargetsSheetUrl] = useState(() => getSavedSourceUrl('targets'));
+  const [isSyncingSheet, setIsSyncingSheet] = useState(false);
+  const [syncNotice, setSyncNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [showUrlEdit, setShowUrlEdit] = useState(false);
 
   // Admin tabs: overview | quarters | table
   const [adminTab, setAdminTab] = useState<'overview' | 'quarters' | 'table'>('overview');
@@ -268,6 +280,32 @@ export const TargetPerformanceDashboard: React.FC = () => {
     }
   }, [periodMode, filteredRecords]);
 
+  // Google Sheets Direct Sync Handler
+  const handleSyncGoogleSheet = async (urlOverride?: string) => {
+    const urlToUse = (urlOverride !== undefined ? urlOverride : targetsSheetUrl).trim();
+    if (!urlToUse) {
+      setSyncNotice({ type: 'error', message: 'يرجى إدخال رابط Google Sheets صالح أولاً.' });
+      return;
+    }
+    setIsSyncingSheet(true);
+    setSyncNotice(null);
+    try {
+      const res = await importTargetsFromGoogleSheet(urlToUse);
+      if (res.success) {
+        setSyncNotice({ type: 'success', message: res.message });
+        setTargetsSheetUrl(urlToUse);
+        saveSingleSourceUrl('targets', urlToUse);
+        setShowUrlEdit(false);
+      } else {
+        setSyncNotice({ type: 'error', message: res.message });
+      }
+    } catch (err: any) {
+      setSyncNotice({ type: 'error', message: err?.message || 'فشل الاتصال بـ Google Sheets' });
+    } finally {
+      setIsSyncingSheet(false);
+    }
+  };
+
   // Excel File Upload Handler (Admin / Developer)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -298,13 +336,46 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 pb-12">
-      {powerBiUrl.enabled && powerBiUrl.kind === 'power_bi' && powerBiUrl.url.trim() && (
+      {targetsSheetUrl && targetsSheetUrl.trim() && (
         <section className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between gap-3 p-4 border-b border-slate-200">
-            <div><h2 className="font-black text-slate-900">لوحة Power BI الشاملة</h2><p className="text-xs text-slate-500 mt-1">تفاصيل المناديب ومحققات الفروع</p></div>
-            <a href={powerBiUrl.url} target="_blank" rel="noreferrer" className="text-xs font-black text-emerald-700 hover:underline">فتح في نافذة جديدة</a>
+          <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-slate-200 bg-slate-50">
+            <div className="flex items-center gap-2">
+              <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs">
+                GS
+              </span>
+              <div>
+                <h2 className="font-black text-slate-900 text-sm">شيت أهداف ومبيعات المناديب (Google Sheets) 🟢</h2>
+                <p className="text-[11px] text-slate-500">معاينة ومزامنة فورية - الرابط محفوظ تلقائياً</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {isAdminOrDev && (
+                <button
+                  onClick={() => handleSyncGoogleSheet(targetsSheetUrl)}
+                  disabled={isSyncingSheet}
+                  className="text-xs font-black bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSheet ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingSheet ? 'جاري المزامنة...' : 'مزامنة وتحديث فوري'}</span>
+                </button>
+              )}
+              <a
+                href={targetsSheetUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-black text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-1"
+              >
+                فتح الشيت في Google Sheets ↗
+              </a>
+            </div>
           </div>
-          <iframe title="لوحة أهداف المبيعات والتحصيل Power BI" src={powerBiUrl.url} className="w-full min-h-[520px] border-0" loading="lazy" allowFullScreen />
+          <iframe
+            title="شيت أهداف ومبيعات المناديب Google Sheets"
+            src={getGoogleSheetEmbedUrl(targetsSheetUrl)}
+            className="w-full min-h-[520px] border-0"
+            loading="lazy"
+            allowFullScreen
+          />
         </section>
       )}
       {/* Top Header Card */}
@@ -323,7 +394,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     ? 'أهداف ومحققات المبيعات والتحصيل (المشرف) 🎯'
                     : isBranchManager
                     ? `أهداف وتارجت ${currentUser?.branchName || 'الفرع'} 🏢`
-                    : 'لوحة أهداف المبيعات والتحصيل الشاملة (Power BI) 📊'}
+                    : 'لوحة أهداف المبيعات والتحصيل الشاملة (Google Sheets) 📊'}
                 </h1>
                 <span className="bg-amber-400 text-slate-950 text-[11px] font-black px-2.5 py-0.5 rounded-full">
                   2026
@@ -357,90 +428,178 @@ export const TargetPerformanceDashboard: React.FC = () => {
           {/* Action Buttons - EXCLUSIVELY for Admin & Developer */}
           {isAdminOrDev && (
             <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+              {targetsSheetUrl && targetsSheetUrl.trim() && (
+                <button
+                  onClick={() => handleSyncGoogleSheet(targetsSheetUrl)}
+                  disabled={isSyncingSheet}
+                  className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black px-3.5 py-2 rounded-xl text-xs transition shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  title="مزامنة فورية من شيت Google Sheets المحفوظ"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isSyncingSheet ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingSheet ? 'جاري المزامنة...' : 'مزامنة Google Sheets 🟢'}</span>
+                </button>
+              )}
+
               <button
-                onClick={() => setIsUploadModalOpen(true)}
-                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs transition shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
-                title="رفع شيت الأهداف اليومي إكسل"
+                onClick={() => setShowUrlEdit((prev) => !prev)}
+                className="bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 font-bold px-3 py-2 rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
+                title="تعديل أو ربط رابط Google Sheets للأهداف"
               >
-                <Upload className="w-4 h-4" />
-                <span>رفع شيت التارجت (Excel)</span>
+                <ExternalLink className="w-4 h-4 text-amber-400" />
+                <span>{showUrlEdit ? 'إغلاق الرابط' : targetsSheetUrl ? 'تعديل رابط الشيت' : 'ربط Google Sheet'}</span>
               </button>
 
               <button
-                onClick={downloadTargetTemplateExcel}
+                onClick={() => setIsUploadModalOpen(true)}
                 className="bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 font-bold px-3 py-2 rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
-                title="تحميل قالب شيت الإكسل النموذجي"
+                title="خيارات إضافية / رفع ملف إكسل محلي"
               >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-                <span>تحميل القالب</span>
+                <Upload className="w-4 h-4 text-slate-300" />
+                <span>خيارات إضافية</span>
               </button>
 
               <button
                 onClick={exportTargetsReport}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-3.5 py-2 rounded-xl text-xs transition shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
+                className="bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 font-bold px-3 py-2 rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
                 title="تصدير الأهداف والتقارير إلى إكسل"
               >
-                <Download className="w-4 h-4" />
+                <Download className="w-4 h-4 text-emerald-400" />
                 <span>تصدير Excel</span>
               </button>
 
-              <button
-                onClick={() => {
-                  if (window.confirm('هل تريد مسح بيانات الشيت بالكامل لرفع شيت جديد؟')) {
-                    resetTargetsToDefault();
-                  }
-                }}
-                className="bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-700/50 p-2 rounded-xl transition cursor-pointer"
-                title="مسح بيانات الشيت"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </button>
+              {visibleRecords.length > 0 && (
+                <button
+                  onClick={() => {
+                    if (window.confirm('هل تريد مسح بيانات الشيت بالكامل لإعادة المزامنة؟')) {
+                      resetTargetsToDefault();
+                    }
+                  }}
+                  className="bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-700/50 p-2 rounded-xl transition cursor-pointer"
+                  title="مسح بيانات الشيت"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              )}
             </div>
           )}
         </div>
+
+        {/* Collapsible Quick Google Sheet URL Bar */}
+        {isAdminOrDev && showUrlEdit && (
+          <div className="mt-4 pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <input
+              type="url"
+              value={targetsSheetUrl}
+              onChange={(e) => {
+                setTargetsSheetUrl(e.target.value);
+                setSyncNotice(null);
+              }}
+              placeholder="https://docs.google.com/spreadsheets/d/.../edit"
+              className="flex-1 bg-slate-950/80 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              dir="ltr"
+            />
+            <button
+              onClick={() => handleSyncGoogleSheet(targetsSheetUrl)}
+              disabled={isSyncingSheet || !targetsSheetUrl.trim()}
+              className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black px-4 py-2 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>حفظ ومزامنة الآن 🟢</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* EMPTY STATE (No real data uploaded yet) */}
+      {/* Synchronizing / Feedback Toast */}
+      {syncNotice && (
+        <div
+          className={`p-3.5 rounded-2xl text-xs font-bold flex items-center justify-between gap-2 shadow-xs ${
+            syncNotice.type === 'success'
+              ? 'bg-emerald-50 text-emerald-900 border border-emerald-200'
+              : 'bg-rose-50 text-rose-900 border border-rose-200'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {syncNotice.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            )}
+            <span>{syncNotice.message}</span>
+          </div>
+          <button
+            onClick={() => setSyncNotice(null)}
+            className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* EMPTY STATE (No data synced yet) */}
       {visibleRecords.length === 0 ? (
-        <div className="bg-white rounded-3xl p-8 sm:p-12 border border-slate-200 text-center shadow-xs max-w-2xl mx-auto space-y-4">
+        <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200 text-center shadow-xs max-w-2xl mx-auto space-y-5">
           <div className="w-16 h-16 rounded-3xl bg-amber-50 text-amber-500 flex items-center justify-center mx-auto shadow-inner">
             <Target className="w-8 h-8" />
           </div>
-          <h2 className="text-lg sm:text-xl font-black text-slate-900">
-            {isAdminOrDev
-              ? 'لا توجد بيانات أهداف مسجلة حالياً 🎯'
-              : `أهلاً بك يا ${currentUser?.name || ''} ��`}
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-500 leading-relaxed max-w-lg mx-auto">
-            {isAdminOrDev ? (
-              <>
-                قم برفع شيت الإكسل اليومي الحقيقي للبدء. الأعمدة المطلوبة:{' '}
-                <strong className="text-slate-800">
-                  الفرع، المندوب، هدف البيع، المحقق بيع، نسبه البيع، هدف التحصيل، المحقق تحصيل، نسبه تحصيل، تاريخ
-                </strong>
-                .
-              </>
-            ) : (
-              'لم يتم رفع بيانات الأهداف والتارجت لهذا الشهر حتى الآن من قِبل الإدارة. ستظهر هنا أرقامك والرسوم البيانية لحظة رفع الشيت اليومي المعتمد.'
-            )}
-          </p>
+          <div className="space-y-1.5">
+            <h2 className="text-lg sm:text-xl font-black text-slate-900">
+              {isAdminOrDev
+                ? 'ربط ومزامنة شيت أهداف وتارجت المناديب (Google Sheets) 🎯'
+                : `أهلاً بك يا ${currentUser?.name || ''}`}
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500 max-w-lg mx-auto leading-relaxed">
+              {isAdminOrDev
+                ? 'أدخل رابط Google Sheet الخاص بالأهداف. سيتم حفظ الرابط تلقائياً داخل النظام بحيث لا تضطر لإعادة إدخاله مرة أخرى، وتتم المزامنة بضغطة زر واحدة.'
+                : 'لم يتم مزامنة بيانات الأهداف والتارجت لهذا الشهر حتى الآن من قِبل الإدارة. ستظهر هنا أرقامك والرسوم البيانية فور مزامنة الشيت المعتمد.'}
+            </p>
+          </div>
 
           {isAdminOrDev && (
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
-              <button
-                onClick={() => setIsUploadModalOpen(true)}
-                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs transition shadow-md flex items-center gap-2 cursor-pointer"
-              >
-                <Upload className="w-4 h-4" />
-                <span>رفع شيت الإكسل الحقيقي الآن</span>
-              </button>
-              <button
-                onClick={downloadTargetTemplateExcel}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-2 cursor-pointer"
-              >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                <span>تحميل قالب فارغ</span>
-              </button>
+            <div className="space-y-3 pt-2 text-right">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <input
+                  type="url"
+                  value={targetsSheetUrl}
+                  onChange={(e) => {
+                    setTargetsSheetUrl(e.target.value);
+                    setSyncNotice(null);
+                  }}
+                  placeholder="https://docs.google.com/spreadsheets/d/.../edit"
+                  className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  dir="ltr"
+                />
+                <button
+                  onClick={() => handleSyncGoogleSheet(targetsSheetUrl)}
+                  disabled={isSyncingSheet || !targetsSheetUrl.trim()}
+                  className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black px-5 py-3 rounded-xl text-xs sm:text-sm transition shadow-md flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+                >
+                  {isSyncingSheet ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>جاري المزامنة...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>حفظ ومزامنة الأهداف 🟢</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold px-1">
+                <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                  ✓ الرابط يُحفظ تلقائياً في المتصفح ولن تضطر لإعادة إدخاله كل مرة
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsUploadModalOpen(true)}
+                  className="text-slate-600 hover:text-slate-900 underline cursor-pointer"
+                >
+                  أو خيارات إضافية / رفع ملف إكسل محلي (.xlsx)
+                </button>
+              </div>
             </div>
           )}
         </div>

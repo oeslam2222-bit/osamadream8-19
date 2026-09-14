@@ -174,7 +174,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
 
   return (
     <div className={`space-y-2 bg-slate-900/95 text-white rounded-2xl p-2.5 sm:p-3.5 border border-slate-800 shadow-lg ${className}`}>
-      {/* 1. Header Bar: Arabic Item Groups & Power BI Slicer Title */}
+      {/* 1. Header Bar: Arabic Item Groups & Slicer Title */}
       <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shadow-xs shrink-0">
@@ -444,7 +444,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
         )}
       </div>
 
-      {/* 3. Power BI Classifications (الفئات والعائلات التابعة) Interactive Drilldown Panel */}
+      {/* 3. Classifications (الفئات والعائلات التابعة) Interactive Drilldown Panel */}
       {!isSlicerCollapsed && (
         <div className="space-y-2 bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/90 animate-in fade-in">
           {/* Slicer Subheader & Search */}
@@ -505,7 +505,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
               لا توجد فئات مطابقة للبحث داخل هذه المجموعة
             </div>
           ) : slicerDisplayMode === 'tiles' ? (
-            /* Power BI Metric Tiles Mode */
+            /* Category Metric Tiles Mode */
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-1.5 max-h-56 overflow-y-auto pr-0.5">
               {/* All Classifications Tile */}
               <button

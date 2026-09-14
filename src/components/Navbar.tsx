@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   LogOut,
   Receipt,
+  RefreshCw,
   Server,
   ShieldCheck,
   Smartphone,
@@ -48,6 +49,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     invoices,
     getVisibleInvoices,
     isOffline,
+    pendingInvoicesCount,
+    flushPendingInvoices,
     getCartSummary,
     selectedBranchFilter,
     setSelectedBranchFilter,
@@ -248,6 +251,19 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                 </>
               )}
             </div>
+
+            {/* Pending Invoices Sync Button for Offline/Queued Orders */}
+            {pendingInvoicesCount > 0 && (
+              <button
+                type="button"
+                onClick={() => flushPendingInvoices()}
+                className="flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 px-2.5 h-9 sm:h-10 rounded-xl text-xs font-black transition cursor-pointer shadow-sm animate-pulse border border-amber-300"
+                title="فواتير مسجلة أوفلاين بانتظار المزامنة مع السيرفر"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>مزامنة ({pendingInvoicesCount})</span>
+              </button>
+            )}
 
             {/* Pending Users Notification for Admin / Developer (Hidden for reps/supervisors) */}
             {(currentUser.role === 'admin' || currentUser.role === 'developer') && pendingApprovalsCount > 0 && (

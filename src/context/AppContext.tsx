@@ -46,7 +46,10 @@ import {
   filterTargetsForUser,
   generateSampleTargets,
   parseTargetExcel,
+  fetchTargetsFromGoogleSheetUrl,
 } from '../services/targetService';
+import { deduplicateAndMergeCustomers } from '../services/customerDeduplicationService';
+import { saveSingleSourceUrl } from '../services/dataSourceService';
 import {
   AccountingSyncLog,
   AuditLog,
@@ -223,6 +226,7 @@ interface AppContextType {
   targets: TargetRecord[];
   getVisibleTargets: () => TargetRecord[];
   importTargetsFromExcel: (file: File) => Promise<{ success: boolean; count: number; message: string }>;
+  importTargetsFromGoogleSheet: (url: string) => Promise<{ success: boolean; count: number; message: string }>;
   exportTargetsReport: () => void;
   resetTargetsToDefault: () => void;
   addOrUpdateTargetRecord: (record: TargetRecord) => void;
@@ -424,6 +428,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const importTargetsFromGoogleSheet = async (url: string): Promise<{ success: boolean; count: number; message: string }> => {
+    try {
+      const cleanUrl = url.trim();
+      if (!cleanUrl) {
+        return { success: false, count: 0, message: 'يرجى إدخال رابط شيت جوجل صالح.' };
+      }
+      const parsed = await fetchTargetsFromGoogleSheetUrl(cleanUrl);
+      if (!parsed || parsed.length === 0) {
+        return { success: false, count: 0, message: 'لم يتم العثور على أي صفوف أهداف صالحة داخل شيت جوجل.' };
+      }
+      setTargets(parsed);
+      saveSingleSourceUrl('targets', cleanUrl);
+      return { success: true, count: parsed.length, message: `تمت مزامنة واستيراد ${parsed.length} هدف بنجاح وحفظ الرابط!` };
+    } catch (err: any) {
+      return { success: false, count: 0, message: err?.message || 'فشل الاتصال برابط شيت Google Sheets' };
+    }
+  };
+
   const exportTargetsReport = () => {
     const visible = getVisibleTargets();
     exportTargetsToExcel(visible);
@@ -571,127 +593,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const sanitizeCustomers = (list: Customer[]): Customer[] => {
     if (!Array.isArray(list)) return [];
-    const map = new Map<string, Customer>();
+    // 1. Run universal multi-index deduplication and deep attribute merging
+    const { customers: deduped } = deduplicateAndMergeCustomers(list);
 
-    const cleanStr = (s?: string) => {
-      if (!s) return '';
-      return String(s)
-        .replace(/[\uFFFD\uFEFF\u0000-\u001F\u007F-\u009F]/g, '')
-        .trim();
-    };
-
-    for (const rawC of list) {
-      if (!rawC) continue;
-      const c: Customer = {
-        ...rawC,
-        name: cleanStr(rawC.name),
-        code: cleanStr(rawC.code),
-        phone: cleanStr(rawC.phone),
-        address: cleanStr(rawC.address),
-        branchName: cleanStr(rawC.branchName),
-        repName: cleanStr(rawC.repName),
-        salesRepName: cleanStr(rawC.salesRepName),
-        notes: cleanStr(rawC.notes),
-        taxNumber: cleanStr(rawC.taxNumber),
-        storeName: cleanStr(rawC.storeName),
-      };
-
-      const cleanCode = (c.code || '').trim().toLowerCase();
-      const cleanName = (c.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
-      const cleanPhone = (c.phone || '').replace(/[^0-9]/g, '');
-
-      let key = '';
-      if (cleanCode && cleanCode !== '---' && !cleanCode.startsWith('cust-row') && !/^cust-\d+$/i.test(cleanCode)) {
-        key = `code:::${cleanCode}`;
-      } else if (cleanName && cleanPhone.length >= 7) {
-        key = `name_phone:::${cleanName}:::${cleanPhone}`;
-      } else if (cleanName) {
-        key = `name:::${cleanName}`;
-      } else if (cleanPhone.length >= 8) {
-        key = `phone:::${cleanPhone}`;
-      } else {
-        key = `id:::${c.id || Math.random()}`;
-      }
-
-      // Respect explicit branch first; only infer if completely missing
-      let resolvedBranch = '';
-      if (c.branchName && c.branchName.trim()) {
-        resolvedBranch = normalizeBranchName(c.branchName);
-      } else {
+    // 2. Ensure clean strings and branch inference for any missing fields
+    return deduped.map((c) => {
+      let resolvedBranch = c.branchName || '';
+      if (!resolvedBranch || resolvedBranch === 'الفرع الرئيسي') {
         const locInferred = inferBranchFromText(
           `${c.address || ''} ${c.governorate || ''} ${c.notes || ''}`
         );
-        resolvedBranch = locInferred || normalizeBranchName(c.branchName || 'الفرع الرئيسي');
+        if (locInferred) resolvedBranch = locInferred;
       }
-
-      const existing = map.get(key);
-      if (existing) {
-        // Merge attributes to keep the best data
-        if (!existing.phone && c.phone) existing.phone = c.phone;
-        if (!existing.address && c.address) existing.address = c.address;
-        if (!existing.taxNumber && c.taxNumber) existing.taxNumber = c.taxNumber;
-        if (!existing.notes && c.notes) existing.notes = c.notes;
-        if (!existing.region && c.region) existing.region = c.region;
-        if (!existing.supervisorName && c.supervisorName) existing.supervisorName = c.supervisorName;
-        if (c.sales2025 !== undefined) existing.sales2025 = Number(c.sales2025);
-        if (c.sales2026 !== undefined) existing.sales2026 = Number(c.sales2026);
-        if (c.collections2025 !== undefined) existing.collections2025 = Number(c.collections2025);
-        if (c.collections2026 !== undefined) existing.collections2026 = Number(c.collections2026);
-        if (c.monthlySales2026) existing.monthlySales2026 = { ...(existing.monthlySales2026 || {}), ...c.monthlySales2026 };
-        if (c.monthlyCollections2026) existing.monthlyCollections2026 = { ...(existing.monthlyCollections2026 || {}), ...c.monthlyCollections2026 };
-        if (c.hasDealtIn2026 !== undefined) existing.hasDealtIn2026 = c.hasDealtIn2026;
-        if (c.hasPreviousDeals !== undefined) existing.hasPreviousDeals = c.hasPreviousDeals;
-        if (c.status2026) existing.status2026 = c.status2026;
-        if (c.lastVisitDate) existing.lastVisitDate = c.lastVisitDate;
-        if (c.nextVisitDate) existing.nextVisitDate = c.nextVisitDate;
-        if (c.visitCount2026 !== undefined) existing.visitCount2026 = Number(c.visitCount2026);
-        if (c.visitHistory && c.visitHistory.length > 0) {
-          existing.visitHistory = [...c.visitHistory, ...(existing.visitHistory || [])];
-        }
-        if (c.branchName && c.branchName.trim()) {
-          existing.branchName = normalizeBranchName(c.branchName);
-        }
-        if (c.repId) existing.repId = c.repId;
-        if (c.repName) existing.repName = c.repName;
-        if (c.salesRepName) existing.salesRepName = c.salesRepName;
-        if (c.creditLimit !== undefined) existing.creditLimit = Number(c.creditLimit);
-        if (c.currentBalance !== undefined || c.balance !== undefined) {
-          const bal = Number(c.currentBalance ?? c.balance ?? 0);
-          existing.currentBalance = bal;
-          existing.balance = bal;
-        }
-        if (c.totalOverdueAndDue !== undefined) {
-          existing.totalOverdueAndDue = Number(c.totalOverdueAndDue);
-        } else if (existing.totalOverdueAndDue === undefined && (existing.currentBalance || existing.balance)) {
-          existing.totalOverdueAndDue = existing.currentBalance || existing.balance || 0;
-        }
-        if (c.overdueBalance !== undefined) {
-          existing.overdueBalance = Number(c.overdueBalance);
-        }
-        if (c.dueBalance !== undefined) {
-          existing.dueBalance = Number(c.dueBalance);
-        }
-        if (c.tier === 'مميز' || (c.tier === 'راقي' && existing.tier === 'متوسط')) {
-          existing.tier = c.tier;
-        }
-      } else {
-        const bal = Number(c.currentBalance ?? c.balance ?? 0);
-        const overdueDue = c.totalOverdueAndDue !== undefined ? Number(c.totalOverdueAndDue) : bal;
-        map.set(key, {
-          ...c,
-          name: c.name || `عميل ${c.code || ''}`,
-          branchName: resolvedBranch,
-          creditLimit: c.creditLimit !== undefined ? Number(c.creditLimit) : 0,
-          currentBalance: bal,
-          balance: bal,
-          totalOverdueAndDue: overdueDue,
-          overdueBalance: c.overdueBalance !== undefined ? Number(c.overdueBalance) : undefined,
-          dueBalance: c.dueBalance !== undefined ? Number(c.dueBalance) : undefined,
-        });
-      }
-    }
-
-    return Array.from(map.values());
+      return {
+        ...c,
+        name: c.name || `عميل ${c.code || ''}`,
+        branchName: resolvedBranch || 'الفرع الرئيسي',
+      };
+    });
   };
 
   const [products, setProducts] = useState<Product[]>(() => {
@@ -4089,6 +4008,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         targets,
         getVisibleTargets,
         importTargetsFromExcel,
+        importTargetsFromGoogleSheet,
         exportTargetsReport,
         resetTargetsToDefault,
         addOrUpdateTargetRecord,

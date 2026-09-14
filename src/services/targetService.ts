@@ -1,6 +1,8 @@
 import * as XLSX from 'xlsx-js-style';
 import { TargetQuarter, TargetRecord, User } from '../types';
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from './arabicMatchingService';
+import { decodeBufferSmart } from './encodingService';
+import { getPublishedCsvUrl } from './dataSourceService';
 
 /**
  * Maps a month number (1-12) to its respective quarter:
@@ -129,6 +131,31 @@ function parseExcelDate(val: any): { dateStr: string; month: number; year: numbe
  * Matches columns:
  * الفرع | المندوب | هدف البيع | المحقق بيع | نسبه البيع | هدف التحصيل | المحقق تحصيل | نسبه تحصيل | تاريخ
  */
+/**
+ * Fetch and parse Target records directly from a Google Sheets URL
+ */
+export async function fetchTargetsFromGoogleSheetUrl(urlOrId: string): Promise<TargetRecord[]> {
+  const csvUrl = getPublishedCsvUrl(urlOrId);
+  const response = await fetch(csvUrl);
+  if (!response.ok) {
+    throw new Error(
+      `فشل الاتصال بشيت أهداف جوجل (${response.statusText}). تأكد من تفعيل "أي شخص لديه الرابط يمكنه العرض" (Anyone with link can view).`
+    );
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  const csvText = decodeBufferSmart(arrayBuffer).replace(/^\uFEFF/, '');
+  const workbook = XLSX.read(csvText, { type: 'string', codepage: 65001 });
+  if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+    throw new Error('شيت جوجل لا يحتوي على أي صفحات صالحة.');
+  }
+
+  const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+  return parseTargetRawRows(rawRows);
+}
+
 export async function parseTargetExcel(fileOrBuffer: File | ArrayBuffer): Promise<TargetRecord[]> {
   let data: ArrayBuffer;
   if (fileOrBuffer instanceof File) {
@@ -155,6 +182,13 @@ export async function parseTargetExcel(fileOrBuffer: File | ArrayBuffer): Promis
   const worksheet = workbook.Sheets[targetSheetName];
   const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
+  return parseTargetRawRows(rawRows);
+}
+
+/**
+ * Common row parser for Target data (from Excel or Google Sheets)
+ */
+export function parseTargetRawRows(rawRows: any[][]): TargetRecord[] {
   if (!rawRows || rawRows.length < 2) {
     throw new Error('ملف الإكسل فارغ أو لا يحتوي على صفوف بيانات.');
   }

@@ -409,7 +409,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         if (!match) return false;
       }
 
-      // Sub-category / Family Name Filter (Power BI Slicer Filter)
+      // Sub-category / Family Name Filter
       if (selectedSubCategory !== 'الكل') {
         const targetSub = selectedSubCategory.toLowerCase().trim();
         const pFamily = (p.familyName || '').toLowerCase().trim();
@@ -1229,7 +1229,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </button>
               </div>
 
-              {/* 21 Official Departments & Power BI Subcategories / Classifications Slicer Panel */}
+              {/* 21 Official Departments & Subcategories / Classifications Slicer Panel */}
               <DepartmentCategorySlicer
         products={products}
         selectedDepartment={selectedOfficialDept}
