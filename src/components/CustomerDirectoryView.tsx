@@ -123,7 +123,8 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
   // Import Modal State
   const defaultCustomerSheet = 'https://docs.google.com/spreadsheets/d/1eVQrSKbXVIBwx5V_K7eqj_cUL6YuCVP33iHo13J7Yp4/edit?usp=sharing';
-  const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge');
+  // The master customer sheet is the source of truth: each upload replaces the current list.
+  const [importMode, setImportMode] = useState<'merge' | 'replace'>('replace');
   const [googleSheetUrl, setGoogleSheetUrl] = useState(() => getSavedSourceUrl('customers') || defaultCustomerSheet);
   const [savedSheetHistory, setSavedSheetHistory] = useState<string[]>(() => getSavedSheetHistory('customers'));
   const [isImporting, setIsImporting] = useState(false);

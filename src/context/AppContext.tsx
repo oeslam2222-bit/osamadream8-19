@@ -1404,7 +1404,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const importCustomersList = (newCustomers: Customer[], mode: 'merge' | 'replace' = 'merge') => {
+  const importCustomersList = (newCustomers: Customer[], mode: 'merge' | 'replace' = 'replace') => {
     const sanitizedIncoming = sanitizeCustomers(newCustomers);
     const linked = linkCustomersToUsers(sanitizedIncoming, users);
     let finalCustomers: Customer[] = [];
@@ -2331,7 +2331,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: currentUser?.branchName || 'الفرع الرئيسي',
       action: 'import_products',
       actionTitle: `استيراد ومزامنة ${newProducts.length} صنف من شيت الإكسل (${mode === 'replace' ? 'استبدال كامل' : 'دمج وتحديث'})`,
-      details: `تم تحديث بيانات وشدات وأسعار ${newProducts.length} صنف مع الحفاظ على حجوزات المناديب النشطة ومزامنتها مع قاعدة البيانات المركزية.`,
+      details: `تم تحديث بيانات وشدات وأسعار ${newProducts.length} صنف مع الحفاظ على حجوزات ��لمناديب النشطة ومزامنتها مع قاعدة البيانات المركزية.`,
       badgeType: 'info',
     });
   };
@@ -2982,7 +2982,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const inv = invoices.find((i) => i.id === invoiceId);
     if (!inv) return { success: false, message: 'الطلبية غير موجودة' };
     if (!inv.branchName || !currentUser.branchName || !isBranchMatch(inv.branchName, currentUser.branchName, { allowUnassigned: false })) {
-      return { success: false, message: 'لا يمكنك تحويل طلبية تابعة لفرع آخر.' };
+      return { success: false, message: 'لا يمكنك تحو��ل طلبية تابعة لفرع آخر.' };
     }
     if (!['قيد مراجعة المشرف', 'قيد المراجعة'].includes(inv.status)) {
       return { success: false, message: 'لا يمكن تحويل طلبية في هذه الحالة.' };
