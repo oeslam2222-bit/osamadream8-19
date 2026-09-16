@@ -583,7 +583,9 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         branches: Array.from(branchSet),
         reps: Array.from(repSet),
         totalDebt: debt,
-      });
+        duplicatesCount: (res as any).duplicatesCount,
+        totalRows: (res as any).totalRows,
+      } as any);
     } catch (err: any) {
       alert(`حدث خطأ أثناء قراءة الملف: ${err.message || 'خطأ غير معروف'}`);
     } finally {
@@ -641,7 +643,9 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         branches: Array.from(branchSet),
         reps: Array.from(repSet),
         totalDebt: debt,
-      });
+        duplicatesCount: (res as any).duplicatesCount,
+        totalRows: (res as any).totalRows,
+      } as any);
     } catch (err: any) {
       alert(`خطأ في جلب Google Sheets: ${err.message || 'تعذر الوصول للرابط'}`);
     } finally {
@@ -655,11 +659,13 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
     importCustomersList(importPreview.customers, importMode);
     setIsImportModalOpen(false);
+    const dupes = (importPreview as any).duplicatesCount;
+    const dupesMsg = dupes ? ` (تم دمج وتوحيد ${dupes} سجل مكرر من إجمالي ${(importPreview as any).totalRows || importPreview.customers.length + dupes} سطر في الملف)` : '';
     setImportPreview(null);
     setGoogleSheetUrl('');
     setSyncFeedback({
       show: true,
-      msg: `تم بنجاح تحميل وتثبيت (${importPreview.customers.length}) عميل في المنظومة مع الفروع والمناديب والمديونيات!`,
+      msg: `تم بنجاح تحميل وتثبيت (${importPreview.customers.length}) عميل معتمد في المنظومة مع المبيعات والفروع والمناديب والمديونيات${dupesMsg}!`,
       type: 'success',
     });
   };

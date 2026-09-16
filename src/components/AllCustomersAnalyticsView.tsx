@@ -393,9 +393,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         setSyncStatus({ type: 'error', message: 'لم يتم العثور على أي عملاء في الرابط.' });
       } else {
         importCustomersList(result.customers, 'merge');
+        const dupesMsg = (result as any).duplicatesCount
+          ? ` (تم دمج وتوحيد ${(result as any).duplicatesCount} سجل مكرر من إجمالي ${(result as any).totalRows || result.customers.length} سطر)`
+          : '';
         setSyncStatus({
           type: 'success',
-          message: `تم بنجاح استيراد ومزامنة ${result.customers.length} عميل بالبيانات والتحليلات الكاملة!`,
+          message: `تم بنجاح استيراد ومزامنة ${result.customers.length} عميل بالبيانات والمبيعات الكاملة${dupesMsg}!`,
         });
       }
     } catch (err: any) {
@@ -417,9 +420,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         setSyncStatus({ type: 'error', message: 'الملف فارغ أو غير متوافق.' });
       } else {
         importCustomersList(result.customers, 'merge');
+        const dupesMsg = (result as any).duplicatesCount
+          ? ` (تم دمج وتوحيد ${(result as any).duplicatesCount} سجل مكرر من إجمالي ${(result as any).totalRows || result.customers.length} سطر)`
+          : '';
         setSyncStatus({
           type: 'success',
-          message: `تم قراءة واستيراد ${result.customers.length} عميل بنجاح من ملف الإكسل!`,
+          message: `تم قراءة واستيراد وتوحيد ${result.customers.length} عميل بنجاح مع المبيعات والتحصيلات${dupesMsg}!`,
         });
       }
     } catch (err: any) {

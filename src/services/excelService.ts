@@ -1546,12 +1546,14 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
   customers: Customer[];
   errors: string[];
   totalRows: number;
+  duplicatesCount?: number;
 } {
   if (!rawRows || rawRows.length < 2) {
     return {
       customers: [],
       errors: ['الملف فارغ أو لا يحتوي على صفوف عملاء صالحة'],
       totalRows: 0,
+      duplicatesCount: 0,
     };
   }
 
@@ -2042,9 +2044,16 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       if (colMap.notes === -1) colMap.notes = idx;
     }
 
-    // Dynamic Monthly Sales Recognition (e.g. '1 مبيعات', '2 مبيعات', 'مبيعات 1', 'مبيعات شهر 1')
-    // Exclude 4-digit years (2024, 2025, 2026) and 'اجمالي'
+    // Dynamic Monthly Sales & Collections Recognition
+    // Handles '1 مبيعات', 'مبيعات يناير', 'يناير', '1 تحصيل', 'تحصيلات يناير', etc.
     if (!norm.includes('202') && !norm.includes('اجمالي')) {
+      const monthArabicNames = [
+        'يناير', 'فبراير', 'مارس', 'ابريل', 'إبريل', 'مايو', 'يونيو',
+        'يوليو', 'اغسطس', 'أغسطس', 'سبتمبر', 'اكتوبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+      ];
+      const monthIndices = [1, 2, 3, 4, 4, 5, 6, 7, 8, 8, 9, 10, 10, 11, 12];
+
+      // Check numeric match first
       const salesMatch = norm.match(/^(\d{1,2})مبيعات/) ||
                          norm.match(/مبيعات(\d{1,2})$/) ||
                          norm.match(/(\d{1,2})مبيعات/) ||
@@ -2054,9 +2063,17 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
         if (m >= 1 && m <= 12 && !monthlySalesCols.some((item) => item.month === m)) {
           monthlySalesCols.push({ month: m, colIdx: idx });
         }
+      } else if (norm.includes('مبيعات') || norm.includes('بيع')) {
+        // Name-based sales match
+        monthArabicNames.forEach((name, mIdx) => {
+          const m = monthIndices[mIdx];
+          if (norm.includes(name) && !monthlySalesCols.some((item) => item.month === m)) {
+            monthlySalesCols.push({ month: m, colIdx: idx });
+          }
+        });
       }
 
-      // Dynamic Monthly Collections Recognition (e.g. '1 تحصيل', '2 تحصيل', 'تحصيل3', 'تحصيل 1')
+      // Check collections numeric match
       const collMatch = norm.match(/^(\d{1,2})تحصيل/) ||
                         norm.match(/تحصيل(\d{1,2})$/) ||
                         norm.match(/(\d{1,2})تحصيل/) ||
@@ -2066,6 +2083,14 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
         if (m >= 1 && m <= 12 && !monthlyCollectionCols.some((item) => item.month === m)) {
           monthlyCollectionCols.push({ month: m, colIdx: idx });
         }
+      } else if (norm.includes('تحصيل') || norm.includes('سداد')) {
+        // Name-based collections match
+        monthArabicNames.forEach((name, mIdx) => {
+          const m = monthIndices[mIdx];
+          if (norm.includes(name) && !monthlyCollectionCols.some((item) => item.month === m)) {
+            monthlyCollectionCols.push({ month: m, colIdx: idx });
+          }
+        });
       }
     }
   });
@@ -2310,12 +2335,23 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       if (Object.keys(rowMonthlyCollections).length > 0) {
         existing.monthlyCollections2026 = { ...(existing.monthlyCollections2026 || {}), ...rowMonthlyCollections };
       }
-      if (finalTotalMonthlySales !== undefined) existing.totalMonthlySales = finalTotalMonthlySales;
-      if (finalTotalMonthlyCollections !== undefined) existing.totalMonthlyCollections = finalTotalMonthlyCollections;
+      if (finalTotalMonthlySales !== undefined) {
+        existing.totalMonthlySales = finalTotalMonthlySales;
+        existing.sales2026 = Math.max(Number(existing.sales2026 || 0), finalTotalMonthlySales);
+        if (!existing.totalOverallSales) existing.totalOverallSales = finalTotalMonthlySales;
+      }
+      if (finalTotalMonthlyCollections !== undefined) {
+        existing.totalMonthlyCollections = finalTotalMonthlyCollections;
+        existing.collections2026 = Math.max(Number(existing.collections2026 || 0), finalTotalMonthlyCollections);
+        if (!existing.totalOverallCollections) existing.totalOverallCollections = finalTotalMonthlyCollections;
+      }
       if (activeSalesMonthsList.length > 0) existing.activeSalesMonths = activeSalesMonthsList;
       if (activeCollectionMonthsList.length > 0) existing.activeCollectionMonths = activeCollectionMonthsList;
     } else {
       const resolvedAddress = rawAddress || [rawDistrict, rawGov].filter(Boolean).join(' - ') || '';
+      const resolvedSales2026 = finalTotalMonthlySales !== undefined ? finalTotalMonthlySales : (parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : dynamicMonthlySalesSum);
+      const resolvedCollections2026 = finalTotalMonthlyCollections !== undefined ? finalTotalMonthlyCollections : (parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : dynamicMonthlyCollectionsSum);
+
       const newCustomer: Customer = {
         id: safeCustId,
         code: assignedCode,
@@ -2346,19 +2382,22 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
         adjustments: parsedAdjustments,
         annualTarget: parsedAnnualTarget,
         openingBalance2026: parsedOpeningBalance2026,
-        dealt2026: rawDealt2026,
+        dealt2026: rawDealt2026 || ((resolvedSales2026 > 0 || resolvedCollections2026 > 0) ? 'متعامل' : undefined),
         dealEligibility: rawDealEligibility,
         debtStatus: rawDebtStatus,
+        sales2026: resolvedSales2026,
+        totalMonthlySales: resolvedSales2026,
+        totalOverallSales: parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : resolvedSales2026,
+        collections2026: resolvedCollections2026,
+        totalMonthlyCollections: resolvedCollections2026,
+        totalOverallCollections: parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : resolvedCollections2026,
+        hasDealtIn2026: (resolvedSales2026 > 0) || (resolvedCollections2026 > 0) || rawDealt2026 === 'متعامل',
         monthlySales2026: Object.keys(rowMonthlySales).length > 0 ? rowMonthlySales : undefined,
-        totalMonthlySales: finalTotalMonthlySales,
         monthlyCollections2026: Object.keys(rowMonthlyCollections).length > 0 ? rowMonthlyCollections : undefined,
-        totalMonthlyCollections: finalTotalMonthlyCollections,
         overdue2025: parsedOverdue2025,
         overdue2026: parsedOverdue2026,
         dueUntilPeriod: parsedDueUntilPeriod,
         duePeriodLabel: detectedDuePeriodLabel,
-        totalOverallSales: parsedTotalOverallSales,
-        totalOverallCollections: parsedTotalOverallCollections,
         sales2024: parsedSales2024,
         collections2024: parsedCollections2024,
         activeSalesMonths: activeSalesMonthsList.length > 0 ? activeSalesMonthsList : undefined,
@@ -2371,11 +2410,12 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
   }
 
   const rawUnique = Array.from(customerMap.values());
-  const { customers: strictlyDeduplicated } = deduplicateAndMergeCustomers(rawUnique);
+  const { customers: strictlyDeduplicated, duplicatesCount } = deduplicateAndMergeCustomers(rawUnique);
   return {
     customers: strictlyDeduplicated,
     errors,
     totalRows: totalRawRowsProcessed,
+    duplicatesCount: totalRawRowsProcessed > strictlyDeduplicated.length ? totalRawRowsProcessed - strictlyDeduplicated.length : duplicatesCount,
   };
 }
 

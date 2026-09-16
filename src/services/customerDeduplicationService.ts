@@ -113,15 +113,22 @@ export function mergeTwoCustomers(target: Customer, source: Customer): Customer 
   const sourceOverdue = source.totalOverdueAndDue !== undefined ? Number(source.totalOverdueAndDue) : undefined;
   const finalOverdue = sourceOverdue !== undefined ? sourceOverdue : targetOverdue;
 
-  // Monthly breakdown dictionaries
-  const mergedMonthlySales = {
-    ...(target.monthlySales2026 || {}),
-    ...(source.monthlySales2026 || {}),
-  };
-  const mergedMonthlyCollections = {
-    ...(target.monthlyCollections2026 || {}),
-    ...(source.monthlyCollections2026 || {}),
-  };
+  // Monthly breakdown dictionaries - merge per month safely taking non-zero / max values
+  const mergedMonthlySales: Record<number, number> = {};
+  for (let m = 1; m <= 12; m++) {
+    const tVal = Number(target.monthlySales2026?.[m] || 0);
+    const sVal = Number(source.monthlySales2026?.[m] || 0);
+    const mVal = Math.max(tVal, sVal);
+    if (mVal > 0) mergedMonthlySales[m] = mVal;
+  }
+
+  const mergedMonthlyCollections: Record<number, number> = {};
+  for (let m = 1; m <= 12; m++) {
+    const tVal = Number(target.monthlyCollections2026?.[m] || 0);
+    const sVal = Number(source.monthlyCollections2026?.[m] || 0);
+    const mVal = Math.max(tVal, sVal);
+    if (mVal > 0) mergedMonthlyCollections[m] = mVal;
+  }
 
   // Visit history
   const mergedVisits = [
@@ -142,6 +149,32 @@ export function mergeTwoCustomers(target: Customer, source: Customer): Customer 
     finalTier = source.tier;
   }
 
+  // Financial calculations: safely compute maximum effective values
+  const monthlySalesSum = Object.values(mergedMonthlySales).reduce((acc, v) => acc + (Number(v) || 0), 0);
+  const targetSales = Number(target.sales2026 || target.totalMonthlySales || target.totalOverallSales || 0);
+  const sourceSales = Number(source.sales2026 || source.totalMonthlySales || source.totalOverallSales || 0);
+  const finalSales2026 = Math.max(targetSales, sourceSales, monthlySalesSum);
+
+  const monthlyColsSum = Object.values(mergedMonthlyCollections).reduce((acc, v) => acc + (Number(v) || 0), 0);
+  const targetCols = Number(target.collections2026 || target.totalMonthlyCollections || target.totalOverallCollections || 0);
+  const sourceCols = Number(source.collections2026 || source.totalMonthlyCollections || source.totalOverallCollections || 0);
+  const finalCollections2026 = Math.max(targetCols, sourceCols, monthlyColsSum);
+
+  const finalSales2025 = Math.max(Number(target.sales2025 || 0), Number(source.sales2025 || 0));
+  const finalCollections2025 = Math.max(Number(target.collections2025 || 0), Number(source.collections2025 || 0));
+  const finalSales2024 = Math.max(Number(target.sales2024 || 0), Number(source.sales2024 || 0));
+  const finalCollections2024 = Math.max(Number(target.collections2024 || 0), Number(source.collections2024 || 0));
+  const finalAnnualTarget = Math.max(Number(target.annualTarget || 0), Number(source.annualTarget || 0));
+
+  const finalHasDealtIn2026 = Boolean(
+    target.hasDealtIn2026 ||
+    source.hasDealtIn2026 ||
+    finalSales2026 > 0 ||
+    finalCollections2026 > 0 ||
+    target.dealt2026 === 'متعامل' ||
+    source.dealt2026 === 'متعامل'
+  );
+
   return {
     ...target,
     ...source,
@@ -158,20 +191,26 @@ export function mergeTwoCustomers(target: Customer, source: Customer): Customer 
     balance: finalBal,
     currentBalance: finalBal,
     totalOverdueAndDue: finalOverdue,
-    overdueBalance: source.overdueBalance !== undefined ? Number(source.overdueBalance) : target.overdueBalance,
-    dueBalance: source.dueBalance !== undefined ? Number(source.dueBalance) : target.dueBalance,
+    overdueBalance: source.overdueBalance !== undefined && Number(source.overdueBalance) !== 0 ? Number(source.overdueBalance) : target.overdueBalance,
+    dueBalance: source.dueBalance !== undefined && Number(source.dueBalance) !== 0 ? Number(source.dueBalance) : target.dueBalance,
     notes: finalNotes,
     tier: finalTier,
-    monthlySales2026: mergedMonthlySales,
-    monthlyCollections2026: mergedMonthlyCollections,
+    monthlySales2026: Object.keys(mergedMonthlySales).length > 0 ? mergedMonthlySales : (target.monthlySales2026 || source.monthlySales2026),
+    monthlyCollections2026: Object.keys(mergedMonthlyCollections).length > 0 ? mergedMonthlyCollections : (target.monthlyCollections2026 || source.monthlyCollections2026),
     visitHistory: mergedVisits,
-    annualTarget: source.annualTarget !== undefined ? Number(source.annualTarget) : target.annualTarget,
-    sales2026: source.sales2026 !== undefined ? Number(source.sales2026) : target.sales2026,
-    collections2026: source.collections2026 !== undefined ? Number(source.collections2026) : target.collections2026,
-    sales2025: source.sales2025 !== undefined ? Number(source.sales2025) : target.sales2025,
-    collections2025: source.collections2025 !== undefined ? Number(source.collections2025) : target.collections2025,
-    totalMonthlySales: source.totalMonthlySales !== undefined ? Number(source.totalMonthlySales) : target.totalMonthlySales,
-    totalMonthlyCollections: source.totalMonthlyCollections !== undefined ? Number(source.totalMonthlyCollections) : target.totalMonthlyCollections,
+    annualTarget: finalAnnualTarget > 0 ? finalAnnualTarget : undefined,
+    sales2026: finalSales2026,
+    totalMonthlySales: finalSales2026,
+    totalOverallSales: finalSales2026 > 0 ? finalSales2026 : (source.totalOverallSales || target.totalOverallSales),
+    collections2026: finalCollections2026,
+    totalMonthlyCollections: finalCollections2026,
+    totalOverallCollections: finalCollections2026 > 0 ? finalCollections2026 : (source.totalOverallCollections || target.totalOverallCollections),
+    sales2025: finalSales2025 > 0 ? finalSales2025 : undefined,
+    collections2025: finalCollections2025 > 0 ? finalCollections2025 : undefined,
+    sales2024: finalSales2024 > 0 ? finalSales2024 : undefined,
+    collections2024: finalCollections2024 > 0 ? finalCollections2024 : undefined,
+    hasDealtIn2026: finalHasDealtIn2026,
+    dealt2026: finalHasDealtIn2026 ? 'متعامل' : (source.dealt2026 || target.dealt2026 || 'غير متعامل'),
     guaranteeDocs: source.guaranteeDocs || target.guaranteeDocs,
     paymentTerms: source.paymentTerms || target.paymentTerms,
     activityType: source.activityType || target.activityType,
