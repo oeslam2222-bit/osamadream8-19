@@ -66,6 +66,23 @@ export function normalizeExcelBranchName(rawBranch?: string): string {
     return '';
   }
   const clean = rawBranch.trim();
+
+  // Branch codes from the customer sheet. Keep this mapping explicit so a
+  // numeric branch value is never mistaken for a customer or rep field.
+  const branchCodeMap: Record<string, string> = {
+    '15': 'فرع الفيوم',
+    '45': 'فرع ديمشلت',
+    '55': 'فرع منوف',
+    '65': 'فرع منيا القمح',
+    '75': 'فرع القاهرة',
+    '90': 'فرع البحيرة',
+    '95': 'فرع المنيا',
+  };
+  const branchCode = clean.replace(/^فرع\s*/i, '').trim();
+  if (branchCodeMap[branchCode]) {
+    return branchCodeMap[branchCode];
+  }
+
   const inferred = inferBranchFromText(clean);
   if (inferred) {
     return inferred;
@@ -1604,7 +1621,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     openingBalance2026: -1,      // اول المدة 2026
     dealt2026: -1,               // متعامل 2026
     dealEligibility: -1,         // قابل /غير
-    debtStatus: -1,              // حالة دين العمي��
+    debtStatus: -1,              // حالة دين العمي����
     totalMonthlySales: -1,       // اجمالي المبيعات
     totalMonthlyCollections: -1, // اجمالي التحصيلات
     totalOverdue: -1,            // اجمالي المتأخرات (المستحقات التي تظهر للمندوب عند طلب طلبية)
@@ -1851,7 +1868,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('قابل/غير') ||
       norm.includes('قابلغير') ||
       norm.includes('قابل/غيرقابل') ||
-      norm.includes('قابليةالتعامل') ||
+      norm.includes('قابليةالت��امل') ||
       norm.includes('صلاحيةالتعامل') ||
       norm.includes('eligibility')
     ) {
@@ -2598,7 +2615,7 @@ export function generateSampleCustomersTemplate(): void {
       storeName: 'سوبر ماركت النور والبركة',
       phone: '01011122233',
       branchName: 'فرع المنيا',
-      repName: 'حسن محمد',
+      repName: 'حسن م��مد',
       salesRepName: 'حسن محمد',
       creditLimit: 50000,
       currentBalance: 8500,
@@ -2868,7 +2885,7 @@ export function exportCustomerTargetSheetToExcel(customers: Customer[]): void {
       Number(c.adjustments || 0),
       Number(c.annualTarget || 0),
       Number(c.openingBalance2026 ?? c.balance ?? 0),
-      c.dealt2026 || (sumSales > 0 ? 'متعامل' : 'غير متعامل'),
+      c.dealt2026 || (sumSales > 0 ? 'متع��مل' : 'غير متعامل'),
       c.dealEligibility || 'قابل',
       c.debtStatus || (overdue > 0 ? 'متأخر' : 'منتظم'),
       ...salesVals,
