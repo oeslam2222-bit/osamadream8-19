@@ -2122,7 +2122,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       .trim();
   };
 
-  const customerMap = new Map<string, Customer>();
+  const parsedCustomersList: Customer[] = [];
   let totalRawRowsProcessed = 0;
 
   for (let r = headerRowIndex + 1; r < rawRows.length; r++) {
@@ -2142,8 +2142,8 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     const rawTax = getVal(row, colMap.taxNumber);
     const rawNotes = getVal(row, colMap.notes);
 
-    // Skip empty dummy rows
-    if (!rawName && !rawCode && !rawPhone) continue;
+    // Skip empty dummy rows where no data exists
+    if (!rawName && !rawCode && !rawPhone && !rawBranch && !rawRep && !rawAddress) continue;
 
     const rawTier = getVal(row, colMap.tier);
     let tier: CustomerTier = 'متوسط';
@@ -2153,28 +2153,11 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       tier = 'راقي';
     }
 
-    // Determine unique dedup key (normalized code, or normalized name + phone/address)
     const cleanCode = rawCode.trim().toLowerCase();
-    const cleanName = (rawName || '').trim().toLowerCase().replace(/\s+/g, ' ');
-    const cleanPhone = (rawPhone || '').replace(/[^0-9]/g, '');
+    const cleanName = (rawName || '').trim();
 
-    let dedupKey = '';
-    if (cleanCode && cleanCode !== '---' && !cleanCode.startsWith('cust-row') && cleanCode.length >= 2) {
-      dedupKey = `code:::${cleanCode}`;
-    } else if (cleanName && cleanPhone.length >= 7) {
-      dedupKey = `name_phone:::${cleanName}:::${cleanPhone}`;
-    } else if (cleanName && rawAddress && rawAddress.trim().length >= 3) {
-      dedupKey = `name_addr:::${cleanName}:::${rawAddress.trim().toLowerCase()}`;
-    } else if (cleanPhone.length >= 8) {
-      dedupKey = `phone:::${cleanPhone}`;
-    } else {
-      dedupKey = `row:::${r}_${cleanName || 'cust'}`;
-    }
-
-    const assignedCode = rawCode || `CUST-${1000 + customerMap.size + 1}`;
-    const safeCustId = cleanCode
-      ? `cust-${cleanCode.replace(/\s+/g, '_')}`
-      : `cust-${cleanName.replace(/\s+/g, '_').slice(0, 30)}_${cleanPhone || r}`;
+    const assignedCode = rawCode || `CUST-${1000 + parsedCustomersList.length + 1}`;
+    const safeCustId = `cust_r${r + 1}_${cleanCode ? cleanCode.replace(/[^a-zA-Z0-9_-]/g, '_') : 'cust'}_${1000 + parsedCustomersList.length + 1}`;
 
     // Parse credit limit and current balance / debt
     const parseNumberValue = (colIdx: number): number | undefined => {
@@ -2273,149 +2256,73 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
           ? parsedOpeningBalance2026
           : finalTotalOverdue);
 
-    const existing = customerMap.get(dedupKey);
+    const resolvedAddress = rawAddress || [rawDistrict, rawGov].filter(Boolean).join(' - ') || '';
+    const resolvedSales2026 = finalTotalMonthlySales !== undefined ? finalTotalMonthlySales : (parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : dynamicMonthlySalesSum);
+    const resolvedCollections2026 = finalTotalMonthlyCollections !== undefined ? finalTotalMonthlyCollections : (parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : dynamicMonthlyCollectionsSum);
 
-    if (existing) {
-      // Merge records - keep the richest data available
-      if (!existing.phone && rawPhone) existing.phone = rawPhone;
-      if (!existing.address && (rawAddress || rawDistrict || rawGov)) {
-        existing.address = rawAddress || [rawDistrict, rawGov].filter(Boolean).join(' - ');
-      }
-      if (!existing.governorate && rawGov) existing.governorate = rawGov;
-      if (!existing.district && rawDistrict) existing.district = rawDistrict;
-      if (!existing.route && rawRoute) existing.route = rawRoute;
-      if (!existing.taxNumber && rawTax) existing.taxNumber = rawTax;
-      if (!existing.notes && rawNotes) existing.notes = rawNotes;
-      if (parsedCredit !== undefined) existing.creditLimit = parsedCredit;
-      if (parsedBalance !== undefined) {
-        existing.currentBalance = parsedBalance;
-        existing.balance = parsedBalance;
-      }
-      if (finalTotalOverdue !== undefined) {
-        existing.totalOverdueAndDue = finalTotalOverdue;
-        existing.overdueBalance = finalTotalOverdue;
-      }
-      if (rawRep && rawRep.trim()) {
-        existing.repName = rawRep.trim();
-        existing.salesRepName = rawRep.trim();
-      }
-      if (rawBranch && rawBranch.trim()) {
-        existing.branchName = normalizeExcelBranchName(rawBranch);
-      }
-      if (tier === 'مميز' || (tier === 'راقي' && existing.tier === 'متوسط')) {
-        existing.tier = tier;
-      }
+    const newCustomer: Customer = {
+      id: safeCustId,
+      code: assignedCode,
+      name: rawName || `عميل رقم ${assignedCode}`,
+      storeName: rawName || `محل / سوبر ماركت ${assignedCode}`,
+      tier: tier,
+      phone: rawPhone,
+      address: resolvedAddress,
+      governorate: rawGov,
+      district: rawDistrict,
+      route: rawRoute,
+      creditLimit: finalCreditLimit,
+      currentBalance: finalBalance,
+      balance: finalBalance,
+      totalOverdueAndDue: finalTotalOverdue,
+      overdueBalance: finalTotalOverdue,
+      branchName: normalizeExcelBranchName(rawBranch),
+      repName: rawRep ? rawRep.trim() : '',
+      salesRepName: rawRep ? rawRep.trim() : '',
+      taxNumber: rawTax,
+      notes: rawNotes,
 
-      // Merge Target Sheet fields
-      if (rawGuaranteeDocs) existing.guaranteeDocs = rawGuaranteeDocs;
-      if (rawPaymentTerms) existing.paymentTerms = rawPaymentTerms;
-      if (rawActivityType) existing.activityType = rawActivityType;
-      if (rawClientType) existing.clientType = rawClientType;
-      if (parsedAdjustments !== undefined) existing.adjustments = parsedAdjustments;
-      if (parsedAnnualTarget !== undefined) existing.annualTarget = parsedAnnualTarget;
-      if (parsedOpeningBalance2026 !== undefined) existing.openingBalance2026 = parsedOpeningBalance2026;
-      if (rawDealt2026) existing.dealt2026 = rawDealt2026;
-      if (rawDealEligibility) existing.dealEligibility = rawDealEligibility;
-      if (rawDebtStatus) existing.debtStatus = rawDebtStatus;
-      if (parsedOverdue2025 !== undefined) existing.overdue2025 = parsedOverdue2025;
-      if (parsedOverdue2026 !== undefined) existing.overdue2026 = parsedOverdue2026;
-      if (parsedDueUntilPeriod !== undefined) {
-        existing.dueUntilPeriod = parsedDueUntilPeriod;
-        existing.duePeriodLabel = detectedDuePeriodLabel;
-      }
-      if (parsedTotalOverallSales !== undefined) existing.totalOverallSales = parsedTotalOverallSales;
-      if (parsedTotalOverallCollections !== undefined) existing.totalOverallCollections = parsedTotalOverallCollections;
-      if (parsedSales2024 !== undefined) existing.sales2024 = parsedSales2024;
-      if (parsedCollections2024 !== undefined) existing.collections2024 = parsedCollections2024;
+      // Sales Target & Due Debts
+      guaranteeDocs: rawGuaranteeDocs,
+      paymentTerms: rawPaymentTerms,
+      activityType: rawActivityType,
+      clientType: rawClientType,
+      adjustments: parsedAdjustments,
+      annualTarget: parsedAnnualTarget,
+      openingBalance2026: parsedOpeningBalance2026,
+      dealt2026: rawDealt2026 || ((resolvedSales2026 > 0 || resolvedCollections2026 > 0) ? 'متعامل' : undefined),
+      dealEligibility: rawDealEligibility,
+      debtStatus: rawDebtStatus,
+      sales2026: resolvedSales2026,
+      totalMonthlySales: resolvedSales2026,
+      totalOverallSales: parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : resolvedSales2026,
+      collections2026: resolvedCollections2026,
+      totalMonthlyCollections: resolvedCollections2026,
+      totalOverallCollections: parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : resolvedCollections2026,
+      hasDealtIn2026: (resolvedSales2026 > 0) || (resolvedCollections2026 > 0) || rawDealt2026 === 'متعامل',
+      monthlySales2026: Object.keys(rowMonthlySales).length > 0 ? rowMonthlySales : undefined,
+      monthlyCollections2026: Object.keys(rowMonthlyCollections).length > 0 ? rowMonthlyCollections : undefined,
+      overdue2025: parsedOverdue2025,
+      overdue2026: parsedOverdue2026,
+      dueUntilPeriod: parsedDueUntilPeriod,
+      duePeriodLabel: detectedDuePeriodLabel,
+      sales2024: parsedSales2024,
+      collections2024: parsedCollections2024,
+      activeSalesMonths: activeSalesMonthsList.length > 0 ? activeSalesMonthsList : undefined,
+      activeCollectionMonths: activeCollectionMonthsList.length > 0 ? activeCollectionMonthsList : undefined,
 
-      // Merge monthly maps
-      if (Object.keys(rowMonthlySales).length > 0) {
-        existing.monthlySales2026 = { ...(existing.monthlySales2026 || {}), ...rowMonthlySales };
-      }
-      if (Object.keys(rowMonthlyCollections).length > 0) {
-        existing.monthlyCollections2026 = { ...(existing.monthlyCollections2026 || {}), ...rowMonthlyCollections };
-      }
-      if (finalTotalMonthlySales !== undefined) {
-        existing.totalMonthlySales = finalTotalMonthlySales;
-        existing.sales2026 = Math.max(Number(existing.sales2026 || 0), finalTotalMonthlySales);
-        if (!existing.totalOverallSales) existing.totalOverallSales = finalTotalMonthlySales;
-      }
-      if (finalTotalMonthlyCollections !== undefined) {
-        existing.totalMonthlyCollections = finalTotalMonthlyCollections;
-        existing.collections2026 = Math.max(Number(existing.collections2026 || 0), finalTotalMonthlyCollections);
-        if (!existing.totalOverallCollections) existing.totalOverallCollections = finalTotalMonthlyCollections;
-      }
-      if (activeSalesMonthsList.length > 0) existing.activeSalesMonths = activeSalesMonthsList;
-      if (activeCollectionMonthsList.length > 0) existing.activeCollectionMonths = activeCollectionMonthsList;
-    } else {
-      const resolvedAddress = rawAddress || [rawDistrict, rawGov].filter(Boolean).join(' - ') || '';
-      const resolvedSales2026 = finalTotalMonthlySales !== undefined ? finalTotalMonthlySales : (parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : dynamicMonthlySalesSum);
-      const resolvedCollections2026 = finalTotalMonthlyCollections !== undefined ? finalTotalMonthlyCollections : (parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : dynamicMonthlyCollectionsSum);
+      createdAt: new Date().toISOString(),
+    };
 
-      const newCustomer: Customer = {
-        id: safeCustId,
-        code: assignedCode,
-        name: rawName || `عميل رقم ${assignedCode}`,
-        storeName: rawName || `محل / سوبر ماركت ${assignedCode}`,
-        tier: tier,
-        phone: rawPhone,
-        address: resolvedAddress,
-        governorate: rawGov,
-        district: rawDistrict,
-        route: rawRoute,
-        creditLimit: finalCreditLimit,
-        currentBalance: finalBalance,
-        balance: finalBalance,
-        totalOverdueAndDue: finalTotalOverdue,
-        overdueBalance: finalTotalOverdue,
-        branchName: normalizeExcelBranchName(rawBranch),
-        repName: rawRep ? rawRep.trim() : '',
-        salesRepName: rawRep ? rawRep.trim() : '',
-        taxNumber: rawTax,
-        notes: rawNotes,
-
-        // Sales Target & Due Debts
-        guaranteeDocs: rawGuaranteeDocs,
-        paymentTerms: rawPaymentTerms,
-        activityType: rawActivityType,
-        clientType: rawClientType,
-        adjustments: parsedAdjustments,
-        annualTarget: parsedAnnualTarget,
-        openingBalance2026: parsedOpeningBalance2026,
-        dealt2026: rawDealt2026 || ((resolvedSales2026 > 0 || resolvedCollections2026 > 0) ? 'متعامل' : undefined),
-        dealEligibility: rawDealEligibility,
-        debtStatus: rawDebtStatus,
-        sales2026: resolvedSales2026,
-        totalMonthlySales: resolvedSales2026,
-        totalOverallSales: parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : resolvedSales2026,
-        collections2026: resolvedCollections2026,
-        totalMonthlyCollections: resolvedCollections2026,
-        totalOverallCollections: parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : resolvedCollections2026,
-        hasDealtIn2026: (resolvedSales2026 > 0) || (resolvedCollections2026 > 0) || rawDealt2026 === 'متعامل',
-        monthlySales2026: Object.keys(rowMonthlySales).length > 0 ? rowMonthlySales : undefined,
-        monthlyCollections2026: Object.keys(rowMonthlyCollections).length > 0 ? rowMonthlyCollections : undefined,
-        overdue2025: parsedOverdue2025,
-        overdue2026: parsedOverdue2026,
-        dueUntilPeriod: parsedDueUntilPeriod,
-        duePeriodLabel: detectedDuePeriodLabel,
-        sales2024: parsedSales2024,
-        collections2024: parsedCollections2024,
-        activeSalesMonths: activeSalesMonthsList.length > 0 ? activeSalesMonthsList : undefined,
-        activeCollectionMonths: activeCollectionMonthsList.length > 0 ? activeCollectionMonthsList : undefined,
-
-        createdAt: new Date().toISOString(),
-      };
-      customerMap.set(dedupKey, newCustomer);
-    }
+    parsedCustomersList.push(newCustomer);
   }
 
-  const rawUnique = Array.from(customerMap.values());
-  const { customers: strictlyDeduplicated, duplicatesCount } = deduplicateAndMergeCustomers(rawUnique);
+  // Preserve every single sheet row 1:1 without merging (exact match with the 3,427 sheet records)
   return {
-    customers: strictlyDeduplicated,
+    customers: parsedCustomersList,
     errors,
     totalRows: totalRawRowsProcessed,
-    duplicatesCount: totalRawRowsProcessed > strictlyDeduplicated.length ? totalRawRowsProcessed - strictlyDeduplicated.length : duplicatesCount,
+    duplicatesCount: 0,
   };
 }
 

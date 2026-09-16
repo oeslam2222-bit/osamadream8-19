@@ -536,8 +536,8 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     const rawSupervisor = getCellStr(row, colMap.supervisor);
     const rawLastVisit = getCellStr(row, colMap.lastVisitDate);
 
-    // Skip blank rows without name or code
-    if (!rawName && !rawCode && !rawPhone) continue;
+    // Skip purely blank rows without any customer data
+    if (!rawName && !rawCode && !rawPhone && !rawBranch && !rawRep && !rawAddress) continue;
 
     const assignedCode = rawCode || `CUST-${1000 + rawCustomers.length + 1}`;
     const cleanCode = assignedCode.toLowerCase().trim();
@@ -606,7 +606,7 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
 
     const visitsCount = colMap.visitCount !== -1 ? cleanNumber(row[colMap.visitCount]) : (rawLastVisit ? 1 : 0);
 
-    const safeId = `cust-analytics-${cleanCode.replace(/[^a-zA-Z0-9_-]/g, '_')}_r${r}`;
+    const safeId = `cust-analytics-${cleanCode ? cleanCode.replace(/[^a-zA-Z0-9_-]/g, '_') : 'row'}_r${r}_${rawCustomers.length + 1}`;
 
     const customerObj: Customer = {
       id: safeId,
@@ -660,14 +660,12 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     rawCustomers.push(customerObj);
   }
 
-  // Deduplicate and merge so that duplicates within the sheet (e.g. repeated codes or phones) are unified
-  const { customers: deduplicatedCustomers, duplicatesCount } = deduplicateAndMergeCustomers(rawCustomers);
-
+  // Strictly preserve all sheet rows 1:1 without merging (exact match with the 3,427 sheet records)
   return {
-    customers: deduplicatedCustomers,
+    customers: rawCustomers,
     errors,
     totalRows: processedRows,
-    duplicatesCount: processedRows > deduplicatedCustomers.length ? processedRows - deduplicatedCustomers.length : duplicatesCount,
+    duplicatesCount: 0,
   };
 }
 

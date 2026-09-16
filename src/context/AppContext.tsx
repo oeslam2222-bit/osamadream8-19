@@ -593,11 +593,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const sanitizeCustomers = (list: Customer[]): Customer[] => {
     if (!Array.isArray(list)) return [];
-    // 1. Run universal multi-index deduplication and deep attribute merging
-    const { customers: deduped } = deduplicateAndMergeCustomers(list);
-
-    // 2. Ensure clean strings and branch inference for any missing fields
-    return deduped.map((c) => {
+    // Strictly preserve all customer records 1:1 without merging (exact match with the 3,427 sheet records)
+    return list.map((c, idx) => {
       let resolvedBranch = c.branchName || '';
       if (!resolvedBranch || resolvedBranch === 'الفرع الرئيسي') {
         const locInferred = inferBranchFromText(
@@ -607,8 +604,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return {
         ...c,
-        name: c.name || `عميل ${c.code || ''}`,
+        id: c.id || `cust_row_${idx + 1}_${(c.code || '').replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+        name: c.name || `عميل ${c.code || idx + 1}`,
         branchName: resolvedBranch || 'الفرع الرئيسي',
+        currentBalance: Number(c.currentBalance ?? c.balance ?? 0),
+        balance: Number(c.currentBalance ?? c.balance ?? 0),
+        totalOverdueAndDue: Number(c.totalOverdueAndDue !== undefined ? c.totalOverdueAndDue : (c.currentBalance ?? c.balance ?? 0)),
+        overdueBalance: Number(c.totalOverdueAndDue !== undefined ? c.totalOverdueAndDue : (c.currentBalance ?? c.balance ?? 0)),
+        creditLimit: Number(c.creditLimit || 0),
+        totalMonthlySales: Number(c.totalMonthlySales || c.totalOverallSales || c.sales2026 || 0),
+        sales2026: Number(c.sales2026 || c.totalMonthlySales || c.totalOverallSales || 0),
+        totalMonthlyCollections: Number(c.totalMonthlyCollections || c.totalOverallCollections || c.collections2026 || 0),
+        collections2026: Number(c.collections2026 || c.totalMonthlyCollections || c.totalOverallCollections || 0),
       };
     });
   };
@@ -1242,17 +1249,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Customer CRUD Actions
   const addCustomer = (newCust: Customer) => {
-    setCustomers((prev) => [newCust, ...prev]);
-    saveCustomersToSupabase([newCust]).catch((e) => console.warn('Supabase customer save error:', e));
+    // User Directive: Customers are strictly added via the master sheet only (3,427 customers).
+    console.info(`Manual customer addition (${newCust?.name}) skipped: customers are loaded from the master sheet only.`);
     recordAuditLog({
       userId: currentUser?.id || 'admin',
       userName: currentUser?.name || 'مستخدم',
       userRole: currentUser?.role || 'sales_rep',
       branchName: newCust.branchName || currentUser?.branchName || 'الفرع الرئيسي',
       action: 'add_customer' as any,
-      actionTitle: `إضافة عميل جديد (${newCust.name})`,
-      details: `تمت إضافة العميل بكود (${newCust.code}) وهاتف (${newCust.phone || '---'}).`,
-      badgeType: 'success',
+      actionTitle: `محاولة إضافة عميل يدوي (${newCust.name})`,
+      details: `قاعدة العملاء مقفولة وتعتمد حصرياً على الشيت الأساسي. لم يتم إدراج العميل في قاعدة البيانات.`,
+      badgeType: 'warning',
     });
   };
 
@@ -2742,29 +2749,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
 
       if (existingCustIndex === -1) {
-        // Create new registered customer bound to current rep
-        const newCustomerObj: Customer = {
-          id: `c-${Date.now()}`,
-          code: `CUST-${String(customers.length + 101).padStart(4, '0')}`,
-          name: trimmedCustName,
-          phone: orderData.customerPhone || '',
-          address: orderData.customerAddress || '',
-          taxNumber: orderData.customerTaxNumber || '',
-          governorate: 'القاهرة والجيزة',
-          branchName: currentUser?.branchName || 'الفرع الرئيسي',
-          salesRepName: currentUser?.name || 'مندوب المبيعات',
-          repName: currentUser?.name || 'مندوب المبيعات',
-          repId: currentUser?.id || 'rep-1',
-          tier: 'عادي',
-          balance: 0,
-          creditLimit: 50000,
-          notes: `تم تسجيل العميل تلقائياً مع الفاتورة #${primaryInvoice.invoiceNumber}`,
-          lastOrderDate: formattedDate,
-          totalOrdersCount: 1,
-          totalSpent: primaryTotals.estimatedGrandTotal,
-        };
-        setCustomers((prev) => [newCustomerObj, ...prev]);
-        saveCustomersToSupabase([newCustomerObj]).catch((e) => console.warn('Supabase customer auto-save failed:', e));
+        // User directive: Master customer base is restricted to the official sheet only (3,427 customers).
+        // Ad-hoc invoice customers are kept on the invoice itself and NOT added to the official customer database.
+        console.info('Customer database is maintained exclusively from the master sheet; order customer kept on invoice only.');
       } else {
         // Update stats on existing customer
         const matched = customers[existingCustIndex];
