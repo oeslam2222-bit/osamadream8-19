@@ -655,6 +655,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (customers && customers.length > 0) {
       setActiveCustomersCache(customers);
+      idbSet(STORAGE_KEYS.CUSTOMERS, customers).catch(() => {});
       try {
         safeLocalStorageSet(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers.slice(0, 300)));
       } catch {}
@@ -1389,6 +1390,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       finalCustomers = sanitizeCustomers([...customers, ...linked]);
       setCustomers(finalCustomers);
     }
+    idbSet(STORAGE_KEYS.CUSTOMERS, finalCustomers).catch(() => {});
     saveCustomersToSupabase(finalCustomers).catch((e) => console.warn('Supabase customer bulk save error:', e));
   };
 

@@ -109,7 +109,36 @@ export function saveSingleSourceUrl(key: keyof PublishedDataSources, url: string
     },
   };
   savePublishedDataSources(next);
+  if (trimmed) {
+    addToSavedSheetHistory(key, trimmed);
+  }
 }
+
+const HISTORY_STORAGE_PREFIX = 'dream_dist_sheet_history_';
+
+export function getSavedSheetHistory(key: keyof PublishedDataSources): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(`${HISTORY_STORAGE_PREFIX}${key}`);
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list.filter((u) => typeof u === 'string' && u.trim().length > 0) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function addToSavedSheetHistory(key: keyof PublishedDataSources, url: string): void {
+  if (typeof window === 'undefined') return;
+  const trimmed = url.trim();
+  if (!trimmed || !trimmed.startsWith('http')) return;
+  try {
+    const current = getSavedSheetHistory(key);
+    const updated = [trimmed, ...current.filter((u) => u !== trimmed)].slice(0, 10);
+    window.localStorage.setItem(`${HISTORY_STORAGE_PREFIX}${key}`, JSON.stringify(updated));
+  } catch {}
+}
+
 
 export function getPublishedCsvUrl(url: string): string {
   const clean = url.trim();

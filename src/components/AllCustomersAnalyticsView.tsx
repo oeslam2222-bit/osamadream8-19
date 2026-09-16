@@ -63,6 +63,7 @@ import {
   downloadCustomerAnalyticsTemplate
 } from '../services/customerAnalyticsService';
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
+import { getSavedSourceUrl, saveSingleSourceUrl, getSavedSheetHistory } from '../services/dataSourceService';
 
 interface AllCustomersAnalyticsViewProps {
   onOpenNewOrderForCustomer?: (customer: Customer) => void;
@@ -117,8 +118,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [visitNotes, setVisitNotes] = useState('');
 
   // Google Sheets & Excel Sync Modal (Admin / Dev / Branch Manager only)
+  const defaultCustomerSheet = 'https://docs.google.com/spreadsheets/d/1eVQrSKbXVIBwx5V_K7eqj_cUL6YuCVP33iHo13J7Yp4/edit?usp=sharing';
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
-  const [googleSheetUrl, setGoogleSheetUrl] = useState('https://docs.google.com/spreadsheets/d/1eVQrSKbXVIBwx5V_K7eqj_cUL6YuCVP33iHo13J7Yp4/edit?usp=sharing');
+  const [googleSheetUrl, setGoogleSheetUrl] = useState(() => getSavedSourceUrl('customers') || defaultCustomerSheet);
+  const [savedSheetHistory, setSavedSheetHistory] = useState<string[]>(() => getSavedSheetHistory('customers'));
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -385,10 +388,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   // Google Sheets Live Sync
   const handleSyncGoogleSheet = async () => {
     if (!googleSheetUrl) return;
+    const cleanUrl = googleSheetUrl.trim();
+    saveSingleSourceUrl('customers', cleanUrl);
+    setSavedSheetHistory(getSavedSheetHistory('customers'));
     setIsSyncing(true);
     setSyncStatus(null);
     try {
-      const result = await fetchDetailedCustomersFromGoogleSheet(googleSheetUrl);
+      const result = await fetchDetailedCustomersFromGoogleSheet(cleanUrl);
       if (!result.customers || result.customers.length === 0) {
         setSyncStatus({ type: 'error', message: 'لم يتم العثور على أي عملاء في الرابط.' });
       } else {
@@ -398,7 +404,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           : '';
         setSyncStatus({
           type: 'success',
-          message: `تم بنجاح استيراد ومزامنة ${result.customers.length} عميل بالبيانات والمبيعات الكاملة${dupesMsg}!`,
+          message: `تم بنجاح استيراد ومزامنة ${result.customers.length} عميل بالبيانات والمبيعات الكاملة وحفظ الرابط دائماً في المنظومة${dupesMsg}!`,
         });
       }
     } catch (err: any) {
@@ -1440,18 +1446,58 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
             {/* Google Sheets Sync Option */}
             <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
-              <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                <RefreshCw className="w-3.5 h-3.5 text-amber-500" />
-                <span>رابط Google Sheet لشيت المديونية والعملاء (Clients):</span>
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                  <RefreshCw className="w-3.5 h-3.5 text-amber-500" />
+                  <span>رابط Google Sheet لشيت المديونية والعملاء (Clients):</span>
+                </label>
+                {googleSheetUrl && (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600" />
+                    <span>محفوظ دائماً</span>
+                  </span>
+                )}
+              </div>
 
               <input
                 type="url"
                 value={googleSheetUrl}
-                onChange={(e) => setGoogleSheetUrl(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setGoogleSheetUrl(val);
+                  if (val.trim()) {
+                    saveSingleSourceUrl('customers', val.trim());
+                    setSavedSheetHistory(getSavedSheetHistory('customers'));
+                  }
+                }}
                 placeholder="https://docs.google.com/spreadsheets/d/..."
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:border-amber-500"
               />
+
+              {/* Saved History Quick Selector */}
+              {savedSheetHistory.length > 1 && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <span className="text-[10px] text-slate-500 font-bold">الروابط السابقة المحفوظة:</span>
+                  {savedSheetHistory.map((link, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setGoogleSheetUrl(link);
+                        saveSingleSourceUrl('customers', link);
+                      }}
+                      className={`text-[10px] px-2 py-0.5 rounded-lg border transition font-mono truncate max-w-[200px] cursor-pointer ${
+                        googleSheetUrl === link
+                          ? 'bg-amber-100 border-amber-300 text-amber-900 font-bold'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                      title={link}
+                    >
+                      شيت {idx + 1}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <button
                 onClick={handleSyncGoogleSheet}

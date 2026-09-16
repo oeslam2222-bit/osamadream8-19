@@ -46,6 +46,7 @@ import {
   isBranchMatch
 } from '../services/arabicMatchingService';
 import { parseExcelCustomers, parseRawRowsToCustomers } from '../services/excelService';
+import { getSavedSourceUrl, saveSingleSourceUrl, getSavedSheetHistory } from '../services/dataSourceService';
 import * as XLSX from 'xlsx';
 
 interface CustomerDirectoryViewProps {
@@ -118,8 +119,10 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
   } | null>(null);
 
   // Import Modal State
+  const defaultCustomerSheet = 'https://docs.google.com/spreadsheets/d/1eVQrSKbXVIBwx5V_K7eqj_cUL6YuCVP33iHo13J7Yp4/edit?usp=sharing';
   const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge');
-  const [googleSheetUrl, setGoogleSheetUrl] = useState('');
+  const [googleSheetUrl, setGoogleSheetUrl] = useState(() => getSavedSourceUrl('customers') || defaultCustomerSheet);
+  const [savedSheetHistory, setSavedSheetHistory] = useState<string[]>(() => getSavedSheetHistory('customers'));
   const [isImporting, setIsImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<{
     customers: Customer[];
@@ -600,10 +603,14 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       return;
     }
 
+    const cleanUrl = googleSheetUrl.trim();
+    saveSingleSourceUrl('customers', cleanUrl);
+    setSavedSheetHistory(getSavedSheetHistory('customers'));
+
     setIsImporting(true);
     try {
       // Extract CSV export URL
-      let csvUrl = googleSheetUrl.trim();
+      let csvUrl = cleanUrl;
       const sheetIdMatch = csvUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/i);
       if (sheetIdMatch) {
         const sheetId = sheetIdMatch[1];
@@ -662,10 +669,9 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     const dupes = (importPreview as any).duplicatesCount;
     const dupesMsg = dupes ? ` (تم دمج وتوحيد ${dupes} سجل مكرر من إجمالي ${(importPreview as any).totalRows || importPreview.customers.length + dupes} سطر في الملف)` : '';
     setImportPreview(null);
-    setGoogleSheetUrl('');
     setSyncFeedback({
       show: true,
-      msg: `تم بنجاح تحميل وتثبيت (${importPreview.customers.length}) عميل معتمد في المنظومة مع المبيعات والفروع والمناديب والمديونيات${dupesMsg}!`,
+      msg: `تم بنجاح تحميل وتثبيت (${importPreview.customers.length}) عميل معتمد في المنظومة مع المبيعات والفروع والمناديب والمديونيات وحفظ الرابط${dupesMsg}!`,
       type: 'success',
     });
   };
@@ -1573,15 +1579,30 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
               
               {/* Option 1: Google Sheets URL */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5">
-                <label className="block text-xs font-black text-slate-800 flex items-center gap-1.5">
-                  <Link2 className="w-4 h-4 text-blue-600" />
-                  <span>طريقة 1: لصق رابط Google Sheets المباشر</span>
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-black text-slate-800 flex items-center gap-1.5">
+                    <Link2 className="w-4 h-4 text-blue-600" />
+                    <span>طريقة 1: لصق رابط Google Sheets المباشر</span>
+                  </label>
+                  {googleSheetUrl && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      <span>محفوظ دائماً</span>
+                    </span>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   <input
                     type="url"
                     value={googleSheetUrl}
-                    onChange={(e) => setGoogleSheetUrl(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setGoogleSheetUrl(val);
+                      if (val.trim()) {
+                        saveSingleSourceUrl('customers', val.trim());
+                        setSavedSheetHistory(getSavedSheetHistory('customers'));
+                      }
+                    }}
                     placeholder="https://docs.google.com/spreadsheets/d/..."
                     className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
                   />
@@ -1593,8 +1614,34 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                     {isImporting ? 'جاري الجلب...' : 'جلب الشيت 🔄'}
                   </button>
                 </div>
+
+                {/* Saved History Quick Selector */}
+                {savedSheetHistory.length > 1 && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-[10px] text-slate-500 font-bold">الروابط السابقة المحفوظة:</span>
+                    {savedSheetHistory.map((link, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setGoogleSheetUrl(link);
+                          saveSingleSourceUrl('customers', link);
+                        }}
+                        className={`text-[10px] px-2 py-0.5 rounded-lg border transition font-mono truncate max-w-[200px] cursor-pointer ${
+                          googleSheetUrl === link
+                            ? 'bg-blue-100 border-blue-300 text-blue-900 font-bold'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                        title={link}
+                      >
+                        شيت {idx + 1}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 <p className="text-[11px] text-slate-400">
-                  تأكد من جعل الشيت متاحاً للعرض (Anyone with the link can view).
+                  تأكد من جعل الشيت متاحاً للعرض (Anyone with the link can view). الرابط يتم حفظه تلقائياً في ذاكرة النظام.
                 </p>
               </div>
 
