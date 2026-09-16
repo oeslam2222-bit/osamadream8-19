@@ -8,8 +8,6 @@ import {
   CheckCircle2,
   ChevronDown,
   CreditCard,
-  Download,
-  FileSpreadsheet,
   Flame,
   Grid,
   Layers,
@@ -37,8 +35,6 @@ import { Customer, Invoice, PaymentMethod, Product } from '../types';
 import { ProductImage } from './ProductImage';
 import { CustomerFinancialSummaryCard } from './CustomerFinancialSummaryCard';
 import { formatCurrency } from '../services/invoiceService';
-import { exportElectronicInvoiceToExcel } from '../services/excelService';
-import { downloadInvoicePDF } from '../services/pdfService';
 import { findCustomerMatch, getBranchStockForProduct, isBranchMatch } from '../services/arabicMatchingService';
 import { getDepartmentMeta } from '../data/departmentMeta';
 
@@ -257,7 +253,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   };
 
   // Order Submission & Stock Reservation Handling
-  const handleSubmitOrder = async (andExportExcel: boolean = false, andDownloadPDF: boolean = false) => {
+  const handleSubmitOrder = async () => {
     if (cart.length === 0) {
       setFeedbackError('سلة الفاتورة فارغة! يرجى إضافة أصناف للطلبية أولاً.');
       setTimeout(() => setFeedbackError(null), 4000);
@@ -319,16 +315,6 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         setFeedbackError(result.message || 'تعذر حفظ الطلبية.');
         setIsSubmitting(false);
         return;
-      }
-
-      // Download Excel if requested
-      if (andExportExcel) {
-        exportElectronicInvoiceToExcel(result.invoice);
-      }
-
-      // Download PDF if requested
-      if (andDownloadPDF) {
-        await downloadInvoicePDF(result.invoice);
       }
 
       clearCart();
@@ -433,7 +419,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     <span>👁️ معاينة الفاتورة قبل الحفظ وتأكيد حجز المخزون</span>
                   </h3>
                   <p className="text-slate-300 text-[11px] mt-0.5">
-                    يمكنك مر��جعة كافة الأسعار والكميات وتأكيد الحفظ للمشرف أو تحميلها مباشرة كملف إكسل أو PDF.
+                    يمكنك مراجعة كافة الأسعار والكميات ثم حفظ الفاتورة وإرسالها للمشرف للمراجعة والاعتماد.
                   </p>
                 </div>
                 <button
@@ -507,26 +493,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
               {/* Preview Action Buttons */}
               <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  disabled={isSubmitting || cart.length === 0}
-                  onClick={() => handleSubmitOrder(true, false)}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2.5 rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
-                  title="حفظ الطلبية وتنزيل شيت إكسل"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  <span>حفظ وتحميل إكسل 📊</span>
-                </button>
-                <button
-                  type="button"
-                  disabled={isSubmitting || cart.length === 0}
-                  onClick={() => handleSubmitOrder(false, true)}
-                  className="bg-rose-600 hover:bg-rose-700 text-white font-black px-4 py-2.5 rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
-                  title="حفظ الطلبية وتنزيل PDF"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>حفظ وتحميل PDF 📄</span>
-                </button>
+
                 <button
                   type="button"
                   disabled={isSubmitting || cart.length === 0}
@@ -902,25 +869,6 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                         <span>{isSubmitting ? 'جاري الحفظ...' : 'حفظ الطلبية للمشرف (حجز الرصيد) ✅'}</span>
                       </button>
 
-                      <button
-                        type="button"
-                        disabled={isSubmitting || cart.length === 0}
-                        onClick={() => handleSubmitOrder(true, false)}
-                        className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black p-2.5 rounded-2xl transition cursor-pointer shrink-0"
-                        title="حفظ وتحميل إكسل"
-                      >
-                        <FileSpreadsheet className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={isSubmitting || cart.length === 0}
-                        onClick={() => handleSubmitOrder(false, true)}
-                        className="bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-black p-2.5 rounded-2xl transition cursor-pointer shrink-0"
-                        title="حفظ وتحميل PDF"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
                     </div>
                   </div>
                 </div>
