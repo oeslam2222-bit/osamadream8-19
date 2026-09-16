@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   Award,
   BarChart3,
+  Building2,
   Calendar,
   CheckCircle2,
   Download,
@@ -51,10 +52,19 @@ import {
   getGoogleSheetEmbedUrl
 } from '../services/dataSourceService';
 
+// Helper to normalize and match branch names with tolerance for prefixes
+const isBranchMatch = (b1?: string | null, b2?: string | null): boolean => {
+  if (!b1 || !b2) return false;
+  const n1 = normalizeArabicText(b1).replace(/^(فرع|مخزن)\s*/, '');
+  const n2 = normalizeArabicText(b2).replace(/^(فرع|مخزن)\s*/, '');
+  return n1.includes(n2) || n2.includes(n1);
+};
+
 export const TargetPerformanceDashboard: React.FC = () => {
   const {
     currentUser,
     users,
+    customers,
     targets,
     getVisibleTargets,
     importTargetsFromExcel,
@@ -80,8 +90,12 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
   // Filters for Admin / Manager / Supervisor
   const [selectedBranch, setSelectedBranch] = useState<string>('ALL');
+  const [selectedSupervisor, setSelectedSupervisor] = useState<string>('ALL');
   const [selectedRep, setSelectedRep] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Chart view mode: comparison vs reps ranking
+  const [chartViewMode, setChartViewMode] = useState<'timeline' | 'reps_ranking'>('timeline');
 
   // Persistent Google Sheets Live URL State
   const [targetsSheetUrl, setTargetsSheetUrl] = useState(() => getSavedSourceUrl('targets'));
@@ -100,7 +114,15 @@ export const TargetPerformanceDashboard: React.FC = () => {
   // User-visible records based on strict RBAC
   const visibleRecords = getVisibleTargets();
 
-  // Distinct branches and reps available to this user
+  // Determine active branch context
+  const effectiveBranch = useMemo(() => {
+    if (isBranchManager || isSupervisor || isSalesRep) {
+      return currentUser?.branchName || '';
+    }
+    return selectedBranch !== 'ALL' ? selectedBranch : '';
+  }, [isBranchManager, isSupervisor, isSalesRep, currentUser, selectedBranch]);
+
+  // Distinct branches available to this user
   const availableBranches = useMemo(() => {
     const set = new Set<string>();
     visibleRecords.forEach((r) => {
@@ -109,30 +131,126 @@ export const TargetPerformanceDashboard: React.FC = () => {
     return Array.from(set);
   }, [visibleRecords]);
 
-  // Distinct reps available to this user
-  const availableReps = useMemo(() => {
+  // Supervisors available in this branch (for Branch Manager & Admin)
+  const branchSupervisors = useMemo(() => {
+    const set = new Set<string>();
+    // From users
+    users
+      .filter((u) => u.role === 'supervisor' && (!effectiveBranch || isBranchMatch(u.branchName, effectiveBranch)))
+      .forEach((u) => set.add(u.name));
+
+    // From customers directory
+    customers.forEach((c) => {
+      if (c.supervisorName && (!effectiveBranch || isBranchMatch(c.branchName, effectiveBranch))) {
+        set.add(c.supervisorName.trim());
+      }
+    });
+
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [users, customers, effectiveBranch]);
+
+  // Reps under selected supervisor
+  const repsUnderSelectedSupervisor = useMemo(() => {
+    if (selectedSupervisor === 'ALL') return null;
+    const set = new Set<string>();
+
+    const supUser = users.find(
+      (u) =>
+        u.role === 'supervisor' &&
+        (u.name === selectedSupervisor || isArabicNameMatch(u.name, selectedSupervisor))
+    );
+    if (supUser) {
+      users.filter((u) => u.supervisorId === supUser.id).forEach((u) => set.add(u.name));
+    }
+
+    customers.forEach((c) => {
+      if (
+        c.supervisorName &&
+        (isArabicNameMatch(c.supervisorName, selectedSupervisor) ||
+          normalizeArabicText(c.supervisorName) === normalizeArabicText(selectedSupervisor))
+      ) {
+        if (c.repName) set.add(c.repName.trim());
+      }
+    });
+
+    // Also include supervisor's own name in case they have a personal target
+    set.add(selectedSupervisor);
+    return set;
+  }, [selectedSupervisor, users, customers]);
+
+  // Distinct reps available for the current branch & supervisor filters
+  const branchAndSupervisorReps = useMemo(() => {
+    // 1. If supervisor is logged in, show his supervised team
+    if (isSupervisor && currentUser) {
+      const directSupervised = users.filter((u) => u.supervisorId === currentUser.id);
+      const directNames = new Set(directSupervised.map((u) => normalizeArabicText(u.name)));
+
+      customers.forEach((c) => {
+        if (
+          c.supervisorName &&
+          (isArabicNameMatch(c.supervisorName, currentUser.name) ||
+            normalizeArabicText(c.supervisorName) === normalizeArabicText(currentUser.name))
+        ) {
+          if (c.repName) directNames.add(normalizeArabicText(c.repName));
+        }
+      });
+
+      const set = new Set<string>();
+      visibleRecords.forEach((r) => {
+        if (isArabicNameMatch(r.repName, currentUser.name)) return; // exclude self from reps list
+        const norm = normalizeArabicText(r.repName);
+        if (directNames.size === 0 || Array.from(directNames).some((dn) => isArabicNameMatch(r.repName, dn) || norm.includes(dn))) {
+          set.add(r.repName);
+        }
+      });
+      return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
+    }
+
+    // 2. If a supervisor is selected (by Branch Manager or Admin):
+    if (selectedSupervisor !== 'ALL' && repsUnderSelectedSupervisor) {
+      return Array.from(repsUnderSelectedSupervisor)
+        .filter((r) => r !== selectedSupervisor)
+        .sort((a, b) => a.localeCompare(b, 'ar'));
+    }
+
+    // 3. Filter reps by the selected branch!
     const set = new Set<string>();
     visibleRecords.forEach((r) => {
-      if (r.repName) set.add(r.repName);
+      if (!effectiveBranch || isBranchMatch(r.branch, effectiveBranch)) {
+        if (r.repName) set.add(r.repName);
+      }
     });
-    return Array.from(set);
-  }, [visibleRecords]);
+
+    // Also check users
+    users.forEach((u) => {
+      if (u.role === 'sales_rep') {
+        if (!effectiveBranch || isBranchMatch(u.branchName, effectiveBranch)) {
+          set.add(u.name);
+        }
+      }
+    });
+
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [isSupervisor, currentUser, users, customers, visibleRecords, selectedSupervisor, repsUnderSelectedSupervisor, effectiveBranch]);
 
   // Supervised reps for supervisor
   const supervisedReps = useMemo(() => {
     if (!isSupervisor || !currentUser) return [];
-    const directSupervised = users.filter((u) => u.supervisorId === currentUser.id);
-    const directNames = new Set(directSupervised.map((u) => normalizeArabicText(u.name)));
+    return branchAndSupervisorReps;
+  }, [isSupervisor, currentUser, branchAndSupervisorReps]);
 
-    return availableReps.filter((rName) => {
-      // Exclude supervisor's own name from team list
-      if (isArabicNameMatch(rName, currentUser.name)) return false;
-      if (directNames.size > 0) {
-        return Array.from(directNames).some((sn) => isArabicNameMatch(rName, sn) || normalizeArabicText(rName).includes(sn));
-      }
-      return true;
-    });
-  }, [isSupervisor, currentUser, users, availableReps]);
+  // Handler for branch change: resets supervisor and rep filters
+  const handleBranchChange = (newBranch: string) => {
+    setSelectedBranch(newBranch);
+    setSelectedSupervisor('ALL');
+    setSelectedRep('ALL');
+  };
+
+  // Handler for supervisor change: resets rep filter
+  const handleSupervisorChange = (newSupervisor: string) => {
+    setSelectedSupervisor(newSupervisor);
+    setSelectedRep('ALL');
+  };
 
   // Filter records based on role, period mode, and user filters
   const filteredRecords = useMemo(() => {
@@ -160,12 +278,27 @@ export const TargetPerformanceDashboard: React.FC = () => {
       }
 
       // 3. Branch filter (Admin/Dev)
-      if (isAdminOrDev && selectedBranch !== 'ALL' && r.branch !== selectedBranch) return false;
+      if (isAdminOrDev && selectedBranch !== 'ALL' && !isBranchMatch(r.branch, selectedBranch)) {
+        return false;
+      }
 
-      // 4. Rep filter
-      if (!isSalesRep && selectedRep !== 'ALL' && r.repName !== selectedRep) return false;
+      // 4. Supervisor filter (Branch Manager or Admin)
+      if ((isBranchManager || isAdminOrDev) && selectedSupervisor !== 'ALL' && repsUnderSelectedSupervisor) {
+        const normRep = normalizeArabicText(r.repName);
+        const matches = Array.from(repsUnderSelectedSupervisor).some(
+          (sRep) => isArabicNameMatch(r.repName, sRep) || normRep === normalizeArabicText(sRep)
+        );
+        if (!matches) return false;
+      }
 
-      // 5. Search query (Admin only)
+      // 5. Rep filter
+      if (!isSalesRep && selectedRep !== 'ALL') {
+        if (!isArabicNameMatch(r.repName, selectedRep) && normalizeArabicText(r.repName) !== normalizeArabicText(selectedRep)) {
+          return false;
+        }
+      }
+
+      // 6. Search query (Admin only)
       if (isAdminOrDev && searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim();
         const bMatch = r.branch?.toLowerCase().includes(query);
@@ -187,6 +320,9 @@ export const TargetPerformanceDashboard: React.FC = () => {
     selectedQuarter,
     isAdminOrDev,
     selectedBranch,
+    isBranchManager,
+    selectedSupervisor,
+    repsUnderSelectedSupervisor,
     isSalesRep,
     selectedRep,
     searchQuery,
@@ -279,6 +415,50 @@ export const TargetPerformanceDashboard: React.FC = () => {
       return Object.values(qData);
     }
   }, [periodMode, filteredRecords]);
+
+  // Reps Ranking Data for Performance Comparison Chart
+  const repsRankingData = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        repName: string;
+        salesTarget: number;
+        salesAchieved: number;
+        colTarget: number;
+        colAchieved: number;
+      }
+    >();
+
+    filteredRecords.forEach((r) => {
+      if (!r.repName) return;
+      const existing = map.get(r.repName) || {
+        repName: r.repName,
+        salesTarget: 0,
+        salesAchieved: 0,
+        colTarget: 0,
+        colAchieved: 0,
+      };
+      existing.salesTarget += r.salesTarget || 0;
+      existing.salesAchieved += r.salesAchieved || 0;
+      existing.colTarget += r.collectionTarget || 0;
+      existing.colAchieved += r.collectionAchieved || 0;
+      map.set(r.repName, existing);
+    });
+
+    return Array.from(map.values())
+      .map((item) => {
+        const salesPerc =
+          item.salesTarget > 0 ? Number(((item.salesAchieved / item.salesTarget) * 100).toFixed(1)) : 0;
+        const colPerc =
+          item.colTarget > 0 ? Number(((item.colAchieved / item.colTarget) * 100).toFixed(1)) : 0;
+        return {
+          ...item,
+          salesPerc,
+          colPerc,
+        };
+      })
+      .sort((a, b) => b.salesPerc - a.salesPerc);
+  }, [filteredRecords]);
 
   // Google Sheets Direct Sync Handler
   const handleSyncGoogleSheet = async (urlOverride?: string) => {
@@ -674,8 +854,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
                 </div>
               )}
 
-              {/* Rep Selector for Supervisor in Team Mode or Branch Manager */}
-              {((isSupervisor && supervisorViewMode === 'my_team') || isBranchManager) && (
+              {/* Rep Selector for Supervisor in Team Mode */}
+              {isSupervisor && supervisorViewMode === 'my_team' && (
                 <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700">
                   <Users className="w-3.5 h-3.5 text-slate-400" />
                   <span>المندوب:</span>
@@ -684,15 +864,64 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     onChange={(e) => setSelectedRep(e.target.value)}
                     className="bg-transparent font-black text-slate-900 outline-none cursor-pointer text-xs max-w-[160px]"
                   >
-                    <option value="ALL">
-                      {isSupervisor ? 'كل مناديب فريقي (الإجمالي)' : 'كل مناديب الفرع'}
-                    </option>
-                    {(isSupervisor ? supervisedReps : availableReps).map((rep) => (
+                    <option value="ALL">كل مناديب فريقي (الإجمالي)</option>
+                    {supervisedReps.map((rep) => (
                       <option key={rep} value={rep}>
                         {rep}
                       </option>
                     ))}
                   </select>
+                </div>
+              )}
+
+              {/* Branch Manager Filters: Filter by Supervisor AND/OR Rep */}
+              {isBranchManager && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800">
+                    <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                    <span>الفرع:</span>
+                    <span className="font-black text-slate-950">{currentUser?.branchName || 'فرعي'}</span>
+                  </div>
+
+                  {/* Supervisor Filter for Branch Manager */}
+                  <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700">
+                    <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
+                    <span>مشرف المناديب:</span>
+                    <select
+                      value={selectedSupervisor}
+                      onChange={(e) => handleSupervisorChange(e.target.value)}
+                      className="bg-transparent font-black text-slate-900 outline-none cursor-pointer text-xs max-w-[150px]"
+                    >
+                      <option value="ALL">كل مشرفي الفرع (الكل)</option>
+                      {branchSupervisors.map((sup) => (
+                        <option key={sup} value={sup}>
+                          {sup}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Rep Filter for Branch Manager */}
+                  <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700">
+                    <Users className="w-3.5 h-3.5 text-slate-400" />
+                    <span>المندوب:</span>
+                    <select
+                      value={selectedRep}
+                      onChange={(e) => setSelectedRep(e.target.value)}
+                      className="bg-transparent font-black text-slate-900 outline-none cursor-pointer text-xs max-w-[150px]"
+                    >
+                      <option value="ALL">
+                        {selectedSupervisor !== 'ALL'
+                          ? `كل مناديب ${selectedSupervisor}`
+                          : 'كل مناديب الفرع'}
+                      </option>
+                      {branchAndSupervisorReps.map((rep) => (
+                        <option key={rep} value={rep}>
+                          {rep}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
 
@@ -789,21 +1018,38 @@ export const TargetPerformanceDashboard: React.FC = () => {
                 </div>
               )}
 
-              {/* Admin filters: Branch selection */}
+              {/* Admin filters: Linked Branch, Supervisor, and Rep selections */}
               {isAdminOrDev && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-700">
                     <Layers className="w-3.5 h-3.5 text-slate-400" />
                     <span>الفرع:</span>
                     <select
                       value={selectedBranch}
-                      onChange={(e) => setSelectedBranch(e.target.value)}
+                      onChange={(e) => handleBranchChange(e.target.value)}
                       className="bg-transparent font-black text-slate-900 outline-none cursor-pointer text-xs max-w-[130px]"
                     >
                       <option value="ALL">كل الفروع</option>
                       {availableBranches.map((b) => (
                         <option key={b} value={b}>
                           {b}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-700">
+                    <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
+                    <span>المشرف:</span>
+                    <select
+                      value={selectedSupervisor}
+                      onChange={(e) => handleSupervisorChange(e.target.value)}
+                      className="bg-transparent font-black text-slate-900 outline-none cursor-pointer text-xs max-w-[130px]"
+                    >
+                      <option value="ALL">كل المشرفين</option>
+                      {branchSupervisors.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
                         </option>
                       ))}
                     </select>
@@ -817,8 +1063,12 @@ export const TargetPerformanceDashboard: React.FC = () => {
                       onChange={(e) => setSelectedRep(e.target.value)}
                       className="bg-transparent font-black text-slate-900 outline-none cursor-pointer text-xs max-w-[140px]"
                     >
-                      <option value="ALL">جميع المناديب</option>
-                      {availableReps.map((r) => (
+                      <option value="ALL">
+                        {selectedBranch !== 'ALL'
+                          ? `كل مناديب ${selectedBranch}`
+                          : 'جميع المناديب'}
+                      </option>
+                      {branchAndSupervisorReps.map((r) => (
                         <option key={r} value={r}>
                           {r}
                         </option>
@@ -830,8 +1080,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* THE 8 NUMBERS (KPI Cards for Sales and Collection) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {/* THE 8 NUMBERS (KPI Cards for Sales and Collection) - Fully responsive 2-col on mobile, 4-col on desktop */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
             {/* 1. Sales Target */}
             <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs relative overflow-hidden">
               <div className="flex items-center justify-between">
@@ -982,151 +1232,354 @@ export const TargetPerformanceDashboard: React.FC = () => {
           {/* THE PERFORMANCE CHART (الرسم البياني للأداء) */}
           {(!isAdminOrDev || adminTab === 'overview') && (
             <div className="space-y-4">
-              {/* Sales Target vs Actual Chart */}
-              <div className="bg-white rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-xs">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-                  <div>
-                    <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
-                      <BarChart3 className="w-5 h-5 text-amber-500" />
-                      <span>
-                        الرسم البياني للأداء: مقارنة هدف البيع مع المحقق{' '}
-                        {periodMode === 'monthly' ? '(شهرياً)' : '(بالكوارتر)'}
-                      </span>
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5 font-bold">
-                      أعمدة المقارنة المباشرة: المستهدف في الشيت مقابل الفعلي المحقق
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs font-bold">
-                    <span className="flex items-center gap-1.5 text-slate-600">
-                      <span className="w-3 h-3 rounded-xs bg-slate-300 inline-block" />
-                      هدف البيع
-                    </span>
-                    <span className="flex items-center gap-1.5 text-emerald-700">
-                      <span className="w-3 h-3 rounded-xs bg-emerald-500 inline-block" />
-                      المحقق بيع
-                    </span>
-                  </div>
+              {/* Chart Mode Toggle: Timeline vs Reps Ranking */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-amber-500" />
+                  <span className="text-sm font-black text-slate-900">الرسم البياني والتحليل الإحصائي:</span>
                 </div>
-
-                <div className="h-[280px] sm:h-[320px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={displayChartData}
-                      margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                  <button
+                    onClick={() => setChartViewMode('timeline')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                      chartViewMode === 'timeline'
+                        ? 'bg-amber-500 text-slate-950 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <TrendingUp className="w-3.5 h-3.5" />
+                    <span>المستهدف مقابل المحقق</span>
+                  </button>
+                  {repsRankingData.length > 1 && (
+                    <button
+                      onClick={() => setChartViewMode('reps_ranking')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                        chartViewMode === 'reps_ranking'
+                          ? 'bg-amber-500 text-slate-950 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
                     >
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis
-                        dataKey="periodLabel"
-                        tick={{ fill: '#64748b', fontSize: 11, fontWeight: 'bold' }}
-                      />
-                      <YAxis
-                        tick={{ fill: '#64748b', fontSize: 10 }}
-                        tickFormatter={(val) => `${Math.round(val / 1000)}k`}
-                      />
-                      <Tooltip
-                        content={({ active, payload, label }) => {
-                          if (active && payload && payload.length) {
-                            const target = Number(payload[0]?.value || 0);
-                            const achieved = Number(payload[1]?.value || 0);
-                            const perc = target > 0 ? ((achieved / target) * 100).toFixed(1) : '0';
-                            return (
-                              <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl text-xs space-y-1 border border-slate-800 font-sans">
-                                <div className="font-black text-amber-400 text-sm">{label}</div>
-                                <div className="text-slate-300">
-                                  هدف البيع: <strong className="text-white">{formatEGP(target)}</strong>
-                                </div>
-                                <div className="text-slate-300">
-                                  المحقق بيع: <strong className="text-emerald-400">{formatEGP(achieved)}</strong>
-                                </div>
-                                <div className="text-slate-300">
-                                  نسبة الإنجاز: <strong className="text-amber-300">{perc}%</strong>
-                                </div>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }}
-                      />
-                      <Bar dataKey="salesTarget" fill="#cbd5e1" radius={[6, 6, 0, 0]} name="هدف البيع" />
-                      <Bar dataKey="salesAchieved" fill="#10b981" radius={[6, 6, 0, 0]} name="المحقق بيع" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                      <Award className="w-3.5 h-3.5" />
+                      <span>مقارنة وترتيب أداء المناديب 🏆 ({repsRankingData.length})</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* Collection Target vs Actual Chart */}
-              <div className="bg-white rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-xs">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-                  <div>
-                    <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
-                      <Wallet className="w-5 h-5 text-blue-500" />
-                      <span>
-                        الرسم البياني للتحصيل: هدف التحصيل مقابل المحقق{' '}
-                        {periodMode === 'monthly' ? '(شهرياً)' : '(بالكوارتر)'}
-                      </span>
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5 font-bold">
-                      متابعة التوريد النقدي للخزينة مقابل مستهدف التحصيل
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs font-bold">
-                    <span className="flex items-center gap-1.5 text-slate-600">
-                      <span className="w-3 h-3 rounded-xs bg-slate-300 inline-block" />
-                      هدف التحصيل
-                    </span>
-                    <span className="flex items-center gap-1.5 text-blue-700">
-                      <span className="w-3 h-3 rounded-xs bg-blue-600 inline-block" />
-                      المحقق تحصيل
-                    </span>
-                  </div>
-                </div>
+              {chartViewMode === 'reps_ranking' && repsRankingData.length > 1 ? (
+                /* Reps Performance Ranking View */
+                <div className="space-y-4">
+                  {/* Visual Bar Chart for Reps Ranking */}
+                  <div className="bg-white rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                      <div>
+                        <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
+                          <Award className="w-5 h-5 text-amber-500" />
+                          <span>رسم بياني لمقارنة نسب إنجاز مناديب الفرع 📊</span>
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5 font-bold">
+                          مقارنة نسبة إنجاز مبيعات ونسبة إنجاز تحصيل كل مندوب مئوية (%)
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs font-bold">
+                        <span className="flex items-center gap-1.5 text-emerald-700">
+                          <span className="w-3 h-3 rounded-xs bg-emerald-500 inline-block" />
+                          إنجاز البيع %
+                        </span>
+                        <span className="flex items-center gap-1.5 text-blue-700">
+                          <span className="w-3 h-3 rounded-xs bg-blue-600 inline-block" />
+                          إنجاز التحصيل %
+                        </span>
+                      </div>
+                    </div>
 
-                <div className="h-[250px] sm:h-[280px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={displayChartData}
-                      margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis
-                        dataKey="periodLabel"
-                        tick={{ fill: '#64748b', fontSize: 11, fontWeight: 'bold' }}
-                      />
-                      <YAxis
-                        tick={{ fill: '#64748b', fontSize: 10 }}
-                        tickFormatter={(val) => `${Math.round(val / 1000)}k`}
-                      />
-                      <Tooltip
-                        content={({ active, payload, label }) => {
-                          if (active && payload && payload.length) {
-                            const target = Number(payload[0]?.value || 0);
-                            const achieved = Number(payload[1]?.value || 0);
-                            const perc = target > 0 ? ((achieved / target) * 100).toFixed(1) : '0';
-                            return (
-                              <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl text-xs space-y-1 border border-slate-800 font-sans">
-                                <div className="font-black text-blue-400 text-sm">{label}</div>
-                                <div className="text-slate-300">
-                                  هدف التحصيل: <strong className="text-white">{formatEGP(target)}</strong>
-                                </div>
-                                <div className="text-slate-300">
-                                  المحقق تحصيل: <strong className="text-blue-400">{formatEGP(achieved)}</strong>
-                                </div>
-                                <div className="text-slate-300">
-                                  نسبة التحصيل: <strong className="text-amber-300">{perc}%</strong>
-                                </div>
+                    <div className="h-[280px] sm:h-[340px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={repsRankingData}
+                          margin={{ top: 10, right: 10, left: 10, bottom: 25 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis
+                            dataKey="repName"
+                            tick={{ fill: '#334155', fontSize: 10, fontWeight: 'bold' }}
+                            interval={0}
+                            angle={-15}
+                            textAnchor="end"
+                          />
+                          <YAxis
+                            tick={{ fill: '#64748b', fontSize: 10 }}
+                            tickFormatter={(val) => `${val}%`}
+                          />
+                          <Tooltip
+                            content={({ active, payload, label }) => {
+                              if (active && payload && payload.length) {
+                                const item = repsRankingData.find((r) => r.repName === label);
+                                if (!item) return null;
+                                return (
+                                  <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl text-xs space-y-1.5 border border-slate-800 font-sans">
+                                    <div className="font-black text-amber-400 text-sm border-b border-slate-700 pb-1">
+                                      👤 {label}
+                                    </div>
+                                    <div className="text-slate-300">
+                                      هدف البيع: <strong className="text-white">{formatEGP(item.salesTarget)}</strong>
+                                    </div>
+                                    <div className="text-slate-300">
+                                      المحقق بيع: <strong className="text-emerald-400">{formatEGP(item.salesAchieved)}</strong> ({item.salesPerc}%)
+                                    </div>
+                                    <div className="text-slate-300">
+                                      هدف التحصيل: <strong className="text-white">{formatEGP(item.colTarget)}</strong>
+                                    </div>
+                                    <div className="text-slate-300">
+                                      المحقق تحصيل: <strong className="text-blue-400">{formatEGP(item.colAchieved)}</strong> ({item.colPerc}%)
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar dataKey="salesPerc" fill="#10b981" radius={[6, 6, 0, 0]} name="إنجاز البيع %" />
+                          <Bar dataKey="colPerc" fill="#2563eb" radius={[6, 6, 0, 0]} name="إنجاز التحصيل %" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Rep Leaderboard Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {repsRankingData.map((rep, idx) => {
+                      const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}`;
+                      const isSalesAchieved = rep.salesPerc >= 100;
+                      const isColAchieved = rep.colPerc >= 100;
+
+                      return (
+                        <div
+                          key={rep.repName}
+                          className={`bg-white rounded-2xl p-4 border transition shadow-xs ${
+                            idx === 0
+                              ? 'border-amber-400 bg-amber-50/20'
+                              : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-2.5">
+                            <div className="flex items-center gap-2">
+                              <span className="w-7 h-7 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-xs">
+                                {medal}
+                              </span>
+                              <div className="font-black text-slate-900 text-sm">{rep.repName}</div>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setSelectedRep(rep.repName);
+                                setChartViewMode('timeline');
+                              }}
+                              className="text-[10px] text-amber-700 bg-amber-100 hover:bg-amber-200 font-black px-2 py-0.5 rounded-md transition cursor-pointer"
+                            >
+                              تفاصيل 🔍
+                            </button>
+                          </div>
+
+                          <div className="space-y-2 text-xs">
+                            {/* Sales achievement meter */}
+                            <div className="space-y-1">
+                              <div className="flex justify-between font-bold">
+                                <span className="text-slate-500">البيع:</span>
+                                <span className={isSalesAchieved ? 'text-emerald-600 font-black' : 'text-slate-800'}>
+                                  {formatEGP(rep.salesAchieved)} / {formatEGP(rep.salesTarget)} ({rep.salesPerc}%)
+                                </span>
                               </div>
-                            );
-                          }
-                          return null;
-                        }}
-                      />
-                      <Bar dataKey="collectionTarget" fill="#cbd5e1" radius={[6, 6, 0, 0]} name="هدف التحصيل" />
-                      <Bar dataKey="collectionAchieved" fill="#2563eb" radius={[6, 6, 0, 0]} name="المحقق تحصيل" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    rep.salesPerc >= 100
+                                      ? 'bg-emerald-500'
+                                      : rep.salesPerc >= 75
+                                      ? 'bg-amber-500'
+                                      : 'bg-rose-500'
+                                  }`}
+                                  style={{ width: `${Math.min(100, rep.salesPerc)}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Collection achievement meter */}
+                            <div className="space-y-1">
+                              <div className="flex justify-between font-bold">
+                                <span className="text-slate-500">التحصيل:</span>
+                                <span className={isColAchieved ? 'text-blue-600 font-black' : 'text-slate-800'}>
+                                  {formatEGP(rep.colAchieved)} / {formatEGP(rep.colTarget)} ({rep.colPerc}%)
+                                </span>
+                              </div>
+                              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    rep.colPerc >= 100
+                                      ? 'bg-blue-600'
+                                      : rep.colPerc >= 75
+                                      ? 'bg-sky-500'
+                                      : 'bg-rose-400'
+                                  }`}
+                                  style={{ width: `${Math.min(100, rep.colPerc)}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                /* Dual Timeline Charts (Sales & Collection) */
+                <>
+                  {/* Sales Target vs Actual Chart */}
+                  <div className="bg-white rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                      <div>
+                        <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
+                          <BarChart3 className="w-5 h-5 text-amber-500" />
+                          <span>
+                            الرسم البياني للأداء: مقارنة هدف البيع مع المحقق{' '}
+                            {periodMode === 'monthly' ? '(شهرياً)' : '(بالكوارتر)'}
+                          </span>
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5 font-bold">
+                          أعمدة المقارنة المباشرة: المستهدف في الشيت مقابل الفعلي المحقق
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs font-bold">
+                        <span className="flex items-center gap-1.5 text-slate-600">
+                          <span className="w-3 h-3 rounded-xs bg-slate-300 inline-block" />
+                          هدف البيع
+                        </span>
+                        <span className="flex items-center gap-1.5 text-emerald-700">
+                          <span className="w-3 h-3 rounded-xs bg-emerald-500 inline-block" />
+                          المحقق بيع
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="h-[280px] sm:h-[320px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={displayChartData}
+                          margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis
+                            dataKey="periodLabel"
+                            tick={{ fill: '#64748b', fontSize: 11, fontWeight: 'bold' }}
+                          />
+                          <YAxis
+                            tick={{ fill: '#64748b', fontSize: 10 }}
+                            tickFormatter={(val) => `${Math.round(val / 1000)}k`}
+                          />
+                          <Tooltip
+                            content={({ active, payload, label }) => {
+                              if (active && payload && payload.length) {
+                                const target = Number(payload[0]?.value || 0);
+                                const achieved = Number(payload[1]?.value || 0);
+                                const perc = target > 0 ? ((achieved / target) * 100).toFixed(1) : '0';
+                                return (
+                                  <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl text-xs space-y-1 border border-slate-800 font-sans">
+                                    <div className="font-black text-amber-400 text-sm">{label}</div>
+                                    <div className="text-slate-300">
+                                      هدف البيع: <strong className="text-white">{formatEGP(target)}</strong>
+                                    </div>
+                                    <div className="text-slate-300">
+                                      المحقق بيع: <strong className="text-emerald-400">{formatEGP(achieved)}</strong>
+                                    </div>
+                                    <div className="text-slate-300">
+                                      نسبة الإنجاز: <strong className="text-amber-300">{perc}%</strong>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar dataKey="salesTarget" fill="#cbd5e1" radius={[6, 6, 0, 0]} name="هدف البيع" />
+                          <Bar dataKey="salesAchieved" fill="#10b981" radius={[6, 6, 0, 0]} name="المحقق بيع" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Collection Target vs Actual Chart */}
+                  <div className="bg-white rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                      <div>
+                        <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
+                          <Wallet className="w-5 h-5 text-blue-500" />
+                          <span>
+                            الرسم البياني للتحصيل: هدف التحصيل مقابل المحقق{' '}
+                            {periodMode === 'monthly' ? '(شهرياً)' : '(بالكوارتر)'}
+                          </span>
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5 font-bold">
+                          متابعة التوريد النقدي للخزينة مقابل مستهدف التحصيل
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs font-bold">
+                        <span className="flex items-center gap-1.5 text-slate-600">
+                          <span className="w-3 h-3 rounded-xs bg-slate-300 inline-block" />
+                          هدف التحصيل
+                        </span>
+                        <span className="flex items-center gap-1.5 text-blue-700">
+                          <span className="w-3 h-3 rounded-xs bg-blue-600 inline-block" />
+                          المحقق تحصيل
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="h-[250px] sm:h-[280px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={displayChartData}
+                          margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis
+                            dataKey="periodLabel"
+                            tick={{ fill: '#64748b', fontSize: 11, fontWeight: 'bold' }}
+                          />
+                          <YAxis
+                            tick={{ fill: '#64748b', fontSize: 10 }}
+                            tickFormatter={(val) => `${Math.round(val / 1000)}k`}
+                          />
+                          <Tooltip
+                            content={({ active, payload, label }) => {
+                              if (active && payload && payload.length) {
+                                const target = Number(payload[0]?.value || 0);
+                                const achieved = Number(payload[1]?.value || 0);
+                                const perc = target > 0 ? ((achieved / target) * 100).toFixed(1) : '0';
+                                return (
+                                  <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl text-xs space-y-1 border border-slate-800 font-sans">
+                                    <div className="font-black text-blue-400 text-sm">{label}</div>
+                                    <div className="text-slate-300">
+                                      هدف التحصيل: <strong className="text-white">{formatEGP(target)}</strong>
+                                    </div>
+                                    <div className="text-slate-300">
+                                      المحقق تحصيل: <strong className="text-blue-400">{formatEGP(achieved)}</strong>
+                                    </div>
+                                    <div className="text-slate-300">
+                                      نسبة التحصيل: <strong className="text-amber-300">{perc}%</strong>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar dataKey="collectionTarget" fill="#cbd5e1" radius={[6, 6, 0, 0]} name="هدف التحصيل" />
+                          <Bar dataKey="collectionAchieved" fill="#2563eb" radius={[6, 6, 0, 0]} name="المحقق تحصيل" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 

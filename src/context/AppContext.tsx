@@ -412,7 +412,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [targets]);
 
   const getVisibleTargets = () => {
-    return filterTargetsForUser(targets, currentUser, users);
+    return filterTargetsForUser(targets, currentUser, users, customers);
   };
 
   const importTargetsFromExcel = async (file: File): Promise<{ success: boolean; count: number; message: string }> => {

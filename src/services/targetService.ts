@@ -364,7 +364,8 @@ export function parseTargetRawRows(rawRows: any[][]): TargetRecord[] {
 export function filterTargetsForUser(
   records: TargetRecord[],
   currentUser: User | null,
-  allUsers: User[] = []
+  allUsers: User[] = [],
+  customers: Array<{ supervisorName?: string; repName?: string; branchName?: string }> = []
 ): TargetRecord[] {
   if (!currentUser || !records || records.length === 0) return [];
 
@@ -386,28 +387,44 @@ export function filterTargetsForUser(
     });
   }
 
-  // 3. Supervisor: sees his own numbers AND the reps supervised by him in his branch
+  // 3. Supervisor: strictly sees his own numbers AND the reps belonging to him
   if (currentUser.role === 'supervisor') {
     const currentName = currentUser.name || '';
     const currentUsername = currentUser.username || '';
-    const supervisedReps = allUsers.filter((u) => u.supervisorId === currentUser.id);
-    const supervisedNames = new Set(supervisedReps.map((u) => normalizeArabicText(u.name)));
+
+    // Collect supervised rep names from users list
+    const directSupervised = allUsers.filter((u) => u.supervisorId === currentUser.id);
+    const supervisedNames = new Set(directSupervised.map((u) => normalizeArabicText(u.name)));
+
+    // Also collect supervised rep names from customer directory mapping
+    customers.forEach((c) => {
+      if (c.supervisorName && c.repName) {
+        if (
+          isArabicNameMatch(c.supervisorName, currentName) ||
+          normalizeArabicText(c.supervisorName) === normalizeArabicText(currentName)
+        ) {
+          supervisedNames.add(normalizeArabicText(c.repName));
+        }
+      }
+    });
 
     return records.filter((r) => {
-      // 1. If record is for the supervisor himself
+      // Must belong to supervisor's branch or general branch
+      if (!isBranchMatch(r.branch, currentUser.branchName)) return false;
+
+      // Check if record is for the supervisor himself
       if (isArabicNameMatch(r.repName, currentName)) return true;
       if (normalizeArabicText(r.repName) === normalizeArabicText(currentName)) return true;
       if (currentUsername && normalizeArabicText(r.repName).includes(normalizeArabicText(currentUsername))) return true;
 
-      // 2. Or if it is for one of his assigned reps
+      // Check if it matches any of his supervised reps
       if (supervisedNames.size > 0) {
         const normRep = normalizeArabicText(r.repName);
-        const matchesSupervised = Array.from(supervisedNames).some((sn) => isArabicNameMatch(r.repName, sn) || normRep.includes(sn));
-        if (matchesSupervised) return true;
+        return Array.from(supervisedNames).some((sn) => isArabicNameMatch(r.repName, sn) || normRep.includes(sn));
       }
 
-      // 3. Or if it belongs to his branch team
-      return isBranchMatch(r.branch, currentUser.branchName);
+      // If no explicit supervised list is found yet, show by branch as fallback
+      return true;
     });
   }
 
