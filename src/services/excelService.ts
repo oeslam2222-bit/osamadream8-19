@@ -1604,7 +1604,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     openingBalance2026: -1,      // اول المدة 2026
     dealt2026: -1,               // متعامل 2026
     dealEligibility: -1,         // قابل /غير
-    debtStatus: -1,              // حالة دين العميل
+    debtStatus: -1,              // حالة دين العمي��
     totalMonthlySales: -1,       // اجمالي المبيعات
     totalMonthlyCollections: -1, // اجمالي التحصيلات
     totalOverdue: -1,            // اجمالي المتأخرات (المستحقات التي تظهر للمندوب عند طلب طلبية)
@@ -1625,6 +1625,30 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     const norm = normalizeHeader(h);
     const rawLower = String(h).trim().toLowerCase();
 
+    // Resolve identity columns first. Some customer sheets use compound headers
+    // such as "اسم العميل / متعامل 2026"; the status matcher below must not
+    // mistake that whole header for the customer's name.
+    const isCustomerCodeHeader =
+      norm.includes('كودالعميل') ||
+      norm.includes('كودالمحل') ||
+      norm.includes('كودالحساب') ||
+      norm.includes('رقمالعميل') ||
+      norm.includes('رقمالمحل') ||
+      norm.includes('customercode') ||
+      norm.includes('customerid');
+    const isCustomerNameHeader =
+      norm.includes('اسمالعميل') ||
+      norm.includes('اسمالمحل') ||
+      norm.includes('اسمالحساب') ||
+      norm.includes('اسمالتاجر') ||
+      norm.includes('اسمالزبون') ||
+      norm.includes('accountname') ||
+      norm.includes('customername') ||
+      norm.includes('clientname');
+
+    if (isCustomerCodeHeader && colMap.code === -1) colMap.code = idx;
+    if (isCustomerNameHeader && colMap.name === -1) colMap.name = idx;
+  
     // 0. Explicit Account Name (Customer Target Sheet standard header)
     if (
       rawLower === 'account name' ||
@@ -2893,7 +2917,7 @@ export function generateSampleCustomerTargetTemplate(): void {
       overdue2025: 0,
       overdue2026: 38000,
       dueUntilPeriod: 38000,
-      duePeriodLabel: 'مستحق حتي نهاية اغسطس',
+      duePeriodLabel: 'مس��حق حتي نهاية اغسطس',
       totalOverallSales: 928000,
       totalOverallCollections: 890000,
       sales2024: 850000,
