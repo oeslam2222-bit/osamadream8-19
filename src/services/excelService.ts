@@ -66,6 +66,23 @@ export function normalizeExcelBranchName(rawBranch?: string): string {
     return '';
   }
   const clean = rawBranch.trim();
+
+  // Branch codes from the customer sheet. Keep this mapping explicit so a
+  // numeric branch value is never mistaken for a customer or rep field.
+  const branchCodeMap: Record<string, string> = {
+    '15': 'فرع الفيوم',
+    '45': 'فرع ديمشلت',
+    '55': 'فرع منوف',
+    '65': 'فرع منيا القمح',
+    '75': 'فرع القاهرة',
+    '90': 'فرع البحيرة',
+    '95': 'فرع المنيا',
+  };
+  const branchCode = clean.replace(/^فرع\s*/i, '').trim();
+  if (branchCodeMap[branchCode]) {
+    return branchCodeMap[branchCode];
+  }
+
   const inferred = inferBranchFromText(clean);
   if (inferred) {
     return inferred;
@@ -1604,7 +1621,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     openingBalance2026: -1,      // اول المدة 2026
     dealt2026: -1,               // متعامل 2026
     dealEligibility: -1,         // قابل /غير
-    debtStatus: -1,              // حالة دين العمي��
+    debtStatus: -1,              // حالة دين العمي����
     totalMonthlySales: -1,       // اجمالي المبيعات
     totalMonthlyCollections: -1, // اجمالي التحصيلات
     totalOverdue: -1,            // اجمالي المتأخرات (المستحقات التي تظهر للمندوب عند طلب طلبية)
@@ -1636,15 +1653,23 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('رقمالمحل') ||
       norm.includes('customercode') ||
       norm.includes('customerid');
-    const isCustomerNameHeader =
-      norm.includes('اسمالعميل') ||
-      norm.includes('اسمالمحل') ||
-      norm.includes('اسمالحساب') ||
-      norm.includes('اسمالتاجر') ||
-      norm.includes('اسمالزبون') ||
-      norm.includes('accountname') ||
-      norm.includes('customername') ||
-      norm.includes('clientname');
+    // Only accept a dedicated customer-name column. Compound headers such as
+    // "اسم العميل / متعامل 2026" must not be treated as the name column,
+    // otherwise the value from the status column becomes the customer name.
+    const isDedicatedCustomerNameHeader =
+      norm === 'اسمالعميل' ||
+      norm === 'اسمالمحل' ||
+      norm === 'اسمالحساب' ||
+      norm === 'اسمالتاجر' ||
+      norm === 'اسمالزبون' ||
+      norm === 'accountname' ||
+      norm === 'customername' ||
+      norm === 'clientname';
+
+    const isCustomerNameHeader = isDedicatedCustomerNameHeader &&
+      !norm.includes('متعامل') &&
+      !norm.includes('dealt') &&
+      !norm.includes('status');
 
     if (isCustomerCodeHeader && colMap.code === -1) colMap.code = idx;
     if (isCustomerNameHeader && colMap.name === -1) colMap.name = idx;
@@ -1843,7 +1868,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('قابل/غير') ||
       norm.includes('قابلغير') ||
       norm.includes('قابل/غيرقابل') ||
-      norm.includes('قابليةالتعامل') ||
+      norm.includes('قابليةالت��امل') ||
       norm.includes('صلاحيةالتعامل') ||
       norm.includes('eligibility')
     ) {
@@ -2179,6 +2204,8 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
 
     const cleanCode = rawCode.trim().toLowerCase();
     const cleanName = (rawName || '').trim();
+    const invalidImportedNames = new Set(['متعامل', 'غير متعامل', 'نعم', 'لا']);
+    const resolvedImportedName = invalidImportedNames.has(cleanName) ? '' : cleanName;
 
     const assignedCode = rawCode || `CUST-${1000 + parsedCustomersList.length + 1}`;
     const safeCustId = `cust_r${r + 1}_${cleanCode ? cleanCode.replace(/[^a-zA-Z0-9_-]/g, '_') : 'cust'}_${1000 + parsedCustomersList.length + 1}`;
@@ -2287,8 +2314,8 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     const newCustomer: Customer = {
       id: safeCustId,
       code: assignedCode,
-      name: rawName || `عميل رقم ${assignedCode}`,
-      storeName: rawName || `محل / سوبر ماركت ${assignedCode}`,
+      name: resolvedImportedName || `عميل رقم ${assignedCode}`,
+      storeName: resolvedImportedName || `محل / سوبر ماركت ${assignedCode}`,
       tier: tier,
       phone: rawPhone,
       address: resolvedAddress,
@@ -2341,12 +2368,34 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     parsedCustomersList.push(newCustomer);
   }
 
-  // Preserve every single sheet row 1:1 without merging (exact match with the 3,427 sheet records)
+  // A customer code identifies one customer. Repeated rows in a workbook must
+  // update that customer instead of creating another visible customer record.
+  const uniqueCustomers = new Map<string, Customer>();
+  let duplicatesCount = 0;
+  parsedCustomersList.forEach((customer) => {
+    const key = customer.code.trim().toLowerCase();
+    if (uniqueCustomers.has(key)) {
+      duplicatesCount += 1;
+      const previous = uniqueCustomers.get(key)!;
+      uniqueCustomers.set(key, {
+        ...previous,
+        ...customer,
+        name: customer.name.startsWith('عميل رقم ') ? previous.name : customer.name,
+        storeName: customer.storeName.startsWith('محل / سوبر ماركت ') ? previous.storeName : customer.storeName,
+        repName: customer.repName || previous.repName,
+        salesRepName: customer.salesRepName || previous.salesRepName,
+        branchName: customer.branchName || previous.branchName,
+      });
+    } else {
+      uniqueCustomers.set(key, customer);
+    }
+  });
+
   return {
-    customers: parsedCustomersList,
+    customers: Array.from(uniqueCustomers.values()),
     errors,
-    totalRows: totalRawRowsProcessed,
-    duplicatesCount: 0,
+    totalRows: uniqueCustomers.size,
+    duplicatesCount,
   };
 }
 
@@ -2566,7 +2615,7 @@ export function generateSampleCustomersTemplate(): void {
       storeName: 'سوبر ماركت النور والبركة',
       phone: '01011122233',
       branchName: 'فرع المنيا',
-      repName: 'حسن محمد',
+      repName: 'حسن م��مد',
       salesRepName: 'حسن محمد',
       creditLimit: 50000,
       currentBalance: 8500,
@@ -2836,7 +2885,7 @@ export function exportCustomerTargetSheetToExcel(customers: Customer[]): void {
       Number(c.adjustments || 0),
       Number(c.annualTarget || 0),
       Number(c.openingBalance2026 ?? c.balance ?? 0),
-      c.dealt2026 || (sumSales > 0 ? 'متعامل' : 'غير متعامل'),
+      c.dealt2026 || (sumSales > 0 ? 'متع��مل' : 'غير متعامل'),
       c.dealEligibility || 'قابل',
       c.debtStatus || (overdue > 0 ? 'متأخر' : 'منتظم'),
       ...salesVals,
