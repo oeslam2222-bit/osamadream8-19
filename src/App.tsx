@@ -28,6 +28,7 @@ import { ExcelImportExport } from './components/ExcelImportExport';
 import { UserManager } from './components/UserManager';
 import { SystemWorkflowGuide } from './components/SystemWorkflowGuide';
 import { TargetPerformanceDashboard } from './components/TargetPerformanceDashboard';
+import { VisitsDashboard } from './components/VisitsDashboard';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
 import { AppProvider, useApp } from './context/AppContext';
@@ -125,6 +126,8 @@ const MainLayout: React.FC = () => {
           )}
 
           {activeTab === 'targets' && <TargetPerformanceDashboard />}
+
+          {activeTab === 'visits' && <VisitsDashboard />}
 
           {activeTab === 'invoices' && (
             <InvoicesManager

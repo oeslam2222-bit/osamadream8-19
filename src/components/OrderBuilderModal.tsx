@@ -8,8 +8,6 @@ import {
   CheckCircle2,
   ChevronDown,
   CreditCard,
-  Download,
-  FileSpreadsheet,
   Flame,
   Grid,
   Layers,
@@ -37,8 +35,6 @@ import { Customer, Invoice, PaymentMethod, Product } from '../types';
 import { ProductImage } from './ProductImage';
 import { CustomerFinancialSummaryCard } from './CustomerFinancialSummaryCard';
 import { formatCurrency } from '../services/invoiceService';
-import { exportElectronicInvoiceToExcel } from '../services/excelService';
-import { downloadInvoicePDF } from '../services/pdfService';
 import { findCustomerMatch, getBranchStockForProduct, isBranchMatch } from '../services/arabicMatchingService';
 import { getDepartmentMeta } from '../data/departmentMeta';
 
@@ -85,6 +81,10 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const [activeCustomer, setActiveCustomer] = useState<Customer | null>(initialCustomer || null);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+  const [isUnregisteredCustomerOpen, setIsUnregisteredCustomerOpen] = useState(false);
+  const [unregisteredCustomerName, setUnregisteredCustomerName] = useState('');
+  const [unregisteredCustomerPhone, setUnregisteredCustomerPhone] = useState('');
+  const [unregisteredCustomerAddress, setUnregisteredCustomerAddress] = useState('');
 
   // Sync initialCustomer if prop changes
   useEffect(() => {
@@ -208,7 +208,36 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
       overdueBalance: 0,
     });
     setIsCustomerDropdownOpen(false);
+    setIsUnregisteredCustomerOpen(false);
     setCustomerSearchQuery('');
+  };
+
+  const handleCreateUnregisteredCustomer = () => {
+    const name = unregisteredCustomerName.trim();
+    if (!name) {
+      setFeedbackError('اكتب اسم العميل الجديد أولاً.');
+      return;
+    }
+
+    setActiveCustomer({
+      id: `c-new-order-${Date.now()}`,
+      code: `NEW-${Date.now().toString().slice(-6)}`,
+      name,
+      phone: unregisteredCustomerPhone.trim(),
+      address: unregisteredCustomerAddress.trim(),
+      branchName: activeBranch,
+      currentBalance: 0,
+      creditLimit: 0,
+      overdueBalance: 0,
+    });
+    setIsUnregisteredCustomerOpen(false);
+    setIsCustomerDropdownOpen(false);
+    setCustomerSearchQuery('');
+    setUnregisteredCustomerName('');
+    setUnregisteredCustomerPhone('');
+    setUnregisteredCustomerAddress('');
+    setFeedbackSuccess('تم تجهيز العميل الجديد للطلبية فقط، ولم تتم إضافته إلى شيت العملاء.');
+    setTimeout(() => setFeedbackSuccess(null), 3500);
   };
 
   // Quick Add Item from Cashier Catalog
@@ -224,7 +253,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   };
 
   // Order Submission & Stock Reservation Handling
-  const handleSubmitOrder = async (andExportExcel: boolean = false, andDownloadPDF: boolean = false) => {
+  const handleSubmitOrder = async () => {
     if (cart.length === 0) {
       setFeedbackError('سلة الفاتورة فارغة! يرجى إضافة أصناف للطلبية أولاً.');
       setTimeout(() => setFeedbackError(null), 4000);
@@ -286,16 +315,6 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         setFeedbackError(result.message || 'تعذر حفظ الطلبية.');
         setIsSubmitting(false);
         return;
-      }
-
-      // Download Excel if requested
-      if (andExportExcel) {
-        exportElectronicInvoiceToExcel(result.invoice);
-      }
-
-      // Download PDF if requested
-      if (andDownloadPDF) {
-        await downloadInvoicePDF(result.invoice);
       }
 
       clearCart();
@@ -400,7 +419,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     <span>👁️ معاينة الفاتورة قبل الحفظ وتأكيد حجز المخزون</span>
                   </h3>
                   <p className="text-slate-300 text-[11px] mt-0.5">
-                    يمكنك مراجعة كافة الأسعار والكميات وتأكيد الحفظ للمشرف أو تحميلها مباشرة كملف إكسل أو PDF.
+                    يمكنك مراجعة كافة الأسعار والكميات ثم حفظ الفاتورة وإرسالها للمشرف للمراجعة والاعتماد.
                   </p>
                 </div>
                 <button
@@ -474,26 +493,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
               {/* Preview Action Buttons */}
               <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  disabled={isSubmitting || cart.length === 0}
-                  onClick={() => handleSubmitOrder(true, false)}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2.5 rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
-                  title="حفظ الطلبية وتنزيل شيت إكسل"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  <span>حفظ وتحميل إكسل 📊</span>
-                </button>
-                <button
-                  type="button"
-                  disabled={isSubmitting || cart.length === 0}
-                  onClick={() => handleSubmitOrder(false, true)}
-                  className="bg-rose-600 hover:bg-rose-700 text-white font-black px-4 py-2.5 rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
-                  title="حفظ الطلبية وتنزيل PDF"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>حفظ وتحميل PDF 📄</span>
-                </button>
+
                 <button
                   type="button"
                   disabled={isSubmitting || cart.length === 0}
@@ -568,14 +568,59 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-bold text-slate-300">تحديد عميل الفاتورة:</span>
-                          <button
-                            type="button"
-                            onClick={handleSelectDirectCash}
-                            className="text-amber-400 hover:text-amber-300 font-black text-xs cursor-pointer underline flex items-center gap-1"
-                          >
-                            <span>⚡ بيع نقدي مباشر (كاش)</span>
-                          </button>
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setIsUnregisteredCustomerOpen((open) => !open)}
+                              className="text-sky-300 hover:text-sky-200 font-black text-xs cursor-pointer underline"
+                            >
+                              عميل جديد غير مسجل
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSelectDirectCash}
+                              className="text-amber-400 hover:text-amber-300 font-black text-xs cursor-pointer underline"
+                            >
+                              بيع نقدي مباشر (كاش)
+                            </button>
+                          </div>
                         </div>
+
+                        {isUnregisteredCustomerOpen && (
+                          <div className="rounded-xl border border-sky-500/40 bg-sky-950/30 p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-black text-sky-200">عميل جديد غير مسجل في قاعدة العملاء</span>
+                              <span className="rounded-md bg-sky-400/15 px-2 py-0.5 text-[10px] font-bold text-sky-300">يظهر في الطلبية فقط</span>
+                            </div>
+                            <input
+                              value={unregisteredCustomerName}
+                              onChange={(e) => setUnregisteredCustomerName(e.target.value)}
+                              placeholder="اسم العميل / المحل *"
+                              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                            />
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                              <input
+                                value={unregisteredCustomerPhone}
+                                onChange={(e) => setUnregisteredCustomerPhone(e.target.value)}
+                                placeholder="رقم الهاتف (اختياري)"
+                                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                              />
+                              <input
+                                value={unregisteredCustomerAddress}
+                                onChange={(e) => setUnregisteredCustomerAddress(e.target.value)}
+                                placeholder="العنوان (اختياري)"
+                                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleCreateUnregisteredCustomer}
+                              className="w-full rounded-lg bg-sky-400 px-3 py-2 text-xs font-black text-slate-950 transition hover:bg-sky-300"
+                            >
+                              استخدام العميل في الطلبية فقط
+                            </button>
+                          </div>
+                        )}
 
                         <div className="relative">
                           <Search className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
@@ -824,25 +869,6 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                         <span>{isSubmitting ? 'جاري الحفظ...' : 'حفظ الطلبية للمشرف (حجز الرصيد) ✅'}</span>
                       </button>
 
-                      <button
-                        type="button"
-                        disabled={isSubmitting || cart.length === 0}
-                        onClick={() => handleSubmitOrder(true, false)}
-                        className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black p-2.5 rounded-2xl transition cursor-pointer shrink-0"
-                        title="حفظ وتحميل إكسل"
-                      >
-                        <FileSpreadsheet className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={isSubmitting || cart.length === 0}
-                        onClick={() => handleSubmitOrder(false, true)}
-                        className="bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-black p-2.5 rounded-2xl transition cursor-pointer shrink-0"
-                        title="حفظ وتحميل PDF"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
                     </div>
                   </div>
                 </div>

@@ -58,6 +58,7 @@ import {
   CloudinaryConfig,
   CompanyInfo,
   Customer,
+  CustomerVisit,
   InventoryTransaction,
   Invoice,
   OrderStatus,
@@ -77,6 +78,7 @@ interface AppContextType {
   branches: Branch[];
   products: Product[];
   customers: Customer[];
+  visits: CustomerVisit[];
   invoices: Invoice[];
   cart: CartItem[];
   cloudinaryConfig: CloudinaryConfig;
@@ -218,6 +220,10 @@ interface AppContextType {
   getVisibleInvoices: () => Invoice[];
   getVisibleProducts: () => Product[];
   getVisibleCustomers: () => Customer[];
+  getVisibleVisits: () => CustomerVisit[];
+  addVisit: (visit: Omit<CustomerVisit, 'id' | 'createdAt' | 'createdBy'>) => { success: boolean; message: string };
+  updateVisit: (visit: CustomerVisit) => { success: boolean; message: string };
+  getCustomerVisitSummary: (customerId: string, month?: string) => { total: number; completed: number; scheduled: number; lastVisit?: string; nextVisit?: string };
   getSupervisorsInBranch: (branchName?: string) => User[];
   getSalesRepsForSupervisor: (supervisorId: string) => User[];
   loginAs: (userId: string) => void;
@@ -241,6 +247,7 @@ const STORAGE_KEYS = {
   USERS: 'dream_dist_users_v10',
   BRANCHES: 'dream_dist_branches_v9',
   CUSTOMERS: 'dream_dist_customers_v9',
+  VISITS: 'dream_dist_customer_visits_v1',
   CLOUDINARY: 'dream_dist_cloudinary_v9',
   CURRENT_USER_ID: 'dream_dist_current_user_v9',
   CURRENT_USER_DATA: 'dream_dist_current_user_session_v10',
@@ -628,6 +635,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return [];
   });
 
+  const [visits, setVisits] = useState<CustomerVisit[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.VISITS);
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
     return [];
   });
@@ -668,6 +682,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch {}
     }
   }, [customers]);
+
+  useEffect(() => {
+    safeLocalStorageSet(STORAGE_KEYS.VISITS, JSON.stringify(visits));
+  }, [visits]);
 
   // Persist users to IndexedDB and localStorage so offline sessions and registered reps are immediately available
   useEffect(() => {
@@ -2340,7 +2358,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         productId: prod.id,
         productCode: prod.code,
         productName: prod.name,
-        type: branchChange > 0 ? 'توريد مخزني' : 'تعديل جردي',
+        type: branchChange > 0 ? 'توريد مخز��ي' : 'تعديل جردي',
         quantityPieces: Math.abs(branchChange),
         branchStockBefore: beforeActual,
         branchStockAfter: Math.max(0, beforeActual + branchChange),
@@ -3007,7 +3025,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً.' };
     const inv = invoices.find((i) => i.id === invoiceId);
     if (!inv) return { success: false, message: 'الطلبية غير موجودة' };
-    const isPending = inv.status === 'قيد مراجعة المشرف' || inv.status === 'معلقة بانتظار اعتماد الفرع' || inv.status === 'قيد المراجعة' || inv.status === 'مسودة';
+    const isPending = inv.status === 'قيد مراجعة المشرف' || inv.status === 'معلقة بانتظار اعتماد الفرع' || inv.status === 'قيد المراجعة' || inv.status === '��سودة';
     const isOwnerRep = currentUser.role === 'sales_rep' &&
       (inv.repId === currentUser.id || (!inv.repId && normalizeArabicText(inv.repName) === normalizeArabicText(currentUser.name)));
     if (currentUser.role === 'sales_rep' && (!isOwnerRep || !isPending)) {
@@ -3854,6 +3872,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return [];
   };
 
+  const getVisibleVisits = (): CustomerVisit[] => {
+    if (!currentUser) return [];
+    if (currentUser.role === 'admin' || currentUser.role === 'developer') {
+      return selectedBranchFilter === 'الكل' ? visits : visits.filter((v) => v.branchName === selectedBranchFilter);
+    }
+    if (currentUser.role === 'branch_manager') return visits.filter((v) => v.branchName === currentUser.branchName);
+    if (currentUser.role === 'supervisor') return visits.filter((v) => v.supervisorId === currentUser.id || v.repId && users.find((u) => u.id === v.repId)?.supervisorId === currentUser.id);
+    return visits.filter((v) => v.repId === currentUser.id || v.repName === currentUser.name);
+  };
+
+  const addVisit = (visit: Omit<CustomerVisit, 'id' | 'createdAt' | 'createdBy'>) => {
+    if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً' };
+    if (!visit.customerId || !visit.date || !visit.repId) return { success: false, message: 'اختر العميل والمندوب وتاريخ الزيارة' };
+    const customer = customers.find((c) => c.id === visit.customerId);
+    if (!customer) return { success: false, message: 'العميل غير موجود' };
+    setVisits((prev) => [...prev, { ...visit, id: `visit-${Date.now()}`, createdBy: currentUser.id, createdAt: new Date().toISOString(), status: visit.status || 'مجدولة' }]);
+    return { success: true, message: 'تم تسجيل الزيارة بنجاح' };
+  };
+
+  const updateVisit = (visit: CustomerVisit) => {
+    if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً' };
+    setVisits((prev) => prev.map((item) => item.id === visit.id ? { ...visit, updatedAt: new Date().toISOString() } : item));
+    return { success: true, message: 'تم تحديث الزيارة' };
+  };
+
+  const getCustomerVisitSummary = (customerId: string, month?: string) => {
+    const list = getVisibleVisits().filter((v) => v.customerId === customerId && (!month || v.date.startsWith(month)));
+    const completed = list.filter((v) => v.status === 'منفذة').length;
+    return { total: list.length, completed, scheduled: list.filter((v) => v.status === 'مجدولة').length, lastVisit: list.filter((v) => v.status === 'منفذة').sort((a, b) => b.date.localeCompare(a.date))[0]?.date, nextVisit: list.filter((v) => v.status === 'مجدولة' && v.date >= new Date().toISOString().slice(0, 10)).sort((a, b) => a.date.localeCompare(b.date))[0]?.date };
+  };
+
   const getVisibleCustomers = (): Customer[] => {
     if (!currentUser) return [];
     if (currentUser.role === 'admin' || currentUser.role === 'developer') {
@@ -3908,6 +3957,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         branches,
         products,
         customers,
+        visits,
         invoices,
         cart,
         cloudinaryConfig,
@@ -3990,6 +4040,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getCompanyInfoForBranch,
         getVisibleInvoices,
         getVisibleCustomers,
+        getVisibleVisits,
+        addVisit,
+        updateVisit,
+        getCustomerVisitSummary,
         getVisibleProducts,
         getSupervisorsInBranch,
         getSalesRepsForSupervisor,
