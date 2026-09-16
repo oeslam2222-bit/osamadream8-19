@@ -99,15 +99,26 @@ export interface Product {
 
 export type CustomerTier = 'مميز' | 'راقي' | 'متوسط' | 'عادي';
 
+export type CustomerVisitStatus = 'مجدولة' | 'منفذة' | 'ملغاة' | 'لم تتم';
+
 export interface CustomerVisit {
   id: string;
+  customerId?: string;
   date: string;                      // تاريخ الزيارة (YYYY-MM-DD)
+  time?: string;
+  repId?: string;
   repName: string;                   // اسم المندوب القائم بالزيارة
+  branchName?: string;
+  supervisorId?: string;
+  supervisorName?: string;
+  status?: CustomerVisitStatus;
   type?: 'زيارة تحصيل' | 'زيارة بيع وطلبية' | 'زيارة دورية' | 'متابعة حساب' | 'أخرى';
   outcome?: 'تم عمل طلبية' | 'تم التحصيل' | 'تأجيل سداد' | 'المحل مغلق' | 'متابعة فقط';
   collectedAmount?: number;          // المبلغ المحصل إن وجد
   notes?: string;                    // ملاحظات الزيارة
+  createdBy?: string;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Customer {
@@ -229,7 +240,7 @@ export interface ReturnedItem {
   pricePerCarton: number;            // سعر الكرتونة
   pricePerPiece: number;             // سعر القطعة
   refundAmount: number;              // إجمالي القيمة المالية المرتجعة للصنف
-  returnReason?: string;             // سبب ارتجاع الصنف
+  returnReason?: string;             // س��ب ارتجاع الصنف
   condition?: 'good_condition' | 'damaged' | 'expired'; // حالة البضاعة (سليمة تعود للمخزن / تالفة / منتهية)
 }
 
