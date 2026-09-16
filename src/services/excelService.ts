@@ -1636,15 +1636,23 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('رقمالمحل') ||
       norm.includes('customercode') ||
       norm.includes('customerid');
-    const isCustomerNameHeader =
-      norm.includes('اسمالعميل') ||
-      norm.includes('اسمالمحل') ||
-      norm.includes('اسمالحساب') ||
-      norm.includes('اسمالتاجر') ||
-      norm.includes('اسمالزبون') ||
-      norm.includes('accountname') ||
-      norm.includes('customername') ||
-      norm.includes('clientname');
+    // Only accept a dedicated customer-name column. Compound headers such as
+    // "اسم العميل / متعامل 2026" must not be treated as the name column,
+    // otherwise the value from the status column becomes the customer name.
+    const isDedicatedCustomerNameHeader =
+      norm === 'اسمالعميل' ||
+      norm === 'اسمالمحل' ||
+      norm === 'اسمالحساب' ||
+      norm === 'اسمالتاجر' ||
+      norm === 'اسمالزبون' ||
+      norm === 'accountname' ||
+      norm === 'customername' ||
+      norm === 'clientname';
+
+    const isCustomerNameHeader = isDedicatedCustomerNameHeader &&
+      !norm.includes('متعامل') &&
+      !norm.includes('dealt') &&
+      !norm.includes('status');
 
     if (isCustomerCodeHeader && colMap.code === -1) colMap.code = idx;
     if (isCustomerNameHeader && colMap.name === -1) colMap.name = idx;
@@ -2179,6 +2187,8 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
 
     const cleanCode = rawCode.trim().toLowerCase();
     const cleanName = (rawName || '').trim();
+    const invalidImportedNames = new Set(['متعامل', 'غير متعامل', 'نعم', 'لا']);
+    const resolvedImportedName = invalidImportedNames.has(cleanName) ? '' : cleanName;
 
     const assignedCode = rawCode || `CUST-${1000 + parsedCustomersList.length + 1}`;
     const safeCustId = `cust_r${r + 1}_${cleanCode ? cleanCode.replace(/[^a-zA-Z0-9_-]/g, '_') : 'cust'}_${1000 + parsedCustomersList.length + 1}`;
@@ -2287,8 +2297,8 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     const newCustomer: Customer = {
       id: safeCustId,
       code: assignedCode,
-      name: rawName || `عميل رقم ${assignedCode}`,
-      storeName: rawName || `محل / سوبر ماركت ${assignedCode}`,
+      name: resolvedImportedName || `عميل رقم ${assignedCode}`,
+      storeName: resolvedImportedName || `محل / سوبر ماركت ${assignedCode}`,
       tier: tier,
       phone: rawPhone,
       address: resolvedAddress,
@@ -2341,12 +2351,34 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     parsedCustomersList.push(newCustomer);
   }
 
-  // Preserve every single sheet row 1:1 without merging (exact match with the 3,427 sheet records)
+  // A customer code identifies one customer. Repeated rows in a workbook must
+  // update that customer instead of creating another visible customer record.
+  const uniqueCustomers = new Map<string, Customer>();
+  let duplicatesCount = 0;
+  parsedCustomersList.forEach((customer) => {
+    const key = customer.code.trim().toLowerCase();
+    if (uniqueCustomers.has(key)) {
+      duplicatesCount += 1;
+      const previous = uniqueCustomers.get(key)!;
+      uniqueCustomers.set(key, {
+        ...previous,
+        ...customer,
+        name: customer.name.startsWith('عميل رقم ') ? previous.name : customer.name,
+        storeName: customer.storeName.startsWith('محل / سوبر ماركت ') ? previous.storeName : customer.storeName,
+        repName: customer.repName || previous.repName,
+        salesRepName: customer.salesRepName || previous.salesRepName,
+        branchName: customer.branchName || previous.branchName,
+      });
+    } else {
+      uniqueCustomers.set(key, customer);
+    }
+  });
+
   return {
-    customers: parsedCustomersList,
+    customers: Array.from(uniqueCustomers.values()),
     errors,
-    totalRows: totalRawRowsProcessed,
-    duplicatesCount: 0,
+    totalRows: uniqueCustomers.size,
+    duplicatesCount,
   };
 }
 
