@@ -125,8 +125,8 @@ export const VisitsDashboard: React.FC = () => {
     )}
     
     {selectedVisit && (
-      <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-96 overflow-y-auto" dir="rtl">
+      <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) setSelectedVisit(null); }}>
+        <div className="relative z-[60] bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-black">تفاصيل الزيارة</h2>
             <button onClick={() => setSelectedVisit(null)} className="text-slate-400 hover:text-slate-600">✕</button>

@@ -174,7 +174,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
       className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in"
       dir="rtl"
     >
-      <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-300 w-full max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] xl:max-w-[96vw] max-h-[96vh] flex flex-col overflow-hidden">
+      <div role="dialog" aria-modal="true" className="relative z-[60] bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-300 w-full max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] xl:max-w-[96vw] max-h-[96vh] flex flex-col overflow-hidden">
         
         {/* Top Header Ribbon (Excel Themed) */}
         <div className="bg-slate-900 text-white p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3 border-b-2 border-emerald-600">
