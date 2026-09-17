@@ -3882,19 +3882,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return visits.filter((v) => v.repId === currentUser.id || v.repName === currentUser.name);
   };
 
-  const addVisit = (visit: Omit<CustomerVisit, 'id' | 'createdAt' | 'createdBy'>) => {
-    if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً' };
-    if (!visit.customerId || !visit.date || !visit.repId) return { success: false, message: 'اختر العميل والمندوب وتاريخ الزيارة' };
-    const customer = customers.find((c) => c.id === visit.customerId);
-    if (!customer) return { success: false, message: 'العميل غير موجود' };
-    setVisits((prev) => [...prev, { ...visit, id: `visit-${Date.now()}`, createdBy: currentUser.id, createdAt: new Date().toISOString(), status: visit.status || 'مجدولة' }]);
-    return { success: true, message: 'تم تسجيل الزيارة بنجاح' };
+  const canManageVisit = (visit: CustomerVisit) => {
+  if (!currentUser) return false;
+  if (currentUser.role === 'admin' || currentUser.role === 'developer') return true;
+  if (currentUser.role === 'branch_manager') return visit.branchName === currentUser.branchName;
+  if (currentUser.role === 'supervisor') return visit.supervisorId === currentUser.id || Boolean(visit.repId && users.find((u) => u.id === visit.repId)?.supervisorId === currentUser.id);
+  return visit.repId === currentUser.id || visit.repName === currentUser.name;
   };
 
+  const addVisit = (visit: Omit<CustomerVisit, 'id' | 'createdAt' | 'createdBy'>) => {
+  if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً' };
+  if (!visit.customerId || !visit.date || !visit.repId) return { success: false, message: 'اختر العميل والمندوب وتاريخ الزيارة' };
+  const customer = customers.find((c) => c.id === visit.customerId);
+  if (!customer) return { success: false, message: 'العميل غير موجود' };
+  const assignedRep = users.find((u) => u.id === visit.repId);
+  const allowed = currentUser.role === 'admin' || currentUser.role === 'developer' ||
+    (currentUser.role === 'sales_rep' && visit.repId === currentUser.id) ||
+    (currentUser.role === 'supervisor' && assignedRep?.supervisorId === currentUser.id) ||
+    (currentUser.role === 'branch_manager' && assignedRep?.branchName === currentUser.branchName);
+  if (!allowed) return { success: false, message: 'لا تملك صلاحية جدولة زيارة لهذا المندوب' };
+  if (currentUser.role === 'sales_rep' && !doesCustomerBelongToRep(customer, currentUser)) return { success: false, message: 'لا تملك صلاحية زيارة هذا العميل' };
+  if (currentUser.role === 'supervisor' && !doesCustomerBelongToSupervisor(customer, currentUser, users)) return { success: false, message: 'العميل خارج نطاق مندوبيك' };
+  if (currentUser.role === 'branch_manager' && !doesCustomerBelongToBranch(customer, currentUser.branchName, users)) return { success: false, message: 'العميل خارج نطاق فرعك' };
+  setVisits((prev) => [...prev, { ...visit, id: `visit-${Date.now()}`, createdBy: currentUser.id, createdAt: new Date().toISOString(), status: visit.status || 'مجدولة' }]);
+  return { success: true, message: 'تم تسجيل الزيارة بنجاح' };
+  };
+  
   const updateVisit = (visit: CustomerVisit) => {
-    if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً' };
-    setVisits((prev) => prev.map((item) => item.id === visit.id ? { ...visit, updatedAt: new Date().toISOString() } : item));
-    return { success: true, message: 'تم تحديث الزيارة' };
+  if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً' };
+  if (!canManageVisit(visit)) return { success: false, message: 'لا تملك صلاحية تعديل هذه الزيارة' };
+  setVisits((prev) => prev.map((item) => item.id === visit.id && canManageVisit(item) ? { ...visit, updatedAt: new Date().toISOString() } : item));
+  return { success: true, message: 'تم تحديث الزيارة' };
   };
 
   const getCustomerVisitSummary = (customerId: string, month?: string) => {
