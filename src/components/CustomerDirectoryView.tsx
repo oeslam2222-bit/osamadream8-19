@@ -827,7 +827,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
           {/* Master Sheet Source Indicator (Customers strictly added from master sheet only) */}
           <div
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-900 text-amber-300 px-3.5 py-2.5 rounded-xl text-xs font-black border border-amber-400/30 shadow-sm select-none"
-            title="قاعدة العملاء معتمدة ومقفولة - ت��اف حصرياً من الشيت الأساسي بدون دمج"
+            title="قاعدة العملاء معتمدة ومقفولة - ت����اف حصرياً من الشيت الأساسي بدون دمج"
           >
             <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
             <span>الشيت المعتمد: {customers.length} عميل</span>
@@ -1465,7 +1465,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                         )}
                       </td>
 
-                      {/* المديونية */}
+                      {/* المديو��ية */}
                       <td className="py-3 px-3 text-left">
                         <div
                           className={`font-black text-xs ${
@@ -1684,8 +1684,8 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
       {/* Import Modal for 3400+ Customers (Google Sheets & Excel - Admin & Developer Only) */}
       {isAdminOrDev && isImportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6 space-y-4 max-h-[92vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in" onMouseDown={(e) => { if (e.target === e.currentTarget) { setIsImportModalOpen(false); setImportPreview(null); } }}>
+          <div className="relative z-[60] bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6 space-y-4 max-h-[92vh] overflow-y-auto">
             
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div className="flex items-center gap-2.5">
@@ -1779,7 +1779,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 )}
 
                 <p className="text-[11px] text-slate-400">
-                  تأكد من جعل الشيت متاحاً للعرض (Anyone with the link can view). الرابط يتم حفظه تلقائياً في ذاكرة النظام.
+                  تأكد من جعل الشيت متاحاً للعرض (Anyone with the link can view). الرابط يتم حفظه تلقائياً في ذاك��ة النظام.
                 </p>
               </div>
 
@@ -1879,7 +1879,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       {/* Add / Edit Customer Modal */}
       {(isAddModalOpen || editingCustomer) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="relative z-[60] bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div className="flex items-center gap-2">
