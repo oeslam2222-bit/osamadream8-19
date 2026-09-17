@@ -1399,69 +1399,51 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                   />
 
-                  {/* Product Code & Unified Code Badge */}
-                  <div className="absolute top-2 right-2 flex items-center gap-1 max-w-[85%] z-10">
-                    <div className="bg-slate-950/90 text-amber-300 text-[11px] font-black px-2 py-0.5 rounded-lg backdrop-blur-xs shadow-xs border border-slate-800 flex items-center gap-1">
-                      <span>{product.code}</span>
+                  {/* Product Code Badge */}
+                  <div className="absolute top-2 right-2 z-10">
+                    <div className="bg-slate-950/85 text-amber-300 text-xs font-black px-2 py-0.5 rounded-lg backdrop-blur-sm">
+                      {product.code}
                     </div>
-                    {product.unifiedCode && (
-                      <div
-                        className="bg-indigo-950/90 text-indigo-300 text-[10px] font-black px-1.5 py-0.5 rounded-lg backdrop-blur-xs shadow-xs border border-indigo-700/70 hidden xs:flex items-center gap-0.5"
-                        title={`الكود الموحد: ${product.unifiedCode}`}
-                      >
-                        <span className="text-indigo-400 font-bold">#</span>
-                        <span>{product.unifiedCode.replace('#', '')}</span>
-                      </div>
-                    )}
                   </div>
 
-                  {/* Promo / Priority Badge */}
+                  {/* Single Promo/Priority Badge */}
                   {isPromo ? (
-                    <div className="absolute top-2 left-2 bg-rose-600 text-white text-[10px] font-black px-2 py-0.5 rounded-lg shadow-xs flex items-center gap-1">
+                    <div className="absolute top-2 left-2 bg-rose-600 text-white text-[11px] font-black px-2 py-0.5 rounded-lg flex items-center gap-1">
                       <Flame className="w-3 h-3" />
-                      <span>عرض خاص 🔥</span>
+                      <span>عرض خاص</span>
                     </div>
                   ) : product.salesPriority === 'مرتفع' ? (
-                    <div className="absolute top-2 left-2 bg-amber-400 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-lg shadow-xs flex items-center gap-1">
-                      <Star className="w-2.5 h-2.5 fill-slate-950" />
+                    <div className="absolute top-2 left-2 bg-amber-400 text-slate-950 text-[11px] font-black px-2 py-0.5 rounded-lg flex items-center gap-1">
+                      <Star className="w-3 h-3 fill-slate-950" />
                       <span>الأكثر طلباً</span>
                     </div>
                   ) : null}
 
                   {/* Pack Size Pill */}
-                  <div className="absolute bottom-2 right-2 bg-slate-950/90 text-white text-[10px] sm:text-xs font-black px-2.5 py-0.5 rounded-lg border border-slate-800 backdrop-blur-xs shadow-xs">
-                    الشدة: <strong className="text-amber-300 font-black">{product.cartonQuantity || 1} قطعة</strong>
+                  <div className="absolute bottom-2 right-2 bg-slate-950/85 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-lg backdrop-blur-sm">
+                    الشدة: <strong className="text-amber-300">{product.cartonQuantity || 1} ق</strong>
                   </div>
                 </div>
 
                 {/* Body Details */}
-                <div className="p-3 sm:p-3.5 flex-1 flex flex-col justify-between space-y-2.5">
+                <div className={`p-3 sm:p-3.5 flex-1 flex flex-col justify-between space-y-${isComfortable ? '3' : '2'}`}>
                   {/* Category & Title */}
-                  <div>
-                    <div className="flex items-center flex-wrap gap-1 text-[11px] mb-1.5">
+                  <div className="space-y-1.5">
+                    {/* Single consolidated department badge */}
+                    <div className="flex items-center gap-1">
                       {(() => {
                         const deptMeta = getDepartmentMeta(product.department || product.category);
                         const DeptIcon = deptMeta.icon;
                         return (
                           <span
-                            className="bg-amber-100 text-amber-950 font-black px-2 py-0.5 rounded-md text-[10px] truncate max-w-[140px] flex items-center gap-1 border border-amber-300"
+                            className="bg-amber-50 text-amber-900 font-bold px-2 py-0.5 rounded-md text-[11px] truncate max-w-[160px] flex items-center gap-1"
                             title={`${deptMeta.nameArabic} - ${product.department || ''}`}
                           >
-                            <DeptIcon className="w-3 h-3 text-amber-800 shrink-0" />
+                            <DeptIcon className="w-3 h-3 text-amber-700 shrink-0" />
                             <span>{product.department || product.category || 'عام'}</span>
                           </span>
                         );
                       })()}
-                      {product.classification && (
-                        <span className="bg-slate-100 text-slate-700 border border-slate-200 font-bold px-1.5 py-0.5 rounded-md text-[10px] truncate max-w-[120px]">
-                          🏷️ {product.classification}
-                        </span>
-                      )}
-                      {product.color && product.color.trim() && product.color !== 'افتراضي' && (
-                        <span className="bg-indigo-50 text-indigo-900 border border-indigo-200 font-bold px-1.5 py-0.5 rounded-md text-[10px]">
-                          🎨 {product.color}
-                        </span>
-                      )}
                     </div>
 
                     <h3
@@ -1473,78 +1455,59 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     </h3>
                   </div>
 
-                  {/* Stock Availability Indicator */}
-                  <div className="bg-slate-50 p-2 sm:p-2.5 rounded-xl border border-slate-200 space-y-1 text-xs">
-                    {/* Visual Status Tag */}
-                    {totalCartonsAvailable <= 0 ? (
-                      <div className="bg-rose-50 text-rose-700 text-[10px] font-black px-2 py-0.5 rounded-md flex items-center justify-center gap-1 border border-rose-200">
-                        <AlertTriangle className="w-3 h-3 text-rose-600" />
-                        <span>منتهي بالكامل (غير متوفر) 🚫</span>
-                      </div>
-                    ) : dynamicBranchStock <= 0 && octoberAvail > 0 ? (
-                      <div className="bg-blue-50 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-md flex items-center justify-center gap-1 border border-blue-200">
-                        <Truck className="w-3 h-3 text-blue-600" />
-                        <span>متاح بمخزن أكتوبر المركزي ({octoberAvail} ك) 🚚</span>
-                      </div>
-                    ) : dynamicBranchStock <= 5 && dynamicBranchStock > 0 ? (
-                      <div className="bg-amber-100 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-md flex items-center justify-center gap-1 border border-amber-300">
-                        <AlertTriangle className="w-3 h-3 text-amber-700 shrink-0" />
-                        <span>مخزون محدود ({dynamicBranchStock} كرتونة فقط) ⚠️</span>
-                      </div>
-                    ) : (
-                      <div className="bg-emerald-50 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-md flex items-center justify-center gap-1 border border-emerald-200">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                        <span>متوفر بالفرع ({dynamicBranchStock} كرتونة) ✅</span>
-                      </div>
-                    )}
-
-                    {/* Stock Detail Rows */}
-                    <div className="flex items-center justify-between pt-0.5 text-slate-700 font-bold text-[11px]">
-                      <span className="truncate max-w-[130px]" title={currentActiveBranch ? `رصيد ${currentActiveBranch}` : 'رصيد الفرع'}>
-                        🏢 {currentActiveBranch ? `رصيد ${currentActiveBranch.replace('فرع ', '')}:` : 'رصيد الفرع:'}
-                      </span>
-                      <span className={hasBranchStock ? (dynamicBranchStock <= 5 ? 'text-amber-800 font-black' : 'text-emerald-800 font-black') : 'text-rose-600 font-black'}>
-                        {hasBranchStock ? `${dynamicBranchStock} كرتونة` : 'غير متوفر'}
-                      </span>
+                  {/* Stock & Pricing Combined Section */}
+                  <div className="space-y-1.5">
+                    {/* Single-line stock status */}
+                    <div className="flex items-center justify-between text-xs">
+                      {totalCartonsAvailable <= 0 ? (
+                        <span className="text-rose-600 font-bold flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                          غير متوفر
+                        </span>
+                      ) : dynamicBranchStock <= 0 && octoberAvail > 0 ? (
+                        <span className="text-blue-600 font-bold flex items-center gap-1">
+                          <Truck className="w-3.5 h-3.5 shrink-0" />
+                          أكتوبر: {octoberAvail} ك
+                        </span>
+                      ) : dynamicBranchStock <= 5 && dynamicBranchStock > 0 ? (
+                        <span className="text-amber-700 font-bold flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                          محدود: {dynamicBranchStock} ك
+                        </span>
+                      ) : (
+                        <span className="text-emerald-700 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                          متوفر: {dynamicBranchStock} ك
+                        </span>
+                      )}
+                      {hasMainWhStock && (
+                        <span className="text-slate-500 font-medium text-[11px]">
+                          أكتوبر: {octoberAvail} ك
+                        </span>
+                      )}
                     </div>
 
-                    {hasMainWhStock && (
-                      <div className="flex items-center justify-between text-[10px] text-slate-600 pt-0.5 border-t border-slate-150">
-                        <span>🏬 مخزن أكتوبر المركزي:</span>
-                        <span className="font-bold text-blue-800">{octoberAvail} كرتونة</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Pricing Box */}
-                  <div className="bg-amber-50/70 p-2.5 rounded-xl border border-amber-200/80 space-y-1">
-                    <div className="flex items-baseline justify-between">
+                    {/* Pricing — single row */}
+                    <div className="flex items-baseline justify-between bg-slate-50 rounded-xl px-2.5 py-1.5 border border-slate-100">
                       <div>
-                        <div className="text-[10px] text-amber-900 font-bold">سعر الكرتونة:</div>
-                        <div className="text-base font-black text-slate-950">
+                        <span className="text-[11px] text-slate-500 font-medium block">الكرتونة</span>
+                        <span className="text-sm font-black text-slate-950">
                           {formatCurrency(product.cartonPrice)}
-                        </div>
+                        </span>
                       </div>
                       <div className="text-left">
-                        <div className="text-[10px] text-amber-800 font-bold">سعر القطعة (مفرد):</div>
-                        <div className="text-xs font-black text-amber-950">
+                        <span className="text-[11px] text-slate-500 font-medium block">القطعة</span>
+                        <span className="text-xs font-black text-slate-700">
                           {formatCurrency(product.piecePrice)}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Promo Offer Price Banner if available */}
-                    {product.promoPrice ? (
-                      <div className="bg-rose-50 border border-rose-200 p-1.5 rounded-lg flex items-center justify-between text-xs mt-1">
-                        <span className="text-rose-800 font-bold flex items-center gap-1 text-[10px]">
-                          <Flame className="w-3 h-3 text-rose-600 shrink-0" />
-                          <span>عرض خاص للكرتونة:</span>
                         </span>
-                        <span className="font-black text-rose-950 text-xs">
+                      </div>
+                      {product.promoPrice ? (
+                        <span className="text-xs font-black text-rose-600 flex items-center gap-0.5">
+                          <Flame className="w-3 h-3" />
                           {formatCurrency(product.promoPrice)}
                         </span>
-                      </div>
-                    ) : null}
+                      ) : null}
+                    </div>
                   </div>
 
                   {/* Order Controls Section: 2 Clean Rows (Relieves crowding and makes Add prominent) */}
@@ -1942,18 +1905,18 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* Mobile Floating Cashier Trigger Bar */}
       {(cart.length > 0 || selectedCustomer) && (
         <div className="fixed bottom-16 left-3 right-3 z-40 lg:hidden animate-in slide-in-from-bottom">
-          <div className="bg-slate-950 text-white p-2.5 sm:p-3 rounded-2xl shadow-2xl border-2 border-amber-400 flex items-center justify-between">
+          <div className="bg-white text-slate-900 p-2.5 sm:p-3 rounded-2xl shadow-xl border border-amber-200 flex items-center justify-between">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0">
                 <ShoppingCart className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <div className="text-[10px] text-slate-400 font-bold truncate">
+                <div className="text-[11px] text-slate-500 font-bold truncate">
                   {selectedCustomer ? `العميل: ${selectedCustomer.name}` : 'فاتورة الكاشير الحالية'}
                 </div>
-                <div className="text-xs font-black text-amber-300 truncate">
+                <div className="text-xs font-black text-amber-700 truncate">
                   {cart.length > 0
-                    ? `${cart.length} أصناف • ${cartSummary.totalCartons} كرتونة • ${formatCurrency(cartSummary.grandTotal)}`
+                    ? `${cart.length} أصناف • ${cartSummary.totalCartons} ك • ${formatCurrency(cartSummary.grandTotal)}`
                     : selectedCustomer ? 'الموقف المالي جاهز - ابدأ إضافة الأصناف' : 'السلة فارغة'}
                 </div>
               </div>
@@ -1962,7 +1925,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               onClick={() => setIsMobileCashierOpen(true)}
               className="bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 active:scale-95 shrink-0 cursor-pointer"
             >
-              <span>فاتورة الكاشير 🧾</span>
+              <span>فاتورة الكاشير</span>
             </button>
           </div>
         </div>
@@ -1971,7 +1934,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* Mobile Slide-Up Cashier Modal */}
       {isMobileCashierOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex flex-col justify-end lg:hidden animate-in fade-in">
-          <div className="bg-slate-900 rounded-t-3xl h-[92vh] max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border-t-2 border-amber-400">
+          <div className="bg-white rounded-t-3xl h-[92vh] max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border-t-2 border-amber-400">
             <PosCashierSidebar
               selectedCustomer={selectedCustomer}
               onClearSelectedCustomer={onClearSelectedCustomer}
