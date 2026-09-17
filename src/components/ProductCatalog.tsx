@@ -221,7 +221,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     try {
       const res = await parseExcelProducts(file);
       if (res.products.length === 0) {
-        setUploadError(res.errors.join(' | ') || 'لم يتم العثور على أي أصناف في الملف.');
+        setUploadError(res.errors.join(' | ') || 'لم يتم العثور عل�� أي أصناف في الملف.');
       } else {
         importProductsList(res.products, 'replace');
         setUploadSuccess(`تم استيراد ${res.products.length} صنف بنجاح وربط الصور والمخازن!`);
@@ -308,6 +308,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ar'));
   }, [products, selectedOfficialDept, dynamicItemGroups]);
 
+  const visibleProducts = getVisibleProducts();
+
   // Active branch context for stock resolution: specific user's branch for reps/supervisors, or global filter for admin
   const currentActiveBranch = useMemo(() => {
     if (currentUser?.role === 'sales_rep' || currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager') {
@@ -331,7 +333,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     let inWarehouse = 0;
     let offers = 0;
 
-    products.forEach((p) => {
+    visibleProducts.forEach((p) => {
       const branchStock = getProductBranchStock(p);
       const octoberStock = p.mainWarehouseActual || 0;
       const isCompletelyOut = branchStock <= 0 && octoberStock <= 0;
@@ -435,7 +437,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       }
 
       // Status filter
-      if (selectedStatus !== 'الكل' && p.status !== selectedStatus) {
+      if (selectedStatus !== 'ا��كل' && p.status !== selectedStatus) {
         return false;
       }
 
@@ -2149,7 +2151,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       <div className="mt-3 bg-indigo-50/80 border border-indigo-200 rounded-2xl p-2.5 space-y-2">
                         <div className="flex items-center justify-between text-xs font-black text-indigo-950">
                           <span className="flex items-center gap-1">
-                            <span>🎨 الألوان والموديلات لنفس الكود الموحد (#{normCode}):</span>
+                            <span>🎨 الألوان وا��موديلات لنفس الكود الموحد (#{normCode}):</span>
                           </span>
                           <span className="text-[10px] bg-indigo-200 text-indigo-900 font-black px-2 py-0.5 rounded-md">
                             {siblings.length} بدائل ألوان

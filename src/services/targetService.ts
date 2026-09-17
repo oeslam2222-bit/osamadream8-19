@@ -304,8 +304,10 @@ export function parseTargetRawRows(rawRows: any[][]): TargetRecord[] {
       continue;
     }
 
-    const salesTarget = cleanNumber(row[colMap['salesTarget']]);
-    const salesAchieved = cleanNumber(row[colMap['salesAchieved']]);
+    // Financial values in the source sheet may be formatted as negative accounting values.
+    // Targets and achieved amounts are performance measures, so always display them as positive values.
+    const salesTarget = Math.abs(cleanNumber(row[colMap['salesTarget']]));
+    const salesAchieved = Math.abs(cleanNumber(row[colMap['salesAchieved']]));
     let salesPercentage = cleanNumber(row[colMap['salesPercentage']]);
     if (!salesPercentage && salesTarget > 0) {
       salesPercentage = Math.round((salesAchieved / salesTarget) * 1000) / 10;
@@ -314,8 +316,8 @@ export function parseTargetRawRows(rawRows: any[][]): TargetRecord[] {
       salesPercentage = Math.round(salesPercentage * 1000) / 10;
     }
 
-    const collectionTarget = cleanNumber(row[colMap['collectionTarget']]);
-    const collectionAchieved = cleanNumber(row[colMap['collectionAchieved']]);
+    const collectionTarget = Math.abs(cleanNumber(row[colMap['collectionTarget']]));
+    const collectionAchieved = Math.abs(cleanNumber(row[colMap['collectionAchieved']]));
     let collectionPercentage = cleanNumber(row[colMap['collectionPercentage']]);
     if (!collectionPercentage && collectionTarget > 0) {
       collectionPercentage = Math.round((collectionAchieved / collectionTarget) * 1000) / 10;

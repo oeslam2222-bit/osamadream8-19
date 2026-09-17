@@ -3922,8 +3922,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getVisibleProducts = (): Product[] => {
-    // The catalog is shared across roles; stock availability remains an optional UI filter.
-    return products;
+    if (!currentUser) return [];
+    if (currentUser.role === 'admin' || currentUser.role === 'developer') {
+      return selectedBranchFilter === 'الكل'
+        ? products
+        : products.filter((product) => Boolean(product.branchName) && isBranchMatch(product.branchName, selectedBranchFilter, { allowUnassigned: false }));
+    }
+
+    if (!currentUser.branchName) return [];
+    return products.filter((product) => isBranchMatch(product.branchName, currentUser.branchName, { allowUnassigned: false }));
   };
 
   const getSupervisorsInBranch = (branchName?: string): User[] => {

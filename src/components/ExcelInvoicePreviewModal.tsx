@@ -174,7 +174,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
       className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in"
       dir="rtl"
     >
-      <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-300 w-full max-w-6xl max-h-[94vh] flex flex-col overflow-hidden">
+      <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-300 w-full max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] xl:max-w-[96vw] max-h-[96vh] flex flex-col overflow-hidden">
         
         {/* Top Header Ribbon (Excel Themed) */}
         <div className="bg-slate-900 text-white p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3 border-b-2 border-emerald-600">
@@ -321,7 +321,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
           
           {/* TAB 1: Standard Executive Invoice Layout */}
           {activeTab === 'standard' && (
-            <div className="bg-white rounded-2xl border border-slate-300 shadow-sm p-4 sm:p-6 space-y-5 max-w-5xl mx-auto">
+            <div className="bg-white rounded-2xl border border-slate-300 shadow-sm p-3 sm:p-6 space-y-5 w-full max-w-none mx-auto">
               
               {/* Sheet Header (Dream Corporate Banner) */}
               <div className="bg-slate-900 text-white rounded-xl p-4 border border-slate-800 text-center space-y-1">
@@ -656,7 +656,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
 
           {/* TAB 3: Credit Audit & Financial Position View */}
           {activeTab === 'credit' && (
-            <div className="bg-white rounded-2xl border border-slate-300 shadow-sm p-4 sm:p-6 space-y-5 max-w-5xl mx-auto">
+            <div className="bg-white rounded-2xl border border-slate-300 shadow-sm p-3 sm:p-6 space-y-5 w-full max-w-none mx-auto">
               <div className="border-b border-slate-200 pb-3">
                 <h4 className="font-black text-slate-900 text-base flex items-center gap-2">
                   <CreditCard className="w-5 h-5 text-blue-600" />

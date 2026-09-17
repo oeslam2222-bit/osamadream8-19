@@ -43,6 +43,7 @@ import { getDepartmentMeta } from '../data/departmentMeta';
 export const InventoryStockView: React.FC = () => {
   const {
     products,
+    getVisibleProducts,
     branches,
     currentUser,
     invoices,
@@ -61,6 +62,7 @@ export const InventoryStockView: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewLayout, setViewLayout] = useState<'table' | 'cards'>('cards');
+  const visibleProducts = getVisibleProducts();
 
   // Pagination state for responsive performance
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -100,9 +102,9 @@ export const InventoryStockView: React.FC = () => {
 
   const categories = useMemo(() => {
     const set = new Set<string>();
-    products.forEach((p) => p.category && set.add(p.category));
+    visibleProducts.forEach((p) => p.category && set.add(p.category));
     return ['الكل', ...Array.from(set)];
-  }, [products]);
+  }, [visibleProducts]);
 
   // Active branch context for stock resolution: specific user's branch for reps/supervisors/managers, or global filter for admin
   const currentActiveBranch = useMemo(() => {
@@ -123,7 +125,7 @@ export const InventoryStockView: React.FC = () => {
     : selectedBranchFilter;
 
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
+    return visibleProducts.filter((p) => {
       // Operating-branch stock is dynamically resolved for the active branch via getProductBranchStock.
       // October central warehouse balance is also visible for stock transfers and reserves.
       const bStock = getProductBranchStock(p);
