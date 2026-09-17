@@ -457,7 +457,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       colMap.classification = idx;
     }
     // 9. اللون (Color)
-    else if (norm === 'اللون' || norm === 'لون' || norm.includes('اللون') || norm.includes('color')) {
+    else if (norm === 'اللون' || norm === 'لون' || norm.includes('الل��ن') || norm.includes('color')) {
       colMap.color = idx;
     }
     // 10. البحيرة (Beheira Branch Stock)
@@ -1982,7 +1982,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('مديونيهسابقه') ||
       norm.includes('مديونيةالعميل') ||
       norm.includes('مديونيهالعميل') ||
-      norm.includes('اجماليالمديونية') ||
+      norm.includes('اجمال��المديونية') ||
       norm.includes('اجماليالمديونيه') ||
       norm.includes('المديونية') ||
       norm.includes('المديونيه') ||
@@ -2246,12 +2246,18 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     const rawDealEligibility = getVal(row, colMap.dealEligibility);
     const rawDebtStatus = getVal(row, colMap.debtStatus);
     const parsedTotalMonthlySalesCol = parseNumberValue(colMap.totalMonthlySales);
-    const parsedTotalMonthlyCollectionsCol = parseNumberValue(colMap.totalMonthlyCollections);
+    const parsedTotalMonthlyCollectionsColRaw = parseNumberValue(colMap.totalMonthlyCollections);
+    const parsedTotalMonthlyCollectionsCol = parsedTotalMonthlyCollectionsColRaw === undefined
+      ? undefined
+      : Math.abs(parsedTotalMonthlyCollectionsColRaw);
     const parsedOverdue2025 = parseNumberValue(colMap.overdue2025);
     const parsedOverdue2026 = parseNumberValue(colMap.overdue2026);
     const parsedDueUntilPeriod = parseNumberValue(colMap.dueUntilPeriod);
     const parsedTotalOverallSales = parseNumberValue(colMap.totalOverallSales);
-    const parsedTotalOverallCollections = parseNumberValue(colMap.totalOverallCollections);
+    const parsedTotalOverallCollectionsRaw = parseNumberValue(colMap.totalOverallCollections);
+  const parsedTotalOverallCollections = parsedTotalOverallCollectionsRaw === undefined
+    ? undefined
+    : Math.abs(parsedTotalOverallCollectionsRaw);
     const parsedSales2024 = parseNumberValue(colMap.sales2024);
     const parsedCollections2024 = parseNumberValue(colMap.collections2024);
 
@@ -2274,8 +2280,9 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     const activeCollectionMonthsList: number[] = [];
 
     monthlyCollectionCols.forEach(({ month, colIdx }) => {
-      const val = parseNumberValue(colIdx);
-      if (val !== undefined) {
+      const rawVal = parseNumberValue(colIdx);
+      if (rawVal !== undefined) {
+        const val = Math.abs(rawVal);
         rowMonthlyCollections[month] = val;
         dynamicMonthlyCollectionsSum += val;
         if (val > 0) activeCollectionMonthsList.push(month);

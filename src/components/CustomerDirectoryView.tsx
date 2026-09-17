@@ -827,7 +827,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
           {/* Master Sheet Source Indicator (Customers strictly added from master sheet only) */}
           <div
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-900 text-amber-300 px-3.5 py-2.5 rounded-xl text-xs font-black border border-amber-400/30 shadow-sm select-none"
-            title="قاعدة العملاء معتمدة ومقفولة - تضاف حصرياً من الشيت الأساسي بدون دمج"
+            title="قاعدة العملاء معتمدة ومقفولة - ت��اف حصرياً من الشيت الأساسي بدون دمج"
           >
             <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
             <span>الشيت المعتمد: {customers.length} عميل</span>
@@ -1384,7 +1384,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                   const debt = Number(customer.currentBalance ?? customer.balance ?? 0);
                   const overdueAndDue = Number(customer.totalOverdueAndDue !== undefined ? customer.totalOverdueAndDue : debt);
                   const sales = Number(customer.totalMonthlySales || customer.totalOverallSales || customer.sales2026 || 0);
-                  const collections = Number(customer.totalMonthlyCollections || customer.totalOverallCollections || customer.collections2026 || 0);
+                  const collections = Math.abs(Number(customer.totalMonthlyCollections || customer.totalOverallCollections || customer.collections2026 || 0));
                   const limit = Number(customer.creditLimit || 0);
                   const available = Math.max(0, limit - debt);
                   const isExceeded = limit > 0 && debt > limit;
