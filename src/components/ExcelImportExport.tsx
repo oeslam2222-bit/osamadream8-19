@@ -2076,7 +2076,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
             <div className="text-center space-y-1">
               <h3 className="text-lg font-black text-slate-900">تأكيد مسح وتصفير كافة البيانات</h3>
               <p className="text-xs text-slate-500 leading-relaxed">
-                هل أنت متأكد ��ن رغبتك في مسح كافة المنتجات والصور الحالية؟ سيتم تفريغ النظام ��تتمكن من رفع شيت الإكسل الجديد الخاص بك من البداية.
+                هل أنت متأكد من رغبتك في مسح كافة المنتجات والصور الحالية؟ سيتم تفريغ النظام لتتمكن من رفع شيت الإكسل الجديد الخاص بك من البداية.
               </p>
             </div>
 

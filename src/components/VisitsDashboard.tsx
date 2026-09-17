@@ -46,9 +46,24 @@ export const VisitsDashboard: React.FC = () => {
       setForm({ ...form, customerId: '', notes: '' }); 
     } else alert(result.message); 
   };
+  const statCards: { icon: React.ElementType; label: string; value: number }[] = [
+    { icon: CalendarCheck, label: 'إجمالي الزيارات', value: stats.total },
+    { icon: CheckCircle2, label: 'زيارات منفذة', value: stats.completed },
+    { icon: Clock3, label: 'زيارات مجدولة', value: stats.scheduled },
+    { icon: Users, label: 'عملاء تمت زيارتهم', value: stats.customers },
+  ];
+
   return <main className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5" dir="rtl">
     <header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-black text-slate-900">لوحة زيارات العملاء</h1><p className="text-sm text-slate-500 mt-1">تخطيط الزيارات وقياس التغطية مع خصوصية كاملة لكل دور</p></div><button onClick={() => setShowForm(true)} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl flex items-center gap-2"><Plus className="w-4 h-4" /> جدولة زيارة</button></header>
-    <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">{[[CalendarCheck, 'إجمالي الزيارات', stats.total], [CheckCircle2, 'زيارات منفذة', stats.completed], [Clock3, 'زيارات مجدولة', stats.scheduled], [Users, 'عملاء تمت زيارتهم', stats.customers]].map(([Icon, label, value]) => <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm" key={String(label)}><Icon className="w-5 h-5 text-amber-500 mb-2" /><p className="text-xs text-slate-500">{label}</p><strong className="text-2xl text-slate-900">{value}</strong></div>)}</section>
+    <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {statCards.map(({ icon: Icon, label, value }) => (
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm" key={label}>
+          <Icon className="w-5 h-5 text-amber-500 mb-2" />
+          <p className="text-xs text-slate-500">{label}</p>
+          <strong className="text-2xl text-slate-900">{value}</strong>
+        </div>
+      ))}
+    </section>
     {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager') && (
       <section className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-wrap gap-3">
         <label className="text-sm font-bold">الشهر<input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="block mt-1 border rounded-lg px-3 py-2" /></label>

@@ -827,7 +827,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
           {/* Master Sheet Source Indicator (Customers strictly added from master sheet only) */}
           <div
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-900 text-amber-300 px-3.5 py-2.5 rounded-xl text-xs font-black border border-amber-400/30 shadow-sm select-none"
-            title="قاعدة العملاء معتمدة ومقفولة - ت����اف حصرياً من الشيت الأساسي بدون دمج"
+            title="قاعدة العملاء معتمدة ومقفولة - تضاف حصرياً من الشيت الأساسي بدون دمج"
           >
             <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
             <span>الشيت المعتمد: {customers.length} عميل</span>
@@ -1465,7 +1465,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                         )}
                       </td>
 
-                      {/* المديو��ية */}
+                      {/* المديونية */}
                       <td className="py-3 px-3 text-left">
                         <div
                           className={`font-black text-xs ${
@@ -1779,7 +1779,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 )}
 
                 <p className="text-[11px] text-slate-400">
-                  تأكد من جعل الشيت متاحاً للعرض (Anyone with the link can view). الرابط يتم حفظه تلقائياً في ذاك��ة النظام.
+                  تأكد من جعل الشيت متاحاً للعرض (Anyone with the link can view). الرابط يتم حفظه تلقائياً في ذاكرة النظام.
                 </p>
               </div>
 

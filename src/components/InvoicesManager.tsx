@@ -897,7 +897,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           <button
                             onClick={() => {
                               exportInvoiceForERP(invoice);
-                              setSuccessToast(`تم تصدير ملف إ��سل منسق للسيستم الرئيسي (ERP) للفاتورة ${invoice.invoiceNumber}`);
+                              setSuccessToast(`تم تصدير ملف إكسل منسق للسيستم الرئيسي (ERP) للفاتورة ${invoice.invoiceNumber}`);
                               setTimeout(() => setSuccessToast(null), 3000);
                             }}
                             className="bg-amber-500 hover:bg-amber-400 text-slate-950 p-1.5 rounded-lg transition cursor-pointer shadow-xs font-bold hidden sm:inline-flex"

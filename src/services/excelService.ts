@@ -231,7 +231,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const row = rawRows[i];
     const hasCodeOrName = row.some((cell: any) => {
       const str = String(cell);
-      return str.includes('كو��') || str.includes('اسم') || str.includes('الصنف') || str.includes('code');
+      return str.includes('كود') || str.includes('اسم') || str.includes('الصنف') || str.includes('code');
     });
     if (hasCodeOrName) {
       headerRowIndex = i;
@@ -457,7 +457,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       colMap.classification = idx;
     }
     // 9. اللون (Color)
-    else if (norm === 'اللون' || norm === 'لون' || norm.includes('الل����ن') || norm.includes('color')) {
+    else if (norm === 'اللون' || norm === 'لون' || norm.includes('اللون') || norm.includes('color')) {
       colMap.color = idx;
     }
     // 10. البحيرة (Beheira Branch Stock)
@@ -1210,7 +1210,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
   try {
     const erpItemHeaders = [
       'رقم الفاتورة',
-      'تار��خ الفاتورة',
+      'تاريخ الفاتورة',
       'كود المندوب',
       'اسم المندوب',
       'اسم الفرع',
@@ -1322,7 +1322,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
       ['المديونية السابقة قبل الفاتورة', debtBefore, 'رصيد سابق مسجل بالسيستم'],
       ['قيمة فاتورة المبيعات الحالية', invoice.estimatedGrandTotal, `فاتورة رقم ${invoice.invoiceNumber}`],
       ['إجمالي المديونية بعد الفاتورة', debtAfter, 'الرصيد التراكمي النهائي المطلوب سداده'],
-      ['الحد الائتماني المعتمد للعميل', creditLimit, 'الس��ف المالي الائتماني المصرح به'],
+      ['الحد الائتماني المعتمد للعميل', creditLimit, 'السقف المالي الائتماني المصرح به'],
       ['موقف الائتمان', isExceeded ? '⚠️ تجاوز الحد الائتماني' : '✅ ضمن الحد المسموح', isExceeded ? `دفعة نقدية مطلوبة: ${requiredDown.toLocaleString()} ج.م` : 'حساب سليم ومطابق للشروط'],
       [],
       ['مندوب التسليم:', invoice.repName, 'تاريخ وتوقيت الإصدار:', `${invoice.date} ${invoice.time || ''}`]
@@ -1610,7 +1610,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
 
     // Comprehensive Sales Target, Collections & Debts Sheet columns
     guaranteeDocs: -1,           // اورق الضمان
-    paymentTerms: -1,            // طريقة الد��ع
+    paymentTerms: -1,            // طريقة الدفع
     activityType: -1,            // طبيعة النشاط
     governorate: -1,             // المحافظة
     district: -1,                // المركز
@@ -1621,7 +1621,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     openingBalance2026: -1,      // اول المدة 2026
     dealt2026: -1,               // متعامل 2026
     dealEligibility: -1,         // قابل /غير
-    debtStatus: -1,              // حالة دين العمي����
+    debtStatus: -1,              // حالة دين العميل
     totalMonthlySales: -1,       // اجمالي المبيعات
     totalMonthlyCollections: -1, // اجمالي التحصيلات
     totalOverdue: -1,            // اجمالي المتأخرات (المستحقات التي تظهر للمندوب عند طلب طلبية)
@@ -1868,7 +1868,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('قابل/غير') ||
       norm.includes('قابلغير') ||
       norm.includes('قابل/غيرقابل') ||
-      norm.includes('قابليةالت��امل') ||
+      norm.includes('قابليةالتعامل') ||
       norm.includes('صلاحيةالتعامل') ||
       norm.includes('eligibility')
     ) {
@@ -1982,7 +1982,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('مديونيهسابقه') ||
       norm.includes('مديونيةالعميل') ||
       norm.includes('مديونيهالعميل') ||
-      norm.includes('اجم��ل��المديونية') ||
+      norm.includes('اجماليالمديونية') ||
       norm.includes('اجماليالمديونيه') ||
       norm.includes('المديونية') ||
       norm.includes('المديونيه') ||
@@ -2624,7 +2624,7 @@ export function generateSampleCustomersTemplate(): void {
       storeName: 'سوبر ماركت النور والبركة',
       phone: '01011122233',
       branchName: 'فرع المنيا',
-      repName: 'حسن م��مد',
+      repName: 'حسن محمد',
       salesRepName: 'حسن محمد',
       creditLimit: 50000,
       currentBalance: 8500,
@@ -2894,7 +2894,7 @@ export function exportCustomerTargetSheetToExcel(customers: Customer[]): void {
       Number(c.adjustments || 0),
       Number(c.annualTarget || 0),
       Number(c.openingBalance2026 ?? c.balance ?? 0),
-      c.dealt2026 || (sumSales > 0 ? 'متع��مل' : 'غير متعامل'),
+      c.dealt2026 || (sumSales > 0 ? 'متعامل' : 'غير متعامل'),
       c.dealEligibility || 'قابل',
       c.debtStatus || (overdue > 0 ? 'متأخر' : 'منتظم'),
       ...salesVals,
@@ -2975,7 +2975,7 @@ export function generateSampleCustomerTargetTemplate(): void {
       overdue2025: 0,
       overdue2026: 38000,
       dueUntilPeriod: 38000,
-      duePeriodLabel: 'مس��حق حتي نهاية اغسطس',
+      duePeriodLabel: 'مستحق حتي نهاية اغسطس',
       totalOverallSales: 928000,
       totalOverallCollections: 890000,
       sales2024: 850000,

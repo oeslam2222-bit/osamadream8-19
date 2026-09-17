@@ -252,6 +252,7 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     hasDealt2026: -1,
     lastVisitDate: -1,
     visitCount: -1,
+    guaranteeDocs: -1,
     monthlySales: {} as Record<number, number>, // month 1-12
     monthlyCollections: {} as Record<number, number>, // month 1-12
   };
@@ -506,6 +507,24 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     ) {
       colMap.hasDealt2026 = idx;
     }
+    // 21. Guarantee Documents (أوراق الضمان)
+    else if (
+      colMap.guaranteeDocs === -1 &&
+      (h.includes('ضمان') ||
+        h.includes('أوراق الضمان') ||
+        h.includes('اوراق الضمان') ||
+        h.includes('ورقة الضمان') ||
+        h.includes('ورقه الضمان') ||
+        h.includes('شيك') ||
+        h.includes('كمبيالة') ||
+        h.includes('كمبياله') ||
+        h.includes('إيصال أمانة') ||
+        h.includes('ايصال امانة') ||
+        h.includes('رهن') ||
+        h.includes('guarantee'))
+    ) {
+      colMap.guaranteeDocs = idx;
+    }
   });
 
   const getCellStr = (row: any[], cIdx: number) => {
@@ -535,6 +554,7 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     const rawRep = getCellStr(row, colMap.rep);
     const rawSupervisor = getCellStr(row, colMap.supervisor);
     const rawLastVisit = getCellStr(row, colMap.lastVisitDate);
+    const rawGuarantee = colMap.guaranteeDocs !== -1 ? getCellStr(row, colMap.guaranteeDocs) : '';
 
     // Skip purely blank rows without any customer data
     if (!rawName && !rawCode && !rawPhone && !rawBranch && !rawRep && !rawAddress) continue;
@@ -642,6 +662,7 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
       hasDealtIn2026: hasDealtIn2026,
       dealt2026: hasDealtIn2026 ? 'متعامل' : (rawDealt.includes('غير') ? 'غير متعامل' : undefined),
       status2026: status2026,
+      guaranteeDocs: rawGuarantee || (creditLimit > 0 ? 'شيك بنكي' : 'بدون ضمان'),
       lastVisitDate: rawLastVisit || undefined,
       visitCount2026: visitsCount,
       visitHistory: rawLastVisit
@@ -761,7 +782,9 @@ export function exportCustomerAnalyticsToExcel(
     'المنطقة / الحي',
     'رقم الهاتف',
     'المديونية الحالية (ج.م)',
+    'المستحقات والمتأخرات (ج.م)',
     'الحد الائتماني (ج.م)',
+    'أوراق الضمان',
     'مبيعات 2025',
     'مبيعات 2026',
     'نسبة نمو المبيعات %',
@@ -820,7 +843,9 @@ export function exportCustomerAnalyticsToExcel(
       c.region || c.governorate || '',
       c.phone || '',
       c.currentBalance ?? c.balance ?? 0,
+      c.totalOverdueAndDue ?? c.overdueBalance ?? 0,
       c.creditLimit || 0,
+      c.guaranteeDocs || (c.creditLimit && c.creditLimit > 0 ? 'شيك بنكي' : 'بدون ضمان'),
       s25,
       s26,
       `${growth}%`,

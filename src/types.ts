@@ -240,7 +240,7 @@ export interface ReturnedItem {
   pricePerCarton: number;            // سعر الكرتونة
   pricePerPiece: number;             // سعر القطعة
   refundAmount: number;              // إجمالي القيمة المالية المرتجعة للصنف
-  returnReason?: string;             // س��ب ارتجاع الصنف
+  returnReason?: string;             // سبب ارتجاع الصنف
   condition?: 'good_condition' | 'damaged' | 'expired'; // حالة البضاعة (سليمة تعود للمخزن / تالفة / منتهية)
 }
 

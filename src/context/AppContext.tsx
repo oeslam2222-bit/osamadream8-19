@@ -716,7 +716,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!fresh && currentUser.id !== 'u-admin-osama') {
           // User was permanently deleted from the database
           logout();
-          setAuthTerminationNotice('تم حذف هذا الحساب من قاعدة البيانات بو��سطة إدارة الشركة. تم إنهاء الجلسة ولا يمكن تسجيل الدخول بهذا الحساب.');
+          setAuthTerminationNotice('تم حذف هذا الحساب من قاعدة البيانات بواسطة إدارة الشركة. تم إنهاء الجلسة ولا يمكن تسجيل الدخول بهذا الحساب.');
         } else if (fresh) {
           if (fresh.approvalStatus === 'rejected' || fresh.isActive === false) {
             logout();
@@ -1261,7 +1261,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         message: `تم تحديث أحدث ${remoteInvoices.length} فاتورة من السيرفر بنجاح.`,
       };
     } catch (err: any) {
-      return { success: false, count: 0, message: err?.message || 'خطأ ��ير متوقع أثناء تحديث الفواتير' };
+      return { success: false, count: 0, message: err?.message || 'خطأ غير متوقع أثناء تحديث الفواتير' };
     }
   };
 
@@ -1692,7 +1692,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setAuthTerminationNotice('تم حذف هذا الحساب من قبل إدارة شركة دريم. تم إنهاء الجلسة فوراً.');
       } else if (!activeAccount.isActive || activeAccount.approvalStatus === 'rejected') {
         logout();
-        setAuthTerminationNotice('تم إيقاف ��ذا الحساب من قبل إدارة شركة دريم. تم إنهاء الجلسة فوراً.');
+        setAuthTerminationNotice('تم إيقاف هذا الحساب من قبل إدارة شركة دريم. تم إنهاء الجلسة فوراً.');
       }
     }
   }, [users, currentUser, isAuthenticated]);
@@ -2331,7 +2331,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: currentUser?.branchName || 'الفرع الرئيسي',
       action: 'import_products',
       actionTitle: `استيراد ومزامنة ${newProducts.length} صنف من شيت الإكسل (${mode === 'replace' ? 'استبدال كامل' : 'دمج وتحديث'})`,
-      details: `تم تحديث بيانات وشدات وأسعار ${newProducts.length} صنف مع الحفاظ على حجوزات ��لمناديب النشطة ومزامنتها مع قاعدة البيانات المركزية.`,
+      details: `تم تحديث بيانات وشدات وأسعار ${newProducts.length} صنف مع الحفاظ على حجوزات المناديب النشطة ومزامنتها مع قاعدة البيانات المركزية.`,
       badgeType: 'info',
     });
   };
@@ -2358,7 +2358,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         productId: prod.id,
         productCode: prod.code,
         productName: prod.name,
-        type: branchChange > 0 ? 'توريد مخز��ي' : 'تعديل جردي',
+        type: branchChange > 0 ? 'توريد مخزني' : 'تعديل جردي',
         quantityPieces: Math.abs(branchChange),
         branchStockBefore: beforeActual,
         branchStockAfter: Math.max(0, beforeActual + branchChange),
@@ -2375,7 +2375,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         branchName: prod.branchName || currentUser?.branchName || 'الفرع الرئيسي',
         action: 'stock_adjustment',
         actionTitle: `تعديل رصيد الصنف (${prod.code} - ${prod.name})`,
-        details: `تعديل الفرع: ${branchChange > 0 ? `+${branchChange}` : branchChange} قطعة • تعديل أكتوبر: ${mainWarehouseChange > 0 ? `+${mainWarehouseChange}` : mainWarehouseChange} قطعة �� السبب: ${reason || 'تسوية جردية'}`,
+        details: `تعديل الفرع: ${branchChange > 0 ? `+${branchChange}` : branchChange} قطعة • تعديل أكتوبر: ${mainWarehouseChange > 0 ? `+${mainWarehouseChange}` : mainWarehouseChange} قطعة • السبب: ${reason || 'تسوية جردية'}`,
         badgeType: 'warning',
       });
     }
@@ -2815,7 +2815,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       invoice: primaryInvoice,
       shortageInvoice: createdShortageInvoice,
       message: createdShortageInvoice
-        ? `تم إصدار الفاتورة الأساسية #${primaryInvoice.invoiceNumber} وفات��رة النواقص المحولة #${createdShortageInvoice.invoiceNumber} ب��جاح!`
+        ? `تم إصدار الفاتورة الأساسية #${primaryInvoice.invoiceNumber} وفاتورة النواقص المحولة #${createdShortageInvoice.invoiceNumber} بنجاح!`
         : `تم تسجيل الطلبية #${primaryInvoice.invoiceNumber} وإرسالها للمراجعة والاعتماد!`
     };
   };
@@ -2846,7 +2846,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const allocations = new Map<string, { branch: number; main: number }>();
     for (const invItem of inv.items) {
       const product = products.find((p) => p.id === invItem.productId);
-      if (!product) return { success: false, message: `الصنف (${invItem.productName}) غير موجود في المخزو����` };
+      if (!product) return { success: false, message: `الصنف (${invItem.productName}) غير موجود في المخزون` };
       const requested = Math.max(0, invItem.cartonCount || 0);
       const branchAvailable = Math.max(0, getBranchStockForProduct(product, inv.branchName));
       const mainAvailable = Math.max(0, product.mainWarehouseActual);
@@ -2944,7 +2944,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const invoice = invoices.find((item) => item.id === invoiceId);
     if (!invoice) return { success: false, message: 'الفاتورة غير موجودة.' };
-    if (!['معتمدة ومصروفة من المخزن', 'معتم��ة'].includes(invoice.status)) {
+    if (!['معتمدة ومصروفة من المخزن', 'معتمدة'].includes(invoice.status)) {
       return { success: false, message: 'لا يمكن إرسال الفاتورة قبل اعتمادها.' };
     }
     if (
@@ -2982,7 +2982,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const inv = invoices.find((i) => i.id === invoiceId);
     if (!inv) return { success: false, message: 'الطلبية غير موجودة' };
     if (!inv.branchName || !currentUser.branchName || !isBranchMatch(inv.branchName, currentUser.branchName, { allowUnassigned: false })) {
-      return { success: false, message: 'لا يمكنك تحو��ل طلبية تابعة لفرع آخر.' };
+      return { success: false, message: 'لا يمكنك تحويل طلبية تابعة لفرع آخر.' };
     }
     if (!['قيد مراجعة المشرف', 'قيد المراجعة'].includes(inv.status)) {
       return { success: false, message: 'لا يمكن تحويل طلبية في هذه الحالة.' };
@@ -3025,7 +3025,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً.' };
     const inv = invoices.find((i) => i.id === invoiceId);
     if (!inv) return { success: false, message: 'الطلبية غير موجودة' };
-    const isPending = inv.status === 'قيد مراجعة المشرف' || inv.status === 'معلقة بانتظار اعتماد الفرع' || inv.status === 'قيد المراجعة' || inv.status === '��سودة';
+    const isPending = inv.status === 'قيد مراجعة المشرف' || inv.status === 'معلقة بانتظار اعتماد الفرع' || inv.status === 'قيد المراجعة' || inv.status === 'مسودة';
     const isOwnerRep = currentUser.role === 'sales_rep' &&
       (inv.repId === currentUser.id || (!inv.repId && normalizeArabicText(inv.repName) === normalizeArabicText(currentUser.name)));
     if (currentUser.role === 'sales_rep' && (!isOwnerRep || !isPending)) {
@@ -3135,7 +3135,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return {
       success: true,
-      message: `تم إلغا�� الطلبية #${inv.invoiceNumber} وفك حجز ${inv.totalCartons} كرتونة وإعادتها للرصيد المتاح!`,
+      message: `تم إلغاء الطلبية #${inv.invoiceNumber} وفك حجز ${inv.totalCartons} كرتونة وإعادتها للرصيد المتاح!`,
     };
   };
 
@@ -3588,7 +3588,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: inv.branchName,
       action: 'return_invoice',
       actionTitle: `تسجيل مرتجع مبيعات ${isFullReturn ? 'كلي' : 'جزئي'} للفاتورة #${inv.invoiceNumber}`,
-      details: `إذن #${returnVoucherNumber} • الع��ي��: ${inv.customerName} • القيمة المسترجعة: ${totalRefundAmount.toLocaleString()} ج.م • الكراتين: ${totalReturnedCartons} • السبب: ${reason}`,
+      details: `إذن #${returnVoucherNumber} • العميل: ${inv.customerName} • القيمة المسترجعة: ${totalRefundAmount.toLocaleString()} ج.م • الكراتين: ${totalReturnedCartons} • السبب: ${reason}`,
       invoiceId: inv.id,
       invoiceNumber: inv.invoiceNumber,
       badgeType: 'warning',
@@ -3940,15 +3940,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getVisibleProducts = (): Product[] => {
-    if (!currentUser) return [];
-    if (currentUser.role === 'admin' || currentUser.role === 'developer') {
-      return selectedBranchFilter === 'الكل'
-        ? products
-        : products.filter((product) => Boolean(product.branchName) && isBranchMatch(product.branchName, selectedBranchFilter, { allowUnassigned: false }));
-    }
-
-    if (!currentUser.branchName) return [];
-    return products.filter((product) => isBranchMatch(product.branchName, currentUser.branchName, { allowUnassigned: false }));
+    // The catalog is shared across roles; stock availability remains an optional UI filter.
+    return products;
   };
 
   const getSupervisorsInBranch = (branchName?: string): User[] => {

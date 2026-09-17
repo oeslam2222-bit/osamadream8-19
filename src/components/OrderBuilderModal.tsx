@@ -497,7 +497,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                 <button
                   type="button"
                   disabled={isSubmitting || cart.length === 0}
-                  onClick={() => handleSubmitOrder(false, false)}
+                  onClick={() => handleSubmitOrder()}
                   className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center gap-1.5"
                 >
                   <CheckCircle2 className="w-4 h-4" />
@@ -862,7 +862,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                       <button
                         type="button"
                         disabled={isSubmitting || cart.length === 0}
-                        onClick={() => handleSubmitOrder(false, false)}
+                        onClick={() => handleSubmitOrder()}
                         className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black py-2.5 px-3 rounded-2xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
                       >
                         <CheckCircle2 className="w-4 h-4" />

@@ -6,22 +6,29 @@ import {
   BarChart3,
   Building2,
   Calendar,
+  Check,
   CheckCircle2,
+  ChevronRight,
   Download,
+  ExternalLink,
   FileSpreadsheet,
+  Flame,
   Layers,
+  Percent,
   PieChart,
   RefreshCw,
   Search,
   ShieldCheck,
+  Sliders,
+  Sparkles,
   Target,
   TrendingUp,
   Upload,
   User,
   Users,
   Wallet,
-  ExternalLink,
-  X
+  X,
+  Zap
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import {
@@ -30,6 +37,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Legend,
   ResponsiveContainer,
   Tooltip,
@@ -42,6 +50,7 @@ import {
   ARABIC_MONTHS,
   downloadTargetTemplateExcel,
   formatEGP,
+  getQuarterFromMonth,
   QUARTER_LABELS
 } from '../services/targetService';
 import { TargetQuarter, TargetRecord } from '../types';
@@ -93,8 +102,12 @@ export const TargetPerformanceDashboard: React.FC = () => {
   const [selectedRep, setSelectedRep] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Chart view mode: comparison vs reps ranking
-  const [chartViewMode, setChartViewMode] = useState<'timeline' | 'reps_ranking'>('timeline');
+  // Chart view mode: timeline vs monthly comparison vs reps ranking
+  const [chartViewMode, setChartViewMode] = useState<'timeline' | 'monthly_comparison' | 'reps_ranking'>('timeline');
+  const [comparisonMetric, setComparisonMetric] = useState<'amount' | 'percentage'>('amount');
+
+  // Monthly Details Table display filter: all 12 months vs only months with data
+  const [tableMonthsFilter, setTableMonthsFilter] = useState<'all_12' | 'with_data_only'>('all_12');
 
   // Persistent Google Sheets Live URL State
   const [targetsSheetUrl, setTargetsSheetUrl] = useState(() => getSavedSourceUrl('targets'));
@@ -459,6 +472,246 @@ export const TargetPerformanceDashboard: React.FC = () => {
       .sort((a, b) => b.salesPerc - a.salesPerc);
   }, [filteredRecords]);
 
+  // Base records for the monthly details matrix (filtered by user/role/branch/rep/year, WITHOUT filtering out months)
+  const baseRecordsForMonths = useMemo(() => {
+    return visibleRecords.filter((r) => {
+      // 1. Supervisor personal vs team mode
+      if (isSupervisor && currentUser) {
+        const isSelf = isArabicNameMatch(r.repName, currentUser.name) ||
+          normalizeArabicText(r.repName) === normalizeArabicText(currentUser.name);
+
+        if (supervisorViewMode === 'my_personal') {
+          if (!isSelf) return false;
+        } else {
+          if (isSelf && supervisedReps.length > 0) return false;
+        }
+      }
+
+      // 2. Year filter
+      if (selectedYear !== 'ALL' && r.year !== selectedYear) return false;
+
+      // 3. Quarter filter (if in quarterly mode)
+      if (periodMode === 'quarterly' && selectedQuarter !== 'ALL' && r.quarter !== selectedQuarter) {
+        return false;
+      }
+
+      // 4. Branch filter
+      if (isAdminOrDev && selectedBranch !== 'ALL' && !isBranchMatch(r.branch, selectedBranch)) {
+        return false;
+      }
+
+      // 5. Supervisor filter
+      if ((isBranchManager || isAdminOrDev) && selectedSupervisor !== 'ALL' && repsUnderSelectedSupervisor) {
+        const normRep = normalizeArabicText(r.repName);
+        const matches = Array.from(repsUnderSelectedSupervisor).some(
+          (sRep) => isArabicNameMatch(r.repName, sRep) || normRep === normalizeArabicText(sRep)
+        );
+        if (!matches) return false;
+      }
+
+      // 6. Rep filter
+      if (!isSalesRep && selectedRep !== 'ALL') {
+        if (!isArabicNameMatch(r.repName, selectedRep) && normalizeArabicText(r.repName) !== normalizeArabicText(selectedRep)) {
+          return false;
+        }
+      }
+
+      // 7. Search query
+      if (isAdminOrDev && searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        const bMatch = r.branch?.toLowerCase().includes(query);
+        const rMatch = r.repName?.toLowerCase().includes(query);
+        if (!bMatch && !rMatch) return false;
+      }
+
+      return true;
+    });
+  }, [
+    visibleRecords,
+    isSupervisor,
+    currentUser,
+    supervisorViewMode,
+    supervisedReps,
+    selectedYear,
+    periodMode,
+    selectedQuarter,
+    isAdminOrDev,
+    selectedBranch,
+    isBranchManager,
+    selectedSupervisor,
+    repsUnderSelectedSupervisor,
+    isSalesRep,
+    selectedRep,
+    searchQuery,
+  ]);
+
+  interface MonthlyMatrixRow {
+    month: number;
+    monthName: string;
+    quarter: TargetQuarter;
+    salesTarget: number;
+    salesAchieved: number;
+    salesPerc: number;
+    remainingSales: number;
+    colTarget: number;
+    colAchieved: number;
+    colPerc: number;
+    remainingCol: number;
+    recordsCount: number;
+    // Milestones gaps for sales
+    salesGap60: number;
+    salesGap70: number;
+    salesGap90: number;
+    salesGap100: number;
+    // Milestones gaps for collection
+    colGap60: number;
+    colGap70: number;
+    colGap90: number;
+    colGap100: number;
+    // Power BI Milestone status
+    highestMilestone: '100%+' | '90%+' | '70%+' | '60%+' | 'below_60' | 'none';
+  }
+
+  // Monthly Matrix Rows for all 12 months
+  const monthlyMatrixRows = useMemo<MonthlyMatrixRow[]>(() => {
+    const rows: MonthlyMatrixRow[] = [];
+
+    for (let m = 1; m <= 12; m++) {
+      const monthRecords = baseRecordsForMonths.filter((r) => r.month === m);
+      let sTarget = 0;
+      let sAchieved = 0;
+      let cTarget = 0;
+      let cAchieved = 0;
+
+      monthRecords.forEach((r) => {
+        sTarget += Math.abs(r.salesTarget || 0);
+        sAchieved += Math.abs(r.salesAchieved || 0);
+        cTarget += Math.abs(r.collectionTarget || 0);
+        cAchieved += Math.abs(r.collectionAchieved || 0);
+      });
+
+      const sPerc = sTarget > 0 ? Number(((sAchieved / sTarget) * 100).toFixed(1)) : 0;
+      const cPerc = cTarget > 0 ? Number(((cAchieved / cTarget) * 100).toFixed(1)) : 0;
+
+      const remS = Math.max(0, sTarget - sAchieved);
+      const remC = Math.max(0, cTarget - cAchieved);
+
+      const salesGap60 = Math.max(0, sTarget * 0.6 - sAchieved);
+      const salesGap70 = Math.max(0, sTarget * 0.7 - sAchieved);
+      const salesGap90 = Math.max(0, sTarget * 0.9 - sAchieved);
+      const salesGap100 = remS;
+
+      const colGap60 = Math.max(0, cTarget * 0.6 - cAchieved);
+      const colGap70 = Math.max(0, cTarget * 0.7 - cAchieved);
+      const colGap90 = Math.max(0, cTarget * 0.9 - cAchieved);
+      const colGap100 = remC;
+
+      let highestMilestone: MonthlyMatrixRow['highestMilestone'] = 'none';
+      if (sTarget > 0 || cTarget > 0) {
+        if (sPerc >= 100 && cPerc >= 100) highestMilestone = '100%+';
+        else if (sPerc >= 90 && cPerc >= 90) highestMilestone = '90%+';
+        else if (sPerc >= 70 && cPerc >= 70) highestMilestone = '70%+';
+        else if (sPerc >= 60 || cPerc >= 60) highestMilestone = '60%+';
+        else highestMilestone = 'below_60';
+      }
+
+      rows.push({
+        month: m,
+        monthName: ARABIC_MONTHS[m - 1],
+        quarter: getQuarterFromMonth(m),
+        salesTarget: sTarget,
+        salesAchieved: sAchieved,
+        salesPerc: sPerc,
+        remainingSales: remS,
+        colTarget: cTarget,
+        colAchieved: cAchieved,
+        colPerc: cPerc,
+        remainingCol: remC,
+        recordsCount: monthRecords.length,
+        salesGap60,
+        salesGap70,
+        salesGap90,
+        salesGap100,
+        colGap60,
+        colGap70,
+        colGap90,
+        colGap100,
+        highestMilestone,
+      });
+    }
+
+    return rows;
+  }, [baseRecordsForMonths]);
+
+  // Filter rows according to user's view choice (all 12 or with data only)
+  const displayedMonthlyRows = useMemo(() => {
+    if (tableMonthsFilter === 'with_data_only') {
+      return monthlyMatrixRows.filter(
+        (r) => r.salesTarget > 0 || r.salesAchieved > 0 || r.colTarget > 0 || r.colAchieved > 0 || r.recordsCount > 0
+      );
+    }
+    return monthlyMatrixRows;
+  }, [monthlyMatrixRows, tableMonthsFilter]);
+
+  // Grand totals for the monthly details matrix
+  const monthlyMatrixTotals = useMemo(() => {
+    let totSalesTarget = 0;
+    let totSalesAchieved = 0;
+    let totColTarget = 0;
+    let totColAchieved = 0;
+    let totRecords = 0;
+
+    monthlyMatrixRows.forEach((r) => {
+      totSalesTarget += r.salesTarget;
+      totSalesAchieved += r.salesAchieved;
+      totColTarget += r.colTarget;
+      totColAchieved += r.colAchieved;
+      totRecords += r.recordsCount;
+    });
+
+    const totSalesPerc = totSalesTarget > 0 ? Number(((totSalesAchieved / totSalesTarget) * 100).toFixed(1)) : 0;
+    const totColPerc = totColTarget > 0 ? Number(((totColAchieved / totColTarget) * 100).toFixed(1)) : 0;
+    const totRemSales = Math.max(0, totSalesTarget - totSalesAchieved);
+    const totRemCol = Math.max(0, totColTarget - totColAchieved);
+
+    return {
+      totSalesTarget,
+      totSalesAchieved,
+      totSalesPerc,
+      totRemSales,
+      totColTarget,
+      totColAchieved,
+      totColPerc,
+      totRemCol,
+      totRecords,
+      totSalesGap60: Math.max(0, totSalesTarget * 0.6 - totSalesAchieved),
+      totSalesGap70: Math.max(0, totSalesTarget * 0.7 - totSalesAchieved),
+      totSalesGap90: Math.max(0, totSalesTarget * 0.9 - totSalesAchieved),
+      totSalesGap100: totRemSales,
+      totColGap60: Math.max(0, totColTarget * 0.6 - totColAchieved),
+      totColGap70: Math.max(0, totColTarget * 0.7 - totColAchieved),
+      totColGap90: Math.max(0, totColTarget * 0.9 - totColAchieved),
+      totColGap100: totRemCol,
+    };
+  }, [monthlyMatrixRows]);
+
+  // Monthly Comparison Chart Data for Power BI side-by-side visualization
+  const monthlyComparisonChartData = useMemo(() => {
+    return monthlyMatrixRows
+      .filter((r) => r.salesTarget > 0 || r.salesAchieved > 0 || r.colTarget > 0 || r.colAchieved > 0)
+      .map((r) => ({
+        monthName: r.monthName,
+        quarter: r.quarter,
+        salesTarget: r.salesTarget,
+        salesAchieved: r.salesAchieved,
+        salesPerc: r.salesPerc,
+        colTarget: r.colTarget,
+        colAchieved: r.colAchieved,
+        colPerc: r.colPerc,
+        colVsSalesRatio: r.salesAchieved > 0 ? Number(((r.colAchieved / r.salesAchieved) * 100).toFixed(1)) : 0,
+      }));
+  }, [monthlyMatrixRows]);
+
   // Google Sheets Direct Sync Handler
   const handleSyncGoogleSheet = async (urlOverride?: string) => {
     const urlToUse = (urlOverride !== undefined ? urlOverride : targetsSheetUrl).trim();
@@ -671,48 +924,6 @@ export const TargetPerformanceDashboard: React.FC = () => {
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
-      )}
-
-      {visibleRecords.length > 0 && (
-        <section className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 sm:px-5 py-4 border-b border-slate-200 bg-gradient-to-l from-slate-50 to-white">
-            <div>
-              <h2 className="text-base font-black text-slate-900">ملخص أرقام المناديب الشهري</h2>
-              <p className="text-xs text-slate-500 mt-1">الأهداف والمبيعات والتحصيلات بعد تنظيف القيم السالبة من الشيت</p>
-            </div>
-            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1.5">
-              {periodMode === 'monthly' ? 'عرض شهري' : 'عرض ربع سنوي'}
-            </span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-right text-xs">
-              <thead className="bg-slate-50 text-slate-500 font-black">
-                <tr>
-                  <th className="px-4 py-3">المندوب</th>
-                  <th className="px-4 py-3">هدف البيع</th>
-                  <th className="px-4 py-3">مبيعات محققة</th>
-                  <th className="px-4 py-3">نسبة البيع</th>
-                  <th className="px-4 py-3">هدف التحصيل</th>
-                  <th className="px-4 py-3">تحصيل محقق</th>
-                  <th className="px-4 py-3">نسبة التحصيل</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {repsRankingData.map((rep) => (
-                  <tr key={rep.repName} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3 font-black text-slate-900">{rep.repName}</td>
-                    <td className="px-4 py-3 font-bold text-slate-600">{formatEGP(Math.abs(rep.salesTarget))}</td>
-                    <td className="px-4 py-3 font-black text-blue-700">{formatEGP(Math.abs(rep.salesAchieved))}</td>
-                    <td className="px-4 py-3"><span className={`inline-flex rounded-full border px-2 py-1 font-black ${getBadgeColor(rep.salesPerc)}`}>{rep.salesPerc}%</span></td>
-                    <td className="px-4 py-3 font-bold text-slate-600">{formatEGP(Math.abs(rep.colTarget))}</td>
-                    <td className="px-4 py-3 font-black text-emerald-700">{formatEGP(Math.abs(rep.colAchieved))}</td>
-                    <td className="px-4 py-3"><span className={`inline-flex rounded-full border px-2 py-1 font-black ${getBadgeColor(rep.colPerc)}`}>{rep.colPerc}%</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
       )}
 
       {/* EMPTY STATE (No data synced yet) */}
@@ -1228,16 +1439,315 @@ export const TargetPerformanceDashboard: React.FC = () => {
             </div>
           </div>
 
+          {/* POWER BI FEATURE: MONTHLY DETAILS TABLE (جدول تفاصيل أهداف وتحصيلات الشهور) */}
+          {periodMode === 'monthly' && (
+            <section className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-0">
+              {/* Table Header with Filters */}
+              <div className="p-4 sm:p-5 border-b border-slate-200 bg-gradient-to-l from-slate-50 via-white to-amber-50/30 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-slate-900 text-amber-400 flex items-center justify-center font-black shadow-xs">
+                      <FileSpreadsheet className="w-4 h-4" />
+                    </div>
+                    <h3 className="text-base sm:text-lg font-black text-slate-900">
+                      جدول تفاصيل أهداف وتحصيلات الشهور (Power BI Monthly Details Table)
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1 font-bold">
+                    عرض مقارن لكل شهر يشمل: هدف البيع، المحقق بيع، النسبة، المتبقي، هدف التحصيل، محقق التحصيل، النسبة، والمتبقي تحصيل
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  {/* Active Month Alert / Clear Button */}
+                  {selectedMonth !== 'ALL' && (
+                    <div className="flex items-center gap-1.5 bg-amber-100/80 border border-amber-300 px-3 py-1.5 rounded-xl text-xs font-black text-amber-900">
+                      <span>الشهر المختار: {ARABIC_MONTHS[(selectedMonth as number) - 1]}</span>
+                      <button
+                        onClick={() => setSelectedMonth('ALL')}
+                        className="text-amber-800 hover:text-amber-950 underline mr-1 cursor-pointer"
+                      >
+                        عرض كل الشهور
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Toggle: All 12 months vs active only */}
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                    <button
+                      onClick={() => setTableMonthsFilter('all_12')}
+                      className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                        tableMonthsFilter === 'all_12'
+                          ? 'bg-white text-slate-900 shadow-xs font-black'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      كامل الـ 12 شهراً
+                    </button>
+                    <button
+                      onClick={() => setTableMonthsFilter('with_data_only')}
+                      className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                        tableMonthsFilter === 'with_data_only'
+                          ? 'bg-white text-slate-900 shadow-xs font-black'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      الشهور ذات البيانات فقط
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* The Matrix Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[980px] text-right text-xs">
+                  <thead className="bg-slate-100 text-slate-700 font-black border-b border-slate-200">
+                    <tr>
+                      <th className="px-4 py-3.5 whitespace-nowrap">الشهر / الربع</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap text-slate-900">هدف البيع</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap text-emerald-800">المحقق بيع</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap text-center">نسبة البيع %</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap text-amber-700">المتبقي بيع (100%)</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap text-slate-900">هدف التحصيل</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap text-blue-800">محقق التحصيل</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap text-center">نسبة التحصيل %</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap text-blue-900">المتبقي تحصيل (100%)</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap text-center">حالة الإنجاز</th>
+                      <th className="px-3 py-3.5 whitespace-nowrap text-center">تركيز</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {displayedMonthlyRows.map((row) => {
+                      const isRowSelected = selectedMonth === row.month;
+                      const hasData = row.salesTarget > 0 || row.salesAchieved > 0 || row.colTarget > 0 || row.colAchieved > 0;
+
+                      return (
+                        <tr
+                          key={row.month}
+                          className={`transition-colors ${
+                            isRowSelected
+                              ? 'bg-amber-50/70 font-bold ring-1 ring-amber-400'
+                              : hasData
+                              ? 'hover:bg-slate-50/80'
+                              : 'opacity-60 hover:opacity-100 hover:bg-slate-50'
+                          }`}
+                        >
+                          {/* Month & Quarter */}
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-slate-900 text-sm">{row.monthName}</span>
+                              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                                {row.quarter}
+                              </span>
+                              {isRowSelected && (
+                                <span className="text-[10px] font-black text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-md">
+                                  مختار حالياً 📌
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Sales Target */}
+                          <td className="px-4 py-3 whitespace-nowrap font-bold text-slate-700">
+                            {formatEGP(row.salesTarget)}
+                          </td>
+
+                          {/* Sales Achieved */}
+                          <td className="px-4 py-3 whitespace-nowrap font-black text-emerald-700">
+                            {formatEGP(row.salesAchieved)}
+                          </td>
+
+                          {/* Sales % with mini bar */}
+                          <td className="px-4 py-3 whitespace-nowrap text-center">
+                            <div className="inline-flex flex-col items-center">
+                              <span
+                                className={`inline-flex rounded-full border px-2.5 py-0.5 font-black text-xs ${getBadgeColor(
+                                  row.salesPerc
+                                )}`}
+                              >
+                                {row.salesPerc}%
+                              </span>
+                              <div className="w-16 bg-slate-200 h-1 rounded-full mt-1 overflow-hidden">
+                                <div
+                                  className={`h-full ${
+                                    row.salesPerc >= 100
+                                      ? 'bg-emerald-600'
+                                      : row.salesPerc >= 70
+                                      ? 'bg-amber-500'
+                                      : 'bg-rose-500'
+                                  }`}
+                                  style={{ width: `${Math.min(100, row.salesPerc)}%` }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Sales Remaining */}
+                          <td className="px-4 py-3 whitespace-nowrap font-black text-amber-700">
+                            {row.remainingSales === 0 && row.salesTarget > 0 ? (
+                              <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md text-[11px] font-bold">
+                                تم بالكامل ✅
+                              </span>
+                            ) : (
+                              formatEGP(row.remainingSales)
+                            )}
+                          </td>
+
+                          {/* Collection Target */}
+                          <td className="px-4 py-3 whitespace-nowrap font-bold text-slate-700">
+                            {formatEGP(row.colTarget)}
+                          </td>
+
+                          {/* Collection Achieved */}
+                          <td className="px-4 py-3 whitespace-nowrap font-black text-blue-700">
+                            {formatEGP(row.colAchieved)}
+                          </td>
+
+                          {/* Collection % with mini bar */}
+                          <td className="px-4 py-3 whitespace-nowrap text-center">
+                            <div className="inline-flex flex-col items-center">
+                              <span
+                                className={`inline-flex rounded-full border px-2.5 py-0.5 font-black text-xs ${getBadgeColor(
+                                  row.colPerc
+                                )}`}
+                              >
+                                {row.colPerc}%
+                              </span>
+                              <div className="w-16 bg-slate-200 h-1 rounded-full mt-1 overflow-hidden">
+                                <div
+                                  className={`h-full ${
+                                    row.colPerc >= 100
+                                      ? 'bg-emerald-600'
+                                      : row.colPerc >= 70
+                                      ? 'bg-amber-500'
+                                      : 'bg-blue-600'
+                                  }`}
+                                  style={{ width: `${Math.min(100, row.colPerc)}%` }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Collection Remaining */}
+                          <td className="px-4 py-3 whitespace-nowrap font-black text-blue-900">
+                            {row.remainingCol === 0 && row.colTarget > 0 ? (
+                              <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md text-[11px] font-bold">
+                                تم بالكامل ✅
+                              </span>
+                            ) : (
+                              formatEGP(row.remainingCol)
+                            )}
+                          </td>
+
+                          {/* Achievement Status Badge */}
+                          <td className="px-4 py-3 whitespace-nowrap text-center">
+                            {row.salesPerc >= 100 && row.colPerc >= 100 ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full">
+                                ⭐ مكتمل بالكامل
+                              </span>
+                            ) : row.salesPerc >= 100 ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                🛒 مكتمل بيعاً
+                              </span>
+                            ) : row.colPerc >= 100 ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                                💰 مكتمل تحصيلاً
+                              </span>
+                            ) : row.salesPerc >= 70 || row.colPerc >= 70 ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                ⚡ متقدم
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                                ⏳ قيد المتابعة
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Quick Focus Button */}
+                          <td className="px-3 py-3 whitespace-nowrap text-center">
+                            <button
+                              onClick={() => setSelectedMonth(row.month)}
+                              className={`p-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                isRowSelected
+                                  ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
+                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                              }`}
+                              title={`التركيز على أرقام شهر ${row.monthName}`}
+                            >
+                              <Search className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+
+                  {/* Grand Total Footer Row (الإجمالي الشامل لجميع الشهور) */}
+                  <tfoot className="bg-slate-900 text-white font-black text-xs border-t-2 border-slate-700">
+                    <tr>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5 text-amber-400 text-sm">
+                          <Target className="w-4 h-4" />
+                          <span>الإجمالي الشامل (12 شهراً)</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-slate-200">
+                        {formatEGP(monthlyMatrixTotals.totSalesTarget)}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-emerald-400 text-sm">
+                        {formatEGP(monthlyMatrixTotals.totSalesAchieved)}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-center">
+                        <span className="inline-block bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-3 py-1 rounded-full text-xs font-black">
+                          {monthlyMatrixTotals.totSalesPerc}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-amber-400">
+                        {formatEGP(monthlyMatrixTotals.totRemSales)}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-slate-200">
+                        {formatEGP(monthlyMatrixTotals.totColTarget)}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-blue-400 text-sm">
+                        {formatEGP(monthlyMatrixTotals.totColAchieved)}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-center">
+                        <span className="inline-block bg-blue-500/20 text-blue-300 border border-blue-500/40 px-3 py-1 rounded-full text-xs font-black">
+                          {monthlyMatrixTotals.totColPerc}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-blue-300">
+                        {formatEGP(monthlyMatrixTotals.totRemCol)}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-center text-amber-300 text-[11px]">
+                        ملخص الأداء السنوي
+                      </td>
+                      <td className="px-3 py-4 whitespace-nowrap text-center">
+                        <button
+                          onClick={() => setSelectedMonth('ALL')}
+                          className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-2.5 py-1 rounded-lg text-[11px] transition cursor-pointer"
+                        >
+                          الكل
+                        </button>
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </section>
+          )}
+
           {/* THE PERFORMANCE CHART (الرسم البياني للأداء) */}
           {(!isAdminOrDev || adminTab === 'overview') && (
             <div className="space-y-4">
-              {/* Chart Mode Toggle: Timeline vs Reps Ranking */}
+              {/* Chart Mode Toggle: Timeline vs Monthly Comparison vs Reps Ranking */}
               <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
                 <div className="flex items-center gap-2">
                   <BarChart3 className="w-5 h-5 text-amber-500" />
                   <span className="text-sm font-black text-slate-900">الرسم البياني والتحليل الإحصائي:</span>
                 </div>
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl">
                   <button
                     onClick={() => setChartViewMode('timeline')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
@@ -1249,6 +1759,17 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     <TrendingUp className="w-3.5 h-3.5" />
                     <span>المستهدف مقابل المحقق</span>
                   </button>
+                  <button
+                    onClick={() => setChartViewMode('monthly_comparison')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                      chartViewMode === 'monthly_comparison'
+                        ? 'bg-amber-500 text-slate-950 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    <span>مقارنة الشهور بيع وتحصيل 📊 (Power BI)</span>
+                  </button>
                   {repsRankingData.length > 1 && (
                     <button
                       onClick={() => setChartViewMode('reps_ranking')}
@@ -1259,13 +1780,260 @@ export const TargetPerformanceDashboard: React.FC = () => {
                       }`}
                     >
                       <Award className="w-3.5 h-3.5" />
-                      <span>مقارنة وترتيب أداء المناديب 🏆 ({repsRankingData.length})</span>
+                      <span>مقارنة وترتيب المناديب 🏆 ({repsRankingData.length})</span>
                     </button>
                   )}
                 </div>
               </div>
 
-              {chartViewMode === 'reps_ranking' && repsRankingData.length > 1 ? (
+              {chartViewMode === 'monthly_comparison' ? (
+                /* Power BI Monthly Sales vs Collection Comparison View */
+                <div className="space-y-4">
+                  <div className="bg-white rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+                      <div>
+                        <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
+                          <BarChart3 className="w-5 h-5 text-amber-500" />
+                          <span>مقارنة أداء الشهور في البيع والتحصيل (Power BI Monthly Comparison)</span>
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5 font-bold">
+                          تحليل موحد ومقارنة رأسية مباشرة بين حركة البيع وحركة التحصيل لكل شهر من شهور السنة
+                        </p>
+                      </div>
+
+                      {/* Amount vs Percentage Switcher */}
+                      <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                        <button
+                          onClick={() => setComparisonMetric('amount')}
+                          className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                            comparisonMetric === 'amount'
+                              ? 'bg-white text-slate-900 shadow-xs font-black'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <Wallet className="w-3.5 h-3.5" />
+                          <span>المبالغ المحققة (ج.م)</span>
+                        </button>
+                        <button
+                          onClick={() => setComparisonMetric('percentage')}
+                          className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                            comparisonMetric === 'percentage'
+                              ? 'bg-white text-slate-900 shadow-xs font-black'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <Percent className="w-3.5 h-3.5" />
+                          <span>نسب الإنجاز المئوية (%)</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Chart Legend */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-2 border-b border-slate-100 text-xs font-bold">
+                      <div className="flex items-center gap-4">
+                        {comparisonMetric === 'amount' ? (
+                          <>
+                            <span className="flex items-center gap-1.5 text-emerald-700">
+                              <span className="w-3.5 h-3.5 rounded-xs bg-emerald-500 inline-block shadow-xs" />
+                              المحقق بيع (ج.م)
+                            </span>
+                            <span className="flex items-center gap-1.5 text-blue-700">
+                              <span className="w-3.5 h-3.5 rounded-xs bg-blue-600 inline-block shadow-xs" />
+                              المحقق تحصيل (ج.م)
+                            </span>
+                            <span className="flex items-center gap-1.5 text-slate-500">
+                              <span className="w-3.5 h-3.5 rounded-xs bg-slate-300 inline-block" />
+                              هدف البيع
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="flex items-center gap-1.5 text-emerald-700">
+                              <span className="w-3.5 h-3.5 rounded-xs bg-emerald-500 inline-block shadow-xs" />
+                              نسبة إنجاز البيع (%)
+                            </span>
+                            <span className="flex items-center gap-1.5 text-blue-700">
+                              <span className="w-3.5 h-3.5 rounded-xs bg-blue-600 inline-block shadow-xs" />
+                              نسبة إنجاز التحصيل (%)
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-slate-400 font-normal">
+                        مقارنة أداء الشهور متزامنة
+                      </span>
+                    </div>
+
+                    {/* The Chart */}
+                    <div className="h-[300px] sm:h-[360px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={monthlyComparisonChartData}
+                          margin={{ top: 15, right: 10, left: 10, bottom: 25 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis
+                            dataKey="monthName"
+                            tick={{ fill: '#334155', fontSize: 11, fontWeight: 'bold' }}
+                            interval={0}
+                          />
+                          <YAxis
+                            tick={{ fill: '#64748b', fontSize: 10 }}
+                            tickFormatter={(val) =>
+                              comparisonMetric === 'percentage' ? `${val}%` : `${Math.round(val / 1000)}k`
+                            }
+                          />
+                          <Tooltip
+                            content={({ active, payload, label }) => {
+                              if (active && payload && payload.length) {
+                                const row = monthlyMatrixRows.find((r) => r.monthName === label);
+                                if (!row) return null;
+                                return (
+                                  <div className="bg-slate-900 text-white p-3.5 rounded-2xl shadow-xl text-xs space-y-1.5 border border-slate-800 font-sans min-w-[220px]">
+                                    <div className="font-black text-amber-400 text-sm border-b border-slate-700 pb-1 flex justify-between">
+                                      <span>📅 شهر {label}</span>
+                                      <span className="text-slate-400 text-xs font-normal">{row.quarter}</span>
+                                    </div>
+                                    <div className="pt-1">
+                                      <div className="text-slate-300 flex justify-between">
+                                        <span>هدف البيع:</span>
+                                        <strong className="text-white">{formatEGP(row.salesTarget)}</strong>
+                                      </div>
+                                      <div className="text-emerald-400 flex justify-between">
+                                        <span>المحقق بيع:</span>
+                                        <strong className="font-black">{formatEGP(row.salesAchieved)} ({row.salesPerc}%)</strong>
+                                      </div>
+                                      <div className="text-amber-300 flex justify-between text-[11px]">
+                                        <span>المتبقي للـ 100%:</span>
+                                        <span>{formatEGP(row.remainingSales)}</span>
+                                      </div>
+                                    </div>
+                                    <div className="border-t border-slate-800 pt-1.5">
+                                      <div className="text-slate-300 flex justify-between">
+                                        <span>هدف التحصيل:</span>
+                                        <strong className="text-white">{formatEGP(row.colTarget)}</strong>
+                                      </div>
+                                      <div className="text-blue-400 flex justify-between">
+                                        <span>المحقق تحصيل:</span>
+                                        <strong className="font-black">{formatEGP(row.colAchieved)} ({row.colPerc}%)</strong>
+                                      </div>
+                                      <div className="text-blue-200 flex justify-between text-[11px]">
+                                        <span>المتبقي تحصيل:</span>
+                                        <span>{formatEGP(row.remainingCol)}</span>
+                                      </div>
+                                    </div>
+                                    {row.highestMilestone !== 'none' && (
+                                      <div className="border-t border-slate-800 pt-1 text-[11px] text-emerald-300 font-bold text-center">
+                                        المحطة المنجزة: {row.highestMilestone}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          {comparisonMetric === 'amount' ? (
+                            <>
+                              <Bar dataKey="salesTarget" fill="#e2e8f0" radius={[4, 4, 0, 0]} name="هدف البيع" />
+                              <Bar dataKey="salesAchieved" fill="#10b981" radius={[5, 5, 0, 0]} name="المحقق بيع" />
+                              <Bar dataKey="colAchieved" fill="#2563eb" radius={[5, 5, 0, 0]} name="المحقق تحصيل" />
+                            </>
+                          ) : (
+                            <>
+                              <Bar dataKey="salesPerc" fill="#10b981" radius={[5, 5, 0, 0]} name="نسبة البيع %" />
+                              <Bar dataKey="colPerc" fill="#2563eb" radius={[5, 5, 0, 0]} name="نسبة التحصيل %" />
+                            </>
+                          )}
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Highlights Bar for Top Months */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {/* Top Sales Month */}
+                    {(() => {
+                      const topSales = [...monthlyMatrixRows].sort((a, b) => b.salesAchieved - a.salesAchieved)[0];
+                      return (
+                        <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-xs">
+                          <div className="text-xs font-bold text-slate-500 mb-1 flex items-center justify-between">
+                            <span>أعلى شهر في المبيعات</span>
+                            <Flame className="w-4 h-4 text-emerald-500" />
+                          </div>
+                          <div className="text-base font-black text-slate-900">
+                            {topSales && topSales.salesAchieved > 0 ? `${topSales.monthName} (${topSales.quarter})` : 'لا توجد بيانات'}
+                          </div>
+                          <div className="text-xs font-bold text-emerald-700 mt-1">
+                            {topSales && topSales.salesAchieved > 0 ? formatEGP(topSales.salesAchieved) : '—'}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Top Collection Month */}
+                    {(() => {
+                      const topCol = [...monthlyMatrixRows].sort((a, b) => b.colAchieved - a.colAchieved)[0];
+                      return (
+                        <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-xs">
+                          <div className="text-xs font-bold text-slate-500 mb-1 flex items-center justify-between">
+                            <span>أعلى شهر في التحصيل</span>
+                            <Wallet className="w-4 h-4 text-blue-500" />
+                          </div>
+                          <div className="text-base font-black text-slate-900">
+                            {topCol && topCol.colAchieved > 0 ? `${topCol.monthName} (${topCol.quarter})` : 'لا توجد بيانات'}
+                          </div>
+                          <div className="text-xs font-bold text-blue-700 mt-1">
+                            {topCol && topCol.colAchieved > 0 ? formatEGP(topCol.colAchieved) : '—'}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Highest Sales Achievement % */}
+                    {(() => {
+                      const topSalesPerc = [...monthlyMatrixRows]
+                        .filter((r) => r.salesTarget > 0)
+                        .sort((a, b) => b.salesPerc - a.salesPerc)[0];
+                      return (
+                        <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-xs">
+                          <div className="text-xs font-bold text-slate-500 mb-1 flex items-center justify-between">
+                            <span>أعلى نسبة إنجاز بيع</span>
+                            <TrendingUp className="w-4 h-4 text-amber-500" />
+                          </div>
+                          <div className="text-base font-black text-slate-900">
+                            {topSalesPerc ? `${topSalesPerc.monthName}` : 'لا توجد بيانات'}
+                          </div>
+                          <div className="text-xs font-bold text-amber-700 mt-1">
+                            {topSalesPerc ? `${topSalesPerc.salesPerc}%` : '—'}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Highest Collection Achievement % */}
+                    {(() => {
+                      const topColPerc = [...monthlyMatrixRows]
+                        .filter((r) => r.colTarget > 0)
+                        .sort((a, b) => b.colPerc - a.colPerc)[0];
+                      return (
+                        <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-xs">
+                          <div className="text-xs font-bold text-slate-500 mb-1 flex items-center justify-between">
+                            <span>أعلى نسبة تحصيل</span>
+                            <Award className="w-4 h-4 text-emerald-600" />
+                          </div>
+                          <div className="text-base font-black text-slate-900">
+                            {topColPerc ? `${topColPerc.monthName}` : 'لا توجد بيانات'}
+                          </div>
+                          <div className="text-xs font-bold text-emerald-700 mt-1">
+                            {topColPerc ? `${topColPerc.colPerc}%` : '—'}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              ) : chartViewMode === 'reps_ranking' && repsRankingData.length > 1 ? (
                 /* Reps Performance Ranking View */
                 <div className="space-y-4">
                   {/* Visual Bar Chart for Reps Ranking */}
