@@ -49,7 +49,6 @@ import {
   getPublishedDataSources,
   getSavedSourceUrl,
   saveSingleSourceUrl,
-  getGoogleSheetEmbedUrl
 } from '../services/dataSourceService';
 
 // Helper to normalize and match branch names with tolerance for prefixes
@@ -516,48 +515,6 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 pb-12">
-      {targetsSheetUrl && targetsSheetUrl.trim() && (
-        <section className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-slate-200 bg-slate-50">
-            <div className="flex items-center gap-2">
-              <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs">
-                GS
-              </span>
-              <div>
-                <h2 className="font-black text-slate-900 text-sm">شيت أهداف ومبيعات المناديب (Google Sheets) 🟢</h2>
-                <p className="text-[11px] text-slate-500">معاينة ومزامنة فورية - الرابط محفوظ تلقائياً</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {isAdminOrDev && (
-                <button
-                  onClick={() => handleSyncGoogleSheet(targetsSheetUrl)}
-                  disabled={isSyncingSheet}
-                  className="text-xs font-black bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs transition"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSheet ? 'animate-spin' : ''}`} />
-                  <span>{isSyncingSheet ? 'جاري المزامنة...' : 'مزامنة وتحديث فوري'}</span>
-                </button>
-              )}
-              <a
-                href={targetsSheetUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs font-black text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-1"
-              >
-                فتح الشيت في Google Sheets ↗
-              </a>
-            </div>
-          </div>
-          <iframe
-            title="شيت أهداف ومبيعات المناديب Google Sheets"
-            src={getGoogleSheetEmbedUrl(targetsSheetUrl)}
-            className="w-full min-h-[520px] border-0"
-            loading="lazy"
-            allowFullScreen
-          />
-        </section>
-      )}
       {/* Top Header Card */}
       <div className="bg-slate-900 text-white rounded-3xl p-4 sm:p-6 shadow-xl border border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -714,6 +671,48 @@ export const TargetPerformanceDashboard: React.FC = () => {
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
+      )}
+
+      {visibleRecords.length > 0 && (
+        <section className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 sm:px-5 py-4 border-b border-slate-200 bg-gradient-to-l from-slate-50 to-white">
+            <div>
+              <h2 className="text-base font-black text-slate-900">ملخص أرقام المناديب الشهري</h2>
+              <p className="text-xs text-slate-500 mt-1">الأهداف والمبيعات والتحصيلات بعد تنظيف القيم السالبة من الشيت</p>
+            </div>
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1.5">
+              {periodMode === 'monthly' ? 'عرض شهري' : 'عرض ربع سنوي'}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-right text-xs">
+              <thead className="bg-slate-50 text-slate-500 font-black">
+                <tr>
+                  <th className="px-4 py-3">المندوب</th>
+                  <th className="px-4 py-3">هدف البيع</th>
+                  <th className="px-4 py-3">مبيعات محققة</th>
+                  <th className="px-4 py-3">نسبة البيع</th>
+                  <th className="px-4 py-3">هدف التحصيل</th>
+                  <th className="px-4 py-3">تحصيل محقق</th>
+                  <th className="px-4 py-3">نسبة التحصيل</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {repsRankingData.map((rep) => (
+                  <tr key={rep.repName} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3 font-black text-slate-900">{rep.repName}</td>
+                    <td className="px-4 py-3 font-bold text-slate-600">{formatEGP(Math.abs(rep.salesTarget))}</td>
+                    <td className="px-4 py-3 font-black text-blue-700">{formatEGP(Math.abs(rep.salesAchieved))}</td>
+                    <td className="px-4 py-3"><span className={`inline-flex rounded-full border px-2 py-1 font-black ${getBadgeColor(rep.salesPerc)}`}>{rep.salesPerc}%</span></td>
+                    <td className="px-4 py-3 font-bold text-slate-600">{formatEGP(Math.abs(rep.colTarget))}</td>
+                    <td className="px-4 py-3 font-black text-emerald-700">{formatEGP(Math.abs(rep.colAchieved))}</td>
+                    <td className="px-4 py-3"><span className={`inline-flex rounded-full border px-2 py-1 font-black ${getBadgeColor(rep.colPerc)}`}>{rep.colPerc}%</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
 
       {/* EMPTY STATE (No data synced yet) */}
