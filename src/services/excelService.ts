@@ -231,7 +231,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const row = rawRows[i];
     const hasCodeOrName = row.some((cell: any) => {
       const str = String(cell);
-      return str.includes('كود') || str.includes('اسم') || str.includes('الصنف') || str.includes('code');
+      return str.includes('كو��') || str.includes('اسم') || str.includes('الصنف') || str.includes('code');
     });
     if (hasCodeOrName) {
       headerRowIndex = i;
@@ -457,7 +457,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       colMap.classification = idx;
     }
     // 9. اللون (Color)
-    else if (norm === 'اللون' || norm === 'لون' || norm.includes('الل��ن') || norm.includes('color')) {
+    else if (norm === 'اللون' || norm === 'لون' || norm.includes('الل����ن') || norm.includes('color')) {
       colMap.color = idx;
     }
     // 10. البحيرة (Beheira Branch Stock)
@@ -1210,7 +1210,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
   try {
     const erpItemHeaders = [
       'رقم الفاتورة',
-      'تاريخ الفاتورة',
+      'تار��خ الفاتورة',
       'كود المندوب',
       'اسم المندوب',
       'اسم الفرع',
@@ -1322,7 +1322,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
       ['المديونية السابقة قبل الفاتورة', debtBefore, 'رصيد سابق مسجل بالسيستم'],
       ['قيمة فاتورة المبيعات الحالية', invoice.estimatedGrandTotal, `فاتورة رقم ${invoice.invoiceNumber}`],
       ['إجمالي المديونية بعد الفاتورة', debtAfter, 'الرصيد التراكمي النهائي المطلوب سداده'],
-      ['الحد الائتماني المعتمد للعميل', creditLimit, 'السقف المالي الائتماني المصرح به'],
+      ['الحد الائتماني المعتمد للعميل', creditLimit, 'الس��ف المالي الائتماني المصرح به'],
       ['موقف الائتمان', isExceeded ? '⚠️ تجاوز الحد الائتماني' : '✅ ضمن الحد المسموح', isExceeded ? `دفعة نقدية مطلوبة: ${requiredDown.toLocaleString()} ج.م` : 'حساب سليم ومطابق للشروط'],
       [],
       ['مندوب التسليم:', invoice.repName, 'تاريخ وتوقيت الإصدار:', `${invoice.date} ${invoice.time || ''}`]
@@ -1610,7 +1610,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
 
     // Comprehensive Sales Target, Collections & Debts Sheet columns
     guaranteeDocs: -1,           // اورق الضمان
-    paymentTerms: -1,            // طريقة الدفع
+    paymentTerms: -1,            // طريقة الد��ع
     activityType: -1,            // طبيعة النشاط
     governorate: -1,             // المحافظة
     district: -1,                // المركز
@@ -1982,7 +1982,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('مديونيهسابقه') ||
       norm.includes('مديونيةالعميل') ||
       norm.includes('مديونيهالعميل') ||
-      norm.includes('اجمال��المديونية') ||
+      norm.includes('اجم��ل��المديونية') ||
       norm.includes('اجماليالمديونيه') ||
       norm.includes('المديونية') ||
       norm.includes('المديونيه') ||
@@ -2095,7 +2095,9 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
 
     // Dynamic Monthly Sales & Collections Recognition
     // Handles '1 مبيعات', 'مبيعات يناير', 'يناير', '1 تحصيل', 'تحصيلات يناير', etc.
-    if (!norm.includes('202') && !norm.includes('اجمالي')) {
+    // Monthly columns may include the year in their header, e.g. "تحصيلات يناير 2026".
+    // Only exclude explicit aggregate columns; otherwise monthly collections are lost.
+    if (!norm.includes('اجمالي')) {
       const monthArabicNames = [
         'يناير', 'فبراير', 'مارس', 'ابريل', 'إبريل', 'مايو', 'يونيو',
         'يوليو', 'اغسطس', 'أغسطس', 'سبتمبر', 'اكتوبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
