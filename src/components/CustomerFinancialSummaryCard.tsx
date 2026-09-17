@@ -192,7 +192,7 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
               </span>
               
               {/* Customer Code Badge */}
-              <span className={`text-[10px] font-mono font-black px-1.5 py-0.2 rounded shrink-0 ${
+              <span className={`text-xs font-mono font-black px-1.5 py-0.5 rounded shrink-0 ${
                 isDark ? 'bg-slate-800 text-amber-300 border border-slate-700' : 'bg-white text-slate-800 border border-slate-200'
               }`}>
                 {code}
@@ -200,7 +200,7 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
 
               {/* Credit Status Badge */}
               <span
-                className={`text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 ${
+                className={`text-[11px] font-black px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 ${
                   isExceeded
                     ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
                     : hasCreditLimit
@@ -228,7 +228,7 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
 
             {/* Micro Summary when Accordion is Folded (Mobile-Friendly) */}
             {!isOpen && (
-              <div className={`text-[10px] sm:text-[11px] pt-0.5 flex items-center gap-2 flex-wrap font-medium ${
+              <div className={`text-xs pt-0.5 flex items-center gap-2 flex-wrap font-medium ${
                 isDark ? 'text-slate-400' : 'text-slate-600'
               }`}>
                 <span>
@@ -259,7 +259,7 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
                 e.stopPropagation();
                 onChangeCustomer();
               }}
-              className={`px-2 py-1 rounded-lg text-[10px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer border ${
+              className={`px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer border ${
                 isDark
                   ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
                   : 'bg-white hover:bg-amber-100 text-slate-700 border-amber-200'
@@ -273,7 +273,7 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
 
           {/* Accordion Arrow Button with smooth rotation */}
           <div
-            className={`flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] sm:text-xs font-black transition ${
+            className={`flex items-center gap-1 px-2 py-1 rounded-xl text-xs font-black transition ${
               isDark
                 ? 'bg-slate-800/90 text-amber-400 border border-slate-700'
                 : 'bg-amber-200/70 text-amber-900 border border-amber-300/80'
@@ -303,7 +303,7 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
         >
           {/* Section 1: Customer Contact & Delivery Info (When showCustomerDetails is enabled) */}
           {showCustomerDetails && (
-            <div className={`p-2 rounded-xl text-[11px] border flex flex-wrap items-center gap-x-3 gap-y-1.5 ${
+            <div className={`p-2 rounded-xl text-xs border flex flex-wrap items-center gap-x-3 gap-y-1.5 ${
               isDark ? 'bg-slate-850 border-slate-750 text-slate-300' : 'bg-white border-amber-200 text-slate-700'
             }`}>
               {phone && (
@@ -333,7 +333,7 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
                 </div>
               )}
               {taxNumber && (
-                <div className="flex items-center gap-1 text-[10px] opacity-75 font-mono">
+                <div className="flex items-center gap-1 text-[11px] opacity-75 font-mono">
                   <span>س.ت / ضريبي: {taxNumber}</span>
                 </div>
               )}
@@ -341,11 +341,11 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
           )}
 
           {/* Section 2: Header title and "All Customers" Data Authority indicator */}
-          <div className="flex items-center justify-between text-[11px] font-bold px-0.5">
+          <div className="flex items-center justify-between text-xs font-bold px-0.5">
             <span className={isDark ? 'text-amber-300' : 'text-slate-800'}>
-              📊 {cardTitle}
+              {cardTitle}
             </span>
-            <span className={`text-[9px] px-1.5 py-0.5 rounded flex items-center gap-1 ${
+            <span className={`text-[11px] px-1.5 py-0.5 rounded flex items-center gap-1 ${
               isDark ? 'bg-slate-800 text-emerald-300 border border-slate-700' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
             }`}>
               <CheckCircle2 className="w-3 h-3 text-emerald-400" />
@@ -366,7 +366,7 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
                 ? 'bg-slate-800/90 border-slate-700/80 hover:border-slate-600'
                 : 'bg-white border-amber-200 hover:border-amber-300'
             }`}>
-              <span className={`text-[10px] font-bold block leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <span className={`text-[11px] font-bold block leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 إجمالي المتأخرات والمستحق
               </span>
               <div className={`text-xs sm:text-sm font-black font-mono mt-1.5 leading-tight ${
@@ -382,7 +382,7 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
                 ? 'bg-slate-800/90 border-slate-700/80 hover:border-slate-600'
                 : 'bg-white border-amber-200 hover:border-amber-300'
             }`}>
-              <span className={`text-[10px] font-bold block leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <span className={`text-[11px] font-bold block leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 المديونية الحالية
               </span>
               <div className={`text-xs sm:text-sm font-black font-mono mt-1.5 leading-tight ${
@@ -398,7 +398,7 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
                 ? 'bg-slate-800/90 border-slate-700/80 hover:border-slate-600'
                 : 'bg-white border-amber-200 hover:border-amber-300'
             }`}>
-              <span className={`text-[10px] font-bold block leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <span className={`text-[11px] font-bold block leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 قيمة الفاتورة الحالية
               </span>
               <div className={`text-xs sm:text-sm font-black font-mono mt-1.5 leading-tight ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
@@ -412,7 +412,7 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
                 ? 'bg-slate-800/90 border-slate-700/80 hover:border-slate-600'
                 : 'bg-white border-amber-200 hover:border-amber-300'
             }`}>
-              <span className={`text-[10px] font-bold block leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <span className={`text-[11px] font-bold block leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 المديونية بعد الفاتورة
               </span>
               <div className={`text-xs sm:text-sm font-black font-mono mt-1.5 leading-tight ${
@@ -432,7 +432,7 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
                 ? 'bg-slate-800/90 border-slate-700/80 hover:border-slate-600'
                 : 'bg-white border-amber-200 hover:border-amber-300'
             }`}>
-              <span className={`text-[10px] font-bold block leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <span className={`text-[11px] font-bold block leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 الحد الائتماني المعتمد
               </span>
               <div className={`text-xs sm:text-sm font-black font-mono mt-1.5 leading-tight ${
