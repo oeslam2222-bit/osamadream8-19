@@ -205,18 +205,18 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
   return (
     <div
       id="pos-cashier-terminal"
-      className="bg-slate-900 text-white rounded-3xl shadow-2xl border border-slate-800 flex flex-col overflow-hidden w-full"
+      className="bg-white text-slate-900 rounded-3xl shadow-lg border border-slate-200 flex flex-col overflow-hidden w-full"
     >
       {/* Drawer Dismiss Button for Mobile */}
       {isMobileDrawer && onCloseMobileDrawer && (
-        <div className="bg-amber-400 text-slate-950 p-2.5 px-4 flex items-center justify-between shadow-md">
+        <div className="bg-amber-400 text-slate-950 p-2.5 px-4 flex items-center justify-between shadow-sm">
           <button
             id="pos-cashier-hide-drawer-btn"
             onClick={onCloseMobileDrawer}
             className="flex items-center gap-2 font-black text-xs sm:text-sm cursor-pointer hover:opacity-90 active:scale-95 transition"
           >
-            <ChevronDown className="w-4 h-4 animate-bounce" />
-            <span>🔽 إخفاء / متابعة إضافة منتجات أخرى</span>
+            <ChevronDown className="w-4 h-4" />
+            <span>إخفاء / متابعة إضافة منتجات</span>
           </button>
           <button
             onClick={onCloseMobileDrawer}
@@ -229,19 +229,19 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
       )}
 
       {/* Cashier Terminal Header */}
-      <div className="p-3.5 sm:p-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+      <div className="p-3.5 sm:p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-xs">
+          <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-sm">
             <Receipt className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <h3 className="text-sm font-black text-white">فاتورة مبيعات كاشير دريم</h3>
-              <span className="bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full">
-                POS ⚡
+              <h3 className="text-sm font-black text-slate-900">فاتورة مبيعات كاشير دريم</h3>
+              <span className="bg-emerald-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                POS
               </span>
             </div>
-            <div className="text-[10px] text-slate-400">
+            <div className="text-xs text-slate-500 font-medium">
               {currentUser?.branchName || 'الفرع الرئيسي'} • {currentUser?.name || 'المندوب'}
             </div>
           </div>
@@ -255,7 +255,7 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
                 clearCart();
               }
             }}
-            className="text-slate-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800 text-[11px] font-bold flex items-center gap-1 transition cursor-pointer"
+            className="text-slate-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-slate-100 text-xs font-bold flex items-center gap-1 transition cursor-pointer"
             title="تفريغ السلة"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -266,25 +266,25 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
 
       {/* Toast Feedback */}
       {errorMessage && (
-        <div className="bg-rose-900/90 text-white p-2.5 px-3 text-xs font-black flex items-center gap-2 border-b border-rose-700 animate-in fade-in">
-          <AlertCircle className="w-4 h-4 text-rose-300 shrink-0" />
+        <div className="bg-rose-50 text-rose-700 p-2.5 px-3 text-xs font-bold flex items-center gap-2 border-b border-rose-200 animate-in fade-in">
+          <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
           <span>{errorMessage}</span>
         </div>
       )}
       {successToast && (
-        <div className="bg-emerald-600 text-white p-2.5 px-3 text-xs font-black flex items-center gap-2 border-b border-emerald-500 animate-in fade-in">
-          <CheckCircle2 className="w-4 h-4 text-emerald-200 shrink-0" />
+        <div className="bg-emerald-50 text-emerald-700 p-2.5 px-3 text-xs font-bold flex items-center gap-2 border-b border-emerald-200 animate-in fade-in">
+          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
           <span>{successToast}</span>
         </div>
       )}
 
       {/* Customer Selector / Accordion Info Card */}
-      <div className="p-2 sm:p-2.5 bg-slate-850 border-b border-slate-800 text-xs">
+      <div className="p-2.5 sm:p-3 bg-slate-50 border-b border-slate-200 text-xs">
         {activeCustomer ? (
           <CustomerFinancialSummaryCard
             customer={activeCustomer}
             currentInvoiceAmount={cartSummary.grandTotal}
-            theme="dark"
+            theme="light"
             initiallyOpen={false}
             showCustomerDetails={true}
             title="بيانات وموقف العميل المالي"
@@ -295,7 +295,7 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
           />
         ) : (
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-bold">
               <span>تحديد العميل:</span>
               <button
                 onClick={() => {
@@ -310,9 +310,9 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
                     currentBalance: 0,
                   });
                 }}
-                className="text-amber-400 hover:text-amber-300 underline font-black cursor-pointer text-[10px]"
+                className="text-amber-600 hover:text-amber-700 underline font-black cursor-pointer text-xs"
               >
-                ⚡ بيع نقدي مباشر
+                بيع نقدي مباشر
               </button>
             </div>
 
@@ -327,12 +327,12 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
                   setIsCustomerDropdownOpen(true);
                 }}
                 placeholder="ابحث عن اسم أو كود العميل..."
-                className="w-full h-8 pl-3 pr-8 bg-slate-800 text-white placeholder-slate-400 text-xs rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                className="w-full h-9 pl-3 pr-8 bg-white text-slate-900 placeholder-slate-400 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-400"
               />
 
               {/* Customer Dropdown */}
               {isCustomerDropdownOpen && (
-                <div className="absolute top-full right-0 left-0 mt-1 z-30 bg-slate-800 border border-slate-700 rounded-xl shadow-xl max-h-44 overflow-y-auto divide-y divide-slate-700 text-xs">
+                <div className="absolute top-full right-0 left-0 mt-1 z-30 bg-white border border-slate-200 rounded-xl shadow-xl max-h-44 overflow-y-auto divide-y divide-slate-100 text-xs">
                   {filteredCustomers.map((cust) => (
                     <div
                       key={cust.id}
@@ -342,20 +342,20 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
                         setIsCustomerDropdownOpen(false);
                         setCustomerSearch('');
                       }}
-                      className="p-2 hover:bg-slate-700 cursor-pointer flex items-center justify-between transition"
+                      className="p-2 hover:bg-amber-50 cursor-pointer flex items-center justify-between transition"
                     >
                       <div className="min-w-0">
-                        <div className="font-bold text-white truncate">{cust.name}</div>
-                        <div className="text-[10px] text-slate-400">{cust.code || 'بدون كود'} • {cust.phone || ''}</div>
+                        <div className="font-bold text-slate-900 truncate">{cust.name}</div>
+                        <div className="text-[11px] text-slate-500">{cust.code || 'بدون كود'} • {cust.phone || ''}</div>
                       </div>
-                      <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.5 rounded font-black shrink-0">
+                      <span className="text-[11px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold shrink-0">
                         اختيار
                       </span>
                     </div>
                   ))}
                   <div
                     onClick={() => setIsCustomerDropdownOpen(false)}
-                    className="p-1.5 text-center text-[10px] text-slate-400 hover:text-white cursor-pointer bg-slate-850"
+                    className="p-1.5 text-center text-[11px] text-slate-400 hover:text-slate-700 cursor-pointer bg-slate-50"
                   >
                     إغلاق القائمة
                   </div>
@@ -367,37 +367,37 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
       </div>
 
       {/* Switcher Tab: Cart Items vs Instant Mobile Preview */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-slate-800/90 border-b border-slate-700/80 text-xs">
-        <div className="flex items-center gap-1 bg-slate-900/90 p-0.5 rounded-lg border border-slate-700/80">
+      <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs">
+        <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200">
           <button
             type="button"
             onClick={() => setIsSidebarPreviewMode(false)}
-            className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition flex items-center gap-1 cursor-pointer ${
+            className={`px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
               !isSidebarPreviewMode
-                ? 'bg-amber-400 text-slate-950 shadow-xs'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-amber-400 text-slate-950 shadow-sm'
+                : 'text-slate-500 hover:text-slate-900'
             }`}
           >
             <ShoppingCart className="w-3.5 h-3.5" />
-            <span>السلة والبنود ({cart.length})</span>
+            <span>السلة ({cart.length})</span>
           </button>
           <button
             type="button"
             onClick={() => setIsSidebarPreviewMode(true)}
-            className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition flex items-center gap-1 cursor-pointer ${
+            className={`px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
               isSidebarPreviewMode
-                ? 'bg-amber-400 text-slate-950 shadow-xs'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-amber-400 text-slate-950 shadow-sm'
+                : 'text-slate-500 hover:text-slate-900'
             }`}
           >
             <Eye className="w-3.5 h-3.5" />
-            <span>معاينة الفاتورة 👁️</span>
+            <span>معاينة الفاتورة</span>
           </button>
         </div>
 
         {cart.length > 0 && (
-          <span className="text-[10px] text-amber-400 font-mono font-bold">
-            {cartSummary.totalCartons} كرتونة • {cartSummary.totalPieces} ق
+          <span className="text-[11px] text-amber-600 font-mono font-bold">
+            {cartSummary.totalCartons} ك • {cartSummary.totalPieces} ق
           </span>
         )}
       </div>
@@ -405,31 +405,31 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
       {/* Cart Content: Either Interactive Items or Instant Preview */}
       {isSidebarPreviewMode ? (
         /* Instant Mobile-Optimized Invoice Preview */
-        <div className="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-[160px] max-h-[42vh] lg:max-h-[380px] bg-slate-900/90 divide-y divide-slate-800">
+        <div className="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-[160px] max-h-[42vh] lg:max-h-[380px] bg-slate-50 divide-y divide-slate-100">
           {cart.length === 0 ? (
-            <div className="py-8 text-center text-slate-500 text-xs">
-              السلة فارغة. أضف أصناف لمعاينتها هنا فوراً 🛍️
+            <div className="py-8 text-center text-slate-400 text-xs">
+              السلة فارغة. أضف أصناف لمعاينتها هنا فوراً
             </div>
           ) : (
             <>
-              <div className="bg-slate-800/90 p-2.5 rounded-xl border border-slate-700 space-y-1.5 text-xs">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400">العميل:</span>
-                  <strong className="text-amber-300">{activeCustomer?.name || 'عميل نقدي كاش'}</strong>
+              <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">العميل:</span>
+                  <strong className="text-amber-700">{activeCustomer?.name || 'عميل نقدي كاش'}</strong>
                 </div>
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400">طريقة السداد:</span>
-                  <strong className="text-white">{paymentMethod}</strong>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">طريقة السداد:</span>
+                  <strong className="text-slate-900">{paymentMethod}</strong>
                 </div>
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400">الفرع:</span>
-                  <strong className="text-slate-300">{currentUser?.branchName || 'الفرع الرئيسي'}</strong>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">الفرع:</span>
+                  <strong className="text-slate-700">{currentUser?.branchName || 'الفرع الرئيسي'}</strong>
                 </div>
               </div>
 
               {/* Items List in Preview Mode */}
               <div className="space-y-1.5 pt-2">
-                <div className="text-[11px] font-bold text-slate-400 flex items-center justify-between">
+                <div className="text-xs font-bold text-slate-500 flex items-center justify-between">
                   <span>بيان الأصناف والكميات:</span>
                   <span>{cart.length} أصناف</span>
                 </div>
@@ -438,14 +438,14 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
                   const cartonQty = prod.cartonQuantity || 1;
                   const totalUnits = (item.cartonCount * cartonQty) + item.pieceCount;
                   return (
-                    <div key={`prev-${item.product.id}-${idx}`} className="bg-slate-800/60 p-2 rounded-lg border border-slate-700/60 text-xs flex items-center justify-between gap-2">
+                    <div key={`prev-${item.product.id}-${idx}`} className="bg-white p-2 rounded-lg border border-slate-200 text-xs flex items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <div className="font-bold text-white truncate">{prod.name}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">
-                          {prod.code} • {item.cartonCount} كرتونة {item.pieceCount > 0 ? `+ ${item.pieceCount} ق` : ''} ({totalUnits} قطعة)
+                        <div className="font-bold text-slate-900 truncate">{prod.name}</div>
+                        <div className="text-[11px] text-slate-500 font-mono">
+                          {prod.code} • {item.cartonCount} ك {item.pieceCount > 0 ? `+ ${item.pieceCount} ق` : ''} ({totalUnits} قطعة)
                         </div>
                       </div>
-                      <div className="text-left shrink-0 font-black text-amber-300 text-xs">
+                      <div className="text-left shrink-0 font-black text-amber-700 text-xs">
                         {formatCurrency(item.totalPrice)}
                       </div>
                     </div>
@@ -457,15 +457,15 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
         </div>
       ) : (
         /* Standard Interactive Items List */
-        <div className="flex-1 overflow-y-auto p-2.5 sm:p-3 space-y-2 min-h-[160px] max-h-[42vh] lg:max-h-[380px] bg-slate-900/60 divide-y divide-slate-800/80">
+        <div className="flex-1 overflow-y-auto p-2.5 sm:p-3 space-y-2 min-h-[160px] max-h-[42vh] lg:max-h-[380px] bg-slate-50 divide-y divide-slate-100">
           {cart.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center py-8 text-center text-slate-500">
-              <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center mb-2 text-slate-600">
+            <div className="h-full flex flex-col items-center justify-center py-8 text-center text-slate-400">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-2 text-slate-300">
                 <ShoppingCart className="w-6 h-6" />
               </div>
-              <div className="text-xs font-bold text-slate-400">فاتورة الكاشير فارغة حالياً</div>
-              <p className="text-[11px] text-slate-500 mt-1 max-w-[200px]">
-                اختر مجموعة من الأعلى أو ابحث بالكود لإضافة الأصناف هنا مباشرة 🛍️
+              <div className="text-xs font-bold text-slate-500">فاتورة الكاشير فارغة حالياً</div>
+              <p className="text-xs text-slate-400 mt-1 max-w-[200px]">
+                اختر مجموعة من الأعلى أو ابحث بالكود لإضافة الأصناف هنا مباشرة
               </p>
             </div>
           ) : (
@@ -478,18 +478,18 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
                   {/* Item Row Top: Title & Line Total */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="text-xs font-black text-white truncate">{prod.name}</div>
-                      <div className="text-[10px] text-amber-400 font-mono">
+                      <div className="text-xs font-black text-slate-900 truncate">{prod.name}</div>
+                      <div className="text-[11px] text-amber-600 font-mono">
                         {prod.code} {prod.cartonQuantity ? `(${prod.cartonQuantity} ق/كرتونة)` : ''}
                       </div>
                     </div>
                     <div className="text-left shrink-0">
-                      <strong className="text-xs font-black text-amber-300 block">
+                      <strong className="text-xs font-black text-amber-700 block">
                         {formatCurrency(lineTotal)}
                       </strong>
                       <button
                         onClick={() => removeFromCart(item.product.id)}
-                        className="text-slate-500 hover:text-rose-400 p-0.5 rounded transition cursor-pointer text-[10px]"
+                        className="text-slate-400 hover:text-rose-500 p-0.5 rounded transition cursor-pointer text-[11px]"
                         title="حذف من الفاتورة"
                       >
                         <Trash2 className="w-3 h-3 inline" />
@@ -498,22 +498,22 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
                   </div>
 
                   {/* Carton & Piece Controls */}
-                  <div className="flex items-center justify-between gap-2 bg-slate-800/80 p-1.5 rounded-xl text-xs">
+                  <div className="flex items-center justify-between gap-2 bg-white p-1.5 rounded-xl border border-slate-200 text-xs">
                     {/* Cartons */}
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-slate-400 font-bold">كرتونة:</span>
+                      <span className="text-[11px] text-slate-500 font-bold">كرتونة:</span>
                       <button
                         onClick={() => updateCartItem(item.product.id, { cartonCount: Math.max(0, item.cartonCount - 1) })}
-                        className="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center cursor-pointer transition active:scale-95"
+                        className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer transition active:scale-95"
                       >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="font-black text-amber-400 text-xs w-6 text-center">
+                      <span className="font-black text-amber-600 text-xs w-6 text-center">
                         {item.cartonCount}
                       </span>
                       <button
                         onClick={() => updateCartItem(item.product.id, { cartonCount: item.cartonCount + 1 })}
-                        className="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center cursor-pointer transition active:scale-95"
+                        className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer transition active:scale-95"
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
@@ -521,19 +521,19 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
 
                     {/* Pieces */}
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-slate-400 font-bold">قطعة:</span>
+                      <span className="text-[11px] text-slate-500 font-bold">قطعة:</span>
                       <button
                         onClick={() => updateCartItem(item.product.id, { pieceCount: Math.max(0, item.pieceCount - 1) })}
-                        className="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center cursor-pointer transition active:scale-95"
+                        className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer transition active:scale-95"
                       >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="font-black text-blue-300 text-xs w-6 text-center">
+                      <span className="font-black text-blue-600 text-xs w-6 text-center">
                         {item.pieceCount}
                       </span>
                       <button
                         onClick={() => updateCartItem(item.product.id, { pieceCount: item.pieceCount + 1 })}
-                        className="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center cursor-pointer transition active:scale-95"
+                        className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer transition active:scale-95"
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
@@ -548,19 +548,19 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
 
       {/* Discount & Payment Controls */}
       {cart.length > 0 && (
-        <div className="p-3 bg-slate-850 border-t border-slate-800 space-y-2 text-xs">
+        <div className="p-3 bg-slate-50 border-t border-slate-200 space-y-2 text-xs">
           {/* Quick Discount Buttons */}
           <div className="flex items-center justify-between gap-1.5">
-            <span className="text-[10px] text-slate-400 font-bold">الخصم التجاري:</span>
+            <span className="text-xs text-slate-500 font-bold">الخصم التجاري:</span>
             <div className="flex items-center gap-1">
               {[0, 1, 2, 3, 5].map((pct) => (
                 <button
                   key={pct}
                   onClick={() => setDiscountPercent(pct)}
-                  className={`px-1.5 py-0.5 rounded-md text-[10px] font-black transition cursor-pointer ${
+                  className={`px-2 py-0.5 rounded-md text-xs font-black transition cursor-pointer ${
                     discountPercent === pct
-                      ? 'bg-emerald-500 text-white shadow-xs'
-                      : 'bg-slate-800 text-slate-400 hover:text-white'
+                      ? 'bg-emerald-500 text-white shadow-sm'
+                      : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
                   }`}
                 >
                   {pct}%
@@ -575,13 +575,13 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
               <button
                 key={method}
                 onClick={() => setPaymentMethod(method)}
-                className={`flex-1 py-1 rounded-lg text-[10px] font-bold text-center transition cursor-pointer truncate ${
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold text-center transition cursor-pointer truncate ${
                   paymentMethod === method
-                    ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
-                    : 'bg-slate-800 text-slate-400 hover:text-white'
+                    ? 'bg-amber-400 text-slate-950 font-black shadow-sm'
+                    : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
                 }`}
               >
-                {method === 'نقدي (كاش)' ? '💵 نقدي' : method === 'آجل (30 يوم)' ? '⏳ آجل 30 يوم' : '🏦 تحويل'}
+                {method === 'نقدي (كاش)' ? 'نقدي' : method === 'آجل (30 يوم)' ? 'آجل 30 يوم' : 'تحويل بنكي'}
               </button>
             ))}
           </div>
@@ -589,30 +589,30 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
       )}
 
       {/* Financials & Grand Total Footer */}
-      <div className="p-3.5 bg-slate-950 border-t border-slate-800 space-y-2.5">
+      <div className="p-3.5 bg-slate-50 border-t border-slate-200 space-y-2.5">
         <div className="space-y-1 text-xs">
-          <div className="flex items-center justify-between text-slate-400 text-[11px]">
+          <div className="flex items-center justify-between text-slate-500 text-xs">
             <span>الكميات المطلوبة:</span>
-            <strong className="text-white">
-              {cartSummary.totalCartons} كرتونة • {cartSummary.totalPieces} قطعة
+            <strong className="text-slate-900">
+              {cartSummary.totalCartons} ك • {cartSummary.totalPieces} قطعة
             </strong>
           </div>
 
-          <div className="flex items-center justify-between text-slate-400 text-[11px]">
+          <div className="flex items-center justify-between text-slate-500 text-xs">
             <span>المجموع قبل الخصم:</span>
-            <span>{formatCurrency(cartSummary.subtotal)}</span>
+            <span className="text-slate-900 font-bold">{formatCurrency(cartSummary.subtotal)}</span>
           </div>
 
           {discountPercent > 0 && (
-            <div className="flex items-center justify-between text-emerald-400 text-[11px]">
+            <div className="flex items-center justify-between text-emerald-600 text-xs">
               <span>قيمة الخصم ({discountPercent}%):</span>
-              <span>-{formatCurrency(cartSummary.discountAmount)}</span>
+              <span className="font-bold">-{formatCurrency(cartSummary.discountAmount)}</span>
             </div>
           )}
 
-          <div className="flex items-center justify-between pt-1 border-t border-slate-800">
-            <span className="text-xs font-bold text-slate-300">صافي الفاتورة النهائي:</span>
-            <strong className="text-lg font-black text-amber-400">
+          <div className="flex items-center justify-between pt-1 border-t border-slate-200">
+            <span className="text-sm font-bold text-slate-700">صافي الفاتورة:</span>
+            <strong className="text-lg font-black text-amber-600">
               {formatCurrency(cartSummary.grandTotal)}
             </strong>
           </div>
@@ -626,22 +626,22 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
               id="pos-export-excel-btn"
               disabled={isSubmitting || cart.length === 0}
               onClick={() => handleSaveOrder(true, false)}
-              className="h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+              className="h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
               title="حفظ الطلبية وتنزيل شيت إكسل جاهز بالأكواد لرفعه على السيستم"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>حفظ وإكسل 📊</span>
+              <span>حفظ وإكسل</span>
             </button>
 
             <button
               id="pos-export-pdf-btn"
               disabled={isSubmitting || cart.length === 0}
               onClick={() => handleSaveOrder(false, true)}
-              className="h-10 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+              className="h-10 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
               title="حفظ الطلبية وتنزيل فاتورة PDF فورية"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>حفظ و PDF 📄</span>
+              <span>حفظ و PDF</span>
             </button>
           </div>
 
@@ -650,11 +650,11 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
             id="pos-post-invoice-btn"
             disabled={isSubmitting || cart.length === 0}
             onClick={() => handleSaveOrder(false, false)}
-            className="w-full h-11 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg transition transform active:scale-98 disabled:opacity-40 flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full h-11 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md transition transform active:scale-98 disabled:opacity-40 flex items-center justify-center gap-2 cursor-pointer"
             title="حفظ الطلبية وإرسالها مباشرة للمشرف ومدير الفرع للمراجعة والاعتماد"
           >
             <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
-            <span>{isSubmitting ? 'جاري حفظ الطلبية...' : 'حفظ الطلبية (إرسال للمشرف) ✅'}</span>
+            <span>{isSubmitting ? 'جاري حفظ الطلبية...' : 'حفظ الطلبية (إرسال للمشرف)'}</span>
           </button>
 
           {/* Secondary Button: Full Preview & Editing */}
@@ -663,11 +663,11 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
               id="pos-preview-invoice-btn"
               disabled={cart.length === 0}
               onClick={onOpenDetailedModal}
-              className="w-full h-9 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+              className="w-full h-9 bg-white hover:bg-slate-50 text-amber-700 font-bold text-xs rounded-xl border border-slate-200 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
               title="معاينة تفاصيل الطلبية كاملة وتعديل البنود"
             >
               <Eye className="w-3.5 h-3.5" />
-              <span>معاينة الطلبية كاملة وتعديل البنود 👁️</span>
+              <span>معاينة الطلبية كاملة وتعديل البنود</span>
             </button>
           )}
         </div>
