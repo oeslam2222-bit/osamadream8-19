@@ -502,6 +502,7 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     visitCount: -1,
     guaranteeDocs: -1,
     paymentTerms: -1,
+    dealEligibility: -1,
     monthlySales: {} as Record<number, number>, // month 1-12
     monthlyCollections: {} as Record<number, number>, // month 1-12
   };
@@ -754,6 +755,20 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     ) {
       colMap.paymentTerms = idx;
     }
+    // 23. Deal Eligibility (قابل / غير قابل للتعامل)
+    else if (
+      colMap.dealEligibility === -1 &&
+      (h.includes('قابل') && (h.includes('غير') || h.includes('تعامل')) ||
+        h.includes('قابل للتعامل') ||
+        h.includes('قابل / غير') ||
+        h.includes('قابل/غير') ||
+        h.includes('تصنيف العميل') ||
+        h.includes('تصنيف التعامل') ||
+        h.includes('deal eligibility') ||
+        h.includes('eligibility'))
+    ) {
+      colMap.dealEligibility = idx;
+    }
   });
 
   const getCellStr = (row: any[], cIdx: number) => {
@@ -876,6 +891,22 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
       }
     }
 
+    // Deal eligibility logic: قابل / غير قابل / موقوف
+    const rawDealEligibility = colMap.dealEligibility !== -1 ? getCellStr(row, colMap.dealEligibility).trim() : '';
+    let resolvedDealEligibility: string | undefined = undefined;
+    const deLower = rawDealEligibility.toLowerCase();
+    if (rawDealEligibility) {
+      if (deLower.includes('غير') || deLower.includes('لا') || deLower.includes('no') || deLower.includes('not')) {
+        resolvedDealEligibility = 'غير قابل';
+      } else if (deLower.includes('موقوف') || deLower.includes('متوقف') || deLower.includes('stopped') || deLower.includes('suspended')) {
+        resolvedDealEligibility = 'موقوف';
+      } else if (deLower.includes('قابل') || deLower.includes('نعم') || deLower.includes('yes') || deLower.includes('active') || deLower.includes('نشط')) {
+        resolvedDealEligibility = 'قابل';
+      } else {
+        resolvedDealEligibility = rawDealEligibility;
+      }
+    }
+
     // Payment terms logic: كاش او علي دفعات او شيكات
     const rawPaymentTerms = colMap.paymentTerms !== -1 ? getCellStr(row, colMap.paymentTerms).trim() : '';
     let resolvedPaymentTerms = 'كاش';
@@ -964,6 +995,7 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
       guaranteeAmount: finalGuaranteeAmount > 0 ? finalGuaranteeAmount : undefined,
       hasGuarantee: finalHasGuarantee,
       paymentTerms: resolvedPaymentTerms,
+      dealEligibility: resolvedDealEligibility,
       lastVisitDate: rawLastVisit || undefined,
       visitCount2026: visitsCount,
       visitHistory: rawLastVisit
