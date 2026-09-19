@@ -1050,16 +1050,16 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
 
         {/* Overdue & Due Balances */}
-        <div className="bg-white rounded-2xl p-3 border border-slate-200 border-t-4 border-t-[#d83b01] shadow-xs hover:shadow-md transition">
-          <div className="text-[11px] font-bold text-[#d83b01] flex items-center justify-between">
+        <div className={`bg-white rounded-2xl p-3 border border-slate-200 border-t-4 shadow-xs hover:shadow-md transition ${kpiStats.totalOverdue > 0 ? 'border-t-[#d83b01]' : 'border-t-slate-300'}`}>
+          <div className={`text-[11px] font-bold flex items-center justify-between ${kpiStats.totalOverdue > 0 ? 'text-[#d83b01]' : 'text-slate-500'}`}>
             <span>المستحقات والمتأخرات</span>
-            <AlertCircle className="w-3.5 h-3.5 text-[#d83b01]" />
+            {kpiStats.totalOverdue > 0 ? <AlertCircle className="w-3.5 h-3.5 text-[#d83b01]" /> : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
           </div>
-          <div className="text-base sm:text-lg font-black text-[#d83b01] mt-1 truncate" title={isPrivacyMode ? 'مخفي' : undefined}>
+          <div className={`text-base sm:text-lg font-black mt-1 truncate ${kpiStats.totalOverdue > 0 ? 'text-[#d83b01]' : 'text-slate-700'}`} title={isPrivacyMode ? 'مخفي' : undefined}>
             {formatMoney(kpiStats.totalOverdue)}
           </div>
-          <div className="text-[10px] text-rose-600 font-bold mt-0.5">
-            واجبة التحصيل الفوري
+          <div className={`text-[10px] font-bold mt-0.5 ${kpiStats.totalOverdue > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
+            {kpiStats.totalOverdue > 0 ? 'واجبة التحصيل الفوري' : 'لا توجد مستحقات'}
           </div>
         </div>
 
@@ -1557,7 +1557,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   guaranteeFilter === 'has_guarantee' ? 'bg-emerald-700 text-white shadow-xs' : 'bg-emerald-50 text-emerald-800'
                 }`}
               >
-                ماضي على ورق ضمان بالمبلغ 🛡️
+                ماضي ع��ى ورق ضمان بالمبلغ 🛡️
               </button>
               <button
                 type="button"
@@ -1831,12 +1831,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   <span className="shrink-0 text-[10px] font-bold text-slate-400">#{(currentPage - 1) * pageSize + index + 1}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 mt-4">
-                  <div className="rounded-xl bg-purple-50 border border-purple-100 p-2.5"><div className="text-[10px] text-purple-600 font-bold">المديونية</div><div className="font-black text-purple-900 mt-1">{formatMoney(bal)}</div>{isOverLimit && <div className="text-[9px] text-rose-700 font-bold mt-1">متجاوز الحد</div>}</div>
+                  <div className="rounded-xl bg-purple-50 border border-purple-100 p-2.5"><div className="text-[10px] text-purple-600 font-bold">المديونية</div><div className="font-black text-purple-900 mt-1 text-sm sm:text-base truncate" title={isPrivacyMode ? 'مخفي' : formatMoney(bal)}>{formatMoney(bal)}</div>{isOverLimit && <div className="text-[9px] text-rose-700 font-bold mt-1">متجاوز الحد</div>}</div>
                   <div className="rounded-xl bg-rose-50 border border-rose-100 p-2.5"><div className="text-[10px] text-rose-600 font-bold">المستحقات</div><div className="font-black text-rose-900 mt-1">{formatMoney(overdue)}</div></div>
                   <div className="rounded-xl bg-blue-50 border border-blue-100 p-2.5"><div className="text-[10px] text-blue-600 font-bold">مبيعات 2026</div><div className="font-black text-blue-900 mt-1">{formatMoney(s26)}</div></div>
                   <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-2.5"><div className="text-[10px] text-emerald-600 font-bold">التحصيل</div><div className="font-black text-emerald-900 mt-1">{formatMoney(col26)}</div><div className="text-[9px] text-emerald-700 font-bold mt-1">نسبة السداد {colRate}%</div></div>
                 </div>
-                <div className="mt-3 flex items-center justify-between gap-2"><span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border ${guaranteeInfo.color}`}><ShieldCheck className="w-3 h-3" />{guaranteeInfo.label}</span><span className="text-[11px] text-amber-700 font-black">عرض التفاصيل ←</span></div>
+                {!c.phone && bal >= 1000000 && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-[10px] font-bold leading-5 text-amber-900"><span className="font-black">تنبيه تشغيلي:</span> عميل بمديونية كبيرة بدون وسيلة تواصل مسجلة</div>}
+  <div className="mt-3 flex items-center justify-between gap-2"><span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border ${guaranteeInfo.color}`}><ShieldCheck className="w-3 h-3" />{guaranteeInfo.label}</span><span className="text-[11px] text-amber-700 font-black">عرض التفاصيل ←</span></div>
               </button>;
             })}
           </div>
