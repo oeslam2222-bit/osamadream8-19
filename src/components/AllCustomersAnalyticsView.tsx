@@ -493,7 +493,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     if (collectionRateFilter !== 'ALL') {
       list = list.filter((c) => {
         const s = c.sales2026 || c.totalMonthlySales || 0;
-        const col = c.collections2026 || c.totalMonthlyCollections || 0;
+        const col = Math.max(Math.abs(Number(c.collections2026) || 0), Math.abs(Number(c.totalMonthlyCollections) || 0), Math.abs(Number(c.totalOverallCollections) || 0));
         const rate = s > 0 ? (col / s) * 100 : col > 0 ? 100 : 0;
         if (collectionRateFilter === 'high_80') return rate >= 80;
         if (collectionRateFilter === 'medium_30_79') return rate >= 30 && rate < 80;
@@ -618,9 +618,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const s25 = c.sales2025 || 0;
       const monthlySalesSum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
       const s26 = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, monthlySalesSum);
-      const c25 = c.collections2025 || 0;
-      const monthlyColsSum = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-      const c26 = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, c.totalOverallCollections || 0, monthlyColsSum);
+      const c25 = Math.abs(Number(c.collections2025) || 0);
+      const monthlyColsSum = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + Math.abs(Number(v) || 0), 0) : 0;
+      const c26 = Math.max(Math.abs(Number(c.collections2026) || 0), Math.abs(Number(c.totalMonthlyCollections) || 0), Math.abs(Number(c.totalOverallCollections) || 0), monthlyColsSum);
       const bal = c.currentBalance ?? c.balance ?? 0;
       const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
       const cLimit = c.creditLimit || 0;

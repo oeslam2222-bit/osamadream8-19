@@ -351,7 +351,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
       totalSalesTarget += r.salesTarget || 0;
       totalSalesAchieved += r.salesAchieved || 0;
       totalCollectionTarget += r.collectionTarget || 0;
-      totalCollectionAchieved += r.collectionAchieved || 0;
+      totalCollectionAchieved += Math.abs(Number(r.collectionAchieved) || 0);
     });
 
     const salesPercentage = totalSalesTarget > 0 ? (totalSalesAchieved / totalSalesTarget) * 100 : 0;
@@ -402,7 +402,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
           buckets[m].salesTarget += r.salesTarget || 0;
           buckets[m].salesAchieved += r.salesAchieved || 0;
           buckets[m].collectionTarget += r.collectionTarget || 0;
-          buckets[m].collectionAchieved += r.collectionAchieved || 0;
+          buckets[m].collectionAchieved += Math.abs(Number(r.collectionAchieved) || 0);
         }
       });
 
@@ -420,7 +420,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
           qData[r.quarter].salesTarget += r.salesTarget || 0;
           qData[r.quarter].salesAchieved += r.salesAchieved || 0;
           qData[r.quarter].collectionTarget += r.collectionTarget || 0;
-          qData[r.quarter].collectionAchieved += r.collectionAchieved || 0;
+          qData[r.quarter].collectionAchieved += Math.abs(Number(r.collectionAchieved) || 0);
         }
       });
 
@@ -2477,7 +2477,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                         </td>
                         <td className="p-3 text-left font-bold text-amber-700">{formatEGP(r.remainingSales)}</td>
                         <td className="p-3 text-left font-bold">{formatEGP(r.collectionTarget)}</td>
-                        <td className="p-3 text-left font-black text-blue-700">{formatEGP(r.collectionAchieved)}</td>
+                        <td className="p-3 text-left font-black text-blue-700">{formatEGP(Math.abs(Number(r.collectionAchieved) || 0))}</td>
                         <td className="p-3 text-center">
                           <span className={`px-2 py-0.5 rounded text-[11px] font-black border ${getBadgeColor(r.collectionPercentage)}`}>
                             {r.collectionPercentage}%
@@ -2513,7 +2513,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-base font-black text-slate-900">
-                  رفع شيت أهداف المبيعات والتحصيل اليومي
+                  رفع شيت أهداف ��لمبيعات والتحصيل اليومي
                 </h3>
                 <p className="text-xs text-slate-500 font-bold">
                   يدعم ملفات Excel (.xlsx, .xls) وCSV
