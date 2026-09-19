@@ -247,7 +247,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         setIsUploadBoxOpen(false);
       }
     } catch (err: any) {
-      setUploadError(err.message || 'حدث خطأ أثناء قراءة ملف الإكسل');
+      setUploadError(err.message || 'حد�� خطأ أثناء قراءة ملف الإكسل');
     } finally {
       setIsUploading(false);
     }
@@ -306,7 +306,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     return counts;
   }, [products, dynamicItemGroups]);
 
-  // Extract unique subcategories / families (العائلات / الفئات التابعة للمجموعة المختارة أو للكل)
+  // Extract unique subcategories / families (العائلات / الفئات التابعة للمجموعة ��لمختارة أو للكل)
   const subCategories = useMemo(() => {
     const set = new Set<string>();
     const filteredByDept = selectedOfficialDept === 'الكل'
@@ -1171,10 +1171,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
       )}
 
-      {/* Main Responsive Grid: Product Catalog / Slicer Hub (Cols 1-8) + Sticky POS Cashier Sidebar (Cols 9-12) */}
-<div className="lg:grid lg:grid-cols-12 lg:gap-5 items-start mt-4">
+{/* Main Responsive Grid: Flexible catalog + wider POS cashier panel */}
+  <div className="lg:grid lg:grid-cols-12 lg:gap-6 xl:gap-7 items-start mt-4">
   {/* Left Main Catalog / Slicer Hub Column */}
-  <div className="lg:col-span-9 xl:col-span-9 space-y-4 min-w-0">
+  <div className="lg:col-span-8 xl:col-span-8 space-y-4 min-w-0">
           {!isFiltered ? (
             /* Smart Slicer Hub: When no filter is active, products and images are hidden until user searches or picks Item Group / Family */
             <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-6" id="smart-slicer-hub">
@@ -1316,7 +1316,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     <span>نتائج الفلترة: </span>
                     <strong className="text-amber-300 font-black">{filteredProducts.length}</strong> صنف
                     {searchTerm && <span className="text-slate-400 text-[11px] mr-1.5 font-normal">بحث: &quot;{searchTerm}&quot;</span>}
-                    {selectedOfficialDept !== 'الكل' && <span className="text-amber-200 text-[11px] mr-1.5 font-normal">��لمجموعة: {selectedOfficialDept}</span>}
+                    {selectedOfficialDept !== 'الكل' && <span className="text-amber-200 text-[11px] mr-1.5 font-normal">��لمج��وعة: {selectedOfficialDept}</span>}
                     {selectedSubCategory !== 'الكل' && <span className="text-blue-200 text-[11px] mr-1.5 font-normal">العائلة: {selectedSubCategory}</span>}
                   </div>
                 </div>
@@ -1979,8 +1979,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           )}
         </div>
 
-        {/* Right Column: Sticky POS Cashier Terminal (Visible on Desktop / Tablet) */}
-        <div className="hidden lg:block lg:col-span-3 xl:col-span-3 sticky top-20 min-w-0">
+{/* POS Cashier Terminal: wider for readable invoice controls */}
+  <div className="hidden lg:block lg:col-span-4 xl:col-span-4 sticky top-20 min-w-0">
           <PosCashierSidebar
             selectedCustomer={selectedCustomer}
             onClearSelectedCustomer={onClearSelectedCustomer}
