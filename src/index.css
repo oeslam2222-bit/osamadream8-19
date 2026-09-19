@@ -18,6 +18,26 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Keep every interactive control comfortable for touch users. */
+button,
+[role="button"],
+a,
+select,
+input[type="checkbox"],
+input[type="radio"] {
+  min-height: 44px;
+}
+
+button svg,
+[role="button"] svg {
+  flex-shrink: 0;
+}
+
+/* Prevent long Arabic labels and financial values from breaking layouts. */
+[dir="rtl"] {
+  overflow-wrap: anywhere;
+}
+
 /* Fast smooth transitions and hardware acceleration for modals */
 .animate-in {
   will-change: transform, opacity;
@@ -65,3 +85,66 @@
 @media screen {
   #invoice-print-root { display: none; }
 }
+
+/* App-wide responsive rules for catalog, invoices, customers, inventory and dashboards. */
+@media (max-width: 767px) {
+  main {
+    min-width: 0;
+    padding-inline: 0.625rem !important;
+    padding-bottom: 6.75rem !important;
+  }
+
+  /* KPI/stat grids collapse cleanly and let large currency values scale down. */
+  [class*="grid-cols-4"],
+  [class*="grid-cols-3"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .text-5xl { font-size: 2rem !important; line-height: 1.05 !important; }
+  .text-4xl { font-size: 1.75rem !important; line-height: 1.1 !important; }
+  .text-3xl { font-size: 1.5rem !important; line-height: 1.15 !important; }
+
+  /* Let dense data remain usable without forcing the entire page wide. */
+  table { min-width: 620px; }
+  .overflow-x-auto { -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+
+  /* Dialog-like fixed surfaces use the full viewport on phones. */
+  [role="dialog"] {
+    max-width: none !important;
+    width: 100vw !important;
+    max-height: 100dvh !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+    inset: 0 !important;
+  }
+
+  /* Common modal surface patterns used before role is applied. */
+  .fixed.inset-0 > .rounded-3xl,
+  .fixed.inset-0 > .rounded-2xl {
+    width: 100% !important;
+    max-width: none !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+
+  /* Compact filter/action rows into a horizontally scrollable control strip. */
+  main .flex.flex-wrap { row-gap: 0.5rem; }
+  main input,
+  main select,
+  main textarea { max-width: 100%; }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  [class*="grid-cols-4"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+
+@media (max-width: 420px) {
+  [class*="grid-cols-2"] { grid-template-columns: minmax(0, 1fr) !important; }
+  .text-2xl { font-size: 1.25rem !important; }
+  .text-xl { font-size: 1.1rem !important; }
+}
+
+.safe-area-inset-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

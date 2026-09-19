@@ -3,6 +3,7 @@ import {
   Users,
   Search,
   Filter,
+  SlidersHorizontal,
   ArrowUpDown,
   Download,
   Upload,
@@ -137,6 +138,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [paymentTermsFilter, setPaymentTermsFilter] = useState<'ALL' | 'كاش' | 'على دفعات' | 'شيكات' | 'آجل'>('ALL');
   const [salesTierFilter, setSalesTierFilter] = useState<'ALL' | 'vip_100k' | 'medium_20k_100k' | 'starter_under_20k' | 'zero_sales'>('ALL');
   const [collectionRateFilter, setCollectionRateFilter] = useState<'ALL' | 'high_80' | 'medium_30_79' | 'low_zero'>('ALL');
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+
+  const activeFilterCount = [
+    selectedBranch, selectedRep, selectedRegion, activityFilter, debtFilter,
+    orderFilter, guaranteeFilter, visitFilter, paymentTermsFilter, salesTierFilter, collectionRateFilter,
+  ].filter((value) => value !== 'ALL').length;
 
   // Power BI Visuals Tab
   const [activeChartTab, setActiveChartTab] = useState<'monthly' | 'branches' | 'reps' | 'payment_guarantee'>('monthly');
@@ -486,7 +493,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     if (collectionRateFilter !== 'ALL') {
       list = list.filter((c) => {
         const s = c.sales2026 || c.totalMonthlySales || 0;
-        const col = c.collections2026 || c.totalMonthlyCollections || 0;
+        const col = Math.max(Math.abs(Number(c.collections2026) || 0), Math.abs(Number(c.totalMonthlyCollections) || 0), Math.abs(Number(c.totalOverallCollections) || 0));
         const rate = s > 0 ? (col / s) * 100 : col > 0 ? 100 : 0;
         if (collectionRateFilter === 'high_80') return rate >= 80;
         if (collectionRateFilter === 'medium_30_79') return rate >= 30 && rate < 80;
@@ -611,9 +618,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const s25 = c.sales2025 || 0;
       const monthlySalesSum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
       const s26 = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, monthlySalesSum);
-      const c25 = c.collections2025 || 0;
-      const monthlyColsSum = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-      const c26 = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, c.totalOverallCollections || 0, monthlyColsSum);
+      const c25 = Math.abs(Number(c.collections2025) || 0);
+      const monthlyColsSum = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + Math.abs(Number(v) || 0), 0) : 0;
+      const c26 = Math.max(Math.abs(Number(c.collections2026) || 0), Math.abs(Number(c.totalMonthlyCollections) || 0), Math.abs(Number(c.totalOverallCollections) || 0), monthlyColsSum);
       const bal = c.currentBalance ?? c.balance ?? 0;
       const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
       const cLimit = c.creditLimit || 0;
@@ -1043,16 +1050,16 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
 
         {/* Overdue & Due Balances */}
-        <div className="bg-white rounded-2xl p-3 border border-slate-200 border-t-4 border-t-[#d83b01] shadow-xs hover:shadow-md transition">
-          <div className="text-[11px] font-bold text-[#d83b01] flex items-center justify-between">
+        <div className={`bg-white rounded-2xl p-3 border border-slate-200 border-t-4 shadow-xs hover:shadow-md transition ${kpiStats.totalOverdue > 0 ? 'border-t-[#d83b01]' : 'border-t-slate-300'}`}>
+          <div className={`text-[11px] font-bold flex items-center justify-between ${kpiStats.totalOverdue > 0 ? 'text-[#d83b01]' : 'text-slate-500'}`}>
             <span>المستحقات والمتأخرات</span>
-            <AlertCircle className="w-3.5 h-3.5 text-[#d83b01]" />
+            {kpiStats.totalOverdue > 0 ? <AlertCircle className="w-3.5 h-3.5 text-[#d83b01]" /> : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
           </div>
-          <div className="text-base sm:text-lg font-black text-[#d83b01] mt-1 truncate" title={isPrivacyMode ? 'مخفي' : undefined}>
+          <div className={`text-base sm:text-lg font-black mt-1 truncate ${kpiStats.totalOverdue > 0 ? 'text-[#d83b01]' : 'text-slate-700'}`} title={isPrivacyMode ? 'مخفي' : undefined}>
             {formatMoney(kpiStats.totalOverdue)}
           </div>
-          <div className="text-[10px] text-rose-600 font-bold mt-0.5">
-            واجبة التحصيل الفوري
+          <div className={`text-[10px] font-bold mt-0.5 ${kpiStats.totalOverdue > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
+            {kpiStats.totalOverdue > 0 ? 'واجبة التحصيل الفوري' : 'لا توجد مستحقات'}
           </div>
         </div>
 
@@ -1298,8 +1305,33 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
       )}
 
+      {/* Mobile search and compact filter access */}
+      <div className="md:hidden bg-white rounded-2xl p-3 border border-slate-200 shadow-sm flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="ابحث عن عميل أو كود..."
+            className="w-full pr-9 pl-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-amber-500 focus:outline-none"
+            aria-label="البحث عن عميل"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsMobileFiltersOpen(true)}
+          className="relative shrink-0 rounded-xl bg-slate-900 text-white px-3 font-black text-xs flex items-center gap-1.5"
+          aria-label="فتح فلاتر العملاء"
+        >
+          <SlidersHorizontal className="w-4 h-4" />
+          <span>فلترة</span>
+          {activeFilterCount > 0 && <span className="bg-amber-400 text-slate-950 rounded-full min-w-5 h-5 px-1 flex items-center justify-center">{activeFilterCount}</span>}
+        </button>
+      </div>
+
       {/* Power BI Expanded Slicers & Multi-Filter Bar */}
-      <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200 shadow-sm space-y-3">
+      <div className="hidden md:block bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200 shadow-sm space-y-3">
         {/* Row 1: Search & Primary Selectors */}
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2.5">
           {/* Search Input */}
@@ -1525,7 +1557,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   guaranteeFilter === 'has_guarantee' ? 'bg-emerald-700 text-white shadow-xs' : 'bg-emerald-50 text-emerald-800'
                 }`}
               >
-                ماضي على ورق ضمان بالمبلغ 🛡️
+                ماضي ع��ى ورق ضمان بالمبلغ 🛡️
               </button>
               <button
                 type="button"
@@ -1721,6 +1753,27 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
       </div>
 
+      {isMobileFiltersOpen && (
+        <div className="md:hidden fixed inset-0 z-50 bg-slate-950/40 flex items-end" role="dialog" aria-modal="true" aria-label="فلاتر العملاء">
+          <div className="w-full bg-white rounded-t-3xl p-4 pb-8 max-h-[85vh] overflow-y-auto" dir="rtl">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="font-black text-slate-900">فلترة العملاء</h2>
+                <p className="text-[11px] text-slate-500 mt-1">قلّل النتائج للوصول للحساب المطلوب بسرعة</p>
+              </div>
+              <button type="button" onClick={() => setIsMobileFiltersOpen(false)} className="size-9 rounded-xl bg-slate-100 flex items-center justify-center" aria-label="إغلاق الفلاتر"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              {isAdminOrDev && <label className="text-xs font-bold text-slate-600">الفرع<select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><option value="ALL">كل الفروع</option>{availableBranches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}</select></label>}
+              {isAdminOrDev && <label className="text-xs font-bold text-slate-600">المندوب<select value={selectedRep} onChange={(e) => setSelectedRep(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><option value="ALL">كل المناديب</option>{availableReps.map((rep) => <option key={rep} value={rep}>{rep}</option>)}</select></label>}
+              <label className="text-xs font-bold text-slate-600">حالة المديونية<select value={debtFilter} onChange={(e) => setDebtFilter(e.target.value as typeof debtFilter)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><option value="ALL">كل الحالات</option><option value="has_debt">عليه مديونية</option><option value="has_overdue">مستحقات واجبة السداد</option><option value="over_limit">متجاوز الحد الائتماني</option><option value="zero_debt">خالص الرصيد</option></select></label>
+              <label className="text-xs font-bold text-slate-600">النشاط والطلبيات<select value={activityFilter} onChange={(e) => setActivityFilter(e.target.value as typeof activityFilter)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><option value="ALL">كل العملاء</option><option value="active_2026">نشط 2026</option><option value="churn_risk">مهدد بالتوقف</option><option value="new_customer">عميل جديد</option></select></label>
+            </div>
+            <button type="button" onClick={() => setIsMobileFiltersOpen(false)} className="mt-5 w-full rounded-xl bg-amber-500 py-3 font-black text-slate-950">عرض {filteredCustomers.length.toLocaleString()} عميل</button>
+          </div>
+        </div>
+      )}
+
       {/* Main Customers Table Card (Fast, Virtual-friendly, Paginated) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {/* Table Controls Top */}
@@ -1759,7 +1812,36 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="md:hidden p-3 flex flex-col gap-3">
+            {paginatedCustomers.map((c, index) => {
+              const bal = c.currentBalance ?? c.balance ?? 0;
+              const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
+              const limit = c.creditLimit || 0;
+              const isOverLimit = limit > 0 && bal > limit;
+              const monthlySalesSum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
+              const s26 = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, monthlySalesSum);
+              const monthlyColsSum = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
+              const col26 = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, c.totalOverallCollections || 0, monthlyColsSum);
+              const colRate = s26 > 0 ? Math.round((col26 / s26) * 100) : 0;
+              const guaranteeInfo = getGuaranteeBadge(c.guaranteeDocs, c.guaranteeAmount, limit);
+              return <button type="button" key={c.id || c.code} onClick={() => setSelectedCustomer(c)} className="text-right bg-white rounded-2xl border border-slate-200 p-4 shadow-sm active:bg-amber-50 transition" aria-label={`عرض تفاصيل ${c.name}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0"><div className="font-black text-slate-900 truncate">{c.name}</div><div className="text-[11px] text-slate-500 mt-1">{c.code || '---'} · {c.branchName || 'بدون فرع'}</div></div>
+                  <span className="shrink-0 text-[10px] font-bold text-slate-400">#{(currentPage - 1) * pageSize + index + 1}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-4">
+                  <div className="rounded-xl bg-purple-50 border border-purple-100 p-2.5"><div className="text-[10px] text-purple-600 font-bold">المديونية</div><div className="font-black text-purple-900 mt-1 text-sm sm:text-base truncate" title={isPrivacyMode ? 'مخفي' : formatMoney(bal)}>{formatMoney(bal)}</div>{isOverLimit && <div className="text-[9px] text-rose-700 font-bold mt-1">متجاوز الحد</div>}</div>
+                  <div className="rounded-xl bg-rose-50 border border-rose-100 p-2.5"><div className="text-[10px] text-rose-600 font-bold">المستحقات</div><div className="font-black text-rose-900 mt-1">{formatMoney(overdue)}</div></div>
+                  <div className="rounded-xl bg-blue-50 border border-blue-100 p-2.5"><div className="text-[10px] text-blue-600 font-bold">مبيعات 2026</div><div className="font-black text-blue-900 mt-1">{formatMoney(s26)}</div></div>
+                  <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-2.5"><div className="text-[10px] text-emerald-600 font-bold">التحصيل</div><div className="font-black text-emerald-900 mt-1">{formatMoney(col26)}</div><div className="text-[9px] text-emerald-700 font-bold mt-1">نسبة السداد {colRate}%</div></div>
+                </div>
+                {!c.phone && bal >= 1000000 && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-[10px] font-bold leading-5 text-amber-900"><span className="font-black">تنبيه تشغيلي:</span> عميل بمديونية كبيرة بدون وسيلة تواصل مسجلة</div>}
+  <div className="mt-3 flex items-center justify-between gap-2"><span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border ${guaranteeInfo.color}`}><ShieldCheck className="w-3 h-3" />{guaranteeInfo.label}</span><span className="text-[11px] text-amber-700 font-black">عرض التفاصيل ←</span></div>
+              </button>;
+            })}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-right border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-100 text-slate-700 font-extrabold border-b border-slate-200 whitespace-nowrap">
@@ -2101,6 +2183,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </tbody>
             </table>
           </div>
+          </>
         )}
 
         {/* Pagination Footer Bar */}
