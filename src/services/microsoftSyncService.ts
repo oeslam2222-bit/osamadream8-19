@@ -4,10 +4,11 @@ import { generateInvoicePDFBase64 } from './pdfService';
 import { resolveCustomerFinancials, isBranchMatch, normalizeBranchName } from './arabicMatchingService';
 
 /**
- * Power Automate webhook URLs are intentionally never committed to source control.
- * Configure the rotated URL through VITE_POWER_AUTOMATE_URL or the company settings UI.
+ * Microsoft 365 Power Automate Official Direct Invoke Webhook URL
+ * Provided for Dream Distribution Order Approval & Dispatch Flow
  */
-export const DEFAULT_MICROSOFT_WEBHOOK_URL = '';
+export const DEFAULT_MICROSOFT_WEBHOOK_URL =
+  'https://default18403f5514a341be950585562989bf.28.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/31/workflows/dde3e3cd8b464d71a367abfc307d0734/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=7puuyQmL-0PiJ06T_ecIyppAtA0T-k4pI5vDVQ5s7Sg';
 
 export function getMicrosoftWebhookUrl(): string {
   try {
@@ -16,7 +17,7 @@ export function getMicrosoftWebhookUrl(): string {
   } catch {
     // ignore localStorage error
   }
-  const envUrl = (import.meta.env.VITE_POWER_AUTOMATE_URL || import.meta.env.VITE_POWER_AUTOMATE_WEBHOOK_URL || '').trim();
+  const envUrl = (import.meta.env.VITE_POWER_AUTOMATE_WEBHOOK_URL || '').trim();
   if (envUrl && envUrl.includes('sig=')) return envUrl;
   if (envUrl && !envUrl.includes('sig=')) {
     console.error('Power Automate URL missing sig= signature parameter');

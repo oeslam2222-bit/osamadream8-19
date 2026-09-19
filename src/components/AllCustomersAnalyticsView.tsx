@@ -110,40 +110,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     return formatCurrency(amount || 0);
   };
 
-  // Helper: check if customer has dealt in a specific month or quarter
-  // Deals in period = has sales / invoices > 0 in that month/quarter (or marked dealt)
-  const isCustomerDealtInPeriod = (
-    c: Customer,
-    period: 'ALL' | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 'Q1' | 'Q2' | 'Q3' | 'Q4'
-  ): { isDealt: boolean; periodSales: number } => {
-    if (period === 'ALL') {
-      const sum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-      const s = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, sum);
-      const isDealt = s > 0 || c.dealEligibility === 'متعامل' || c.hasDealtIn2026 === true;
-      return { isDealt, periodSales: s };
-    }
-    if (typeof period === 'number') {
-      const s = c.monthlySales2026?.[period] || 0;
-      return { isDealt: s > 0, periodSales: s };
-    }
-    // Quarter Q1-Q4
-    let months: number[] = [];
-    if (period === 'Q1') months = [1, 2, 3];
-    else if (period === 'Q2') months = [4, 5, 6];
-    else if (period === 'Q3') months = [7, 8, 9];
-    else if (period === 'Q4') months = [10, 11, 12];
-
-    let totalQSales = 0;
-    let hasSales = false;
-    months.forEach((m) => {
-      const s = c.monthlySales2026?.[m] || 0;
-      totalQSales += s;
-      if (s > 0) hasSales = true;
-    });
-
-    return { isDealt: hasSales, periodSales: totalQSales };
-  };
-
   // Deduplication state & notification banner
   const [dedupeNotice, setDedupeNotice] = useState<string | null>(null);
   const handleRunDeduplication = () => {
@@ -164,22 +130,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [activityFilter, setActivityFilter] = useState<'ALL' | 'active_2026' | 'inactive_2026' | 'churn_risk' | 'new_customer'>('ALL');
   const [debtFilter, setDebtFilter] = useState<'ALL' | 'has_debt' | 'zero_debt' | 'over_limit' | 'has_overdue'>('ALL');
   const [orderFilter, setOrderFilter] = useState<'ALL' | 'has_order' | 'active_order' | 'no_order'>('ALL');
-  const [guaranteeFilter, setGuaranteeFilter] = useState<'ALL' | 'has_guarantee' | 'cheque' | 'promissory' | 'trust_receipt'>('ALL');
+  const [guaranteeFilter, setGuaranteeFilter] = useState<'ALL' | 'has_guarantee' | 'cheque' | 'promissory' | 'trust_receipt' | 'unsecured'>('ALL');
   const [visitFilter, setVisitFilter] = useState<'ALL' | 'visited_2026' | 'not_visited'>('ALL');
 
   // Expanded Slicer Filters (طرق الدفع، شرائح المبيعات، كفاءة التحصيل)
-  const [paymentTermsFilter, setPaymentTermsFilter] = useState<'ALL' | 'كاش' | 'على دفعات' | 'شيكات'>('ALL');
-  const [salesTierFilter, setSalesTierFilter] = useState<'ALL' | 'vip_100k' | 'medium_20k_100k' | 'starter_under_20k'>('ALL');
+  const [paymentTermsFilter, setPaymentTermsFilter] = useState<'ALL' | 'كاش' | 'على دفعات' | 'شيكات' | 'آجل'>('ALL');
+  const [salesTierFilter, setSalesTierFilter] = useState<'ALL' | 'vip_100k' | 'medium_20k_100k' | 'starter_under_20k' | 'zero_sales'>('ALL');
   const [collectionRateFilter, setCollectionRateFilter] = useState<'ALL' | 'high_80' | 'medium_30_79' | 'low_zero'>('ALL');
-
-  // Classification & Dealt in Period Filters (قابل /غير: متعامل، غير متعامل، متوقف)
-  const [dealEligibilityFilter, setDealEligibilityFilter] = useState<'ALL' | 'متعامل' | 'غير متعامل' | 'متوقف'>('ALL');
-  const [dealtPeriodFilter, setDealtPeriodFilter] = useState<'ALL' | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 'Q1' | 'Q2' | 'Q3' | 'Q4'>('ALL');
-  const [dealtStatusFilter, setDealtStatusFilter] = useState<'ALL' | 'dealt_only' | 'not_dealt_only'>('ALL');
-
-  // Breakdown tab for Dealt by Rep / Supervisor / Branch
-  const [showDealtBreakdown, setShowDealtBreakdown] = useState(false);
-  const [dealtBreakdownTab, setDealtBreakdownTab] = useState<'rep' | 'supervisor' | 'branch'>('rep');
 
   // Power BI Visuals Tab
   const [activeChartTab, setActiveChartTab] = useState<'monthly' | 'branches' | 'reps' | 'payment_guarantee'>('monthly');
@@ -494,17 +451,21 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         if (guaranteeFilter === 'trust_receipt') {
           return g.includes('أمانة') || g.includes('امانة');
         }
+        if (guaranteeFilter === 'unsecured') {
+          return !isSigned;
+        }
         return true;
       });
     }
 
-    // Payment Terms filter (كاش / على دفعات / شيكات)
+    // Payment Terms filter (كاش / على دفعات / شيكات / آجل)
     if (paymentTermsFilter !== 'ALL') {
       list = list.filter((c) => {
         const terms = (c.paymentTerms || '').toLowerCase();
         if (paymentTermsFilter === 'كاش') return terms.includes('كاش') || terms.includes('نقدي') || terms.includes('فوري');
         if (paymentTermsFilter === 'على دفعات') return terms.includes('دفع') || terms.includes('قسط') || terms.includes('أقساط');
         if (paymentTermsFilter === 'شيكات') return terms.includes('شيك');
+        if (paymentTermsFilter === 'آجل') return terms.includes('آجل') || terms.includes('اجل');
         return true;
       });
     }
@@ -516,24 +477,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         if (salesTierFilter === 'vip_100k') return s >= 100000;
         if (salesTierFilter === 'medium_20k_100k') return s >= 20000 && s < 100000;
         if (salesTierFilter === 'starter_under_20k') return s > 0 && s < 20000;
-        return true;
-      });
-    }
-
-    // Classification (قابل /غير: متعامل، غير متعامل، متوقف)
-    if (dealEligibilityFilter !== 'ALL') {
-      list = list.filter((c) => {
-        const el = c.dealEligibility || (c.hasDealtIn2026 ? 'متعامل' : 'غير متعامل');
-        return el === dealEligibilityFilter;
-      });
-    }
-
-    // Dealt Status in Selected Period (شهر 1، 2، 3 أو كوارتر)
-    if (dealtStatusFilter !== 'ALL') {
-      list = list.filter((c) => {
-        const { isDealt } = isCustomerDealtInPeriod(c, dealtPeriodFilter);
-        if (dealtStatusFilter === 'dealt_only') return isDealt;
-        if (dealtStatusFilter === 'not_dealt_only') return !isDealt;
+        if (salesTierFilter === 'zero_sales') return s <= 0;
         return true;
       });
     }
@@ -623,12 +567,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     });
 
     return list;
-  }, [userVisibleCustomers, selectedBranch, selectedRep, selectedRegion, activityFilter, debtFilter, orderFilter, guaranteeFilter, visitFilter, paymentTermsFilter, salesTierFilter, collectionRateFilter, dealEligibilityFilter, dealtPeriodFilter, dealtStatusFilter, searchQuery, sortBy, sortOrder]);
+  }, [userVisibleCustomers, selectedBranch, selectedRep, selectedRegion, activityFilter, debtFilter, orderFilter, guaranteeFilter, visitFilter, paymentTermsFilter, salesTierFilter, collectionRateFilter, searchQuery, sortBy, sortOrder]);
 
   // Reset pagination on filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedBranch, selectedRep, selectedRegion, activityFilter, debtFilter, orderFilter, guaranteeFilter, visitFilter, paymentTermsFilter, salesTierFilter, collectionRateFilter, dealEligibilityFilter, dealtPeriodFilter, dealtStatusFilter, searchQuery, pageSize]);
+  }, [selectedBranch, selectedRep, selectedRegion, activityFilter, debtFilter, orderFilter, guaranteeFilter, visitFilter, paymentTermsFilter, salesTierFilter, collectionRateFilter, searchQuery, pageSize]);
 
   // Paginated Items
   const paginatedCustomers = useMemo(() => {
@@ -725,27 +669,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       };
     });
 
-    let periodDealtCount = 0;
-    let periodTotalSales = 0;
-    let eligibleDealtCount = 0;
-    let eligibleInactiveCount = 0;
-    let eligibleStoppedCount = 0;
-
-    filteredCustomers.forEach((c) => {
-      const el = c.dealEligibility || (c.hasDealtIn2026 ? 'متعامل' : 'غير متعامل');
-      if (el === 'متوقف') eligibleStoppedCount++;
-      else if (el === 'متعامل') eligibleDealtCount++;
-      else eligibleInactiveCount++;
-
-      const { isDealt, periodSales } = isCustomerDealtInPeriod(c, dealtPeriodFilter);
-      if (isDealt) {
-        periodDealtCount++;
-        periodTotalSales += periodSales;
-      }
-    });
-
-    const periodDealtRate = filteredCustomers.length > 0 ? Number(((periodDealtCount / filteredCustomers.length) * 100).toFixed(1)) : 0;
-
     return {
       totalCount: filteredCustomers.length,
       active2026Count,
@@ -766,70 +689,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       guaranteedCount,
       totalVisits2026,
       monthlyChartData,
-      periodDealtCount,
-      periodTotalSales,
-      periodDealtRate,
-      eligibleDealtCount,
-      eligibleInactiveCount,
-      eligibleStoppedCount,
     };
-  }, [filteredCustomers, dealtPeriodFilter]);
-
-  // Breakdown of Dealt Customers by Sales Rep, Supervisor, and Branch
-  const dealtBreakdown = useMemo(() => {
-    const repMap = new Map<string, { repName: string; branchName: string; supervisorName: string; totalCust: number; dealtCust: number; periodSales: number }>();
-    const supMap = new Map<string, { supervisorName: string; branchName: string; totalCust: number; dealtCust: number; periodSales: number }>();
-    const branchMap = new Map<string, { branchName: string; totalCust: number; dealtCust: number; periodSales: number }>();
-
-    filteredCustomers.forEach((c) => {
-      const rep = c.salesRepName || c.repName || 'غير محدد';
-      const sup = c.supervisorName || 'غير محدد';
-      const branch = c.branchName || 'الفرع الرئيسي';
-
-      const { isDealt, periodSales } = isCustomerDealtInPeriod(c, dealtPeriodFilter);
-
-      // Rep
-      if (!repMap.has(rep)) {
-        repMap.set(rep, { repName: rep, branchName: branch, supervisorName: sup, totalCust: 0, dealtCust: 0, periodSales: 0 });
-      }
-      const rObj = repMap.get(rep)!;
-      rObj.totalCust++;
-      if (isDealt) rObj.dealtCust++;
-      rObj.periodSales += periodSales;
-
-      // Supervisor
-      if (!supMap.has(sup)) {
-        supMap.set(sup, { supervisorName: sup, branchName: branch, totalCust: 0, dealtCust: 0, periodSales: 0 });
-      }
-      const sObj = supMap.get(sup)!;
-      sObj.totalCust++;
-      if (isDealt) sObj.dealtCust++;
-      sObj.periodSales += periodSales;
-
-      // Branch
-      if (!branchMap.has(branch)) {
-        branchMap.set(branch, { branchName: branch, totalCust: 0, dealtCust: 0, periodSales: 0 });
-      }
-      const bObj = branchMap.get(branch)!;
-      bObj.totalCust++;
-      if (isDealt) bObj.dealtCust++;
-      bObj.periodSales += periodSales;
-    });
-
-    const calcRate = (dealt: number, tot: number) => (tot > 0 ? Number(((dealt / tot) * 100).toFixed(1)) : 0);
-
-    return {
-      byRep: Array.from(repMap.values())
-        .map(r => ({ ...r, rate: calcRate(r.dealtCust, r.totalCust) }))
-        .sort((a, b) => b.periodSales - a.periodSales),
-      bySupervisor: Array.from(supMap.values())
-        .map(s => ({ ...s, rate: calcRate(s.dealtCust, s.totalCust) }))
-        .sort((a, b) => b.periodSales - a.periodSales),
-      byBranch: Array.from(branchMap.values())
-        .map(b => ({ ...b, rate: calcRate(b.dealtCust, b.totalCust) }))
-        .sort((a, b) => b.periodSales - a.periodSales),
-    };
-  }, [filteredCustomers, dealtPeriodFilter]);
+  }, [filteredCustomers]);
 
   // Power BI Visuals Computations (Branches, Top Reps, Payment Terms Distribution)
   const branchAnalyticsData = useMemo(() => {
@@ -1511,7 +1372,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </select>
           )}
 
-            {/* Reset All Filters Button */}
+          {/* Reset All Filters Button */}
           <button
             type="button"
             onClick={() => {
@@ -1523,9 +1384,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               setSalesTierFilter('ALL');
               setCollectionRateFilter('ALL');
               setGuaranteeFilter('ALL');
-              setDealEligibilityFilter('ALL');
-              setDealtPeriodFilter('ALL');
-              setDealtStatusFilter('ALL');
               setDebtFilter('ALL');
               setActivityFilter('ALL');
               setOrderFilter('ALL');
@@ -1540,175 +1398,172 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
         {/* Sub-Filters Slicers Grid (Power BI Style Chiclets) */}
         <div className="flex flex-col gap-2.5 pt-2 border-t border-slate-100">
-          {/* Slicer Row 1: Deal Eligibility (قابل /غير) & Monthly / Quarterly Dealing */}
-          <div className="flex items-center justify-between flex-wrap gap-2 pb-1 border-b border-slate-100 bg-amber-50/30 p-2 rounded-xl">
-            {/* Classification Slicer (قابل /غير: متعامل، غير متعامل، متوقف) */}
+          {/* Slicer Row 1: Payment Terms & Sales Tiers */}
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            {/* Payment Terms Slicer (طرق الدفع) */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              <span className="text-[11px] font-black text-amber-900 ml-1 flex items-center gap-1">
-                <span>🏷️ تصنيف العميل (قابل /غير):</span>
-              </span>
+              <span className="text-[11px] font-bold text-slate-500 ml-1">طرق الدفع:</span>
               <button
                 type="button"
-                onClick={() => setDealEligibilityFilter('ALL')}
+                onClick={() => setPaymentTermsFilter('ALL')}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  dealEligibilityFilter === 'ALL' ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                  paymentTermsFilter === 'ALL' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
                 الكل
               </button>
               <button
                 type="button"
-                onClick={() => setDealEligibilityFilter('متعامل')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
-                  dealEligibilityFilter === 'متعامل' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
-                }`}
-              >
-                متعامل (نشط) ✅ ({kpiStats.eligibleDealtCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setDealEligibilityFilter('غير متعامل')}
+                onClick={() => setPaymentTermsFilter('كاش')}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  dealEligibilityFilter === 'غير متعامل' ? 'bg-slate-700 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  paymentTermsFilter === 'كاش' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
                 }`}
               >
-                غير متعامل ⏸️ ({kpiStats.eligibleInactiveCount})
+                كاش (نقدي) 💵
               </button>
               <button
                 type="button"
-                onClick={() => setDealEligibilityFilter('متوقف')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
-                  dealEligibilityFilter === 'متوقف' ? 'bg-rose-600 text-white shadow-xs' : 'bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100'
+                onClick={() => setPaymentTermsFilter('على دفعات')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  paymentTermsFilter === 'على دفعات' ? 'bg-amber-600 text-white shadow-xs' : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
                 }`}
               >
-                متوقف 🛑 ({kpiStats.eligibleStoppedCount})
-              </button>
-            </div>
-
-            {/* Toggle Dealt Breakdown button */}
-            <button
-              type="button"
-              onClick={() => setShowDealtBreakdown(!showDealtBreakdown)}
-              className="text-[11px] font-black px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800 hover:bg-indigo-100 transition flex items-center gap-1 cursor-pointer"
-            >
-              <span>📊 تحليل المتعامل (بالمندوب / المشرف / الفرع)</span>
-              <span>{showDealtBreakdown ? '▲ إخفاء' : '▼ عرض'}</span>
-            </button>
-          </div>
-
-          {/* Slicer Row 2: Period Dealt Calculation (شهور 1، 2، 3 وكوارتر Q1) */}
-          <div className="flex items-center justify-between flex-wrap gap-2 bg-blue-50/30 p-2 rounded-xl border border-blue-100">
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              <span className="text-[11px] font-black text-blue-900 ml-1 flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-blue-600" />
-                <span>احتساب المتعامل بالفترة:</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => setDealtPeriodFilter('ALL')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  dealtPeriodFilter === 'ALL' ? 'bg-blue-700 text-white' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
-                }`}
-              >
-                كل السنة
+                على دفعات 📅
               </button>
               <button
                 type="button"
-                onClick={() => setDealtPeriodFilter(1)}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  dealtPeriodFilter === 1 ? 'bg-blue-600 text-white shadow-xs' : 'bg-white border border-blue-200 text-blue-800 hover:bg-blue-50'
+                onClick={() => setPaymentTermsFilter('شيكات')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  paymentTermsFilter === 'شيكات' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100'
                 }`}
               >
-                شهر 1 (يناير)
+                شيكات بنكية 📜
               </button>
               <button
                 type="button"
-                onClick={() => setDealtPeriodFilter(2)}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  dealtPeriodFilter === 2 ? 'bg-blue-600 text-white shadow-xs' : 'bg-white border border-blue-200 text-blue-800 hover:bg-blue-50'
+                onClick={() => setPaymentTermsFilter('آجل')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  paymentTermsFilter === 'آجل' ? 'bg-sky-600 text-white shadow-xs' : 'bg-sky-50 text-sky-800 hover:bg-sky-100'
                 }`}
               >
-                شهر 2 (فبراير)
-              </button>
-              <button
-                type="button"
-                onClick={() => setDealtPeriodFilter(3)}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  dealtPeriodFilter === 3 ? 'bg-blue-600 text-white shadow-xs' : 'bg-white border border-blue-200 text-blue-800 hover:bg-blue-50'
-                }`}
-              >
-                شهر 3 (مارس)
-              </button>
-              <button
-                type="button"
-                onClick={() => setDealtPeriodFilter('Q1')}
-                className={`px-2.5 py-0.8 rounded-lg text-[11px] font-black transition cursor-pointer ${
-                  dealtPeriodFilter === 'Q1' ? 'bg-indigo-700 text-white shadow-xs' : 'bg-indigo-50 border border-indigo-300 text-indigo-900 hover:bg-indigo-100'
-                }`}
-              >
-                كوارتر Q1 (يناير - مارس) 🎯
-              </button>
-              <button
-                type="button"
-                onClick={() => setDealtPeriodFilter('Q2')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  dealtPeriodFilter === 'Q2' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 border border-slate-200'
-                }`}
-              >
-                كوارتر Q2
-              </button>
-              <button
-                type="button"
-                onClick={() => setDealtPeriodFilter('Q3')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  dealtPeriodFilter === 'Q3' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 border border-slate-200'
-                }`}
-              >
-                كوارتر Q3
-              </button>
-              <button
-                type="button"
-                onClick={() => setDealtPeriodFilter('Q4')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  dealtPeriodFilter === 'Q4' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 border border-slate-200'
-                }`}
-              >
-                كوارتر Q4
+                آجل تجاري 🏷️
               </button>
             </div>
 
-            {/* Dealt in Period Filter toggle (فقط المتعاملين بالفترة) */}
+            {/* Sales Tiers Slicer (شرائح المبيعات 2026) */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              <span className="text-[11px] font-bold text-slate-600">الفاتورة بالفترة:</span>
+              <span className="text-[11px] font-bold text-slate-500 ml-1">شرائح مبيعات 2026:</span>
               <button
                 type="button"
-                onClick={() => setDealtStatusFilter('ALL')}
+                onClick={() => setSalesTierFilter('ALL')}
                 className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  dealtStatusFilter === 'ALL' ? 'bg-slate-800 text-white' : 'bg-white border border-slate-200 text-slate-700'
+                  salesTierFilter === 'ALL' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'
                 }`}
               >
                 الكل
               </button>
               <button
                 type="button"
-                onClick={() => setDealtStatusFilter('dealt_only')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-black transition cursor-pointer ${
-                  dealtStatusFilter === 'dealt_only' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
+                onClick={() => setSalesTierFilter('vip_100k')}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  salesTierFilter === 'vip_100k' ? 'bg-amber-500 text-slate-950 font-black shadow-xs' : 'bg-amber-50 text-amber-900'
                 }`}
               >
-                فقط المتعاملين ({'>'}0 بيع) 🟢 ({kpiStats.periodDealtCount})
+                ⭐ كبار العملاء VIP ({'>'}100k)
               </button>
               <button
                 type="button"
-                onClick={() => setDealtStatusFilter('not_dealt_only')}
+                onClick={() => setSalesTierFilter('medium_20k_100k')}
                 className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  dealtStatusFilter === 'not_dealt_only' ? 'bg-rose-600 text-white shadow-xs' : 'bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100'
+                  salesTierFilter === 'medium_20k_100k' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-800'
                 }`}
               >
-                بدون تعامل بالفترة (0) ⚪ ({kpiStats.totalCount - kpiStats.periodDealtCount})
+                متوسط (20k - 100k)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSalesTierFilter('starter_under_20k')}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  salesTierFilter === 'starter_under_20k' ? 'bg-teal-600 text-white' : 'bg-teal-50 text-teal-800'
+                }`}
+              >
+                نشط ({'<'}20k)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSalesTierFilter('zero_sales')}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  salesTierFilter === 'zero_sales' ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-800'
+                }`}
+              >
+                بدون مبيعات (0)
               </button>
             </div>
           </div>
+
+          {/* Slicer Row 2: Guarantee Documents & Collection Rate */}
+          <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-100">
+            {/* Guarantee Documents Slicer (أوراق الضمان) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              <span className="text-[11px] font-bold text-slate-500 ml-1 flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>أوراق الضمان:</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setGuaranteeFilter('ALL')}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  guaranteeFilter === 'ALL' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                الكل
+              </button>
+              <button
+                type="button"
+                onClick={() => setGuaranteeFilter('has_guarantee')}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  guaranteeFilter === 'has_guarantee' ? 'bg-emerald-700 text-white shadow-xs' : 'bg-emerald-50 text-emerald-800'
+                }`}
+              >
+                ماضي على ورق ضمان بالمبلغ 🛡️
+              </button>
+              <button
+                type="button"
+                onClick={() => setGuaranteeFilter('cheque')}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  guaranteeFilter === 'cheque' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'
+                }`}
+              >
+                شيك بنكي
+              </button>
+              <button
+                type="button"
+                onClick={() => setGuaranteeFilter('promissory')}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  guaranteeFilter === 'promissory' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'
+                }`}
+              >
+                كمبيالة
+              </button>
+              <button
+                type="button"
+                onClick={() => setGuaranteeFilter('trust_receipt')}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  guaranteeFilter === 'trust_receipt' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-700'
+                }`}
+              >
+                إيصال أمانة
+              </button>
+              <button
+                type="button"
+                onClick={() => setGuaranteeFilter('unsecured')}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  guaranteeFilter === 'unsecured' ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                لا يوجد ورق ضمان (0)
+              </button>
+            </div>
 
             {/* Collection Performance Slicer */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">

@@ -229,14 +229,14 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
       )}
 
       {/* Cashier Terminal Header */}
-      <div className="p-3.5 sm:p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
-<div className="flex min-w-0 items-center gap-2.5">
-  <div className="size-9 shrink-0 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-sm">
+      <div className="p-3.5 sm:p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-sm">
             <Receipt className="w-5 h-5" />
           </div>
-<div className="min-w-0">
-  <div className="flex min-w-0 items-center gap-1.5">
-  <h3 className="truncate text-sm font-black text-slate-900">فاتورة مبيعات كاشير دريم</h3>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <h3 className="text-sm font-black text-slate-900">فاتورة مبيعات كاشير دريم</h3>
               <span className="bg-emerald-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">
                 POS
               </span>
