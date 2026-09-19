@@ -3,7 +3,6 @@ import {
   Users,
   Search,
   Filter,
-  SlidersHorizontal,
   ArrowUpDown,
   Download,
   Upload,
@@ -111,6 +110,40 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     return formatCurrency(amount || 0);
   };
 
+  // Helper: check if customer has dealt in a specific month or quarter
+  // Deals in period = has sales / invoices > 0 in that month/quarter (or marked dealt)
+  const isCustomerDealtInPeriod = (
+    c: Customer,
+    period: 'ALL' | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 'Q1' | 'Q2' | 'Q3' | 'Q4'
+  ): { isDealt: boolean; periodSales: number } => {
+    if (period === 'ALL') {
+      const sum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
+      const s = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, sum);
+      const isDealt = s > 0 || c.dealEligibility === 'متعامل' || c.hasDealtIn2026 === true;
+      return { isDealt, periodSales: s };
+    }
+    if (typeof period === 'number') {
+      const s = c.monthlySales2026?.[period] || 0;
+      return { isDealt: s > 0, periodSales: s };
+    }
+    // Quarter Q1-Q4
+    let months: number[] = [];
+    if (period === 'Q1') months = [1, 2, 3];
+    else if (period === 'Q2') months = [4, 5, 6];
+    else if (period === 'Q3') months = [7, 8, 9];
+    else if (period === 'Q4') months = [10, 11, 12];
+
+    let totalQSales = 0;
+    let hasSales = false;
+    months.forEach((m) => {
+      const s = c.monthlySales2026?.[m] || 0;
+      totalQSales += s;
+      if (s > 0) hasSales = true;
+    });
+
+    return { isDealt: hasSales, periodSales: totalQSales };
+  };
+
   // Deduplication state & notification banner
   const [dedupeNotice, setDedupeNotice] = useState<string | null>(null);
   const handleRunDeduplication = () => {
@@ -131,15 +164,22 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [activityFilter, setActivityFilter] = useState<'ALL' | 'active_2026' | 'inactive_2026' | 'churn_risk' | 'new_customer'>('ALL');
   const [debtFilter, setDebtFilter] = useState<'ALL' | 'has_debt' | 'zero_debt' | 'over_limit' | 'has_overdue'>('ALL');
   const [orderFilter, setOrderFilter] = useState<'ALL' | 'has_order' | 'active_order' | 'no_order'>('ALL');
+  const [guaranteeFilter, setGuaranteeFilter] = useState<'ALL' | 'has_guarantee' | 'cheque' | 'promissory' | 'trust_receipt'>('ALL');
   const [visitFilter, setVisitFilter] = useState<'ALL' | 'visited_2026' | 'not_visited'>('ALL');
 
+  // Expanded Slicer Filters (طرق الدفع، شرائح المبيعات، كفاءة التحصيل)
+  const [paymentTermsFilter, setPaymentTermsFilter] = useState<'ALL' | 'كاش' | 'على دفعات' | 'شيكات'>('ALL');
+  const [salesTierFilter, setSalesTierFilter] = useState<'ALL' | 'vip_100k' | 'medium_20k_100k' | 'starter_under_20k'>('ALL');
   const [collectionRateFilter, setCollectionRateFilter] = useState<'ALL' | 'high_80' | 'medium_30_79' | 'low_zero'>('ALL');
-  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
-  const activeFilterCount = [
-    selectedBranch, selectedRep, selectedRegion, activityFilter, debtFilter,
-    orderFilter, visitFilter, collectionRateFilter,
-  ].filter((value) => value !== 'ALL').length;
+  // Classification & Dealt in Period Filters (قابل /غير: متعامل، غير متعامل، متوقف)
+  const [dealEligibilityFilter, setDealEligibilityFilter] = useState<'ALL' | 'متعامل' | 'غير متعامل' | 'متوقف'>('ALL');
+  const [dealtPeriodFilter, setDealtPeriodFilter] = useState<'ALL' | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 'Q1' | 'Q2' | 'Q3' | 'Q4'>('ALL');
+  const [dealtStatusFilter, setDealtStatusFilter] = useState<'ALL' | 'dealt_only' | 'not_dealt_only'>('ALL');
+
+  // Breakdown tab for Dealt by Rep / Supervisor / Branch
+  const [showDealtBreakdown, setShowDealtBreakdown] = useState(false);
+  const [dealtBreakdownTab, setDealtBreakdownTab] = useState<'rep' | 'supervisor' | 'branch'>('rep');
 
   // Power BI Visuals Tab
   const [activeChartTab, setActiveChartTab] = useState<'monthly' | 'branches' | 'reps' | 'payment_guarantee'>('monthly');
@@ -434,11 +474,75 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       });
     }
 
+    // Guarantee Documents filter (أوراق الضمان مع تدقيق المبالغ والمستندات)
+    if (guaranteeFilter !== 'ALL') {
+      list = list.filter((c) => {
+        const g = (c.guaranteeDocs || '').toLowerCase();
+        const amt = Number(c.guaranteeAmount || 0);
+        const hasAmt = amt > 0;
+        const isSigned = hasAmt || c.hasGuarantee === true || (g && !g.includes('بدون') && !g.includes('لا يوجد') && g !== '0') || (c.creditLimit && c.creditLimit > 0);
+
+        if (guaranteeFilter === 'has_guarantee') {
+          return isSigned;
+        }
+        if (guaranteeFilter === 'cheque') {
+          return g.includes('شيك') || (!g && (c.creditLimit || 0) > 0);
+        }
+        if (guaranteeFilter === 'promissory') {
+          return g.includes('كمبيال');
+        }
+        if (guaranteeFilter === 'trust_receipt') {
+          return g.includes('أمانة') || g.includes('امانة');
+        }
+        return true;
+      });
+    }
+
+    // Payment Terms filter (كاش / على دفعات / شيكات)
+    if (paymentTermsFilter !== 'ALL') {
+      list = list.filter((c) => {
+        const terms = (c.paymentTerms || '').toLowerCase();
+        if (paymentTermsFilter === 'كاش') return terms.includes('كاش') || terms.includes('نقدي') || terms.includes('فوري');
+        if (paymentTermsFilter === 'على دفعات') return terms.includes('دفع') || terms.includes('قسط') || terms.includes('أقساط');
+        if (paymentTermsFilter === 'شيكات') return terms.includes('شيك');
+        return true;
+      });
+    }
+
+    // Sales Tier filter (شرائح مبيعات 2026)
+    if (salesTierFilter !== 'ALL') {
+      list = list.filter((c) => {
+        const s = c.sales2026 || c.totalMonthlySales || 0;
+        if (salesTierFilter === 'vip_100k') return s >= 100000;
+        if (salesTierFilter === 'medium_20k_100k') return s >= 20000 && s < 100000;
+        if (salesTierFilter === 'starter_under_20k') return s > 0 && s < 20000;
+        return true;
+      });
+    }
+
+    // Classification (قابل /غير: متعامل، غير متعامل، متوقف)
+    if (dealEligibilityFilter !== 'ALL') {
+      list = list.filter((c) => {
+        const el = c.dealEligibility || (c.hasDealtIn2026 ? 'متعامل' : 'غير متعامل');
+        return el === dealEligibilityFilter;
+      });
+    }
+
+    // Dealt Status in Selected Period (شهر 1، 2، 3 أو كوارتر)
+    if (dealtStatusFilter !== 'ALL') {
+      list = list.filter((c) => {
+        const { isDealt } = isCustomerDealtInPeriod(c, dealtPeriodFilter);
+        if (dealtStatusFilter === 'dealt_only') return isDealt;
+        if (dealtStatusFilter === 'not_dealt_only') return !isDealt;
+        return true;
+      });
+    }
+
     // Collection Rate filter (كفاءة التحصيل)
     if (collectionRateFilter !== 'ALL') {
       list = list.filter((c) => {
         const s = c.sales2026 || c.totalMonthlySales || 0;
-        const col = Math.max(Math.abs(Number(c.collections2026) || 0), Math.abs(Number(c.totalMonthlyCollections) || 0), Math.abs(Number(c.totalOverallCollections) || 0));
+        const col = c.collections2026 || c.totalMonthlyCollections || 0;
         const rate = s > 0 ? (col / s) * 100 : col > 0 ? 100 : 0;
         if (collectionRateFilter === 'high_80') return rate >= 80;
         if (collectionRateFilter === 'medium_30_79') return rate >= 30 && rate < 80;
@@ -519,12 +623,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     });
 
     return list;
-  }, [userVisibleCustomers, selectedBranch, selectedRep, selectedRegion, activityFilter, debtFilter, orderFilter, visitFilter, collectionRateFilter, searchQuery, sortBy, sortOrder]);
+  }, [userVisibleCustomers, selectedBranch, selectedRep, selectedRegion, activityFilter, debtFilter, orderFilter, guaranteeFilter, visitFilter, paymentTermsFilter, salesTierFilter, collectionRateFilter, dealEligibilityFilter, dealtPeriodFilter, dealtStatusFilter, searchQuery, sortBy, sortOrder]);
 
   // Reset pagination on filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedBranch, selectedRep, selectedRegion, activityFilter, debtFilter, orderFilter, visitFilter, collectionRateFilter, searchQuery, pageSize]);
+  }, [selectedBranch, selectedRep, selectedRegion, activityFilter, debtFilter, orderFilter, guaranteeFilter, visitFilter, paymentTermsFilter, salesTierFilter, collectionRateFilter, dealEligibilityFilter, dealtPeriodFilter, dealtStatusFilter, searchQuery, pageSize]);
 
   // Paginated Items
   const paginatedCustomers = useMemo(() => {
@@ -563,9 +667,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const s25 = c.sales2025 || 0;
       const monthlySalesSum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
       const s26 = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, monthlySalesSum);
-      const c25 = Math.abs(Number(c.collections2025) || 0);
-      const monthlyColsSum = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + Math.abs(Number(v) || 0), 0) : 0;
-      const c26 = Math.max(Math.abs(Number(c.collections2026) || 0), Math.abs(Number(c.totalMonthlyCollections) || 0), Math.abs(Number(c.totalOverallCollections) || 0), monthlyColsSum);
+      const c25 = c.collections2025 || 0;
+      const monthlyColsSum = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
+      const c26 = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, c.totalOverallCollections || 0, monthlyColsSum);
       const bal = c.currentBalance ?? c.balance ?? 0;
       const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
       const cLimit = c.creditLimit || 0;
@@ -621,6 +725,27 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       };
     });
 
+    let periodDealtCount = 0;
+    let periodTotalSales = 0;
+    let eligibleDealtCount = 0;
+    let eligibleInactiveCount = 0;
+    let eligibleStoppedCount = 0;
+
+    filteredCustomers.forEach((c) => {
+      const el = c.dealEligibility || (c.hasDealtIn2026 ? 'متعامل' : 'غير متعامل');
+      if (el === 'متوقف') eligibleStoppedCount++;
+      else if (el === 'متعامل') eligibleDealtCount++;
+      else eligibleInactiveCount++;
+
+      const { isDealt, periodSales } = isCustomerDealtInPeriod(c, dealtPeriodFilter);
+      if (isDealt) {
+        periodDealtCount++;
+        periodTotalSales += periodSales;
+      }
+    });
+
+    const periodDealtRate = filteredCustomers.length > 0 ? Number(((periodDealtCount / filteredCustomers.length) * 100).toFixed(1)) : 0;
+
     return {
       totalCount: filteredCustomers.length,
       active2026Count,
@@ -641,8 +766,70 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       guaranteedCount,
       totalVisits2026,
       monthlyChartData,
+      periodDealtCount,
+      periodTotalSales,
+      periodDealtRate,
+      eligibleDealtCount,
+      eligibleInactiveCount,
+      eligibleStoppedCount,
     };
-  }, [filteredCustomers]);
+  }, [filteredCustomers, dealtPeriodFilter]);
+
+  // Breakdown of Dealt Customers by Sales Rep, Supervisor, and Branch
+  const dealtBreakdown = useMemo(() => {
+    const repMap = new Map<string, { repName: string; branchName: string; supervisorName: string; totalCust: number; dealtCust: number; periodSales: number }>();
+    const supMap = new Map<string, { supervisorName: string; branchName: string; totalCust: number; dealtCust: number; periodSales: number }>();
+    const branchMap = new Map<string, { branchName: string; totalCust: number; dealtCust: number; periodSales: number }>();
+
+    filteredCustomers.forEach((c) => {
+      const rep = c.salesRepName || c.repName || 'غير محدد';
+      const sup = c.supervisorName || 'غير محدد';
+      const branch = c.branchName || 'الفرع الرئيسي';
+
+      const { isDealt, periodSales } = isCustomerDealtInPeriod(c, dealtPeriodFilter);
+
+      // Rep
+      if (!repMap.has(rep)) {
+        repMap.set(rep, { repName: rep, branchName: branch, supervisorName: sup, totalCust: 0, dealtCust: 0, periodSales: 0 });
+      }
+      const rObj = repMap.get(rep)!;
+      rObj.totalCust++;
+      if (isDealt) rObj.dealtCust++;
+      rObj.periodSales += periodSales;
+
+      // Supervisor
+      if (!supMap.has(sup)) {
+        supMap.set(sup, { supervisorName: sup, branchName: branch, totalCust: 0, dealtCust: 0, periodSales: 0 });
+      }
+      const sObj = supMap.get(sup)!;
+      sObj.totalCust++;
+      if (isDealt) sObj.dealtCust++;
+      sObj.periodSales += periodSales;
+
+      // Branch
+      if (!branchMap.has(branch)) {
+        branchMap.set(branch, { branchName: branch, totalCust: 0, dealtCust: 0, periodSales: 0 });
+      }
+      const bObj = branchMap.get(branch)!;
+      bObj.totalCust++;
+      if (isDealt) bObj.dealtCust++;
+      bObj.periodSales += periodSales;
+    });
+
+    const calcRate = (dealt: number, tot: number) => (tot > 0 ? Number(((dealt / tot) * 100).toFixed(1)) : 0);
+
+    return {
+      byRep: Array.from(repMap.values())
+        .map(r => ({ ...r, rate: calcRate(r.dealtCust, r.totalCust) }))
+        .sort((a, b) => b.periodSales - a.periodSales),
+      bySupervisor: Array.from(supMap.values())
+        .map(s => ({ ...s, rate: calcRate(s.dealtCust, s.totalCust) }))
+        .sort((a, b) => b.periodSales - a.periodSales),
+      byBranch: Array.from(branchMap.values())
+        .map(b => ({ ...b, rate: calcRate(b.dealtCust, b.totalCust) }))
+        .sort((a, b) => b.periodSales - a.periodSales),
+    };
+  }, [filteredCustomers, dealtPeriodFilter]);
 
   // Power BI Visuals Computations (Branches, Top Reps, Payment Terms Distribution)
   const branchAnalyticsData = useMemo(() => {
@@ -995,16 +1182,16 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
 
         {/* Overdue & Due Balances */}
-        <div className={`bg-white rounded-2xl p-3 border border-slate-200 border-t-4 shadow-xs hover:shadow-md transition ${kpiStats.totalOverdue > 0 ? 'border-t-[#d83b01]' : 'border-t-slate-300'}`}>
-          <div className={`text-[11px] font-bold flex items-center justify-between ${kpiStats.totalOverdue > 0 ? 'text-[#d83b01]' : 'text-slate-500'}`}>
+        <div className="bg-white rounded-2xl p-3 border border-slate-200 border-t-4 border-t-[#d83b01] shadow-xs hover:shadow-md transition">
+          <div className="text-[11px] font-bold text-[#d83b01] flex items-center justify-between">
             <span>المستحقات والمتأخرات</span>
-            {kpiStats.totalOverdue > 0 ? <AlertCircle className="w-3.5 h-3.5 text-[#d83b01]" /> : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
+            <AlertCircle className="w-3.5 h-3.5 text-[#d83b01]" />
           </div>
-          <div className={`text-base sm:text-lg font-black mt-1 truncate ${kpiStats.totalOverdue > 0 ? 'text-[#d83b01]' : 'text-slate-700'}`} title={isPrivacyMode ? 'مخفي' : undefined}>
+          <div className="text-base sm:text-lg font-black text-[#d83b01] mt-1 truncate" title={isPrivacyMode ? 'مخفي' : undefined}>
             {formatMoney(kpiStats.totalOverdue)}
           </div>
-          <div className={`text-[10px] font-bold mt-0.5 ${kpiStats.totalOverdue > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
-            {kpiStats.totalOverdue > 0 ? 'واجبة التحصيل الفوري' : 'لا توجد مستحقات'}
+          <div className="text-[10px] text-rose-600 font-bold mt-0.5">
+            واجبة التحصيل الفوري
           </div>
         </div>
 
@@ -1250,33 +1437,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
       )}
 
-      {/* Mobile search and compact filter access */}
-      <div className="md:hidden bg-white rounded-2xl p-3 border border-slate-200 shadow-sm flex gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ابحث عن عميل أو كود..."
-            className="w-full pr-9 pl-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-amber-500 focus:outline-none"
-            aria-label="البحث عن عميل"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => setIsMobileFiltersOpen(true)}
-          className="relative shrink-0 rounded-xl bg-slate-900 text-white px-3 font-black text-xs flex items-center gap-1.5"
-          aria-label="فتح فلاتر العملاء"
-        >
-          <SlidersHorizontal className="w-4 h-4" />
-          <span>فلترة</span>
-          {activeFilterCount > 0 && <span className="bg-amber-400 text-slate-950 rounded-full min-w-5 h-5 px-1 flex items-center justify-center">{activeFilterCount}</span>}
-        </button>
-      </div>
-
       {/* Power BI Expanded Slicers & Multi-Filter Bar */}
-      <div className="hidden md:block bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200 shadow-sm space-y-3">
+      <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200 shadow-sm space-y-3">
         {/* Row 1: Search & Primary Selectors */}
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2.5">
           {/* Search Input */}
@@ -1349,7 +1511,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </select>
           )}
 
-          {/* Reset All Filters Button */}
+            {/* Reset All Filters Button */}
           <button
             type="button"
             onClick={() => {
@@ -1357,7 +1519,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               setSelectedBranch('ALL');
               setSelectedRep('ALL');
               setSelectedRegion('ALL');
+              setPaymentTermsFilter('ALL');
+              setSalesTierFilter('ALL');
               setCollectionRateFilter('ALL');
+              setGuaranteeFilter('ALL');
+              setDealEligibilityFilter('ALL');
+              setDealtPeriodFilter('ALL');
+              setDealtStatusFilter('ALL');
               setDebtFilter('ALL');
               setActivityFilter('ALL');
               setOrderFilter('ALL');
@@ -1372,8 +1540,176 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
         {/* Sub-Filters Slicers Grid (Power BI Style Chiclets) */}
         <div className="flex flex-col gap-2.5 pt-2 border-t border-slate-100">
-          {/* Slicer Row 1: Collection Rate */}
-          <div className="flex items-center justify-between flex-wrap gap-2">
+          {/* Slicer Row 1: Deal Eligibility (قابل /غير) & Monthly / Quarterly Dealing */}
+          <div className="flex items-center justify-between flex-wrap gap-2 pb-1 border-b border-slate-100 bg-amber-50/30 p-2 rounded-xl">
+            {/* Classification Slicer (قابل /غير: متعامل، غير متعامل، متوقف) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              <span className="text-[11px] font-black text-amber-900 ml-1 flex items-center gap-1">
+                <span>🏷️ تصنيف العميل (قابل /غير):</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setDealEligibilityFilter('ALL')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  dealEligibilityFilter === 'ALL' ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                الكل
+              </button>
+              <button
+                type="button"
+                onClick={() => setDealEligibilityFilter('متعامل')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                  dealEligibilityFilter === 'متعامل' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
+                }`}
+              >
+                متعامل (نشط) ✅ ({kpiStats.eligibleDealtCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDealEligibilityFilter('غير متعامل')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  dealEligibilityFilter === 'غير متعامل' ? 'bg-slate-700 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                غير متعامل ⏸️ ({kpiStats.eligibleInactiveCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDealEligibilityFilter('متوقف')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                  dealEligibilityFilter === 'متوقف' ? 'bg-rose-600 text-white shadow-xs' : 'bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100'
+                }`}
+              >
+                متوقف 🛑 ({kpiStats.eligibleStoppedCount})
+              </button>
+            </div>
+
+            {/* Toggle Dealt Breakdown button */}
+            <button
+              type="button"
+              onClick={() => setShowDealtBreakdown(!showDealtBreakdown)}
+              className="text-[11px] font-black px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800 hover:bg-indigo-100 transition flex items-center gap-1 cursor-pointer"
+            >
+              <span>📊 تحليل المتعامل (بالمندوب / المشرف / الفرع)</span>
+              <span>{showDealtBreakdown ? '▲ إخفاء' : '▼ عرض'}</span>
+            </button>
+          </div>
+
+          {/* Slicer Row 2: Period Dealt Calculation (شهور 1، 2، 3 وكوارتر Q1) */}
+          <div className="flex items-center justify-between flex-wrap gap-2 bg-blue-50/30 p-2 rounded-xl border border-blue-100">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              <span className="text-[11px] font-black text-blue-900 ml-1 flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                <span>احتساب المتعامل بالفترة:</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setDealtPeriodFilter('ALL')}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  dealtPeriodFilter === 'ALL' ? 'bg-blue-700 text-white' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                كل السنة
+              </button>
+              <button
+                type="button"
+                onClick={() => setDealtPeriodFilter(1)}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  dealtPeriodFilter === 1 ? 'bg-blue-600 text-white shadow-xs' : 'bg-white border border-blue-200 text-blue-800 hover:bg-blue-50'
+                }`}
+              >
+                شهر 1 (يناير)
+              </button>
+              <button
+                type="button"
+                onClick={() => setDealtPeriodFilter(2)}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  dealtPeriodFilter === 2 ? 'bg-blue-600 text-white shadow-xs' : 'bg-white border border-blue-200 text-blue-800 hover:bg-blue-50'
+                }`}
+              >
+                شهر 2 (فبراير)
+              </button>
+              <button
+                type="button"
+                onClick={() => setDealtPeriodFilter(3)}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  dealtPeriodFilter === 3 ? 'bg-blue-600 text-white shadow-xs' : 'bg-white border border-blue-200 text-blue-800 hover:bg-blue-50'
+                }`}
+              >
+                شهر 3 (مارس)
+              </button>
+              <button
+                type="button"
+                onClick={() => setDealtPeriodFilter('Q1')}
+                className={`px-2.5 py-0.8 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                  dealtPeriodFilter === 'Q1' ? 'bg-indigo-700 text-white shadow-xs' : 'bg-indigo-50 border border-indigo-300 text-indigo-900 hover:bg-indigo-100'
+                }`}
+              >
+                كوارتر Q1 (يناير - مارس) 🎯
+              </button>
+              <button
+                type="button"
+                onClick={() => setDealtPeriodFilter('Q2')}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  dealtPeriodFilter === 'Q2' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 border border-slate-200'
+                }`}
+              >
+                كوارتر Q2
+              </button>
+              <button
+                type="button"
+                onClick={() => setDealtPeriodFilter('Q3')}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  dealtPeriodFilter === 'Q3' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 border border-slate-200'
+                }`}
+              >
+                كوارتر Q3
+              </button>
+              <button
+                type="button"
+                onClick={() => setDealtPeriodFilter('Q4')}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  dealtPeriodFilter === 'Q4' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 border border-slate-200'
+                }`}
+              >
+                كوارتر Q4
+              </button>
+            </div>
+
+            {/* Dealt in Period Filter toggle (فقط المتعاملين بالفترة) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              <span className="text-[11px] font-bold text-slate-600">الفاتورة بالفترة:</span>
+              <button
+                type="button"
+                onClick={() => setDealtStatusFilter('ALL')}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  dealtStatusFilter === 'ALL' ? 'bg-slate-800 text-white' : 'bg-white border border-slate-200 text-slate-700'
+                }`}
+              >
+                الكل
+              </button>
+              <button
+                type="button"
+                onClick={() => setDealtStatusFilter('dealt_only')}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                  dealtStatusFilter === 'dealt_only' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
+                }`}
+              >
+                فقط المتعاملين ({'>'}0 بيع) 🟢 ({kpiStats.periodDealtCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDealtStatusFilter('not_dealt_only')}
+                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  dealtStatusFilter === 'not_dealt_only' ? 'bg-rose-600 text-white shadow-xs' : 'bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100'
+                }`}
+              >
+                بدون تعامل بالفترة (0) ⚪ ({kpiStats.totalCount - kpiStats.periodDealtCount})
+              </button>
+            </div>
+          </div>
+
             {/* Collection Performance Slicer */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
               <span className="text-[11px] font-bold text-slate-500 ml-1">كفاءة التحصيل:</span>
@@ -1416,7 +1752,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </div>
           </div>
 
-          {/* Slicer Row 2: Debt, Activity, Orders & Visits */}
+          {/* Slicer Row 3: Debt, Activity, Orders & Visits */}
           <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-100">
             {/* Debt & Overdue Filter Pills */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
@@ -1530,27 +1866,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
       </div>
 
-      {isMobileFiltersOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-slate-950/40 flex items-end" role="dialog" aria-modal="true" aria-label="فلاتر العملاء">
-          <div className="w-full bg-white rounded-t-3xl p-4 pb-8 max-h-[85vh] overflow-y-auto" dir="rtl">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="font-black text-slate-900">فلترة العملاء</h2>
-                <p className="text-[11px] text-slate-500 mt-1">قلّل النتائج للوصول للحساب المطلوب بسرعة</p>
-              </div>
-              <button type="button" onClick={() => setIsMobileFiltersOpen(false)} className="size-9 rounded-xl bg-slate-100 flex items-center justify-center" aria-label="إغلاق الفلاتر"><X className="w-4 h-4" /></button>
-            </div>
-            <div className="grid grid-cols-1 gap-3">
-              {isAdminOrDev && <label className="text-xs font-bold text-slate-600">الفرع<select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><option value="ALL">كل الفروع</option>{availableBranches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}</select></label>}
-              {isAdminOrDev && <label className="text-xs font-bold text-slate-600">المندوب<select value={selectedRep} onChange={(e) => setSelectedRep(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><option value="ALL">كل المناديب</option>{availableReps.map((rep) => <option key={rep} value={rep}>{rep}</option>)}</select></label>}
-              <label className="text-xs font-bold text-slate-600">حالة المديونية<select value={debtFilter} onChange={(e) => setDebtFilter(e.target.value as typeof debtFilter)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><option value="ALL">كل الحالات</option><option value="has_debt">عليه مديونية</option><option value="has_overdue">مستحقات واجبة السداد</option><option value="over_limit">متجاوز الحد الائتماني</option><option value="zero_debt">خالص الرصيد</option></select></label>
-              <label className="text-xs font-bold text-slate-600">النشاط والطلبيات<select value={activityFilter} onChange={(e) => setActivityFilter(e.target.value as typeof activityFilter)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><option value="ALL">كل العملاء</option><option value="active_2026">نشط 2026</option><option value="churn_risk">مهدد بالتوقف</option><option value="new_customer">عميل جديد</option></select></label>
-            </div>
-            <button type="button" onClick={() => setIsMobileFiltersOpen(false)} className="mt-5 w-full rounded-xl bg-amber-500 py-3 font-black text-slate-950">عرض {filteredCustomers.length.toLocaleString()} عميل</button>
-          </div>
-        </div>
-      )}
-
       {/* Main Customers Table Card (Fast, Virtual-friendly, Paginated) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {/* Table Controls Top */}
@@ -1589,36 +1904,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </p>
           </div>
         ) : (
-          <>
-          <div className="md:hidden p-3 flex flex-col gap-3">
-            {paginatedCustomers.map((c, index) => {
-              const bal = c.currentBalance ?? c.balance ?? 0;
-              const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
-              const limit = c.creditLimit || 0;
-              const isOverLimit = limit > 0 && bal > limit;
-              const monthlySalesSum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-              const s26 = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, monthlySalesSum);
-              const monthlyColsSum = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-              const col26 = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, c.totalOverallCollections || 0, monthlyColsSum);
-              const colRate = s26 > 0 ? Math.round((col26 / s26) * 100) : 0;
-              const guaranteeInfo = getGuaranteeBadge(c.guaranteeDocs, c.guaranteeAmount, limit);
-              return <button type="button" key={c.id || c.code} onClick={() => setSelectedCustomer(c)} className="text-right bg-white rounded-2xl border border-slate-200 p-4 shadow-sm active:bg-amber-50 transition" aria-label={`عرض تفاصيل ${c.name}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0"><div className="font-black text-slate-900 truncate">{c.name}</div><div className="text-[11px] text-slate-500 mt-1">{c.code || '---'} · {c.branchName || 'بدون فرع'}</div></div>
-                  <span className="shrink-0 text-[10px] font-bold text-slate-400">#{(currentPage - 1) * pageSize + index + 1}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 mt-4">
-                  <div className="rounded-xl bg-purple-50 border border-purple-100 p-2.5"><div className="text-[10px] text-purple-600 font-bold">المديونية</div><div className="font-black text-purple-900 mt-1 text-sm sm:text-base truncate" title={isPrivacyMode ? 'مخفي' : formatMoney(bal)}>{formatMoney(bal)}</div>{isOverLimit && <div className="text-[9px] text-rose-700 font-bold mt-1">متجاوز الحد</div>}</div>
-                  <div className="rounded-xl bg-rose-50 border border-rose-100 p-2.5"><div className="text-[10px] text-rose-600 font-bold">المستحقات</div><div className="font-black text-rose-900 mt-1">{formatMoney(overdue)}</div></div>
-                  <div className="rounded-xl bg-blue-50 border border-blue-100 p-2.5"><div className="text-[10px] text-blue-600 font-bold">مبيعات 2026</div><div className="font-black text-blue-900 mt-1">{formatMoney(s26)}</div></div>
-                  <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-2.5"><div className="text-[10px] text-emerald-600 font-bold">التحصيل</div><div className="font-black text-emerald-900 mt-1">{formatMoney(col26)}</div><div className="text-[9px] text-emerald-700 font-bold mt-1">نسبة السداد {colRate}%</div></div>
-                </div>
-                {!c.phone && bal >= 1000000 && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-[10px] font-bold leading-5 text-amber-900"><span className="font-black">تنبيه تشغيلي:</span> عميل بمديونية كبيرة بدون وسيلة تواصل مسجلة</div>}
-  <div className="mt-3 flex items-center justify-between gap-2"><span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border ${guaranteeInfo.color}`}><ShieldCheck className="w-3 h-3" />{guaranteeInfo.label}</span><span className="text-[11px] text-amber-700 font-black">عرض التفاصيل ←</span></div>
-              </button>;
-            })}
-          </div>
-          <div className="hidden md:block overflow-x-auto">
+          <div className="overflow-x-auto">
             <table className="w-full text-right border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-100 text-slate-700 font-extrabold border-b border-slate-200 whitespace-nowrap">
@@ -1960,7 +2246,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </tbody>
             </table>
           </div>
-          </>
         )}
 
         {/* Pagination Footer Bar */}

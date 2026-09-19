@@ -714,7 +714,24 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     ) {
       colMap.visitCount = idx;
     }
-    // 20. Dealing Status in 2026
+    // 20. Deal Eligibility / Customer Classification (قابل /غير أو متعامل / غير متعامل / متوقف)
+    else if (
+      colMap.dealEligibility === -1 &&
+      (h.includes('قابل /غير') ||
+        h.includes('قابل/غير') ||
+        h.includes('قابل / غير') ||
+        h.includes('قابل/ غير') ||
+        h.includes('قابل') ||
+        h.includes('تصنيف التعامل') ||
+        h.includes('نوع العميل') ||
+        h.includes('تصنيف العميل') ||
+        h.includes('حالة التعامل') ||
+        h === 'قابل /غير' ||
+        h === 'قابل')
+    ) {
+      colMap.dealEligibility = idx;
+    }
+    // 20b. Dealing Status in 2026
     else if (
       colMap.hasDealt2026 === -1 &&
       (h.includes('متعامل 2026') || h.includes('تعامل 2026') || h.includes('متعامل') || h.includes('حالة العميل') || h.includes('حاله العميل'))
@@ -929,21 +946,39 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
       resolvedPaymentTerms = rawPaymentTerms;
     }
 
-    // Dealings status
+    // Dealings status & dealEligibility (قابل /غير: متعامل، غير متعامل، متوقف)
     const rawDealt = colMap.hasDealt2026 !== -1 ? getCellStr(row, colMap.hasDealt2026).toLowerCase() : '';
+    const rawEligibility = colMap.dealEligibility !== -1 ? getCellStr(row, colMap.dealEligibility).trim() : '';
+
+    let resolvedEligibility: 'متعامل' | 'غير متعامل' | 'متوقف' = 'غير متعامل';
+    const eLower = rawEligibility.toLowerCase();
+    if (eLower.includes('متوقف') || eLower.includes('موقوف') || eLower.includes('وقف') || eLower.includes('stop')) {
+      resolvedEligibility = 'متوقف';
+    } else if (eLower.includes('غير') || eLower.includes('مش') || eLower.includes('لا') || eLower.includes('not')) {
+      resolvedEligibility = 'غير متعامل';
+    } else if (eLower.includes('متعامل') || eLower.includes('قابل') || eLower.includes('نشط') || eLower.includes('yes') || eLower.includes('نعم')) {
+      resolvedEligibility = 'متعامل';
+    } else if (rawDealt.includes('متوقف') || rawDealt.includes('موقوف')) {
+      resolvedEligibility = 'متوقف';
+    } else if (finalSales2026 > 0 || Object.values(monthlySales).some(v => v > 0) || rawDealt.includes('متعامل') || rawDealt.includes('نعم') || rawDealt.includes('نشط')) {
+      resolvedEligibility = 'متعامل';
+    }
+
     const hasDealtIn2026 =
+      resolvedEligibility === 'متعامل' ||
       finalSales2026 > 0 ||
       finalCollections2026 > 0 ||
+      Object.values(monthlySales).some(v => v > 0) ||
       rawDealt.includes('متعامل') ||
       rawDealt.includes('نعم') ||
-      rawDealt.includes('نشط') ||
-      rawDealt.includes('yes') ||
-      rawDealt.includes('active');
+      rawDealt.includes('نشط');
 
     const hasPreviousDeals = s2025 > 0 || c2025 > 0 || hasDealtIn2026 || balance > 0;
 
     let status2026: 'active' | 'inactive' | 'churn_risk' | 'new_customer' = 'inactive';
-    if (hasDealtIn2026 && !s2025) {
+    if (resolvedEligibility === 'متوقف') {
+      status2026 = 'churn_risk';
+    } else if (hasDealtIn2026 && !s2025) {
       status2026 = 'new_customer';
     } else if (hasDealtIn2026) {
       status2026 = 'active';
@@ -989,7 +1024,8 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
       monthlyCollections2026: Object.keys(monthlyCollections).length > 0 ? monthlyCollections : undefined,
       hasPreviousDeals: hasPreviousDeals,
       hasDealtIn2026: hasDealtIn2026,
-      dealt2026: hasDealtIn2026 ? 'متعامل' : (rawDealt.includes('غير') ? 'غير متعامل' : undefined),
+      dealt2026: resolvedEligibility === 'متوقف' ? 'متوقف' : (hasDealtIn2026 ? 'متعامل' : 'غير متعامل'),
+      dealEligibility: resolvedEligibility,
       status2026: status2026,
       guaranteeDocs: finalGuaranteeDocs,
       guaranteeAmount: finalGuaranteeAmount > 0 ? finalGuaranteeAmount : undefined,
@@ -1039,6 +1075,10 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
           guaranteeAmount: Math.max(c.guaranteeAmount || 0, prev.guaranteeAmount || 0),
           hasGuarantee: c.hasGuarantee || prev.hasGuarantee,
           paymentTerms: c.paymentTerms || prev.paymentTerms,
+          dealEligibility: c.dealEligibility || prev.dealEligibility,
+          dealt2026: c.dealt2026 || prev.dealt2026,
+          monthlySales2026: { ...(prev.monthlySales2026 || {}), ...(c.monthlySales2026 || {}) },
+          monthlyCollections2026: { ...(prev.monthlyCollections2026 || {}), ...(c.monthlyCollections2026 || {}) },
         });
       } else {
         uniqueCodeMap.set(cleanCode, c);
