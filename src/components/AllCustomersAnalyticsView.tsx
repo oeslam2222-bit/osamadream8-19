@@ -131,18 +131,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [activityFilter, setActivityFilter] = useState<'ALL' | 'active_2026' | 'inactive_2026' | 'churn_risk' | 'new_customer'>('ALL');
   const [debtFilter, setDebtFilter] = useState<'ALL' | 'has_debt' | 'zero_debt' | 'over_limit' | 'has_overdue'>('ALL');
   const [orderFilter, setOrderFilter] = useState<'ALL' | 'has_order' | 'active_order' | 'no_order'>('ALL');
-  const [guaranteeFilter, setGuaranteeFilter] = useState<'ALL' | 'has_guarantee' | 'cheque' | 'promissory' | 'trust_receipt' | 'unsecured'>('ALL');
   const [visitFilter, setVisitFilter] = useState<'ALL' | 'visited_2026' | 'not_visited'>('ALL');
 
-  // Expanded Slicer Filters (طرق الدفع، شرائح المبيعات، كفاءة التحصيل)
-  const [paymentTermsFilter, setPaymentTermsFilter] = useState<'ALL' | 'كاش' | 'على دفعات' | 'شيكات' | 'آجل'>('ALL');
-  const [salesTierFilter, setSalesTierFilter] = useState<'ALL' | 'vip_100k' | 'medium_20k_100k' | 'starter_under_20k' | 'zero_sales'>('ALL');
   const [collectionRateFilter, setCollectionRateFilter] = useState<'ALL' | 'high_80' | 'medium_30_79' | 'low_zero'>('ALL');
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
   const activeFilterCount = [
     selectedBranch, selectedRep, selectedRegion, activityFilter, debtFilter,
-    orderFilter, guaranteeFilter, visitFilter, paymentTermsFilter, salesTierFilter, collectionRateFilter,
+    orderFilter, visitFilter, collectionRateFilter,
   ].filter((value) => value !== 'ALL').length;
 
   // Power BI Visuals Tab
@@ -438,57 +434,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       });
     }
 
-    // Guarantee Documents filter (أوراق الضمان مع تدقيق المبالغ والمستندات)
-    if (guaranteeFilter !== 'ALL') {
-      list = list.filter((c) => {
-        const g = (c.guaranteeDocs || '').toLowerCase();
-        const amt = Number(c.guaranteeAmount || 0);
-        const hasAmt = amt > 0;
-        const isSigned = hasAmt || c.hasGuarantee === true || (g && !g.includes('بدون') && !g.includes('لا يوجد') && g !== '0') || (c.creditLimit && c.creditLimit > 0);
-
-        if (guaranteeFilter === 'has_guarantee') {
-          return isSigned;
-        }
-        if (guaranteeFilter === 'cheque') {
-          return g.includes('شيك') || (!g && (c.creditLimit || 0) > 0);
-        }
-        if (guaranteeFilter === 'promissory') {
-          return g.includes('كمبيال');
-        }
-        if (guaranteeFilter === 'trust_receipt') {
-          return g.includes('أمانة') || g.includes('امانة');
-        }
-        if (guaranteeFilter === 'unsecured') {
-          return !isSigned;
-        }
-        return true;
-      });
-    }
-
-    // Payment Terms filter (كاش / على دفعات / شيكات / آجل)
-    if (paymentTermsFilter !== 'ALL') {
-      list = list.filter((c) => {
-        const terms = (c.paymentTerms || '').toLowerCase();
-        if (paymentTermsFilter === 'كاش') return terms.includes('كاش') || terms.includes('نقدي') || terms.includes('فوري');
-        if (paymentTermsFilter === 'على دفعات') return terms.includes('دفع') || terms.includes('قسط') || terms.includes('أقساط');
-        if (paymentTermsFilter === 'شيكات') return terms.includes('شيك');
-        if (paymentTermsFilter === 'آجل') return terms.includes('آجل') || terms.includes('اجل');
-        return true;
-      });
-    }
-
-    // Sales Tier filter (شرائح مبيعات 2026)
-    if (salesTierFilter !== 'ALL') {
-      list = list.filter((c) => {
-        const s = c.sales2026 || c.totalMonthlySales || 0;
-        if (salesTierFilter === 'vip_100k') return s >= 100000;
-        if (salesTierFilter === 'medium_20k_100k') return s >= 20000 && s < 100000;
-        if (salesTierFilter === 'starter_under_20k') return s > 0 && s < 20000;
-        if (salesTierFilter === 'zero_sales') return s <= 0;
-        return true;
-      });
-    }
-
     // Collection Rate filter (كفاءة التحصيل)
     if (collectionRateFilter !== 'ALL') {
       list = list.filter((c) => {
@@ -574,12 +519,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     });
 
     return list;
-  }, [userVisibleCustomers, selectedBranch, selectedRep, selectedRegion, activityFilter, debtFilter, orderFilter, guaranteeFilter, visitFilter, paymentTermsFilter, salesTierFilter, collectionRateFilter, searchQuery, sortBy, sortOrder]);
+  }, [userVisibleCustomers, selectedBranch, selectedRep, selectedRegion, activityFilter, debtFilter, orderFilter, visitFilter, collectionRateFilter, searchQuery, sortBy, sortOrder]);
 
   // Reset pagination on filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedBranch, selectedRep, selectedRegion, activityFilter, debtFilter, orderFilter, guaranteeFilter, visitFilter, paymentTermsFilter, salesTierFilter, collectionRateFilter, searchQuery, pageSize]);
+  }, [selectedBranch, selectedRep, selectedRegion, activityFilter, debtFilter, orderFilter, visitFilter, collectionRateFilter, searchQuery, pageSize]);
 
   // Paginated Items
   const paginatedCustomers = useMemo(() => {
@@ -1412,10 +1357,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               setSelectedBranch('ALL');
               setSelectedRep('ALL');
               setSelectedRegion('ALL');
-              setPaymentTermsFilter('ALL');
-              setSalesTierFilter('ALL');
               setCollectionRateFilter('ALL');
-              setGuaranteeFilter('ALL');
               setDebtFilter('ALL');
               setActivityFilter('ALL');
               setOrderFilter('ALL');
@@ -1430,173 +1372,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
         {/* Sub-Filters Slicers Grid (Power BI Style Chiclets) */}
         <div className="flex flex-col gap-2.5 pt-2 border-t border-slate-100">
-          {/* Slicer Row 1: Payment Terms & Sales Tiers */}
+          {/* Slicer Row 1: Collection Rate */}
           <div className="flex items-center justify-between flex-wrap gap-2">
-            {/* Payment Terms Slicer (طرق الدفع) */}
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              <span className="text-[11px] font-bold text-slate-500 ml-1">طرق الدفع:</span>
-              <button
-                type="button"
-                onClick={() => setPaymentTermsFilter('ALL')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  paymentTermsFilter === 'ALL' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                الكل
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaymentTermsFilter('كاش')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  paymentTermsFilter === 'كاش' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                }`}
-              >
-                كاش (نقدي) 💵
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaymentTermsFilter('على دفعات')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  paymentTermsFilter === 'على دفعات' ? 'bg-amber-600 text-white shadow-xs' : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
-                }`}
-              >
-                على دفعات 📅
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaymentTermsFilter('شيكات')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  paymentTermsFilter === 'شيكات' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100'
-                }`}
-              >
-                شيكات بنكية 📜
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaymentTermsFilter('آجل')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  paymentTermsFilter === 'آجل' ? 'bg-sky-600 text-white shadow-xs' : 'bg-sky-50 text-sky-800 hover:bg-sky-100'
-                }`}
-              >
-                آجل تجاري 🏷️
-              </button>
-            </div>
-
-            {/* Sales Tiers Slicer (شرائح المبيعات 2026) */}
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              <span className="text-[11px] font-bold text-slate-500 ml-1">شرائح مبيعات 2026:</span>
-              <button
-                type="button"
-                onClick={() => setSalesTierFilter('ALL')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  salesTierFilter === 'ALL' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                الكل
-              </button>
-              <button
-                type="button"
-                onClick={() => setSalesTierFilter('vip_100k')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  salesTierFilter === 'vip_100k' ? 'bg-amber-500 text-slate-950 font-black shadow-xs' : 'bg-amber-50 text-amber-900'
-                }`}
-              >
-                ⭐ كبار العملاء VIP ({'>'}100k)
-              </button>
-              <button
-                type="button"
-                onClick={() => setSalesTierFilter('medium_20k_100k')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  salesTierFilter === 'medium_20k_100k' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-800'
-                }`}
-              >
-                متوسط (20k - 100k)
-              </button>
-              <button
-                type="button"
-                onClick={() => setSalesTierFilter('starter_under_20k')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  salesTierFilter === 'starter_under_20k' ? 'bg-teal-600 text-white' : 'bg-teal-50 text-teal-800'
-                }`}
-              >
-                نشط ({'<'}20k)
-              </button>
-              <button
-                type="button"
-                onClick={() => setSalesTierFilter('zero_sales')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  salesTierFilter === 'zero_sales' ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-800'
-                }`}
-              >
-                بدون مبيعات (0)
-              </button>
-            </div>
-          </div>
-
-          {/* Slicer Row 2: Guarantee Documents & Collection Rate */}
-          <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-100">
-            {/* Guarantee Documents Slicer (أوراق الضمان) */}
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              <span className="text-[11px] font-bold text-slate-500 ml-1 flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>أوراق الضمان:</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => setGuaranteeFilter('ALL')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  guaranteeFilter === 'ALL' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                الكل
-              </button>
-              <button
-                type="button"
-                onClick={() => setGuaranteeFilter('has_guarantee')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  guaranteeFilter === 'has_guarantee' ? 'bg-emerald-700 text-white shadow-xs' : 'bg-emerald-50 text-emerald-800'
-                }`}
-              >
-                ماضي ع��ى ورق ضمان بالمبلغ 🛡️
-              </button>
-              <button
-                type="button"
-                onClick={() => setGuaranteeFilter('cheque')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  guaranteeFilter === 'cheque' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'
-                }`}
-              >
-                شيك بنكي
-              </button>
-              <button
-                type="button"
-                onClick={() => setGuaranteeFilter('promissory')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  guaranteeFilter === 'promissory' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'
-                }`}
-              >
-                كمبيالة
-              </button>
-              <button
-                type="button"
-                onClick={() => setGuaranteeFilter('trust_receipt')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  guaranteeFilter === 'trust_receipt' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-700'
-                }`}
-              >
-                إيصال أمانة
-              </button>
-              <button
-                type="button"
-                onClick={() => setGuaranteeFilter('unsecured')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  guaranteeFilter === 'unsecured' ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-500'
-                }`}
-              >
-                لا يوجد ورق ضمان (0)
-              </button>
-            </div>
-
             {/* Collection Performance Slicer */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
               <span className="text-[11px] font-bold text-slate-500 ml-1">كفاءة التحصيل:</span>
@@ -1639,7 +1416,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </div>
           </div>
 
-          {/* Slicer Row 3: Debt, Activity, Orders & Visits */}
+          {/* Slicer Row 2: Debt, Activity, Orders & Visits */}
           <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-100">
             {/* Debt & Overdue Filter Pills */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
