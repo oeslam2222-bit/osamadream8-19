@@ -558,6 +558,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
     colPerc: number;
     remainingCol: number;
     recordsCount: number;
+    activeCustomers: number;
+    totalCustomers: number;
     // Milestones gaps for sales
     salesGap60: number;
     salesGap70: number;
@@ -571,6 +573,60 @@ export const TargetPerformanceDashboard: React.FC = () => {
     // Power BI Milestone status
     highestMilestone: '100%+' | '90%+' | '70%+' | '60%+' | 'below_60' | 'none';
   }
+
+  // Filtered customers matching the same branch/supervisor/rep filters as baseRecordsForMonths
+  const filteredCustomersForMonths = useMemo(() => {
+    return customers.filter((c) => {
+      const repName = c.salesRepName || c.repName || '';
+
+      // 1. Supervisor personal vs team mode
+      if (isSupervisor && currentUser) {
+        const isSelf = isArabicNameMatch(repName, currentUser.name) ||
+          normalizeArabicText(repName) === normalizeArabicText(currentUser.name);
+        if (supervisorViewMode === 'my_personal') {
+          if (!isSelf) return false;
+        } else {
+          if (isSelf && supervisedReps.length > 0) return false;
+          if (supervisedReps.length > 0) {
+            const normRep = normalizeArabicText(repName);
+            const matches = supervisedReps.some((sr) => isArabicNameMatch(repName, sr) || normRep === normalizeArabicText(sr));
+            if (!matches) return false;
+          }
+        }
+      }
+
+      // 2. Sales rep: only own customers
+      if (isSalesRep && currentUser) {
+        if (!isArabicNameMatch(repName, currentUser.name) && normalizeArabicText(repName) !== normalizeArabicText(currentUser.name)) {
+          return false;
+        }
+      }
+
+      // 3. Branch filter
+      if (isBranchManager && currentUser) {
+        if (!isBranchMatch(c.branchName, currentUser.branchName)) return false;
+      }
+      if (isAdminOrDev && selectedBranch !== 'ALL' && !isBranchMatch(c.branchName, selectedBranch)) return false;
+
+      // 4. Supervisor filter (Branch Manager or Admin)
+      if ((isBranchManager || isAdminOrDev) && selectedSupervisor !== 'ALL' && repsUnderSelectedSupervisor) {
+        const normRep = normalizeArabicText(repName);
+        const matches = Array.from(repsUnderSelectedSupervisor).some(
+          (sRep) => isArabicNameMatch(repName, sRep) || normRep === normalizeArabicText(sRep)
+        );
+        if (!matches) return false;
+      }
+
+      // 5. Rep filter
+      if (!isSalesRep && selectedRep !== 'ALL') {
+        if (!isArabicNameMatch(repName, selectedRep) && normalizeArabicText(repName) !== normalizeArabicText(selectedRep)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [customers, isSupervisor, currentUser, supervisorViewMode, supervisedReps, isSalesRep, isBranchManager, isAdminOrDev, selectedBranch, selectedSupervisor, repsUnderSelectedSupervisor, selectedRep]);
 
   // Monthly Matrix Rows for all 12 months
   const monthlyMatrixRows = useMemo<MonthlyMatrixRow[]>(() => {
@@ -615,6 +671,11 @@ export const TargetPerformanceDashboard: React.FC = () => {
         else highestMilestone = 'below_60';
       }
 
+      const activeCustomersForMonth = filteredCustomersForMonths.filter((c) => {
+        const ms = c.monthlySales2026;
+        return ms && ms[m] && ms[m] > 0;
+      }).length;
+
       rows.push({
         month: m,
         monthName: ARABIC_MONTHS[m - 1],
@@ -628,6 +689,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
         colPerc: cPerc,
         remainingCol: remC,
         recordsCount: monthRecords.length,
+        activeCustomers: activeCustomersForMonth,
+        totalCustomers: filteredCustomersForMonths.length,
         salesGap60,
         salesGap70,
         salesGap90,
@@ -641,7 +704,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
     }
 
     return rows;
-  }, [baseRecordsForMonths]);
+  }, [baseRecordsForMonths, filteredCustomersForMonths]);
 
   // Filter rows according to user's view choice (all 12 or with data only)
   const displayedMonthlyRows = useMemo(() => {
@@ -660,6 +723,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
     let totColTarget = 0;
     let totColAchieved = 0;
     let totRecords = 0;
+    let totActiveCustomers = 0;
 
     monthlyMatrixRows.forEach((r) => {
       totSalesTarget += r.salesTarget;
@@ -667,6 +731,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
       totColTarget += r.colTarget;
       totColAchieved += r.colAchieved;
       totRecords += r.recordsCount;
+      totActiveCustomers = Math.max(totActiveCustomers, r.activeCustomers);
     });
 
     const totSalesPerc = totSalesTarget > 0 ? Number(((totSalesAchieved / totSalesTarget) * 100).toFixed(1)) : 0;
@@ -684,6 +749,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
       totColPerc,
       totRemCol,
       totRecords,
+      totActiveCustomers,
+      totTotalCustomers: filteredCustomersForMonths.length,
       totSalesGap60: Math.max(0, totSalesTarget * 0.6 - totSalesAchieved),
       totSalesGap70: Math.max(0, totSalesTarget * 0.7 - totSalesAchieved),
       totSalesGap90: Math.max(0, totSalesTarget * 0.9 - totSalesAchieved),
@@ -693,7 +760,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
       totColGap90: Math.max(0, totColTarget * 0.9 - totColAchieved),
       totColGap100: totRemCol,
     };
-  }, [monthlyMatrixRows]);
+  }, [monthlyMatrixRows, filteredCustomersForMonths]);
 
   // Monthly Comparison Chart Data for Power BI side-by-side visualization
   const monthlyComparisonChartData = useMemo(() => {
@@ -1512,6 +1579,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                       <th className="px-4 py-3.5 whitespace-nowrap text-blue-800">محقق التحصيل</th>
                       <th className="px-4 py-3.5 whitespace-nowrap text-center">نسبة التحصيل %</th>
                       <th className="px-4 py-3.5 whitespace-nowrap text-blue-900">المتبقي تحصيل (100%)</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap text-center">المتعاملين</th>
                       <th className="px-4 py-3.5 whitespace-nowrap text-center">حالة الإنجاز</th>
                       <th className="px-3 py-3.5 whitespace-nowrap text-center">تركيز</th>
                     </tr>
@@ -1639,6 +1707,22 @@ export const TargetPerformanceDashboard: React.FC = () => {
                             )}
                           </td>
 
+                          {/* Active Customers (متعامل) */}
+                          <td className="px-4 py-3 whitespace-nowrap text-center">
+                            <div className="inline-flex flex-col items-center">
+                              <span className={`inline-flex rounded-full border px-2.5 py-0.5 font-black text-xs ${
+                                row.activeCustomers > 0
+                                  ? 'bg-teal-50 text-teal-700 border-teal-300'
+                                  : 'bg-slate-50 text-slate-400 border-slate-200'
+                              }`}>
+                                {row.activeCustomers}
+                              </span>
+                              <span className="text-[10px] text-slate-400 mt-0.5">
+                                من {row.totalCustomers}
+                              </span>
+                            </div>
+                          </td>
+
                           {/* Achievement Status Badge */}
                           <td className="px-4 py-3 whitespace-nowrap text-center">
                             {row.salesPerc >= 100 && row.colPerc >= 100 ? (
@@ -1719,6 +1803,14 @@ export const TargetPerformanceDashboard: React.FC = () => {
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-blue-300">
                         {formatEGP(monthlyMatrixTotals.totRemCol)}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-center">
+                        <span className="inline-flex flex-col items-center">
+                          <span className="inline-block bg-teal-500/20 text-teal-300 border border-teal-500/40 px-3 py-1 rounded-full text-xs font-black">
+                            {monthlyMatrixTotals.totActiveCustomers}
+                          </span>
+                          <span className="text-[10px] text-slate-400 mt-0.5">من {monthlyMatrixTotals.totTotalCustomers}</span>
+                        </span>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-center text-amber-300 text-[11px]">
                         ملخص الأداء السنوي
