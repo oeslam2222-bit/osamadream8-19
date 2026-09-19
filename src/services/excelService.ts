@@ -164,9 +164,12 @@ export function cleanGoogleSheetImageUrl(raw: string): string {
  */
 function normalizeHeader(header: string): string {
   if (!header) return '';
-  return header
-    .toString()
-    .trim()
+  let str = header.toString().trim();
+  const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  for (let i = 0; i < 10; i++) {
+    str = str.split(arabicNumerals[i]).join(String(i));
+  }
+  return str
     .toLowerCase()
     .replace(/[ـ\s_-]/g, '')
     .replace(/[أإآ]/g, 'ا')
@@ -1924,23 +1927,40 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       if (colMap.totalOverdueAndDue === -1) colMap.totalOverdueAndDue = idx;
       if (colMap.overdueBalance === -1) colMap.overdueBalance = idx;
     }
-    // 20. Check Total Sales (اجمالي المبيعات)
+    // 20. Check Total Sales (اجمالي المبيعات / اجمالي بيعات)
     else if (
       norm === 'اجماليمبيعات' ||
       norm === 'اجماليالمبيعات' ||
-      (norm.includes('اجمالي') && norm.includes('مبيعات')) ||
+      norm === 'اجماليبيعات' ||
+      norm === 'الاجماليبيعات' ||
+      norm === 'اجماليالبيعات' ||
+      norm === 'الاجماليمبيعات' ||
+      (norm.includes('اجمالي') && (norm.includes('مبيعات') || norm.includes('بيعات') || norm.includes('بيع'))) ||
+      (norm.includes('مجموع') && (norm.includes('مبيعات') || norm.includes('بيعات') || norm.includes('بيع'))) ||
+      norm.includes('مبيعاتالسنه') ||
+      norm.includes('مبيعاتالسنة') ||
+      norm.includes('بيعاتالسنه') ||
+      norm.includes('بيعاتالسنة') ||
       norm === 'totalsales'
     ) {
       if (colMap.totalMonthlySales === -1) colMap.totalMonthlySales = idx;
       if (colMap.totalOverallSales === -1) colMap.totalOverallSales = idx;
     }
-    // 21. Check Total Collections (تحصيلات / اجمالي التحصيلات)
+    // 21. Check Total Collections (تحصيلات / اجمالي التحصيلات / اجمالي تحصيل)
     else if (
       norm === 'تحصيلات' ||
       norm === 'اجماليالتحصيلات' ||
       norm === 'اجماليتحصيلات' ||
       norm === 'اجماليالتحصيل' ||
-      (norm.includes('اجمالي') && norm.includes('تحصيل')) ||
+      norm === 'اجماليتحصيل' ||
+      norm === 'الاجماليتحصيل' ||
+      norm === 'الاجماليالتحصيل' ||
+      (norm.includes('اجمالي') && (norm.includes('تحصيل') || norm.includes('سداد'))) ||
+      (norm.includes('مجموع') && (norm.includes('تحصيل') || norm.includes('سداد'))) ||
+      norm.includes('تحصيلالسنه') ||
+      norm.includes('تحصيلالسنة') ||
+      norm.includes('تحصيلاتالسنه') ||
+      norm.includes('تحصيلاتالسنة') ||
       norm === 'totalcollections'
     ) {
       if (colMap.totalMonthlyCollections === -1) colMap.totalMonthlyCollections = idx;
@@ -2097,24 +2117,30 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     // Handles '1 مبيعات', 'مبيعات يناير', 'يناير', '1 تحصيل', 'تحصيلات يناير', etc.
     // Monthly columns may include the year in their header, e.g. "تحصيلات يناير 2026".
     // Only exclude explicit aggregate columns; otherwise monthly collections are lost.
-    if (!norm.includes('اجمالي')) {
+    if (!norm.includes('اجمالي') && !norm.includes('مجموع') && !norm.includes('صافي')) {
       const monthArabicNames = [
         'يناير', 'فبراير', 'مارس', 'ابريل', 'إبريل', 'مايو', 'يونيو',
         'يوليو', 'اغسطس', 'أغسطس', 'سبتمبر', 'اكتوبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
       ];
       const monthIndices = [1, 2, 3, 4, 4, 5, 6, 7, 8, 8, 9, 10, 10, 11, 12];
 
-      // Check numeric match first
-      const salesMatch = norm.match(/^(\d{1,2})مبيعات/) ||
-                         norm.match(/مبيعات(\d{1,2})$/) ||
-                         norm.match(/(\d{1,2})مبيعات/) ||
-                         norm.match(/مبيعات.*?(\d{1,2})/);
+      const normWithoutYear = norm.replace(/202[4-9]/g, '');
+
+      // Check numeric sales match (e.g., '1مبيعات', 'مبيعات1', '1بيع', 'بيع1', 'ش1مبيعات')
+      const salesMatch =
+        normWithoutYear.match(/^(\d{1,2})(?:مبيعات|بيعات|بيع)/) ||
+        normWithoutYear.match(/(?:مبيعات|بيعات|بيع)(\d{1,2})$/) ||
+        normWithoutYear.match(/(\d{1,2})(?:مبيعات|بيعات|بيع)/) ||
+        normWithoutYear.match(/(?:مبيعات|بيعات|بيع).*?(\d{1,2})/) ||
+        normWithoutYear.match(/(?:ش|شهر)(\d{1,2})(?:مبيعات|بيعات|بيع)/) ||
+        normWithoutYear.match(/(?:مبيعات|بيعات|بيع)(?:ش|شهر)(\d{1,2})/);
+
       if (salesMatch) {
         const m = parseInt(salesMatch[1], 10);
         if (m >= 1 && m <= 12 && !monthlySalesCols.some((item) => item.month === m)) {
           monthlySalesCols.push({ month: m, colIdx: idx });
         }
-      } else if (norm.includes('مبيعات') || norm.includes('بيع')) {
+      } else if (norm.includes('مبيعات') || norm.includes('بيعات') || norm.includes('بيع')) {
         // Name-based sales match
         monthArabicNames.forEach((name, mIdx) => {
           const m = monthIndices[mIdx];
@@ -2124,11 +2150,15 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
         });
       }
 
-      // Check collections numeric match
-      const collMatch = norm.match(/^(\d{1,2})تحصيل/) ||
-                        norm.match(/تحصيل(\d{1,2})$/) ||
-                        norm.match(/(\d{1,2})تحصيل/) ||
-                        norm.match(/تحصيل.*?(\d{1,2})/);
+      // Check numeric collections match (e.g., '1تحصيل', 'تحصيل1', '1سداد', 'سداد1', 'ش1تحصيل')
+      const collMatch =
+        normWithoutYear.match(/^(\d{1,2})(?:تحصيل|تحصيلات|سداد|سدادات)/) ||
+        normWithoutYear.match(/(?:تحصيل|تحصيلات|سداد|سدادات)(\d{1,2})$/) ||
+        normWithoutYear.match(/(\d{1,2})(?:تحصيل|تحصيلات|سداد|سدادات)/) ||
+        normWithoutYear.match(/(?:تحصيل|تحصيلات|سداد|سدادات).*?(\d{1,2})/) ||
+        normWithoutYear.match(/(?:ش|شهر)(\d{1,2})(?:تحصيل|تحصيلات|سداد|سدادات)/) ||
+        normWithoutYear.match(/(?:تحصيل|تحصيلات|سداد|سدادات)(?:ش|شهر)(\d{1,2})/);
+
       if (collMatch) {
         const m = parseInt(collMatch[1], 10);
         if (m >= 1 && m <= 12 && !monthlyCollectionCols.some((item) => item.month === m)) {
@@ -2291,14 +2321,14 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       }
     });
 
-    // Sum totals: prefer explicit column in sheet, fallback to dynamic sum
+    // Sum totals: take max of explicit column in sheet and dynamic sum of months (حاسب للسنة كله)
     const finalTotalMonthlySales = parsedTotalMonthlySalesCol !== undefined
-      ? parsedTotalMonthlySalesCol
-      : (monthlySalesCols.length > 0 ? dynamicMonthlySalesSum : undefined);
+      ? Math.max(parsedTotalMonthlySalesCol, dynamicMonthlySalesSum)
+      : (dynamicMonthlySalesSum > 0 ? dynamicMonthlySalesSum : (parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : undefined));
 
     const finalTotalMonthlyCollections = parsedTotalMonthlyCollectionsCol !== undefined
-      ? parsedTotalMonthlyCollectionsCol
-      : (monthlyCollectionCols.length > 0 ? dynamicMonthlyCollectionsSum : undefined);
+      ? Math.max(parsedTotalMonthlyCollectionsCol, dynamicMonthlyCollectionsSum)
+      : (dynamicMonthlyCollectionsSum > 0 ? dynamicMonthlyCollectionsSum : (parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : undefined));
 
     const finalCreditLimit = parsedCredit !== undefined ? parsedCredit : 0;
 
@@ -2319,6 +2349,72 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     const resolvedAddress = rawAddress || [rawDistrict, rawGov].filter(Boolean).join(' - ') || '';
     const resolvedSales2026 = finalTotalMonthlySales !== undefined ? finalTotalMonthlySales : (parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : dynamicMonthlySalesSum);
     const resolvedCollections2026 = finalTotalMonthlyCollections !== undefined ? finalTotalMonthlyCollections : (parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : dynamicMonthlyCollectionsSum);
+
+    // Guarantee docs logic:
+    // لو كبر من صفر يبقي ماضي علي ورق ضمان بالمبلغ ده
+    // لو 0 او مافيش يبق لا يوجد ورق ضمان
+    let finalGuaranteeAmount = 0;
+    let finalGuaranteeDocs = 'لا يوجد ورق ضمان';
+    let finalHasGuarantee = false;
+    const parsedGuaranteeNum = parseNumberValue(colMap.guaranteeDocs);
+    if (parsedGuaranteeNum !== undefined && parsedGuaranteeNum > 0) {
+      finalGuaranteeAmount = parsedGuaranteeNum;
+      finalGuaranteeDocs = `ماضي على ورق ضمان (${finalGuaranteeAmount.toLocaleString('en-US')} ج.م)`;
+      finalHasGuarantee = true;
+    } else if (rawGuaranteeDocs && rawGuaranteeDocs !== '0') {
+      let numG = 0;
+      let cleanG = rawGuaranteeDocs;
+      const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+      for (let i = 0; i < 10; i++) {
+        cleanG = cleanG.split(arabicNumerals[i]).join(String(i));
+      }
+      const digitsOnly = cleanG.replace(/[^\d.]/g, '');
+      if (digitsOnly) {
+        const parsedG = parseFloat(digitsOnly);
+        if (!isNaN(parsedG) && parsedG > 0) numG = parsedG;
+      }
+
+      if (numG > 0) {
+        finalGuaranteeAmount = numG;
+        finalGuaranteeDocs = `ماضي على ورق ضمان (${finalGuaranteeAmount.toLocaleString('en-US')} ج.م)`;
+        finalHasGuarantee = true;
+      } else if (
+        !rawGuaranteeDocs.includes('بدون') &&
+        !rawGuaranteeDocs.includes('لا') &&
+        !rawGuaranteeDocs.includes('مش') &&
+        !rawGuaranteeDocs.includes('غير') &&
+        (rawGuaranteeDocs.includes('ماضي') ||
+          rawGuaranteeDocs.includes('شيك') ||
+          rawGuaranteeDocs.includes('كمبيالة') ||
+          rawGuaranteeDocs.includes('ايصال') ||
+          rawGuaranteeDocs.includes('إيصال') ||
+          rawGuaranteeDocs.includes('رهن'))
+      ) {
+        finalGuaranteeDocs = rawGuaranteeDocs.includes('ماضي') ? rawGuaranteeDocs : `ماضي على ورق ضمان (${rawGuaranteeDocs})`;
+        finalHasGuarantee = true;
+      }
+    }
+
+    // Payment terms normalization: كاش او علي دفعات او شيكات
+    let resolvedPaymentTerms = 'كاش';
+    const ptLower = (rawPaymentTerms || '').toLowerCase();
+    if (ptLower.includes('شيك') || ptLower.includes('check') || ptLower.includes('cheque')) {
+      resolvedPaymentTerms = 'شيكات';
+    } else if (
+      ptLower.includes('دفع') ||
+      ptLower.includes('قسط') ||
+      ptLower.includes('أقساط') ||
+      ptLower.includes('اقساط') ||
+      ptLower.includes('اجل') ||
+      ptLower.includes('آجل') ||
+      ptLower.includes('installment')
+    ) {
+      resolvedPaymentTerms = 'على دفعات';
+    } else if (ptLower.includes('كاش') || ptLower.includes('نقد') || ptLower.includes('cash')) {
+      resolvedPaymentTerms = 'كاش';
+    } else if (rawPaymentTerms) {
+      resolvedPaymentTerms = rawPaymentTerms;
+    }
 
     const newCustomer: Customer = {
       id: safeCustId,
@@ -2343,8 +2439,10 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       notes: rawNotes,
 
       // Sales Target & Due Debts
-      guaranteeDocs: rawGuaranteeDocs,
-      paymentTerms: rawPaymentTerms,
+      guaranteeDocs: finalGuaranteeDocs,
+      guaranteeAmount: finalGuaranteeAmount > 0 ? finalGuaranteeAmount : undefined,
+      hasGuarantee: finalHasGuarantee,
+      paymentTerms: resolvedPaymentTerms,
       activityType: rawActivityType,
       clientType: rawClientType,
       adjustments: parsedAdjustments,

@@ -26,7 +26,10 @@ import {
   WifiOff,
   X,
   Zap,
-  ZapOff
+  ZapOff,
+  Eye,
+  EyeOff,
+  Lock
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
@@ -57,6 +60,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     setSelectedBranchFilter,
     dataSaverMode,
     toggleDataSaverMode,
+    isPrivacyMode,
+    togglePrivacyMode,
     triggerInstallPrompt,
     installPromptEvent,
     isInstallModalOpen,
@@ -253,6 +258,31 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                 </>
               )}
             </div>
+
+            {/* Privacy & Confidentiality Mode Toggle (سرية البيانات) */}
+            <button
+              id="navbar-privacy-mode-toggle"
+              type="button"
+              onClick={togglePrivacyMode}
+              className={`flex items-center gap-1.5 px-2.5 h-9 sm:h-10 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                isPrivacyMode
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 shadow-xs'
+                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750 hover:text-white'
+              }`}
+              title={isPrivacyMode ? 'وضع سرية البيانات مفعّل (المبيعات والأرصدة مخفية). اضغط للإظهار.' : 'تفعيل وضع سرية البيانات لعرض الشاشة باحترافية وسرية'}
+            >
+              {isPrivacyMode ? (
+                <>
+                  <EyeOff className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                  <span className="hidden sm:inline">سرية البيانات: نشطة</span>
+                </>
+              ) : (
+                <>
+                  <Eye className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="hidden sm:inline">سرية البيانات</span>
+                </>
+              )}
+            </button>
 
             {/* Pending Invoices Sync Button for Offline/Queued Orders */}
             {pendingInvoicesCount > 0 && (

@@ -96,8 +96,27 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   } = useApp();
 
   // Lazy & Smart Cashier View States
-  const [showAllExplicitly, setShowAllExplicitly] = useState(false);
+  const [showAllExplicitly, setShowAllExplicitly] = useState(true);
   const [isMobileCashierOpen, setIsMobileCashierOpen] = useState(false);
+
+  // Data Confidentiality Mode (سرية البيانات - إخفاء الأسعار الحساسة وهوامش الربح وأرصدة العملاء)
+  const [isConfidentialMode, setIsConfidentialMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('catalog_confidential_mode') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleConfidentialMode = () => {
+    setIsConfidentialMode((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('catalog_confidential_mode', String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   // Auto-open mobile cashier drawer when customer is selected so user sees their financial details immediately
   useEffect(() => {
@@ -641,7 +660,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <div className="text-[11px] text-slate-800 font-medium">
                 {selectedCustomer.branchName ? `الفرع: ${selectedCustomer.branchName}` : ''} 
                 {selectedCustomer.salesRepName || selectedCustomer.repName ? ` • المندوب: ${selectedCustomer.salesRepName || selectedCustomer.repName}` : ''}
-                {selectedCustomer.currentBalance ? ` • المديونية: ${formatCurrency(selectedCustomer.currentBalance)}` : ''}
+                {selectedCustomer.currentBalance ? (
+                  <span>
+                    {' • المديونية: '}
+                    {isConfidentialMode ? (
+                      <span className="bg-slate-900 text-amber-300 font-mono px-1.5 py-0.5 rounded text-[10px]">•••••• (محمي 🔒)</span>
+                    ) : (
+                      formatCurrency(selectedCustomer.currentBalance)
+                    )}
+                  </span>
+                ) : ''}
               </div>
             </div>
           </div>
@@ -870,6 +898,23 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               </button>
             )}
           </div>
+
+          {/* Data Confidentiality Toggle (سرية البيانات) */}
+          <button
+            type="button"
+            onClick={toggleConfidentialMode}
+            className={`h-11 sm:h-12 px-3 sm:px-4 rounded-xl font-black text-xs flex items-center justify-center gap-2 transition shrink-0 cursor-pointer shadow-sm ${
+              isConfidentialMode
+                ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300'
+                : 'bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700'
+            }`}
+            title={isConfidentialMode ? 'وضع سرية البيانات مفعّل (الأسعار محجوبة أمام العملاء) - انقر للإظهار' : 'تفعيل وضع سرية البيانات أمام العملاء (إخفاء الأسعار والمديونيات)'}
+          >
+            <ShieldCheck className={`w-4 h-4 ${isConfidentialMode ? 'text-slate-950' : 'text-amber-400'}`} />
+            <span className="whitespace-nowrap">
+              {isConfidentialMode ? 'سرية البيانات: مفعّلة 🔒' : 'سرية البيانات 👁️'}
+            </span>
+          </button>
         </div>
 
         {/* Dropdown Filters Toolbar */}
@@ -1098,6 +1143,33 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         )}
         </div>
       </div>
+
+      {/* Confidentiality Reminder Banner */}
+      {isConfidentialMode && (
+        <div className="bg-gradient-to-r from-amber-500/20 via-amber-400/15 to-amber-500/20 border-2 border-amber-400 text-slate-950 p-3 sm:p-3.5 rounded-2xl flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-xs">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5">
+                <span>وضع سرية البيانات مفعّل</span>
+                <span className="bg-slate-950 text-amber-300 text-[10px] font-black px-2 py-0.2 rounded-full">محمي 🔒</span>
+              </div>
+              <p className="text-[11px] text-slate-700 font-medium">
+                تم حجب أسعار الكراتين والقطع ومديونيات العملاء بنجاح لضمان الخصوصية التامة عند عرض الشاشة أمام العملاء.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={toggleConfidentialMode}
+            className="text-xs font-black text-slate-950 hover:text-amber-800 bg-white border border-amber-300 px-3 py-1.5 rounded-xl shadow-2xs hover:bg-amber-50 transition cursor-pointer shrink-0"
+          >
+            إلغاء السرية وإظهار الأسعار
+          </button>
+        </div>
+      )}
 
       {/* Main Responsive Grid: Product Catalog / Slicer Hub (Cols 1-8) + Sticky POS Cashier Sidebar (Cols 9-12) */}
       <div className="lg:grid lg:grid-cols-12 lg:gap-5 items-start mt-4">
@@ -1492,19 +1564,31 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       <div>
                         <span className="text-[11px] text-slate-500 font-medium block">الكرتونة</span>
                         <span className="text-sm font-black text-slate-950">
-                          {formatCurrency(product.cartonPrice)}
+                          {isConfidentialMode ? (
+                            <span className="font-mono text-slate-400 text-xs tracking-widest bg-slate-200/60 px-1.5 py-0.5 rounded">••••••</span>
+                          ) : (
+                            formatCurrency(product.cartonPrice)
+                          )}
                         </span>
                       </div>
                       <div className="text-left">
                         <span className="text-[11px] text-slate-500 font-medium block">القطعة</span>
                         <span className="text-xs font-black text-slate-700">
-                          {formatCurrency(product.piecePrice)}
+                          {isConfidentialMode ? (
+                            <span className="font-mono text-slate-400 text-xs tracking-widest bg-slate-200/60 px-1.5 py-0.5 rounded">••••••</span>
+                          ) : (
+                            formatCurrency(product.piecePrice)
+                          )}
                         </span>
                       </div>
                       {product.promoPrice ? (
                         <span className="text-xs font-black text-rose-600 flex items-center gap-0.5">
                           <Flame className="w-3 h-3" />
-                          {formatCurrency(product.promoPrice)}
+                          {isConfidentialMode ? (
+                            <span className="font-mono text-rose-400 text-xs tracking-widest">•••</span>
+                          ) : (
+                            formatCurrency(product.promoPrice)
+                          )}
                         </span>
                       ) : null}
                     </div>
@@ -1696,10 +1780,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         <span className="text-amber-800 font-black">{mainWhCartons} كرتونة</span>
                       </td>
                       <td className="p-2.5 text-left font-black text-amber-950 text-sm">
-                        {formatCurrency(product.cartonPrice)}
+                        {isConfidentialMode ? (
+                          <span className="font-mono text-slate-400 text-xs tracking-widest bg-slate-200/60 px-1.5 py-0.5 rounded">••••••</span>
+                        ) : (
+                          formatCurrency(product.cartonPrice)
+                        )}
                       </td>
                       <td className="p-2.5 text-center">
-                        {product.promoPrice ? (
+                        {isConfidentialMode ? (
+                          <span className="font-mono text-slate-400 text-xs tracking-widest bg-slate-200/60 px-1.5 py-0.5 rounded">••••••</span>
+                        ) : product.promoPrice ? (
                           <div className="inline-flex flex-col items-center bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-lg">
                             <span className="text-rose-700 font-black text-xs">{formatCurrency(product.promoPrice)}</span>
                             <span className="text-[9px] text-rose-500 font-bold">
@@ -2237,7 +2327,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     <div>
                       <div className="text-xs text-amber-950 font-black">سعر الكرتونة بالجملة (المعتمد):</div>
                       <div className="text-xl font-black text-amber-950">
-                        {formatCurrency(selectedProductForModal.cartonPrice)}
+                        {isConfidentialMode ? (
+                          <span className="font-mono text-slate-400 text-sm tracking-widest bg-amber-100 px-2.5 py-1 rounded-xl">•••••• ج.م (محمي 🔒)</span>
+                        ) : (
+                          formatCurrency(selectedProductForModal.cartonPrice)
+                        )}
                       </div>
                     </div>
                     <div className="text-left">

@@ -67,7 +67,8 @@ export function filterCustomersByRBAC(
 }
 
 /**
- * Safe numeric cleaner
+ * Safe numeric cleaner with full accounting format & Arabic numerals support
+ * Supports (1500), 1500-, -1500, and Arabic digits ٠-٩
  */
 export function cleanNumber(val: any, fallback = 0): number {
   if (val === null || val === undefined || val === '') return fallback;
@@ -77,11 +78,14 @@ export function cleanNumber(val: any, fallback = 0): number {
   for (let i = 0; i < 10; i++) {
     str = str.split(arabicNumerals[i]).join(String(i));
   }
+  // Check accounting negative format: (1234), 1234-, or -1234
+  const isNegative = /^\s*\(.*\)\s*$/.test(str) || /-\s*$/.test(str) || /^\s*-/.test(str);
   str = str.replace(/,/g, '').replace(/٬/g, '').replace(/٫/g, '.');
-  const clean = str.replace(/[^\d.-]/g, '');
+  const clean = str.replace(/[^\d.]/g, '');
   if (!clean) return fallback;
   const parsed = parseFloat(clean);
-  return isNaN(parsed) ? fallback : parsed;
+  if (isNaN(parsed)) return fallback;
+  return isNegative ? -parsed : parsed;
 }
 
 const MONTH_NAMES_MAP: Record<number, string[]> = {
@@ -99,68 +103,295 @@ const MONTH_NAMES_MAP: Record<number, string[]> = {
   12: ['ديسمبر', 'شهر 12', 'ش 12', 'ش12', 'شهر12', 'dec', 'december', 'كانون الاول', 'كانون الأول'],
 };
 
-function matchMonthlyCollectionHeader(h: string, m: number): boolean {
+/**
+ * Normalizes digits inside a header string (converting ٠-٩ to 0-9)
+ */
+function normalizeHeaderDigits(str: string): string {
+  let s = str;
+  const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  for (let i = 0; i < 10; i++) {
+    s = s.split(arabicNumerals[i]).join(String(i));
+  }
+  return s;
+}
+
+function hasMonthlySpecifierToken(rawDigits: string): boolean {
+  const clean = rawDigits.replace(/202[4-9]/g, ' ').trim();
+  for (let m = 1; m <= 12; m++) {
+    const names = MONTH_NAMES_MAP[m] || [];
+    if (names.some((name) => clean.includes(name))) return true;
+    const mStr = String(m);
+    if (new RegExp(`(?<!\\d)0?${mStr}(?!\\d)`).test(clean)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function matchTotalSalesHeader(rawH: string): boolean {
+  const h = normalizeHeaderDigits(rawH).toLowerCase();
+  if (h.includes('تحصيل') || h.includes('سداد') || h.includes('coll')) return false;
+  if (h.includes('2025') || h.includes('2024')) return false;
+
+  const hasExplicitTotalWord =
+    h.includes('اجمالي') ||
+    h.includes('إجمالي') ||
+    h.includes('اجمالى') ||
+    h.includes('مجموع') ||
+    h.includes('السنه') ||
+    h.includes('السنة') ||
+    h.includes('العام') ||
+    h.includes('total') ||
+    h.includes('all');
+
+  // If header mentions a specific month (1-12 or month name) without explicit total word, it is NOT total sales
+  if (hasMonthlySpecifierToken(h) && !hasExplicitTotalWord) {
+    return false;
+  }
+
+  const isTotalTerm =
+    hasExplicitTotalWord ||
+    h.includes('صافي') ||
+    h.includes('صافى') ||
+    h.includes('قيمة') ||
+    h.includes('قيمه');
+
+  const isSalesTerm =
+    h.includes('مبيعات') ||
+    h.includes('بيعات') ||
+    h.includes('مبيعة') ||
+    h.includes('بيع') ||
+    h.includes('sales') ||
+    h.includes('sale');
+
+  if (isTotalTerm && isSalesTerm) return true;
+  if (
+    h.includes('مبيعات السنه') ||
+    h.includes('مبيعات السنة') ||
+    h.includes('بيعات السنه') ||
+    h.includes('بيعات السنة') ||
+    h.includes('مبيعات 2026') ||
+    h.includes('2026 مبيعات') ||
+    h.includes('مبيعات 26') ||
+    h.includes('26 مبيعات') ||
+    h.includes('اجمالي بيعات') ||
+    h.includes('إجمالي بيعات') ||
+    h.includes('اجمالى بيعات') ||
+    h.includes('الاجمالي بيعات') ||
+    h.includes('اجمالي السنه مبيعات') ||
+    h.includes('اجمالي مبيعات السنه') ||
+    h.includes('اجمالي مبيعات السنة') ||
+    h.includes('مبيعات العميل')
+  ) {
+    return true;
+  }
+  if (h === 'المبيعات' || h === 'مبيعات' || h === 'البيعات' || h === 'بيعات' || h === 'sales' || h === 'total sales') {
+    return true;
+  }
+  return false;
+}
+
+export function matchTotalCollectionsHeader(rawH: string): boolean {
+  const h = normalizeHeaderDigits(rawH).toLowerCase();
+  if (h.includes('2025') || h.includes('2024')) return false;
+
+  const hasExplicitTotalWord =
+    h.includes('اجمالي') ||
+    h.includes('إجمالي') ||
+    h.includes('اجمالى') ||
+    h.includes('مجموع') ||
+    h.includes('السنه') ||
+    h.includes('السنة') ||
+    h.includes('العام') ||
+    h.includes('total') ||
+    h.includes('all');
+
+  // If header mentions a specific month (1-12 or month name) without explicit total word, it is NOT total collections
+  if (hasMonthlySpecifierToken(h) && !hasExplicitTotalWord) {
+    return false;
+  }
+
+  const isTotalTerm =
+    hasExplicitTotalWord ||
+    h.includes('صافي') ||
+    h.includes('صافى') ||
+    h.includes('قيمة') ||
+    h.includes('قيمه');
+
   const isColTerm =
     h.includes('تحصيل') ||
+    h.includes('التحصيل') ||
+    h.includes('تحصيلات') ||
+    h.includes('التحصيلات') ||
     h.includes('سداد') ||
+    h.includes('السداد') ||
     h.includes('سدادات') ||
+    h.includes('السدادات') ||
     h.includes('المحصل') ||
     h.includes('المسدد') ||
-    h.includes('coll') ||
-    h.includes('paid');
+    h.includes('محصل') ||
+    h.includes('مسدد') ||
+    h.includes('coll');
+
+  if (isTotalTerm && isColTerm) return true;
+  if (
+    h.includes('تحصيل السنه') ||
+    h.includes('تحصيل السنة') ||
+    h.includes('تحصيلات السنه') ||
+    h.includes('تحصيلات السنة') ||
+    h.includes('تحصيل 2026') ||
+    h.includes('2026 تحصيل') ||
+    h.includes('تحصيلات 2026') ||
+    h.includes('2026 تحصيلات') ||
+    h.includes('تحصيل 26') ||
+    h.includes('26 تحصيل') ||
+    h.includes('سداد 2026') ||
+    h.includes('2026 سداد') ||
+    h.includes('اجمالي تحصيل') ||
+    h.includes('إجمالي تحصيل') ||
+    h.includes('اجمالى تحصيل') ||
+    h.includes('الاجمالي تحصيل') ||
+    h.includes('اجمالي التحصيل') ||
+    h.includes('إجمالي التحصيل') ||
+    h.includes('اجمالى التحصيل') ||
+    h.includes('اجمالي تحصيلات') ||
+    h.includes('إجمالي تحصيلات') ||
+    h.includes('اجمالى تحصيلات') ||
+    h.includes('اجمالي التحصيلات') ||
+    h.includes('إجمالي التحصيلات') ||
+    h.includes('اجمالي السنه تحصيل') ||
+    h.includes('اجمالي تحصيل السنه') ||
+    h.includes('اجمالي تحصيل السنة') ||
+    h.includes('اجمالي السداد') ||
+    h.includes('إجمالي السداد') ||
+    h.includes('اجمالي سداد') ||
+    h.includes('إجمالي سداد')
+  ) {
+    return true;
+  }
+  if (
+    h === 'التحصيلات' ||
+    h === 'تحصيلات' ||
+    h === 'التحصيل' ||
+    h === 'تحصيل' ||
+    h === 'السداد' ||
+    h === 'سداد' ||
+    h === 'collections' ||
+    h === 'total collections'
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function matchMonthlyCollectionHeader(rawH: string, m: number): boolean {
+  if (matchTotalCollectionsHeader(rawH)) return false;
+
+  const rawDigits = normalizeHeaderDigits(rawH).toLowerCase();
+  const isColTerm =
+    rawDigits.includes('تحصيل') ||
+    rawDigits.includes('سداد') ||
+    rawDigits.includes('سدادات') ||
+    rawDigits.includes('المحصل') ||
+    rawDigits.includes('المسدد') ||
+    rawDigits.includes('محصل') ||
+    rawDigits.includes('مسدد') ||
+    rawDigits.includes('coll') ||
+    rawDigits.includes('paid') ||
+    rawDigits.includes('payment');
   if (!isColTerm) return false;
 
-  const mPatterns = MONTH_NAMES_MAP[m] || [];
-  if (mPatterns.some((p) => h.includes(p))) return true;
+  // If header explicitly refers to previous years without month, skip
+  if ((rawDigits.includes('2025') || rawDigits.includes('2024')) && !rawDigits.includes(String(m)) && !MONTH_NAMES_MAP[m]?.some((p) => rawDigits.includes(p))) {
+    return false;
+  }
 
+  const mPatterns = MONTH_NAMES_MAP[m] || [];
+  if (mPatterns.some((p) => rawDigits.includes(p))) return true;
+
+  // Strip 4-digit years like 2026, 2025, 2024 so they don't block regex matching
+  const h = rawDigits.replace(/202[4-9]/g, ' ').replace(/\s+/g, ' ').trim();
+  const mStr = String(m);
+
+  // Regexes for combinations like:
+  // "تحصيل 1", "1 تحصيل", "1تحصيل", "تحصيل1", "تحصيلات 1", "1 تحصيلات", "1تحصيلات", "تحصيل 2026 1", "تحصيلات 2026 شهر 1", "تحصيل ش1", "تحصيل ش 1", "ش 1 تحصيل", "سداد 1", "1 سداد", "1سداد"
   const numRegexes = [
-    new RegExp(`^${m}\\s*تحصيل`),
-    new RegExp(`تحصيل\\s*${m}($|\\s)`),
-    new RegExp(`^${m}\\s*سداد`),
-    new RegExp(`سداد\\s*${m}($|\\s)`),
-    new RegExp(`^${m}تحصيل`),
-    new RegExp(`تحصيل${m}`),
+    new RegExp(`(?<!\\d)0?${mStr}(?!\\d)[^\\d]*(?:تحصيل|تحصيلات|سداد|سدادات)`),
+    new RegExp(`(?:تحصيل|تحصيلات|سداد|سدادات)[^\\d]*(?<!\\d)0?${mStr}(?!\\d)`),
+    new RegExp(`(?:ش|شهر)\\s*0?${mStr}(?!\\d)[^\\d]*(?:تحصيل|تحصيلات|سداد|سدادات)`),
+    new RegExp(`(?:تحصيل|تحصيلات|سداد|سدادات)[^\\d]*(?:ش|شهر)\\s*0?${mStr}(?!\\d)`),
+    new RegExp(`(?<!\\d)0?${mStr}(?!\\d)`),
+    new RegExp(`ش\\s*0?${mStr}(?!\\d)`),
+    new RegExp(`شهر\\s*0?${mStr}(?!\\d)`),
+    new RegExp(`m0?${mStr}(?!\\d)`),
+    new RegExp(`month\\s*0?${mStr}(?!\\d)`),
   ];
+  if (numRegexes.slice(0, 4).some((r) => r.test(h))) return true;
+
+  // If it's a collection term and the only number in the string is m:
+  const numbers = h.match(/\d+/g);
+  if (numbers && numbers.length === 1 && parseInt(numbers[0], 10) === m) {
+    return true;
+  }
+
   return numRegexes.some((r) => r.test(h));
 }
 
-function matchMonthlySalesHeader(h: string, m: number): boolean {
-  const isColTerm =
-    h.includes('تحصيل') ||
-    h.includes('سداد') ||
-    h.includes('سدادات') ||
-    h.includes('المحصل') ||
-    h.includes('المسدد') ||
-    h.includes('coll');
-  if (isColTerm) return false;
+export function matchMonthlySalesHeader(rawH: string, m: number): boolean {
+  if (matchTotalSalesHeader(rawH)) return false;
+
+  const rawDigits = normalizeHeaderDigits(rawH).toLowerCase();
+  if (rawDigits.includes('تحصيل') || rawDigits.includes('سداد') || rawDigits.includes('coll')) return false;
 
   const isSalesTerm =
-    h.includes('بيع') ||
-    h.includes('مبيعات') ||
-    h.includes('مبيعة') ||
-    h.includes('فواتير') ||
-    h.includes('فاتورة') ||
-    h.includes('sales') ||
-    h.includes('sale') ||
-    h.includes('inv');
+    rawDigits.includes('بيع') ||
+    rawDigits.includes('بيعات') ||
+    rawDigits.includes('مبيعات') ||
+    rawDigits.includes('مبيعة') ||
+    rawDigits.includes('فواتير') ||
+    rawDigits.includes('فاتورة') ||
+    rawDigits.includes('sales') ||
+    rawDigits.includes('sale') ||
+    rawDigits.includes('inv');
+
+  if (!isSalesTerm) return false;
+
+  // If header explicitly refers to 2025 without month, skip
+  if ((rawDigits.includes('2025') || rawDigits.includes('2024')) && !rawDigits.includes(String(m)) && !MONTH_NAMES_MAP[m]?.some((p) => rawDigits.includes(p))) {
+    return false;
+  }
 
   const mPatterns = MONTH_NAMES_MAP[m] || [];
-  const hasMonthName = mPatterns.some((p) => h.includes(p));
-
-  const numRegexes = [
-    new RegExp(`^${m}\\s*مبيعات`),
-    new RegExp(`مبيعات\\s*${m}($|\\s)`),
-    new RegExp(`^${m}\\s*بيع`),
-    new RegExp(`بيع\\s*${m}($|\\s)`),
-    new RegExp(`^${m}مبيعات`),
-    new RegExp(`مبيعات${m}`),
-  ];
-  if (numRegexes.some((r) => r.test(h))) return true;
+  const hasMonthName = mPatterns.some((p) => rawDigits.includes(p));
   if (isSalesTerm && hasMonthName) return true;
 
-  // Standalone month name (e.g. "يناير" or "شهر 1") when in annual sales sheets
+  // Strip 4-digit years like 2026, 2025, 2024 so they don't block regex matching
+  const h = rawDigits.replace(/202[4-9]/g, ' ').replace(/\s+/g, ' ').trim();
+  const mStr = String(m);
+
+  // Regexes for combinations like:
+  // "مبيعات 1", "1 مبيعات", "1مبيعات", "مبيعات1", "بيع 1", "1 بيع", "1بيع", "بيع1", "مبيعات ش1", "مبيعات ش 1", "ش 1 مبيعات"
+  const numRegexes = [
+    new RegExp(`(?<!\\d)0?${mStr}(?!\\d)[^\\d]*(?:مبيعات|بيعات|مبيعة|بيع)`),
+    new RegExp(`(?:مبيعات|بيعات|مبيعة|بيع)[^\\d]*(?<!\\d)0?${mStr}(?!\\d)`),
+    new RegExp(`(?:ش|شهر)\\s*0?${mStr}(?!\\d)[^\\d]*(?:مبيعات|بيعات|مبيعة|بيع)`),
+    new RegExp(`(?:مبيعات|بيعات|مبيعة|بيع)[^\\d]*(?:ش|شهر)\\s*0?${mStr}(?!\\d)`),
+  ];
+  if (numRegexes.some((r) => r.test(h))) return true;
+
+  // If it's a sales term and the only number in the string is m:
+  const numbers = h.match(/\d+/g);
+  if (numbers && numbers.length === 1 && parseInt(numbers[0], 10) === m) {
+    return true;
+  }
+
+  // Standalone month name or number under a sales parent header
   const isExactMonth = mPatterns.some((p) => h === p || h === `شهر ${p}` || h === `ش ${p}`);
   if (isExactMonth) return true;
+
+  if (isSalesTerm && (new RegExp(`شهر\\s*0?${mStr}(?!\\d)`).test(h) || new RegExp(`ش\\s*0?${mStr}(?!\\d)`).test(h))) {
+    return true;
+  }
 
   return false;
 }
@@ -182,22 +413,25 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
 
   // 1. Locate header row
   let headerRowIdx = -1;
-  for (let r = 0; r < Math.min(rawRows.length, 10); r++) {
+  let bestHeaderScore = 0;
+  for (let r = 0; r < Math.min(rawRows.length, 12); r++) {
     const row = rawRows[r];
     if (!row || !Array.isArray(row)) continue;
-    const joined = row.map((c) => normalizeArabicText(String(c || ''))).join(' ');
-    if (
-      joined.includes('عميل') ||
-      joined.includes('اسم') ||
-      joined.includes('كود') ||
-      joined.includes('مديون') ||
-      joined.includes('مبيعات') ||
-      joined.includes('رصيد') ||
-      joined.includes('account name') ||
-      joined.includes('customer')
-    ) {
+    let score = 0;
+    row.forEach((cell) => {
+      const txt = normalizeHeaderDigits(normalizeArabicText(String(cell || ''))).toLowerCase();
+      if (!txt) return;
+      if (txt.includes('عميل') || txt.includes('اسم') || txt.includes('customer') || txt.includes('client')) score += 5;
+      if (txt.includes('كود') || txt.includes('code') || txt.includes('id')) score += 5;
+      if (txt.includes('مبيعات') || txt.includes('بيع') || txt.includes('sales')) score += 4;
+      if (txt.includes('تحصيل') || txt.includes('سداد') || txt.includes('collections')) score += 4;
+      if (txt.includes('رصيد') || txt.includes('مديون') || txt.includes('balance') || txt.includes('debt')) score += 4;
+      if (txt.includes('فرع') || txt.includes('مندوب') || txt.includes('branch') || txt.includes('rep')) score += 3;
+      if (txt.includes('ضمان') || txt.includes('ائتمان') || txt.includes('دفع') || txt.includes('سداد')) score += 3;
+    });
+    if (score > bestHeaderScore) {
+      bestHeaderScore = score;
       headerRowIdx = r;
-      break;
     }
   }
 
@@ -207,7 +441,21 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
   const mainHeaderRow = rawRows[headerRowIdx] || [];
   const nextHeaderRow = rawRows[headerRowIdx + 1] || [];
   const nextRowJoined = nextHeaderRow.map((c) => normalizeArabicText(String(c || ''))).join(' ');
+
+  let nextRowNumericMonthsCount = 0;
+  for (let m = 1; m <= 12; m++) {
+    if (
+      nextHeaderRow.some((c) => {
+        const s = normalizeHeaderDigits(String(c || '')).trim();
+        return s === String(m) || s === `0${m}` || s === `ش${m}` || s === `شهر ${m}` || MONTH_NAMES_MAP[m]?.some((name) => s.includes(name));
+      })
+    ) {
+      nextRowNumericMonthsCount++;
+    }
+  }
+
   const hasSubHeaders =
+    nextRowNumericMonthsCount >= 2 ||
     nextRowJoined.includes('يناير') ||
     nextRowJoined.includes('فبراير') ||
     nextRowJoined.includes('تحصيل') ||
@@ -216,13 +464,13 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
 
   let activeCategory = '';
   const headers = mainHeaderRow.map((h, colIdx) => {
-    let parent = normalizeArabicText(String(h || ''));
+    let parent = normalizeHeaderDigits(normalizeArabicText(String(h || ''))).trim();
     if (parent) {
       activeCategory = parent;
     } else if (hasSubHeaders && activeCategory) {
       parent = activeCategory;
     }
-    const sub = hasSubHeaders ? normalizeArabicText(String(nextHeaderRow[colIdx] || '')) : '';
+    const sub = hasSubHeaders ? normalizeHeaderDigits(normalizeArabicText(String(nextHeaderRow[colIdx] || ''))).trim() : '';
     return `${parent} ${sub}`.trim();
   });
 
@@ -253,6 +501,7 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     lastVisitDate: -1,
     visitCount: -1,
     guaranteeDocs: -1,
+    paymentTerms: -1,
     monthlySales: {} as Record<number, number>, // month 1-12
     monthlyCollections: {} as Record<number, number>, // month 1-12
   };
@@ -260,12 +509,14 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
   headers.forEach((h, idx) => {
     if (!h) return;
 
-    // Month detection for Sales & Collections
-    for (let m = 1; m <= 12; m++) {
+    // Month detection for Sales & Collections (iterating from 12 down to 1 so 10, 11, 12 take precedence)
+    for (let m = 12; m >= 1; m--) {
       if (colMap.monthlyCollections[m] === undefined && matchMonthlyCollectionHeader(h, m)) {
         colMap.monthlyCollections[m] = idx;
+        break;
       } else if (colMap.monthlySales[m] === undefined && matchMonthlySalesHeader(h, m)) {
         colMap.monthlySales[m] = idx;
+        break;
       }
     }
 
@@ -395,57 +646,19 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     ) {
       colMap.collections2025 = idx;
     }
-    // 14. 2026 Total Sales (Flexible: matches "اجمالي المبيعات", "مبيعات 2026", "المبيعات", "مبيعات", "صافي المبيعات")
+    // 14. 2026 Total Sales (Flexible: matches "اجمالي المبيعات", "اجمالي بيعات", "مبيعات 2026", "المبيعات", "مبيعات", "صافي المبيعات")
     else if (
       colMap.sales2026 === -1 &&
-      !h.includes('2025') &&
-      !h.includes('2024') &&
-      !h.includes('تحصيل') &&
-      !h.includes('سداد') &&
-      (h.includes('اجمالي المبيعات') ||
-        h.includes('إجمالي المبيعات') ||
-        h.includes('اجمالى المبيعات') ||
-        h.includes('اجمالي مبيعات') ||
-        h.includes('إجمالي مبيعات') ||
-        h.includes('مبيعات 2026') ||
-        h.includes('2026 مبيعات') ||
-        h.includes('صافي المبيعات') ||
-        h.includes('صافى المبيعات') ||
-        h.includes('قيمة المبيعات') ||
-        h.includes('مبيعات العميل') ||
-        h.includes('total sales') ||
-        h === 'المبيعات' ||
-        h === 'مبيعات' ||
-        h === 'sales')
+      !Object.values(colMap.monthlySales).includes(idx) &&
+      matchTotalSalesHeader(h)
     ) {
       colMap.sales2026 = idx;
     }
-    // 15. 2026 Total Collections (Flexible: matches "اجمالي التحصيلات", "تحصيلات 2026", "تحصيلات", "تحصيل")
+    // 15. 2026 Total Collections (Flexible: matches "اجمالي التحصيلات", "اجمالي تحصيل", "تحصيلات 2026", "تحصيلات", "تحصيل")
     else if (
       colMap.collections2026 === -1 &&
-      !h.includes('2025') &&
-      !h.includes('2024') &&
-      (h.includes('اجمالي التحصيلات') ||
-        h.includes('إجمالي التحصيلات') ||
-        h.includes('اجمالى التحصيلات') ||
-        h.includes('اجمالي تحصيلات') ||
-        h.includes('إجمالي تحصيلات') ||
-        h.includes('اجمالي السداد') ||
-        h.includes('إجمالي السداد') ||
-        h.includes('تحصيلات 2026') ||
-        h.includes('2026 تحصيلات') ||
-        h.includes('تحصيل 2026') ||
-        h.includes('سداد 2026') ||
-        h.includes('المحصل') ||
-        h.includes('المسدد') ||
-        h.includes('total collections') ||
-        h === 'التحصيلات' ||
-        h === 'تحصيلات' ||
-        h === 'التحصيل' ||
-        h === 'تحصيل' ||
-        h === 'السداد' ||
-        h === 'سداد' ||
-        h === 'collections')
+      !Object.values(colMap.monthlyCollections).includes(idx) &&
+      matchTotalCollectionsHeader(h)
     ) {
       colMap.collections2026 = idx;
     }
@@ -525,6 +738,22 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     ) {
       colMap.guaranteeDocs = idx;
     }
+    // 22. Payment Terms (طرق الدفع / شروط السداد)
+    else if (
+      colMap.paymentTerms === -1 &&
+      (h.includes('طرق الدفع') ||
+        h.includes('طريقة الدفع') ||
+        h.includes('طريقه الدفع') ||
+        h.includes('نظام الدفع') ||
+        h.includes('شروط الدفع') ||
+        h.includes('شروط السداد') ||
+        h.includes('طريقة السداد') ||
+        h.includes('طرق السداد') ||
+        h.includes('payment terms') ||
+        h.includes('payment method'))
+    ) {
+      colMap.paymentTerms = idx;
+    }
   });
 
   const getCellStr = (row: any[], cIdx: number) => {
@@ -566,7 +795,8 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     const balance = colMap.currentBalance !== -1 ? cleanNumber(row[colMap.currentBalance]) : 0;
     const creditLimit = colMap.creditLimit !== -1 ? cleanNumber(row[colMap.creditLimit]) : 0;
     const s2025 = colMap.sales2025 !== -1 ? cleanNumber(row[colMap.sales2025]) : 0;
-    const c2025 = colMap.collections2025 !== -1 ? cleanNumber(row[colMap.collections2025]) : 0;
+    // Collections in accounting sheets are often negative: convert to absolute positive
+    const c2025 = colMap.collections2025 !== -1 ? Math.abs(cleanNumber(row[colMap.collections2025])) : 0;
     const overdueAndDue = colMap.totalOverdueAndDue !== -1 ? cleanNumber(row[colMap.totalOverdueAndDue]) : balance;
     const annualTarget = colMap.annualTarget !== -1 ? cleanNumber(row[colMap.annualTarget]) : 0;
     const openingBalance = colMap.openingBalance2026 !== -1 ? cleanNumber(row[colMap.openingBalance2026]) : balance;
@@ -586,7 +816,8 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
         }
       }
       if (colMap.monthlyCollections[m] !== undefined && colMap.monthlyCollections[m] > -1) {
-        const val = cleanNumber(row[colMap.monthlyCollections[m]]);
+        // Collections are converted to positive numbers even if negative in source
+        const val = Math.abs(cleanNumber(row[colMap.monthlyCollections[m]]));
         if (val > 0) {
           monthlyCollections[m] = val;
           computedCollections2026 += val;
@@ -597,8 +828,75 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     const explicitSales2026 = colMap.sales2026 !== -1 ? cleanNumber(row[colMap.sales2026]) : 0;
     const finalSales2026 = Math.max(explicitSales2026, computedSales2026);
 
-    const explicitCollections2026 = colMap.collections2026 !== -1 ? cleanNumber(row[colMap.collections2026]) : 0;
+    // Explicit collections 2026 converted to positive
+    const explicitCollections2026 = colMap.collections2026 !== -1 ? Math.abs(cleanNumber(row[colMap.collections2026])) : 0;
     const finalCollections2026 = Math.max(explicitCollections2026, computedCollections2026);
+
+    // Guarantee docs logic:
+    // لو كبر من صفر يبقي ماضي علي ورق ضمان بالمبلغ ده
+    // لو 0 او مافيش يبق لا يوجد ورق ضمان
+    const rawGuaranteeVal = colMap.guaranteeDocs !== -1 ? row[colMap.guaranteeDocs] : '';
+    const rawGuaranteeStr = getCellStr(row, colMap.guaranteeDocs);
+    const parsedGuaranteeAmt = colMap.guaranteeDocs !== -1 ? Math.abs(cleanNumber(rawGuaranteeVal, 0)) : 0;
+
+    let finalGuaranteeAmount = parsedGuaranteeAmt;
+    let finalGuaranteeDocs = 'لا يوجد ورق ضمان';
+    let finalHasGuarantee = false;
+
+    if (finalGuaranteeAmount > 0) {
+      finalGuaranteeDocs = `ماضي على ورق ضمان (${finalGuaranteeAmount.toLocaleString('en-US')} ج.م)`;
+      finalHasGuarantee = true;
+    } else {
+      const numInStr = cleanNumber(rawGuaranteeStr, 0);
+      if (numInStr > 0) {
+        finalGuaranteeAmount = numInStr;
+        finalGuaranteeDocs = `ماضي على ورق ضمان (${numInStr.toLocaleString('en-US')} ج.م)`;
+        finalHasGuarantee = true;
+      } else if (
+        rawGuaranteeStr &&
+        rawGuaranteeStr !== '0' &&
+        !rawGuaranteeStr.includes('بدون') &&
+        !rawGuaranteeStr.includes('لا') &&
+        !rawGuaranteeStr.includes('مش') &&
+        !rawGuaranteeStr.includes('غير') &&
+        (rawGuaranteeStr.includes('ماضي') ||
+          rawGuaranteeStr.includes('نعم') ||
+          rawGuaranteeStr.includes('شيك') ||
+          rawGuaranteeStr.includes('كمبيالة') ||
+          rawGuaranteeStr.includes('ايصال') ||
+          rawGuaranteeStr.includes('إيصال') ||
+          rawGuaranteeStr.includes('رهن'))
+      ) {
+        finalGuaranteeDocs = rawGuaranteeStr.includes('ماضي') ? rawGuaranteeStr : `ماضي على ورق ضمان (${rawGuaranteeStr})`;
+        finalHasGuarantee = true;
+      } else {
+        finalGuaranteeDocs = 'لا يوجد ورق ضمان';
+        finalHasGuarantee = false;
+        finalGuaranteeAmount = 0;
+      }
+    }
+
+    // Payment terms logic: كاش او علي دفعات او شيكات
+    const rawPaymentTerms = colMap.paymentTerms !== -1 ? getCellStr(row, colMap.paymentTerms).trim() : '';
+    let resolvedPaymentTerms = 'كاش';
+    const ptLower = rawPaymentTerms.toLowerCase();
+    if (ptLower.includes('شيك') || ptLower.includes('check') || ptLower.includes('cheque')) {
+      resolvedPaymentTerms = 'شيكات';
+    } else if (
+      ptLower.includes('دفع') ||
+      ptLower.includes('قسط') ||
+      ptLower.includes('أقساط') ||
+      ptLower.includes('اقساط') ||
+      ptLower.includes('اجل') ||
+      ptLower.includes('آجل') ||
+      ptLower.includes('installment')
+    ) {
+      resolvedPaymentTerms = 'على دفعات';
+    } else if (ptLower.includes('كاش') || ptLower.includes('نقد') || ptLower.includes('cash')) {
+      resolvedPaymentTerms = 'كاش';
+    } else if (rawPaymentTerms) {
+      resolvedPaymentTerms = rawPaymentTerms;
+    }
 
     // Dealings status
     const rawDealt = colMap.hasDealt2026 !== -1 ? getCellStr(row, colMap.hasDealt2026).toLowerCase() : '';
@@ -662,7 +960,10 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
       hasDealtIn2026: hasDealtIn2026,
       dealt2026: hasDealtIn2026 ? 'متعامل' : (rawDealt.includes('غير') ? 'غير متعامل' : undefined),
       status2026: status2026,
-      guaranteeDocs: rawGuarantee || (creditLimit > 0 ? 'شيك بنكي' : 'بدون ضمان'),
+      guaranteeDocs: finalGuaranteeDocs,
+      guaranteeAmount: finalGuaranteeAmount > 0 ? finalGuaranteeAmount : undefined,
+      hasGuarantee: finalHasGuarantee,
+      paymentTerms: resolvedPaymentTerms,
       lastVisitDate: rawLastVisit || undefined,
       visitCount2026: visitsCount,
       visitHistory: rawLastVisit
@@ -681,12 +982,47 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     rawCustomers.push(customerObj);
   }
 
-  // Strictly preserve all sheet rows 1:1 without merging (exact match with the 3,427 sheet records)
+  // Deduplicate by customer code to prevent duplicated customer rows on import
+  const uniqueCodeMap = new Map<string, Customer>();
+  const withoutCode: Customer[] = [];
+  let duplicatesCount = 0;
+
+  rawCustomers.forEach((c) => {
+    const cleanCode = (c.code || '').trim().toLowerCase();
+    const isAuto = !cleanCode || cleanCode === '---' || cleanCode.startsWith('cust-row-') || cleanCode.startsWith('cust_row_') || cleanCode.startsWith('cust-analytics-');
+    if (!isAuto) {
+      if (uniqueCodeMap.has(cleanCode)) {
+        duplicatesCount++;
+        const prev = uniqueCodeMap.get(cleanCode)!;
+        uniqueCodeMap.set(cleanCode, {
+          ...prev,
+          ...c,
+          id: prev.id,
+          sales2026: Math.max(c.sales2026 || 0, prev.sales2026 || 0),
+          collections2026: Math.max(c.collections2026 || 0, prev.collections2026 || 0),
+          totalMonthlySales: Math.max(c.totalMonthlySales || 0, prev.totalMonthlySales || 0),
+          totalMonthlyCollections: Math.max(c.totalMonthlyCollections || 0, prev.totalMonthlyCollections || 0),
+          creditLimit: Math.max(c.creditLimit || 0, prev.creditLimit || 0),
+          guaranteeDocs: c.guaranteeDocs && !c.guaranteeDocs.includes('لا يوجد') ? c.guaranteeDocs : prev.guaranteeDocs,
+          guaranteeAmount: Math.max(c.guaranteeAmount || 0, prev.guaranteeAmount || 0),
+          hasGuarantee: c.hasGuarantee || prev.hasGuarantee,
+          paymentTerms: c.paymentTerms || prev.paymentTerms,
+        });
+      } else {
+        uniqueCodeMap.set(cleanCode, c);
+      }
+    } else {
+      withoutCode.push(c);
+    }
+  });
+
+  const finalCustomers = [...Array.from(uniqueCodeMap.values()), ...withoutCode];
+
   return {
-    customers: rawCustomers,
+    customers: finalCustomers,
     errors,
     totalRows: processedRows,
-    duplicatesCount: 0,
+    duplicatesCount,
   };
 }
 

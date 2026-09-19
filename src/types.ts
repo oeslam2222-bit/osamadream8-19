@@ -159,7 +159,9 @@ export interface Customer {
   status2026?: 'active' | 'inactive' | 'churn_risk' | 'new_customer'; // حالة النشاط
 
   // --- أعمدة شيت تارجت المبيعات والعملاء والتحصيلات المتطورة ---
-  guaranteeDocs?: string;            // اورق الضمان (شيك، كمبيالة، إيصال أمانة، رهن، بدون)
+  guaranteeDocs?: string;            // اوراق الضمان (شيك، كمبيالة، إيصال أمانة، رهن، بدون)
+  guaranteeAmount?: number;          // مبلغ ورقة الضمان إن وجد (لو فيه مبلغ يبقي ماضي)
+  hasGuarantee?: boolean;            // هل العميل ماضي على ورقة ضمان
   paymentTerms?: string;             // طريقة الدفع (نقدي، آجل، أسبوعي، شهري...)
   activityType?: string;             // طبيعة النشاط (سوبرماركت، جملة، قطاعي، توكيلات...)
   district?: string;                 // المركز / المنطقة
