@@ -1172,9 +1172,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       )}
 
       {/* Main Responsive Grid: Product Catalog / Slicer Hub (Cols 1-8) + Sticky POS Cashier Sidebar (Cols 9-12) */}
-      <div className="lg:grid lg:grid-cols-12 lg:gap-5 items-start mt-4">
-        {/* Left Main Catalog / Slicer Hub Column */}
-        <div className="lg:col-span-8 xl:col-span-8.5 space-y-4">
+<div className="lg:grid lg:grid-cols-12 lg:gap-5 items-start mt-4">
+  {/* Left Main Catalog / Slicer Hub Column */}
+  <div className="lg:col-span-9 xl:col-span-9 space-y-4 min-w-0">
           {!isFiltered ? (
             /* Smart Slicer Hub: When no filter is active, products and images are hidden until user searches or picks Item Group / Family */
             <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-6" id="smart-slicer-hub">
@@ -1316,7 +1316,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     <span>نتائج الفلترة: </span>
                     <strong className="text-amber-300 font-black">{filteredProducts.length}</strong> صنف
                     {searchTerm && <span className="text-slate-400 text-[11px] mr-1.5 font-normal">بحث: &quot;{searchTerm}&quot;</span>}
-                    {selectedOfficialDept !== 'الكل' && <span className="text-amber-200 text-[11px] mr-1.5 font-normal">المجموعة: {selectedOfficialDept}</span>}
+                    {selectedOfficialDept !== 'الكل' && <span className="text-amber-200 text-[11px] mr-1.5 font-normal">��لمجموعة: {selectedOfficialDept}</span>}
                     {selectedSubCategory !== 'الكل' && <span className="text-blue-200 text-[11px] mr-1.5 font-normal">العائلة: {selectedSubCategory}</span>}
                   </div>
                 </div>
@@ -1431,8 +1431,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         <div
           className={
             gridDensity === 'comfortable'
-              ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-5'
-              : 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3.5'
+              ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 2xl:grid-cols-4 gap-3.5 sm:gap-5'
+              : 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 2xl:grid-cols-4 gap-2 sm:gap-3.5'
           }
         >
           {displayedProducts.map((product, idx) => {
@@ -1980,7 +1980,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
 
         {/* Right Column: Sticky POS Cashier Terminal (Visible on Desktop / Tablet) */}
-        <div className="hidden lg:block lg:col-span-4 xl:col-span-3.5 sticky top-20">
+        <div className="hidden lg:block lg:col-span-3 xl:col-span-3 sticky top-20 min-w-0">
           <PosCashierSidebar
             selectedCustomer={selectedCustomer}
             onClearSelectedCustomer={onClearSelectedCustomer}
@@ -2176,7 +2176,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     {selectedProductForModal.unifiedCode ? (
                       <span className="bg-indigo-950 text-indigo-200 font-mono font-black text-xs px-2.5 py-1 rounded-lg border border-indigo-700/80 flex items-center gap-1">
                         <span className="text-amber-400 font-bold">#</span>
-                        <span>الكود الموحد للموديل: {selectedProductForModal.unifiedCode.replace('#', '')}</span>
+                        <span>الكود الموحد ل��موديل: {selectedProductForModal.unifiedCode.replace('#', '')}</span>
                       </span>
                     ) : (
                       <span className="bg-slate-100 text-slate-600 font-bold text-xs px-2 py-0.5 rounded-lg border border-slate-200">
