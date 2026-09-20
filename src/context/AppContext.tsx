@@ -1985,7 +1985,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const cleanId = sanitizeIdentifier(identifier).toLowerCase();
     const cleanEmail = sanitizeEmail(identifier);
     const rawTrim = sanitizeIdentifier(identifier);
-    const cleanPass = (password || '').trim();
 
     // 1. Search in local memory first with rich identifier matching
     let found = users.find(
@@ -2035,17 +2034,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'هذا الحساب موقوف أو تم رفض تفعيله من قبل الإدارة.' };
     }
 
-    // Check password strictly against database
-    if (found.password && found.password.trim().length > 0) {
-      const dbPass = found.password.trim();
-      if (dbPass !== cleanPass) {
-        return { success: false, message: 'كلمة المرور غير صحيحة. يرجى التأكد من كتابة كلمة المرور بدقة.' };
-      }
-    } else if (cleanPass) {
-      // First-time setup: user sets their password
-      found = { ...found, password: cleanPass };
-      saveUserToSupabase(found).catch((e) => console.warn('Supabase password update failed:', e));
-    }
+    // Authentication is identity-based; passwords are intentionally not required by this system.
 
     setCurrentUser(found);
     setIsAuthenticated(true);
@@ -3211,7 +3200,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         branchName: invoice.branchName,
         action: 'update_invoice_status',
         actionTitle: `إعادة إرسال الفاتورة #${invoice.invoiceNumber} بالبريد`,
-        details: 'تم إرسال PDF وExcel إلى Power Automate بطلب يدوي.',
+        details: 'تم إرسال PDF وExcel إلى Power Automate ب��لب يدوي.',
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
         badgeType: 'info',

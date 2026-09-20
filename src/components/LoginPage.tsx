@@ -1,8 +1,5 @@
 import {
   AlertCircle,
-  Eye,
-  EyeOff,
-  Lock,
   LogIn,
   ShieldCheck,
   User as UserIcon,
@@ -19,8 +16,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
 
   // --- Login State ---
   const [loginIdentifier, setLoginIdentifier] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
@@ -37,14 +32,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
       return;
     }
 
-    if (!loginPassword.trim()) {
-      setLoginError('يرجى إدخال كلمة المرور');
-      setIsLoggingIn(false);
-      return;
-    }
-
     try {
-      const result = await login(loginIdentifier, loginPassword);
+      const result = await login(loginIdentifier);
       setIsLoggingIn(false);
 
       if (!result.success) {
@@ -128,32 +117,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
               </div>
             </div>
 
-            {/* Password */}
-            <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1.5 text-right">
-                كلمة المرور
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="أدخل كلمة المرور المسجلة بقاعدة البيانات"
-                  required
-                  autoComplete="current-password"
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none transition pr-10 pl-10"
-                />
-                <Lock className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="text-slate-400 hover:text-slate-200 absolute left-3.5 top-3.5"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
             {/* Submit Button */}
             <button
               type="submit"
@@ -176,7 +139,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
             {/* Note that accounts are managed by Admin/Developer only */}
             <div className="pt-3 border-t border-slate-800 text-center">
               <p className="text-[11px] text-slate-400 leading-relaxed">
-                يتم إنشاء وتفعيل حسابات الموظفين والصلاحيات حصرياً من قِبل إدارة النظام (الآدمن والمطور).
+                يتم الدخول بالهوية المسجلة فقط، وتتم إدارة الحسابات والصلاحيات حصرياً من قِبل إدارة النظام.
               </p>
             </div>
           </form>

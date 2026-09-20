@@ -58,8 +58,6 @@ import {
 } from '../services/excelService';
 import { formatCurrency } from '../services/invoiceService';
 import { Customer, Product } from '../types';
-import { PublishedDataSourcesPanel } from './PublishedDataSourcesPanel';
-
 export const ExcelImportExport: React.FC = () => {
   const {
     products,
@@ -552,7 +550,7 @@ function onEdit(e) {
       )}
 
       {/* SUB-TAB 2: Standard Excel/CSV File Upload */}
-      {activeSubTab === 'excel_file' && (
+      {false && (
         <div className="space-y-6">
           {/* Drag and Drop Zone */}
           <div
@@ -612,7 +610,7 @@ function onEdit(e) {
       )}
 
       {/* SUB-TAB 3: Google Drive Recursive Folder Scanner */}
-      {activeSubTab === 'drive_scanner' && (
+      {false && (
         <div className="space-y-6 animate-in fade-in">
           <div className="bg-gradient-to-br from-blue-950 via-slate-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-blue-800/40 space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1143,7 +1141,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                   className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-black px-4 py-2.5 rounded-xl transition flex items-center gap-2"
                 >
                   <Download className="w-4 h-4 text-amber-400" />
-                  <span>تحميل نموذج شيت العملاء المبسط</span>
+                  <span>تحميل ن��وذج شيت العملاء المبسط</span>
                 </button>
                 <button
                   type="button"
@@ -1181,7 +1179,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                   onClick={() => setShowTargetColumnsExplainer(!showTargetColumnsExplainer)}
                   className="text-xs text-amber-400 hover:text-amber-300 font-bold bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 px-3 py-1.5 rounded-xl transition shrink-0 cursor-pointer"
                 >
-                  {showTargetColumnsExplainer ? 'إخفاء دليل الأعمدة' : 'استعراض الأعمدة المعتمدة (45 عمود)'}
+                  {showTargetColumnsExplainer ? 'إخفاء دليل الأعمدة' : 'استعراض الأعمدة المعتمدة (45 عم��د)'}
                 </button>
               </div>
 
@@ -1354,7 +1352,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
             </div>
 
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-              <div className="text-[11px] font-bold text-slate-500">🛡️ إجمالي الحدود الائتمانية</div>
+              <div className="text-[11px] font-bold text-slate-500">🛡️ إجمالي الحدود الائتمان��ة</div>
               <div className="text-xl font-black text-blue-700 mt-1">
                 {formatCurrency(customers.reduce((sum, c) => sum + (c.creditLimit || 0), 0))}
               </div>
@@ -1970,13 +1968,6 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {/* SUB-TAB 5: Live Google Sheets Sources */}
-      {activeSubTab === 'published_sources' && (
-        <div className="space-y-6">
-          <PublishedDataSourcesPanel />
         </div>
       )}
 
