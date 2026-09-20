@@ -78,7 +78,7 @@ export const ExcelImportExport: React.FC = () => {
     selectedBranchFilter
   } = useApp();
 
-  const [activeSubTab, setActiveSubTab] = useState<'google_sheets' | 'excel_file' | 'drive_scanner' | 'customers' | 'published_sources'>('google_sheets');
+  const [activeSubTab, setActiveSubTab] = useState<'google_sheets' | 'excel_file' | 'customers' | 'targets'>('google_sheets');
 
   // Customer Management State
   const [customerGoogleSheetUrl, setCustomerGoogleSheetUrl] = useState('');
@@ -277,9 +277,9 @@ function onEdit(e) {
               <FileSpreadsheet className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-slate-900">مركز ربط الشيتات (Google Sheets & Excel)</h2>
+              <h2 className="text-xl font-black text-slate-900">مركز ربط الشيتات الموحد</h2>
               <p className="text-xs sm:text-sm text-slate-500">
-                مزامنة حية مع Google Sheets • استيراد وتصدير إكسل • دعم مباشر لروابط صور Google Drive وسعر الكرتونة
+                نقطة واحدة لقراءة وتحديث 3 شيتات فقط: المنتجات والعملاء والتارجت، من Google Sheets أو Excel Online
               </p>
             </div>
           </div>
@@ -291,7 +291,7 @@ function onEdit(e) {
               title="مسح وتصفير كافة الأصناف للرفع من جديد"
             >
               <Trash2 className="w-4 h-4 text-rose-600" />
-              <span>تصفير ومسح الكل 🗑️</span>
+              <span>تصفير ��مسح الكل 🗑️</span>
             </button>
 
             <button
@@ -313,70 +313,29 @@ function onEdit(e) {
           </div>
         </div>
 
-        {/* Tab Navigation */}
+        {/* The only three synchronized sheets: products, customers, and targets. */}
         <div className="flex items-center gap-2 border-b border-slate-200 pt-2 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveSubTab('google_sheets')}
-            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
-              activeSubTab === 'google_sheets'
-                ? 'border-emerald-600 text-emerald-700'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
+            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${activeSubTab === 'google_sheets' ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
           >
             <Globe className="w-4 h-4" />
-            <span>ربط المنتجات مع Google Sheets</span>
-            <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded-full font-bold">مباشر Live</span>
+            <span>شيت المنتجات</span>
           </button>
-
-          <button
-            onClick={() => setActiveSubTab('excel_file')}
-            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
-              activeSubTab === 'excel_file'
-                ? 'border-emerald-600 text-emerald-700'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Upload className="w-4 h-4" />
-            <span>رفع ملف إكسل للمنتجات</span>
-          </button>
-
           <button
             onClick={() => setActiveSubTab('customers')}
-            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
-              activeSubTab === 'customers'
-                ? 'border-emerald-600 text-emerald-700'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
+            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${activeSubTab === 'customers' ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
           >
             <Users className="w-4 h-4 text-amber-600" />
-            <span>قاعدة بيانات العملاء (شيتات وإكسل)</span>
-            <span className="bg-amber-100 text-amber-900 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{customers.length} عميل</span>
+            <span>شيت العملاء</span>
+            <span className="bg-amber-100 text-amber-900 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{customers.length}</span>
           </button>
-
           <button
-            onClick={() => setActiveSubTab('drive_scanner')}
-            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
-              activeSubTab === 'drive_scanner'
-                ? 'border-emerald-600 text-emerald-700'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
+            onClick={() => { setCustomerTableTab('target'); setActiveSubTab('targets'); }}
+            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${activeSubTab === 'targets' ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
           >
-            <FolderOpen className="w-4 h-4 text-blue-500" />
-            <span>ماسح مجلدات Google Drive</span>
-            <span className="bg-blue-100 text-blue-900 text-[10px] px-1.5 py-0.5 rounded-full font-bold">Apps Script</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('published_sources')}
-            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
-              activeSubTab === 'published_sources'
-                ? 'border-emerald-600 text-emerald-700'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Globe className="w-4 h-4 text-emerald-600" />
-            <span>شيتات Google Sheets المباشرة</span>
-            <span className="bg-emerald-100 text-emerald-900 text-[10px] px-1.5 py-0.5 rounded-full font-bold">Cloud Live 🟢</span>
+            <Target className="w-4 h-4 text-amber-600" />
+            <span>شيت التارجت</span>
           </button>
         </div>
       </div>
@@ -1114,7 +1073,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
       )}
 
       {/* SUB-TAB 4: Customers Database Management */}
-      {activeSubTab === 'customers' && (
+      {(activeSubTab === 'customers' || activeSubTab === 'targets') && (
         <div className="space-y-6">
           {/* Customer Google Sheets & Excel Sync Hero */}
           <div className="bg-gradient-to-br from-amber-950 via-slate-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-amber-800/40 space-y-6">
@@ -1590,7 +1549,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                           </td>
                           <td className="p-3">
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                              c.dealEligibility === 'غير' || c.dealEligibility === 'غير قابل'
+                              c.dealEligibility === 'غير' || c.dealEligibility === 'غير قا��ل'
                                 ? 'bg-rose-100 text-rose-800'
                                 : 'bg-emerald-100 text-emerald-800'
                             }`}>
