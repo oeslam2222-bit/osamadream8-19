@@ -1316,7 +1316,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     <span>نتائج الفلترة: </span>
                     <strong className="text-amber-300 font-black">{filteredProducts.length}</strong> صنف
                     {searchTerm && <span className="text-slate-400 text-[11px] mr-1.5 font-normal">بحث: &quot;{searchTerm}&quot;</span>}
-                    {selectedOfficialDept !== 'الكل' && <span className="text-amber-200 text-[11px] mr-1.5 font-normal">المجموعة: {selectedOfficialDept}</span>}
+                    {selectedOfficialDept !== 'الكل' && <span className="text-amber-200 text-[11px] mr-1.5 font-normal">��لمجموعة: {selectedOfficialDept}</span>}
                     {selectedSubCategory !== 'الكل' && <span className="text-blue-200 text-[11px] mr-1.5 font-normal">العائلة: {selectedSubCategory}</span>}
                   </div>
                 </div>
@@ -1498,7 +1498,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </div>
 
                 {/* Body Details */}
-                <div className={`p-3 sm:p-3.5 flex-1 flex flex-col justify-between space-y-${isComfortable ? '3' : '2'}`}>
+                <div className={`p-3 sm:p-4 flex-1 flex flex-col justify-between gap-${isComfortable ? '3' : '2'} min-w-0`}>
                   {/* Category & Title */}
                   <div className="space-y-1.5">
                     {/* Single consolidated department badge */}
@@ -1518,6 +1518,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       })()}
                     </div>
 
+                    <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 font-semibold">
+                      <span className="truncate">كود: {product.code}</span>
+                      <span className="shrink-0">الشدة: {product.cartonQuantity || 1} قطعة</span>
+                    </div>
                     <h3
                       onClick={() => setSelectedProductForModal(product)}
                       className="font-black text-slate-900 text-sm leading-snug line-clamp-2 hover:text-amber-600 cursor-pointer transition min-h-[36px]"
@@ -2176,7 +2180,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     {selectedProductForModal.unifiedCode ? (
                       <span className="bg-indigo-950 text-indigo-200 font-mono font-black text-xs px-2.5 py-1 rounded-lg border border-indigo-700/80 flex items-center gap-1">
                         <span className="text-amber-400 font-bold">#</span>
-                        <span>الكود الموحد للموديل: {selectedProductForModal.unifiedCode.replace('#', '')}</span>
+                        <span>الكود الموحد ل��موديل: {selectedProductForModal.unifiedCode.replace('#', '')}</span>
                       </span>
                     ) : (
                       <span className="bg-slate-100 text-slate-600 font-bold text-xs px-2 py-0.5 rounded-lg border border-slate-200">

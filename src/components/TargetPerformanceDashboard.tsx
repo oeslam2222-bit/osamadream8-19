@@ -351,7 +351,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
       totalSalesTarget += r.salesTarget || 0;
       totalSalesAchieved += r.salesAchieved || 0;
       totalCollectionTarget += r.collectionTarget || 0;
-      totalCollectionAchieved += r.collectionAchieved || 0;
+      // Collection sheets often store deductions as negative values; analytics always presents collected amounts positively.
+      totalCollectionAchieved += Math.abs(Number(r.collectionAchieved) || 0);
     });
 
     const salesPercentage = totalSalesTarget > 0 ? (totalSalesAchieved / totalSalesTarget) * 100 : 0;
@@ -2513,7 +2514,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-base font-black text-slate-900">
-                  رفع شيت أهداف المبيعات والتحصيل اليومي
+                  رفع شيت أهداف ��لمبيعات والتحصيل اليومي
                 </h3>
                 <p className="text-xs text-slate-500 font-bold">
                   يدعم ملفات Excel (.xlsx, .xls) وCSV
