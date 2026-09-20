@@ -53,8 +53,11 @@ export const VisitsDashboard: React.FC = () => {
     { icon: Users, label: 'عملاء تمت زيارتهم', value: stats.customers },
   ];
 
-  return <main className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5" dir="rtl">
-    <header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-black text-slate-900">لوحة زيارات العملاء</h1><p className="text-sm text-slate-500 mt-1">تخطيط الزيارات وقياس التغطية مع خصوصية كاملة لكل دور</p></div><button onClick={() => setShowForm(true)} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl flex items-center gap-2"><Plus className="w-4 h-4" /> جدولة زيارة</button></header>
+  return <main className="p-3 sm:p-5 lg:p-6 max-w-7xl mx-auto flex flex-col gap-5" dir="rtl">
+    <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-3xl bg-slate-950 text-white p-5 sm:p-6 shadow-lg">
+      <div><div className="text-xs font-bold text-amber-300 mb-1">إدارة التغطية الميدانية</div><h1 className="text-2xl sm:text-3xl font-black">لوحة زيارات العملاء</h1><p className="text-sm text-slate-300 mt-1">تخطيط الزيارات وقياس التغطية من شاشة واحدة</p></div>
+      <button onClick={() => setShowForm(true)} className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-4 py-3 rounded-xl flex items-center justify-center gap-2 shadow-sm"><Plus className="w-4 h-4" /> جدولة زيارة</button>
+    </header>
     <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       {statCards.map(({ icon: Icon, label, value }) => (
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm" key={label}>
@@ -65,8 +68,9 @@ export const VisitsDashboard: React.FC = () => {
       ))}
     </section>
     {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager') && (
-      <section className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-wrap gap-3">
-        <label className="text-sm font-bold">الشهر<input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="block mt-1 border rounded-lg px-3 py-2" /></label>
+      <section className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 flex flex-wrap items-end gap-3 shadow-sm">
+        <div className="w-full text-xs font-black text-slate-500 mb-1">فلاتر الزيارات</div>
+        <label className="text-xs font-black text-slate-700">الشهر<input aria-label="الشهر" type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="block mt-1 border border-slate-200 bg-slate-50 rounded-xl px-3 py-2.5 text-sm font-bold" /></label>
         {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor') && (
           <label className="text-sm font-bold">الفرع<select value={branch} onChange={(e) => setBranch(e.target.value)} className="block mt-1 border rounded-lg px-3 py-2"><option>الكل</option>{branches.map((b) => <option key={b}>{b}</option>)}</select></label>
         )}
@@ -75,11 +79,11 @@ export const VisitsDashboard: React.FC = () => {
         )}
       </section>
     )}
-    <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-      <div className="p-4 border-b font-black">تفاصيل الزيارات ({filtered.length})</div>
+    <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+      <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between gap-3"><div><h2 className="font-black text-slate-900">تفاصيل الزيارات</h2><p className="text-xs text-slate-500 mt-1">اضغط على أي صف لعرض كامل التفاصيل</p></div><span className="rounded-full bg-amber-50 text-amber-700 px-3 py-1 text-xs font-black">{filtered.length} زيارة</span></div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50">
+        <table className="w-full min-w-[680px] text-sm">
+          <thead className="bg-slate-50 text-slate-500">
             <tr>
               <th className="p-3 text-right">العميل</th>
               <th className="p-3 text-right">التاريخ</th>
@@ -191,7 +195,7 @@ export const VisitsDashboard: React.FC = () => {
           {selectedVisit.collectedAmount && (
             <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg mb-4">
               <p className="text-xs text-emerald-600 mb-1 font-bold">المبلغ المحصل</p>
-              <p className="text-lg font-bold text-emerald-600">{selectedVisit.collectedAmount?.toLocaleString()} ج.م</p>
+              <p className="text-lg font-black text-emerald-600">{Math.abs(Number(selectedVisit.collectedAmount || 0)).toLocaleString('ar-EG')} ج.م</p>
             </div>
           )}
           
