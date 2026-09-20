@@ -127,7 +127,7 @@ interface AppContextType {
   }>;
 
   // Auth actions
-  login: (identifier: string, password?: string) => Promise<{ success: boolean; message: string; user?: User }>;
+  login: (identifier: string, password: string) => Promise<{ success: boolean; message: string; user?: User }>;
   register: (userData: {
     name: string;
     username: string;
@@ -2041,11 +2041,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (dbPass !== cleanPass) {
         return { success: false, message: 'كلمة المرور غير صحيحة. يرجى التأكد من كتابة كلمة المرور بدقة.' };
       }
-    } else if (cleanPass) {
-      // First-time setup: user sets their password
-      found = { ...found, password: cleanPass };
-      saveUserToSupabase(found).catch((e) => console.warn('Supabase password update failed:', e));
-    }
+  } else {
+    return {
+      success: false,
+      message: 'لا توجد كلمة مرور مسجلة لهذا الحساب. يرجى مراجعة إدارة النظام لتعيين كلمة المرور قبل تسجيل الدخول.',
+    };
+  }
+
 
     setCurrentUser(found);
     setIsAuthenticated(true);
