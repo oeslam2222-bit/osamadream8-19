@@ -435,7 +435,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!parsed || parsed.length === 0) {
         return { success: false, count: 0, message: 'لم يتم العثور على أي صفوف أهداف صالحة في الملف.' };
       }
-      const deduplicated = deduplicateTargetRecords([...targets, ...parsed]);
+      // Clean mirror without accumulating past duplicates: only display current sheet rows
+      const deduplicated = deduplicateTargetRecords(parsed);
       setTargets(deduplicated);
       return { success: true, count: deduplicated.length, message: `تم تحديث ومزامنة ${deduplicated.length} هدف بنجاح بدون تكرار السجلات!` };
     } catch (err: any) {
@@ -453,7 +454,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!parsed || parsed.length === 0) {
         return { success: false, count: 0, message: 'لم يتم العثور على أي صفوف أهداف صالحة داخل شيت جوجل.' };
       }
-      const deduplicated = deduplicateTargetRecords([...targets, ...parsed]);
+      // Clean mirror without accumulating past duplicates: only display current sheet rows
+      const deduplicated = deduplicateTargetRecords(parsed);
       setTargets(deduplicated);
       saveSingleSourceUrl('targets', cleanUrl);
       return { success: true, count: deduplicated.length, message: `تمت مزامنة وتحديث ${deduplicated.length} هدف بنجاح بدون تكرار وحفظ الرابط!` };
@@ -1648,7 +1650,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const importCustomersList = (newCustomers: Customer[], mode: 'merge' | 'replace' | 'upsert' = 'upsert') => {
+  const importCustomersList = (newCustomers: Customer[], mode: 'merge' | 'replace' | 'upsert' = 'replace') => {
     const sanitizedIncoming = sanitizeCustomers(newCustomers);
     const linked = linkCustomersToUsers(sanitizedIncoming, users);
     let finalCustomers: Customer[] = [];
@@ -2471,7 +2473,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProducts((prev) => prev.filter((p) => p.id !== productId));
   };
 
-  const importProductsList = (newProducts: Product[], mode: 'merge' | 'replace') => {
+  const importProductsList = (newProducts: Product[], mode: 'merge' | 'replace' = 'replace') => {
     // Automatically register any newly encountered branch names dynamically
     setBranches((prevBranches) => {
       const existingNames = new Set(prevBranches.map((b) => b.name));

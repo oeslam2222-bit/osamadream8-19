@@ -2279,19 +2279,23 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     const rawDebtStatus = getVal(row, colMap.debtStatus);
     const parsedTotalMonthlySalesCol = parseNumberValue(colMap.totalMonthlySales);
     const parsedTotalMonthlyCollectionsColRaw = parseNumberValue(colMap.totalMonthlyCollections);
+    // User requirement: التحصيلات كلها بالسالب اضرب في سالب واحد وخليها بالموجب
     const parsedTotalMonthlyCollectionsCol = parsedTotalMonthlyCollectionsColRaw === undefined
       ? undefined
-      : Math.abs(parsedTotalMonthlyCollectionsColRaw);
+      : (parsedTotalMonthlyCollectionsColRaw < 0 ? parsedTotalMonthlyCollectionsColRaw * -1 : parsedTotalMonthlyCollectionsColRaw);
     const parsedOverdue2025 = parseNumberValue(colMap.overdue2025);
     const parsedOverdue2026 = parseNumberValue(colMap.overdue2026);
     const parsedDueUntilPeriod = parseNumberValue(colMap.dueUntilPeriod);
     const parsedTotalOverallSales = parseNumberValue(colMap.totalOverallSales);
     const parsedTotalOverallCollectionsRaw = parseNumberValue(colMap.totalOverallCollections);
-  const parsedTotalOverallCollections = parsedTotalOverallCollectionsRaw === undefined
-    ? undefined
-    : Math.abs(parsedTotalOverallCollectionsRaw);
+    const parsedTotalOverallCollections = parsedTotalOverallCollectionsRaw === undefined
+      ? undefined
+      : (parsedTotalOverallCollectionsRaw < 0 ? parsedTotalOverallCollectionsRaw * -1 : parsedTotalOverallCollectionsRaw);
     const parsedSales2024 = parseNumberValue(colMap.sales2024);
-    const parsedCollections2024 = parseNumberValue(colMap.collections2024);
+    const parsedCollections2024Raw = parseNumberValue(colMap.collections2024);
+    const parsedCollections2024 = parsedCollections2024Raw === undefined
+      ? undefined
+      : (parsedCollections2024Raw < 0 ? parsedCollections2024Raw * -1 : parsedCollections2024Raw);
 
     // Dynamic Monthly Sales & Collections parsing (Months 1-12)
     const rowMonthlySales: Record<number, number> = {};
@@ -2314,7 +2318,8 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     monthlyCollectionCols.forEach(({ month, colIdx }) => {
       const rawVal = parseNumberValue(colIdx);
       if (rawVal !== undefined) {
-        const val = Math.abs(rawVal);
+        // Multiplied by -1 if negative to guarantee positive collections
+        const val = rawVal < 0 ? rawVal * -1 : rawVal;
         rowMonthlyCollections[month] = val;
         dynamicMonthlyCollectionsSum += val;
         if (val > 0) activeCollectionMonthsList.push(month);

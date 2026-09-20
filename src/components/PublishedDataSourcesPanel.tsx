@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { BarChart3, CheckCircle2, ExternalLink, FileSpreadsheet, Globe2, Info, Link2, Save, Users, X } from 'lucide-react';
+import { BarChart3, CheckCircle2, ExternalLink, FileSpreadsheet, Globe2, Info, Link2, Save, Users, X, Lock, ShieldAlert } from 'lucide-react';
+import { useApp } from '../context/AppContext';
 import {
   defaultSources,
   getPublishedDataSources,
@@ -33,13 +34,36 @@ const sourceMeta: Record<SourceKey, { icon: React.ReactNode; title: string; desc
 };
 
 export const PublishedDataSourcesPanel: React.FC = () => {
+  const { currentUser } = useApp();
   const [sources, setSources] = useState<PublishedDataSources>(() => getPublishedDataSources());
   const [saved, setSaved] = useState(false);
   const [activeKey, setActiveKey] = useState<SourceKey>('customers');
 
+  const isAuthorized = currentUser.role === 'admin' || currentUser.role === 'branch_manager' || currentUser.role === 'developer';
+
   const activeSource = sources[activeKey];
   const activeMeta = sourceMeta[activeKey];
   const connectedCount = useMemo(() => Object.values(sources).filter(isValidPublishedSource).length, [sources]);
+
+  if (!isAuthorized) {
+    return (
+      <section className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 text-center" dir="rtl">
+        <div className="max-w-md mx-auto py-8">
+          <div className="w-16 h-16 bg-rose-50 border border-rose-200 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-inner">
+            <Lock className="w-8 h-8" />
+          </div>
+          <h3 className="text-xl font-black text-slate-900 mb-2">صلاحية محجوبة</h3>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            صفحة ربط وإدارة مصادر البيانات والشيتات السحابية تقتصر حصراً على <strong>مدير النظام (Admin)</strong> و<strong>مدير الفرع (Manager)</strong> لضمان أمان وسلامة البيانات ومنع التلاعب.
+          </p>
+          <div className="mt-6 inline-flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-xl text-xs font-bold text-slate-600">
+            <ShieldAlert className="w-4 h-4 text-amber-600" />
+            <span>رتبتك الحالية: {currentUser.role === 'sales_rep' ? 'مندوب مبيعات' : currentUser.role === 'supervisor' ? 'مشرف مبيعات' : currentUser.role}</span>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   const updateActive = (patch: Partial<PublishedDataSource>) => {
     setSources((current) => ({
