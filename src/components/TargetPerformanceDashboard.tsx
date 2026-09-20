@@ -472,6 +472,61 @@ export const TargetPerformanceDashboard: React.FC = () => {
       .sort((a, b) => b.salesPerc - a.salesPerc);
   }, [filteredRecords]);
 
+  // Customer accountability summary linked to the Target sheet.
+  // A customer is considered dealt in a month only when that month's sales are greater than zero.
+  const repCustomerSummary = useMemo(() => {
+    const map = new Map<string, {
+      repName: string;
+      totalCustomers: number;
+      dealtCustomers: number;
+      nonDealtCustomers: number;
+      eligibleCustomers: number;
+      ineligibleCustomers: number;
+      dues: number;
+      debts: number;
+      collections: number;
+    }>();
+
+    const matchesRep = (customerRep: string | undefined, repName: string) =>
+      Boolean(customerRep) && (isArabicNameMatch(customerRep, repName) || normalizeArabicText(customerRep) === normalizeArabicText(repName));
+
+    const reps = Array.from(new Set(filteredRecords.map((record) => record.repName).filter(Boolean)));
+    reps.forEach((repName) => {
+      const repCustomers = customers.filter((customer) => {
+        const matchesBranch = !effectiveBranch || isBranchMatch(customer.branchName, effectiveBranch);
+        const matchesSelectedRep = selectedRep === 'ALL' || matchesRep(customer.repName || customer.salesRepName, selectedRep);
+        return matchesBranch && matchesSelectedRep && matchesRep(customer.repName || customer.salesRepName, repName);
+      });
+
+      const selectedMonthSales = (customer: typeof customers[number]) => {
+        if (selectedMonth === 'ALL') {
+          return Object.values(customer.monthlySales2026 || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
+        }
+        return Math.max(0, Number(customer.monthlySales2026?.[selectedMonth]) || 0);
+      };
+
+      const summary = {
+        repName,
+        totalCustomers: repCustomers.length,
+        dealtCustomers: repCustomers.filter((customer) => selectedMonthSales(customer) > 0).length,
+        nonDealtCustomers: repCustomers.filter((customer) => selectedMonthSales(customer) <= 0).length,
+        eligibleCustomers: repCustomers.filter((customer) => !normalizeArabicText(customer.dealEligibility || '').includes('غير')).length,
+        ineligibleCustomers: repCustomers.filter((customer) => normalizeArabicText(customer.dealEligibility || '').includes('غير')).length,
+        dues: repCustomers.reduce((sum, customer) => sum + (Number(customer.dueBalance) || 0), 0),
+        debts: repCustomers.reduce((sum, customer) => sum + (Number(customer.currentBalance ?? customer.balance) || 0), 0),
+        collections: repCustomers.reduce((sum, customer) => {
+          const monthly = selectedMonth === 'ALL'
+            ? Object.values(customer.monthlyCollections2026 || {}).reduce((total, value) => total + (Number(value) || 0), 0)
+            : Number(customer.monthlyCollections2026?.[selectedMonth]) || 0;
+          return sum + Math.abs(monthly);
+        }, 0),
+      };
+      map.set(repName, summary);
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.dealtCustomers - a.dealtCustomers || a.repName.localeCompare(b.repName, 'ar'));
+  }, [customers, effectiveBranch, filteredRecords, selectedMonth, selectedRep]);
+
   // Base records for the monthly details matrix (filtered by user/role/branch/rep/year, WITHOUT filtering out months)
   const baseRecordsForMonths = useMemo(() => {
     return visibleRecords.filter((r) => {
@@ -2424,7 +2479,52 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
           {/* ADMIN ONLY TAB 3: Raw Excel Table View */}
           {isAdminOrDev && adminTab === 'table' && (
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="space-y-4">
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="p-4 border-b border-slate-200 bg-slate-50">
+                  <div className="font-black text-sm text-slate-900 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-amber-600" />
+                    <span>ملخص عملاء كل مندوب من شيت العملاء</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-bold mt-1">
+                    المتعامل = مبيعات الشهر أكبر من صفر، والتحصيلات معروضة بالموجب حتى لو كانت في الشيت بالسالب.
+                  </p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[1100px] text-right text-xs">
+                    <thead className="bg-slate-100 text-slate-700 font-black border-b border-slate-200">
+                      <tr>
+                        <th className="p-3">المندوب</th>
+                        <th className="p-3 text-center">عدد العملاء</th>
+                        <th className="p-3 text-center text-emerald-700">متعامل</th>
+                        <th className="p-3 text-center text-slate-600">غير متعامل</th>
+                        <th className="p-3 text-center text-blue-700">قابل</th>
+                        <th className="p-3 text-center text-rose-700">غير قابل</th>
+                        <th className="p-3 text-left text-amber-700">المستحقات</th>
+                        <th className="p-3 text-left text-rose-700">المديونيات</th>
+                        <th className="p-3 text-left text-blue-700">التحصيلات</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-bold text-slate-800">
+                      {repCustomerSummary.map((summary) => (
+                        <tr key={summary.repName} className="hover:bg-amber-50/40 transition">
+                          <td className="p-3 font-black text-slate-950">{summary.repName}</td>
+                          <td className="p-3 text-center">{summary.totalCustomers}</td>
+                          <td className="p-3 text-center text-emerald-700">{summary.dealtCustomers}</td>
+                          <td className="p-3 text-center text-slate-500">{summary.nonDealtCustomers}</td>
+                          <td className="p-3 text-center text-blue-700">{summary.eligibleCustomers}</td>
+                          <td className="p-3 text-center text-rose-700">{summary.ineligibleCustomers}</td>
+                          <td className="p-3 text-left text-amber-700">{formatEGP(summary.dues)}</td>
+                          <td className="p-3 text-left text-rose-700">{formatEGP(summary.debts)}</td>
+                          <td className="p-3 text-left text-blue-700">{formatEGP(summary.collections)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
               <div className="p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50">
                 <div className="font-black text-sm text-slate-900 flex items-center gap-2">
                   <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
@@ -2488,6 +2588,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+              </div>
             </div>
           )}
         </>
@@ -2513,7 +2614,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-base font-black text-slate-900">
-                  رفع شيت أهداف المبيعات والتحصيل اليومي
+                  رفع شيت أهداف ��لمبيعات والتحصيل اليومي
                 </h3>
                 <p className="text-xs text-slate-500 font-bold">
                   يدعم ملفات Excel (.xlsx, .xls) وCSV
