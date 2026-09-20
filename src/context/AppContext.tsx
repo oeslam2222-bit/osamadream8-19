@@ -475,7 +475,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addOrUpdateTargetRecord = (record: TargetRecord) => {
     setTargets((prev) => {
-      const idx = prev.findIndex((r) => r.id === record.id);
+      const identity = `${normalizeArabicText(record.branch)}__${normalizeArabicText(record.repName)}__${String(record.date || '').trim()}`;
+      const idx = prev.findIndex((r) =>
+        r.id === record.id ||
+        `${normalizeArabicText(r.branch)}__${normalizeArabicText(r.repName)}__${String(r.date || '').trim()}` === identity
+      );
       if (idx >= 0) {
         const next = [...prev];
         next[idx] = record;
@@ -584,10 +588,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!Array.isArray(list)) return [];
     const usedIds = new Set<string>();
 
-    // Product codes are display/search values, not unique row identifiers.
-    // Keep every spreadsheet row, including repeated product codes with different
-    // unified codes, colors, sizes, prices, or stock values.
-    return list.filter(Boolean).map((rawProduct, index) => {
+  // Product code is the stable business key. Repeated imports must update the
+  // existing row instead of creating another catalog item.
+  const uniqueList = deduplicateProductArray(list.filter(Boolean));
+  return uniqueList.map((rawProduct, index) => {
       const p = { ...rawProduct };
       const originalId = String(p.id || '').trim();
       let rowId = originalId || `product-row-${index + 1}`;
@@ -743,8 +747,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const sanitizeCustomers = (list: Customer[]): Customer[] => {
     if (!Array.isArray(list)) return [];
     // Strictly preserve all customer records 1:1 without merging (exact match with the 3,427 sheet records)
-    return list.map((c, idx) => {
-      let resolvedBranch = c.branchName || '';
+  const normalizedList = list.map((c, idx) => {
+  let resolvedBranch = c.branchName || '';
       if (!resolvedBranch || resolvedBranch === 'الفرع الرئيسي') {
         const locInferred = inferBranchFromText(
           `${c.address || ''} ${c.governorate || ''} ${c.notes || ''}`
@@ -831,6 +835,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         paymentTerms: finalPaymentTerms,
       };
     });
+    return deduplicateAndMergeCustomers(normalizedList).customers;
   };
 
   const [products, setProducts] = useState<Product[]>(() => {
@@ -1586,7 +1591,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       const rawRep = (updated.salesRepName || updated.repName || '').trim();
-      if ((!rawRep || rawRep === 'مندوب المبيعات' || rawRep === 'المندوب' || rawRep === 'غير محدد') && !updated.repId) {
+      if ((!rawRep || rawRep === '��ندوب المبيعات' || rawRep === 'المندوب' || rawRep === 'غير محدد') && !updated.repId) {
         return updated;
       }
 
@@ -1652,6 +1657,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const importCustomersList = (newCustomers: Customer[], mode: 'merge' | 'replace' | 'upsert' = 'replace') => {
     const sanitizedIncoming = sanitizeCustomers(newCustomers);
+    // Every import is an update/upsert keyed by customer identity; never append duplicates.
     const linked = linkCustomersToUsers(sanitizedIncoming, users);
     let finalCustomers: Customer[] = [];
     if (mode === 'replace') {
@@ -2148,7 +2154,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           branchName: branchName || u.branchName,
           action: 'update_user',
           actionTitle: `اعتماد وتفعيل حساب (${u.name})`,
-          details: `تم اعتماد المستخدم وتعيين الصلاحية (${role || u.role}) لفرع (${branchName || u.branchName}).`,
+          details: `تم اعتماد المستخدم وتعيين الصلاحية (${role || u.role}) لفر�� (${branchName || u.branchName}).`,
           badgeType: 'success',
         });
 
@@ -4147,7 +4153,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   if (currentUser.role === 'supervisor' && !doesCustomerBelongToSupervisor(customer, currentUser, users)) return { success: false, message: 'العميل خارج نطاق مندوبيك' };
   if (currentUser.role === 'branch_manager' && !doesCustomerBelongToBranch(customer, currentUser.branchName, users)) return { success: false, message: 'العميل خارج نطاق فرعك' };
   setVisits((prev) => [...prev, { ...visit, id: `visit-${Date.now()}`, createdBy: currentUser.id, createdAt: new Date().toISOString(), status: visit.status || 'مجدولة' }]);
-  return { success: true, message: 'تم تسجيل الزيارة بنجاح' };
+  return { success: true, message: 'تم ت��جيل الزيارة بنجاح' };
   };
   
   const updateVisit = (visit: CustomerVisit) => {
