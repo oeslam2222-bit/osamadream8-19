@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx-js-style';
 import { COMPANY_INFO } from '../data/mockData';
 import { Customer, CustomerTier, Invoice, ItemStatus, Product, SalesPriority } from '../types';
-import { inferBranchFromText, resolveCustomerFinancials, getBranchStockForProduct } from './arabicMatchingService';
+import { inferBranchFromText, resolveCustomerFinancials, getBranchStockForProduct, resolveBranchName } from './arabicMatchingService';
 import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
 import { deduplicateAndMergeCustomers } from './customerDeduplicationService';
 
@@ -83,9 +83,12 @@ export function normalizeExcelBranchName(rawBranch?: string): string {
     return branchCodeMap[branchCode];
   }
 
-  const inferred = inferBranchFromText(clean);
-  if (inferred) {
-    return inferred;
+  // Route everything else through the canonical resolver so branch names,
+  // branch numbers, and free-text governorate/districts all normalize to one
+  // of the 7 known branch names (October central warehouse handled separately).
+  const resolved = resolveBranchName(clean);
+  if (resolved) {
+    return resolved;
   }
 
   // If user provided a specific branch name, format nicely

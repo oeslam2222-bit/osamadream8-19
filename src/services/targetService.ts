@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx-js-style';
 import { TargetQuarter, TargetRecord, User } from '../types';
-import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from './arabicMatchingService';
+import { isArabicNameMatch, isBranchMatch, normalizeArabicText, resolveBranchName } from './arabicMatchingService';
 import { decodeBufferSmart } from './encodingService';
 import { getPublishedCsvUrl } from './dataSourceService';
 
@@ -332,8 +332,8 @@ export function parseTargetRawRows(rawRows: any[][]): TargetRecord[] {
     const remainingCollection = Math.max(0, collectionTarget - collectionAchieved);
 
     const record: TargetRecord = {
-      id: `trg-${Date.now()}-${r}-${Math.random().toString(36).substring(2, 6)}`,
-      branch: branch || 'الفرع الرئيسي',
+      id: `trg-${normalizeArabicText(branch).replace(/\s+/g, '_')}__${normalizeArabicText(repName).replace(/\s+/g, '_')}__${dateStr || 'nodate'}_${month || 'm0'}_${year || 'y0'}`,
+      branch: resolveBranchName(branch) || branch || 'الفرع الرئيسي',
       repName: repName || 'مندوب غير محدد',
       salesTarget,
       salesAchieved,

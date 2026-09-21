@@ -218,6 +218,53 @@ export const CANONICAL_BRANCHES = [
   'فرع منوف',
 ] as const;
 
+export const MAIN_BRANCH_NAME: string = CANONICAL_BRANCHES[0];
+
+export const BRANCH_CODE_MAP: Record<string, string> = {
+  '8': MAIN_BRANCH_NAME,
+  '08': MAIN_BRANCH_NAME,
+  '15': 'فرع الفيوم',
+  '45': 'فرع ديمشلت',
+  '55': 'فرع منوف',
+  '65': 'فرع منيا القمح',
+  '75': 'فرع القاهرة',
+  '90': 'فرع البحيرة',
+  '95': 'فرع المنيا',
+};
+
+const ARABIC_DIGIT_MAP: Record<string, string> = {
+  '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
+  '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9',
+};
+
+function toLatinDigits(value: string): string {
+  return value.replace(/[٠-٩]/g, (d) => ARABIC_DIGIT_MAP[d]);
+}
+
+export function resolveBranchName(name?: string): string {
+  if (!name || !name.trim()) return '';
+  const clean = name.trim();
+  const codeCandidate = toLatinDigits(clean).replace(/^فرع\s*/i, '').trim();
+  const codeMatch = BRANCH_CODE_MAP[codeCandidate] || BRANCH_CODE_MAP[codeCandidate.toLowerCase()];
+  if (codeMatch) return codeMatch;
+
+  const inferred = inferBranchFromText(clean);
+  if (inferred) return inferred;
+
+  const norm = normalizeArabicText(clean);
+  for (const branch of CANONICAL_BRANCHES) {
+    if (norm === normalizeArabicText(branch) || norm === normalizeArabicText(branch.replace(/^فرع\s*/, ''))) {
+      return branch;
+    }
+  }
+
+  return '';
+}
+
+export function isCanonicalBranchName(name?: string): boolean {
+  return CANONICAL_BRANCHES.includes(normalizeBranchName(name) as any);
+}
+
 /**
  * Infer exact branch name from text (address, customer name, notes, governorate, or branch string)
  * Distinguishes Upper Egypt Minya (بني مزار، ملوي، سمالوط، مغاغة) from Sharqia Minya El-Qamh (منيا القمح، الزقازيق، بلبيس)
@@ -394,166 +441,28 @@ export function inferBranchFromText(text?: string): string {
  */
 export function normalizeBranchKey(branch?: string): string {
   if (!branch) return '';
-  const inferred = inferBranchFromText(branch);
-  if (inferred) {
-    if (inferred.includes('أكتوبر') || inferred.includes('اكتوبر') || inferred.includes('مركزي')) return 'main';
-    if (inferred.includes('منيا القمح')) return 'meq';
-    if (inferred.includes('المنيا')) return 'minya';
-    if (inferred.includes('ديمشلت')) return 'dimeshalt';
-    if (inferred.includes('الفيوم') || inferred.includes('فيوم')) return 'fayoum';
-    if (inferred.includes('القاهرة') || inferred.includes('قاهرة')) return 'cairo';
-    if (inferred.includes('البحيرة') || inferred.includes('بحيرة')) return 'beheira';
-    if (inferred.includes('منوف')) return 'menouf';
-  }
-
-  const norm = normalizeArabicText(branch);
-
+  const resolved = resolveBranchName(branch);
+  if (!resolved) return '';
   if (
-    norm.includes('اكتوبر') ||
-    norm.includes('مركزي') ||
-    norm.includes('رئيسي') ||
-    norm.includes('الجيزه') ||
-    norm.includes('جيزه') ||
-    norm.includes('october') ||
-    norm.includes('giza') ||
-    norm.includes('main')
+    resolved.includes('أكتوبر') ||
+    resolved.includes('اكتوبر') ||
+    resolved.includes('مركزي') ||
+    resolved === MAIN_BRANCH_NAME
   ) {
     return 'main';
   }
-
-  // Minya El-Qamh (Sharqia) - Must be evaluated before general Minya
-  if (
-    norm.includes('منيا القمح') ||
-    norm.includes('القمح') ||
-    norm.includes('meq') ||
-    norm.includes('شرقيه') ||
-    norm.includes('زقازيق') ||
-    norm.includes('بلبيس') ||
-    norm.includes('فاقوس')
-  ) {
-    return 'meq';
+  const branchNorm = normalizeArabicText(resolved);
+  if (branchNorm.includes('اكتوبر') || branchNorm.includes('مركزي') || branchNorm.includes('رئيسي') || branchNorm.includes('main') || branchNorm.includes('giza') || branchNorm.includes('aljizah') || branchNorm.includes('جيزه')) {
+    return 'main';
   }
-
-  // Minya (Upper Egypt) - All centers & districts
-  if (
-    norm.includes('المنيا') ||
-    norm.includes('منيا') ||
-    norm.includes('ملوي') ||
-    norm.includes('ملوى') ||
-    norm.includes('بني مزار') ||
-    norm.includes('بنى مزار') ||
-    norm.includes('مغاغة') ||
-    norm.includes('مغاغه') ||
-    norm.includes('سمالوط') ||
-    norm.includes('ابوقرقاص') ||
-    norm.includes('ابو قرقاص') ||
-    norm.includes('دير مواس') ||
-    norm.includes('ديرمواس') ||
-    norm.includes('مطاي') ||
-    norm.includes('مطاى') ||
-    norm.includes('العدوة') ||
-    norm.includes('العدوه') ||
-    norm.includes('عروس الصعيد') ||
-    norm.includes('طه حسين') ||
-    norm.includes('minya') ||
-    norm.includes('min')
-  ) {
-    return 'minya';
-  }
-
-  // Dimeshalt (Dakahlia / Mansoura)
-  if (
-    norm.includes('ديمشلت') ||
-    norm.includes('دكرنس') ||
-    norm.includes('منصوره') ||
-    norm.includes('المنصوره') ||
-    norm.includes('دقهليه') ||
-    norm.includes('الدقهليه') ||
-    norm.includes('ميت غمر') ||
-    norm.includes('شربين') ||
-    norm.includes('السنبلاوين') ||
-    norm.includes('سنبلاوين') ||
-    norm.includes('بلقاس') ||
-    norm.includes('اجا') ||
-    norm.includes('طلخا') ||
-    norm.includes('المنزله') ||
-    norm.includes('dimeshalt') ||
-    norm.includes('dim')
-  ) {
-    return 'dimeshalt';
-  }
-
-  // Fayoum
-  if (
-    norm.includes('فيوم') ||
-    norm.includes('الفيوم') ||
-    norm.includes('اطسا') ||
-    norm.includes('سنورس') ||
-    norm.includes('طاميه') ||
-    norm.includes('ابشواي') ||
-    norm.includes('يوسف الصديق') ||
-    norm.includes('fayoum') ||
-    norm.includes('fay')
-  ) {
-    return 'fayoum';
-  }
-
-  // Cairo
-  if (
-    norm.includes('قاهره') ||
-    norm.includes('القاهره') ||
-    norm.includes('مدينة نصر') ||
-    norm.includes('وسط البلد') ||
-    norm.includes('المعادي') ||
-    norm.includes('شبرا') ||
-    norm.includes('عين شمس') ||
-    norm.includes('حلوان') ||
-    norm.includes('cairo') ||
-    norm.includes('cai')
-  ) {
-    return 'cairo';
-  }
-
-  // Beheira / Damanhour
-  if (
-    norm.includes('بحيره') ||
-    norm.includes('البحيره') ||
-    norm.includes('دمنهور') ||
-    norm.includes('كفر الدوار') ||
-    norm.includes('ايتاي البارود') ||
-    norm.includes('ابو حمص') ||
-    norm.includes('حوش عيسى') ||
-    norm.includes('شبراخيت') ||
-    norm.includes('كوم حماده') ||
-    norm.includes('رشيد') ||
-    norm.includes('الدلنجات') ||
-    norm.includes('beheira') ||
-    norm.includes('damanhour') ||
-    norm.includes('beh')
-  ) {
-    return 'beheira';
-  }
-
-  // Menouf / Menoufia
-  if (
-    norm.includes('منوف') ||
-    norm.includes('المنوفيه') ||
-    norm.includes('شبين') ||
-    norm.includes('اشمون') ||
-    norm.includes('الباجور') ||
-    norm.includes('قويسنا') ||
-    norm.includes('بركة السبع') ||
-    norm.includes('بركه السبع') ||
-    norm.includes('تلا') ||
-    norm.includes('الشهداء') ||
-    norm.includes('السادات') ||
-    norm.includes('menouf') ||
-    norm.includes('mnf')
-  ) {
-    return 'menouf';
-  }
-
-  return norm;
+  if (branchNorm.includes('منيا القمح') || branchNorm.includes('القمح') || branchNorm.includes('meq')) return 'meq';
+  if (branchNorm.includes('المنيا') || branchNorm.includes('منيا') || branchNorm.includes('minya') || branchNorm.includes('min')) return 'minya';
+  if (branchNorm.includes('ديمشلت') || branchNorm.includes('دكرنس') || branchNorm.includes('دقهليه') || branchNorm.includes('dimeshalt') || branchNorm.includes('dim')) return 'dimeshalt';
+  if (branchNorm.includes('فيوم') || branchNorm.includes('الفيوم') || branchNorm.includes('fayoum') || branchNorm.includes('fay')) return 'fayoum';
+  if (branchNorm.includes('قاهره') || branchNorm.includes('القاهره') || branchNorm.includes('cairo') || branchNorm.includes('cai')) return 'cairo';
+  if (branchNorm.includes('بحيره') || branchNorm.includes('البحيره') || branchNorm.includes('beheira') || branchNorm.includes('beh')) return 'beheira';
+  if (branchNorm.includes('منوف') || branchNorm.includes('المنوفيه') || branchNorm.includes('menouf') || branchNorm.includes('mnf')) return 'menouf';
+  return branchNorm;
 }
 
 /**
@@ -853,14 +762,8 @@ export function getBranchStockForProduct(product: Product, targetBranch?: string
  * Normalizes branch names consistently across system data and customers.
  */
 export function normalizeBranchName(name?: string): string {
-  if (!name || !name.trim()) return 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
-  const clean = name.trim();
-  const inferred = inferBranchFromText(clean);
-  if (inferred) return inferred;
-  if (!clean.startsWith('فرع') && !clean.includes('المخزن')) {
-    return `فرع ${clean}`;
-  }
-  return clean;
+  const resolved = resolveBranchName(name);
+  return resolved || MAIN_BRANCH_NAME;
 }
 
 export interface UserDeduplicationResult {

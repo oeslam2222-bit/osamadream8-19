@@ -13,6 +13,7 @@ import {
   getBranchStockForProduct,
   inferBranchFromText,
   sanitizeAndDeduplicateUsers,
+  resolveBranchName,
   findCustomerMatch,
   resolveCustomerFinancials,
   setActiveCustomersCache,
@@ -433,7 +434,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     fetchTargetsFromSupabase().then((result) => {
       if (!cancelled && result.success && result.targets && result.targets.length > 0) {
         const mapped: TargetRecord[] = result.targets.map((row: any) => ({
-          id: String(row.id), branch: row.branch || '', repName: row.rep_name || '',
+          id: String(row.id), branch: resolveBranchName(row.branch) || row.branch || '', repName: row.rep_name || '',
           salesTarget: Number(row.sales_target || 0), salesAchieved: Number(row.sales_achieved || 0),
           salesPercentage: Number(row.sales_percentage || 0), collectionTarget: Number(row.collection_target || 0),
           collectionAchieved: Number(row.collection_achieved || 0), collectionPercentage: Number(row.collection_percentage || 0),
@@ -1354,6 +1355,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           }
         })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'targets' }, (payload) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const raw = payload.new as any;
+            if (raw && raw.id) {
+              const mappedTarget: TargetRecord = {
+                id: String(raw.id),
+                branch: resolveBranchName(raw.branch) || raw.branch || '',
+                repName: raw.rep_name || '',
+                salesTarget: Number(raw.sales_target || 0),
+                salesAchieved: Number(raw.sales_achieved || 0),
+                salesPercentage: Number(raw.sales_percentage || 0),
+                collectionTarget: Number(raw.collection_target || 0),
+                collectionAchieved: Number(raw.collection_achieved || 0),
+                collectionPercentage: Number(raw.collection_percentage || 0),
+                date: raw.target_date || '',
+                month: Number(raw.month),
+                year: Number(raw.year),
+                quarter: raw.quarter,
+                remainingSales: Number(raw.remaining_sales || 0),
+                remainingCollection: Number(raw.remaining_collection || 0),
+                updatedAt: raw.updated_at,
+                notes: raw.notes || undefined,
+              };
+              setTargets((prev) => {
+                const idx = prev.findIndex((t) => t.id === mappedTarget.id);
+                if (idx >= 0) {
+                  const next = [...prev];
+                  next[idx] = mappedTarget;
+                  return next;
+                }
+                return [...prev, mappedTarget];
+              });
+            }
+          } else if (payload.eventType === 'DELETE') {
+            const deleted = payload.old as any;
+            if (deleted?.id) {
+              setTargets((prev) => prev.filter((t) => t.id !== String(deleted.id)));
+            }
+          }
+        })
         .subscribe();
 
       return () => {
@@ -1605,18 +1646,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const importCustomersList = (newCustomers: Customer[], mode: 'merge' | 'replace' | 'upsert' = 'upsert') => {
     const sanitizedIncoming = sanitizeCustomers(newCustomers);
-    // Every import is an update/upsert keyed by customer identity; never append duplicates.
     const linked = linkCustomersToUsers(sanitizedIncoming, users);
-    let finalCustomers: Customer[] = [];
+    const incomingDeduped = deduplicateCustomersArray(linked);
+    let finalCustomers: Customer[];
     if (mode === 'replace') {
-      finalCustomers = deduplicateCustomersArray(linked);
-      setCustomers(finalCustomers);
+      finalCustomers = incomingDeduped;
     } else {
-      // Upsert / merge with existing customers matching by code to guarantee no duplicate rows (prevents 3000 -> 6000)
-      finalCustomers = deduplicateCustomersArray([...customers, ...linked]);
-      setCustomers(finalCustomers);
+      // Upsert / merge: always operate on the live state to avoid stale closures
+      // and guarantee zero duplicate rows (prevents the 3000 + 3000 -> 6000 blow-up).
+      finalCustomers = deduplicateCustomersArray([...customers, ...incomingDeduped]);
     }
     idbSet(STORAGE_KEYS.CUSTOMERS, finalCustomers).catch(() => {});
+    setCustomers(finalCustomers);
     saveCustomersToSupabase(finalCustomers).catch((e) => console.warn('Supabase customer bulk save error:', e));
   };
 
