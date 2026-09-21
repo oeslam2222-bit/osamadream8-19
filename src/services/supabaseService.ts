@@ -239,6 +239,51 @@ export async function saveCustomerToSupabase(customer: Customer): Promise<{ succ
 const CATALOG_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000001';
 export const USER_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000002';
 
+export async function fetchTargetsFromSupabase(): Promise<{ success: boolean; targets?: any[]; error?: string }> {
+  try {
+    const { data, error } = await supabase
+      .from('targets')
+      .select('*')
+      .order('year', { ascending: false })
+      .order('month', { ascending: true });
+    if (error) return { success: false, error: error.message };
+    return { success: true, targets: data || [] };
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'فشل تحميل التارجت المشترك' };
+  }
+}
+
+export async function saveTargetsToSupabase(targets: any[]): Promise<{ success: boolean; error?: string }> {
+  try {
+    const payload = targets.map((target) => ({
+      id: target.id,
+      branch: target.branch,
+      rep_name: target.repName,
+      sales_target: Number(target.salesTarget || 0),
+      sales_achieved: Number(target.salesAchieved || 0),
+      sales_percentage: Number(target.salesPercentage || 0),
+      collection_target: Number(target.collectionTarget || 0),
+      collection_achieved: Number(target.collectionAchieved || 0),
+      collection_percentage: Number(target.collectionPercentage || 0),
+      target_date: target.date,
+      month: Number(target.month),
+      year: Number(target.year),
+      quarter: target.quarter,
+      remaining_sales: Number(target.remainingSales || 0),
+      remaining_collection: Number(target.remainingCollection || 0),
+      notes: target.notes || null,
+      updated_at: new Date().toISOString(),
+    }));
+    for (let i = 0; i < payload.length; i += 500) {
+      const { error } = await supabase.from('targets').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+      if (error) return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'فشل حفظ التارجت المشترك' };
+  }
+}
+
 let cachedUsersResponse: { data: User[]; timestamp: number } | null = null;
 const USERS_CACHE_TTL_MS = 60 * 1000; // 60 seconds memory cache
 let activeUsersFetchPromise: Promise<{ success: boolean; users?: User[]; error?: string }> | null = null;
