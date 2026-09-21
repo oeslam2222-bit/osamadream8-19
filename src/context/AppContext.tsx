@@ -49,7 +49,7 @@ import {
   fetchTargetsFromGoogleSheetUrl,
 } from '../services/targetService';
 import { deduplicateAndMergeCustomers } from '../services/customerDeduplicationService';
-import { saveSingleSourceUrl } from '../services/dataSourceService';
+import { getSavedSourceUrl, saveSingleSourceUrl } from '../services/dataSourceService';
 import {
   AccountingSyncLog,
   AuditLog,
@@ -424,6 +424,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error('Error saving targets to localStorage', e);
     }
   }, [targets]);
+
+  // The imported rows are a local cache only. Re-read the shared Google Sheet
+  // whenever this device opens the app so users do not depend on an old cache.
+  useEffect(() => {
+    let cancelled = false;
+    const savedTargetsUrl = getSavedSourceUrl('targets');
+    if (!savedTargetsUrl) return;
+
+    void fetchTargetsFromGoogleSheetUrl(savedTargetsUrl)
+      .then((parsed) => {
+        if (!cancelled && parsed.length > 0) {
+          setTargets(deduplicateTargetRecords(parsed));
+        }
+      })
+      .catch((error) => {
+        console.warn('[v0] Target sheet refresh failed:', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const getVisibleTargets = () => {
     return filterTargetsForUser(targets, currentUser, users, customers);
@@ -4066,7 +4088,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addVisit = (visit: Omit<CustomerVisit, 'id' | 'createdAt' | 'createdBy'>) => {
   if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً' };
-  if (!visit.customerId || !visit.date || !visit.repId) return { success: false, message: 'اختر العميل والمندوب وتاريخ الزيارة' };
+  if (!visit.customerId || !visit.date || !visit.repId) return { success: false, message: 'اخ��ر العميل والمندوب وتاريخ الزيارة' };
   const customer = customers.find((c) => c.id === visit.customerId);
   if (!customer) return { success: false, message: 'العميل غير موجود' };
   const assignedRep = users.find((u) => u.id === visit.repId);
