@@ -255,11 +255,14 @@ export const ExcelImportExport: React.FC = () => {
         return;
       }
 
-      // Smart Upsert: updates existing customers by code/phone/name, adds new ones without duplicates
-      importCustomersList(res.customers, 'upsert');
+      // The Google Sheet is the authoritative customer source: replace the
+      // entire local catalog so re-uploading the same sheet (or a refreshed one)
+      // never stacks duplicates (3000 + 3000 -> 6000). The sheet rows are deduped
+      // internally before they reach storage anyway.
+      importCustomersList(res.customers, 'replace');
       saveSingleSourceUrl('customers', cleanUrl);
 
-      showSuccess(`تم بنجاح جلب وتحديث قاعدة بيانات ${res.customers.length} عميل بنظام التحديث الذكي (Upsert) وحفظ الرابط!`);
+      showSuccess(`تم بنجاح جلب وتحديث قاعدة بيانات ${res.customers.length} عميل بنظام الاستبدال الموحد (بدون تكرار) وحفظ الرابط!`);
     } catch (err: any) {
       showError(err?.message || 'حدث خطأ أثناء قراءة شيت العملاء من Google Sheets.');
     } finally {
@@ -277,8 +280,9 @@ export const ExcelImportExport: React.FC = () => {
         showError(res.errors[0] || 'الملف لا يحتوي على عملاء صالحين.');
         return;
       }
-      importCustomersList(res.customers, 'upsert');
-      showSuccess(`تم رفع وتحديث ${res.customers.length} عميل بنجاح بنظام التحديث والدمج الذكي!`);
+      // Replace mode so repeated uploads of the same/refresh sheet never duplicate
+      importCustomersList(res.customers, 'replace');
+      showSuccess(`تم رفع وتحديث ${res.customers.length} عميل بنظام الاستبدام الموحد بنظام دمج ذكي بدون تكرار!`);
     } catch (err: any) {
       showError(err?.message || 'فشل قراءة ملف العملاء.');
     } finally {

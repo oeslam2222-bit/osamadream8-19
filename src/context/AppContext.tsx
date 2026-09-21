@@ -2557,14 +2557,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     const normalizeProductCode = (value?: string) => String(value || '').trim().replace(/^#/, '').replace(/\s+/g, '').toLowerCase();
+    // Identity must preserve distinct variants. The deterministic `id` produced by the
+    // parser is unique per row, so prefer it; fall back to a composite of code+name+
+    // unified+barcode+size+color so variants sharing a code are never collapsed.
     const getProductIdentityKey = (p: Product): string => {
+      if (p.id && !String(p.id).startsWith('product-row')) {
+        return `id:${String(p.id).toLowerCase()}`;
+      }
       const code = normalizeProductCode(p.code);
-      if (code) return `code:${code}`;
       const unified = normalizeProductCode(p.unifiedCode);
-      const fallback = [unified, p.name, p.color, p.size]
-        .map((value) => String(value || '').trim().toLowerCase())
-        .join(':::');
-      return unified ? `unified:${fallback}` : `id:${p.id}`;
+      const barcode = normalizeProductCode((p.barcode as any) || '');
+      const composite = [code, normalizeProductCode(p.name), unified, barcode, (p.size || '').trim().toLowerCase(), (p.color || '').trim().toLowerCase()].join('::');
+      return `composite:${composite}`;
     };
 
     const existingByIdentity = new Map<string, Product>();
