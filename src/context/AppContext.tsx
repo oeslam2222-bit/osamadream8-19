@@ -14,6 +14,7 @@ import {
   inferBranchFromText,
   sanitizeAndDeduplicateUsers,
   resolveBranchName,
+  normalizeBranchKey,
   findCustomerMatch,
   resolveCustomerFinancials,
   setActiveCustomersCache,
@@ -661,36 +662,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return Array.from(map.values());
   };
 
-  // Deduplicate product catalog by item code or unified code
+  // Deduplicate product catalog using a strong composite identity so that
+  // distinct variants that merely share a code (different size/color/barcode)
+  // are preserved. Only true duplicates (same id, or same code+name+unifiedCode
+  // +barcode+size+color) collapse into one row.
+  const productIdentityKey = (p: Product): string => {
+    if (p.id && !String(p.id).startsWith('product-row')) {
+      return `id:${String(p.id).toLowerCase()}`;
+    }
+    const code = (p.code || '').toString().trim().toLowerCase();
+    const name = (p.name || '').toString().trim().toLowerCase();
+    const unified = (p.unifiedCode || '').toString().trim().toLowerCase();
+    const barcode = (p.barcode || '').toString().trim().toLowerCase();
+    const size = (p.size || '').toString().trim().toLowerCase();
+    const color = (p.color || '').toString().trim().toLowerCase();
+    if (code || name || unified) {
+      return `composite:${code}|${name}|${unified}|${barcode}|${size}|${color}`;
+    }
+    // No usable business key: keep every row distinct by name alone to avoid data loss
+    return `name:${name}|${barcode}`;
+  };
+
   const deduplicateProductArray = (list: Product[]): Product[] => {
-    const map = new Map<string, Product>();
-    const withoutCode: Product[] = [];
+    const map = new Map<string, number>();
+    const distinct: Product[] = [];
     list.forEach((p) => {
-      const cleanCode = (p.code || '').trim().toLowerCase();
-      if (cleanCode && cleanCode !== '---') {
-        if (map.has(cleanCode)) {
-          const existing = map.get(cleanCode)!;
-          map.set(cleanCode, {
-            ...existing,
-            ...p,
-            id: existing.id,
-            branchStockReserved: existing.branchStockReserved,
-            mainWarehouseReserved: existing.mainWarehouseReserved,
-          });
-        } else {
-          map.set(cleanCode, p);
-        }
+      if (!p) return;
+      const key = productIdentityKey(p);
+      const existingIdx = map.get(key);
+      if (existingIdx === undefined) {
+        map.set(key, distinct.length);
+        distinct.push(p);
       } else {
-        const cleanName = (p.name || '').trim().toLowerCase();
-        const matchIdx = withoutCode.findIndex((item) => (item.name || '').trim().toLowerCase() === cleanName);
-        if (matchIdx >= 0) {
-          withoutCode[matchIdx] = { ...withoutCode[matchIdx], ...p, id: withoutCode[matchIdx].id };
-        } else {
-          withoutCode.push(p);
-        }
+        const existing = distinct[existingIdx];
+        distinct[existingIdx] = {
+          ...existing,
+          ...p,
+          id: existing.id || p.id,
+          branchStockReserved: existing.branchStockReserved,
+          mainWarehouseReserved: existing.mainWarehouseReserved,
+          branchStocks: existing.branchStocks,
+          branchStockActual: existing.branchStockActual,
+          mainWarehouseActual: existing.mainWarehouseActual,
+        };
       }
     });
-    return [...Array.from(map.values()), ...withoutCode];
+    return distinct;
   };
 
   const sanitizeCustomers = (list: Customer[]): Customer[] => {
@@ -765,7 +782,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...c,
         id: c.id || `cust_row_${idx + 1}_${(c.code || '').replace(/[^a-zA-Z0-9_-]/g, '_')}`,
         name: c.name || `عميل ${c.code || idx + 1}`,
-        branchName: resolvedBranch || 'الفرع الرئيسي',
+        branchName: resolvedBranch || c.branchName || '',
         currentBalance: Number(c.currentBalance ?? c.balance ?? 0),
         balance: Number(c.currentBalance ?? c.balance ?? 0),
         totalOverdueAndDue: Number(c.totalOverdueAndDue !== undefined ? c.totalOverdueAndDue : (c.currentBalance ?? c.balance ?? 0)),
@@ -784,7 +801,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         paymentTerms: finalPaymentTerms,
       };
     });
-    return deduplicateAndMergeCustomers(normalizedList).customers;
+
+    // Strip any customer whose branch resolves to the October central warehouse.
+    // The central warehouse belongs to products/inventory only; it must never
+    // claim a customer. This runs before dedupe so imported sheet rows with a
+    // "فرع أكتوبر"/"مركزي" branch are purged entirely instead of being merged
+    // onto an existing real customer and silently dropping the rep/branch binding.
+    const branchFiltered = normalizedList.filter((c) => normalizeBranchKey(c.branchName) !== 'main');
+
+    return deduplicateAndMergeCustomers(branchFiltered).customers;
   };
 
   const [products, setProducts] = useState<Product[]>(() => {
