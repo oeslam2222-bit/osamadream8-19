@@ -9,6 +9,7 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
+  Clock,
   Download,
   ExternalLink,
   FileSpreadsheet,
@@ -481,7 +482,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
       dealtCustomers: number;
       nonDealtCustomers: number;
       eligibleCustomers: number;
-      ineligibleCustomers: number;
+      coverageRate: number;
       dues: number;
       debts: number;
       collections: number;
@@ -490,13 +491,21 @@ export const TargetPerformanceDashboard: React.FC = () => {
     const matchesRep = (customerRep: string | undefined, repName: string) =>
       Boolean(customerRep) && (isArabicNameMatch(customerRep, repName) || normalizeArabicText(customerRep) === normalizeArabicText(repName));
 
-    const reps = Array.from(new Set(filteredRecords.map((record) => record.repName).filter(Boolean)));
+    const repsFromTargets = filteredRecords.map((record) => record.repName).filter(Boolean);
+    const repsFromCustomers = customers
+      .filter((c) => !effectiveBranch || isBranchMatch(c.branchName, effectiveBranch))
+      .map((c) => c.repName || c.salesRepName)
+      .filter((name): name is string => Boolean(name));
+    const reps = Array.from(new Set([...repsFromTargets, ...repsFromCustomers]));
+
     reps.forEach((repName) => {
       const repCustomers = customers.filter((customer) => {
         const matchesBranch = !effectiveBranch || isBranchMatch(customer.branchName, effectiveBranch);
         const matchesSelectedRep = selectedRep === 'ALL' || matchesRep(customer.repName || customer.salesRepName, selectedRep);
         return matchesBranch && matchesSelectedRep && matchesRep(customer.repName || customer.salesRepName, repName);
       });
+
+      if (repCustomers.length === 0 && selectedRep !== 'ALL') return;
 
       const selectedMonthSales = (customer: typeof customers[number]) => {
         if (selectedMonth === 'ALL') {
@@ -505,20 +514,38 @@ export const TargetPerformanceDashboard: React.FC = () => {
         return Math.max(0, Number(customer.monthlySales2026?.[selectedMonth]) || 0);
       };
 
+      const eligibleCustomers = repCustomers.filter((customer) => !normalizeArabicText(customer.dealEligibility || '').includes('غير')).length;
+      const dealtCustomers = repCustomers.filter((customer) => selectedMonthSales(customer) > 0).length;
+      const coverageRate = eligibleCustomers > 0 ? Math.round((dealtCustomers / eligibleCustomers) * 100) : 0;
+
       const summary = {
         repName,
         totalCustomers: repCustomers.length,
-        dealtCustomers: repCustomers.filter((customer) => selectedMonthSales(customer) > 0).length,
+        dealtCustomers,
         nonDealtCustomers: repCustomers.filter((customer) => selectedMonthSales(customer) <= 0).length,
-        eligibleCustomers: repCustomers.filter((customer) => !normalizeArabicText(customer.dealEligibility || '').includes('غير')).length,
-        ineligibleCustomers: repCustomers.filter((customer) => normalizeArabicText(customer.dealEligibility || '').includes('غير')).length,
-        dues: repCustomers.reduce((sum, customer) => sum + (Number(customer.dueBalance) || 0), 0),
-        debts: repCustomers.reduce((sum, customer) => sum + (Number(customer.currentBalance ?? customer.balance) || 0), 0),
+        eligibleCustomers,
+        coverageRate,
+        dues: repCustomers.reduce((sum, customer) => {
+          const val = Number(
+            customer.totalOverdueAndDue ??
+            customer.overdueBalance ??
+            customer.dueUntilPeriod ??
+            customer.dueBalance ??
+            (customer as any).totalDues ??
+            (customer as any).dues ??
+            0
+          );
+          return sum + (isNaN(val) ? 0 : val);
+        }, 0),
+        debts: repCustomers.reduce((sum, customer) => {
+          const val = Number(customer.currentBalance ?? customer.balance ?? (customer as any).totalDebt ?? 0);
+          return sum + (isNaN(val) ? 0 : val);
+        }, 0),
         collections: repCustomers.reduce((sum, customer) => {
           const monthly = selectedMonth === 'ALL'
             ? Object.values(customer.monthlyCollections2026 || {}).reduce((total, value) => total + (Number(value) || 0), 0)
             : Number(customer.monthlyCollections2026?.[selectedMonth]) || 0;
-          return sum + Math.abs(monthly);
+          return sum + Math.abs(Number(monthly) || 0);
         }, 0),
       };
       map.set(repName, summary);
@@ -526,6 +553,36 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
     return Array.from(map.values()).sort((a, b) => b.dealtCustomers - a.dealtCustomers || a.repName.localeCompare(b.repName, 'ar'));
   }, [customers, effectiveBranch, filteredRecords, selectedMonth, selectedRep]);
+
+  // Aggregate totals for the Rep Customers Summary (Power BI KPI Cards)
+  const repCustomerTotals = useMemo(() => {
+    return repCustomerSummary.reduce(
+      (acc, s) => {
+        acc.totalCustomers += s.totalCustomers;
+        acc.dealtCustomers += s.dealtCustomers;
+        acc.nonDealtCustomers += s.nonDealtCustomers;
+        acc.eligibleCustomers += s.eligibleCustomers;
+        acc.dues += s.dues;
+        acc.debts += s.debts;
+        acc.collections += s.collections;
+        return acc;
+      },
+      {
+        totalCustomers: 0,
+        dealtCustomers: 0,
+        nonDealtCustomers: 0,
+        eligibleCustomers: 0,
+        dues: 0,
+        debts: 0,
+        collections: 0,
+      }
+    );
+  }, [repCustomerSummary]);
+
+  const overallRepCustomerCoverageRate =
+    repCustomerTotals.eligibleCustomers > 0
+      ? Math.round((repCustomerTotals.dealtCustomers / repCustomerTotals.eligibleCustomers) * 100)
+      : 0;
 
   // Base records for the monthly details matrix (filtered by user/role/branch/rep/year, WITHOUT filtering out months)
   const baseRecordsForMonths = useMemo(() => {
@@ -2480,18 +2537,145 @@ export const TargetPerformanceDashboard: React.FC = () => {
           {/* ADMIN ONLY TAB 3: Raw Excel Table View */}
           {isAdminOrDev && adminTab === 'table' && (
             <div className="space-y-4">
-              <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
-                <div className="p-4 border-b border-slate-200 bg-slate-50">
-                  <div className="font-black text-sm text-slate-900 flex items-center gap-2">
-                    <Users className="w-4 h-4 text-amber-600" />
-                    <span>ملخص عملاء كل مندوب من شيت العملاء</span>
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden space-y-4 p-4">
+                {/* Header & Month Slicer */}
+                <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+                  <div>
+                    <div className="font-black text-sm text-slate-900 flex items-center gap-2">
+                      <Users className="w-5 h-5 text-amber-600" />
+                      <span>ملخص عملاء كل مندوب من شيت العملاء (تحليلات Power BI)</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-bold mt-1">
+                      {selectedMonth === 'ALL'
+                        ? 'عرض تراكمي لكامل عام 2026 | المتعامل: من لديه مبيعات > 0 في السنة | المستحقات محسوبة من عمود إجمالي المستحقات.'
+                        : `فلترة شهر ${ARABIC_MONTHS[(selectedMonth as number) - 1]} | المتعامل: من لديه مبيعات > 0 في هذا الشهر | التغطية = (المتعامل ÷ القابل)%.`}
+                    </p>
                   </div>
-                  <p className="text-[11px] text-slate-500 font-bold mt-1">
-                    المتعامل = مبيعات الشهر أكبر من صفر، والتحصيلات معروضة بالموجب حتى لو كانت في الشيت بالسالب.
-                  </p>
+
+                  {/* Month Slicer Buttons */}
+                  <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-1 w-full lg:w-auto bg-slate-900 p-1.5 rounded-2xl shadow-inner">
+                    <span className="text-[11px] font-black text-amber-400 px-2 flex items-center gap-1 shrink-0">
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span>الشهر:</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMonth('ALL')}
+                      className={`px-2.5 py-1 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
+                        selectedMonth === 'ALL'
+                          ? 'bg-amber-400 text-slate-950 shadow-md font-black'
+                          : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                      }`}
+                    >
+                      كامل 2026
+                    </button>
+                    {ARABIC_MONTHS.map((name, idx) => {
+                      const mNum = idx + 1;
+                      const isSelected = selectedMonth === mNum;
+                      return (
+                        <button
+                          key={mNum}
+                          type="button"
+                          onClick={() => setSelectedMonth(mNum)}
+                          className={`px-2 py-1 rounded-xl text-[11px] font-bold transition cursor-pointer whitespace-nowrap ${
+                            isSelected
+                              ? 'bg-emerald-400 text-slate-950 font-black shadow-md'
+                              : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                          }`}
+                        >
+                          {name}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1100px] text-right text-xs">
+
+                {/* Power BI KPI Analytics Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+                  <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                    <div className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5 text-slate-600" />
+                      <span>إجمالي العملاء</span>
+                    </div>
+                    <div className="text-lg font-black text-slate-900 mt-0.5">
+                      {repCustomerTotals.totalCustomers.toLocaleString('ar-EG')}
+                    </div>
+                  </div>
+
+                  <div className="bg-emerald-50/80 p-2.5 rounded-2xl border border-emerald-200">
+                    <div className="text-[10px] font-bold text-emerald-800 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>المتعاملين ✅</span>
+                    </div>
+                    <div className="text-lg font-black text-emerald-700 mt-0.5">
+                      {repCustomerTotals.dealtCustomers.toLocaleString('ar-EG')}
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-100/80 p-2.5 rounded-2xl border border-slate-200">
+                    <div className="text-[10px] font-bold text-slate-600 flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-slate-500" />
+                      <span>غير متعامل ⭕</span>
+                    </div>
+                    <div className="text-lg font-black text-slate-700 mt-0.5">
+                      {repCustomerTotals.nonDealtCustomers.toLocaleString('ar-EG')}
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50/80 p-2.5 rounded-2xl border border-blue-200">
+                    <div className="text-[10px] font-bold text-blue-800 flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5 text-blue-600" />
+                      <span>قابل للتعامل ⏳</span>
+                    </div>
+                    <div className="text-lg font-black text-blue-700 mt-0.5">
+                      {repCustomerTotals.eligibleCustomers.toLocaleString('ar-EG')}
+                    </div>
+                  </div>
+
+                  <div className="bg-amber-50/80 p-2.5 rounded-2xl border border-amber-200">
+                    <div className="text-[10px] font-bold text-amber-900 flex items-center gap-1">
+                      <Percent className="w-3.5 h-3.5 text-amber-600" />
+                      <span>نسبة التغطية %</span>
+                    </div>
+                    <div className="text-lg font-black text-amber-800 mt-0.5">
+                      {overallRepCustomerCoverageRate}%
+                    </div>
+                  </div>
+
+                  <div className="bg-orange-50/80 p-2.5 rounded-2xl border border-orange-200">
+                    <div className="text-[10px] font-bold text-orange-900 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 text-orange-600" />
+                      <span>إجمالي المستحقات</span>
+                    </div>
+                    <div className="text-sm font-black text-orange-800 mt-1 truncate" title={formatEGP(repCustomerTotals.dues)}>
+                      {formatEGP(repCustomerTotals.dues)}
+                    </div>
+                  </div>
+
+                  <div className="bg-rose-50/80 p-2.5 rounded-2xl border border-rose-200">
+                    <div className="text-[10px] font-bold text-rose-800 flex items-center gap-1">
+                      <Wallet className="w-3.5 h-3.5 text-rose-600" />
+                      <span>إجمالي المديونيات</span>
+                    </div>
+                    <div className="text-sm font-black text-rose-700 mt-1 truncate" title={formatEGP(repCustomerTotals.debts)}>
+                      {formatEGP(repCustomerTotals.debts)}
+                    </div>
+                  </div>
+
+                  <div className="bg-sky-50/80 p-2.5 rounded-2xl border border-sky-200">
+                    <div className="text-[10px] font-bold text-sky-800 flex items-center gap-1">
+                      <TrendingUp className="w-3.5 h-3.5 text-sky-600" />
+                      <span>التحصيلات</span>
+                    </div>
+                    <div className="text-sm font-black text-sky-700 mt-1 truncate" title={formatEGP(repCustomerTotals.collections)}>
+                      {formatEGP(repCustomerTotals.collections)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Table */}
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                  <table className="w-full min-w-[1000px] text-right text-xs">
                     <thead className="bg-slate-100 text-slate-700 font-black border-b border-slate-200">
                       <tr>
                         <th className="p-3">المندوب</th>
@@ -2499,8 +2683,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
                         <th className="p-3 text-center text-emerald-700">متعامل</th>
                         <th className="p-3 text-center text-slate-600">غير متعامل</th>
                         <th className="p-3 text-center text-blue-700">قابل</th>
-                        <th className="p-3 text-center text-rose-700">غير قابل</th>
-                        <th className="p-3 text-left text-amber-700">المستحقات</th>
+                        <th className="p-3 text-center text-amber-800">تغطية المتعاملين %</th>
+                        <th className="p-3 text-left text-orange-700">إجمالي المستحقات</th>
                         <th className="p-3 text-left text-rose-700">المديونيات</th>
                         <th className="p-3 text-left text-blue-700">التحصيلات</th>
                       </tr>
@@ -2510,16 +2694,40 @@ export const TargetPerformanceDashboard: React.FC = () => {
                         <tr key={summary.repName} className="hover:bg-amber-50/40 transition">
                           <td className="p-3 font-black text-slate-950">{summary.repName}</td>
                           <td className="p-3 text-center">{summary.totalCustomers}</td>
-                          <td className="p-3 text-center text-emerald-700">{summary.dealtCustomers}</td>
+                          <td className="p-3 text-center text-emerald-700 font-black">{summary.dealtCustomers}</td>
                           <td className="p-3 text-center text-slate-500">{summary.nonDealtCustomers}</td>
                           <td className="p-3 text-center text-blue-700">{summary.eligibleCustomers}</td>
-                          <td className="p-3 text-center text-rose-700">{summary.ineligibleCustomers}</td>
-                          <td className="p-3 text-left text-amber-700">{formatEGP(summary.dues)}</td>
-                          <td className="p-3 text-left text-rose-700">{formatEGP(summary.debts)}</td>
-                          <td className="p-3 text-left text-blue-700">{formatEGP(summary.collections)}</td>
+                          <td className="p-3 text-center">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
+                              summary.coverageRate >= 50 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-950'
+                            }`}>
+                              {summary.coverageRate}%
+                            </span>
+                          </td>
+                          <td className="p-3 text-left text-orange-700 font-mono font-black">{formatEGP(summary.dues)}</td>
+                          <td className="p-3 text-left text-rose-700 font-mono">{formatEGP(summary.debts)}</td>
+                          <td className="p-3 text-left text-blue-700 font-mono font-black">{formatEGP(summary.collections)}</td>
                         </tr>
                       ))}
                     </tbody>
+                    {/* Grand Total Row */}
+                    <tfoot className="bg-slate-900 text-white font-black text-xs border-t-2 border-slate-800">
+                      <tr>
+                        <td className="p-3 text-amber-400">الإجمالي الشامل ({repCustomerSummary.length} مندوب)</td>
+                        <td className="p-3 text-center">{repCustomerTotals.totalCustomers.toLocaleString('ar-EG')}</td>
+                        <td className="p-3 text-center text-emerald-400">{repCustomerTotals.dealtCustomers.toLocaleString('ar-EG')}</td>
+                        <td className="p-3 text-center text-slate-300">{repCustomerTotals.nonDealtCustomers.toLocaleString('ar-EG')}</td>
+                        <td className="p-3 text-center text-sky-400">{repCustomerTotals.eligibleCustomers.toLocaleString('ar-EG')}</td>
+                        <td className="p-3 text-center">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-black bg-amber-400 text-slate-950">
+                            {overallRepCustomerCoverageRate}%
+                          </span>
+                        </td>
+                        <td className="p-3 text-left text-orange-300 font-mono">{formatEGP(repCustomerTotals.dues)}</td>
+                        <td className="p-3 text-left text-rose-300 font-mono">{formatEGP(repCustomerTotals.debts)}</td>
+                        <td className="p-3 text-left text-sky-300 font-mono">{formatEGP(repCustomerTotals.collections)}</td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               </div>

@@ -2788,8 +2788,9 @@ export function generateSampleCustomersTemplate(): void {
 /**
  * Export Customers List to Excel
  */
-export function exportCustomersToExcel(customers: Customer[]): void {
+export function exportCustomersToExcel(customers: Customer[], branchName = 'الكل'): void {
   const wb = XLSX.utils.book_new();
+  const listToExport = branchName === 'الكل' ? customers : customers.filter((c) => c.branchName === branchName);
 
   const headers = [
     'كود العميل',
@@ -2804,7 +2805,7 @@ export function exportCustomersToExcel(customers: Customer[]): void {
     'الرقم الضريبي',
   ];
 
-  const rows = customers.map((c) => {
+  const rows = listToExport.map((c) => {
     const limit = Number(c.creditLimit) || 0;
     const balance = Number(c.currentBalance ?? c.balance ?? 0);
     const available = Math.max(0, limit - balance);
@@ -2837,7 +2838,7 @@ export function exportCustomersToExcel(customers: Customer[]): void {
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, 'سجل_العملاء');
-  XLSX.writeFile(wb, `سجل_عملاء_دريم_${new Date().toISOString().split('T')[0]}.xlsx`);
+  XLSX.writeFile(wb, `سجل_عملاء_دريم_${branchName}_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 /**

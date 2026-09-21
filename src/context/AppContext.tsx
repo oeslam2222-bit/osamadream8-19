@@ -616,83 +616,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Deduplicate customers by code / phone / name to prevent 3,000 becoming 6,000 on daily updates
   const deduplicateCustomersArray = (list: Customer[]): Customer[] => {
     if (!Array.isArray(list) || list.length === 0) return [];
-    const codeMap = new Map<string, Customer>();
-    const withoutCode: Customer[] = [];
-
-    list.forEach((c) => {
-      const rawCode = (c.code || '').trim();
-      const cleanCode = rawCode.toLowerCase();
-      const isAutoCode =
-        !cleanCode ||
-        cleanCode === '---' ||
-        cleanCode.startsWith('cust-row-') ||
-        cleanCode.startsWith('cust_row_') ||
-        cleanCode.startsWith('cust-analytics-');
-
-      if (!isAutoCode) {
-        if (codeMap.has(cleanCode)) {
-          const prev = codeMap.get(cleanCode)!;
-          // Merge to retain the latest/richest values without duplicating records
-          const merged: Customer = {
-            ...prev,
-            ...c,
-            id: prev.id, // maintain stable id
-            name: c.name && !c.name.startsWith('عميل ') ? c.name : prev.name,
-            phone: c.phone || prev.phone,
-            address: c.address || prev.address,
-            branchName: c.branchName && c.branchName !== 'الفرع الرئيسي' ? c.branchName : prev.branchName,
-            salesRepName: c.salesRepName || prev.salesRepName,
-            repName: c.repName || prev.repName,
-            sales2026: Math.max(c.sales2026 || 0, prev.sales2026 || 0),
-            totalMonthlySales: Math.max(c.totalMonthlySales || 0, prev.totalMonthlySales || 0),
-            totalOverallSales: Math.max(c.totalOverallSales || 0, prev.totalOverallSales || 0),
-            collections2026: Math.max(c.collections2026 || 0, prev.collections2026 || 0),
-            totalMonthlyCollections: Math.max(c.totalMonthlyCollections || 0, prev.totalMonthlyCollections || 0),
-            totalOverallCollections: Math.max(c.totalOverallCollections || 0, prev.totalOverallCollections || 0),
-            currentBalance: c.currentBalance !== undefined ? c.currentBalance : prev.currentBalance,
-            balance: c.balance !== undefined ? c.balance : prev.balance,
-            creditLimit: Math.max(c.creditLimit || 0, prev.creditLimit || 0),
-            guaranteeDocs: c.guaranteeDocs && !c.guaranteeDocs.includes('لا يوجد') ? c.guaranteeDocs : prev.guaranteeDocs,
-            guaranteeAmount: Math.max(c.guaranteeAmount || 0, prev.guaranteeAmount || 0),
-            hasGuarantee: c.hasGuarantee || prev.hasGuarantee,
-            paymentTerms: c.paymentTerms || prev.paymentTerms,
-            hasDealtIn2026: c.hasDealtIn2026 || prev.hasDealtIn2026,
-            lastVisitDate: c.lastVisitDate || prev.lastVisitDate,
-            visitCount2026: Math.max(c.visitCount2026 || 0, prev.visitCount2026 || 0),
-            visitHistory: prev.visitHistory && prev.visitHistory.length > 0 ? prev.visitHistory : c.visitHistory,
-          };
-          codeMap.set(cleanCode, merged);
-        } else {
-          codeMap.set(cleanCode, c);
-        }
-      } else {
-        // Fallback match by phone (if valid) or exact name
-        const cleanPhone = (c.phone || '').replace(/\D/g, '');
-        const cleanName = (c.name || '').trim().toLowerCase();
-        const matchIdx = withoutCode.findIndex((item) => {
-          const itemPhone = (item.phone || '').replace(/\D/g, '');
-          const itemName = (item.name || '').trim().toLowerCase();
-          if (cleanPhone.length >= 8 && itemPhone.length >= 8 && cleanPhone === itemPhone) return true;
-          if (cleanName && cleanName === itemName && cleanName.length > 3) return true;
-          return false;
-        });
-
-        if (matchIdx >= 0) {
-          const prev = withoutCode[matchIdx];
-          withoutCode[matchIdx] = {
-            ...prev,
-            ...c,
-            id: prev.id,
-            sales2026: Math.max(c.sales2026 || 0, prev.sales2026 || 0),
-            collections2026: Math.max(c.collections2026 || 0, prev.collections2026 || 0),
-          };
-        } else {
-          withoutCode.push(c);
-        }
-      }
-    });
-
-    return [...Array.from(codeMap.values()), ...withoutCode];
+    return deduplicateAndMergeCustomers(list).customers;
   };
 
   // Deduplicate target records by branch + rep + date
@@ -1655,7 +1579,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const importCustomersList = (newCustomers: Customer[], mode: 'merge' | 'replace' | 'upsert' = 'replace') => {
+  const importCustomersList = (newCustomers: Customer[], mode: 'merge' | 'replace' | 'upsert' = 'upsert') => {
     const sanitizedIncoming = sanitizeCustomers(newCustomers);
     // Every import is an update/upsert keyed by customer identity; never append duplicates.
     const linked = linkCustomersToUsers(sanitizedIncoming, users);
@@ -4155,7 +4079,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   if (currentUser.role === 'supervisor' && !doesCustomerBelongToSupervisor(customer, currentUser, users)) return { success: false, message: 'العميل خارج نطاق مندوبيك' };
   if (currentUser.role === 'branch_manager' && !doesCustomerBelongToBranch(customer, currentUser.branchName, users)) return { success: false, message: 'العميل خارج نطاق فرعك' };
   setVisits((prev) => [...prev, { ...visit, id: `visit-${Date.now()}`, createdBy: currentUser.id, createdAt: new Date().toISOString(), status: visit.status || 'مجدولة' }]);
-  return { success: true, message: 'تم ت��جيل الزيارة بنجاح' };
+  return { success: true, message: 'تم تسجيل الزيارة بنجاح' };
   };
   
   const updateVisit = (visit: CustomerVisit) => {
