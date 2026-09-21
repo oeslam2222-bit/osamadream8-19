@@ -24,6 +24,8 @@ import {
   fetchCustomersFromSupabase,
   fetchInvoicesFromSupabase,
   fetchProductsFromSupabase,
+  fetchTargetsFromSupabase,
+  saveTargetsToSupabase,
   fetchUsersFromSupabase,
   findUserInSupabase,
   sanitizeEmail,
@@ -425,6 +427,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [targets]);
 
+  // Load targets from the shared database so every device and role sees the same sheet update.
+  useEffect(() => {
+    let cancelled = false;
+    fetchTargetsFromSupabase().then((result) => {
+      if (!cancelled && result.success && result.targets && result.targets.length > 0) {
+        const mapped: TargetRecord[] = result.targets.map((row: any) => ({
+          id: String(row.id), branch: row.branch || '', repName: row.rep_name || '',
+          salesTarget: Number(row.sales_target || 0), salesAchieved: Number(row.sales_achieved || 0),
+          salesPercentage: Number(row.sales_percentage || 0), collectionTarget: Number(row.collection_target || 0),
+          collectionAchieved: Number(row.collection_achieved || 0), collectionPercentage: Number(row.collection_percentage || 0),
+          date: row.target_date || '', month: Number(row.month), year: Number(row.year), quarter: row.quarter,
+          remainingSales: Number(row.remaining_sales || 0), remainingCollection: Number(row.remaining_collection || 0),
+          updatedAt: row.updated_at, notes: row.notes || undefined,
+        }));
+        setTargets(mapped);
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   const getVisibleTargets = () => {
     return filterTargetsForUser(targets, currentUser, users, customers);
   };
@@ -438,6 +460,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Clean mirror without accumulating past duplicates: only display current sheet rows
       const deduplicated = deduplicateTargetRecords(parsed);
       setTargets(deduplicated);
+      await saveTargetsToSupabase(deduplicated);
       return { success: true, count: deduplicated.length, message: `تم تحديث ومزامنة ${deduplicated.length} هدف بنجاح بدون تكرار السجلات!` };
     } catch (err: any) {
       return { success: false, count: 0, message: err?.message || 'حدث خطأ أثناء قراءة ملف الإكسل' };
@@ -457,6 +480,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Clean mirror without accumulating past duplicates: only display current sheet rows
       const deduplicated = deduplicateTargetRecords(parsed);
       setTargets(deduplicated);
+      await saveTargetsToSupabase(deduplicated);
       saveSingleSourceUrl('targets', cleanUrl);
       return { success: true, count: deduplicated.length, message: `تمت مزامنة وتحديث ${deduplicated.length} هدف بنجاح بدون تكرار وحفظ الرابط!` };
     } catch (err: any) {
@@ -4066,7 +4090,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addVisit = (visit: Omit<CustomerVisit, 'id' | 'createdAt' | 'createdBy'>) => {
   if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً' };
-  if (!visit.customerId || !visit.date || !visit.repId) return { success: false, message: 'اختر العميل والمندوب وتاريخ الزيارة' };
+  if (!visit.customerId || !visit.date || !visit.repId) return { success: false, message: 'اخ��ر العميل والمندوب وتاريخ الزيارة' };
   const customer = customers.find((c) => c.id === visit.customerId);
   if (!customer) return { success: false, message: 'العميل غير موجود' };
   const assignedRep = users.find((u) => u.id === visit.repId);
