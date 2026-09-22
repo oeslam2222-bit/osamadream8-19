@@ -104,6 +104,8 @@ export type CustomerVisitStatus = 'مجدولة' | 'منفذة' | 'ملغاة' |
 export interface CustomerVisit {
   id: string;
   customerId?: string;
+  customerName?: string;             // اسم العميل
+  customerCode?: string;             // كود العميل
   date: string;                      // تاريخ الزيارة (YYYY-MM-DD)
   time?: string;
   repId?: string;

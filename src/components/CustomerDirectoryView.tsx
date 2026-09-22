@@ -347,13 +347,17 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         return sortDirection === 'asc' ? valA - valB : valB - valA;
       }
       if (sortField === 'sales') {
-        valA = Number(a.totalMonthlySales || a.totalOverallSales || a.sales2026 || 0);
-        valB = Number(b.totalMonthlySales || b.totalOverallSales || b.sales2026 || 0);
+        const mSumA = a.monthlySales2026 ? Object.values(a.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
+        valA = Math.max(Number(a.sales2026 || 0), Number(a.totalMonthlySales || 0), Number(a.totalOverallSales || 0), mSumA);
+        const mSumB = b.monthlySales2026 ? Object.values(b.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
+        valB = Math.max(Number(b.sales2026 || 0), Number(b.totalMonthlySales || 0), Number(b.totalOverallSales || 0), mSumB);
         return sortDirection === 'asc' ? valA - valB : valB - valA;
       }
       if (sortField === 'collections') {
-        valA = Number(a.totalMonthlyCollections || a.totalOverallCollections || a.collections2026 || 0);
-        valB = Number(b.totalMonthlyCollections || b.totalOverallCollections || b.collections2026 || 0);
+        const mSumA = a.monthlyCollections2026 ? Object.values(a.monthlyCollections2026).reduce((acc, v) => acc + Math.abs(Number(v) || 0), 0) : 0;
+        valA = Math.max(Math.abs(Number(a.collections2026 || 0)), Math.abs(Number(a.totalMonthlyCollections || 0)), Math.abs(Number(a.totalOverallCollections || 0)), mSumA);
+        const mSumB = b.monthlyCollections2026 ? Object.values(b.monthlyCollections2026).reduce((acc, v) => acc + Math.abs(Number(v) || 0), 0) : 0;
+        valB = Math.max(Math.abs(Number(b.collections2026 || 0)), Math.abs(Number(b.totalMonthlyCollections || 0)), Math.abs(Number(b.totalOverallCollections || 0)), mSumB);
         return sortDirection === 'asc' ? valA - valB : valB - valA;
       }
       if (sortField === 'limit') {
@@ -394,8 +398,10 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     scopedCustomers.forEach((c) => {
       const debt = Number(c.currentBalance ?? c.balance ?? 0);
       const overdueDue = Number(c.totalOverdueAndDue !== undefined ? c.totalOverdueAndDue : debt);
-      const sales = Number(c.totalMonthlySales || c.totalOverallSales || c.sales2026 || 0);
-      const collections = Number(c.totalMonthlyCollections || c.totalOverallCollections || c.collections2026 || 0);
+      const mSalesSum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
+      const sales = Math.max(Number(c.sales2026 || 0), Number(c.totalMonthlySales || 0), Number(c.totalOverallSales || 0), mSalesSum);
+      const mColsSum = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + Math.abs(Number(v) || 0), 0) : 0;
+      const collections = Math.max(Math.abs(Number(c.collections2026 || 0)), Math.abs(Number(c.totalMonthlyCollections || 0)), Math.abs(Number(c.totalOverallCollections || 0)), mColsSum);
       const limit = Number(c.creditLimit || 0);
 
       if (debt > 0) {
@@ -1383,8 +1389,10 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                   const globalIdx = (currentPage - 1) * pageSize + index + 1;
                   const debt = Number(customer.currentBalance ?? customer.balance ?? 0);
                   const overdueAndDue = Number(customer.totalOverdueAndDue !== undefined ? customer.totalOverdueAndDue : debt);
-                  const sales = Number(customer.totalMonthlySales || customer.totalOverallSales || customer.sales2026 || 0);
-                  const collections = Math.abs(Number(customer.totalMonthlyCollections || customer.totalOverallCollections || customer.collections2026 || 0));
+                  const mSalesSum = customer.monthlySales2026 ? Object.values(customer.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
+                  const sales = Math.max(Number(customer.sales2026 || 0), Number(customer.totalMonthlySales || 0), Number(customer.totalOverallSales || 0), mSalesSum);
+                  const mColsSum = customer.monthlyCollections2026 ? Object.values(customer.monthlyCollections2026).reduce((acc, v) => acc + Math.abs(Number(v) || 0), 0) : 0;
+                  const collections = Math.max(Math.abs(Number(customer.collections2026 || 0)), Math.abs(Number(customer.totalMonthlyCollections || 0)), Math.abs(Number(customer.totalOverallCollections || 0)), mColsSum);
                   const limit = Number(customer.creditLimit || 0);
                   const available = Math.max(0, limit - debt);
                   const isExceeded = limit > 0 && debt > limit;

@@ -381,10 +381,83 @@ export function filterTargetsForUser(
     const currentName = currentUser.name || '';
     const currentUsername = currentUser.username || '';
 
+    // Collect all possible aliases for the sales rep (name, username, email prefix, customer rep names/codes)
+    const repAliases = new Set<string>();
+    if (currentName) repAliases.add(currentName);
+    if (currentUsername) repAliases.add(currentUsername);
+    if (currentUser.email) {
+      const emailPrefix = currentUser.email.split('@')[0];
+      if (emailPrefix) repAliases.add(emailPrefix);
+    }
+    if ((currentUser as any).code) {
+      repAliases.add(String((currentUser as any).code));
+    }
+
+    // Inspect customer records where this rep is assigned to gather known ERP/Sheet aliases
+    if (Array.isArray(customers)) {
+      customers.forEach((c: any) => {
+        const isThisRep =
+          (c.repId && c.repId === currentUser.id) ||
+          (c.salesRepName && (isArabicNameMatch(c.salesRepName, currentName) || normalizeArabicText(c.salesRepName) === normalizeArabicText(currentName))) ||
+          (c.repName && (isArabicNameMatch(c.repName, currentName) || normalizeArabicText(c.repName) === normalizeArabicText(currentName)));
+
+        if (isThisRep) {
+          if (c.salesRepName) repAliases.add(c.salesRepName);
+          if (c.repName) repAliases.add(c.repName);
+          if (c.repCode) repAliases.add(String(c.repCode));
+        }
+      });
+    }
+
     return records.filter((r) => {
-      if (isArabicNameMatch(r.repName, currentName)) return true;
-      if (normalizeArabicText(r.repName) === normalizeArabicText(currentName)) return true;
-      if (currentUsername && normalizeArabicText(r.repName).includes(normalizeArabicText(currentUsername))) return true;
+      const cleanRepName = (r.repName || '').trim();
+      if (!cleanRepName) return false;
+
+      // 1. Direct Arabic & alias match
+      for (const alias of repAliases) {
+        if (!alias) continue;
+        if (isArabicNameMatch(cleanRepName, alias)) return true;
+        if (normalizeArabicText(cleanRepName) === normalizeArabicText(alias)) return true;
+        if (cleanRepName.toLowerCase() === alias.toLowerCase()) return true;
+
+        const normR = normalizeArabicText(cleanRepName);
+        const normA = normalizeArabicText(alias);
+        if (normR.length >= 3 && normA.length >= 3) {
+          if (normR.includes(normA) || normA.includes(normR)) return true;
+        }
+
+        // Compact spaces
+        if (normR.replace(/\s+/g, '') === normA.replace(/\s+/g, '')) return true;
+      }
+
+      // 2. Numeric rep code match (e.g. "15 - أحمد" or "(15)" or "كود 15")
+      const repDigits = cleanRepName.match(/\d+/g)?.join('');
+      if (repDigits) {
+        const userDigits = ((currentUser.username || '') + ' ' + (currentUser.id || '') + ' ' + ((currentUser as any).code || '')).match(/\d+/g)?.join('');
+        if (userDigits && userDigits.includes(repDigits)) return true;
+        for (const alias of repAliases) {
+          const aliasDigits = alias.match(/\d+/g)?.join('');
+          if (aliasDigits && aliasDigits === repDigits) return true;
+        }
+      }
+
+      // 3. Branch-scoped token matching: if within rep's branch, match name tokens
+      if (currentUser.branchName && isBranchMatch(r.branch, currentUser.branchName)) {
+        const normR = normalizeArabicText(cleanRepName).replace(/^(مندوب|كود|أستاذ|أ|م)\s*/g, '').trim();
+        const normU = normalizeArabicText(currentName).replace(/^(مندوب|كود|أستاذ|أ|م)\s*/g, '').trim();
+        const tokensR = normR.split(/\s+/).filter((t) => t.length >= 2);
+        const tokensU = normU.split(/\s+/).filter((t) => t.length >= 2);
+
+        if (tokensR.length >= 2 && tokensU.length >= 2) {
+          const matchCount = tokensR.filter((tr) => tokensU.some((tu) => tr === tu || isArabicNameMatch(tr, tu))).length;
+          if (matchCount >= 2) return true;
+        } else if (tokensR.length >= 1 && tokensU.length >= 1) {
+          if (tokensR[0] === tokensU[0] || isArabicNameMatch(tokensR[0], tokensU[0])) {
+            return true;
+          }
+        }
+      }
+
       return false;
     });
   }

@@ -17,7 +17,8 @@ export function cleanCustomerCode(code?: string): string {
     c === 'null' ||
     c.startsWith('cust-row') ||
     c.startsWith('cust-temp') ||
-    /^cust-\d+$/i.test(c)
+    c.startsWith('cust-placeholder') ||
+    c.startsWith('temp-')
   ) {
     return '';
   }

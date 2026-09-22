@@ -631,7 +631,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
-                إضافة المناديب والمشرفين • توزيع المناديب على المشرفين في كل فرع • سرية تامة وتحديد الصلاحيات
+                إضافة المناديب والمشرفين • توزيع المناديب على المشرفين في كل فرع • تحديد الصلاحيات بدقة وتوزيع الفروع
               </p>
             </div>
           </div>

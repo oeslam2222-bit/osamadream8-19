@@ -1132,31 +1132,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-          {/* Privacy / Confidentiality Mode Toggle */}
-          <button
-            id="analytics-privacy-mode-btn"
-            type="button"
-            onClick={togglePrivacyMode}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition border cursor-pointer whitespace-nowrap ${
-              isPrivacyMode
-                ? 'bg-amber-500/20 text-amber-800 border-amber-500/60 shadow-xs'
-                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-            }`}
-            title={isPrivacyMode ? 'وضع سرية البيانات نشط (المبيعات والأرصدة مخفية). اضغط للإظهار.' : 'تفعيل وضع سرية البيانات لإخفاء الأرقام المالية الحساسة أثناء العرض'}
-          >
-            {isPrivacyMode ? (
-              <>
-                <EyeOff className="w-4 h-4 text-amber-600 animate-pulse" />
-                <span className="font-extrabold text-amber-900">سرية البيانات: نشطة</span>
-              </>
-            ) : (
-              <>
-                <Eye className="w-4 h-4 text-slate-500" />
-                <span>سرية البيانات</span>
-              </>
-            )}
-          </button>
-
           {/* Clean & Deduplicate Button (Prevents 3000 to 6000 duplicate explosion) */}
           {isAdminOrDev && (
             <button
@@ -1523,7 +1498,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs text-slate-500">
                 <span className="font-bold">مقارنة حركة المبيعات والتحصيلات على مدار 12 شهراً لعام 2026:</span>
-                {isPrivacyMode && <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md">وضع السرية مفعل</span>}
               </div>
               <div className="h-64 sm:h-72 w-full">
                 <ResponsiveContainer width="100%" height="100%">

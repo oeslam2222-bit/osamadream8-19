@@ -30,6 +30,7 @@ import {
 import * as XLSX from 'xlsx';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
+import { doesCustomerBelongToRep, doesCustomerBelongToBranch, doesCustomerBelongToSupervisor } from '../services/arabicMatchingService';
 import type { CustomerVisit } from '../types';
 
 export const VisitsDashboard: React.FC = () => {
@@ -103,15 +104,13 @@ export const VisitsDashboard: React.FC = () => {
   // Customers accessible to current user
   const myCustomers = useMemo(() => {
     if (currentUser?.role === 'sales_rep') {
-      return customers.filter((c) => c.repId === currentUser.id || c.repName === currentUser.name);
+      return customers.filter((c) => doesCustomerBelongToRep(c, currentUser));
     }
     if (currentUser?.role === 'branch_manager') {
-      return customers.filter((c) => c.branchName === currentUser.branchName);
+      return customers.filter((c) => doesCustomerBelongToBranch(c, currentUser.branchName, users));
     }
     if (currentUser?.role === 'supervisor') {
-      return customers.filter((c) =>
-        users.some((u) => (u.id === c.repId || u.name === c.repName) && u.supervisorId === currentUser.id)
-      );
+      return customers.filter((c) => doesCustomerBelongToSupervisor(c, currentUser, users));
     }
     return customers;
   }, [currentUser, customers, users]);
@@ -158,16 +157,25 @@ export const VisitsDashboard: React.FC = () => {
       } else if (timePreset === 'month') {
         if (exactDate) {
           if (v.date !== exactDate) return false;
-        } else if (!v.date.startsWith(month)) {
+        } else if (month && !v.date.startsWith(month)) {
           return false;
         }
       }
 
-      // 2. Branch match
-      if (branch !== 'الكل' && v.branchName !== branch) return false;
+      // 2. Branch match (Only for admin/supervisors/managers; reps should not have their visits hidden)
+      if (currentUser?.role !== 'sales_rep') {
+        if (branch !== 'الكل' && v.branchName && v.branchName !== branch) return false;
+      }
 
-      // 3. Rep match
-      if (rep !== 'الكل' && v.repId !== rep) return false;
+      // 3. Rep match (Only for admin/supervisors/managers; reps only have their own visits)
+      if (currentUser?.role !== 'sales_rep') {
+        if (rep !== 'الكل') {
+          const repUser = users.find((u) => u.id === rep);
+          const isDirectId = v.repId === rep;
+          const isName = repUser && isArabicNameMatch(v.repName || '', repUser.name);
+          if (!isDirectId && !isName) return false;
+        }
+      }
 
       // 4. Status match
       if (statusFilter !== 'الكل' && v.status !== statusFilter) return false;
@@ -176,8 +184,8 @@ export const VisitsDashboard: React.FC = () => {
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase().trim();
       const c = customers.find((x) => x.id === v.customerId);
-      const customerName = (c?.name || '').toLowerCase();
-      const customerCode = (c?.code || '').toLowerCase();
+      const customerName = (v.customerName || c?.name || '').toLowerCase();
+      const customerCode = (v.customerCode || c?.code || '').toLowerCase();
       const repName = (v.repName || '').toLowerCase();
       const notes = (v.notes || '').toLowerCase();
       const outcome = (v.outcome || '').toLowerCase();
@@ -190,7 +198,7 @@ export const VisitsDashboard: React.FC = () => {
         outcome.includes(q)
       );
     });
-  }, [visible, timePreset, month, exactDate, branch, rep, statusFilter, searchQuery, customers, todayStr, weekAgoStr]);
+  }, [visible, timePreset, month, exactDate, branch, rep, statusFilter, searchQuery, customers, todayStr, weekAgoStr, currentUser?.role, users]);
 
   // Key KPI stats
   const stats = useMemo(() => {
@@ -217,12 +225,16 @@ export const VisitsDashboard: React.FC = () => {
       showToast('error', 'يرجى اختيار العميل المستهدف أولاً.');
       return;
     }
-    const r = reps.find((u) => u.id === form.repId) || users.find((u) => u.id === form.repId);
+    const r = reps.find((u) => u.id === form.repId) || users.find((u) => u.id === form.repId) || (currentUser?.role === 'sales_rep' ? currentUser : undefined);
     const c = customers.find((x) => x.id === form.customerId);
 
     const result = addVisit({
       ...form,
-      repName: r?.name || currentUser?.name || '',
+      customerId: c?.id || form.customerId,
+      customerName: c?.name,
+      customerCode: c?.code,
+      repId: r?.id || currentUser?.id,
+      repName: r?.name || currentUser?.name || 'المندوب',
       branchName: r?.branchName || c?.branchName || currentUser?.branchName || '',
       supervisorId: r?.supervisorId,
       status: 'مجدولة'
@@ -666,9 +678,9 @@ export const VisitsDashboard: React.FC = () => {
                     className="hover:bg-slate-50/80 transition cursor-pointer"
                   >
                     <td className="p-3">
-                      <div className="font-bold text-slate-900">{c?.name || 'عميل غير مسجل'}</div>
+                      <div className="font-bold text-slate-900">{v.customerName || c?.name || 'عميل غير مسجل'}</div>
                       <div className="text-[11px] text-slate-500">
-                        كود: {c?.code || '-'} {c?.storeName && `• ${c.storeName}`}
+                        كود: {v.customerCode || c?.code || '-'} {c?.storeName && `• ${c.storeName}`}
                       </div>
                     </td>
                     <td className="p-3 text-slate-600 font-medium">{v.branchName || c?.branchName || 'عام'}</td>
@@ -737,9 +749,9 @@ export const VisitsDashboard: React.FC = () => {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h4 className="text-sm font-black text-slate-900 leading-snug">{c?.name || 'عميل غير معروف'}</h4>
+                    <h4 className="text-sm font-black text-slate-900 leading-snug">{v.customerName || c?.name || 'عميل غير معروف'}</h4>
                     <div className="text-xs text-slate-500 font-mono">
-                      كود: {c?.code || '-'} | {v.branchName || c?.branchName || 'عام'}
+                      كود: {v.customerCode || c?.code || '-'} | {v.branchName || c?.branchName || 'عام'}
                     </div>
                   </div>
                   {getStatusBadge(v.status)}

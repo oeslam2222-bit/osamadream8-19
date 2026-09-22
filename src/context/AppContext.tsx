@@ -53,7 +53,7 @@ import {
   fetchTargetsFromGoogleSheetUrl,
 } from '../services/targetService';
 import { deduplicateAndMergeCustomers } from '../services/customerDeduplicationService';
-import { saveSingleSourceUrl } from '../services/dataSourceService';
+import { saveSingleSourceUrl, getPublishedDataSources } from '../services/dataSourceService';
 import {
   AccountingSyncLog,
   AuditLog,
@@ -114,6 +114,7 @@ interface AppContextType {
   deleteCustomer: (customerId: string) => void;
   importCustomersList: (newCustomers: Customer[], mode?: 'merge' | 'replace' | 'upsert') => void;
   cleanAndDeduplicateCustomers: () => { originalCount: number; deduplicatedCount: number; duplicatesRemoved: number };
+  clearCustomersCacheAndReset: () => void;
   refreshCustomerRepLinks: () => {
     updatedCount: number;
     totalCustomers: number;
@@ -432,7 +433,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Load targets from the shared database so every device and role sees the same sheet update.
   useEffect(() => {
     let cancelled = false;
-    fetchTargetsFromSupabase().then((result) => {
+    fetchTargetsFromSupabase().then(async (result) => {
       if (!cancelled && result.success && result.targets && result.targets.length > 0) {
         const mapped: TargetRecord[] = result.targets.map((row: any) => ({
           id: String(row.id), branch: resolveBranchName(row.branch) || row.branch || '', repName: row.rep_name || '',
@@ -444,6 +445,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           updatedAt: row.updated_at, notes: row.notes || undefined,
         }));
         setTargets(mapped);
+      } else {
+        // If Supabase has no target records yet, check if there's a saved published Google Sheet URL
+        const savedSources = getPublishedDataSources();
+        if (savedSources.targets?.url) {
+          try {
+            const sheetTargets = await fetchTargetsFromGoogleSheetUrl(savedSources.targets.url);
+            if (!cancelled && sheetTargets && sheetTargets.length > 0) {
+              const deduped = deduplicateTargetRecords(sheetTargets);
+              setTargets(deduped);
+              saveTargetsToSupabase(deduped).catch(() => {});
+            }
+          } catch (e) {
+            console.error('Failed to auto-sync targets from saved Google Sheet URL', e);
+          }
+        }
       }
     });
     return () => { cancelled = true; };
@@ -492,7 +508,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const exportTargetsReport = () => {
     const visible = getVisibleTargets();
-    exportTargetsToExcel(visible);
+    const branchPart = currentUser?.branchName ? `${currentUser.branchName.replace(/\s+/g, '_')}_` : '';
+    const userPart = currentUser?.name ? `${currentUser.name.replace(/\s+/g, '_')}_` : '';
+    const dateStr = new Date().toISOString().slice(0, 10);
+    exportTargetsToExcel(visible, `أهداف_${branchPart}${userPart}${dateStr}.xlsx`);
   };
 
   const resetTargetsToDefault = () => {
@@ -870,6 +889,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     safeLocalStorageSet(STORAGE_KEYS.VISITS, JSON.stringify(visits));
+    idbSet(STORAGE_KEYS.VISITS, visits).catch(() => {});
   }, [visits]);
 
   // Persist users to IndexedDB and localStorage so offline sessions and registered reps are immediately available
@@ -979,11 +999,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let isMounted = true;
     async function hydrateFromIndexedDB() {
       try {
-        const [savedProducts, savedCustomers, savedInvoices, savedCart] = await Promise.all([
+        const [savedProducts, savedCustomers, savedInvoices, savedCart, savedVisits] = await Promise.all([
           idbGet<Product[]>(STORAGE_KEYS.PRODUCTS),
           idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS),
           idbGet<Invoice[]>(STORAGE_KEYS.INVOICES),
           idbGet<CartItem[]>(STORAGE_KEYS.CART),
+          idbGet<CustomerVisit[]>(STORAGE_KEYS.VISITS),
         ]);
 
         if (!isMounted) return;
@@ -1004,6 +1025,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setInvoices(filtered);
         }
         if (Array.isArray(savedCart)) setCart(savedCart);
+
+        // Hydrate & merge visits from IndexedDB, localStorage, and customer visit histories
+        const allVisitsMap = new Map<string, CustomerVisit>();
+        if (Array.isArray(savedVisits)) {
+          savedVisits.forEach((v) => {
+            if (v && v.id) allVisitsMap.set(v.id, v);
+          });
+        }
+        if (Array.isArray(savedCustomers)) {
+          savedCustomers.forEach((c) => {
+            if (Array.isArray(c.visitHistory)) {
+              c.visitHistory.forEach((v) => {
+                if (v) {
+                  const vid = v.id || `visit-${c.id}-${v.date}`;
+                  if (!allVisitsMap.has(vid)) {
+                    allVisitsMap.set(vid, {
+                      ...v,
+                      id: vid,
+                      customerId: v.customerId || c.id,
+                      customerName: v.customerName || c.name,
+                      customerCode: v.customerCode || c.code,
+                      branchName: v.branchName || c.branchName,
+                      repName: v.repName || c.salesRepName || c.repName || 'المندوب',
+                      repId: v.repId || c.repId,
+                      status: v.status || 'منفذة',
+                    });
+                  }
+                }
+              });
+            }
+          });
+        }
+        setVisits((currentVisits) => {
+          (currentVisits || []).forEach((v) => {
+            if (v && v.id && !allVisitsMap.has(v.id)) allVisitsMap.set(v.id, v);
+          });
+          const merged = Array.from(allVisitsMap.values());
+          if (merged.length > 0) {
+            idbSet(STORAGE_KEYS.VISITS, merged).catch(() => {});
+          }
+          return merged;
+        });
         setIsLocalDataHydrated(true);
         refreshPendingInvoicesCount();
       } catch (err) {
@@ -1669,7 +1732,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const importCustomersList = (newCustomers: Customer[], mode: 'merge' | 'replace' | 'upsert' = 'upsert') => {
+  const importCustomersList = (newCustomers: Customer[], mode: 'merge' | 'replace' | 'upsert' = 'replace') => {
     const sanitizedIncoming = sanitizeCustomers(newCustomers);
     const linked = linkCustomersToUsers(sanitizedIncoming, users);
     const incomingDeduped = deduplicateCustomersArray(linked);
@@ -1677,13 +1740,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (mode === 'replace') {
       finalCustomers = incomingDeduped;
     } else {
-      // Upsert / merge: always operate on the live state to avoid stale closures
-      // and guarantee zero duplicate rows (prevents the 3000 + 3000 -> 6000 blow-up).
+      // Upsert / merge: update existing matching customers with the new sheet data
+      // and only append unique new entries, guaranteeing zero duplicates and accurate mirroring
       finalCustomers = deduplicateCustomersArray([...customers, ...incomingDeduped]);
     }
     idbSet(STORAGE_KEYS.CUSTOMERS, finalCustomers).catch(() => {});
     setCustomers(finalCustomers);
     saveCustomersToSupabase(finalCustomers).catch((e) => console.warn('Supabase customer bulk save error:', e));
+  };
+
+  const clearCustomersCacheAndReset = () => {
+    setCustomers([]);
+    idbDelete(STORAGE_KEYS.CUSTOMERS).catch(() => {});
+    localStorage.removeItem(STORAGE_KEYS.CUSTOMERS);
   };
 
   const refreshCustomerRepLinks = (): {
@@ -4142,45 +4211,150 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const getVisibleVisits = (): CustomerVisit[] => {
     if (!currentUser) return [];
+
+    // Admin & Developer: Full oversight across branches, filtered by selected branch if set
     if (currentUser.role === 'admin' || currentUser.role === 'developer') {
-      return selectedBranchFilter === 'الكل' ? visits : visits.filter((v) => v.branchName === selectedBranchFilter);
+      return selectedBranchFilter === 'الكل'
+        ? visits
+        : visits.filter((v) => isBranchMatch(v.branchName || '', selectedBranchFilter, { allowUnassigned: false }));
     }
-    if (currentUser.role === 'branch_manager') return visits.filter((v) => v.branchName === currentUser.branchName);
-    if (currentUser.role === 'supervisor') return visits.filter((v) => v.supervisorId === currentUser.id || v.repId && users.find((u) => u.id === v.repId)?.supervisorId === currentUser.id);
-    return visits.filter((v) => v.repId === currentUser.id || v.repName === currentUser.name);
+
+    // Branch Manager: STRICTLY sees visits belonging to his own branch only
+    if (currentUser.role === 'branch_manager') {
+      if (!currentUser.branchName) return [];
+      return visits.filter((v) => {
+        if (v.branchName && isBranchMatch(v.branchName, currentUser.branchName, { allowUnassigned: false })) return true;
+        const c = customers.find((cust) => cust.id === v.customerId);
+        return Boolean(c && doesCustomerBelongToBranch(c, currentUser.branchName, users));
+      });
+    }
+
+    // Supervisor: STRICTLY sees visits belonging to his branch and his supervised reps
+    if (currentUser.role === 'supervisor') {
+      return visits.filter((v) => {
+        if (v.supervisorId === currentUser.id) return true;
+        if (v.createdBy === currentUser.id) return true;
+        if (v.repId && users.some((u) => u.id === v.repId && u.supervisorId === currentUser.id)) return true;
+        const rep = users.find((u) => u.id === v.repId || isArabicNameMatch(u.name, v.repName || ''));
+        if (rep && (rep.supervisorId === currentUser.id || rep.id === currentUser.id)) return true;
+        const c = customers.find((cust) => cust.id === v.customerId);
+        return Boolean(c && doesCustomerBelongToSupervisor(c, currentUser, users));
+      });
+    }
+
+    // Sales Rep: STRICT PRIVACY - ONLY his own visits!
+    return visits.filter((v) => {
+      // 1. Direct creator or rep ID match
+      if (v.createdBy === currentUser.id) return true;
+      if (v.repId === currentUser.id) return true;
+      if (currentUser.username && v.repId && v.repId.toLowerCase() === currentUser.username.toLowerCase()) return true;
+
+      // 2. Arabic Name match
+      if (v.repName && (isArabicNameMatch(v.repName, currentUser.name) || normalizeArabicText(v.repName) === normalizeArabicText(currentUser.name))) {
+        return true;
+      }
+
+      // 3. Assigned customer match
+      const c = customers.find((cust) => cust.id === v.customerId);
+      return Boolean(c && doesCustomerBelongToRep(c, currentUser));
+    });
   };
 
   const canManageVisit = (visit: CustomerVisit) => {
-  if (!currentUser) return false;
-  if (currentUser.role === 'admin' || currentUser.role === 'developer') return true;
-  if (currentUser.role === 'branch_manager') return visit.branchName === currentUser.branchName;
-  if (currentUser.role === 'supervisor') return visit.supervisorId === currentUser.id || Boolean(visit.repId && users.find((u) => u.id === visit.repId)?.supervisorId === currentUser.id);
-  return visit.repId === currentUser.id || visit.repName === currentUser.name;
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin' || currentUser.role === 'developer') return true;
+    if (currentUser.role === 'branch_manager') {
+      if (visit.branchName && isBranchMatch(visit.branchName, currentUser.branchName, { allowUnassigned: false })) return true;
+      const c = customers.find((cust) => cust.id === visit.customerId);
+      return Boolean(c && doesCustomerBelongToBranch(c, currentUser.branchName, users));
+    }
+    if (currentUser.role === 'supervisor') {
+      if (visit.supervisorId === currentUser.id || visit.createdBy === currentUser.id) return true;
+      const rep = users.find((u) => u.id === visit.repId || isArabicNameMatch(u.name, visit.repName || ''));
+      return Boolean(rep && (rep.supervisorId === currentUser.id || rep.id === currentUser.id));
+    }
+    return (
+      visit.createdBy === currentUser.id ||
+      visit.repId === currentUser.id ||
+      isArabicNameMatch(visit.repName || '', currentUser.name) ||
+      normalizeArabicText(visit.repName || '') === normalizeArabicText(currentUser.name)
+    );
   };
 
   const addVisit = (visit: Omit<CustomerVisit, 'id' | 'createdAt' | 'createdBy'>) => {
-  if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً' };
-  if (!visit.customerId || !visit.date || !visit.repId) return { success: false, message: 'اخ��ر العميل والمندوب وتاريخ الزيارة' };
-  const customer = customers.find((c) => c.id === visit.customerId);
-  if (!customer) return { success: false, message: 'العميل غير موجود' };
-  const assignedRep = users.find((u) => u.id === visit.repId);
-  const allowed = currentUser.role === 'admin' || currentUser.role === 'developer' ||
-    (currentUser.role === 'sales_rep' && visit.repId === currentUser.id) ||
-    (currentUser.role === 'supervisor' && assignedRep?.supervisorId === currentUser.id) ||
-    (currentUser.role === 'branch_manager' && assignedRep?.branchName === currentUser.branchName);
-  if (!allowed) return { success: false, message: 'لا تملك صلاحية جدولة زيارة لهذا المندوب' };
-  if (currentUser.role === 'sales_rep' && !doesCustomerBelongToRep(customer, currentUser)) return { success: false, message: 'لا تملك صلاحية زيارة هذا العميل' };
-  if (currentUser.role === 'supervisor' && !doesCustomerBelongToSupervisor(customer, currentUser, users)) return { success: false, message: 'العميل خارج نطاق مندوبيك' };
-  if (currentUser.role === 'branch_manager' && !doesCustomerBelongToBranch(customer, currentUser.branchName, users)) return { success: false, message: 'العميل خارج نطاق فرعك' };
-  setVisits((prev) => [...prev, { ...visit, id: `visit-${Date.now()}`, createdBy: currentUser.id, createdAt: new Date().toISOString(), status: visit.status || 'مجدولة' }]);
-  return { success: true, message: 'تم تسجيل الزيارة بنجاح' };
+    if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً' };
+    if (!visit.customerId || !visit.date) return { success: false, message: 'اختر العميل وتاريخ الزيارة' };
+    const customer = customers.find((c) => c.id === visit.customerId);
+    if (!customer) return { success: false, message: 'العميل غير موجود' };
+
+    const effectiveRepId = visit.repId || (currentUser.role === 'sales_rep' ? currentUser.id : '');
+    const assignedRep = users.find((u) => u.id === effectiveRepId) || (currentUser.role === 'sales_rep' ? currentUser : undefined);
+    const effectiveRepName = visit.repName || assignedRep?.name || currentUser.name || 'المندوب';
+    const effectiveBranch = visit.branchName || customer.branchName || assignedRep?.branchName || currentUser.branchName || '';
+
+    const allowed =
+      currentUser.role === 'admin' ||
+      currentUser.role === 'developer' ||
+      (currentUser.role === 'sales_rep' && (effectiveRepId === currentUser.id || doesCustomerBelongToRep(customer, currentUser))) ||
+      (currentUser.role === 'supervisor' && (assignedRep?.supervisorId === currentUser.id || doesCustomerBelongToSupervisor(customer, currentUser, users))) ||
+      (currentUser.role === 'branch_manager' && (assignedRep?.branchName === currentUser.branchName || doesCustomerBelongToBranch(customer, currentUser.branchName, users)));
+
+    if (!allowed) return { success: false, message: 'لا تملك صلاحية تسجيل زيارة لهذا العميل' };
+
+    const newVisitId = `visit-${Date.now()}`;
+    const newVisitObj: CustomerVisit = {
+      ...visit,
+      id: newVisitId,
+      customerId: customer.id,
+      customerName: customer.name,
+      customerCode: customer.code,
+      repId: effectiveRepId,
+      repName: effectiveRepName,
+      branchName: effectiveBranch,
+      supervisorId: visit.supervisorId || assignedRep?.supervisorId,
+      status: visit.status || 'مجدولة',
+      createdBy: currentUser.id,
+      createdAt: new Date().toISOString(),
+    };
+
+    setVisits((prev) => [newVisitObj, ...prev]);
+
+    // Also update customer's visit history and last visit stats
+    const existingVisits = customer.visitHistory || [];
+    const updatedCustomer: Customer = {
+      ...customer,
+      lastVisitDate: visit.date,
+      visitCount2026: (customer.visitCount2026 || 0) + 1,
+      visitHistory: [newVisitObj, ...existingVisits],
+      currentBalance: visit.collectedAmount
+        ? Math.max(0, (customer.currentBalance ?? customer.balance ?? 0) - visit.collectedAmount)
+        : customer.currentBalance,
+    };
+
+    setCustomers((prev) => prev.map((c) => (c.id === customer.id ? updatedCustomer : c)));
+
+    return { success: true, message: 'تم تسجيل الزيارة بنجاح' };
   };
   
   const updateVisit = (visit: CustomerVisit) => {
-  if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً' };
-  if (!canManageVisit(visit)) return { success: false, message: 'لا تملك صلاحية تعديل هذه الزيارة' };
-  setVisits((prev) => prev.map((item) => item.id === visit.id && canManageVisit(item) ? { ...visit, updatedAt: new Date().toISOString() } : item));
-  return { success: true, message: 'تم تحديث الزيارة' };
+    if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً' };
+    if (!canManageVisit(visit)) return { success: false, message: 'لا تملك صلاحية تعديل هذه الزيارة' };
+    const updatedVisit = { ...visit, updatedAt: new Date().toISOString() };
+    setVisits((prev) => prev.map((item) => (item.id === visit.id ? updatedVisit : item)));
+    if (visit.customerId) {
+      setCustomers((prev) =>
+        prev.map((c) => {
+          if (c.id === visit.customerId && c.visitHistory) {
+            return {
+              ...c,
+              visitHistory: c.visitHistory.map((vh) => (vh.id === visit.id ? updatedVisit : vh)),
+            };
+          }
+          return c;
+        })
+      );
+    }
+    return { success: true, message: 'تم تحديث الزيارة بنجاح' };
   };
 
   const getCustomerVisitSummary = (customerId: string, month?: string) => {
@@ -4266,6 +4440,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteCustomer,
         importCustomersList,
         cleanAndDeduplicateCustomers,
+        clearCustomersCacheAndReset,
         refreshCustomerRepLinks,
         autoCreateMissingRepsFromCustomers,
         mergeDuplicateUsers,

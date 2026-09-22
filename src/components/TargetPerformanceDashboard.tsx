@@ -95,7 +95,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
   const [periodMode, setPeriodMode] = useState<'monthly' | 'quarterly'>('monthly');
   const [selectedMonth, setSelectedMonth] = useState<number | 'ALL'>('ALL');
   const [selectedQuarter, setSelectedQuarter] = useState<TargetQuarter | 'ALL'>('ALL');
-  const [selectedYear, setSelectedYear] = useState<number | 'ALL'>(2026);
+  const [selectedYear, setSelectedYear] = useState<number | 'ALL'>('ALL');
 
   // Filters for Admin / Manager / Supervisor
   const [selectedBranch, setSelectedBranch] = useState<string>('ALL');
@@ -142,6 +142,16 @@ export const TargetPerformanceDashboard: React.FC = () => {
       if (r.branch) set.add(r.branch);
     });
     return Array.from(set);
+  }, [visibleRecords]);
+
+  // Distinct years available in data
+  const availableYears = useMemo(() => {
+    const set = new Set<number>();
+    visibleRecords.forEach((r) => {
+      if (r.year && r.year >= 2020) set.add(r.year);
+    });
+    const arr = Array.from(set).sort((a, b) => b - a);
+    return arr.length > 0 ? arr : [2026, 2025];
   }, [visibleRecords]);
 
   // Supervisors available in this branch (for Branch Manager & Admin)
@@ -509,20 +519,40 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
       const selectedMonthSales = (customer: typeof customers[number]) => {
         if (selectedMonth === 'ALL') {
-          return Object.values(customer.monthlySales2026 || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
+          const mSum = Object.values(customer.monthlySales2026 || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
+          return Math.max(
+            mSum,
+            Number(customer.sales2026 || 0),
+            Number(customer.totalMonthlySales || 0),
+            Number(customer.totalOverallSales || 0)
+          );
         }
         return Math.max(0, Number(customer.monthlySales2026?.[selectedMonth]) || 0);
       };
 
+      const isDealtCustomer = (customer: typeof customers[number]) => {
+        const sales = selectedMonthSales(customer);
+        if (sales > 0) return true;
+        if (selectedMonth === 'ALL') {
+          return Boolean(
+            customer.hasDealtIn2026 ||
+            customer.dealt2026 === 'متعامل' ||
+            (customer.collections2026 && Number(customer.collections2026) > 0) ||
+            (customer.totalMonthlyCollections && Number(customer.totalMonthlyCollections) > 0)
+          );
+        }
+        return false;
+      };
+
       const eligibleCustomers = repCustomers.filter((customer) => !normalizeArabicText(customer.dealEligibility || '').includes('غير')).length;
-      const dealtCustomers = repCustomers.filter((customer) => selectedMonthSales(customer) > 0).length;
+      const dealtCustomers = repCustomers.filter(isDealtCustomer).length;
       const coverageRate = eligibleCustomers > 0 ? Math.round((dealtCustomers / eligibleCustomers) * 100) : 0;
 
       const summary = {
         repName,
         totalCustomers: repCustomers.length,
         dealtCustomers,
-        nonDealtCustomers: repCustomers.filter((customer) => selectedMonthSales(customer) <= 0).length,
+        nonDealtCustomers: repCustomers.filter((customer) => !isDealtCustomer(customer)).length,
         eligibleCustomers,
         coverageRate,
         dues: repCustomers.reduce((sum, customer) => {
@@ -543,7 +573,12 @@ export const TargetPerformanceDashboard: React.FC = () => {
         }, 0),
         collections: repCustomers.reduce((sum, customer) => {
           const monthly = selectedMonth === 'ALL'
-            ? Object.values(customer.monthlyCollections2026 || {}).reduce((total, value) => total + (Number(value) || 0), 0)
+            ? Math.max(
+                Object.values(customer.monthlyCollections2026 || {}).reduce((total, value) => total + (Number(value) || 0), 0),
+                Math.abs(Number(customer.collections2026 || 0)),
+                Math.abs(Number(customer.totalMonthlyCollections || 0)),
+                Math.abs(Number(customer.totalOverallCollections || 0))
+              )
             : Number(customer.monthlyCollections2026?.[selectedMonth]) || 0;
           return sum + Math.abs(Number(monthly) || 0);
         }, 0),
@@ -903,24 +938,24 @@ export const TargetPerformanceDashboard: React.FC = () => {
                 </span>
               </div>
 
-              {/* Strict Privacy Indicator */}
+              {/* Role Scope Indicator */}
               <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-300">
                 <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                 {isSalesRep ? (
                   <span className="font-bold text-emerald-300">
-                    🔒 سرية تامة: معروضة أرقامك الشخصية فقط ({currentUser?.name})
+                    أهدافك الشخصية المعتمدة ({currentUser?.name})
                   </span>
                 ) : isSupervisor ? (
                   <span className="font-bold text-blue-300">
-                    👥 سرية الفرع: معروضة أرقامك الشخصية ومناديب فريقك فقط في {currentUser?.branchName}
+                    أهدافك الشخصية ومناديب فريقك في {currentUser?.branchName}
                   </span>
                 ) : isBranchManager ? (
                   <span className="font-bold text-purple-300">
-                    🏢 إدارة الفرع: معروضة فقط أرقام مناديب {currentUser?.branchName}
+                    أهداف ومؤشرات مناديب {currentUser?.branchName}
                   </span>
                 ) : (
                   <span className="font-bold text-amber-300">
-                    👑 الإدارة والمطور: رؤية كاملة لجميع الفروع مع صلاحيات رفع وتحديث الشيتات
+                    رؤية شاملة لجميع الفروع والمناديب
                   </span>
                 )}
               </div>
@@ -1111,7 +1146,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
           <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200 shadow-xs space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               {/* Period Mode: Monthly vs Quarterly */}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-bold text-slate-500">طريقة العرض:</span>
                 <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
                   <button
@@ -1142,6 +1177,24 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     <PieChart className="w-3.5 h-3.5" />
                     <span>كوارتر (Quarterly)</span>
                   </button>
+                </div>
+
+                {/* Year Filter Selector */}
+                <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-200">
+                  <span className="text-xs font-bold text-slate-500">السنة:</span>
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+                    className="bg-white text-slate-900 font-black text-xs px-2 py-1 rounded-lg border border-slate-200 outline-none cursor-pointer"
+                    aria-label="تصفية السنة"
+                  >
+                    <option value="ALL">كل السنوات</option>
+                    {availableYears.map((yr) => (
+                      <option key={yr} value={yr}>
+                        {yr}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

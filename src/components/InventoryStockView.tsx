@@ -466,7 +466,7 @@ export const InventoryStockView: React.FC = () => {
 
                 {/* Export Inventory to Excel */}
                 <button
-                  onClick={() => exportProductsToExcel(filteredProducts, selectedBranchFilter)}
+                  onClick={() => exportProductsToExcel(filteredProducts, currentActiveBranch || selectedBranchFilter, currentUser)}
                   className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer"
                   title="تصدير شيت إكسل كامل بالمخزون"
                 >

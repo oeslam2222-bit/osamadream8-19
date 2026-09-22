@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx-js-style';
 import { COMPANY_INFO } from '../data/mockData';
-import { Customer, CustomerTier, Invoice, ItemStatus, Product, SalesPriority } from '../types';
+import { Customer, CustomerTier, Invoice, ItemStatus, Product, SalesPriority, User } from '../types';
 import { inferBranchFromText, resolveCustomerFinancials, getBranchStockForProduct, resolveBranchName } from './arabicMatchingService';
 import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
 import { deduplicateAndMergeCustomers } from './customerDeduplicationService';
@@ -1628,6 +1628,10 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     dealt2026: -1,               // متعامل 2026
     dealEligibility: -1,         // قابل /غير
     debtStatus: -1,              // حالة دين العميل
+    sales2026: -1,               // مبيعات 2026
+    collections2026: -1,         // تحصيلات 2026
+    sales2025: -1,               // مبيعات 2025
+    collections2025: -1,         // تحصيلات 2025
     totalMonthlySales: -1,       // اجمالي المبيعات
     totalMonthlyCollections: -1, // اجمالي التحصيلات
     totalOverdue: -1,            // اجمالي المتأخرات (المستحقات التي تظهر للمندوب عند طلب طلبية)
@@ -1892,7 +1896,23 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     ) {
       if (colMap.debtStatus === -1) colMap.debtStatus = idx;
     }
-    // 16. Check Year 2024 Sales & Collections (مبيعات 2024 / تحصيلات 2024)
+    // 16. Check Year 2026 Sales & Collections (مبيعات 2026 / تحصيلات 2026 / مبيعات 26 / تحصيلات 26)
+    else if ((norm.includes('2026') || norm.endsWith('26')) && (norm.includes('مبيعات') || norm.includes('بيعات') || norm.includes('بيع') || norm.includes('sales'))) {
+      if (colMap.sales2026 === -1) colMap.sales2026 = idx;
+      if (colMap.totalMonthlySales === -1) colMap.totalMonthlySales = idx;
+      if (colMap.totalOverallSales === -1) colMap.totalOverallSales = idx;
+    } else if ((norm.includes('2026') || norm.endsWith('26')) && (norm.includes('تحصيل') || norm.includes('تحصيلات') || norm.includes('سداد') || norm.includes('سدادات') || norm.includes('collections'))) {
+      if (colMap.collections2026 === -1) colMap.collections2026 = idx;
+      if (colMap.totalMonthlyCollections === -1) colMap.totalMonthlyCollections = idx;
+      if (colMap.totalOverallCollections === -1) colMap.totalOverallCollections = idx;
+    }
+    // 16b. Check Year 2025 Sales & Collections (مبيعات 2025 / تحصيلات 2025)
+    else if (norm.includes('2025') && (norm.includes('مبيعات') || norm.includes('بيعات') || norm.includes('بيع'))) {
+      if (colMap.sales2025 === -1) colMap.sales2025 = idx;
+    } else if (norm.includes('2025') && (norm.includes('تحصيل') || norm.includes('تحصيلات') || norm.includes('سداد'))) {
+      if (colMap.collections2025 === -1) colMap.collections2025 = idx;
+    }
+    // 16c. Check Year 2024 Sales & Collections (مبيعات 2024 / تحصيلات 2024)
     else if (norm.includes('2024') && (norm.includes('مبيعات') || norm.includes('بيع'))) {
       if (colMap.sales2024 === -1) colMap.sales2024 = idx;
     } else if (norm.includes('2024') && (norm.includes('تحصيل') || norm.includes('تحصيلات'))) {
@@ -1930,7 +1950,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       if (colMap.totalOverdueAndDue === -1) colMap.totalOverdueAndDue = idx;
       if (colMap.overdueBalance === -1) colMap.overdueBalance = idx;
     }
-    // 20. Check Total Sales (اجمالي المبيعات / اجمالي بيعات)
+    // 20. Check Total Sales (اجمالي المبيعات / اجمالي بيعات / مبيعات)
     else if (
       norm === 'اجماليمبيعات' ||
       norm === 'اجماليالمبيعات' ||
@@ -1944,14 +1964,24 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('مبيعاتالسنة') ||
       norm.includes('بيعاتالسنه') ||
       norm.includes('بيعاتالسنة') ||
+      norm === 'مبيعات' ||
+      norm === 'المبيعات' ||
+      norm === 'بيعات' ||
+      norm === 'البيعات' ||
       norm === 'totalsales'
     ) {
       if (colMap.totalMonthlySales === -1) colMap.totalMonthlySales = idx;
       if (colMap.totalOverallSales === -1) colMap.totalOverallSales = idx;
+      if (colMap.sales2026 === -1) colMap.sales2026 = idx;
     }
-    // 21. Check Total Collections (تحصيلات / اجمالي التحصيلات / اجمالي تحصيل)
+    // 21. Check Total Collections (تحصيلات / اجمالي التحصيلات / اجمالي تحصيل / تحصيل)
     else if (
       norm === 'تحصيلات' ||
+      norm === 'التحصيلات' ||
+      norm === 'تحصيل' ||
+      norm === 'التحصيل' ||
+      norm === 'سداد' ||
+      norm === 'السداد' ||
       norm === 'اجماليالتحصيلات' ||
       norm === 'اجماليتحصيلات' ||
       norm === 'اجماليالتحصيل' ||
@@ -1968,6 +1998,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     ) {
       if (colMap.totalMonthlyCollections === -1) colMap.totalMonthlyCollections = idx;
       if (colMap.totalOverallCollections === -1) colMap.totalOverallCollections = idx;
+      if (colMap.collections2026 === -1) colMap.collections2026 = idx;
     }
     // 22. Check Credit Limit (الحد الائتماني)
     else if (
@@ -2286,6 +2317,16 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     const parsedTotalMonthlyCollectionsCol = parsedTotalMonthlyCollectionsColRaw === undefined
       ? undefined
       : (parsedTotalMonthlyCollectionsColRaw < 0 ? parsedTotalMonthlyCollectionsColRaw * -1 : parsedTotalMonthlyCollectionsColRaw);
+    const parsedSales2026Col = parseNumberValue(colMap.sales2026);
+    const parsedCollections2026ColRaw = parseNumberValue(colMap.collections2026);
+    const parsedCollections2026Col = parsedCollections2026ColRaw === undefined
+      ? undefined
+      : (parsedCollections2026ColRaw < 0 ? parsedCollections2026ColRaw * -1 : parsedCollections2026ColRaw);
+    const parsedSales2025 = parseNumberValue(colMap.sales2025);
+    const parsedCollections2025Raw = parseNumberValue(colMap.collections2025);
+    const parsedCollections2025 = parsedCollections2025Raw === undefined
+      ? undefined
+      : (parsedCollections2025Raw < 0 ? parsedCollections2025Raw * -1 : parsedCollections2025Raw);
     const parsedOverdue2025 = parseNumberValue(colMap.overdue2025);
     const parsedOverdue2026 = parseNumberValue(colMap.overdue2026);
     const parsedDueUntilPeriod = parseNumberValue(colMap.dueUntilPeriod);
@@ -2329,14 +2370,18 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       }
     });
 
-    // Sum totals: take max of explicit column in sheet and dynamic sum of months (حاسب للسنة كله)
-    const finalTotalMonthlySales = parsedTotalMonthlySalesCol !== undefined
-      ? Math.max(parsedTotalMonthlySalesCol, dynamicMonthlySalesSum)
-      : (dynamicMonthlySalesSum > 0 ? dynamicMonthlySalesSum : (parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : undefined));
+    // Sum totals: take max of explicit 2026 column, generic total column, and dynamic sum of months (حاسب للسنة كله)
+    const finalTotalMonthlySales = parsedSales2026Col !== undefined
+      ? Math.max(parsedSales2026Col, dynamicMonthlySalesSum)
+      : (parsedTotalMonthlySalesCol !== undefined
+          ? Math.max(parsedTotalMonthlySalesCol, dynamicMonthlySalesSum)
+          : (dynamicMonthlySalesSum > 0 ? dynamicMonthlySalesSum : (parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : undefined)));
 
-    const finalTotalMonthlyCollections = parsedTotalMonthlyCollectionsCol !== undefined
-      ? Math.max(parsedTotalMonthlyCollectionsCol, dynamicMonthlyCollectionsSum)
-      : (dynamicMonthlyCollectionsSum > 0 ? dynamicMonthlyCollectionsSum : (parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : undefined));
+    const finalTotalMonthlyCollections = parsedCollections2026Col !== undefined
+      ? Math.max(parsedCollections2026Col, dynamicMonthlyCollectionsSum)
+      : (parsedTotalMonthlyCollectionsCol !== undefined
+          ? Math.max(parsedTotalMonthlyCollectionsCol, dynamicMonthlyCollectionsSum)
+          : (dynamicMonthlyCollectionsSum > 0 ? dynamicMonthlyCollectionsSum : (parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : undefined)));
 
     const finalCreditLimit = parsedCredit !== undefined ? parsedCredit : 0;
 
@@ -2355,8 +2400,18 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
           : finalTotalOverdue);
 
     const resolvedAddress = rawAddress || [rawDistrict, rawGov].filter(Boolean).join(' - ') || '';
-    const resolvedSales2026 = finalTotalMonthlySales !== undefined ? finalTotalMonthlySales : (parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : dynamicMonthlySalesSum);
-    const resolvedCollections2026 = finalTotalMonthlyCollections !== undefined ? finalTotalMonthlyCollections : (parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : dynamicMonthlyCollectionsSum);
+    const resolvedSales2026 = Math.max(
+      parsedSales2026Col !== undefined ? parsedSales2026Col : 0,
+      parsedTotalMonthlySalesCol !== undefined ? parsedTotalMonthlySalesCol : 0,
+      parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : 0,
+      dynamicMonthlySalesSum
+    );
+    const resolvedCollections2026 = Math.max(
+      parsedCollections2026Col !== undefined ? parsedCollections2026Col : 0,
+      parsedTotalMonthlyCollectionsCol !== undefined ? parsedTotalMonthlyCollectionsCol : 0,
+      parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : 0,
+      dynamicMonthlyCollectionsSum
+    );
 
     // Guarantee docs logic:
     // لو كبر من صفر يبقي ماضي علي ورق ضمان بالمبلغ ده
@@ -2468,6 +2523,8 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       hasDealtIn2026: (resolvedSales2026 > 0) || (resolvedCollections2026 > 0) || rawDealt2026 === 'متعامل',
       monthlySales2026: Object.keys(rowMonthlySales).length > 0 ? rowMonthlySales : undefined,
       monthlyCollections2026: Object.keys(rowMonthlyCollections).length > 0 ? rowMonthlyCollections : undefined,
+      sales2025: parsedSales2025,
+      collections2025: parsedCollections2025,
       overdue2025: parsedOverdue2025,
       overdue2026: parsedOverdue2026,
       dueUntilPeriod: parsedDueUntilPeriod,
@@ -3179,10 +3236,85 @@ export const DREAM_INVENTORY_EXCEL_COLUMNS = [
 ];
 
 /**
- * Export Products Catalog & Inventory to Excel matching the exact Dream 19-column spreadsheet format
+ * Export Products Catalog & Inventory to Excel matching the exact Dream spreadsheet format.
+ * If user is branch-scoped (Sales Rep, Supervisor, Branch Manager) or a specific branch is selected,
+ * only exports that specific branch's stock and details.
  */
-export function exportProductsToExcel(products: Product[], branchName = 'الكل'): void {
+export function exportProductsToExcel(
+  products: Product[],
+  branchName = 'الكل',
+  currentUser?: User | null
+): void {
   const wb = XLSX.utils.book_new();
+
+  const isBranchScoped =
+    (currentUser && currentUser.role !== 'admin' && currentUser.role !== 'developer') ||
+    (branchName && branchName !== 'الكل');
+
+  const resolvedBranch = resolveBranchName(
+    (currentUser && currentUser.role !== 'admin' && currentUser.role !== 'developer')
+      ? (currentUser.branchName || branchName)
+      : branchName
+  ) || (currentUser?.branchName || branchName);
+
+  if (isBranchScoped && resolvedBranch && resolvedBranch !== 'الكل') {
+    // Single Branch Export: Strictly that branch's stock only!
+    const headers = [
+      'الكود الموحد',
+      'كود المنتج',
+      'اسم المنتج',
+      'الحجم',
+      'عدد القطع بالكرتونة',
+      'سعر الكرتونة',
+      'فئة الصنف',
+      'العائلة',
+      'اللون',
+      `رصيد مخزون فرع (${resolvedBranch})`,
+      'سعر العرض',
+      'لينك الصورة',
+    ];
+
+    const rows = products.map((p) => {
+      const stock = getBranchStockForProduct(p, resolvedBranch);
+      return [
+        p.unifiedCode || '',
+        cleanProductCode(p.code),
+        p.name,
+        p.size || '',
+        p.cartonQuantity || p.factor || 1,
+        p.cartonPrice || 0,
+        p.itemGroup || p.department || p.category || '',
+        p.familyName || p.classification || '',
+        p.color || '',
+        stock,
+        p.promoPrice || p.offerPrice || '',
+        p.imageUrl || '',
+      ];
+    });
+
+    const data = [headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!views'] = [{ rightToLeft: true }];
+    ws['!cols'] = [
+      { wch: 16 }, // الكود الموحد
+      { wch: 16 }, // كود المنتج
+      { wch: 42 }, // اسم المنتج
+      { wch: 12 }, // الحجم
+      { wch: 14 }, // عدد القطع
+      { wch: 14 }, // سعر الكرتونة
+      { wch: 18 }, // فئة الصنف
+      { wch: 18 }, // العائلة
+      { wch: 14 }, // اللون
+      { wch: 24 }, // رصيد المخزون
+      { wch: 14 }, // سعر العرض
+      { wch: 48 }, // لينك الصورة
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, `مخزون_${resolvedBranch.replace(/\s+/g, '_')}`);
+    const repSuffix = currentUser?.name ? `_${currentUser.name.replace(/\s+/g, '_')}` : '';
+    XLSX.writeFile(wb, `مخزون_${resolvedBranch.replace(/\s+/g, '_')}${repSuffix}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    return;
+  }
 
   const headers = [...DREAM_INVENTORY_EXCEL_COLUMNS];
 
@@ -3224,6 +3356,7 @@ export function exportProductsToExcel(products: Product[], branchName = 'الك�
 
   const data = [headers, ...rows];
   const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!views'] = [{ rightToLeft: true }];
 
   ws['!cols'] = [
     { wch: 16 }, // الكود الموحد

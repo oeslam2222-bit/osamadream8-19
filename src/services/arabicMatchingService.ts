@@ -635,25 +635,28 @@ export function doesCustomerBelongToSupervisor(
     }
   }
 
-  // 1. If customer belongs to the supervisor's branch, supervisor can view it
-  if (supervisorUser.branchName && customer.branchName) {
-    if (isBranchMatch(customer.branchName, supervisorUser.branchName, { allowUnassigned: false })) {
-      return true;
-    }
-  }
-
-  // 2. Check if assigned directly to the supervisor
+  // 1. Check if assigned directly to the supervisor
   if (doesCustomerBelongToRep(customer, supervisorUser)) {
     return true;
   }
 
-  // 3. Find all sales reps belonging to this supervisor in the same branch
+  // 2. Check if customer explicitly names this supervisor in supervisorName field
+  if (
+    customer.supervisorName &&
+    (isArabicNameMatch(customer.supervisorName, supervisorUser.name) ||
+      normalizeArabicText(customer.supervisorName) === normalizeArabicText(supervisorUser.name))
+  ) {
+    return true;
+  }
+
+  // 3. Find sales reps belonging directly to this supervisor (by supervisorId or branch)
   const supervisedReps = allUsers.filter(
     (u) =>
       u.supervisorId === supervisorUser.id ||
       (u.role === 'sales_rep' &&
         supervisorUser.branchName &&
-        isBranchMatch(u.branchName, supervisorUser.branchName, { allowUnassigned: false }))
+        isBranchMatch(u.branchName, supervisorUser.branchName, { allowUnassigned: false }) &&
+        (!u.supervisorId || u.supervisorId === supervisorUser.id))
   );
 
   // 4. Check if customer belongs to any of these reps
@@ -678,9 +681,15 @@ export function doesCustomerBelongToBranch(
     return true;
   }
 
-  // 2. Inferred branch from address, city, or notes
+  // STRICT BRANCH ISOLATION: If the customer already has an explicit branchName
+  // that does not match this branch, NEVER leak the customer to another branch.
+  if (customer.branchName && !isBranchMatch(customer.branchName, branchName, { allowUnassigned: false })) {
+    return false;
+  }
+
+  // 2. Inferred branch from address, city, or notes (only for unassigned branch customers)
   const rawCust = customer as any;
-  const textToScan = `${customer.branchName || ''} ${customer.address || ''} ${rawCust.city || ''} ${customer.notes || ''}`.trim();
+  const textToScan = `${customer.address || ''} ${rawCust.city || ''} ${customer.notes || ''}`.trim();
   if (textToScan) {
     const inferred = inferBranchFromText(textToScan);
     if (inferred && isBranchMatch(inferred, branchName, { allowUnassigned: false })) {
