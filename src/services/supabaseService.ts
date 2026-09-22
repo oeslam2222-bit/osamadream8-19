@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Branch, Customer, Invoice, Product, User, UserRole } from '../types';
+import { Branch, Customer, Invoice, Product, User, UserRole, CustomerVisit } from '../types';
 
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://rxthpgmlcsfckstpqhqf.supabase.co';
 export const SUPABASE_ANON_KEY =
@@ -924,8 +924,45 @@ export async function deleteAllInvoicesFromSupabase(): Promise<{ success: boolea
 }
 
 /**
- * Deterministic UUID v4 generator from string (for consistent product IDs in Supabase)
+ * Delete visit from Supabase permanently
  */
+export async function deleteVisitFromSupabase(
+  visitId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const errors: string[] = [];
+    let atLeastOneSucceeded = false;
+    const safeVisitId = visitId.trim();
+
+    if (!safeVisitId) {
+      return { success: false, error: 'معرّف الزيارة غير صالح' };
+    }
+
+    const { error } = await supabase.from('visits').delete().eq('id', safeVisitId);
+    if (error) errors.push(error.message);
+    else atLeastOneSucceeded = true;
+
+    if (!atLeastOneSucceeded) {
+      return { success: false, error: errors.join(' | ') || 'تعذر حذف الزيارة من قاعدة البيانات' };
+    }
+    return { success: true, error: errors.length > 0 ? errors.join(' | ') : undefined };
+  } catch (e: any) {
+    console.warn('Supabase delete visit exception:', e);
+    return { success: false, error: e?.message };
+  }
+}
+
+export async function deleteAllVisitsFromSupabase(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const errors: string[] = [];
+    const result = await supabase.from('visits').delete().not('id', 'is', null);
+    if (result.error) errors.push(result.error.message);
+    return errors.length > 0 ? { success: false, error: errors.join(' | ') } : { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'تعذر مسح الزيارات من قاعدة البيانات' };
+  }
+}
+
 function stringToUuid(str: string): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -1129,5 +1166,79 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
     return { success: true, products: [] };
   } catch (err: any) {
     return { success: false, error: err?.message };
+  }
+}
+
+/**
+ * Fetch all visits from Supabase (visits table)
+ */
+export async function fetchVisitsFromSupabase(): Promise<{ success: boolean; visits?: CustomerVisit[]; error?: string }> {
+  try {
+    const { data, error } = await supabase.from('visits').select('*').order('created_at', { ascending: false });
+    if (error) return { success: false, error: error.message };
+    if (!data || data.length === 0) return { success: true, visits: [] };
+
+    const mapped: CustomerVisit[] = data.map((v: any) => ({
+      id: v.id || `visit-${v.created_at}-${v.customer_id}`,
+      customerId: v.customer_id || v.customerId || '',
+      customerName: v.customer_name || v.customerName || '',
+      customerCode: v.customer_code || v.customerCode || '',
+      date: v.date || '',
+      time: v.time || '',
+      repId: v.rep_id || v.repId || '',
+      repName: v.rep_name || v.repName || 'المندوب',
+      branchName: v.branch_name || v.branchName || '',
+      supervisorId: v.supervisor_id || v.supervisorId || '',
+      supervisorName: v.supervisor_name || v.supervisorName || '',
+      status: v.status || 'مجدولة',
+      type: v.type || 'زيارة دورية',
+      outcome: v.outcome || '',
+      collectedAmount: Number(v.collected_amount ?? v.collectedAmount ?? 0),
+      notes: v.notes || '',
+      createdBy: v.created_by || v.createdBy || '',
+      createdAt: v.created_at || v.createdAt || new Date().toISOString(),
+      updatedAt: v.updated_at || v.updatedAt,
+    }));
+
+    return { success: true, visits: mapped };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
+  }
+}
+
+/**
+ * Save/Upsert visits into Supabase
+ */
+export async function saveVisitsToSupabase(visits: CustomerVisit[]): Promise<{ success: boolean; savedCount: number; error?: string }> {
+  try {
+    if (!visits || visits.length === 0) return { success: true, savedCount: 0 };
+
+    const payload = visits.map((v) => ({
+      id: v.id || `visit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      customer_id: v.customerId || '',
+      customer_name: v.customerName || '',
+      customer_code: v.customerCode || '',
+      date: v.date || '',
+      time: v.time || '',
+      rep_id: v.repId || '',
+      rep_name: v.repName || '',
+      branch_name: v.branchName || '',
+      supervisor_id: v.supervisorId || '',
+      supervisor_name: v.supervisorName || '',
+      status: v.status || 'مجدولة',
+      type: v.type || 'زيارة دورية',
+      outcome: v.outcome || '',
+      collected_amount: v.collectedAmount ?? 0,
+      notes: v.notes || '',
+      created_by: v.createdBy || '',
+      created_at: v.createdAt || new Date().toISOString(),
+      updated_at: v.updatedAt || new Date().toISOString(),
+    }));
+
+    const { data, error } = await supabase.from('visits').upsert(payload, { onConflict: 'id' }).select();
+    if (error) return { success: false, savedCount: 0, error: error.message };
+    return { success: true, savedCount: payload.length };
+  } catch (err: any) {
+    return { success: false, savedCount: 0, error: err?.message };
   }
 }

@@ -30,7 +30,7 @@ import {
 import * as XLSX from 'xlsx';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
-import { doesCustomerBelongToRep, doesCustomerBelongToBranch, doesCustomerBelongToSupervisor } from '../services/arabicMatchingService';
+import { doesCustomerBelongToRep, doesCustomerBelongToBranch, doesCustomerBelongToSupervisor, isArabicNameMatch } from '../services/arabicMatchingService';
 import type { CustomerVisit } from '../types';
 
 export const VisitsDashboard: React.FC = () => {

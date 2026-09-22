@@ -27,7 +27,9 @@ import {
   fetchInvoicesFromSupabase,
   fetchProductsFromSupabase,
   fetchTargetsFromSupabase,
+  fetchVisitsFromSupabase,
   saveTargetsToSupabase,
+  saveVisitsToSupabase,
   fetchUsersFromSupabase,
   findUserInSupabase,
   sanitizeEmail,
@@ -266,6 +268,7 @@ const STORAGE_KEYS = {
   ACCOUNTING_LOGS: 'dream_dist_acc_logs_v9',
   CART: 'dream_dist_cart_v9',
   DELETED_INVOICE_IDS: 'dream_dist_deleted_invoices_v1',
+  DELETED_VISIT_IDS: 'dream_dist_deleted_visits_v1',
   PENDING_INVOICES: 'dream_dist_pending_invoices_v1',
   TARGETS: 'dream_dist_targets_v1',
   PRIVACY_MODE: 'dream_privacy_mode_v1',
@@ -288,6 +291,25 @@ const markInvoiceAsDeletedInStorage = (id: string, invoiceNumber?: string) => {
     if (id) current.add(id);
     if (invoiceNumber) current.add(invoiceNumber);
     localStorage.setItem(STORAGE_KEYS.DELETED_INVOICE_IDS, JSON.stringify(Array.from(current)));
+  } catch {}
+};
+
+const getDeletedVisitIds = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.DELETED_VISIT_IDS);
+    if (!raw) return new Set<string>();
+    const parsed = JSON.parse(raw);
+    return new Set<string>(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set<string>();
+  }
+};
+
+const markVisitAsDeletedInStorage = (visitId: string) => {
+  try {
+    const current = getDeletedVisitIds();
+    if (visitId) current.add(visitId);
+    localStorage.setItem(STORAGE_KEYS.DELETED_VISIT_IDS, JSON.stringify(Array.from(current)));
   } catch {}
 };
 
@@ -1028,9 +1050,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         // Hydrate & merge visits from IndexedDB, localStorage, and customer visit histories
         const allVisitsMap = new Map<string, CustomerVisit>();
+        const deletedVisitIds = getDeletedVisitIds();
         if (Array.isArray(savedVisits)) {
           savedVisits.forEach((v) => {
-            if (v && v.id) allVisitsMap.set(v.id, v);
+            if (v && v.id && !deletedVisitIds.has(v.id) && !deletedVisitIds.has(v.date)) {
+              allVisitsMap.set(v.id, v);
+            }
           });
         }
         if (Array.isArray(savedCustomers)) {
@@ -1247,28 +1272,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           pushedUsersCount = users.length;
         }
         if (invoices.length > 0) {
-          // Batch push recent invoices (up to 100) to drastically reduce egress and protect free tier
-          const recentInvoices = invoices.slice(0, 100);
-          const invBatchRes = await saveInvoicesToSupabase(recentInvoices);
+          // Push ALL invoices to Supabase, not just the first 100
+          const invBatchRes = await saveInvoicesToSupabase(invoices);
           pushedInvoicesCount = invBatchRes.savedCount;
         }
         if (products.length > 0) {
           await saveProductsToSupabase(products);
+        }
+        // Sync visits to Supabase
+        if (visits.length > 0) {
+          await saveVisitsToSupabase(visits);
         }
       }
 
       const updatedConn = await testSupabaseConnection();
       setSupabaseStatus(updatedConn);
 
-      const msg = `تمت المزامنة السحابية بنجاح مع Supabase! (مستخدمين: ${fetchedUsersCount || pushedUsersCount}، فواتير وطلبيات: ${fetchedInvoicesCount || pushedInvoicesCount}).`;
+      const msg = `تمت المزامنة السحابية بنجاح مع Supabase! (مستخدمين: ${fetchedUsersCount || pushedUsersCount}, فواتير وطلبيات: ${fetchedInvoicesCount || pushedInvoicesCount}).`;
       return { success: true, message: msg };
     } catch (err: any) {
       return {
         success: false,
         message: `تعذر إتمام المزامنة: ${err?.message || 'خطأ في الشبكة'}`,
       };
-    } finally {
-      setIsSupabaseSyncing(false);
     }
   };
 
@@ -1330,14 +1356,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         });
 
-        // 3. Fetch Invoices (Fetch recent 30 on startup to save egress; Realtime stream catches newly created ones)
-        fetchInvoicesFromSupabase(30).then((res) => {
+        // 3. Fetch Invoices from Supabase (source of truth; keeps locally-created offline invoices)
+        const deletedInvoiceIds = getDeletedInvoiceIds();
+        fetchInvoicesFromSupabase(500).then((res) => {
           if (res.success && res.invoices) {
-            const remoteInvoices = res.invoices;
+            const remoteInvoices = res.invoices.filter(
+              (inv) => !deletedInvoiceIds.has(inv.id) && !deletedInvoiceIds.has(inv.invoiceNumber)
+            );
             setInvoices((previous) => {
               const merged = new Map<string, Invoice>();
-              previous.forEach((invoice) => merged.set(invoice.id, invoice));
-              remoteInvoices.forEach((invoice) => merged.set(invoice.id, invoice));
+              // Start with remote invoices as source of truth
+              remoteInvoices.forEach((inv) => merged.set(inv.id, inv));
+              // Add local invoices that were created offline (not on server)
+              const remoteIds = new Set(remoteInvoices.map((i) => i.id));
+              previous.forEach((inv) => {
+                if (!remoteIds.has(inv.id) && !deletedInvoiceIds.has(inv.id) && !deletedInvoiceIds.has(inv.invoiceNumber)) {
+                  merged.set(inv.id, inv);
+                }
+              });
               const next = Array.from(merged.values());
               idbSet(STORAGE_KEYS.INVOICES, next);
               return next;
@@ -1354,6 +1390,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 setCustomers(validCustomers);
                 idbSet(STORAGE_KEYS.CUSTOMERS, validCustomers);
               }
+            });
+          }
+        });
+
+        // 5. Fetch Visits from Supabase (Sync all visits for all roles, minus locally deleted)
+        const deletedVisitIds = getDeletedVisitIds();
+        fetchVisitsFromSupabase().then((res) => {
+          if (res.success && res.visits) {
+            const remoteVisits = res.visits.filter(
+              (v) => !deletedVisitIds.has(v.id)
+            );
+            setVisits((previous) => {
+              const merged = new Map<string, CustomerVisit>();
+              // Start with remote visits as source of truth
+              remoteVisits.forEach((visit) => merged.set(visit.id, visit));
+              // Add local visits that were created offline (not on server)
+              previous.forEach((visit) => {
+                if (!merged.has(visit.id) && !deletedVisitIds.has(visit.id)) {
+                  merged.set(visit.id, visit);
+                }
+              });
+              const next = Array.from(merged.values());
+              idbSet(STORAGE_KEYS.VISITS, next);
+              return next;
             });
           }
         });
@@ -1480,6 +1540,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const deleted = payload.old as any;
             if (deleted?.id) {
               setTargets((prev) => prev.filter((t) => t.id !== String(deleted.id)));
+            }
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'visits' }, (payload) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const raw = payload.new as any;
+            if (raw && raw.id) {
+              const mappedVisit: CustomerVisit = {
+                id: raw.id,
+                customerId: raw.customer_id || raw.customerId || '',
+                customerName: raw.customer_name || raw.customerName || '',
+                customerCode: raw.customer_code || raw.customerCode || '',
+                date: raw.date || '',
+                time: raw.time || '',
+                repId: raw.rep_id || raw.repId || '',
+                repName: raw.rep_name || raw.repName || 'المندوب',
+                branchName: raw.branch_name || raw.branchName || '',
+                supervisorId: raw.supervisor_id || raw.supervisorId || '',
+                supervisorName: raw.supervisor_name || raw.supervisorName || '',
+                status: raw.status || 'مجدولة',
+                type: raw.type || 'زيارة دورية',
+                outcome: raw.outcome || '',
+                collectedAmount: Number(raw.collected_amount ?? raw.collectedAmount ?? 0),
+                notes: raw.notes || '',
+                createdBy: raw.created_by || raw.createdBy || '',
+                createdAt: raw.created_at || raw.createdAt || new Date().toISOString(),
+                updatedAt: raw.updated_at || raw.updatedAt,
+              };
+              setVisits((prev) => {
+                const map = new Map<string, CustomerVisit>();
+                prev.forEach((v) => map.set(v.id, v));
+                map.set(mappedVisit.id, mappedVisit);
+                return Array.from(map.values());
+              });
+            }
+          } else if (payload.eventType === 'DELETE') {
+            const deleted = payload.old as any;
+            if (deleted?.id) {
+              setVisits((prev) => prev.filter((v) => v.id !== deleted.id));
             }
           }
         })
@@ -1614,6 +1713,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteCustomer = (customerId: string) => {
     setCustomers((prev) => prev.filter((c) => c.id !== customerId));
+    // Delete from Supabase
+    Promise.resolve(supabase.from('customers').delete().eq('id', customerId)).then((res) => {
+      if (res.error) console.warn('Supabase customer delete error:', res.error);
+    }).catch((e) => console.warn('Supabase customer delete error:', e));
   };
 
   const cleanAndDeduplicateCustomers = () => {
@@ -4319,6 +4422,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setVisits((prev) => [newVisitObj, ...prev]);
 
+    // Sync new visit to Supabase
+    saveVisitsToSupabase([newVisitObj]).catch((e) => console.warn('Supabase visit save error:', e));
+
     // Also update customer's visit history and last visit stats
     const existingVisits = customer.visitHistory || [];
     const updatedCustomer: Customer = {
@@ -4341,6 +4447,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!canManageVisit(visit)) return { success: false, message: 'لا تملك صلاحية تعديل هذه الزيارة' };
     const updatedVisit = { ...visit, updatedAt: new Date().toISOString() };
     setVisits((prev) => prev.map((item) => (item.id === visit.id ? updatedVisit : item)));
+    // Sync updated visit to Supabase
+    saveVisitsToSupabase([updatedVisit]).catch((e) => console.warn('Supabase visit update error:', e));
     if (visit.customerId) {
       setCustomers((prev) =>
         prev.map((c) => {
