@@ -769,7 +769,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const col26 = Math.max(Math.abs(Number(c.collections2026 || 0)), Math.abs(Number(c.totalMonthlyCollections || 0)), Math.abs(Number(c.totalOverallCollections || 0)), monthlyColsSum);
 
       // Guarantee docs logic:
-      // لو كبر من صفر يبقي ماضي علي ورق ضم����ن بالمبلغ ده
+      // لو كبر من صفر يبقي ماضي علي ورق ضم������ن بالمبلغ ده
       // لو 0 او مافيش يبق لا يوجد ورق ضمان
       let gAmount = Math.abs(Number(c.guaranteeAmount || 0));
       const rawG = String(c.guaranteeDocs || '').trim();
@@ -2307,7 +2307,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return {
       success: true,
-      message: 'تم تسجيل طلب الحساب بنجاح وهو الآن بانتظار تفعيل الأدمن وتخصيص المشرف والف��ع.'
+      message: 'تم تسجيل طلب الحساب بنجاح وهو الآن بانتظار تفعيل الأدمن وتخصيص المشرف و��لف��ع.'
     };
   };
 
@@ -3403,7 +3403,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const invoice = invoices.find((item) => item.id === invoiceId);
     if (!invoice) return { success: false, message: 'الفاتورة غير موجودة.' };
     if (!['معتمدة ومصروفة من المخزن', 'معتمدة'].includes(invoice.status)) {
-      return { success: false, message: 'لا يمكن إرسال الفاتورة قبل اعتمادها.' };
+      return { success: false, message: 'لا يمكن إرسال الفا��ورة قبل اعتمادها.' };
     }
     if (
       !['admin', 'developer'].includes(currentUser.role) &&
@@ -4506,30 +4506,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const supervisedRepIds = new Set(
         users.filter((u) => u.role === 'sales_rep' && u.supervisorId === currentUser.id).map((u) => u.id)
       );
-      return customers.filter((c) => {
-        if (c.repId && supervisedRepIds.has(c.repId)) return true;
-        const assignedRep = users.find(
-          (u) => u.role === 'sales_rep' && supervisedRepIds.has(u.id) && doesCustomerBelongToRep(c, u)
-        );
-        return Boolean(assignedRep) || (
-          c.supervisorName && normalizeArabicText(c.supervisorName) === normalizeArabicText(currentUser.name)
-        );
-      });
+  return customers.filter((c) => {
+  const isSameBranch = Boolean(c.branchName) && isBranchMatch(c.branchName, currentUser.branchName, { allowUnassigned: false });
+  if (!isSameBranch) return false;
+  if (c.repId && supervisedRepIds.has(c.repId)) return true;
+  const assignedRep = users.find(
+  (u) => u.role === 'sales_rep' && supervisedRepIds.has(u.id) && doesCustomerBelongToRep(c, u)
+  );
+  return Boolean(assignedRep) || (
+  c.supervisorName && normalizeArabicText(c.supervisorName) === normalizeArabicText(currentUser.name)
+  );
+  });
     }
     // Sales Rep: ONLY customers belonging directly to this rep
     return customers.filter((c) => doesCustomerBelongToRep(c, currentUser));
   };
 
   const getVisibleProducts = (): Product[] => {
-    // The catalog is shared across roles; stock availability remains an optional UI filter.
-    return products;
+  // Admin/developer can audit every warehouse. Other roles receive only their branch stock;
+  // never expose another branch's balances or the central warehouse balance to the client view.
+  if (!currentUser || currentUser.role === 'admin' || currentUser.role === 'developer') {
+  return products;
+  }
+
+  const branchName = currentUser.branchName;
+  if (!branchName) return [];
+
+  return products.map((product) => {
+  const branchStock = getBranchStockForProduct(product, branchName);
+  return {
+  ...product,
+  branchStockActual: branchStock,
+  branchStockReserved: branchStock,
+  mainWarehouseActual: 0,
+  mainWarehouseReserved: 0,
+  branchStocks: branchName ? { [branchName]: branchStock } : {},
+  };
+  });
   };
 
   const getSupervisorsInBranch = (branchName?: string): User[] => {
     const targetBranch = branchName || currentUser?.branchName;
-    return users.filter(
-      u => u.role === 'supervisor' && u.approvalStatus === 'active' && (!targetBranch || u.branchName === targetBranch)
-    );
+  return users.filter(
+  u => u.role === 'supervisor' &&
+  u.approvalStatus === 'active' &&
+  (!targetBranch || isBranchMatch(u.branchName, targetBranch, { allowUnassigned: false }))
+  );
   };
 
   const getSalesRepsForSupervisor = (supervisorId: string): User[] => {
