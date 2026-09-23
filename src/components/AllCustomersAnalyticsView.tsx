@@ -1160,7 +1160,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </h1>
               <p className="text-xs text-slate-500 mt-0.5">
                 {isRep
-                  ? `ملفات وتحليلات العملاء المسندين لك (${currentUser?.name}) - مقارنة مبيعات وتحصيلات 2025 / 2026 ومتابعة الزيارات والمديونية`
+                  ? `ملفات وتحليلات العملاء المسندين لك (${currentUser?.name}) - مقارنة مبيعات وتحصيلات 2025 / 2026 ��متابعة الزيارات والمديونية`
                   : isSupervisor
                   ? `تحليل عملاء مناديب فريقك بـ (${currentUser?.branchName}) - مراقبة النشاط والمبيعات والتحصيل والزيارات`
                   : isBranchManager
@@ -1487,17 +1487,19 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               >
                 📅 المسار الشهري
               </button>
-              <button
-                type="button"
-                onClick={() => setActiveChartTab('branches')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap ${
-                  activeChartTab === 'branches'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                🏢 مقارنة الفروع الـ 7
-              </button>
+              {isAdminOrDev && (
+                <button
+                  type="button"
+                  onClick={() => setActiveChartTab('branches')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap ${
+                    activeChartTab === 'branches'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  🏢 مقارنة الفروع الـ 7
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setActiveChartTab('reps')}
@@ -1562,8 +1564,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </div>
           )}
 
-          {/* Tab 2: Branch Comparison */}
-          {activeChartTab === 'branches' && (
+              {/* Tab 2: Branch Comparison (Admin & Developer only) */}
+              {isAdminOrDev && activeChartTab === 'branches' && (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs text-slate-500">
                 <span className="font-bold">ترتيب وأداء الفروع حسب المبيعات والتحصيلات في 2026:</span>
@@ -3574,7 +3576,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                             لا توجد حركات بيع أو تحصيل مسجلة لهذا العميل خلال أشهر 2026
                           </div>
                           <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                            العميل مسجل حالياً بدون فواتير أو سدادات خلال العام الحالي، يمكنك إنشاء طلبية جديدة أو تسجيل زيارة ميدانية لتنشيط التعامل.
+                            ال��ميل مسجل حالياً بدون فواتير أو سدادات خلال العام الحالي، يمكنك إنشاء طلبية جديدة أو تسجيل زيارة ميدانية لتنشيط التعامل.
                           </p>
                         </div>
                         <button
