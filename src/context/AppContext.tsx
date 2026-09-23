@@ -769,7 +769,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const col26 = Math.max(Math.abs(Number(c.collections2026 || 0)), Math.abs(Number(c.totalMonthlyCollections || 0)), Math.abs(Number(c.totalOverallCollections || 0)), monthlyColsSum);
 
       // Guarantee docs logic:
-      // لو كبر من صفر يبقي ماضي علي ورق ضمان بالمبلغ ده
+      // لو كبر من صفر يبقي ماضي علي ورق ضم��ن بالمبلغ ده
       // لو 0 او مافيش يبق لا يوجد ورق ضمان
       let gAmount = Math.abs(Number(c.guaranteeAmount || 0));
       const rawG = String(c.guaranteeDocs || '').trim();
@@ -2218,7 +2218,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     if (found.approvalStatus === 'rejected' || found.isActive === false) {
-      return { success: false, message: 'هذا الحساب موقوف أو تم رفض تفعيله من قبل الإدارة.' };
+      return { success: false, message: '��ذا الحساب موقوف أو تم رفض تفعيله من قبل الإدارة.' };
     }
 
     // Check password strictly against database
@@ -2375,9 +2375,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const assignSupervisor = (repId: string, supervisorId: string) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === repId ? { ...u, supervisorId } : u))
-    );
+    const nextUsers = users.map((u) => (u.id === repId ? { ...u, supervisorId } : u));
+    setUsers(nextUsers);
+    safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(nextUsers));
+    idbSet(STORAGE_KEYS.USERS, nextUsers).catch(() => {});
+    saveUsersToSupabase(nextUsers).catch((e) => console.warn('Supabase supervisor assignment failed:', e));
   };
 
   // --- Inventory & Stock Real-time Audit Helper ---
@@ -4280,11 +4282,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Supervisor: STRICTLY sees ONLY invoices belonging to his branch and his supervised reps
     if (currentUser.role === 'supervisor') {
       if (!currentUser.branchName) return [];
-      const repIds = new Set(
-        users
-          .filter((u) => u.role === 'sales_rep' && (u.supervisorId === currentUser.id || isBranchMatch(u.branchName, currentUser.branchName, { allowUnassigned: false })))
-          .map((u) => u.id)
-      );
+  const repIds = new Set(
+  users
+  .filter((u) => u.role === 'sales_rep' && u.supervisorId === currentUser.id)
+  .map((u) => u.id)
+  );
   return invoices.filter((i) => {
     const isSameBranch = Boolean(i.branchName) && isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false });
     const isSupervisedRep = Boolean(i.repId) && repIds.has(i.repId);
@@ -4499,7 +4501,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return customers.filter((c) => doesCustomerBelongToBranch(c, currentUser.branchName, users));
     }
     if (currentUser.role === 'supervisor') {
-      return customers.filter((c) => doesCustomerBelongToSupervisor(c, currentUser, users));
+      const supervisedRepIds = new Set(
+        users.filter((u) => u.role === 'sales_rep' && u.supervisorId === currentUser.id).map((u) => u.id)
+      );
+      return customers.filter((c) => {
+        if (c.repId && supervisedRepIds.has(c.repId)) return true;
+        const assignedRep = users.find(
+          (u) => u.role === 'sales_rep' && supervisedRepIds.has(u.id) && doesCustomerBelongToRep(c, u)
+        );
+        return Boolean(assignedRep) || (
+          c.supervisorName && normalizeArabicText(c.supervisorName) === normalizeArabicText(currentUser.name)
+        );
+      });
     }
     // Sales Rep: ONLY customers belonging directly to this rep
     return customers.filter((c) => doesCustomerBelongToRep(c, currentUser));
