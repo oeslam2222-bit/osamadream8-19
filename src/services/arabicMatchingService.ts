@@ -649,15 +649,11 @@ export function doesCustomerBelongToSupervisor(
     return true;
   }
 
-  // 3. Find sales reps belonging directly to this supervisor (by supervisorId or branch)
-  const supervisedReps = allUsers.filter(
-    (u) =>
-      u.supervisorId === supervisorUser.id ||
-      (u.role === 'sales_rep' &&
-        supervisorUser.branchName &&
-        isBranchMatch(u.branchName, supervisorUser.branchName, { allowUnassigned: false }) &&
-        (!u.supervisorId || u.supervisorId === supervisorUser.id))
-  );
+  // 3. Find sales reps belonging directly to this supervisor (by explicit supervisorId only).
+  //    Branch membership alone must NEVER grant a rep to a supervisor — only an explicit
+  //    supervisorId assignment should. This prevents unlinked reps in the same branch from
+  //    leaking into every supervisor's data.
+  const supervisedReps = allUsers.filter((u) => u.supervisorId === supervisorUser.id);
 
   // 4. Check if customer belongs to any of these reps
   return supervisedReps.some((rep) => doesCustomerBelongToRep(customer, rep));
