@@ -222,7 +222,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
       visibleRecords.forEach((r) => {
         if (isArabicNameMatch(r.repName, currentUser.name)) return; // exclude self from reps list
         const norm = normalizeArabicText(r.repName);
-        if (directNames.size === 0 || Array.from(directNames).some((dn) => isArabicNameMatch(r.repName, dn) || norm.includes(dn))) {
+        if (directNames.size > 0 && Array.from(directNames).some((dn) => isArabicNameMatch(r.repName, dn) || norm.includes(dn))) {
           set.add(r.repName);
         }
       });
