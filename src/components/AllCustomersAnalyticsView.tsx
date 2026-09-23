@@ -1487,17 +1487,19 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               >
                 📅 المسار الشهري
               </button>
-              <button
-                type="button"
-                onClick={() => setActiveChartTab('branches')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap ${
-                  activeChartTab === 'branches'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                🏢 مقارنة الفروع الـ 7
-              </button>
+              {isAdminOrDev && (
+                <button
+                  type="button"
+                  onClick={() => setActiveChartTab('branches')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap ${
+                    activeChartTab === 'branches'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  🏢 مقارنة الفروع الـ 7
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setActiveChartTab('reps')}
@@ -1520,17 +1522,19 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               >
                 📊 مصفوفة الفروع والمناديب
               </button>
-              <button
-                type="button"
-                onClick={() => setActiveChartTab('payment_guarantee')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap ${
-                  activeChartTab === 'payment_guarantee'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                💳 طرق الدفع والضمانات
-              </button>
+              {isAdminOrDev && (
+                <button
+                  type="button"
+                  onClick={() => setActiveChartTab('payment_guarantee')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap ${
+                    activeChartTab === 'payment_guarantee'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  💳 طرق الدفع والضمانات
+                </button>
+              )}
             </div>
           </div>
 
@@ -1562,8 +1566,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </div>
           )}
 
-          {/* Tab 2: Branch Comparison */}
-          {activeChartTab === 'branches' && (
+          {/* Tab 2: Branch Comparison (Admin/Developer only - excludes rep, supervisor, branch manager) */}
+          {isAdminOrDev && activeChartTab === 'branches' && (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs text-slate-500">
                 <span className="font-bold">ترتيب وأداء الفروع حسب المبيعات والتحصيلات في 2026:</span>
@@ -1707,8 +1711,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </div>
           )}
 
-          {/* Tab 4: Payment Terms & Guarantees Breakdown */}
-          {activeChartTab === 'payment_guarantee' && (
+          {/* Tab 4: Payment Terms & Guarantees Breakdown (Admin/Developer only) */}
+          {isAdminOrDev && activeChartTab === 'payment_guarantee' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
               <div className="h-60 w-full flex items-center justify-center">
                 <ResponsiveContainer width="100%" height="100%">
