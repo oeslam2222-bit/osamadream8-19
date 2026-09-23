@@ -236,20 +236,23 @@ export const TargetPerformanceDashboard: React.FC = () => {
         .sort((a, b) => a.localeCompare(b, 'ar'));
     }
 
-    // 3. Filter reps by the selected branch!
+    // 3. Filter reps by the selected branch.
+    // Unassigned reps are visible to branch managers and admins only.
+    const canViewUnassignedReps = isBranchManager || isAdminOrDev;
     const set = new Set<string>();
     visibleRecords.forEach((r) => {
       if (!effectiveBranch || isBranchMatch(r.branch, effectiveBranch)) {
-        if (r.repName) set.add(r.repName);
+        const repUser = users.find(
+          (u) => u.role === 'sales_rep' && (isArabicNameMatch(u.name, r.repName) || normalizeArabicText(u.name) === normalizeArabicText(r.repName))
+        );
+        if (r.repName && (canViewUnassignedReps || repUser?.supervisorId)) set.add(r.repName);
       }
     });
 
-    // Also check users
+    // Also check users, keeping reps without a supervisor hidden from non-manager roles.
     users.forEach((u) => {
-      if (u.role === 'sales_rep') {
-        if (!effectiveBranch || isBranchMatch(u.branchName, effectiveBranch)) {
-          set.add(u.name);
-        }
+      if (u.role === 'sales_rep' && (!effectiveBranch || isBranchMatch(u.branchName, effectiveBranch))) {
+        if (canViewUnassignedReps || u.supervisorId) set.add(u.name);
       }
     });
 
