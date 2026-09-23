@@ -42,6 +42,7 @@ import {
   doesCustomerBelongToRep,
   isArabicNameMatch,
   normalizeArabicText,
+  normalizeBranchKey,
   sanitizeAndDeduplicateUsers,
 } from '../services/arabicMatchingService';
 import { formatCurrency } from '../services/invoiceService';
@@ -259,7 +260,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     email: '',
     password: '',
     role: 'sales_rep',
-    branchName: 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+      branchName: 'فرع القاهرة',
     supervisorId: '',
     phone: '',
     commissionRate: 2.5,
@@ -510,7 +511,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       email: '',
       password: '',
       role: 'sales_rep',
-      branchName: isSuperAdminOrDev ? (branches[0]?.name || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)') : (currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)'),
+      branchName: isSuperAdminOrDev
+        ? (branches.find((b) => !b.isMainWarehouse)?.name || branches[0]?.name || 'فرع القاهرة')
+        : (currentUser?.branchName || 'فرع القاهرة'),
       supervisorId: '',
       phone: '',
       commissionRate: 2.5,
@@ -556,9 +559,13 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       return;
     }
 
+    const selectedBranch = formData.branchName || '';
+    const isMainWarehouseBranch = (bname: string) => bname && normalizeBranchKey(bname) === 'main';
     const assignedBranch = (formData.role === 'admin' || formData.role === 'developer')
       ? 'جميع الفروع والمخزن المركزي (6 أكتوبر)'
-      : (formData.branchName || currentUser?.branchName || 'فرع القاهرة');
+      : (selectedBranch && !isMainWarehouseBranch(selectedBranch)
+        ? selectedBranch
+        : (!isMainWarehouseBranch(currentUser?.branchName || '') ? (currentUser?.branchName || 'فرع القاهرة') : 'فرع القاهرة'));
 
     if (editingUser) {
       updateUser({
@@ -1384,6 +1391,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         disabled={!isSuperAdminOrDev}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-xs cursor-pointer disabled:opacity-70 disabled:bg-slate-100"
                       >
+                        <option value="" disabled className="text-slate-400">-- اختر الفرع --</option>
                         {branches.filter((b) => !b.isMainWarehouse).map((b) => (
                           <option key={b.id} value={b.name}>
                             {b.name}
