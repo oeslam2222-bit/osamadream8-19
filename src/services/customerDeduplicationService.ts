@@ -282,31 +282,52 @@ export function deduplicateAndMergeCustomers(list: Customer[]): {
     }
     // 2. High confidence: Match by Phone (>= 7 digits)
     else if (phone && phoneIndex.has(phone)) {
-      matchedIdx = phoneIndex.get(phone)!;
+      const candidateIdx = phoneIndex.get(phone)!;
+      const candidate = resultList[candidateIdx];
+      const candidateCode = cleanCustomerCode(candidate?.code);
+      // NEVER merge if both have different explicit codes!
+      if (!code || !candidateCode || code === candidateCode) {
+        matchedIdx = candidateIdx;
+      }
     }
     // 3. High confidence: Match by explicit ID (non-random)
     else if (rawId && idIndex.has(rawId) && !rawId.startsWith('cust-row-') && !rawId.startsWith('cust-temp-')) {
-      matchedIdx = idIndex.get(rawId)!;
+      const candidateIdx = idIndex.get(rawId)!;
+      const candidate = resultList[candidateIdx];
+      const candidateCode = cleanCustomerCode(candidate?.code);
+      if (!code || !candidateCode || code === candidateCode) {
+        matchedIdx = candidateIdx;
+      }
     }
-    // 4. Exact Normalized Arabic Name match
+    // 4. Exact Normalized Arabic Name match (only if neither has conflicting codes and branch matches or is generic)
     else if (normName && normName.length >= 3 && nameIndex.has(normName)) {
-      matchedIdx = nameIndex.get(normName)!;
+      const candidateIdx = nameIndex.get(normName)!;
+      const candidate = resultList[candidateIdx];
+      const candidateCode = cleanCustomerCode(candidate?.code);
+      // If both have different explicit codes, they are distinct customer accounts!
+      if (!code || !candidateCode || code === candidateCode) {
+        const candidateBranch = candidate?.branchName;
+        const rawBranch = rawC.branchName;
+        if (
+          !candidateBranch ||
+          !rawBranch ||
+          candidateBranch === rawBranch ||
+          candidateBranch === 'الفرع الرئيسي' ||
+          rawBranch === 'الفرع الرئيسي'
+        ) {
+          matchedIdx = candidateIdx;
+        }
+      }
     }
-    // 5. Core Business Name match (when branch matches or phone matches partially)
+    // 5. Core Business Name match (STRICT: only if branch matches AND no conflicting codes)
     else if (coreName && coreName.length >= 4) {
       const branchKey = rawC.branchName ? `${rawC.branchName.trim().toLowerCase()}:::${coreName}` : '';
       if (branchKey && coreNameIndex.has(branchKey)) {
-        matchedIdx = coreNameIndex.get(branchKey)!;
-      } else if (coreNameIndex.has(coreName)) {
-        const potential = resultList[coreNameIndex.get(coreName)!];
-        // Only merge by core name if branch matches, or if either branch is missing
-        if (
-          !potential.branchName ||
-          !rawC.branchName ||
-          potential.branchName === rawC.branchName ||
-          potential.branchName === 'الفرع الرئيسي'
-        ) {
-          matchedIdx = coreNameIndex.get(coreName)!;
+        const candidateIdx = coreNameIndex.get(branchKey)!;
+        const candidate = resultList[candidateIdx];
+        const candidateCode = cleanCustomerCode(candidate?.code);
+        if (!code || !candidateCode || code === candidateCode) {
+          matchedIdx = candidateIdx;
         }
       }
     }

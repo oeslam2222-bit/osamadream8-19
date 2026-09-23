@@ -2728,34 +2728,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     };
 
-    const normalizeProductCode = (value?: string) => String(value || '').trim().replace(/^#/, '').replace(/\s+/g, '').toLowerCase();
-    // Identity must preserve distinct variants. The deterministic `id` produced by the
-    // parser is unique per row, so prefer it; fall back to a composite of code+name+
-    // unified+barcode+size+color so variants sharing a code are never collapsed.
-    const getProductIdentityKey = (p: Product): string => {
-      if (p.id && !String(p.id).startsWith('product-row')) {
-        return `id:${String(p.id).toLowerCase()}`;
-      }
+    const normalizeProductCode = (value?: string) => String(value || '').trim().toLowerCase();
+    // Stable business key: match strictly by product code (and color/size variant if present)
+    // Never merge distinct product codes together
+    const getProductMatchKey = (p: Product): string => {
       const code = normalizeProductCode(p.code);
-      const unified = normalizeProductCode(p.unifiedCode);
-      const barcode = normalizeProductCode((p.barcode as any) || '');
-      const composite = [code, normalizeProductCode(p.name), unified, barcode, (p.size || '').trim().toLowerCase(), (p.color || '').trim().toLowerCase()].join('::');
-      return `composite:${composite}`;
+      const color = (p.color || '').trim().toLowerCase();
+      const size = (p.size || '').trim().toLowerCase();
+      return `${code}__${color}__${size}`;
     };
 
-    const existingByIdentity = new Map<string, Product>();
-    products.forEach((product) => existingByIdentity.set(getProductIdentityKey(product), product));
-    const incomingProducts = newProducts.map((product) => {
-      const existing = existingByIdentity.get(getProductIdentityKey(product));
-      return existing ? { ...product, id: existing.id } : product;
+    const existingById = new Map<string, Product>();
+    const existingByKey = new Map<string, Product>();
+    products.forEach((p) => {
+      if (p.id) existingById.set(p.id, p);
+      const key = getProductMatchKey(p);
+      if (key) existingByKey.set(key, p);
+    });
+
+    // Update existing products from incoming sheet data or insert new items
+    const processedIncoming = newProducts.map((incoming) => {
+      const existing = (incoming.id && existingById.get(incoming.id)) || existingByKey.get(getProductMatchKey(incoming));
+      if (existing) {
+        // UPDATE existing record with fresh sheet stock, prices, factor, and unified model code
+        const merged: Product = {
+          ...existing,
+          ...incoming,
+          id: existing.id,
+          imageUrl: incoming.imageUrl || existing.imageUrl,
+          cloudinaryPublicId: incoming.cloudinaryPublicId || existing.cloudinaryPublicId || incoming.code,
+        };
+        return protectReserved(merged);
+      }
+      return protectReserved(incoming);
     });
 
     let finalUpdated: Product[] = [];
     if (mode === 'replace') {
-      finalUpdated = deduplicateProductArray(sanitizeProducts(incomingProducts.map(protectReserved)));
+      finalUpdated = sanitizeProducts(processedIncoming);
       setProducts(finalUpdated);
     } else {
-      finalUpdated = deduplicateProductArray(sanitizeProducts([...products, ...incomingProducts.map(protectReserved)]));
+      // Upsert: update matched existing items and append genuinely new codes
+      const incomingKeys = new Set(processedIncoming.map(getProductMatchKey));
+      const untouchedExisting = products.filter((p) => !incomingKeys.has(getProductMatchKey(p)));
+      finalUpdated = sanitizeProducts([...untouchedExisting, ...processedIncoming]);
       setProducts(finalUpdated);
     }
 

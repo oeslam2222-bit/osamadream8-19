@@ -797,8 +797,12 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const colorSlug = colorVal ? `_${colorVal.replace(/[^a-zA-Z0-9\u0621-\u064A]/g, '_').toLowerCase()}` : '';
     const sizeSlug = sizeVal ? `_${sizeVal.replace(/[^a-zA-Z0-9\u0621-\u064A]/g, '_').toLowerCase()}` : '';
     
-    // Each row gets a distinct ID to completely prevent code merging as requested by user
-    const deterministicId = `prod-${baseCode}${cleanUnifiedSlug}${cleanName ? '_' + cleanName : ''}${colorSlug}${sizeSlug}_r${r}`;
+    // Each product gets a stable deterministic ID based strictly on product code and attributes
+    // This allows subsequent sheet uploads to reliably UPDATE existing products rather than creating duplicates
+    const occurrenceCount = (codeOccurrences[baseCode] || 0) + 1;
+    codeOccurrences[baseCode] = occurrenceCount;
+    const occurrenceSuffix = occurrenceCount > 1 ? `_v${occurrenceCount}` : '';
+    const deterministicId = `prod-${baseCode}${cleanUnifiedSlug}${colorSlug}${sizeSlug}${occurrenceSuffix}`;
 
     const product: Product = {
       id: deterministicId,

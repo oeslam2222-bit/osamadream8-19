@@ -21,6 +21,7 @@ import {
   Flame,
   Zap,
   Sparkles,
+  FileText,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Customer, Invoice, PaymentMethod } from '../types';
@@ -67,6 +68,7 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
   const [customerSearch, setCustomerSearch] = useState('');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [localCustomer, setLocalCustomer] = useState<Customer | null>(selectedCustomer || null);
+  const [repNotes, setRepNotes] = useState<string>('');
   const [isSidebarPreviewMode, setIsSidebarPreviewMode] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -85,23 +87,26 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
 
   const activeCustomer = localCustomer || selectedCustomer;
 
-  // Filtered customers for quick search in cashier
+  // Filtered customers for quick search in cashier - displays ALL assigned customers for rep with search
   const filteredCustomers = useMemo(() => {
     const list = getVisibleCustomers ? getVisibleCustomers() : customers;
-    if (!customerSearch.trim()) return list.slice(0, 8);
+    if (!customerSearch.trim()) return list.slice(0, 100);
     const q = customerSearch.toLowerCase().trim();
     return list
       .filter(
         (c) =>
-          c.name.toLowerCase().includes(q) ||
-          (c.code && c.code.toLowerCase().includes(q)) ||
-          (c.phone && c.phone.includes(q))
+          (c.name && c.name.toLowerCase().includes(q)) ||
+          (c.code && String(c.code).toLowerCase().includes(q)) ||
+          (c.phone && String(c.phone).includes(q)) ||
+          (c.storeName && c.storeName.toLowerCase().includes(q)) ||
+          (c.region && c.region.toLowerCase().includes(q)) ||
+          (c.address && c.address.toLowerCase().includes(q))
       )
-      .slice(0, 8);
+      .slice(0, 100);
   }, [getVisibleCustomers, customers, customerSearch]);
 
-  // Handle saving the order (حفظ الطلبية للمشرف وتصدير Excel / PDF)
-  const handleSaveOrder = async (andExportExcel?: boolean, andDownloadPDF?: boolean) => {
+  // Handle saving the order (حفظ الطلبية للمشرف واعتمادها)
+  const handleSaveOrder = async () => {
     if (cart.length === 0) {
       setErrorMessage('سلة الفاتورة فارغة! يرجى إضافة أصناف أولاً.');
       setTimeout(() => setErrorMessage(null), 3500);
@@ -140,6 +145,10 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
     const overdue = Number(effectiveCustomer.totalOverdueAndDue ?? effectiveCustomer.overdueBalance ?? 0);
 
     try {
+      const finalNotes = repNotes.trim()
+        ? repNotes.trim()
+        : `طلبية مبيعات كاشير دريم - تسجيل بواسطة ${currentUser?.name || 'المندوب'}`;
+
       const result = createOrder({
         customerId: effectiveCustomer.id,
         customerName: effectiveCustomer.name,
@@ -151,7 +160,7 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
         branchName: effectiveCustomer.branchName || currentUser?.branchName,
         paymentMethod: paymentMethod,
         discountPercentage: discountPercent,
-        notes: `طلبية مبيعات كاشير دريم - تسجيل سريع بواسطة ${currentUser?.name || 'المندوب'}`,
+        notes: finalNotes,
         customerBalanceBefore: balBefore,
         customerCreditLimit: credLimit,
         customerBalanceAfter: balAfter,
@@ -166,31 +175,18 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
         return;
       }
 
-      // Export to Excel if requested
-      if (andExportExcel) {
-        exportElectronicInvoiceToExcel(result.invoice);
-      }
-
-      // Download PDF if requested
-      if (andDownloadPDF) {
-        await downloadInvoicePDF(result.invoice);
-      }
-
-      const msg = andExportExcel
-        ? `تم حفظ الطلبية #${result.invoice.invoiceNumber} وتنزيل شيت إكسل بنجاح! 📊`
-        : andDownloadPDF
-        ? `تم حفظ الطلبية #${result.invoice.invoiceNumber} وتنزيل ملف PDF بنجاح! 📄`
-        : `تم حفظ الطلبية #${result.invoice.invoiceNumber} وإرسالها للمشرف للاعتماد بنجاح! ✅`;
+      const msg = `تم حفظ الطلبية #${result.invoice.invoiceNumber} وإرسالها للمشرف للاعتماد بنجاح! ✅`;
 
       setSuccessToast(msg);
       clearCart();
+      setRepNotes('');
 
       // If mobile drawer, close it
       if (onCloseMobileDrawer) {
         onCloseMobileDrawer();
       }
 
-      // Navigate directly to Invoices tab as requested!
+      // Navigate directly to Invoices tab
       if (onInvoiceTransferred) {
         onInvoiceTransferred(result.invoice);
       }
@@ -285,7 +281,7 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
             customer={activeCustomer}
             currentInvoiceAmount={cartSummary.grandTotal}
             theme="light"
-            initiallyOpen={false}
+            initiallyOpen={true}
             showCustomerDetails={true}
             title="بيانات وموقف العميل المالي"
             onChangeCustomer={() => {
@@ -296,7 +292,10 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
         ) : (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs text-slate-500 font-bold">
-              <span>تحديد العميل:</span>
+              <span className="flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-amber-600" />
+                <span>اختيار العميل التابع للمندوب:</span>
+              </span>
               <button
                 onClick={() => {
                   setLocalCustomer({
@@ -312,7 +311,7 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
                 }}
                 className="text-amber-600 hover:text-amber-700 underline font-black cursor-pointer text-xs"
               >
-                بيع نقدي مباشر
+                بيع نقدي كاش مباشر
               </button>
             </div>
 
@@ -326,38 +325,53 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
                   setCustomerSearch(e.target.value);
                   setIsCustomerDropdownOpen(true);
                 }}
-                placeholder="ابحث عن اسم أو كود العميل..."
+                placeholder="ابحث باسم العميل أو الكود أو رقم التليفون أو اسم المحل..."
                 className="w-full h-9 pl-3 pr-8 bg-white text-slate-900 placeholder-slate-400 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-400"
               />
 
               {/* Customer Dropdown */}
               {isCustomerDropdownOpen && (
-                <div className="absolute top-full right-0 left-0 mt-1 z-30 bg-white border border-slate-200 rounded-xl shadow-xl max-h-44 overflow-y-auto divide-y divide-slate-100 text-xs">
-                  {filteredCustomers.map((cust) => (
-                    <div
-                      key={cust.id}
-                      onClick={() => {
-                        setLocalCustomer(cust);
-                        if (onSelectCustomer) onSelectCustomer(cust);
-                        setIsCustomerDropdownOpen(false);
-                        setCustomerSearch('');
-                      }}
-                      className="p-2 hover:bg-amber-50 cursor-pointer flex items-center justify-between transition"
-                    >
-                      <div className="min-w-0">
-                        <div className="font-bold text-slate-900 truncate">{cust.name}</div>
-                        <div className="text-[11px] text-slate-500">{cust.code || 'بدون كود'} • {cust.phone || ''}</div>
-                      </div>
-                      <span className="text-[11px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold shrink-0">
-                        اختيار
-                      </span>
+                <div className="absolute top-full right-0 left-0 mt-1 z-30 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto divide-y divide-slate-100 text-xs">
+                  {filteredCustomers.length === 0 ? (
+                    <div className="p-3 text-center text-slate-400 font-medium">
+                      لا يوجد عملاء مطابقين للبحث التابعين للمندوب
                     </div>
-                  ))}
+                  ) : (
+                    filteredCustomers.map((cust) => (
+                      <div
+                        key={cust.id}
+                        onClick={() => {
+                          setLocalCustomer(cust);
+                          if (onSelectCustomer) onSelectCustomer(cust);
+                          setIsCustomerDropdownOpen(false);
+                          setCustomerSearch('');
+                        }}
+                        className="p-2.5 hover:bg-amber-50/80 cursor-pointer flex items-center justify-between transition gap-2"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-slate-900 truncate">{cust.name}</div>
+                          <div className="text-[11px] text-slate-500 truncate">
+                            {cust.code ? <span className="font-mono font-bold text-amber-700">{cust.code}</span> : 'بدون كود'}
+                            {cust.phone ? ` • ${cust.phone}` : ''}
+                            {cust.storeName ? ` • ${cust.storeName}` : ''}
+                          </div>
+                        </div>
+                        <div className="text-left shrink-0">
+                          <span className="text-[11px] font-mono font-bold text-slate-700 block">
+                            {formatCurrency(cust.currentBalance ?? cust.balance ?? 0)}
+                          </span>
+                          <span className="text-[10px] bg-amber-400 text-slate-950 px-2 py-0.5 rounded-md font-black">
+                            اختيار
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
                   <div
                     onClick={() => setIsCustomerDropdownOpen(false)}
-                    className="p-1.5 text-center text-[11px] text-slate-400 hover:text-slate-700 cursor-pointer bg-slate-50"
+                    className="p-2 text-center text-[11px] font-bold text-slate-500 hover:text-slate-800 cursor-pointer bg-slate-100 border-t border-slate-200"
                   >
-                    إغلاق القائمة
+                    إغلاق قائمة البحث ✕
                   </div>
                 </div>
               )}
@@ -585,6 +599,21 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
               </button>
             ))}
           </div>
+
+          {/* Sales Rep Order Notes */}
+          <div className="pt-2 border-t border-slate-200 space-y-1">
+            <label className="font-bold text-slate-700 flex items-center gap-1.5 text-[11px]">
+              <FileText className="w-3.5 h-3.5 text-amber-600" />
+              <span>ملاحظات المندوب والطلبية (ميعاد التسليم / شروط خاصة):</span>
+            </label>
+            <textarea
+              value={repNotes}
+              onChange={(e) => setRepNotes(e.target.value)}
+              placeholder="اكتب ملاحظاتك هنا للمشرف ومدير الفرع..."
+              rows={2}
+              className="w-full p-2 bg-white text-slate-900 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none placeholder-slate-400"
+            />
+          </div>
         </div>
       )}
 
@@ -618,56 +647,29 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
           </div>
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Buttons: Unified Flow */}
         <div className="space-y-2 pt-1">
-          {/* Quick Export Row: Excel & PDF */}
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              id="pos-export-excel-btn"
-              disabled={isSubmitting || cart.length === 0}
-              onClick={() => handleSaveOrder(true, false)}
-              className="h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
-              title="حفظ الطلبية وتنزيل شيت إكسل جاهز بالأكواد لرفعه على السيستم"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>حفظ وإكسل</span>
-            </button>
-
-            <button
-              id="pos-export-pdf-btn"
-              disabled={isSubmitting || cart.length === 0}
-              onClick={() => handleSaveOrder(false, true)}
-              className="h-10 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
-              title="حفظ الطلبية وتنزيل فاتورة PDF فورية"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>حفظ و PDF</span>
-            </button>
-          </div>
-
-          {/* Main Button: Save for Supervisor & Branch Manager */}
+          {/* Main Primary Button: Save for Supervisor & Branch Manager */}
           <button
             id="pos-post-invoice-btn"
             disabled={isSubmitting || cart.length === 0}
-            onClick={() => handleSaveOrder(false, false)}
-            className="w-full h-11 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md transition transform active:scale-98 disabled:opacity-40 flex items-center justify-center gap-2 cursor-pointer"
+            onClick={() => handleSaveOrder()}
+            className="w-full h-12 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md transition transform active:scale-98 disabled:opacity-40 flex items-center justify-center gap-2 cursor-pointer"
             title="حفظ الطلبية وإرسالها مباشرة للمشرف ومدير الفرع للمراجعة والاعتماد"
           >
-            <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
-            <span>{isSubmitting ? 'جاري حفظ الطلبية...' : 'حفظ الطلبية (إرسال للمشرف)'}</span>
+            <CheckCircle2 className="w-5 h-5 stroke-[2.5]" />
+            <span>{isSubmitting ? 'جاري حفظ واعتماد الطلبية...' : '✅ حفظ واعتماد الطلبية (إرسال للمشرف)'}</span>
           </button>
 
-          {/* Secondary Button: Full Preview & Editing */}
-          {onOpenDetailedModal && (
+          {/* Return / Modify Products Button */}
+          {onCloseMobileDrawer && (
             <button
-              id="pos-preview-invoice-btn"
-              disabled={cart.length === 0}
-              onClick={onOpenDetailedModal}
-              className="w-full h-9 bg-white hover:bg-slate-50 text-amber-700 font-bold text-xs rounded-xl border border-slate-200 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
-              title="معاينة تفاصيل الطلبية كاملة وتعديل البنود"
+              type="button"
+              onClick={onCloseMobileDrawer}
+              className="w-full h-10 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition flex items-center justify-center gap-2 cursor-pointer active:scale-98"
             >
-              <Eye className="w-3.5 h-3.5" />
-              <span>معاينة الطلبية كاملة وتعديل البنود</span>
+              <ArrowRight className="w-4 h-4" />
+              <span>← تعديل الأصناف / رجوع لشاشة المنتجات</span>
             </button>
           )}
         </div>

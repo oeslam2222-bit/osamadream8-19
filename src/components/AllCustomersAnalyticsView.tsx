@@ -128,7 +128,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBranch, setSelectedBranch] = useState<string>('ALL');
   const [selectedRep, setSelectedRep] = useState<string>('ALL');
-  const [selectedMonth, setSelectedMonth] = useState<number | 'ALL'>('ALL');
+  const [selectedMonth, setSelectedMonth] = useState<number | 'ALL' | 'Q1' | 'Q2' | 'Q3' | 'Q4'>('ALL');
   const [dealEligibilityFilter, setDealEligibilityFilter] = useState<'ALL' | 'dealt' | 'eligible' | 'ineligible'>('ALL');
   const [sortMode, setSortMode] = useState<'highest_debt' | 'lowest_debt' | 'highest_overdue' | 'highest_sales' | 'highest_collections' | 'name_asc' | 'code_asc'>('highest_debt');
   const [showRepMatrix, setShowRepMatrix] = useState<boolean>(true);
@@ -463,10 +463,22 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         debtSt.includes('متعثر')
       );
 
-      // Dealing check in selected month (Active = has sales/invoice in the specified month)
+      // Dealing check in selected month / quarter (Active = has sales/invoice in the specified period)
       let dealtInSelectedMonth = false;
       if (selectedMonth === 'ALL') {
         dealtInSelectedMonth = Boolean(c.hasDealtIn2026 || sales2026 > 0 || (c.monthlySales2026 && Object.values(c.monthlySales2026).some((v) => Number(v) > 0)));
+      } else if (selectedMonth === 'Q1') {
+        const q1Sales = (Number(c.monthlySales2026?.[1]) || 0) + (Number(c.monthlySales2026?.[2]) || 0) + (Number(c.monthlySales2026?.[3]) || 0);
+        dealtInSelectedMonth = q1Sales > 0;
+      } else if (selectedMonth === 'Q2') {
+        const q2Sales = (Number(c.monthlySales2026?.[4]) || 0) + (Number(c.monthlySales2026?.[5]) || 0) + (Number(c.monthlySales2026?.[6]) || 0);
+        dealtInSelectedMonth = q2Sales > 0;
+      } else if (selectedMonth === 'Q3') {
+        const q3Sales = (Number(c.monthlySales2026?.[7]) || 0) + (Number(c.monthlySales2026?.[8]) || 0) + (Number(c.monthlySales2026?.[9]) || 0);
+        dealtInSelectedMonth = q3Sales > 0;
+      } else if (selectedMonth === 'Q4') {
+        const q4Sales = (Number(c.monthlySales2026?.[10]) || 0) + (Number(c.monthlySales2026?.[11]) || 0) + (Number(c.monthlySales2026?.[12]) || 0);
+        dealtInSelectedMonth = q4Sales > 0;
       } else {
         const mSale = Number(c.monthlySales2026?.[selectedMonth]) || 0;
         dealtInSelectedMonth = mSale > 0;
@@ -904,6 +916,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       totalOverdue: number;
       totalSales: number;
       totalCollections: number;
+      periodSales: number;
+      periodCollections: number;
+      periodCollectionRate: number;
       collectionRate: number;
     }>();
 
@@ -925,6 +940,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           totalOverdue: 0,
           totalSales: 0,
           totalCollections: 0,
+          periodSales: 0,
+          periodCollections: 0,
+          periodCollectionRate: 0,
           collectionRate: 0,
         };
         map.set(key, item);
@@ -935,6 +953,28 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       item.totalOverdue += m.overdue;
       item.totalSales += m.sales2026;
       item.totalCollections += m.collections2026;
+
+      // Period Sales & Collections (Month or Quarter)
+      let pSales = m.sales2026;
+      let pCols = m.collections2026;
+      if (selectedMonth === 'Q1') {
+        pSales = (Number(c.monthlySales2026?.[1]) || 0) + (Number(c.monthlySales2026?.[2]) || 0) + (Number(c.monthlySales2026?.[3]) || 0);
+        pCols = (Number(c.monthlyCollections2026?.[1]) || 0) + (Number(c.monthlyCollections2026?.[2]) || 0) + (Number(c.monthlyCollections2026?.[3]) || 0);
+      } else if (selectedMonth === 'Q2') {
+        pSales = (Number(c.monthlySales2026?.[4]) || 0) + (Number(c.monthlySales2026?.[5]) || 0) + (Number(c.monthlySales2026?.[6]) || 0);
+        pCols = (Number(c.monthlyCollections2026?.[4]) || 0) + (Number(c.monthlyCollections2026?.[5]) || 0) + (Number(c.monthlyCollections2026?.[6]) || 0);
+      } else if (selectedMonth === 'Q3') {
+        pSales = (Number(c.monthlySales2026?.[7]) || 0) + (Number(c.monthlySales2026?.[8]) || 0) + (Number(c.monthlySales2026?.[9]) || 0);
+        pCols = (Number(c.monthlyCollections2026?.[7]) || 0) + (Number(c.monthlyCollections2026?.[8]) || 0) + (Number(c.monthlyCollections2026?.[9]) || 0);
+      } else if (selectedMonth === 'Q4') {
+        pSales = (Number(c.monthlySales2026?.[10]) || 0) + (Number(c.monthlySales2026?.[11]) || 0) + (Number(c.monthlySales2026?.[12]) || 0);
+        pCols = (Number(c.monthlyCollections2026?.[10]) || 0) + (Number(c.monthlyCollections2026?.[11]) || 0) + (Number(c.monthlyCollections2026?.[12]) || 0);
+      } else if (typeof selectedMonth === 'number') {
+        pSales = Number(c.monthlySales2026?.[selectedMonth]) || 0;
+        pCols = Number(c.monthlyCollections2026?.[selectedMonth]) || 0;
+      }
+      item.periodSales += pSales;
+      item.periodCollections += pCols;
 
       if (m.isExplicitIneligible) {
         item.ineligibleCustomers++;
@@ -950,8 +990,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       ...row,
       coverageRate: row.eligibleCustomers > 0 ? Math.round((row.dealtCustomers / row.eligibleCustomers) * 100) : 0,
       collectionRate: row.totalSales > 0 ? Math.round((row.totalCollections / row.totalSales) * 100) : 0,
+      periodCollectionRate: row.periodSales > 0 ? Math.round((row.periodCollections / row.periodSales) * 100) : 0,
     })).sort((a, b) => b.totalDebt - a.totalDebt || b.totalOverdue - a.totalOverdue);
-  }, [filteredCustomers, customerMetricsMap]);
+  }, [filteredCustomers, customerMetricsMap, selectedMonth]);
 
   // Power BI Visuals Computations (Branches, Top Reps, Payment Terms Distribution)
   const branchAnalyticsData = useMemo(() => {
@@ -1894,23 +1935,34 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </div>
           </div>
 
-          {/* Slicer: Target Month & Active Customer Calculation */}
-          <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-3 rounded-xl border border-slate-700/80 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 shadow-inner">
+          {/* Slicer: Target Month & Quarter & Active Customer Calculation */}
+          <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-3 rounded-xl border border-slate-700/80 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3 shadow-inner">
             <div className="flex items-center gap-2 shrink-0">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
               <div>
                 <div className="text-xs font-black text-emerald-400 flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5" />
-                  <span>سلايسر الشهر المستهدف لحساب (المتعاملين من القابلين):</span>
+                  <span>سلايسر الفترة المستهدفة (شهري / كوارتر / كامل 2026):</span>
                 </div>
                 <div className="text-[10px] text-slate-300">
-                  {selectedMonth === 'ALL' ? 'كامل عام 2026' : `شهر ${selectedMonth} (أي عميل لديه فاتورة/بيع يُعد 1 متعامل)`}
+                  {selectedMonth === 'ALL'
+                    ? 'كامل عام 2026 (أي عميل تعامل خلال السنة)'
+                    : selectedMonth === 'Q1'
+                    ? 'الربع الأول Q1 (مبيعات 1 يناير + 2 فبراير + 3 مارس)'
+                    : selectedMonth === 'Q2'
+                    ? 'الربع الثاني Q2 (مبيعات 4 أبريل + 5 مايو + 6 يونيو)'
+                    : selectedMonth === 'Q3'
+                    ? 'الربع الثالث Q3 (مبيعات 7 يوليو + 8 أغسطس + 9 سبتمبر)'
+                    : selectedMonth === 'Q4'
+                    ? 'الربع الرابع Q4 (مبيعات 10 أكتوبر + 11 نوفمبر + 12 ديسمبر)'
+                    : `مبيعات شهر ${selectedMonth} (${MONTH_NAMES_AR[Number(selectedMonth) - 1]})`}
                 </div>
               </div>
             </div>
 
-            {/* Months Buttons */}
-            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 w-full lg:w-auto">
+            {/* Slicer Buttons: Quarters & Months */}
+            <div className="flex flex-wrap items-center gap-1 overflow-x-auto no-scrollbar py-0.5 w-full xl:w-auto">
+              {/* All Year Button */}
               <button
                 type="button"
                 onClick={() => setSelectedMonth('ALL')}
@@ -1922,33 +1974,60 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               >
                 كامل 2026
               </button>
-              {[
-                { m: 1, name: 'يناير' },
-                { m: 2, name: 'فبراير' },
-                { m: 3, name: 'مارس' },
-                { m: 4, name: 'أبريل' },
-                { m: 5, name: 'مايو' },
-                { m: 6, name: 'يونيو' },
-                { m: 7, name: 'يوليو' },
-                { m: 8, name: 'أغسطس' },
-                { m: 9, name: 'سبتمبر' },
-                { m: 10, name: 'أكتوبر' },
-                { m: 11, name: 'نوفمبر' },
-                { m: 12, name: 'ديسمبر' }
-              ].map(({ m, name }) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setSelectedMonth(m)}
-                  className={`px-2 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer whitespace-nowrap ${
-                    selectedMonth === m
-                      ? 'bg-amber-400 text-slate-950 font-black shadow-md'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
-                  }`}
-                >
-                  {name}
-                </button>
-              ))}
+
+              {/* Quarters Slicers */}
+              <div className="flex items-center gap-0.5 bg-slate-950/60 p-0.5 rounded-lg border border-slate-700">
+                {[
+                  { q: 'Q1' as const, label: 'Q1 (يناير-مارس)' },
+                  { q: 'Q2' as const, label: 'Q2 (أبريل-يونيو)' },
+                  { q: 'Q3' as const, label: 'Q3 (يوليو-سبتمبر)' },
+                  { q: 'Q4' as const, label: 'Q4 (أكتوبر-ديسمبر)' },
+                ].map(({ q, label }) => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => setSelectedMonth(q)}
+                    className={`px-2 py-1 rounded-md text-[11px] font-black transition cursor-pointer whitespace-nowrap ${
+                      selectedMonth === q
+                        ? 'bg-indigo-500 text-white shadow-md'
+                        : 'text-indigo-300 hover:text-white hover:bg-slate-800'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Individual Months Buttons (مبيعات 1 = يناير ... مبيعات 12 = ديسمبر) */}
+              <div className="flex items-center gap-0.5 overflow-x-auto no-scrollbar">
+                {[
+                  { m: 1, name: '1 (يناير)' },
+                  { m: 2, name: '2 (فبراير)' },
+                  { m: 3, name: '3 (مارس)' },
+                  { m: 4, name: '4 (أبريل)' },
+                  { m: 5, name: '5 (مايو)' },
+                  { m: 6, name: '6 (يونيو)' },
+                  { m: 7, name: '7 (يوليو)' },
+                  { m: 8, name: '8 (أغسطس)' },
+                  { m: 9, name: '9 (سبتمبر)' },
+                  { m: 10, name: '10 (أكتوبر)' },
+                  { m: 11, name: '11 (نوفمبر)' },
+                  { m: 12, name: '12 (ديسمبر)' },
+                ].map(({ m, name }) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setSelectedMonth(m)}
+                    className={`px-2 py-1 rounded-lg text-[10.5px] font-bold transition cursor-pointer whitespace-nowrap ${
+                      selectedMonth === m
+                        ? 'bg-amber-400 text-slate-950 font-black shadow-md'
+                        : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/60'
+                    }`}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -2217,6 +2296,176 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
       </div>
 
+      {/* Power BI Spotlight Dashboard: Rep, Branch, Supervisor, Period Financial Position */}
+      {(selectedRep !== 'ALL' || selectedBranch !== 'ALL' || selectedMonth !== 'ALL') && (
+        <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 text-white rounded-2xl p-4 sm:p-5 border border-indigo-500/40 shadow-xl space-y-4 animate-in slide-in-from-top-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-500/20 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-md">
+                <BarChart3 className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-base sm:text-lg font-black text-white">
+                    {selectedRep !== 'ALL'
+                      ? `تحليل أداء المندوب: ${selectedRep}`
+                      : selectedBranch !== 'ALL'
+                      ? `تحليل أداء فرع: ${selectedBranch}`
+                      : 'تحليل الأداء الشامل'}
+                  </span>
+                  {selectedBranch !== 'ALL' && selectedRep !== 'ALL' && (
+                    <span className="text-xs bg-indigo-500/30 text-indigo-200 px-2 py-0.5 rounded-full font-bold border border-indigo-400/30">
+                      فرع {selectedBranch}
+                    </span>
+                  )}
+                  <span className="text-xs bg-amber-400/20 text-amber-300 px-2.5 py-0.5 rounded-full font-black border border-amber-400/30">
+                    {selectedMonth === 'ALL'
+                      ? 'كامل 2026'
+                      : selectedMonth === 'Q1'
+                      ? 'الربع الأول Q1 (يناير-مارس)'
+                      : selectedMonth === 'Q2'
+                      ? 'الربع الثاني Q2 (أبريل-يونيو)'
+                      : selectedMonth === 'Q3'
+                      ? 'الربع الثالث Q3 (يوليو-سبتمبر)'
+                      : selectedMonth === 'Q4'
+                      ? 'الربع الرابع Q4 (أكتوبر-ديسمبر)'
+                      : `مبيعات شهر ${selectedMonth} (${MONTH_NAMES_AR[Number(selectedMonth) - 1]})`}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-300 mt-0.5">
+                  ملخص المستحقات والمديونيات والمبيعات ونسب التغطية للعملاء
+                </div>
+              </div>
+            </div>
+
+            {/* Reset Filter Button if rep or branch selected */}
+            {(selectedRep !== 'ALL' || selectedBranch !== 'ALL') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedRep('ALL');
+                  setSelectedBranch('ALL');
+                }}
+                className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-xl font-bold border border-slate-700 self-start sm:self-auto cursor-pointer"
+              >
+                إلغاء التخصيص والعودة للكل ↺
+              </button>
+            )}
+          </div>
+
+          {/* 4 Focused Spotlight KPI Blocks */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Box 1: Debts & Dues */}
+            <div className="bg-slate-900/90 rounded-xl p-3.5 border border-purple-500/30 shadow-inner">
+              <div className="text-xs font-bold text-purple-300 flex items-center justify-between">
+                <span>المديونية والمستحقات</span>
+                <CreditCard className="w-4 h-4 text-purple-400" />
+              </div>
+              <div className="mt-2 space-y-1">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs text-slate-400">إجمالي المديونية:</span>
+                  <span className="text-lg font-black text-white font-mono" title={isPrivacyMode ? 'مخفي' : undefined}>
+                    {formatMoney(kpiStats.totalDebt)}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs text-rose-400 font-bold">المستحقات الواجبة:</span>
+                  <span className="text-lg font-black text-rose-400 font-mono" title={isPrivacyMode ? 'مخفي' : undefined}>
+                    {formatMoney(kpiStats.totalOverdue)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Box 2: Period Sales & Collections */}
+            <div className="bg-slate-900/90 rounded-xl p-3.5 border border-sky-500/30 shadow-inner">
+              <div className="text-xs font-bold text-sky-300 flex items-center justify-between">
+                <span>مبيعات وتحصيلات الفترة</span>
+                <TrendingUp className="w-4 h-4 text-sky-400" />
+              </div>
+              <div className="mt-2 space-y-1">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs text-slate-400">المبيعات:</span>
+                  <span className="text-lg font-black text-sky-300 font-mono" title={isPrivacyMode ? 'مخفي' : undefined}>
+                    {formatMoney(
+                      selectedMonth === 'ALL'
+                        ? kpiStats.totalSales2026
+                        : repAndBranchSummary.reduce((acc, r) => acc + r.periodSales, 0)
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs text-emerald-400 font-bold">التحصيلات:</span>
+                  <span className="text-lg font-black text-emerald-400 font-mono" title={isPrivacyMode ? 'مخفي' : undefined}>
+                    {formatMoney(
+                      selectedMonth === 'ALL'
+                        ? kpiStats.totalCollections2026
+                        : repAndBranchSummary.reduce((acc, r) => acc + r.periodCollections, 0)
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Box 3: Customers Breakdown (Dealt / Eligible / Ineligible) */}
+            <div className="bg-slate-900/90 rounded-xl p-3.5 border border-emerald-500/30 shadow-inner">
+              <div className="text-xs font-bold text-emerald-300 flex items-center justify-between">
+                <span>تصنيف العملاء في الفترة</span>
+                <Users className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div className="mt-2 space-y-1 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-emerald-400 font-bold flex items-center gap-1">
+                    <span>✅ متعامل:</span>
+                  </span>
+                  <span className="text-base font-black text-white">{kpiStats.dealtCount.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sky-300 font-semibold flex items-center gap-1">
+                    <span>⏳ قابل للتعامل:</span>
+                  </span>
+                  <span className="text-base font-black text-white">{kpiStats.eligibleCount.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-rose-400 font-semibold flex items-center gap-1">
+                    <span>⛔ غير قابل / موقوف:</span>
+                  </span>
+                  <span className="text-xs font-bold text-rose-300">{kpiStats.ineligibleCount.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Box 4: Coverage & Efficiency Rates */}
+            <div className="bg-slate-900/90 rounded-xl p-3.5 border border-amber-500/30 shadow-inner flex flex-col justify-between">
+              <div className="text-xs font-bold text-amber-300 flex items-center justify-between">
+                <span>مؤشرات الكفاءة والتغطية</span>
+                <CheckCircle2 className="w-4 h-4 text-amber-400" />
+              </div>
+              <div className="mt-2 space-y-2">
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-slate-300 font-bold">نسبة التغطية (من القابلين):</span>
+                    <span className="text-amber-400 font-black">{kpiStats.coverageRate}%</span>
+                  </div>
+                  <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                    <div className="bg-gradient-to-r from-amber-400 to-emerald-400 h-2 rounded-full" style={{ width: `${Math.min(100, kpiStats.coverageRate)}%` }}></div>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-slate-300 font-bold">نسبة التحصيل:</span>
+                    <span className="text-emerald-400 font-black">{kpiStats.collectionRate}%</span>
+                  </div>
+                  <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                    <div className="bg-gradient-to-r from-teal-400 to-emerald-500 h-2 rounded-full" style={{ width: `${Math.min(100, kpiStats.collectionRate)}%` }}></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Customers Table Card (Fast, Virtual-friendly, Paginated) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {/* Table Controls Top */}
@@ -2255,8 +2504,141 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-right border-collapse text-xs">
+          <>
+            {/* Mobile View: Responsive Touch Cards (md:hidden) */}
+            <div className="md:hidden divide-y divide-slate-100 bg-slate-50/50">
+              {paginatedCustomers.map((c, index) => {
+                const globalIdx = (currentPage - 1) * pageSize + index + 1;
+                const bal = c.currentBalance ?? c.balance ?? 0;
+                const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
+                const monthlySalesSum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
+                const s26 = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, monthlySalesSum);
+                const monthlyColsSum = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
+                const col26 = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, c.totalOverallCollections || 0, monthlyColsSum);
+                const metrics = customerMetricsMap.get(c.id);
+
+                return (
+                  <div
+                    key={c.id || c.code}
+                    className="p-3.5 bg-white space-y-2.5 transition active:bg-amber-50/30"
+                  >
+                    {/* Card Header: Code, Name, Deal Badge */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                            #{globalIdx} • {c.code || '---'}
+                          </span>
+                          {c.region && (
+                            <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                              {c.region}
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          onClick={() => setSelectedCustomer(c)}
+                          className="font-black text-slate-900 text-sm mt-1 cursor-pointer hover:text-amber-600"
+                        >
+                          {c.name}
+                        </div>
+                      </div>
+
+                      {/* Eligibility Badge */}
+                      <div className="shrink-0">
+                        {metrics?.isExplicitIneligible ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-black bg-rose-50 text-rose-700 border border-rose-200">
+                            غير قابل ⛔
+                          </span>
+                        ) : metrics?.dealtInSelectedMonth ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                            متعامل ✅
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
+                            قابل ⏳
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Branch & Rep & Phone */}
+                    <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
+                      <div>
+                        <span className="font-bold text-slate-700">{c.branchName}</span>
+                        <span className="mx-1">•</span>
+                        <span>{c.salesRepName || c.repName || 'مندوب غير محدد'}</span>
+                      </div>
+                      {c.phone && (
+                        <a
+                          href={`tel:${c.phone}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1 border border-emerald-200"
+                        >
+                          <Phone className="w-3 h-3" />
+                          <span>{c.phone}</span>
+                        </a>
+                      )}
+                    </div>
+
+                    {/* Financial Metrics 2x2 Grid */}
+                    <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 text-xs">
+                      <div>
+                        <div className="text-[10px] text-slate-500 font-bold">المديونية الحالية</div>
+                        <div className="font-black text-purple-900 font-mono text-sm" title={isPrivacyMode ? 'مخفي' : undefined}>
+                          {formatMoney(bal)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-rose-600 font-bold">المستحقات الواجبة</div>
+                        <div className={`font-black font-mono text-sm ${overdue > 0 ? 'text-rose-700' : 'text-slate-400'}`} title={isPrivacyMode ? 'مخفي' : undefined}>
+                          {formatMoney(overdue)}
+                        </div>
+                      </div>
+                      <div className="pt-1.5 border-t border-slate-200/60">
+                        <div className="text-[10px] text-slate-500 font-bold">مبيعات 2026</div>
+                        <div className="font-black text-slate-800 font-mono" title={isPrivacyMode ? 'مخفي' : undefined}>
+                          {formatMoney(s26)}
+                        </div>
+                      </div>
+                      <div className="pt-1.5 border-t border-slate-200/60">
+                        <div className="text-[10px] text-emerald-700 font-bold">التحصيلات 2026</div>
+                        <div className="font-black text-emerald-800 font-mono" title={isPrivacyMode ? 'مخفي' : undefined}>
+                          {formatMoney(col26)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card Actions Bar */}
+                    <div className="flex items-center gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCustomer(c)}
+                        className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-1.5 px-2 rounded-xl text-xs flex items-center justify-center gap-1 transition cursor-pointer"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-amber-400" />
+                        <span>الملف 360</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedCustomer(c);
+                          setIsLoggingVisit(true);
+                        }}
+                        className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold py-1.5 px-2.5 rounded-xl text-xs flex items-center justify-center gap-1 transition cursor-pointer"
+                      >
+                        <MapPin className="w-3.5 h-3.5 text-purple-600" />
+                        <span>تسجيل زيارة</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop View: Full Comprehensive Table (hidden md:block) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-right border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-100 text-slate-700 font-extrabold border-b border-slate-200 whitespace-nowrap">
                   <th className="p-3 text-center w-10">#</th>
@@ -2566,21 +2948,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                           </div>
                         ) : (
                           <div className="flex items-center justify-center">
-                            {onOpenNewOrderForCustomer ? (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onOpenNewOrderForCustomer(c);
-                                }}
-                                className="px-2 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 font-bold text-[10px] transition flex items-center gap-1 cursor-pointer"
-                                title="إنشاء أمر بيع جديد للعميل"
-                              >
-                                <Plus className="w-3 h-3" />
-                                <span>+ طلبية</span>
-                              </button>
-                            ) : (
-                              <span className="text-slate-400 text-[11px]">لا يوجد أمر</span>
-                            )}
+                            <span className="text-slate-400 text-[11px]">لا يوجد أمر</span>
                           </div>
                         )}
                       </td>
@@ -2598,7 +2966,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                               title="بدء فاتورة كاشير للعميل في الكتالوج"
                             >
                               <ShoppingCart className="w-3.5 h-3.5" />
-                              <span className="hidden xl:inline">كاشير</span>
+                              <span>كاشير</span>
                             </button>
                           )}
                           <button
@@ -2619,6 +2987,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </tbody>
             </table>
           </div>
+        </>
         )}
 
         {/* Pagination Footer Bar */}

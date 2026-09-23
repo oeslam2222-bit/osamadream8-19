@@ -29,7 +29,8 @@ import {
   ZapOff,
   Eye,
   EyeOff,
-  Lock
+  Lock,
+  Menu
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
@@ -69,6 +70,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
   } = useApp();
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
   const [isStandalone, setIsStandalone] = useState(true);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
@@ -181,8 +183,19 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
         {/* Top Banner - Compact on mobile with large touch controls */}
         <div className="max-w-7xl mx-auto px-2 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2">
           
-          {/* Brand & Logo */}
+          {/* Brand & Logo with Mobile Hamburger Menu */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Mobile Hamburger Drawer Trigger ☰ */}
+            <button
+              type="button"
+              onClick={() => setIsMobileDrawerOpen(true)}
+              className="md:hidden flex items-center justify-center w-9 h-9 rounded-xl bg-slate-800/90 text-amber-400 hover:text-white hover:bg-slate-750 border border-slate-700/80 transition cursor-pointer shrink-0 active:scale-95"
+              aria-label="فتح القائمة الرئيسية"
+              title="القائمة الرئيسية والأقسام"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
             <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-full bg-white p-0.5 border-2 border-amber-400 shadow-md shadow-amber-500/20 flex items-center justify-center shrink-0 overflow-hidden">
               <img src="/pwa-192x192.png" alt="مجموعة الطنطاوي - TANTAWY GROUP" className="h-full w-full object-contain" />
             </div>
@@ -458,8 +471,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
           </div>
         </div>
 
-        {/* Navigation Tabs Bar (Desktop and Tablets) */}
-        <div className="bg-slate-950/60 border-t border-slate-800/80 px-2 sm:px-6 overflow-x-auto no-scrollbar">
+        {/* Navigation Tabs Bar (Desktop and Tablets Only - Hidden on Mobile to prevent overcrowding) */}
+        <div className="hidden md:block bg-slate-950/60 border-t border-slate-800/80 px-2 sm:px-6 overflow-x-auto no-scrollbar">
           <div className="max-w-7xl mx-auto flex items-center gap-1 sm:gap-2 py-1.5">
             {filteredNavItems.map((item) => {
               const Icon = item.icon;
@@ -491,6 +504,146 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
           </div>
         </div>
       </header>
+
+      {/* Mobile Slide-in Drawer Menu (Accessible via Hamburger Icon ☰) */}
+      {isMobileDrawerOpen && (
+        <div className="fixed inset-0 z-50 md:hidden animate-in fade-in duration-200">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-xs transition-opacity cursor-pointer"
+            onClick={() => setIsMobileDrawerOpen(false)}
+          />
+          
+          {/* Drawer Body */}
+          <div className="fixed inset-y-0 right-0 max-w-xs w-full bg-slate-950 border-l border-slate-800 shadow-2xl flex flex-col z-50">
+            {/* Drawer Header */}
+            <div className="p-4 border-b border-slate-850 flex items-center justify-between bg-slate-900">
+              <div className="flex items-center gap-3">
+                <img
+                  src={currentUser.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&auto=format&fit=crop&q=80'}
+                  alt={currentUser.name}
+                  className="w-10 h-10 rounded-full object-cover border-2 border-amber-400"
+                />
+                <div>
+                  <div className="font-bold text-sm text-white">{currentUser.name}</div>
+                  <div className="text-[11px] text-amber-400 font-medium">
+                    {currentUser.branchName || 'كل الفروع'} • {roleNames[currentUser.role]?.label || currentUser.role}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileDrawerOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                title="إغلاق القائمة"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Nav Items List */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-1">
+              <div className="text-[10px] text-slate-400 font-bold px-3 py-1 uppercase tracking-wider">
+                التنقل السريع بين الأقسام
+              </div>
+              {filteredNavItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      setIsMobileDrawerOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      isActive
+                        ? 'bg-amber-400 text-slate-950 font-black shadow-md'
+                        : 'text-slate-200 hover:bg-slate-900 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Icon className={`w-4 h-4 ${isActive ? 'text-slate-950' : 'text-amber-400'}`} />
+                      <span>{item.label}</span>
+                    </div>
+                    {item.badge && item.badge > 0 ? (
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+                        isActive ? 'bg-slate-950 text-amber-300' : 'bg-rose-600 text-white'
+                      }`}>
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+
+              {/* Quick Tools & Settings in Drawer */}
+              <div className="pt-3 border-t border-slate-900 mt-3 space-y-1.5">
+                <div className="text-[10px] text-slate-400 font-bold px-3 py-1 uppercase tracking-wider">
+                  الأدوات والإعدادات
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    toggleDataSaverMode();
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-850 text-slate-200 transition cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Zap className={`w-4 h-4 ${dataSaverMode ? 'text-emerald-400' : 'text-slate-400'}`} />
+                    <span>توفير باقة الموبايل</span>
+                  </div>
+                  <span className={`text-[10px] px-2 py-0.5 rounded font-black ${dataSaverMode ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : 'bg-slate-800 text-slate-400'}`}>
+                    {dataSaverMode ? 'مفعّل 🟢' : 'معطل'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileDrawerOpen(false);
+                    setIsInstallModalOpen(true);
+                  }}
+                  className="w-full flex items-center gap-2 p-2.5 rounded-xl text-xs font-bold bg-amber-400/10 hover:bg-amber-400/20 text-amber-300 border border-amber-400/20 transition cursor-pointer"
+                >
+                  <Smartphone className="w-4 h-4 text-amber-400" />
+                  <span>تثبيت التطبيق على الموبايل 📲</span>
+                </button>
+
+                {['admin', 'developer', 'branch_manager', 'supervisor'].includes(currentUser.role) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileDrawerOpen(false);
+                      setIsCompanyModalOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2 p-2.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-850 text-slate-200 transition cursor-pointer"
+                  >
+                    <Building2 className="w-4 h-4 text-amber-400" />
+                    <span>إعدادات ترويسة الفاتورة 🏢</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Drawer Footer with Logout */}
+            <div className="p-3 border-t border-slate-900 bg-slate-900/60">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileDrawerOpen(false);
+                  logout();
+                }}
+                className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl text-xs font-black text-rose-400 bg-rose-950/30 hover:bg-rose-950/50 border border-rose-800/40 transition cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>تسجيل الخروج من المنظومة</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mobile Bottom Navigation Bar (Smartphones & Small Screens - High Contrast & Large Touch Targets) */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/98 backdrop-blur border-t border-slate-800 flex items-center justify-around py-1.5 px-2 shadow-2xl safe-area-inset-bottom">
