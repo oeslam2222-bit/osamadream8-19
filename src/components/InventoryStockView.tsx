@@ -178,7 +178,7 @@ export const InventoryStockView: React.FC = () => {
     let totalCartonsActual = 0;
     let totalCartonsReserved = 0;
 
-    products.forEach((p) => {
+    visibleProducts.forEach((p) => {
       const bStock = getProductBranchStock(p);
       const oStock = p.mainWarehouseActual || 0;
 
