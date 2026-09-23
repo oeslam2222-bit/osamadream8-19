@@ -498,8 +498,9 @@ export function filterTargetsForUser(
         return Array.from(supervisedNames).some((sn) => isArabicNameMatch(r.repName, sn) || normRep.includes(sn));
       }
 
-      // If no explicit supervised list is found yet, show by branch as fallback
-      return true;
+      // No explicit assignment means the record is not visible to this supervisor.
+      // Branch membership alone must never grant access to the whole branch team.
+      return false;
     });
   }
 
