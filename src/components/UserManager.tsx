@@ -247,7 +247,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- تفعيل التحديث اللحظي (Realtime)
+-- تفعيل التح��يث اللحظي (Realtime)
 ALTER PUBLICATION supabase_realtime ADD TABLE public.invoices;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.products;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
@@ -305,10 +305,10 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
   const activeUsers = useMemo(() => users.filter((u) => {
     if (u.approvalStatus === 'pending_approval') return false;
 
-    // Admin/developer see everyone; branch managers see their branch; supervisors see branch sales reps only.
+    // User accounts are managed centrally; branch managers and supervisors only handle approvals,
+    // so the full active team list is not exposed in their user-management view.
     if (!isSuperAdminOrDev) {
-      if (u.branchName !== currentUser?.branchName) return false;
-      if (currentUser?.role === 'supervisor' && u.role !== 'sales_rep') return false;
+      return false;
     } else {
       if (selectedBranchFilter !== 'الكل' && u.branchName !== selectedBranchFilter) return false;
     }
