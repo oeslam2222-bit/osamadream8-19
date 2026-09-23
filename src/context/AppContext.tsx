@@ -769,7 +769,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const col26 = Math.max(Math.abs(Number(c.collections2026 || 0)), Math.abs(Number(c.totalMonthlyCollections || 0)), Math.abs(Number(c.totalOverallCollections || 0)), monthlyColsSum);
 
       // Guarantee docs logic:
-      // لو كبر من صفر يبقي ماضي علي ورق ضم��ن بالمبلغ ده
+      // لو كبر من صفر يبقي ماضي علي ورق ضم����ن بالمبلغ ده
       // لو 0 او مافيش يبق لا يوجد ورق ضمان
       let gAmount = Math.abs(Number(c.guaranteeAmount || 0));
       const rawG = String(c.guaranteeDocs || '').trim();
@@ -2307,7 +2307,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return {
       success: true,
-      message: 'تم تسجيل طلب الحساب بنجاح وهو الآن بانتظار تفعيل الأدمن وتخصيص المشرف والفرع.'
+      message: 'تم تسجيل طلب الحساب بنجاح وهو الآن بانتظار تفعيل الأدمن وتخصيص المشرف والف��ع.'
     };
   };
 
@@ -3706,7 +3706,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return {
       success: true,
-      message: `تم فتح الطلبية #${invoice.invoiceNumber} في السلة بنجاح! يمكنك الآن تعديل الكميات أو إضافة أصناف جديدة من الكتالوج وإعادة إصدار الفاتورة.`,
+      message: `تم فتح الطلبية #${invoice.invoiceNumber} في السلة بنجاح! يمكنك الآن تعديل الكميات أو إضافة أصناف جديدة من الكتالوج وإ��ادة إصدار الفاتورة.`,
       customer: matchedCustomer,
     };
   };
@@ -4045,7 +4045,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       userRole: currentUser?.role || 'admin',
       branchName: inv.branchName,
       action: 'return_invoice',
-      actionTitle: `تسجيل مرتجع مبيعات ${isFullReturn ? 'كلي' : 'جزئي'} للفاتورة #${inv.invoiceNumber}`,
+      actionTitle: `تسجيل ��رتجع مبيعات ${isFullReturn ? 'كلي' : 'جزئي'} للفاتورة #${inv.invoiceNumber}`,
       details: `إذن #${returnVoucherNumber} • العميل: ${inv.customerName} • القيمة المسترجعة: ${totalRefundAmount.toLocaleString()} ج.م • الكراتين: ${totalReturnedCartons} • السبب: ${reason}`,
       invoiceId: inv.id,
       invoiceNumber: inv.invoiceNumber,
@@ -4294,9 +4294,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (u) => repIds.has(u.id) && normalizeArabicText(u.name) === normalizeArabicText(i.repName || '')
     );
     const isSelf = i.repId === currentUser.id || normalizeArabicText(i.repName) === normalizeArabicText(currentUser.name);
-    // Legacy invoices may carry a stale/missing branch name. A supervised rep match
-    // is authoritative so the invoice still reaches the supervisor.
-    return isSameBranch || isSupervisedRep || isSameRepName || isSelf;
+  // A supervisor must never receive every invoice from the branch. The invoice
+  // must identify the supervisor's own account or one of the reps assigned to it.
+  // Legacy invoices without a branch are still allowed when the rep relation is explicit.
+  const belongsToSupervisor = isSupervisedRep || isSameRepName || isSelf;
+  return belongsToSupervisor && (!i.branchName || isSameBranch);
   });
     }
 

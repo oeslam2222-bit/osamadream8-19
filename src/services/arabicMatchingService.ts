@@ -829,10 +829,9 @@ export function sanitizeAndDeduplicateUsers(userList: User[]): UserDeduplication
     const normName = normalizeArabicText(u.name);
     // Find if another user already exists with matching Arabic name and compatible branch/role
     const matchIdx = result.findIndex((ex) => {
-      // Must have compatible role (both field reps / supervisors)
-      const roleMatch =
-        ex.role === u.role ||
-        ((ex.role === 'sales_rep' || ex.role === 'supervisor') && (u.role === 'sales_rep' || u.role === 'supervisor'));
+      // Never merge different roles: a supervisor and a sales rep may share
+      // the same name but are separate accounts with different permissions.
+      const roleMatch = ex.role === u.role;
       if (!roleMatch) return false;
 
       // Check branch compatibility:
