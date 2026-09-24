@@ -213,7 +213,7 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
         credit_limit: Number(c.creditLimit || 0),
         balance: Number(c.balance ?? c.currentBalance ?? 0),
         current_balance: Number(c.currentBalance ?? c.balance ?? 0),
-         notes: c.notes || null,
+        notes: c.notes || null,
         last_visit_date: c.lastVisitDate || null,
         visit_count_2026: Number(c.visitCount2026 || 0),
         visit_history: (c.visitHistory || []).length > 0 ? JSON.stringify(c.visitHistory) : null,
