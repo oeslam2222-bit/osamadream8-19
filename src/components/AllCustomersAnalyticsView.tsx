@@ -67,7 +67,7 @@ import {
   Cell
 } from 'recharts';
 import { useApp } from '../context/AppContext';
-import { Customer, CustomerVisit, User, Invoice, OrderStatus } from '../types';
+import { Customer, User, Invoice, OrderStatus } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import {
   MONTH_NAMES_AR,
@@ -94,6 +94,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     branches,
     importCustomersList,
     updateCustomer,
+    addVisit,
     invoices = [],
     isPrivacyMode,
     togglePrivacyMode,
@@ -447,7 +448,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           monthlyColsSum += Number(c.monthlyCollections2026[m]) || 0;
         }
       }
-      const collections2026 = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, c.totalOverallCollections || 0, monthlyColsSum);
+      const explicitCollections = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, c.totalOverallCollections || 0);
+      const collections2026 = explicitCollections > 0 ? explicitCollections : monthlyColsSum;
       const collectionRate = sales2026 > 0 ? Math.round((collections2026 / sales2026) * 100) : 0;
 
       // Ineligibility logic (غير قابل للتعامل / موقوف / ممتنع / مستبعد)
@@ -1053,33 +1055,37 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   // Handle Log Visit Action
   const handleSaveVisit = () => {
     if (!selectedCustomer) return;
+    if (!currentUser) return;
 
-    const newVisit: CustomerVisit = {
-      id: `visit-${Date.now()}`,
+    // Build the visit payload and delegate to addVisit from AppContext.
+    // addVisit properly persists the visit to:
+    //   - visits state (visible in VisitsDashboard immediately)
+    //   - IndexedDB visits store (survives page reload)
+    //   - Supabase visits table (cross-device sync)
+    //   - customer's visitHistory in both state and IndexedDB
+    const collectedAmount = visitCollected ? parseFloat(visitCollected) : undefined;
+
+    const { success, message } = addVisit({
+      customerId: selectedCustomer.id,
       date: visitDate,
-      repName: currentUser?.name || 'المندوب',
+      repName: currentUser.name || 'المندوب',
+      repId: currentUser.id,
       type: visitType,
       outcome: visitOutcome,
-      collectedAmount: visitCollected ? parseFloat(visitCollected) : undefined,
+      collectedAmount,
       notes: visitNotes,
-      createdAt: new Date().toISOString(),
-    };
+      branchName: currentUser.branchName || selectedCustomer.branchName || '',
+      supervisorId: currentUser.supervisorId,
+    });
 
-    const existingVisits = selectedCustomer.visitHistory || [];
-    const updatedVisits = [newVisit, ...existingVisits];
+    if (success) {
+      // Refresh locally-selected customer so the dossier UI reflects the visit
+      const refreshed = customers.find((c) => c.id === selectedCustomer.id) || selectedCustomer;
+      setSelectedCustomer(refreshed);
+    } else {
+      console.warn('Failed to log visit:', message);
+    }
 
-    const updatedCustomer: Customer = {
-      ...selectedCustomer,
-      lastVisitDate: visitDate,
-      visitCount2026: (selectedCustomer.visitCount2026 || 0) + 1,
-      visitHistory: updatedVisits,
-      currentBalance: visitCollected
-        ? Math.max(0, (selectedCustomer.currentBalance ?? selectedCustomer.balance ?? 0) - parseFloat(visitCollected))
-        : selectedCustomer.currentBalance,
-    };
-
-    updateCustomer(updatedCustomer);
-    setSelectedCustomer(updatedCustomer);
     setIsLoggingVisit(false);
     setVisitNotes('');
     setVisitCollected('');

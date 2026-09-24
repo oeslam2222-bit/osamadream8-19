@@ -830,7 +830,10 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
 
     // Explicit collections 2026 converted to positive
     const explicitCollections2026 = colMap.collections2026 !== -1 ? Math.abs(cleanNumber(row[colMap.collections2026])) : 0;
-    const finalCollections2026 = Math.max(explicitCollections2026, computedCollections2026);
+    // Prefer the explicit sheet total when available (> 0); fall back to computed monthly sum only
+    // when there is no explicit column or its value is missing/empty. This prevents the system
+    // from over-calculating when monthly column matching picks up extra columns.
+    const finalCollections2026 = explicitCollections2026 > 0 ? explicitCollections2026 : computedCollections2026;
 
     // Guarantee docs logic:
     // لو كبر من صفر يبقي ماضي علي ورق ضمان بالمبلغ ده

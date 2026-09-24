@@ -2166,12 +2166,12 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
 
       // Check numeric sales match (e.g., '1مبيعات', 'مبيعات1', '1بيع', 'بيع1', 'ش1مبيعات')
       const salesMatch =
-        normWithoutYear.match(/^(\d{1,2})(?:مبيعات|بيعات|بيع)/) ||
+        normWithoutYear.match(/^(\d{1,2})(?!\d)(?:مبيعات|بيعات|بيع)/) ||
         normWithoutYear.match(/(?:مبيعات|بيعات|بيع)(\d{1,2})$/) ||
-        normWithoutYear.match(/(\d{1,2})(?:مبيعات|بيعات|بيع)/) ||
-        normWithoutYear.match(/(?:مبيعات|بيعات|بيع).*?(\d{1,2})/) ||
-        normWithoutYear.match(/(?:ش|شهر)(\d{1,2})(?:مبيعات|بيعات|بيع)/) ||
-        normWithoutYear.match(/(?:مبيعات|بيعات|بيع)(?:ش|شهر)(\d{1,2})/);
+        normWithoutYear.match(/(?<!\d)(\d{1,2})(?!\d)(?:مبيعات|بيعات|بيع)/) ||
+        normWithoutYear.match(/(?:مبيعات|بيعات|بيع).*?(\d{1,2})(?!\d)/) ||
+        normWithoutYear.match(/(?:ش|شهر)(\d{1,2})(?!\d)(?:مبيعات|بيعات|بيع)/) ||
+        normWithoutYear.match(/(?:مبيعات|بيعات|بيع)(?:ش|شهر)(\d{1,2})(?!\d)/);
 
       if (salesMatch) {
         const m = parseInt(salesMatch[1], 10);
@@ -2190,12 +2190,12 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
 
       // Check numeric collections match (e.g., '1تحصيل', 'تحصيل1', '1سداد', 'سداد1', 'ش1تحصيل')
       const collMatch =
-        normWithoutYear.match(/^(\d{1,2})(?:تحصيل|تحصيلات|سداد|سدادات)/) ||
+        normWithoutYear.match(/^(\d{1,2})(?!\d)(?:تحصيل|تحصيلات|سداد|سدادات)/) ||
         normWithoutYear.match(/(?:تحصيل|تحصيلات|سداد|سدادات)(\d{1,2})$/) ||
-        normWithoutYear.match(/(\d{1,2})(?:تحصيل|تحصيلات|سداد|سدادات)/) ||
-        normWithoutYear.match(/(?:تحصيل|تحصيلات|سداد|سدادات).*?(\d{1,2})/) ||
-        normWithoutYear.match(/(?:ش|شهر)(\d{1,2})(?:تحصيل|تحصيلات|سداد|سدادات)/) ||
-        normWithoutYear.match(/(?:تحصيل|تحصيلات|سداد|سدادات)(?:ش|شهر)(\d{1,2})/);
+        normWithoutYear.match(/(?<!\d)(\d{1,2})(?!\d)(?:تحصيل|تحصيلات|سداد|سدادات)/) ||
+        normWithoutYear.match(/(?:تحصيل|تحصيلات|سداد|سدادات).*?(\d{1,2})(?!\d)/) ||
+        normWithoutYear.match(/(?:ش|شهر)(\d{1,2})(?!\d)(?:تحصيل|تحصيلات|سداد|سدادات)/) ||
+        normWithoutYear.match(/(?:تحصيل|تحصيلات|سداد|سدادات)(?:ش|شهر)(\d{1,2})(?!\d)/);
 
       if (collMatch) {
         const m = parseInt(collMatch[1], 10);
@@ -2381,10 +2381,12 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
           ? Math.max(parsedTotalMonthlySalesCol, dynamicMonthlySalesSum)
           : (dynamicMonthlySalesSum > 0 ? dynamicMonthlySalesSum : (parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : undefined)));
 
-    const finalTotalMonthlyCollections = parsedCollections2026Col !== undefined
-      ? Math.max(parsedCollections2026Col, dynamicMonthlyCollectionsSum)
-      : (parsedTotalMonthlyCollectionsCol !== undefined
-          ? Math.max(parsedTotalMonthlyCollectionsCol, dynamicMonthlyCollectionsSum)
+    const explicitCollectionsTotal = parsedCollections2026Col !== undefined ? parsedCollections2026Col : 0;
+    const explicitTotalMonthlyCollections = parsedTotalMonthlyCollectionsCol !== undefined ? parsedTotalMonthlyCollectionsCol : 0;
+    const finalTotalMonthlyCollections = explicitCollectionsTotal > 0
+      ? explicitCollectionsTotal
+      : (explicitTotalMonthlyCollections > 0
+          ? explicitTotalMonthlyCollections
           : (dynamicMonthlyCollectionsSum > 0 ? dynamicMonthlyCollectionsSum : (parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : undefined)));
 
     const finalCreditLimit = parsedCredit !== undefined ? parsedCredit : 0;
@@ -2410,12 +2412,15 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : 0,
       dynamicMonthlySalesSum
     );
-    const resolvedCollections2026 = Math.max(
+    // Prefer the explicit sheet total when available; fall back to computed monthly sum only
+    // when no explicit column has a positive value. This prevents over-calculation when
+    // monthly column matching picks up extra columns.
+    const explicitCollectionsSum = Math.max(
       parsedCollections2026Col !== undefined ? parsedCollections2026Col : 0,
       parsedTotalMonthlyCollectionsCol !== undefined ? parsedTotalMonthlyCollectionsCol : 0,
-      parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : 0,
-      dynamicMonthlyCollectionsSum
+      parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : 0
     );
+    const resolvedCollections2026 = explicitCollectionsSum > 0 ? explicitCollectionsSum : dynamicMonthlyCollectionsSum;
 
     // Guarantee docs logic:
     // لو كبر من صفر يبقي ماضي علي ورق ضمان بالمبلغ ده
