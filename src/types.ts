@@ -115,12 +115,32 @@ export interface CustomerVisit {
   supervisorName?: string;
   status?: CustomerVisitStatus;
   type?: 'زيارة تحصيل' | 'زيارة بيع وطلبية' | 'زيارة دورية' | 'متابعة حساب' | 'أخرى';
-  outcome?: 'تم عمل طلبية' | 'تم التحصيل' | 'تأجيل سداد' | 'المحل مغلق' | 'متابعة فقط';
+  outcome?: 'تم عمل طلبية' | 'تم التحصيل' | 'تأجيل سداد' | 'المحل مغلق' | 'متابعة فقط' | 'أخرى';
   collectedAmount?: number;          // المبلغ المحصل إن وجد
   notes?: string;                    // ملاحظات الزيارة
   createdBy?: string;
   createdAt?: string;
   updatedAt?: string;
+
+  // Developed Visit Capabilities (تطوير الزيارات الميدانية)
+  location?: {
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
+    address?: string;
+    mapUrl?: string;
+    timestamp?: string;
+  };
+  checkInTime?: string;              // وقت تسجيل الحضور عند العميل (Check-In)
+  checkOutTime?: string;             // وقت الانتهاء من الزيارة (Check-Out)
+  durationMinutes?: number;          // مدة الزيارة بالدقائق
+  storeStockStatus?: 'متوفر بكثرة' | 'متوسط' | 'منخفض' | 'منعدم (نفاد مخزون)';
+  competitorNotes?: string;          // ملاحظات على أسعار وعروض المنافسين في المتجر
+  customerRating?: 1 | 2 | 3 | 4 | 5; // تقييم رضا وتجاوب العميل
+  nextVisitDate?: string;            // موعد الزيارة القادمة المتفق عليه
+  orderCreatedId?: string;           // كود الطلبية المنشأة أثناء الزيارة
+  orderAmount?: number;              // قيمة الطلبية إن وجدت
+  syncStatus?: 'synced' | 'pending_sync' | 'local_only'; // تأكيد الحفظ في قاعدة البيانات
 }
 
 export interface Customer {
@@ -143,6 +163,7 @@ export interface Customer {
   currentBalance?: number;           // المديونية الحالية
   totalOverdueAndDue?: number;       // إجمالي المتأخرات والمستحق
   overdueBalance?: number;           // المتأخرات
+  totalOverdue?: number;             // إجمالي المتأخرات
   dueBalance?: number;               // المستحق
   creditLimit?: number;              // الحد الائتماني
   lastOrderDate?: string;            // تاريخ آخر طلبية

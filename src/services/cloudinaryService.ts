@@ -41,9 +41,33 @@ export function extractGoogleDriveFileId(urlOrId: string): string | null {
 }
 
 /**
- * Build fast, dynamically compressed Google Drive image URLs with size parameters (e.g. s=260, w=260)
+ * Optimizes Cloudinary URLs with modern high-fidelity compression parameters (w_550, c_limit, q_auto, f_auto)
  */
-export function buildGoogleDriveCompressedUrls(urlOrId: string, size = 260): string[] {
+export function optimizeCloudinaryUrl(url: string, targetSize = 550): string {
+  if (!url || !url.includes('res.cloudinary.com')) return url;
+  const trimmed = url.trim();
+  // Check if /upload/ is present
+  const uploadIndex = trimmed.indexOf('/upload/');
+  if (uploadIndex === -1) return trimmed;
+
+  const prefix = trimmed.substring(0, uploadIndex + 8);
+  const suffix = trimmed.substring(uploadIndex + 8);
+
+  // If already has transformation parameters right after /upload/, replace them
+  if (/^[a-zA-Z0-9_,.-]+\//.test(suffix) && !suffix.startsWith('v')) {
+    const nextSlash = suffix.indexOf('/');
+    const rest = suffix.substring(nextSlash + 1);
+    return `${prefix}w_${targetSize},c_limit,q_auto,f_auto/${rest}`;
+  }
+
+  // Insert crisp modern transformation
+  return `${prefix}w_${targetSize},c_limit,q_auto,f_auto/${suffix}`;
+}
+
+/**
+ * Build fast, dynamically compressed Google Drive image URLs with size parameters (e.g. s=550, w=550)
+ */
+export function buildGoogleDriveCompressedUrls(urlOrId: string, size = 550): string[] {
   const fileId = extractGoogleDriveFileId(urlOrId);
   if (!fileId) return [];
 
@@ -61,16 +85,22 @@ export function buildGoogleDriveCompressedUrls(urlOrId: string, size = 260): str
 }
 
 /**
- * Dynamically optimize any image URL (Google Drive, direct links) for target size and bandwidth savings
+ * Dynamically optimize any image URL (Google Drive, Cloudinary, direct links) for target size and bandwidth savings
  */
-export function optimizeImageUrl(rawUrl: string, targetSize = 260, isDataSaver = false): string {
+export function optimizeImageUrl(rawUrl: string, targetSize = 550, isDataSaver = false): string {
   if (!rawUrl) return '';
   const trimmed = rawUrl.trim();
+
+  // Check if it's Cloudinary
+  if (trimmed.includes('res.cloudinary.com')) {
+    const size = isDataSaver ? Math.min(targetSize, 260) : targetSize;
+    return optimizeCloudinaryUrl(trimmed, size);
+  }
 
   // Check if it's a Google Drive link
   const driveId = extractGoogleDriveFileId(trimmed);
   if (driveId) {
-    const size = isDataSaver ? Math.min(targetSize, 180) : targetSize;
+    const size = isDataSaver ? Math.min(targetSize, 240) : targetSize;
     return `https://lh3.googleusercontent.com/d/${driveId}=s${size}`;
   }
 
@@ -139,9 +169,12 @@ export function getCandidateImageUrls(
     const rawUrl = product.imageUrl.trim();
     
     // If it's a Google Drive link, expand to high-speed compressed CDN URLs
-    const driveUrls = buildGoogleDriveCompressedUrls(rawUrl, 320);
+    const driveUrls = buildGoogleDriveCompressedUrls(rawUrl, 550);
     if (driveUrls.length > 0) {
       candidates.push(...driveUrls);
+    } else if (rawUrl.includes('res.cloudinary.com')) {
+      candidates.push(optimizeCloudinaryUrl(rawUrl, 550));
+      candidates.push(rawUrl);
     } else if (rawUrl.startsWith('http')) {
       candidates.push(rawUrl);
     }

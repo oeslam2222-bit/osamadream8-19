@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Package } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { getCandidateImageUrls, generateProductPlaceholderSvg } from '../services/cloudinaryService';
+import { getCandidateImageUrls, generateProductPlaceholderSvg, optimizeCloudinaryUrl } from '../services/cloudinaryService';
 import { CloudinaryConfig, Product } from '../types';
 
 // Global fast in-memory cache to instantly render already verified working image URLs or failed items
@@ -44,18 +44,18 @@ export const ProductImage: React.FC<ProductImageProps> = ({
     return `${product.code || product.id || 'item'}_${product.imageUrl || ''}`;
   }, [product.code, product.id, product.imageUrl]);
 
-  // Determine optimal size based on variant and data saver mode (crisp quality + lightweight WebP)
+  // Determine optimal size based on variant and data saver mode (crisp 550px quality + lightweight WebP)
   const effectiveSize = useMemo(() => {
     if (targetSize) return targetSize;
     if (dataSaverMode) {
-      if (sizeVariant === 'thumbnail') return 120;
-      if (sizeVariant === 'card') return 220;
-      return 480; // for modal in data saver
+      if (sizeVariant === 'thumbnail') return 140;
+      if (sizeVariant === 'card') return 260;
+      return 550; // for modal in data saver
     }
-    // High-definition mode for crisp viewing on modern mobile OLED/Retina screens
-    if (sizeVariant === 'thumbnail') return 180;
-    if (sizeVariant === 'card') return 360;
-    return 800; // full high-res modal
+    // High-definition mode for crisp viewing on modern mobile OLED/Retina screens (550px for sharp carton/pack view)
+    if (sizeVariant === 'thumbnail') return 220;
+    if (sizeVariant === 'card') return 550;
+    return 950; // full high-res modal
   }, [targetSize, sizeVariant, dataSaverMode]);
 
   // IntersectionObserver for lazy rendering off-screen items
@@ -95,7 +95,7 @@ export const ProductImage: React.FC<ProductImageProps> = ({
     const cachedWorkingUrl = verifiedImageCache.get(productKey);
     let urls = getCandidateImageUrls(product, cloudinaryConfig);
     
-    // Apply dynamic parameter sizing for Google Drive and Google CDN URLs
+    // Apply dynamic parameter sizing for Google Drive, Google CDN, and Cloudinary URLs
     const transformed = urls.map((url) => {
       if (url.includes('googleusercontent.com/d/')) {
         if (url.includes('=s') || url.includes('=w')) {
@@ -109,6 +109,10 @@ export const ProductImage: React.FC<ProductImageProps> = ({
           return url.replace(/&(s|sz)=[^&]+/, `&sz=w${effectiveSize}-h${effectiveSize}`);
         }
         return `${url}&sz=w${effectiveSize}-h${effectiveSize}`;
+      }
+
+      if (url.includes('res.cloudinary.com')) {
+        return optimizeCloudinaryUrl(url, effectiveSize);
       }
 
       return url;

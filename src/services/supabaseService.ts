@@ -1201,6 +1201,17 @@ export async function fetchVisitsFromSupabase(): Promise<{ success: boolean; vis
       outcome: v.outcome || '',
       collectedAmount: Number(v.collected_amount ?? v.collectedAmount ?? 0),
       notes: v.notes || '',
+      location: v.location || (v.latitude && v.longitude ? { latitude: Number(v.latitude), longitude: Number(v.longitude), mapUrl: `https://maps.google.com/?q=${v.latitude},${v.longitude}` } : undefined),
+      checkInTime: v.check_in_time || v.checkInTime,
+      checkOutTime: v.check_out_time || v.checkOutTime,
+      durationMinutes: v.duration_minutes || v.durationMinutes,
+      storeStockStatus: v.store_stock_status || v.storeStockStatus,
+      competitorNotes: v.competitor_notes || v.competitorNotes,
+      customerRating: v.customer_rating || v.customerRating,
+      nextVisitDate: v.next_visit_date || v.nextVisitDate,
+      orderCreatedId: v.order_created_id || v.orderCreatedId,
+      orderAmount: v.order_amount || v.orderAmount,
+      syncStatus: 'synced',
       createdBy: v.created_by || v.createdBy || '',
       createdAt: v.created_at || v.createdAt || new Date().toISOString(),
       updatedAt: v.updated_at || v.updatedAt,
@@ -1219,30 +1230,55 @@ export async function saveVisitsToSupabase(visits: CustomerVisit[]): Promise<{ s
   try {
     if (!visits || visits.length === 0) return { success: true, savedCount: 0 };
 
-    const payload = visits.map((v) => ({
-      id: v.id || `visit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      customer_id: v.customerId || '',
-      customer_name: v.customerName || '',
-      customer_code: v.customerCode || '',
-      date: v.date || '',
-      time: v.time || '',
-      rep_id: v.repId || '',
-      rep_name: v.repName || '',
-      branch_name: v.branchName || '',
-      supervisor_id: v.supervisorId || '',
-      supervisor_name: v.supervisorName || '',
-      status: v.status || 'مجدولة',
-      type: v.type || 'زيارة دورية',
-      outcome: v.outcome || '',
-      collected_amount: v.collectedAmount ?? 0,
-      notes: v.notes || '',
-      created_by: v.createdBy || '',
-      created_at: v.createdAt || new Date().toISOString(),
-      updated_at: v.updatedAt || new Date().toISOString(),
-    }));
+    const payload = visits.map((v) => {
+      let enhancedNotes = v.notes || '';
+      if (v.location?.latitude) {
+        enhancedNotes += `\n[موقع GPS: ${v.location.latitude.toFixed(6)}, ${v.location.longitude.toFixed(6)}]`;
+      }
+      if (v.checkInTime) {
+        enhancedNotes += `\n[حضور: ${v.checkInTime}${v.checkOutTime ? ` - انصراف: ${v.checkOutTime}` : ''}${v.durationMinutes ? ` (${v.durationMinutes} دقيقة)` : ''}]`;
+      }
+      if (v.storeStockStatus) {
+        enhancedNotes += `\n[حالة المخزون بالمتجر: ${v.storeStockStatus}]`;
+      }
+      if (v.competitorNotes) {
+        enhancedNotes += `\n[بضاعة وأسعار المنافسين: ${v.competitorNotes}]`;
+      }
+      if (v.customerRating) {
+        enhancedNotes += `\n[تقييم تجاوب العميل: ${v.customerRating}/5 ⭐]`;
+      }
+      if (v.nextVisitDate) {
+        enhancedNotes += `\n[الزيارة القادمة المتفق عليها: ${v.nextVisitDate}]`;
+      }
+
+      return {
+        id: v.id || `visit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        customer_id: v.customerId || '',
+        customer_name: v.customerName || '',
+        customer_code: v.customerCode || '',
+        date: v.date || '',
+        time: v.time || '',
+        rep_id: v.repId || '',
+        rep_name: v.repName || '',
+        branch_name: v.branchName || '',
+        supervisor_id: v.supervisorId || '',
+        supervisor_name: v.supervisorName || '',
+        status: v.status || 'مجدولة',
+        type: v.type || 'زيارة دورية',
+        outcome: v.outcome || '',
+        collected_amount: v.collectedAmount ?? 0,
+        notes: enhancedNotes.trim(),
+        created_by: v.createdBy || '',
+        created_at: v.createdAt || new Date().toISOString(),
+        updated_at: v.updatedAt || new Date().toISOString(),
+      };
+    });
 
     const { data, error } = await supabase.from('visits').upsert(payload, { onConflict: 'id' }).select();
-    if (error) return { success: false, savedCount: 0, error: error.message };
+    if (error) {
+      console.warn('Supabase upsert visits note:', error.message);
+      return { success: false, savedCount: 0, error: error.message };
+    }
     return { success: true, savedCount: payload.length };
   } catch (err: any) {
     return { success: false, savedCount: 0, error: err?.message };

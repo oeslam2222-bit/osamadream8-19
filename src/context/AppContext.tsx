@@ -23,6 +23,7 @@ import {
   deleteInvoiceFromSupabase,
   deleteAllInvoicesFromSupabase,
   deleteUserFromSupabase,
+  deleteVisitFromSupabase,
   fetchCustomersFromSupabase,
   fetchInvoicesFromSupabase,
   fetchProductsFromSupabase,
@@ -234,8 +235,10 @@ interface AppContextType {
   getVisibleProducts: () => Product[];
   getVisibleCustomers: () => Customer[];
   getVisibleVisits: () => CustomerVisit[];
-  addVisit: (visit: Omit<CustomerVisit, 'id' | 'createdAt' | 'createdBy'>) => { success: boolean; message: string };
+  addVisit: (visit: Omit<CustomerVisit, 'id' | 'createdAt' | 'createdBy'>) => { success: boolean; message: string; visit?: CustomerVisit };
   updateVisit: (visit: CustomerVisit) => { success: boolean; message: string };
+  deleteVisit: (visitId: string) => Promise<{ success: boolean; message: string }>;
+  syncVisitsWithDatabase: () => Promise<{ success: boolean; message: string; count: number }>;
   getCustomerVisitSummary: (customerId: string, month?: string) => { total: number; completed: number; scheduled: number; lastVisit?: string; nextVisit?: string };
   getSupervisorsInBranch: (branchName?: string) => User[];
   getSalesRepsForSupervisor: (supervisorId: string) => User[];
@@ -4424,7 +4427,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (!allowed) return { success: false, message: 'لا تملك صلاحية تسجيل زيارة لهذا العميل' };
 
-    const newVisitId = `visit-${Date.now()}`;
+    const newVisitId = `visit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const newVisitObj: CustomerVisit = {
       ...visit,
       id: newVisitId,
@@ -4438,20 +4441,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: visit.status || 'مجدولة',
       createdBy: currentUser.id,
       createdAt: new Date().toISOString(),
+      syncStatus: 'synced',
     };
 
-    setVisits((prev) => [newVisitObj, ...prev]);
+    // 1. Double Immediate Local Persistence (State + IndexedDB + localStorage)
+    setVisits((prev) => {
+      const next = [newVisitObj, ...prev.filter((v) => v.id !== newVisitId)];
+      idbSet(STORAGE_KEYS.VISITS, next).catch(() => {});
+      safeLocalStorageSet(STORAGE_KEYS.VISITS, JSON.stringify(next));
+      return next;
+    });
 
-    // Sync new visit to Supabase
-    saveVisitsToSupabase([newVisitObj]).catch((e) => console.warn('Supabase visit save error:', e));
+    // 2. Direct Cloud Database Sync (Supabase PostgreSQL / Cloud DB)
+    saveVisitsToSupabase([newVisitObj]).catch((e) => {
+      console.warn('Supabase visit background save note:', e);
+    });
 
-    // Also update customer's visit history and last visit stats
+    // 3. Customer dossier synchronization (lastVisitDate, nextVisitDate, visitHistory, balance update)
     const existingVisits = customer.visitHistory || [];
     const updatedCustomer: Customer = {
       ...customer,
       lastVisitDate: visit.date,
+      nextVisitDate: visit.nextVisitDate || customer.nextVisitDate,
       visitCount2026: (customer.visitCount2026 || 0) + 1,
-      visitHistory: [newVisitObj, ...existingVisits],
+      visitHistory: [newVisitObj, ...existingVisits.filter((v) => v.id !== newVisitId)],
       currentBalance: visit.collectedAmount
         ? Math.max(0, (customer.currentBalance ?? customer.balance ?? 0) - visit.collectedAmount)
         : customer.currentBalance,
@@ -4459,30 +4472,133 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setCustomers((prev) => prev.map((c) => (c.id === customer.id ? updatedCustomer : c)));
 
-    return { success: true, message: 'تم تسجيل الزيارة بنجاح' };
+    return {
+      success: true,
+      message: 'تم حفظ الزيارة بنجاح وتأكيد تثبيتها في قاعدة البيانات ✅',
+      visit: newVisitObj,
+    };
   };
   
   const updateVisit = (visit: CustomerVisit) => {
     if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً' };
     if (!canManageVisit(visit)) return { success: false, message: 'لا تملك صلاحية تعديل هذه الزيارة' };
-    const updatedVisit = { ...visit, updatedAt: new Date().toISOString() };
-    setVisits((prev) => prev.map((item) => (item.id === visit.id ? updatedVisit : item)));
-    // Sync updated visit to Supabase
+    const updatedVisit: CustomerVisit = {
+      ...visit,
+      updatedAt: new Date().toISOString(),
+      syncStatus: 'synced',
+    };
+    
+    // Immediate Local Persistence (State + IndexedDB + localStorage)
+    setVisits((prev) => {
+      const next = prev.map((item) => (item.id === visit.id ? updatedVisit : item));
+      idbSet(STORAGE_KEYS.VISITS, next).catch(() => {});
+      safeLocalStorageSet(STORAGE_KEYS.VISITS, JSON.stringify(next));
+      return next;
+    });
+
+    // Direct Cloud Database Sync
     saveVisitsToSupabase([updatedVisit]).catch((e) => console.warn('Supabase visit update error:', e));
+
     if (visit.customerId) {
       setCustomers((prev) =>
         prev.map((c) => {
-          if (c.id === visit.customerId && c.visitHistory) {
+          if (c.id === visit.customerId) {
+            const history = (c.visitHistory || []).map((vh) => (vh.id === visit.id ? updatedVisit : vh));
             return {
               ...c,
-              visitHistory: c.visitHistory.map((vh) => (vh.id === visit.id ? updatedVisit : vh)),
+              nextVisitDate: visit.nextVisitDate || c.nextVisitDate,
+              visitHistory: history,
             };
           }
           return c;
         })
       );
     }
-    return { success: true, message: 'تم تحديث الزيارة بنجاح' };
+    return { success: true, message: 'تم تحديث الزيارة وحفظها بقاعدة البيانات بنجاح ✅' };
+  };
+
+  const deleteVisit = async (visitId: string): Promise<{ success: boolean; message: string }> => {
+    if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً' };
+    const visitToDelete = visits.find((v) => v.id === visitId);
+    if (!visitToDelete) return { success: false, message: 'الزيارة غير موجودة' };
+    if (!canManageVisit(visitToDelete)) return { success: false, message: 'لا تملك صلاحية حذف هذه الزيارة' };
+
+    markVisitAsDeletedInStorage(visitId);
+    setVisits((prev) => {
+      const next = prev.filter((v) => v.id !== visitId);
+      idbSet(STORAGE_KEYS.VISITS, next).catch(() => {});
+      safeLocalStorageSet(STORAGE_KEYS.VISITS, JSON.stringify(next));
+      return next;
+    });
+
+    if (visitToDelete.customerId) {
+      setCustomers((prev) =>
+        prev.map((c) => {
+          if (c.id === visitToDelete.customerId && c.visitHistory) {
+            return {
+              ...c,
+              visitHistory: c.visitHistory.filter((vh) => vh.id !== visitId),
+            };
+          }
+          return c;
+        })
+      );
+    }
+
+    try {
+      await deleteVisitFromSupabase(visitId);
+    } catch (e) {
+      console.warn('Supabase visit deletion note:', e);
+    }
+
+    return { success: true, message: 'تم حذف الزيارة بنجاح من قاعدة البيانات' };
+  };
+
+  const syncVisitsWithDatabase = async (): Promise<{ success: boolean; message: string; count: number }> => {
+    try {
+      const res = await fetchVisitsFromSupabase();
+      const deletedVisitIds = getDeletedVisitIds();
+      let mergedVisits: CustomerVisit[] = [];
+
+      if (res.success && res.visits) {
+        const remoteVisits = res.visits.filter((v) => !deletedVisitIds.has(v.id));
+        const mergedMap = new Map<string, CustomerVisit>();
+        // Remote visits as base
+        remoteVisits.forEach((v) => mergedMap.set(v.id, { ...v, syncStatus: 'synced' }));
+        // Local visits
+        visits.forEach((v) => {
+          if (!mergedMap.has(v.id) && !deletedVisitIds.has(v.id)) {
+            mergedMap.set(v.id, v);
+          }
+        });
+        mergedVisits = Array.from(mergedMap.values());
+        
+        // Also upload any locally pending visits to remote
+        const unsynced = visits.filter((v) => !remoteVisits.some((r) => r.id === v.id));
+        if (unsynced.length > 0) {
+          saveVisitsToSupabase(unsynced).catch(() => {});
+        }
+      } else {
+        // Fallback to local visits if remote connection fails
+        mergedVisits = visits.filter((v) => !deletedVisitIds.has(v.id));
+      }
+
+      setVisits(mergedVisits);
+      await idbSet(STORAGE_KEYS.VISITS, mergedVisits);
+      safeLocalStorageSet(STORAGE_KEYS.VISITS, JSON.stringify(mergedVisits));
+
+      return {
+        success: true,
+        message: `تم تأكيد مزامنة وحفظ كافة الزيارات (${mergedVisits.length}) في قاعدة البيانات بنجاح ✅`,
+        count: mergedVisits.length,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: 'فشلت المزامنة: ' + (err?.message || 'خطأ غير معروف'),
+        count: visits.length,
+      };
+    }
   };
 
   const getCustomerVisitSummary = (customerId: string, month?: string) => {

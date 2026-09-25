@@ -1939,7 +1939,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
         detectedDuePeriodLabel = h.trim();
       }
     }
-    // 19. Check Total Overdue (اجمالي المتأخرات) - CRITICAL: User specified this is the overdue shown to rep on order!
+    // 19. Check Total Overdue & Due (اجمالي المتأخرات / إجمالي المستحقات / المستحقات الواجبة)
     else if (
       norm === 'اجماليالمتاخرات' ||
       norm === 'اجماليمتاخرات' ||
@@ -1948,7 +1948,24 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       (norm.includes('اجمالي') && norm.includes('متاخر')) ||
       norm === 'المتاخرات' ||
       norm === 'متاخرات' ||
-      norm.includes('totaloverdue')
+      norm === 'المستحقات' ||
+      norm === 'مستحقات' ||
+      norm === 'المستحق' ||
+      norm === 'مستحق' ||
+      norm.includes('اجماليالمستحق') ||
+      norm.includes('اجماليالمستحقات') ||
+      norm.includes('المستحقاتالواجبه') ||
+      norm.includes('المستحقاتالواجبة') ||
+      norm.includes('المستحقالسداد') ||
+      norm.includes('واجبةالسداد') ||
+      norm.includes('واجبةالسداد') ||
+      norm.includes('واجبسداد') ||
+      norm.includes('واجباتالسداد') ||
+      norm.includes('مستحقواجب') ||
+      norm.includes('totaloverdue') ||
+      norm.includes('overdue') ||
+      norm === 'dues' ||
+      norm === 'due'
     ) {
       if (colMap.totalOverdue === -1) colMap.totalOverdue = idx;
       if (colMap.totalOverdueAndDue === -1) colMap.totalOverdueAndDue = idx;
@@ -2392,11 +2409,14 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     const finalCreditLimit = parsedCredit !== undefined ? parsedCredit : 0;
 
     // Overdue balance calculation: User noted: "اجمالي المتأخرات دي المبالغ المستحقة الي بتظهر للمندوب عند طلب طلبية"
+    const hasExplicitOverdueCol = colMap.totalOverdue !== -1 || colMap.totalOverdueAndDue !== -1 || colMap.dueUntilPeriod !== -1;
     const finalTotalOverdue = parsedTotalOverdue !== undefined
       ? parsedTotalOverdue
       : (parsedTotalOverdueAndDue !== undefined
           ? parsedTotalOverdueAndDue
-          : (parsedBalance !== undefined ? parsedBalance : 0));
+          : (parsedDueUntilPeriod !== undefined
+              ? parsedDueUntilPeriod
+              : (hasExplicitOverdueCol ? 0 : (parsedBalance !== undefined ? parsedBalance : 0))));
 
     // Current balance / debt
     const finalBalance = parsedBalance !== undefined

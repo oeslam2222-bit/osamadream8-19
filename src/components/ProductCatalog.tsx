@@ -1151,7 +1151,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   <ProductImage
                     product={product}
                     cloudinaryConfig={cloudinaryConfig}
-                    targetSize={isComfortable ? 320 : 220}
+                    targetSize={isComfortable ? 550 : 380}
                     sizeVariant="card"
                     priority={idx < 4}
                     containerClassName="w-full h-full"

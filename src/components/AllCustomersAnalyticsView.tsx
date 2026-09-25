@@ -49,7 +49,13 @@ import {
   PackageCheck,
   AlertCircle,
   RotateCcw,
-  BadgeDollarSign
+  BadgeDollarSign,
+  Scale,
+  Zap,
+  Navigation,
+  TrendingDown,
+  Store,
+  SlidersHorizontal
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -130,27 +136,31 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [selectedBranch, setSelectedBranch] = useState<string>('ALL');
   const [selectedRep, setSelectedRep] = useState<string>('ALL');
   const [selectedMonth, setSelectedMonth] = useState<number | 'ALL' | 'Q1' | 'Q2' | 'Q3' | 'Q4'>('ALL');
-  const [dealEligibilityFilter, setDealEligibilityFilter] = useState<'ALL' | 'dealt' | 'eligible' | 'ineligible'>('ALL');
-  const [sortMode, setSortMode] = useState<'highest_debt' | 'lowest_debt' | 'highest_overdue' | 'highest_sales' | 'highest_collections' | 'name_asc' | 'code_asc'>('highest_debt');
+  const [dealEligibilityFilter, setDealEligibilityFilter] = useState<string>('ALL');
+  const [dealtFilter, setDealtFilter] = useState<'ALL' | 'dealt' | 'not_dealt'>('ALL');
+  const [sortMode, setSortMode] = useState<'highest_debt' | 'lowest_debt' | 'highest_overdue' | 'highest_sales' | 'highest_collections' | 'name_asc' | 'code_asc' | 'route_asc'>('highest_debt');
   const [showRepMatrix, setShowRepMatrix] = useState<boolean>(true);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
 
-  // Advanced Filters
+  // Sheet-specific Slicers: Region/Route, Debt, Guarantees, Payment Terms, Activity Type, Client Type
   const [selectedRegion, setSelectedRegion] = useState<string>('ALL');
   const [activityFilter, setActivityFilter] = useState<'ALL' | 'active_2026' | 'inactive_2026' | 'churn_risk' | 'new_customer'>('ALL');
   const [debtFilter, setDebtFilter] = useState<'ALL' | 'highest_debt' | 'lowest_debt' | 'highest_overdue' | 'has_debt' | 'zero_debt' | 'over_limit' | 'has_overdue'>('ALL');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('ALL');
   const [orderFilter, setOrderFilter] = useState<'ALL' | 'has_order' | 'active_order' | 'no_order'>('ALL');
-  const [guaranteeFilter, setGuaranteeFilter] = useState<'ALL' | 'has_guarantee' | 'cheque' | 'promissory' | 'trust_receipt' | 'unsecured'>('ALL');
+  const [guaranteeFilter, setGuaranteeFilter] = useState<string>('ALL');
+  const [paymentTermsFilter, setPaymentTermsFilter] = useState<string>('ALL');
+  const [activityTypeFilter, setActivityTypeFilter] = useState<string>('ALL');
+  const [clientTypeFilter, setClientTypeFilter] = useState<string>('ALL');
   const [visitFilter, setVisitFilter] = useState<'ALL' | 'visited_2026' | 'not_visited'>('ALL');
 
-  // Expanded Slicer Filters (طرق الدفع، شرائح المبيعات، كفاءة التحصيل)
-  const [paymentTermsFilter, setPaymentTermsFilter] = useState<'ALL' | 'كاش' | 'على دفعات' | 'شيكات' | 'آجل'>('ALL');
+  // Expanded Slicer Filters (شرائح المبيعات، كفاءة التحصيل)
   const [salesTierFilter, setSalesTierFilter] = useState<'ALL' | 'vip_100k' | 'medium_20k_100k' | 'starter_under_20k' | 'zero_sales'>('ALL');
   const [collectionRateFilter, setCollectionRateFilter] = useState<'ALL' | 'high_80' | 'medium_30_79' | 'low_zero'>('ALL');
 
-  // Power BI Visuals Tab
-  const [activeChartTab, setActiveChartTab] = useState<'monthly' | 'branches' | 'reps' | 'matrix' | 'payment_guarantee'>('monthly');
+  // Power BI Visuals Tab (المسار، معدل السرعة، موازنة المحفظة، الفروع، المناديب، طبيعة النشاط، الضمانات، والمصفوفة)
+  const [activeChartTab, setActiveChartTab] = useState<'monthly' | 'run_rate' | 'portfolio_balance' | 'branches' | 'reps' | 'activity_client' | 'matrix' | 'payment_guarantee'>('monthly');
+  const [runRateSelectedMonth, setRunRateSelectedMonth] = useState<number>(9);
 
   // Sorting
   const [sortBy, setSortBy] = useState<'name' | 'code' | 'balance' | 'overdue' | 'creditLimit' | 'sales2026' | 'collections2026' | 'lastVisit' | 'order'>('sales2026');
@@ -160,8 +170,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(50);
 
-  // BI Charts Toggle
-  const [showCharts, setShowCharts] = useState(false);
+  // BI Charts Toggle (مفعلة افتراضياً لإظهار التحليلات كأنها Power BI)
+  const [showCharts, setShowCharts] = useState(true);
 
   // Toggle for monthly table in modal (active months vs all 12 months)
   const [showAllMonthsInModal, setShowAllMonthsInModal] = useState(false);
@@ -381,9 +391,84 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const availableRegions = useMemo(() => {
     const s = new Set<string>();
     userVisibleCustomers.forEach((c) => {
-      if (c.region) s.add(c.region);
+      const val = (c.region || c.district || c.route || '').trim();
+      if (val && val !== '-' && val !== 'غير محدد') {
+        s.add(val);
+      }
     });
     return Array.from(s).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [userVisibleCustomers]);
+
+  // Distinct Sheet Payment Terms with counts
+  const availablePaymentTerms = useMemo(() => {
+    const map = new Map<string, number>();
+    userVisibleCustomers.forEach((c) => {
+      const pt = (c.paymentTerms || '').trim();
+      if (pt && pt !== '-' && pt !== 'غير محدد') {
+        map.set(pt, (map.get(pt) || 0) + 1);
+      }
+    });
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  }, [userVisibleCustomers]);
+
+  // Distinct Sheet Guarantee Docs with counts
+  const availableGuaranteeDocs = useMemo(() => {
+    const map = new Map<string, number>();
+    userVisibleCustomers.forEach((c) => {
+      const g = (c.guaranteeDocs || '').trim();
+      if (g && g !== '-' && g !== 'غير محدد') {
+        map.set(g, (map.get(g) || 0) + 1);
+      }
+    });
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  }, [userVisibleCustomers]);
+
+  // Distinct Sheet Activity Types with counts (طبيعة النشاط)
+  const availableActivityTypes = useMemo(() => {
+    const map = new Map<string, number>();
+    userVisibleCustomers.forEach((c) => {
+      const a = (c.activityType || '').trim();
+      if (a && a !== '-' && a !== 'غير محدد') {
+        map.set(a, (map.get(a) || 0) + 1);
+      }
+    });
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  }, [userVisibleCustomers]);
+
+  // Distinct Sheet Client Types with counts (خ/ك)
+  const availableClientTypes = useMemo(() => {
+    const map = new Map<string, number>();
+    userVisibleCustomers.forEach((c) => {
+      const ct = (c.clientType || '').trim();
+      if (ct && ct !== '-' && ct !== 'غير محدد') {
+        map.set(ct, (map.get(ct) || 0) + 1);
+      }
+    });
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  }, [userVisibleCustomers]);
+
+  // Distinct Sheet Deal Eligibility with counts (قابل / غير)
+  const availableDealEligibilities = useMemo(() => {
+    const map = new Map<string, number>();
+    userVisibleCustomers.forEach((c) => {
+      const e = (c.dealEligibility || '').trim();
+      if (e && e !== '-' && e !== 'غير محدد') {
+        map.set(e, (map.get(e) || 0) + 1);
+      }
+    });
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  }, [userVisibleCustomers]);
+
+  // Distinct Sheet Dealt in 2026 status with counts (متعامل 2026)
+  const availableDealt2026 = useMemo(() => {
+    const map = new Map<string, number>();
+    userVisibleCustomers.forEach((c) => {
+      const d = (c.dealt2026 || '').trim() || (c.hasDealtIn2026 ? 'متعامل' : 'غير متعامل');
+      if (d) {
+        map.set(d, (map.get(d) || 0) + 1);
+      }
+    });
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
   }, [userVisibleCustomers]);
 
   // Distinct customer list for the customer slicer dropdown
@@ -400,6 +485,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     }
     return list.slice(0, 500); // Quick selection pool
   }, [userVisibleCustomers, selectedBranch, selectedRep]);
+
+  // Dedicated single customer selected by the Slicer for executive dossier visual
+  const selectedSlicerCustomer = useMemo(() => {
+    if (selectedCustomerId === 'ALL') return null;
+    return userVisibleCustomers.find((c) => c.id === selectedCustomerId || c.code === selectedCustomerId) || null;
+  }, [selectedCustomerId, userVisibleCustomers]);
 
   // 1.5. Precomputed Customer Metrics Map (O(N) single-pass)
   // Evaluates Active Dealing per selected month and excludes Ineligibles
@@ -421,6 +512,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       isOverLimit: boolean;
       sales2026: number;
       collections2026: number;
+      periodSales: number;
+      periodCollections: number;
       collectionRate: number;
       isExplicitIneligible: boolean;
       dealtInSelectedMonth: boolean;
@@ -429,7 +522,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
     userVisibleCustomers.forEach((c) => {
       const bal = c.currentBalance ?? c.balance ?? 0;
-      const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
+      const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? c.totalOverdue ?? c.dueUntilPeriod ?? 0;
       const limit = c.creditLimit || 0;
       const isOverLimit = limit > 0 && bal > limit;
 
@@ -452,6 +545,26 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const collections2026 = explicitCollections > 0 ? explicitCollections : monthlyColsSum;
       const collectionRate = sales2026 > 0 ? Math.round((collections2026 / sales2026) * 100) : 0;
 
+      // Period-specific sales and collections (based on selectedMonth or quarter)
+      let periodSales = sales2026;
+      let periodCollections = collections2026;
+      if (selectedMonth === 'Q1') {
+        periodSales = (Number(c.monthlySales2026?.[1]) || 0) + (Number(c.monthlySales2026?.[2]) || 0) + (Number(c.monthlySales2026?.[3]) || 0);
+        periodCollections = (Number(c.monthlyCollections2026?.[1]) || 0) + (Number(c.monthlyCollections2026?.[2]) || 0) + (Number(c.monthlyCollections2026?.[3]) || 0);
+      } else if (selectedMonth === 'Q2') {
+        periodSales = (Number(c.monthlySales2026?.[4]) || 0) + (Number(c.monthlySales2026?.[5]) || 0) + (Number(c.monthlySales2026?.[6]) || 0);
+        periodCollections = (Number(c.monthlyCollections2026?.[4]) || 0) + (Number(c.monthlyCollections2026?.[5]) || 0) + (Number(c.monthlyCollections2026?.[6]) || 0);
+      } else if (selectedMonth === 'Q3') {
+        periodSales = (Number(c.monthlySales2026?.[7]) || 0) + (Number(c.monthlySales2026?.[8]) || 0) + (Number(c.monthlySales2026?.[9]) || 0);
+        periodCollections = (Number(c.monthlyCollections2026?.[7]) || 0) + (Number(c.monthlyCollections2026?.[8]) || 0) + (Number(c.monthlyCollections2026?.[9]) || 0);
+      } else if (selectedMonth === 'Q4') {
+        periodSales = (Number(c.monthlySales2026?.[10]) || 0) + (Number(c.monthlySales2026?.[11]) || 0) + (Number(c.monthlySales2026?.[12]) || 0);
+        periodCollections = (Number(c.monthlyCollections2026?.[10]) || 0) + (Number(c.monthlyCollections2026?.[11]) || 0) + (Number(c.monthlyCollections2026?.[12]) || 0);
+      } else if (typeof selectedMonth === 'number') {
+        periodSales = Number(c.monthlySales2026?.[selectedMonth]) || 0;
+        periodCollections = Number(c.monthlyCollections2026?.[selectedMonth]) || 0;
+      }
+
       // Ineligibility logic (غير قابل للتعامل / موقوف / ممتنع / مستبعد)
       const elig = normalizeArabicText(c.dealEligibility || '');
       const st = normalizeArabicText(c.status2026 || '');
@@ -469,21 +582,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       let dealtInSelectedMonth = false;
       if (selectedMonth === 'ALL') {
         dealtInSelectedMonth = Boolean(c.hasDealtIn2026 || sales2026 > 0 || (c.monthlySales2026 && Object.values(c.monthlySales2026).some((v) => Number(v) > 0)));
-      } else if (selectedMonth === 'Q1') {
-        const q1Sales = (Number(c.monthlySales2026?.[1]) || 0) + (Number(c.monthlySales2026?.[2]) || 0) + (Number(c.monthlySales2026?.[3]) || 0);
-        dealtInSelectedMonth = q1Sales > 0;
-      } else if (selectedMonth === 'Q2') {
-        const q2Sales = (Number(c.monthlySales2026?.[4]) || 0) + (Number(c.monthlySales2026?.[5]) || 0) + (Number(c.monthlySales2026?.[6]) || 0);
-        dealtInSelectedMonth = q2Sales > 0;
-      } else if (selectedMonth === 'Q3') {
-        const q3Sales = (Number(c.monthlySales2026?.[7]) || 0) + (Number(c.monthlySales2026?.[8]) || 0) + (Number(c.monthlySales2026?.[9]) || 0);
-        dealtInSelectedMonth = q3Sales > 0;
-      } else if (selectedMonth === 'Q4') {
-        const q4Sales = (Number(c.monthlySales2026?.[10]) || 0) + (Number(c.monthlySales2026?.[11]) || 0) + (Number(c.monthlySales2026?.[12]) || 0);
-        dealtInSelectedMonth = q4Sales > 0;
       } else {
-        const mSale = Number(c.monthlySales2026?.[selectedMonth]) || 0;
-        dealtInSelectedMonth = mSale > 0;
+        dealtInSelectedMonth = periodSales > 0;
       }
 
       map.set(c.id, {
@@ -503,6 +603,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         isOverLimit,
         sales2026,
         collections2026,
+        periodSales,
+        periodCollections,
         collectionRate,
         isExplicitIneligible,
         dealtInSelectedMonth,
@@ -535,7 +637,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       list = list.filter((c) => c.id === selectedCustomerId || c.code === selectedCustomerId);
     }
 
-    // Deal Eligibility Slicer (العملاء المتعامل والقابل والغير قابل)
+    // Deal Eligibility Slicer (العملاء المتعامل والقابل والغير قابل من الشيت)
     if (dealEligibilityFilter !== 'ALL') {
       list = list.filter((c) => {
         const m = customerMetricsMap.get(c.id);
@@ -543,13 +645,29 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         if (dealEligibilityFilter === 'ineligible') return m.isExplicitIneligible;
         if (dealEligibilityFilter === 'eligible') return !m.isExplicitIneligible;
         if (dealEligibilityFilter === 'dealt') return !m.isExplicitIneligible && m.dealtInSelectedMonth;
+        const e = (c.dealEligibility || '').trim();
+        return e === dealEligibilityFilter || e.includes(dealEligibilityFilter);
+      });
+    }
+
+    // Dealt 2026 Activity Slicer (متعامل 2026 من الشيت)
+    if (dealtFilter !== 'ALL') {
+      list = list.filter((c) => {
+        const m = customerMetricsMap.get(c.id);
+        const hasDealt = Boolean(c.hasDealtIn2026 || (m && m.sales2026 > 0) || (c.dealt2026 && (c.dealt2026.includes('متعامل') || c.dealt2026.includes('نعم'))));
+        if (dealtFilter === 'dealt') return hasDealt;
+        if (dealtFilter === 'not_dealt') return !hasDealt;
         return true;
       });
     }
 
-    // Region filter
+    // Region / Route / District filter (الخط / المركز / المنطقة من الشيت)
     if (selectedRegion !== 'ALL') {
-      list = list.filter((c) => c.region === selectedRegion);
+      const q = selectedRegion.toLowerCase();
+      list = list.filter((c) => {
+        const r = `${c.region || ''} ${c.district || ''} ${c.route || ''} ${c.address || ''}`.toLowerCase();
+        return r.includes(q);
+      });
     }
 
     // Activity 2026 filter
@@ -619,7 +737,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       });
     }
 
-    // Guarantee Documents filter
+    // Guarantee Documents filter (اوراق الضمان من الشيت)
     if (guaranteeFilter !== 'ALL') {
       list = list.filter((c) => {
         const g = (c.guaranteeDocs || '').toLowerCase();
@@ -632,19 +750,35 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         if (guaranteeFilter === 'promissory') return g.includes('كمبيال');
         if (guaranteeFilter === 'trust_receipt') return g.includes('أمانة') || g.includes('امانة');
         if (guaranteeFilter === 'unsecured') return !isSigned;
-        return true;
+        return (c.guaranteeDocs || '').trim() === guaranteeFilter || g.includes(guaranteeFilter.toLowerCase());
       });
     }
 
-    // Payment Terms filter
+    // Payment Terms filter (طريقة الدفع من الشيت)
     if (paymentTermsFilter !== 'ALL') {
       list = list.filter((c) => {
         const terms = (c.paymentTerms || '').toLowerCase();
-        if (paymentTermsFilter === 'كاش') return terms.includes('كاش') || terms.includes('نقدي') || terms.includes('فوري');
+        if (paymentTermsFilter === 'كاش' || paymentTermsFilter === 'نقدي') return terms.includes('كاش') || terms.includes('نقدي') || terms.includes('فوري');
         if (paymentTermsFilter === 'على دفعات') return terms.includes('دفع') || terms.includes('قسط') || terms.includes('أقساط');
         if (paymentTermsFilter === 'شيكات') return terms.includes('شيك');
         if (paymentTermsFilter === 'آجل') return terms.includes('آجل') || terms.includes('اجل');
-        return true;
+        return (c.paymentTerms || '').trim() === paymentTermsFilter || terms.includes(paymentTermsFilter.toLowerCase());
+      });
+    }
+
+    // Activity Type filter (طبيعة النشاط من الشيت)
+    if (activityTypeFilter !== 'ALL') {
+      list = list.filter((c) => {
+        const act = (c.activityType || '').trim();
+        return act === activityTypeFilter || act.includes(activityTypeFilter);
+      });
+    }
+
+    // Client Type filter (تصنيف خ/ك من الشيت)
+    if (clientTypeFilter !== 'ALL') {
+      list = list.filter((c) => {
+        const cl = (c.clientType || '').trim();
+        return cl === clientTypeFilter || cl.includes(clientTypeFilter);
       });
     }
 
@@ -713,6 +847,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       if (sortMode === 'highest_collections') return mB.collections2026 - mA.collections2026;
       if (sortMode === 'name_asc') return (a.name || '').localeCompare(b.name || '', 'ar');
       if (sortMode === 'code_asc') return (a.code || '').localeCompare(b.code || '');
+      if (sortMode === 'route_asc') {
+        const locA = (a.route || a.district || a.region || a.address || '').trim();
+        const locB = (b.route || b.district || b.region || b.address || '').trim();
+        return locA.localeCompare(locB, 'ar');
+      }
 
       if (sortBy === 'sales2026') {
         return sortOrder === 'asc' ? mA.sales2026 - mB.sales2026 : mB.sales2026 - mA.sales2026;
@@ -779,8 +918,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const kpiStats = useMemo(() => {
     let totalSales2025 = 0;
     let totalSales2026 = 0;
+    let totalPeriodSales = 0;
     let totalCollections2025 = 0;
     let totalCollections2026 = 0;
+    let totalPeriodCollections = 0;
     let totalDebt = 0;
     let totalOverdue = 0;
     let totalCreditLimit = 0;
@@ -809,17 +950,21 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const m = customerMetricsMap.get(c.id);
       const s25 = c.sales2025 || 0;
       const s26 = m ? m.sales2026 : (c.sales2026 || 0);
+      const pSales = m ? m.periodSales : s26;
       const c25 = c.collections2025 || 0;
       const c26 = m ? m.collections2026 : (c.collections2026 || 0);
+      const pCols = m ? m.periodCollections : c26;
       const bal = m ? m.balance : (c.currentBalance ?? c.balance ?? 0);
-      const overdue = m ? m.overdue : (c.totalOverdueAndDue ?? c.overdueBalance ?? 0);
+      const overdue = m ? m.overdue : (c.totalOverdueAndDue ?? c.overdueBalance ?? c.totalOverdue ?? c.dueUntilPeriod ?? 0);
       const cLimit = m ? m.creditLimit : (c.creditLimit || 0);
       const g = (c.guaranteeDocs || '').toLowerCase();
 
       totalSales2025 += s25;
       totalSales2026 += s26;
+      totalPeriodSales += pSales;
       totalCollections2025 += c25;
       totalCollections2026 += c26;
+      totalPeriodCollections += pCols;
       totalDebt += bal;
       totalOverdue += overdue;
       totalCreditLimit += cLimit;
@@ -864,6 +1009,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
     const salesGrowth = totalSales2025 > 0 ? Math.round(((totalSales2026 - totalSales2025) / totalSales2025) * 100) : (totalSales2026 > 0 ? 100 : 0);
     const collectionRate = totalSales2026 > 0 ? Math.round((totalCollections2026 / totalSales2026) * 100) : 0;
+    const periodCollectionRate = totalPeriodSales > 0 ? Math.round((totalPeriodCollections / totalPeriodSales) * 100) : 0;
     const activeRate = filteredCustomers.length > 0 ? Math.round((active2026Count / filteredCustomers.length) * 100) : 0;
     const coverageRate = eligibleCount > 0 ? Math.round((dealtCount / eligibleCount) * 100) : 0;
 
@@ -884,10 +1030,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       churnRiskCount,
       totalSales2025,
       totalSales2026,
+      totalPeriodSales,
       salesGrowth,
       totalCollections2025,
       totalCollections2026,
+      totalPeriodCollections,
       collectionRate,
+      periodCollectionRate,
       totalDebt,
       totalOverdue,
       totalCreditLimit,
@@ -1052,6 +1201,244 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     ].filter((d) => d.value > 0);
   }, [filteredCustomers]);
 
+  // Activity Type & Client Type Analytics Data (طبيعة النشاط وتصنيف خ/ك من الشيت)
+  const activityClientAnalyticsData = useMemo(() => {
+    const actMap = new Map<string, { activity: string; count: number; sales: number; debt: number; collections: number }>();
+    const clientMap = new Map<string, { clientType: string; count: number; sales: number; debt: number; collections: number }>();
+
+    filteredCustomers.forEach((c) => {
+      const act = (c.activityType || '').trim() || 'عام / غير محدد';
+      const cl = (c.clientType || '').trim() || 'عادي / خط';
+      const bal = c.currentBalance ?? c.balance ?? 0;
+      const sales = c.sales2026 || c.totalMonthlySales || 0;
+      const cols = c.collections2026 || c.totalMonthlyCollections || 0;
+
+      const actItem = actMap.get(act) || { activity: act, count: 0, sales: 0, debt: 0, collections: 0 };
+      actItem.count++;
+      actItem.sales += sales;
+      actItem.debt += bal;
+      actItem.collections += cols;
+      actMap.set(act, actItem);
+
+      const clItem = clientMap.get(cl) || { clientType: cl, count: 0, sales: 0, debt: 0, collections: 0 };
+      clItem.count++;
+      clItem.sales += sales;
+      clItem.debt += bal;
+      clItem.collections += cols;
+      clientMap.set(cl, clItem);
+    });
+
+    const colors = ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#64748b'];
+
+    return {
+      activities: Array.from(actMap.values()).sort((a, b) => b.sales - a.sales),
+      clientTypes: Array.from(clientMap.values()).sort((a, b) => b.sales - a.sales).map((item, idx) => ({
+        ...item,
+        name: item.clientType,
+        value: item.count,
+        color: colors[idx % colors.length]
+      })),
+    };
+  }, [filteredCustomers]);
+
+  // 3.6. Run-Rate Analytics & Velocity (مقارنة الشهر الحالي بالسابق ورصد التراجع المبكر)
+  const runRateAnalyticsData = useMemo(() => {
+    const targetMonth = runRateSelectedMonth || 9;
+    const prevMonth = targetMonth > 1 ? targetMonth - 1 : 12;
+
+    const repMap = new Map<string, {
+      repName: string;
+      branchName: string;
+      currSales: number;
+      prevSales: number;
+      currCols: number;
+      prevCols: number;
+      customersCount: number;
+      activeInCurrMonth: number;
+    }>();
+
+    filteredCustomers.forEach((c) => {
+      const rep = c.salesRepName || c.repName || 'غير محدد';
+      if (!rep || rep === 'غير محدد') return;
+      const branch = c.branchName || 'الفرع الرئيسي';
+      const key = `${branch}:::${rep}`;
+
+      let item = repMap.get(key);
+      if (!item) {
+        item = {
+          repName: rep,
+          branchName: branch,
+          currSales: 0,
+          prevSales: 0,
+          currCols: 0,
+          prevCols: 0,
+          customersCount: 0,
+          activeInCurrMonth: 0,
+        };
+        repMap.set(key, item);
+      }
+
+      const sCurr = Number(c.monthlySales2026?.[targetMonth]) || 0;
+      const sPrev = Number(c.monthlySales2026?.[prevMonth]) || 0;
+      const cCurr = Number(c.monthlyCollections2026?.[targetMonth]) || 0;
+      const cPrev = Number(c.monthlyCollections2026?.[prevMonth]) || 0;
+
+      item.currSales += sCurr;
+      item.prevSales += sPrev;
+      item.currCols += cCurr;
+      item.prevCols += cPrev;
+      item.customersCount += 1;
+      if (sCurr > 0) item.activeInCurrMonth += 1;
+    });
+
+    const list = Array.from(repMap.values()).map((r) => {
+      const salesDiff = r.currSales - r.prevSales;
+      const growthRate = r.prevSales > 0
+        ? Math.round((salesDiff / r.prevSales) * 100)
+        : (r.currSales > 0 ? 100 : 0);
+      
+      let paceStatus: 'accelerating' | 'stable' | 'early_warning' = 'stable';
+      if (growthRate >= 10) paceStatus = 'accelerating';
+      else if (growthRate <= -15) paceStatus = 'early_warning';
+
+      return {
+        ...r,
+        salesDiff,
+        growthRate,
+        paceStatus,
+      };
+    }).sort((a, b) => b.currSales - a.currSales);
+
+    const totalCurr = list.reduce((acc, r) => acc + r.currSales, 0);
+    const totalPrev = list.reduce((acc, r) => acc + r.prevSales, 0);
+    const overallDiff = totalCurr - totalPrev;
+    const overallGrowth = totalPrev > 0 ? Math.round((overallDiff / totalPrev) * 100) : (totalCurr > 0 ? 100 : 0);
+    const acceleratingCount = list.filter((r) => r.paceStatus === 'accelerating').length;
+    const warningCount = list.filter((r) => r.paceStatus === 'early_warning').length;
+
+    return {
+      targetMonth,
+      prevMonth,
+      targetMonthName: MONTH_NAMES_AR[targetMonth - 1] || `شهر ${targetMonth}`,
+      prevMonthName: MONTH_NAMES_AR[prevMonth - 1] || `شهر ${prevMonth}`,
+      list,
+      totalCurr,
+      totalPrev,
+      overallGrowth,
+      acceleratingCount,
+      warningCount,
+    };
+  }, [filteredCustomers, runRateSelectedMonth]);
+
+  // 3.7. Portfolio Balancing & Route Planning (موازنة محفظة كبار العملاء والمديونيات بين المناديب وتنظيم خطوط السير)
+  const portfolioBalanceData = useMemo(() => {
+    const repMap = new Map<string, {
+      repName: string;
+      branchName: string;
+      totalCustomers: number;
+      vipCustomers: number;
+      totalDebt: number;
+      totalSales2026: number;
+      totalOverdue: number;
+    }>();
+
+    const routeMap = new Map<string, {
+      route: string;
+      branchName: string;
+      customersCount: number;
+      repsSet: Set<string>;
+      totalDebt: number;
+      totalSales: number;
+    }>();
+
+    let branchTotalDebt = 0;
+    let branchTotalCustomers = 0;
+
+    filteredCustomers.forEach((c) => {
+      const rep = c.salesRepName || c.repName || 'غير محدد';
+      const branch = c.branchName || 'الفرع الرئيسي';
+      const bal = c.currentBalance ?? c.balance ?? 0;
+      const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
+      const sales = c.sales2026 ?? 0;
+      const isVip = bal > 40000 || sales > 50000 || (c.creditLimit || 0) > 50000;
+
+      branchTotalDebt += bal;
+      branchTotalCustomers += 1;
+
+      // Rep aggregation
+      const repKey = `${branch}:::${rep}`;
+      let rItem = repMap.get(repKey);
+      if (!rItem) {
+        rItem = {
+          repName: rep,
+          branchName: branch,
+          totalCustomers: 0,
+          vipCustomers: 0,
+          totalDebt: 0,
+          totalSales2026: 0,
+          totalOverdue: 0,
+        };
+        repMap.set(repKey, rItem);
+      }
+      rItem.totalCustomers += 1;
+      if (isVip) rItem.vipCustomers += 1;
+      rItem.totalDebt += bal;
+      rItem.totalSales2026 += sales;
+      rItem.totalOverdue += overdue;
+
+      // Route / District aggregation
+      const rawRoute = (c.route || c.district || c.region || c.address?.split(/[\s,،-]+/)?.[0] || 'خط عام').trim();
+      const routeKey = `${branch}:::${rawRoute}`;
+      let routeItem = routeMap.get(routeKey);
+      if (!routeItem) {
+        routeItem = {
+          route: rawRoute,
+          branchName: branch,
+          customersCount: 0,
+          repsSet: new Set<string>(),
+          totalDebt: 0,
+          totalSales: 0,
+        };
+        routeMap.set(routeKey, routeItem);
+      }
+      routeItem.customersCount += 1;
+      if (rep && rep !== 'غير محدد') routeItem.repsSet.add(rep);
+      routeItem.totalDebt += bal;
+      routeItem.totalSales += sales;
+    });
+
+    const reps = Array.from(repMap.values()).map((r) => {
+      const debtShare = branchTotalDebt > 0 ? Math.round((r.totalDebt / branchTotalDebt) * 100) : 0;
+      const customerShare = branchTotalCustomers > 0 ? Math.round((r.totalCustomers / branchTotalCustomers) * 100) : 0;
+      
+      let concentrationRisk: 'high' | 'medium' | 'balanced' = 'balanced';
+      if (debtShare >= 40 || customerShare >= 40) concentrationRisk = 'high';
+      else if (debtShare >= 25 || customerShare >= 25) concentrationRisk = 'medium';
+
+      return {
+        ...r,
+        debtShare,
+        customerShare,
+        concentrationRisk,
+      };
+    }).sort((a, b) => b.totalDebt - a.totalDebt);
+
+    const routes = Array.from(routeMap.values()).map((rt) => ({
+      ...rt,
+      repsList: Array.from(rt.repsSet).join('، '),
+    })).sort((a, b) => b.customersCount - a.customersCount);
+
+    const highConcentrationCount = reps.filter((r) => r.concentrationRisk === 'high').length;
+
+    return {
+      reps,
+      routes,
+      branchTotalDebt,
+      branchTotalCustomers,
+      highConcentrationCount,
+    };
+  }, [filteredCustomers]);
+
   // Handle Log Visit Action
   const handleSaveVisit = () => {
     if (!selectedCustomer) return;
@@ -1089,6 +1476,58 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     setIsLoggingVisit(false);
     setVisitNotes('');
     setVisitCollected('');
+  };
+
+  // Power BI Active Slicers Count & Reset Handler
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedBranch !== 'ALL') count++;
+    if (selectedRep !== 'ALL') count++;
+    if (selectedCustomerId !== 'ALL') count++;
+    if (selectedRegion !== 'ALL') count++;
+    if (selectedMonth !== 'ALL') count++;
+    if (dealEligibilityFilter !== 'ALL') count++;
+    if (dealtFilter !== 'ALL') count++;
+    if (paymentTermsFilter !== 'ALL') count++;
+    if (guaranteeFilter !== 'ALL') count++;
+    if (activityTypeFilter !== 'ALL') count++;
+    if (clientTypeFilter !== 'ALL') count++;
+    if (debtFilter !== 'ALL') count++;
+    if (activityFilter !== 'ALL') count++;
+    if (salesTierFilter !== 'ALL') count++;
+    if (collectionRateFilter !== 'ALL') count++;
+    if (orderFilter !== 'ALL') count++;
+    if (visitFilter !== 'ALL') count++;
+    if (searchQuery.trim()) count++;
+    return count;
+  }, [
+    selectedBranch, selectedRep, selectedCustomerId, selectedRegion,
+    selectedMonth, dealEligibilityFilter, dealtFilter, paymentTermsFilter,
+    guaranteeFilter, activityTypeFilter, clientTypeFilter, debtFilter,
+    activityFilter, salesTierFilter, collectionRateFilter, orderFilter,
+    visitFilter, searchQuery
+  ]);
+
+  const handleResetAllSlicers = () => {
+    setSearchQuery('');
+    setSelectedBranch('ALL');
+    setSelectedRep('ALL');
+    setSelectedCustomerId('ALL');
+    setSelectedRegion('ALL');
+    setSelectedMonth('ALL');
+    setDealEligibilityFilter('ALL');
+    setDealtFilter('ALL');
+    setPaymentTermsFilter('ALL');
+    setGuaranteeFilter('ALL');
+    setActivityTypeFilter('ALL');
+    setClientTypeFilter('ALL');
+    setDebtFilter('ALL');
+    setSalesTierFilter('ALL');
+    setCollectionRateFilter('ALL');
+    setActivityFilter('ALL');
+    setOrderFilter('ALL');
+    setVisitFilter('ALL');
+    setSortMode('highest_debt');
   };
 
   // Google Sheets Live Sync
@@ -1336,18 +1775,26 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-sky-300 flex items-center gap-1.5">
               <TrendingUp className="w-4 h-4 text-sky-400" />
-              <span>مبيعات وتحصيلات 2026</span>
+              <span>
+                {selectedMonth === 'ALL'
+                  ? 'مبيعات وتحصيلات 2026'
+                  : `مبيعات وتحصيلات ${selectedMonth === 'Q1' ? 'الربع الأول Q1' : selectedMonth === 'Q2' ? 'الربع الثاني Q2' : selectedMonth === 'Q3' ? 'الربع الثالث Q3' : selectedMonth === 'Q4' ? 'الربع الرابع Q4' : `شهر ${selectedMonth} (${MONTH_NAMES_AR[Number(selectedMonth) - 1]})`}`}
+              </span>
             </span>
             <span className="text-[10px] bg-sky-500/20 text-sky-200 px-2 py-0.5 rounded-full font-bold border border-sky-400/30">
-              كفاءة {kpiStats.collectionRate}%
+              كفاءة {selectedMonth === 'ALL' ? kpiStats.collectionRate : kpiStats.periodCollectionRate}%
             </span>
           </div>
           <div className="text-xl sm:text-2xl font-black text-white mt-2 tracking-tight truncate" title={isPrivacyMode ? 'مخفي' : undefined}>
-            {formatMoney(kpiStats.totalSales2026)}
+            {formatMoney(selectedMonth === 'ALL' ? kpiStats.totalSales2026 : kpiStats.totalPeriodSales)}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between">
-            <span>المحصل: <strong className="text-emerald-400 font-mono">{formatMoney(kpiStats.totalCollections2026)}</strong></span>
-            <span className="text-sky-400 font-bold">{kpiStats.salesGrowth >= 0 ? `+${kpiStats.salesGrowth}% نمو` : `${kpiStats.salesGrowth}%`}</span>
+          <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between flex-wrap gap-1">
+            <span>المحصل: <strong className="text-emerald-400 font-mono">{formatMoney(selectedMonth === 'ALL' ? kpiStats.totalCollections2026 : kpiStats.totalPeriodCollections)}</strong></span>
+            {selectedMonth === 'ALL' ? (
+              <span className="text-sky-400 font-bold">{kpiStats.salesGrowth >= 0 ? `+${kpiStats.salesGrowth}% نمو` : `${kpiStats.salesGrowth}%`}</span>
+            ) : (
+              <span className="text-slate-400 text-[10px]">المجمع 2026: {formatMoney(kpiStats.totalSales2026)}</span>
+            )}
           </div>
         </div>
       </div>
@@ -1371,37 +1818,43 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         {/* 2026 Sales & Growth */}
         <div className="bg-white rounded-2xl p-3 border border-slate-200 border-t-4 border-t-[#0078d4] shadow-xs hover:shadow-md transition">
           <div className="text-[11px] font-bold text-[#0078d4] flex items-center justify-between">
-            <span>مبيعات 2026</span>
+            <span>{selectedMonth === 'ALL' ? 'مبيعات 2026' : `مبيعات ${selectedMonth}`}</span>
             <TrendingUp className="w-3.5 h-3.5 text-[#0078d4]" />
           </div>
           <div className="text-base sm:text-lg font-black text-slate-900 mt-1 truncate" title={isPrivacyMode ? 'مخفي' : undefined}>
-            {formatMoney(kpiStats.totalSales2026)}
+            {formatMoney(selectedMonth === 'ALL' ? kpiStats.totalSales2026 : kpiStats.totalPeriodSales)}
           </div>
           <div className="text-[10px] text-slate-600 font-bold mt-0.5 flex items-center gap-0.5">
-            {kpiStats.salesGrowth >= 0 ? (
-              <span className="text-emerald-600 flex items-center font-black">
-                <ArrowUpRight className="w-3 h-3" /> +{kpiStats.salesGrowth}%
-              </span>
+            {selectedMonth === 'ALL' ? (
+              <>
+                {kpiStats.salesGrowth >= 0 ? (
+                  <span className="text-emerald-600 flex items-center font-black">
+                    <ArrowUpRight className="w-3 h-3" /> +{kpiStats.salesGrowth}%
+                  </span>
+                ) : (
+                  <span className="text-rose-600 flex items-center font-black">
+                    <ArrowDownRight className="w-3 h-3" /> {kpiStats.salesGrowth}%
+                  </span>
+                )}
+                <span className="text-slate-400">عن 2025</span>
+              </>
             ) : (
-              <span className="text-rose-600 flex items-center font-black">
-                <ArrowDownRight className="w-3 h-3" /> {kpiStats.salesGrowth}%
-              </span>
+              <span className="text-slate-500 font-normal">المجمع: {formatMoney(kpiStats.totalSales2026)}</span>
             )}
-            <span className="text-slate-400">عن 2025</span>
           </div>
         </div>
 
         {/* 2026 Collections */}
         <div className="bg-white rounded-2xl p-3 border border-slate-200 border-t-4 border-t-[#107c41] shadow-xs hover:shadow-md transition">
           <div className="text-[11px] font-bold text-[#107c41] flex items-center justify-between">
-            <span>تحصيلات 2026</span>
+            <span>{selectedMonth === 'ALL' ? 'تحصيلات 2026' : `تحصيلات ${selectedMonth}`}</span>
             <DollarSign className="w-3.5 h-3.5 text-[#107c41]" />
           </div>
           <div className="text-base sm:text-lg font-black text-slate-900 mt-1 truncate" title={isPrivacyMode ? 'مخفي' : undefined}>
-            {formatMoney(kpiStats.totalCollections2026)}
+            {formatMoney(selectedMonth === 'ALL' ? kpiStats.totalCollections2026 : kpiStats.totalPeriodCollections)}
           </div>
           <div className="text-[10px] text-[#107c41] font-extrabold mt-0.5">
-            {kpiStats.collectionRate}% نسبة التحصيل
+            {selectedMonth === 'ALL' ? kpiStats.collectionRate : kpiStats.periodCollectionRate}% نسبة التحصيل
           </div>
         </div>
 
@@ -1491,7 +1944,31 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                📅 المسار الشهري
+                📅 المسار السنوي
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveChartTab('run_rate')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                  activeChartTab === 'run_rate'
+                    ? 'bg-white text-blue-900 shadow-xs ring-1 ring-blue-300'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5 text-blue-600" />
+                <span>📈 معدل السرعة والمسار (Run-rate)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveChartTab('portfolio_balance')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                  activeChartTab === 'portfolio_balance'
+                    ? 'bg-white text-purple-900 shadow-xs ring-1 ring-purple-300'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Scale className="w-3.5 h-3.5 text-purple-600" />
+                <span>⚖️ موازنة المحفظة وخطوط السير</span>
               </button>
               {isAdminOrDev && (
                 <button
@@ -1528,19 +2005,30 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               >
                 📊 مصفوفة الفروع والمناديب
               </button>
-              {isAdminOrDev && (
-                <button
-                  type="button"
-                  onClick={() => setActiveChartTab('payment_guarantee')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap ${
-                    activeChartTab === 'payment_guarantee'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  💳 طرق الدفع والضمانات
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setActiveChartTab('activity_client')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                  activeChartTab === 'activity_client'
+                    ? 'bg-white text-emerald-900 shadow-xs ring-1 ring-emerald-300'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Store className="w-3.5 h-3.5 text-emerald-600" />
+                <span>🏬 طبيعة النشاط وتصنيف خ/ك</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveChartTab('payment_guarantee')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                  activeChartTab === 'payment_guarantee'
+                    ? 'bg-white text-slate-900 shadow-xs ring-1 ring-amber-300'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <CreditCard className="w-3.5 h-3.5 text-amber-600" />
+                <span>💳 طرق الدفع والضمانات</span>
+              </button>
             </div>
           </div>
 
@@ -1581,7 +2069,18 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </div>
               <div className="h-64 sm:h-72 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={branchAnalyticsData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+                  <BarChart
+                    data={branchAnalyticsData}
+                    onClick={(data: any) => {
+                      if (data && data.activeLabel) {
+                        setSelectedBranch(data.activeLabel);
+                        setSelectedRep('ALL');
+                        setSelectedCustomerId('ALL');
+                      }
+                    }}
+                    className="cursor-pointer"
+                    margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
                     <XAxis dataKey="branch" tick={{ fontSize: 11, fill: '#64748B' }} />
                     <YAxis
@@ -1610,7 +2109,18 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </div>
               <div className="h-64 sm:h-72 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={topRepsAnalyticsData} layout="vertical" margin={{ top: 10, right: 20, left: 30, bottom: 10 }}>
+                  <BarChart
+                    data={topRepsAnalyticsData}
+                    layout="vertical"
+                    onClick={(data: any) => {
+                      if (data && data.activeLabel) {
+                        setSelectedRep(data.activeLabel);
+                        setSelectedCustomerId('ALL');
+                      }
+                    }}
+                    className="cursor-pointer"
+                    margin={{ top: 10, right: 20, left: 30, bottom: 10 }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F1F5F9" />
                     <XAxis
                       type="number"
@@ -1665,11 +2175,27 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {repAndBranchSummary.map((row, rIdx) => (
                       <tr key={`${row.branchName}-${row.repName}-${rIdx}`} className="hover:bg-slate-50/80 transition">
-                        <td className="p-2.5 font-black text-slate-800 whitespace-nowrap">
-                          {row.branchName}
+                        <td
+                          className="p-2.5 font-black text-blue-700 hover:text-blue-900 hover:underline cursor-pointer whitespace-nowrap"
+                          onClick={() => {
+                            setSelectedBranch(row.branchName);
+                            setSelectedRep('ALL');
+                            setSelectedCustomerId('ALL');
+                          }}
+                          title="تصفية السلايسر بهذا الفرع 🔍"
+                        >
+                          {row.branchName} <span className="text-[10px] text-blue-500 font-normal">🔍</span>
                         </td>
-                        <td className="p-2.5 font-bold text-slate-700 whitespace-nowrap">
-                          {row.repName}
+                        <td
+                          className="p-2.5 font-bold text-indigo-700 hover:text-indigo-900 hover:underline cursor-pointer whitespace-nowrap"
+                          onClick={() => {
+                            setSelectedBranch(row.branchName);
+                            setSelectedRep(row.repName);
+                            setSelectedCustomerId('ALL');
+                          }}
+                          title="تصفية السلايسر بهذا المندوب 🔍"
+                        >
+                          {row.repName} <span className="text-[10px] text-indigo-500 font-normal">🔍</span>
                         </td>
                         <td className="p-2.5 text-center font-bold text-slate-900">
                           {row.totalCustomers.toLocaleString()}
@@ -1772,10 +2298,499 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </div>
             </div>
           )}
+
+          {/* Tab: Activity Type & Client Type Classification Breakdown (طبيعة النشاط وتصنيف خ/ك من الشيت) */}
+          {activeChartTab === 'activity_client' && (
+            <div className="space-y-4">
+              <div className="bg-slate-900 text-white p-3.5 rounded-xl border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="p-1 rounded-md bg-emerald-500/20 text-emerald-400 font-bold text-xs border border-emerald-500/30 flex items-center gap-1">
+                      <Store className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>تحليل طبيعة النشاط وتصنيف خ/ك (أعمدة الشيت)</span>
+                    </span>
+                    <span className="text-xs text-slate-300 font-bold">
+                      {activityClientAnalyticsData.activities.length} أنشطة تجارية مفحوصة
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    توزيع المبيعات والمديونيات وأعداد العملاء حسب طبيعة النشاط (سوبر ماركت، جملة، قطاعي، كشك، معارض) وتصنيف (كبار عملاء، خاص، خط).
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Visual 1: Sales & Debt by Activity Type */}
+                <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-black text-slate-800 flex items-center gap-1">
+                      <BarChart3 className="w-3.5 h-3.5 text-blue-600" />
+                      <span>المبيعات والمديونيات حسب طبيعة النشاط:</span>
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-semibold">قيم نقدية (ج.م)</span>
+                  </div>
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={activityClientAnalyticsData.activities.slice(0, 8)} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                        <XAxis dataKey="activity" tick={{ fontSize: 11, fill: '#64748B' }} />
+                        <YAxis tick={{ fontSize: 10, fill: '#64748B' }} tickFormatter={(v) => (isPrivacyMode ? '•••' : `${(v / 1000).toFixed(0)}k`)} />
+                        <Tooltip formatter={(val: any) => formatMoney(Number(val) || 0)} contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '12px', border: 'none' }} />
+                        <Legend />
+                        <Bar dataKey="sales" name="مبيعات 2026" fill="#0284c7" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="debt" name="المديونية الحالية" fill="#9333ea" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Visual 2: Client Classification Donut (خ/ك) */}
+                <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-black text-slate-800 flex items-center gap-1">
+                      <Award className="w-3.5 h-3.5 text-amber-600" />
+                      <span>تصنيف العملاء (خ/ك - كبار عملاء / خاص / خط):</span>
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-semibold">{filteredCustomers.length} عميل</span>
+                  </div>
+                  <div className="h-64 w-full flex items-center justify-center">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsPieChart>
+                        <Pie
+                          data={activityClientAnalyticsData.clientTypes}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={85}
+                          paddingAngle={4}
+                          dataKey="value"
+                          label={({ name, percent }: any) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                        >
+                          {activityClientAnalyticsData.clientTypes.map((entry, index) => (
+                            <Cell key={`cell-client-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(val: any) => `${val} عميل`}
+                          contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '12px', border: 'none' }}
+                        />
+                      </RechartsPieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+
+              {/* Table Breakdown with Instant Slicer Filtering */}
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+                <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs font-black text-slate-800">
+                  <span>جدول تفصيل الأنشطة التجارية وتصنيف خ/ك:</span>
+                  <span className="text-[11px] text-slate-500 font-normal">اضغط على أي نشاط لتصفيته فوراً بالسلايسر</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs">
+                    <thead className="bg-slate-100/80 text-slate-700 font-black border-b border-slate-200">
+                      <tr>
+                        <th className="p-2.5">طبيعة النشاط</th>
+                        <th className="p-2.5 text-center">عدد العملاء</th>
+                        <th className="p-2.5 text-center">إجمالي المبيعات (ج.م)</th>
+                        <th className="p-2.5 text-center">إجمالي التحصيلات (ج.م)</th>
+                        <th className="p-2.5 text-center">المديونية الحالية (ج.م)</th>
+                        <th className="p-2.5 text-center">نسبة التحصيل</th>
+                        <th className="p-2.5 text-center">تصفية بالسلايسر</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {activityClientAnalyticsData.activities.map((act, i) => {
+                        const colRate = act.sales > 0 ? Math.round((act.collections / act.sales) * 100) : 0;
+                        return (
+                          <tr key={i} className="hover:bg-slate-50 transition">
+                            <td className="p-2.5 font-bold text-slate-800">{act.activity}</td>
+                            <td className="p-2.5 text-center font-bold text-slate-700">{act.count.toLocaleString()}</td>
+                            <td className="p-2.5 text-center font-mono font-bold text-blue-700">{formatMoney(act.sales)}</td>
+                            <td className="p-2.5 text-center font-mono font-bold text-emerald-700">{formatMoney(act.collections)}</td>
+                            <td className="p-2.5 text-center font-mono font-bold text-purple-900">{formatMoney(act.debt)}</td>
+                            <td className="p-2.5 text-center font-bold">
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-black ${
+                                colRate >= 70 ? 'bg-emerald-100 text-emerald-800' : colRate >= 30 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                              }`}>
+                                {colRate}%
+                              </span>
+                            </td>
+                            <td className="p-2.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => setActivityTypeFilter(activityTypeFilter === act.activity ? 'ALL' : act.activity)}
+                                className={`px-2 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                                  activityTypeFilter === act.activity
+                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                }`}
+                              >
+                                {activityTypeFilter === act.activity ? '✓ مفعل' : 'تطبيق الفلتر 🔍'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tab: Run-Rate & Monthly Pace Early Warning */}
+          {activeChartTab === 'run_rate' && (
+            <div className="space-y-4">
+              {/* Month Selector Bar & Explanation */}
+              <div className="bg-slate-900 text-white p-3.5 rounded-xl border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="p-1 rounded-md bg-amber-500/20 text-amber-400 font-bold text-xs border border-amber-500/30 flex items-center gap-1">
+                      <Zap className="w-3.5 h-3.5 text-amber-400" />
+                      <span>مؤشر وتيرة الأداء والسرعة (Run-rate Velocity)</span>
+                    </span>
+                    <span className="text-xs text-slate-300 font-bold">
+                      مقارنة أداء {runRateAnalyticsData.targetMonthName} بالسابق ({runRateAnalyticsData.prevMonthName})
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    رصد مبكر لتراجع مبيعات المناديب في الأسبوع الأول والثاني للتدخل الفوري والدعم الميداني قبل ضياع التارجت بنهاية الشهر.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-300">شهر الفحص:</span>
+                  <select
+                    value={runRateSelectedMonth}
+                    onChange={(e) => setRunRateSelectedMonth(Number(e.target.value))}
+                    className="bg-slate-800 border border-slate-700 text-white rounded-lg px-2.5 py-1 text-xs font-bold focus:outline-none focus:border-amber-400 cursor-pointer"
+                  >
+                    {MONTH_NAMES_AR.map((mName, idx) => (
+                      <option key={idx + 1} value={idx + 1}>
+                        شهر {idx + 1} - {mName} 2026
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Metric Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+                  <div className="text-[11px] text-slate-500 font-bold">مبيعات {runRateAnalyticsData.targetMonthName}:</div>
+                  <div className="text-base font-black text-blue-700 mt-0.5">{formatMoney(runRateAnalyticsData.totalCurr)}</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">الشهر السابق: {formatMoney(runRateAnalyticsData.totalPrev)}</div>
+                </div>
+
+                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+                  <div className="text-[11px] text-slate-500 font-bold">معدل النمو / التغير الشهري:</div>
+                  <div className={`text-base font-black mt-0.5 ${runRateAnalyticsData.overallGrowth >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {runRateAnalyticsData.overallGrowth >= 0 ? `+${runRateAnalyticsData.overallGrowth}% ↗` : `${runRateAnalyticsData.overallGrowth}% ↘`}
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">
+                    {runRateAnalyticsData.overallGrowth >= 0 ? 'وتيرة إيجابية متصاعدة' : 'وتيرة متراجعة تستلزم تنشيط'}
+                  </div>
+                </div>
+
+                <div className="bg-emerald-50/70 p-3 rounded-xl border border-emerald-200 shadow-xs">
+                  <div className="text-[11px] text-emerald-800 font-bold flex items-center gap-1">
+                    <Zap className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>مناديب في وتيرة تسارع (🚀):</span>
+                  </div>
+                  <div className="text-lg font-black text-emerald-700 mt-0.5">
+                    {runRateAnalyticsData.acceleratingCount} مندوب
+                  </div>
+                  <div className="text-[10px] text-emerald-600 mt-0.5">مبيعاتهم تفوقت على الشهر السابق</div>
+                </div>
+
+                <div className="bg-rose-50/70 p-3 rounded-xl border border-rose-200 shadow-xs">
+                  <div className="text-[11px] text-rose-800 font-bold flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                    <span>إنذار تراجع مبكر (⚠️):</span>
+                  </div>
+                  <div className="text-lg font-black text-rose-700 mt-0.5">
+                    {runRateAnalyticsData.warningCount} مندوب
+                  </div>
+                  <div className="text-[10px] text-rose-600 mt-0.5">انخفاض &gt; 15% بحاجة لدعم ميداني عاجل</div>
+                </div>
+              </div>
+
+              {/* Performance Comparison Chart */}
+              <div className="h-64 sm:h-72 w-full bg-white p-2 rounded-xl border border-slate-200">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={runRateAnalyticsData.list.slice(0, 8).map(r => ({
+                      rep: r.repName.length > 15 ? `${r.repName.substring(0, 15)}...` : r.repName,
+                      [runRateAnalyticsData.prevMonthName]: r.prevSales,
+                      [runRateAnalyticsData.targetMonthName]: r.currSales,
+                    }))}
+                    margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                    <XAxis dataKey="rep" tick={{ fontSize: 11, fill: '#64748B' }} />
+                    <YAxis tick={{ fontSize: 10, fill: '#64748B' }} tickFormatter={(v) => (isPrivacyMode ? '•••' : `${(v / 1000).toFixed(0)}k`)} />
+                    <Tooltip formatter={(val: any) => formatMoney(Number(val) || 0)} contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '12px', border: 'none' }} />
+                    <Legend />
+                    <Bar dataKey={runRateAnalyticsData.prevMonthName} fill="#94A3B8" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey={runRateAnalyticsData.targetMonthName} fill="#0284c7" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Reps Detail Table with Pace Badge & Early Warning */}
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-slate-100 text-slate-700 font-black border-b border-slate-200">
+                    <tr>
+                      <th className="p-2.5">المندوب</th>
+                      <th className="p-2.5">الفرع</th>
+                      <th className="p-2.5 text-center">مبيعات {runRateAnalyticsData.prevMonthName}</th>
+                      <th className="p-2.5 text-center">مبيعات {runRateAnalyticsData.targetMonthName}</th>
+                      <th className="p-2.5 text-center">الفارق (ج.م)</th>
+                      <th className="p-2.5 text-center">نسبة التغير</th>
+                      <th className="p-2.5 text-center">مؤشر وتيرة الأداء والإنذار المبكر</th>
+                      <th className="p-2.5 text-center">إجراء</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {runRateAnalyticsData.list.map((r, i) => (
+                      <tr key={i} className="hover:bg-slate-50 transition">
+                        <td className="p-2.5 font-bold text-slate-800">{r.repName}</td>
+                        <td className="p-2.5 text-slate-500 font-semibold">{r.branchName}</td>
+                        <td className="p-2.5 text-center font-mono text-slate-600">{formatMoney(r.prevSales)}</td>
+                        <td className="p-2.5 text-center font-mono font-bold text-blue-700">{formatMoney(r.currSales)}</td>
+                        <td className={`p-2.5 text-center font-mono font-bold ${r.salesDiff >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                          {r.salesDiff >= 0 ? `+${formatMoney(r.salesDiff)}` : `-${formatMoney(Math.abs(r.salesDiff))}`}
+                        </td>
+                        <td className="p-2.5 text-center font-bold">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-black ${
+                            r.growthRate >= 10 ? 'bg-emerald-100 text-emerald-800' : r.growthRate <= -15 ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {r.growthRate >= 0 ? `+${r.growthRate}%` : `${r.growthRate}%`}
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-center">
+                          {r.paceStatus === 'accelerating' && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-black text-[11px]">
+                              <Zap className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>🚀 نمو متسارع (أعلى من الشهر السابق)</span>
+                            </span>
+                          )}
+                          {r.paceStatus === 'stable' && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-bold text-[11px]">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-blue-500" />
+                              <span>✅ على المسار المعتاد</span>
+                            </span>
+                          )}
+                          {r.paceStatus === 'early_warning' && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 font-black text-[11px] animate-pulse">
+                              <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                              <span>⚠️ إنذار تراجع مبكر - يتطلب متابعة ميدانية</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-2.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedRep(r.repName);
+                              setSelectedBranch(r.branchName);
+                            }}
+                            className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition cursor-pointer"
+                          >
+                            فحص عملاءه 🔎
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Tab: Portfolio Balancing & Route Planning */}
+          {activeChartTab === 'portfolio_balance' && (
+            <div className="space-y-4">
+              {/* Header & Balancing Constitution */}
+              <div className="bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 text-white p-3.5 rounded-xl border border-purple-900/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="p-1 rounded-md bg-purple-500/20 text-purple-300 font-bold text-xs border border-purple-500/30 flex items-center gap-1">
+                      <Scale className="w-3.5 h-3.5 text-purple-300" />
+                      <span>خريطة توازن محفظة العملاء (Portfolio Balancing)</span>
+                    </span>
+                    <span className="text-xs text-slate-300 font-bold">
+                      {portfolioBalanceData.reps.length} مندوب في الفرع المفحوص
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-purple-200 mt-1">
+                    منع تكدس كبار العملاء والمديونيات مع مندوب واحد وترك باقي المناديب بدون أهداف كافية، مع تنظيم خطوط السير والزيارات اليومية.
+                  </p>
+                </div>
+
+                {portfolioBalanceData.highConcentrationCount > 0 ? (
+                  <div className="bg-rose-500/20 border border-rose-500/40 px-3 py-1.5 rounded-xl text-rose-300 text-xs font-bold flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>تنبيه: يوجد {portfolioBalanceData.highConcentrationCount} مندوب لديهم تركز عملاء ومديونيات مرتفع (&gt;40%)</span>
+                  </div>
+                ) : (
+                  <div className="bg-emerald-500/20 border border-emerald-500/40 px-3 py-1.5 rounded-xl text-emerald-300 text-xs font-bold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>المحفظة موزعة بعدالة وتوازن تام بين مناديب الفرع</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 1: Reps Customer & Debt Balancing Table */}
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+                <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-purple-600" />
+                    <span>توزيع كبار العملاء والمديونيات على المناديب:</span>
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-bold">
+                    إجمالي مديونيات الفرع: {formatMoney(portfolioBalanceData.branchTotalDebt)} • إجمالي العملاء: {portfolioBalanceData.branchTotalCustomers.toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs">
+                    <thead className="bg-slate-100/80 text-slate-700 font-black border-b border-slate-200">
+                      <tr>
+                        <th className="p-2.5">المندوب</th>
+                        <th className="p-2.5">الفرع</th>
+                        <th className="p-2.5 text-center">إجمالي العملاء</th>
+                        <th className="p-2.5 text-center">كبار العملاء (VIP)</th>
+                        <th className="p-2.5 text-center">إجمالي المديونية (ج.م)</th>
+                        <th className="p-2.5 text-center">حصة المندوب من المديونية %</th>
+                        <th className="p-2.5 text-center">حصة العملاء %</th>
+                        <th className="p-2.5 text-center">تقييم تركز المحفظة</th>
+                        <th className="p-2.5 text-center">إجراء</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {portfolioBalanceData.reps.map((r, i) => (
+                        <tr key={i} className="hover:bg-slate-50 transition">
+                          <td className="p-2.5 font-bold text-slate-800">{r.repName}</td>
+                          <td className="p-2.5 text-slate-500 font-semibold">{r.branchName}</td>
+                          <td className="p-2.5 text-center font-bold text-slate-700">{r.totalCustomers.toLocaleString()}</td>
+                          <td className="p-2.5 text-center">
+                            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-black text-[11px]">
+                              ⭐ {r.vipCustomers} كبار عملاء
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-center font-mono font-black text-purple-900">{formatMoney(r.totalDebt)}</td>
+                          <td className="p-2.5 text-center font-black">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] ${
+                              r.debtShare >= 40 ? 'bg-rose-100 text-rose-800 font-black' : r.debtShare >= 25 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {r.debtShare}%
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-center font-bold text-slate-700">{r.customerShare}%</td>
+                          <td className="p-2.5 text-center">
+                            {r.concentrationRisk === 'high' && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 font-black text-[11px]">
+                                <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                                <span>⚠️ تكدس عالي - يوصى بتوزيع بعض العملاء</span>
+                              </span>
+                            )}
+                            {r.concentrationRisk === 'medium' && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 font-bold text-[11px]">
+                                <span>⚡ تركز متوسط</span>
+                              </span>
+                            )}
+                            {r.concentrationRisk === 'balanced' && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-[11px]">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>✅ محفظة متوازنة</span>
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedRep(r.repName);
+                                setSelectedBranch(r.branchName);
+                              }}
+                              className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition cursor-pointer"
+                            >
+                              عرض العملاء 👥
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Section 2: Route & Field Visit Daily Organization (ترتيب خطوط السير والزيارات الميدانية) */}
+              <div className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-xs space-y-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                  <div>
+                    <h4 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                      <Navigation className="w-4 h-4 text-emerald-600" />
+                      <span>خريطة خطوط السير والمناطق للزيارات الميدانية اليومية (Route Organization):</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      توزيع العملاء جغرافياً حسب المنطقة وخط السير لترتيب مسارات المناديب الميدانية وتقليل تكلفة الانتقال.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSortMode('route_asc')}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-black flex items-center gap-1 cursor-pointer transition"
+                  >
+                    <ArrowUpDown className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>فرز جدول العملاء بالكامل حسب خط السير 🗺️</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                  {portfolioBalanceData.routes.slice(0, 16).map((rt, i) => (
+                    <div key={i} className="p-3 rounded-xl bg-slate-50 hover:bg-slate-100/80 border border-slate-200 transition space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-black text-xs text-slate-800 flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <span>{rt.route}</span>
+                        </span>
+                        <span className="text-[11px] font-black bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">
+                          {rt.customersCount} عميل
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-semibold truncate">
+                        المندوب: <span className="text-slate-700 font-bold">{rt.repsList || 'غير محدد'}</span>
+                      </div>
+                      <div className="text-[11px] text-purple-900 font-mono font-bold flex items-center justify-between">
+                        <span>إجمالي المديونية:</span>
+                        <span>{formatMoney(rt.totalDebt)}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedRegion(rt.route);
+                          setSortMode('route_asc');
+                          const el = document.getElementById('analytics-search-input');
+                          if (el) el.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        className="w-full mt-1 py-1 rounded-lg bg-white hover:bg-indigo-600 hover:text-white border border-slate-200 hover:border-indigo-600 text-indigo-700 text-[11px] font-bold transition cursor-pointer text-center"
+                      >
+                        📍 جدولة وترتيب زيارات هذا الخط
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Power BI Executive Filter & Slicer Panel */}
+      {/* Power BI Executive Filter & Slicer Panel (أعمدة الشيت الرسمية) */}
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden space-y-0">
         {/* Power BI Header Strip */}
         <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white px-4 py-3 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800">
@@ -1785,10 +2800,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-black tracking-wide text-white">فلاتر وسلايسر Power BI التنفيذية</span>
-                <span className="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">Executive Slicers</span>
+                <span className="text-sm font-black tracking-wide text-white">سلايسر وفلاتر Power BI التنفيذية</span>
+                <span className="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
+                  {activeFiltersCount > 0 ? `${activeFiltersCount} سلايسر نشط` : 'أعمدة الشيت الأصلية'}
+                </span>
               </div>
-              <p className="text-[11px] text-slate-300">تصفية تفاعلية دقيقة: الفرع، المندوب، العميل، المديونيات، المستحقات، وطرق الدفع</p>
+              <p className="text-[11px] text-slate-300">
+                تصفية تفاعلية دقيقة مطابقة لأعمدة الشيت: الفرع، المندوب، العميل، خط السير، طبيعة النشاط، أوراق الضمان، طريقة الدفع، وتصنيف خ/ك
+              </p>
             </div>
           </div>
 
@@ -1798,161 +2817,719 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               <span className="text-amber-400 font-black text-sm">{filteredCustomers.length.toLocaleString()}</span>
               <span className="text-slate-400 text-[11px]">من {userVisibleCustomers.length.toLocaleString()} عميل</span>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedBranch('ALL');
-                setSelectedRep('ALL');
-                setSelectedCustomerId('ALL');
-                setSelectedRegion('ALL');
-                setPaymentTermsFilter('ALL');
-                setSalesTierFilter('ALL');
-                setCollectionRateFilter('ALL');
-                setGuaranteeFilter('ALL');
-                setDebtFilter('ALL');
-                setActivityFilter('ALL');
-                setOrderFilter('ALL');
-                setVisitFilter('ALL');
-              }}
-              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-600/90 border border-slate-700 hover:border-rose-500 text-slate-200 hover:text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-              title="إعادة ضبط وتصفير جميع الفلاتر"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>تصفير الفلاتر</span>
-            </button>
+            {activeFiltersCount > 0 && (
+              <button
+                type="button"
+                onClick={handleResetAllSlicers}
+                className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs animate-in fade-in"
+                title="إلغاء وتصفير جميع السلايسر"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>تصفير السلايسر ({activeFiltersCount})</span>
+              </button>
+            )}
           </div>
         </div>
 
+        {/* Active Slicers Breadcrumb Ribbon (شريط السلايسر النشطة) */}
+        {activeFiltersCount > 0 && (
+          <div className="bg-amber-50/70 border-b border-amber-200/80 px-4 py-2 flex items-center gap-2 flex-wrap text-xs">
+            <span className="text-[11px] font-black text-amber-900 flex items-center gap-1 shrink-0">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-amber-700" />
+              <span>السلايسر المطبقة حالياً:</span>
+            </span>
+
+            {selectedBranch !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 bg-white border border-blue-200 text-blue-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
+                <span>الفرع: {selectedBranch}</span>
+                <button type="button" onClick={() => setSelectedBranch('ALL')} className="text-blue-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+
+            {selectedRep !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 bg-white border border-indigo-200 text-indigo-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
+                <span>المندوب: {selectedRep}</span>
+                <button type="button" onClick={() => setSelectedRep('ALL')} className="text-indigo-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+
+            {selectedCustomerId !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 bg-white border border-emerald-200 text-emerald-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
+                <span>العميل: {selectedSlicerCustomer ? selectedSlicerCustomer.name : selectedCustomerId}</span>
+                <button type="button" onClick={() => setSelectedCustomerId('ALL')} className="text-emerald-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+
+            {selectedRegion !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 bg-white border border-teal-200 text-teal-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
+                <span>خط السير: {selectedRegion}</span>
+                <button type="button" onClick={() => setSelectedRegion('ALL')} className="text-teal-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+
+            {activityTypeFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 bg-white border border-emerald-200 text-emerald-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
+                <span>النشاط: {activityTypeFilter}</span>
+                <button type="button" onClick={() => setActivityTypeFilter('ALL')} className="text-emerald-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+
+            {guaranteeFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 bg-white border border-amber-200 text-amber-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
+                <span>الضمان: {guaranteeFilter}</span>
+                <button type="button" onClick={() => setGuaranteeFilter('ALL')} className="text-amber-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+
+            {paymentTermsFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 bg-white border border-purple-200 text-purple-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
+                <span>طريقة الدفع: {paymentTermsFilter}</span>
+                <button type="button" onClick={() => setPaymentTermsFilter('ALL')} className="text-purple-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+
+            {clientTypeFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 bg-white border border-amber-200 text-amber-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
+                <span>تصنيف خ/ك: {clientTypeFilter}</span>
+                <button type="button" onClick={() => setClientTypeFilter('ALL')} className="text-amber-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+
+            {dealEligibilityFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 bg-white border border-sky-200 text-sky-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
+                <span>حالة التعامل: {dealEligibilityFilter === 'dealt' ? 'متعامل' : dealEligibilityFilter === 'eligible' ? 'قابل' : 'غير قابل'}</span>
+                <button type="button" onClick={() => setDealEligibilityFilter('ALL')} className="text-sky-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+
+            {debtFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 bg-white border border-rose-200 text-rose-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
+                <span>المديونية: {debtFilter}</span>
+                <button type="button" onClick={() => setDebtFilter('ALL')} className="text-rose-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+
+            {salesTierFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 bg-white border border-blue-200 text-blue-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
+                <span>شريحة المبيعات: {salesTierFilter === 'vip_100k' ? '+100k' : salesTierFilter}</span>
+                <button type="button" onClick={() => setSalesTierFilter('ALL')} className="text-blue-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+
+            {collectionRateFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 bg-white border border-emerald-200 text-emerald-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
+                <span>التحصيل: {collectionRateFilter}</span>
+                <button type="button" onClick={() => setCollectionRateFilter('ALL')} className="text-emerald-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+
+            {selectedMonth !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 bg-white border border-slate-300 text-slate-800 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
+                <span>الفترة: {selectedMonth}</span>
+                <button type="button" onClick={() => setSelectedMonth('ALL')} className="text-slate-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+
+            {searchQuery && (
+              <span className="inline-flex items-center gap-1 bg-white border border-amber-300 text-amber-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
+                <span>بحث: "{searchQuery}"</span>
+                <button type="button" onClick={() => setSearchQuery('')} className="text-amber-600 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={handleResetAllSlicers}
+              className="text-rose-600 hover:underline font-black mr-auto text-[11px] cursor-pointer"
+            >
+              مسح الكل
+            </button>
+          </div>
+        )}
+
         <div className="p-3.5 sm:p-4 space-y-3.5">
-          {/* Section 1: Dropdown Slicers Grid (الفرع، المندوب، العميل، والبحث) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-            {/* 1. الفرع */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
-                <span className="flex items-center gap-1">
-                  <Building2 className="w-3.5 h-3.5 text-blue-600" />
-                  <span>الفرع</span>
-                </span>
-                {selectedBranch !== 'ALL' && (
-                  <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-1.5 py-0.2 rounded">محدد</span>
-                )}
-              </label>
-              <select
-                id="analytics-branch-select"
-                value={selectedBranch}
-                onChange={(e) => {
-                  setSelectedBranch(e.target.value);
-                  setSelectedRep('ALL');
-                  setSelectedCustomerId('ALL');
-                }}
-                disabled={!isAdminOrDev && !!currentUser?.branchName}
-                className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500 transition shadow-2xs"
-              >
-                <option value="ALL">جميع الفروع ({availableBranches.length})</option>
-                {availableBranches.map((b) => (
-                  <option key={b} value={b}>{b}</option>
-                ))}
-              </select>
+          {/* Section 1: Core Slicers (الفرع، المندوب، العميل، خط السير، والبحث السريع) */}
+          <div>
+            <div className="text-[11px] font-black text-slate-500 mb-1.5 flex items-center gap-1">
+              <Building2 className="w-3.5 h-3.5 text-blue-600" />
+              <span>أبعاد الشيت الرئيسية (الفرع • المندوب • العميل • خط السير):</span>
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+              {/* 1. الفرع */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                    <span>الفرع</span>
+                  </span>
+                  {selectedBranch !== 'ALL' && (
+                    <button type="button" onClick={() => setSelectedBranch('ALL')} className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer">إلغاء</button>
+                  )}
+                </label>
+                <select
+                  id="analytics-branch-select"
+                  value={selectedBranch}
+                  onChange={(e) => {
+                    setSelectedBranch(e.target.value);
+                    setSelectedRep('ALL');
+                    setSelectedCustomerId('ALL');
+                  }}
+                  disabled={!isAdminOrDev && !!currentUser?.branchName}
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500 transition shadow-2xs cursor-pointer"
+                >
+                  <option value="ALL">جميع الفروع ({availableBranches.length})</option>
+                  {availableBranches.map((b) => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+              </div>
 
-            {/* 2. المندوب */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
-                <span className="flex items-center gap-1">
-                  <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>المندوب</span>
-                </span>
-                {selectedRep !== 'ALL' && (
-                  <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-1.5 py-0.2 rounded">محدد</span>
-                )}
-              </label>
-              <select
-                id="analytics-rep-select"
-                value={selectedRep}
-                onChange={(e) => {
-                  setSelectedRep(e.target.value);
-                  setSelectedCustomerId('ALL');
-                }}
-                disabled={isRep}
-                className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500 transition shadow-2xs"
-              >
-                <option value="ALL">جميع المناديب ({availableReps.length})</option>
-                {availableReps.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-            </div>
+              {/* 2. المندوب */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>المندوب</span>
+                  </span>
+                  {selectedRep !== 'ALL' && (
+                    <button type="button" onClick={() => setSelectedRep('ALL')} className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer">إلغاء</button>
+                  )}
+                </label>
+                <select
+                  id="analytics-rep-select"
+                  value={selectedRep}
+                  onChange={(e) => {
+                    setSelectedRep(e.target.value);
+                    setSelectedCustomerId('ALL');
+                  }}
+                  disabled={isRep}
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500 transition shadow-2xs cursor-pointer"
+                >
+                  <option value="ALL">جميع المناديب ({availableReps.length})</option>
+                  {availableReps.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
 
-            {/* 3. العميل (اختيار مباشر للعميل) */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
-                <span className="flex items-center gap-1">
-                  <Users className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>تصفية بالعميل المحدد</span>
-                </span>
-                {selectedCustomerId !== 'ALL' && (
-                  <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.2 rounded">عميل مخصص</span>
-                )}
-              </label>
-              <select
-                id="analytics-customer-select"
-                value={selectedCustomerId}
-                onChange={(e) => setSelectedCustomerId(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 transition shadow-2xs"
-              >
-                <option value="ALL">جميع العملاء ({userVisibleCustomers.length})</option>
-                {availableCustomerOptions.map((c) => (
-                  <option key={c.id || c.code} value={c.id || c.code}>
-                    {c.name} {c.code ? `(${c.code})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
+              {/* 3. خط السير / المنطقة */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Navigation className="w-3.5 h-3.5 text-teal-600" />
+                    <span>خط السير / المنطقة</span>
+                  </span>
+                  {selectedRegion !== 'ALL' && (
+                    <button type="button" onClick={() => setSelectedRegion('ALL')} className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer">إلغاء</button>
+                  )}
+                </label>
+                <select
+                  id="analytics-region-select"
+                  value={selectedRegion}
+                  onChange={(e) => setSelectedRegion(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-teal-500 transition shadow-2xs cursor-pointer"
+                >
+                  <option value="ALL">جميع المناطق والخطوط ({availableRegions.length})</option>
+                  {availableRegions.map((reg) => (
+                    <option key={reg} value={reg}>{reg}</option>
+                  ))}
+                </select>
+              </div>
 
-            {/* 4. البحث النصي السريع */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
-                <span className="flex items-center gap-1">
-                  <Search className="w-3.5 h-3.5 text-amber-600" />
-                  <span>بحث سريع في الشيت</span>
-                </span>
-                {searchQuery && (
-                  <button type="button" onClick={() => setSearchQuery('')} className="text-[10px] text-rose-600 font-bold hover:underline">مسح</button>
-                )}
-              </label>
-              <div className="relative">
-                <input
-                  id="analytics-search-input"
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="اسم، كود، هاتف، منطقة، ضمان..."
-                  className="w-full pl-8 pr-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:border-amber-500 focus:outline-none transition shadow-2xs"
-                />
-                {searchQuery ? (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                ) : (
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                )}
+              {/* 4. سلايسر العميل المباشر */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>تصفية بالعميل المحدد</span>
+                  </span>
+                  {selectedCustomerId !== 'ALL' && (
+                    <button type="button" onClick={() => setSelectedCustomerId('ALL')} className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer">إلغاء</button>
+                  )}
+                </label>
+                <select
+                  id="analytics-customer-select"
+                  value={selectedCustomerId}
+                  onChange={(e) => setSelectedCustomerId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 transition shadow-2xs cursor-pointer"
+                >
+                  <option value="ALL">جميع العملاء ({userVisibleCustomers.length})</option>
+                  {availableCustomerOptions.map((c) => (
+                    <option key={c.id || c.code} value={c.id || c.code}>
+                      {c.name} {c.code ? `(${c.code})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 5. البحث السريع */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Search className="w-3.5 h-3.5 text-amber-600" />
+                    <span>بحث سريع في الشيت</span>
+                  </span>
+                  {searchQuery && (
+                    <button type="button" onClick={() => setSearchQuery('')} className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer">مسح</button>
+                  )}
+                </label>
+                <div className="relative">
+                  <input
+                    id="analytics-search-input"
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="اسم، كود، هاتف، منطقة، ضمان..."
+                    className="w-full pl-8 pr-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:border-amber-500 focus:outline-none transition shadow-2xs"
+                  />
+                  {searchQuery ? (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Slicer: Target Month & Quarter & Active Customer Calculation */}
+          {/* Section 2: Sheet Commercial & Credit Slicers (طبيعة النشاط، أوراق الضمان، طريقة الدفع، وتصنيف خ/ك) */}
+          <div className="pt-2 border-t border-slate-100">
+            <div className="text-[11px] font-black text-slate-500 mb-1.5 flex items-center gap-1">
+              <Store className="w-3.5 h-3.5 text-emerald-600" />
+              <span>سلايسر البيانات التجارية والائتمانية (من أعمدة الشيت مباشرة):</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              {/* 1. طبيعة النشاط (سوبر ماركت، جملة، قطاعي، صيدلية...) */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Store className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>طبيعة النشاط (الشيت)</span>
+                  </span>
+                  {activityTypeFilter !== 'ALL' && (
+                    <button type="button" onClick={() => setActivityTypeFilter('ALL')} className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer">إلغاء</button>
+                  )}
+                </label>
+                <select
+                  id="analytics-activity-type-select"
+                  value={activityTypeFilter}
+                  onChange={(e) => setActivityTypeFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 transition shadow-2xs cursor-pointer"
+                >
+                  <option value="ALL">جميع الأنشطة ({availableActivityTypes.length})</option>
+                  {availableActivityTypes.map(([act, count]) => (
+                    <option key={act} value={act}>
+                      {act} ({count} عميل)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 2. أوراق الضمان (شيك، كمبيالة، إيصال أمانة، بدون ضمان...) */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                    <span>أوراق الضمان (الشيت)</span>
+                  </span>
+                  {guaranteeFilter !== 'ALL' && (
+                    <button type="button" onClick={() => setGuaranteeFilter('ALL')} className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer">إلغاء</button>
+                  )}
+                </label>
+                <select
+                  id="analytics-guarantee-select"
+                  value={guaranteeFilter}
+                  onChange={(e) => setGuaranteeFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500 transition shadow-2xs cursor-pointer"
+                >
+                  <option value="ALL">جميع الضمانات ({availableGuaranteeDocs.length})</option>
+                  <option value="has_guarantee">✓ بأوراق ضمان معتمدة ({kpiStats.guaranteedCount})</option>
+                  <option value="unsecured">✗ بدون ضمان ({userVisibleCustomers.length - kpiStats.guaranteedCount})</option>
+                  {availableGuaranteeDocs.map(([g, count]) => (
+                    <option key={g} value={g}>
+                      {g} ({count} عميل)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 3. طريقة الدفع (كاش، آجل، دفعات، شيكات...) */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <CreditCard className="w-3.5 h-3.5 text-purple-600" />
+                    <span>طريقة الدفع (الشيت)</span>
+                  </span>
+                  {paymentTermsFilter !== 'ALL' && (
+                    <button type="button" onClick={() => setPaymentTermsFilter('ALL')} className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer">إلغاء</button>
+                  )}
+                </label>
+                <select
+                  id="analytics-payment-terms-select"
+                  value={paymentTermsFilter}
+                  onChange={(e) => setPaymentTermsFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-purple-500 transition shadow-2xs cursor-pointer"
+                >
+                  <option value="ALL">جميع طرق الدفع ({availablePaymentTerms.length})</option>
+                  {availablePaymentTerms.map(([pt, count]) => (
+                    <option key={pt} value={pt}>
+                      {pt} ({count} عميل)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 4. تصنيف خ/ك (كبار عملاء، خط، خاص...) */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Award className="w-3.5 h-3.5 text-amber-600" />
+                    <span>تصنيف العميل خ/ك (الشيت)</span>
+                  </span>
+                  {clientTypeFilter !== 'ALL' && (
+                    <button type="button" onClick={() => setClientTypeFilter('ALL')} className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer">إلغاء</button>
+                  )}
+                </label>
+                <select
+                  id="analytics-client-type-select"
+                  value={clientTypeFilter}
+                  onChange={(e) => setClientTypeFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500 transition shadow-2xs cursor-pointer"
+                >
+                  <option value="ALL">جميع التصنيفات ({availableClientTypes.length})</option>
+                  {availableClientTypes.map(([ct, count]) => (
+                    <option key={ct} value={ct}>
+                      {ct} ({count} عميل)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Financial Status & Segment Slicers (حالة التعامل، المديونية، شرائح المبيعات، والترتيب) */}
+          <div className="pt-2 border-t border-slate-100 space-y-2.5">
+            {/* Row 3A: Deal Eligibility & Debt Slicers */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              {/* Deal Eligibility Slicer */}
+              <div className="bg-slate-50/90 p-2.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 shrink-0">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>حالة التعامل (من الشيت):</span>
+                </span>
+                <div className="flex items-center gap-1 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setDealEligibilityFilter('ALL')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      dealEligibilityFilter === 'ALL'
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    الكل ({userVisibleCustomers.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDealEligibilityFilter('dealt')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
+                      dealEligibilityFilter === 'dealt'
+                        ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400'
+                        : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>متعامل ✅ ({kpiStats.dealtCount})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDealEligibilityFilter('eligible')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                      dealEligibilityFilter === 'eligible'
+                        ? 'bg-sky-600 text-white shadow-sm ring-2 ring-sky-400'
+                        : 'bg-sky-50 text-sky-800 hover:bg-sky-100 border border-sky-200'
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5 text-sky-500" />
+                    <span>قابل للتعامل ⏳ ({kpiStats.eligibleCount})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDealEligibilityFilter('ineligible')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                      dealEligibilityFilter === 'ineligible'
+                        ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-400'
+                        : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
+                    }`}
+                  >
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+                    <span>غير قابل ⛔ ({kpiStats.ineligibleCount})</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Sorting */}
+              <div className="bg-slate-50/90 p-2.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 shrink-0">
+                  <ArrowUpDown className="w-4 h-4 text-purple-600" />
+                  <span>الترتيب الذكي:</span>
+                </span>
+                <div className="flex items-center gap-1 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setSortMode('highest_debt')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                      sortMode === 'highest_debt'
+                        ? 'bg-purple-700 text-white shadow-sm ring-2 ring-purple-400'
+                        : 'bg-white text-purple-800 hover:bg-purple-50 border border-purple-200'
+                    }`}
+                  >
+                    🔴 الأكثر مديونية
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSortMode('highest_overdue')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      sortMode === 'highest_overdue'
+                        ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-400'
+                        : 'bg-white text-rose-800 hover:bg-rose-50 border border-rose-200'
+                    }`}
+                  >
+                    ⚠️ الأكثر مستحقات
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSortMode('highest_sales')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      sortMode === 'highest_sales'
+                        ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400'
+                        : 'bg-white text-blue-800 hover:bg-blue-50 border border-blue-200'
+                    }`}
+                  >
+                    📈 أعلى مبيعات
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSortMode('route_asc')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                      sortMode === 'route_asc'
+                        ? 'bg-teal-700 text-white shadow-sm ring-2 ring-teal-400'
+                        : 'bg-white text-teal-800 hover:bg-teal-50 border border-teal-200'
+                    }`}
+                  >
+                    <Navigation className="w-3.5 h-3.5 text-teal-600" />
+                    <span>🗺️ خط السير</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSortMode('name_asc')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      sortMode === 'name_asc'
+                        ? 'bg-slate-800 text-white shadow-sm'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    🔤 أبجدي
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Row 3B: Debt & Overdue Status Slicer */}
+            <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/90 flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <BadgeDollarSign className="w-4 h-4 text-rose-600" />
+                <span className="text-xs font-black text-slate-800">سلايسر المديونية والمستحقات:</span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setDebtFilter('ALL')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    debtFilter === 'ALL'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  الكل
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDebtFilter('highest_debt')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
+                    debtFilter === 'highest_debt'
+                      ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-400'
+                      : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                  }`}
+                >
+                  <span>🔴 الأكثر مديونية</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDebtFilter('lowest_debt')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
+                    debtFilter === 'lowest_debt'
+                      ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400'
+                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
+                  }`}
+                >
+                  <span>🟢 الأقل مديونية</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDebtFilter('highest_overdue')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
+                    debtFilter === 'highest_overdue'
+                      ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-400'
+                      : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
+                  }`}
+                >
+                  <span>⚠️ الأكثر مستحقات واجبة</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDebtFilter('zero_debt')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    debtFilter === 'zero_debt'
+                      ? 'bg-slate-700 text-white shadow-xs'
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  <span>خالص المديونية (0)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDebtFilter('over_limit')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    debtFilter === 'over_limit'
+                      ? 'bg-purple-700 text-white shadow-xs'
+                      : 'bg-white text-purple-700 hover:bg-purple-50 border border-purple-200'
+                  }`}
+                >
+                  <span>⛔ متجاوز الحد الائتماني</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Row 3C: Sales Tier & Collection Efficiency Slicers */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              {/* Sales Tier Slicer */}
+              <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 shrink-0">
+                  <TrendingUp className="w-4 h-4 text-blue-600" />
+                  <span>شريحة مبيعات 2026:</span>
+                </span>
+                <div className="flex items-center gap-1 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setSalesTierFilter('ALL')}
+                    className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      salesTierFilter === 'ALL' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 border border-slate-200'
+                    }`}
+                  >
+                    الكل
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSalesTierFilter('vip_100k')}
+                    className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      salesTierFilter === 'vip_100k' ? 'bg-blue-600 text-white shadow-xs' : 'bg-blue-50 text-blue-800 border border-blue-200'
+                    }`}
+                  >
+                    ⭐ كبار العملاء (+100k)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSalesTierFilter('medium_20k_100k')}
+                    className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      salesTierFilter === 'medium_20k_100k' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-indigo-50 text-indigo-800 border border-indigo-200'
+                    }`}
+                  >
+                    💼 متوسط (20k-100k)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSalesTierFilter('starter_under_20k')}
+                    className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      salesTierFilter === 'starter_under_20k' ? 'bg-teal-600 text-white shadow-xs' : 'bg-teal-50 text-teal-800 border border-teal-200'
+                    }`}
+                  >
+                    🥉 ناشئ (&lt;20k)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSalesTierFilter('zero_sales')}
+                    className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      salesTierFilter === 'zero_sales' ? 'bg-rose-600 text-white shadow-xs' : 'bg-rose-50 text-rose-800 border border-rose-200'
+                    }`}
+                  >
+                    ⭕ مبيعات صفرية
+                  </button>
+                </div>
+              </div>
+
+              {/* Collection Rate Slicer */}
+              <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 shrink-0">
+                  <DollarSign className="w-4 h-4 text-emerald-600" />
+                  <span>كفاءة التحصيل:</span>
+                </span>
+                <div className="flex items-center gap-1 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setCollectionRateFilter('ALL')}
+                    className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      collectionRateFilter === 'ALL' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 border border-slate-200'
+                    }`}
+                  >
+                    الكل
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCollectionRateFilter('high_80')}
+                    className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      collectionRateFilter === 'high_80' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    }`}
+                  >
+                    🟢 مرتفع (+80%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCollectionRateFilter('medium_30_79')}
+                    className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      collectionRateFilter === 'medium_30_79' ? 'bg-amber-600 text-white shadow-xs' : 'bg-amber-50 text-amber-800 border border-amber-200'
+                    }`}
+                  >
+                    🟡 متوسط (30-79%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCollectionRateFilter('low_zero')}
+                    className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      collectionRateFilter === 'low_zero' ? 'bg-rose-600 text-white shadow-xs' : 'bg-rose-50 text-rose-800 border border-rose-200'
+                    }`}
+                  >
+                    🔴 ضعيف (&lt;30%)
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 4: Time Horizon Slicer (شهري / كوارتر / كامل عام 2026 من الشيت) */}
           <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-3 rounded-xl border border-slate-700/80 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3 shadow-inner">
             <div className="flex items-center gap-2 shrink-0">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
               <div>
                 <div className="text-xs font-black text-emerald-400 flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5" />
-                  <span>سلايسر الفترة المستهدفة (شهري / كوارتر / كامل 2026):</span>
+                  <span>سلايسر الفترة المستهدفة (شهري / كوارتر / كامل 2026 من الشيت):</span>
                 </div>
                 <div className="text-[10px] text-slate-300">
                   {selectedMonth === 'ALL'
@@ -1972,7 +3549,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
             {/* Slicer Buttons: Quarters & Months */}
             <div className="flex flex-wrap items-center gap-1 overflow-x-auto no-scrollbar py-0.5 w-full xl:w-auto">
-              {/* All Year Button */}
               <button
                 type="button"
                 onClick={() => setSelectedMonth('ALL')}
@@ -2008,7 +3584,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 ))}
               </div>
 
-              {/* Individual Months Buttons (مبيعات 1 = يناير ... مبيعات 12 = ديسمبر) */}
+              {/* Individual Months 1 to 12 */}
               <div className="flex items-center gap-0.5 overflow-x-auto no-scrollbar">
                 {[
                   { m: 1, name: '1 (يناير)' },
@@ -2040,271 +3616,166 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </div>
             </div>
           </div>
-
-          {/* Slicer: Deal Eligibility (قابل / غير قابل / متعامل) & Quick Sort */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-            {/* 1. Slicer Deal Eligibility */}
-            <div className="bg-slate-50/90 p-2.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-              <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 shrink-0">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>حالة التعامل (قابل / غير):</span>
-              </span>
-              <div className="flex items-center gap-1 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setDealEligibilityFilter('ALL')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    dealEligibilityFilter === 'ALL'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                  }`}
-                >
-                  الكل ({filteredCustomers.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDealEligibilityFilter('dealt')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
-                    dealEligibilityFilter === 'dealt'
-                      ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400'
-                      : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
-                  }`}
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>متعامل ✅ ({kpiStats.dealtCount})</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDealEligibilityFilter('eligible')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
-                    dealEligibilityFilter === 'eligible'
-                      ? 'bg-sky-600 text-white shadow-sm ring-2 ring-sky-400'
-                      : 'bg-sky-50 text-sky-800 hover:bg-sky-100 border border-sky-200'
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5 text-sky-500" />
-                  <span>قابل للتعامل ⏳ ({kpiStats.eligibleCount})</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDealEligibilityFilter('ineligible')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
-                    dealEligibilityFilter === 'ineligible'
-                      ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-400'
-                      : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
-                  }`}
-                >
-                  <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
-                  <span>غير قابل ⛔ ({kpiStats.ineligibleCount})</span>
-                </button>
-              </div>
-            </div>
-
-            {/* 2. Slicer Quick Sorting */}
-            <div className="bg-slate-50/90 p-2.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-              <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 shrink-0">
-                <ArrowUpDown className="w-4 h-4 text-purple-600" />
-                <span>الترتيب الذكي:</span>
-              </span>
-              <div className="flex items-center gap-1 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setSortMode('highest_debt')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
-                    sortMode === 'highest_debt'
-                      ? 'bg-purple-700 text-white shadow-sm ring-2 ring-purple-400'
-                      : 'bg-white text-purple-800 hover:bg-purple-50 border border-purple-200'
-                  }`}
-                >
-                  🔴 الأعلى مديونية
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSortMode('lowest_debt')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    sortMode === 'lowest_debt'
-                      ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400'
-                      : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-200'
-                  }`}
-                >
-                  🟢 الأقل مديونية
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSortMode('highest_overdue')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    sortMode === 'highest_overdue'
-                      ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-400'
-                      : 'bg-white text-rose-800 hover:bg-rose-50 border border-rose-200'
-                  }`}
-                >
-                  ⚠️ الأكثر مستحقات
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSortMode('highest_sales')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    sortMode === 'highest_sales'
-                      ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400'
-                      : 'bg-white text-blue-800 hover:bg-blue-50 border border-blue-200'
-                  }`}
-                >
-                  📈 أعلى مبيعات
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSortMode('name_asc')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    sortMode === 'name_asc'
-                      ? 'bg-slate-800 text-white shadow-sm'
-                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                  }`}
-                >
-                  🔤 أبجدي
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 2: Power BI Debt & Due Slicers (الأكثر مديونية / الأقل مديونية / الأكثر مستحقات) */}
-          <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/90 flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5">
-            <div className="flex items-center gap-1.5 shrink-0">
-              <BadgeDollarSign className="w-4 h-4 text-rose-600" />
-              <span className="text-xs font-black text-slate-800">سلايسر المديونية والمستحقات:</span>
-            </div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <button
-                type="button"
-                onClick={() => setDebtFilter('ALL')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  debtFilter === 'ALL'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                }`}
-              >
-                الكل
-              </button>
-              <button
-                type="button"
-                onClick={() => setDebtFilter('highest_debt')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
-                  debtFilter === 'highest_debt'
-                    ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-400'
-                    : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
-                }`}
-              >
-                <span>🔴 الأكثر مديونية (تنازلي)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setDebtFilter('lowest_debt')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
-                  debtFilter === 'lowest_debt'
-                    ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400'
-                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
-                }`}
-              >
-                <span>🟢 الأقل مديونية (تصاعدي)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setDebtFilter('highest_overdue')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
-                  debtFilter === 'highest_overdue'
-                    ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-400'
-                    : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
-                }`}
-              >
-                <span>⚠️ الأكثر مستحقات واجبة السداد</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setDebtFilter('zero_debt')}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  debtFilter === 'zero_debt'
-                    ? 'bg-slate-700 text-white shadow-xs'
-                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                }`}
-              >
-                <span>خالص المديونية (0)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setDebtFilter('over_limit')}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  debtFilter === 'over_limit'
-                    ? 'bg-purple-700 text-white shadow-xs'
-                    : 'bg-white text-purple-700 hover:bg-purple-50 border border-purple-200'
-                }`}
-              >
-                <span>⛔ متجاوز الحد الائتماني</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Section 4: Activity, Orders & Visits */}
-          <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-100">
-            {/* Activity 2026, Orders & Visits */}
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              <span className="text-[11px] font-bold text-slate-500 ml-1">النشاط والزيارات:</span>
-              <button
-                type="button"
-                onClick={() => setActivityFilter('ALL')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  activityFilter === 'ALL' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                الكل
-              </button>
-              <button
-                type="button"
-                onClick={() => setActivityFilter('active_2026')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  activityFilter === 'active_2026' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-700'
-                }`}
-              >
-                نشط 2026 ✅
-              </button>
-              <button
-                type="button"
-                onClick={() => setActivityFilter('churn_risk')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  activityFilter === 'churn_risk' ? 'bg-rose-600 text-white shadow-xs' : 'bg-rose-50 text-rose-700'
-                }`}
-              >
-                مهدد بالتوقف ⚠️
-              </button>
-              <button
-                type="button"
-                onClick={() => setActivityFilter('new_customer')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  activityFilter === 'new_customer' ? 'bg-blue-600 text-white shadow-xs' : 'bg-blue-50 text-blue-700'
-                }`}
-              >
-                عميل جديد 🆕
-              </button>
-              <button
-                type="button"
-                onClick={() => setOrderFilter(orderFilter === 'has_order' ? 'ALL' : 'has_order')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  orderFilter === 'has_order' ? 'bg-teal-700 text-white shadow-xs' : 'bg-teal-50 text-teal-800'
-                }`}
-              >
-                لديه طلبية 🛒
-              </button>
-              <button
-                type="button"
-                onClick={() => setVisitFilter(visitFilter === 'visited_2026' ? 'ALL' : 'visited_2026')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  visitFilter === 'visited_2026' ? 'bg-purple-700 text-white shadow-xs' : 'bg-purple-50 text-purple-800'
-                }`}
-              >
-                تمت زيارته 📍
-              </button>
-            </div>
-          </div>
         </div>
       </div>
+
+      {/* Power BI Dedicated Single-Customer Analytical Dossier Card */}
+      {selectedSlicerCustomer && (
+        <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 text-white rounded-2xl p-4 sm:p-5 border-2 border-emerald-500/50 shadow-2xl space-y-4 animate-in slide-in-from-top-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 flex items-center justify-center font-black text-xl shadow-lg shrink-0">
+                {selectedSlicerCustomer.name.slice(0, 1)}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-lg sm:text-xl font-black text-white">{selectedSlicerCustomer.name}</h3>
+                  {selectedSlicerCustomer.code && (
+                    <span className="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-amber-300 text-xs font-mono font-bold">
+                      كود: {selectedSlicerCustomer.code}
+                    </span>
+                  )}
+                  {selectedSlicerCustomer.activityType && (
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold">
+                      {selectedSlicerCustomer.activityType}
+                    </span>
+                  )}
+                  {selectedSlicerCustomer.clientType && (
+                    <span className="px-2 py-0.5 rounded-md bg-purple-500/20 border border-purple-400/30 text-purple-300 text-xs font-bold">
+                      {selectedSlicerCustomer.clientType}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-slate-300 mt-1 flex items-center gap-3 flex-wrap">
+                  <span>🏢 الفرع: <strong className="text-white">{selectedSlicerCustomer.branchName || 'غير محدد'}</strong></span>
+                  <span>👤 المندوب: <strong className="text-white">{selectedSlicerCustomer.salesRepName || selectedSlicerCustomer.repName || 'غير محدد'}</strong></span>
+                  {(selectedSlicerCustomer.route || selectedSlicerCustomer.district || selectedSlicerCustomer.region) && (
+                    <span>🗺️ خط السير: <strong className="text-teal-300">{[selectedSlicerCustomer.district, selectedSlicerCustomer.route, selectedSlicerCustomer.region].filter(Boolean).join(' • ')}</strong></span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
+              {selectedSlicerCustomer.phone && (
+                <>
+                  <a
+                    href={`https://wa.me/2${selectedSlicerCustomer.phone.replace(/[^0-9]/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-xs"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    <span>واتساب</span>
+                  </a>
+                  <a
+                    href={`tel:${selectedSlicerCustomer.phone}`}
+                    className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-xs"
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                    <span>اتصال</span>
+                  </a>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelectedCustomer(selectedSlicerCustomer)}
+                className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>الملف الكامل 360</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedCustomerId('ALL')}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition cursor-pointer"
+                title="إلغاء التحديد والعودة للكل"
+              >
+                ✕ إغلاق البطاقة
+              </button>
+            </div>
+          </div>
+
+          {/* 4 Financial Meters for the selected customer */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+              <span className="text-[11px] text-slate-400 block font-bold">المديونية الحالية:</span>
+              <span className="text-lg sm:text-xl font-black text-white font-mono mt-0.5 block" title={isPrivacyMode ? 'مخفي' : undefined}>
+                {formatMoney(selectedSlicerCustomer.currentBalance ?? selectedSlicerCustomer.balance ?? 0)}
+              </span>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">
+                طريقة الدفع: {selectedSlicerCustomer.paymentTerms || 'غير محدد'}
+              </span>
+            </div>
+
+            <div className="bg-slate-900/90 p-3 rounded-xl border border-rose-900/50">
+              <span className="text-[11px] text-rose-300 block font-bold">المستحقات والمتأخرات:</span>
+              <span className="text-lg sm:text-xl font-black text-rose-400 font-mono mt-0.5 block" title={isPrivacyMode ? 'مخفي' : undefined}>
+                {formatMoney(selectedSlicerCustomer.totalOverdueAndDue ?? selectedSlicerCustomer.overdueBalance ?? 0)}
+              </span>
+              <span className="text-[10px] text-rose-300 mt-0.5 block">
+                {(selectedSlicerCustomer.totalOverdueAndDue ?? selectedSlicerCustomer.overdueBalance ?? 0) > 0 ? '⚠️ واجبة السداد الفوري' : '✓ لا توجد مستحقات متأخرة'}
+              </span>
+            </div>
+
+            <div className="bg-slate-900/90 p-3 rounded-xl border border-amber-900/50">
+              <span className="text-[11px] text-amber-300 block font-bold">الحد الائتماني والضمان:</span>
+              <span className="text-lg sm:text-xl font-black text-amber-300 font-mono mt-0.5 block" title={isPrivacyMode ? 'مخفي' : undefined}>
+                {formatMoney(selectedSlicerCustomer.creditLimit || 0)}
+              </span>
+              <span className="text-[10px] text-slate-300 mt-0.5 block truncate">
+                الضمان: {selectedSlicerCustomer.guaranteeDocs || 'بدون ضمان'}
+              </span>
+            </div>
+
+            <div className="bg-slate-900/90 p-3 rounded-xl border border-sky-900/50">
+              <span className="text-[11px] text-sky-300 block font-bold">مبيعات وتحصيلات 2026:</span>
+              <span className="text-lg sm:text-xl font-black text-sky-300 font-mono mt-0.5 block" title={isPrivacyMode ? 'مخفي' : undefined}>
+                {formatMoney(selectedSlicerCustomer.sales2026 || selectedSlicerCustomer.totalMonthlySales || 0)}
+              </span>
+              <span className="text-[10px] text-emerald-400 mt-0.5 block">
+                المحصل: {formatMoney(selectedSlicerCustomer.collections2026 || selectedSlicerCustomer.totalMonthlyCollections || 0)}
+              </span>
+            </div>
+          </div>
+
+          {/* Customer Monthly Sales Sparkline 1 to 12 */}
+          {selectedSlicerCustomer.monthlySales2026 && (
+            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+              <div className="text-xs font-black text-slate-300 mb-2 flex items-center justify-between">
+                <span>مسار مبيعات العميل الشهرية لعام 2026 (من أعمدة الشيت مبيعات 1 إلى 12):</span>
+                <span className="text-[11px] text-amber-400">حركة الفواتير المسجلة</span>
+              </div>
+              <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-12 gap-1.5 text-center">
+                {MONTH_NAMES_AR.map((mName, idx) => {
+                  const mVal = Number(selectedSlicerCustomer.monthlySales2026?.[idx + 1]) || 0;
+                  const mCol = Number(selectedSlicerCustomer.monthlyCollections2026?.[idx + 1]) || 0;
+                  return (
+                    <div
+                      key={idx + 1}
+                      className={`p-1.5 rounded-lg border text-xs ${
+                        mVal > 0
+                          ? 'bg-blue-950/70 border-blue-700/60 text-white'
+                          : 'bg-slate-900/50 border-slate-800/80 text-slate-500'
+                      }`}
+                    >
+                      <div className="text-[10px] font-bold text-slate-400">{mName}</div>
+                      <div className={`font-mono font-black mt-0.5 ${mVal > 0 ? 'text-blue-300' : 'text-slate-600'}`}>
+                        {mVal > 0 ? (isPrivacyMode ? '•••' : `${Math.round(mVal / 1000)}k`) : '0'}
+                      </div>
+                      {mCol > 0 && (
+                        <div className="text-[9px] font-mono text-emerald-400 mt-0.5">
+                          تحصيل: {isPrivacyMode ? '•••' : `${Math.round(mCol / 1000)}k`}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Power BI Spotlight Dashboard: Rep, Branch, Supervisor, Period Financial Position */}
       {(selectedRep !== 'ALL' || selectedBranch !== 'ALL' || selectedMonth !== 'ALL') && (
