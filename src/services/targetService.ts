@@ -135,25 +135,60 @@ function parseExcelDate(val: any): { dateStr: string; month: number; year: numbe
  * Fetch and parse Target records directly from a Google Sheets URL
  */
 export async function fetchTargetsFromGoogleSheetUrl(urlOrId: string): Promise<TargetRecord[]> {
-  const csvUrl = getPublishedCsvUrl(urlOrId);
-  const response = await fetch(csvUrl);
-  if (!response.ok) {
-    throw new Error(
-      `فشل الاتصال بشيت أهداف جوجل (${response.statusText}). تأكد من تفعيل "أي شخص لديه الرابط يمكنه العرض" (Anyone with link can view).`
-    );
+  const clean = (urlOrId || '').trim();
+  if (!clean) return [];
+
+  // Generate resilient list of CSV export candidate URLs to try
+  const candidates: string[] = [];
+  const primary = getPublishedCsvUrl(clean);
+  if (primary) candidates.push(primary);
+
+  const match = clean.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  const gidMatch = clean.match(/[?#&]gid=([0-9]+)/);
+  const gid = gidMatch ? gidMatch[1] : '0';
+  if (match) {
+    const sheetId = match[1];
+    const gvizUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`;
+    const exportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+    const pubUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/pub?output=csv&gid=${gid}`;
+
+    if (!candidates.includes(gvizUrl)) candidates.push(gvizUrl);
+    if (!candidates.includes(exportUrl)) candidates.push(exportUrl);
+    if (!candidates.includes(pubUrl)) candidates.push(pubUrl);
   }
 
-  const arrayBuffer = await response.arrayBuffer();
-  const csvText = decodeBufferSmart(arrayBuffer).replace(/^\uFEFF/, '');
-  const workbook = XLSX.read(csvText, { type: 'string', codepage: 65001 });
-  if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
-    throw new Error('شيت جوجل لا يحتوي على أي صفحات صالحة.');
+  let lastError: any = null;
+
+  for (const candidateUrl of candidates) {
+    try {
+      const response = await fetch(candidateUrl);
+      if (!response.ok) {
+        continue;
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const csvText = decodeBufferSmart(arrayBuffer).replace(/^\uFEFF/, '');
+      if (!csvText || csvText.trim().length === 0) continue;
+
+      const workbook = XLSX.read(csvText, { type: 'string', codepage: 65001 });
+      if (!workbook.SheetNames || workbook.SheetNames.length === 0) continue;
+
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+      if (rawRows && rawRows.length >= 2) {
+        return parseTargetRawRows(rawRows);
+      }
+    } catch (err: any) {
+      lastError = err;
+    }
   }
 
-  const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-
-  return parseTargetRawRows(rawRows);
+  throw (
+    lastError ||
+    new Error(
+      'فشل جلب أهداف المبيعات من شيت جوجل. يرجى التأكد من أن رابط الشيت منشور للعامة (Anyone with the link can view).'
+    )
+  );
 }
 
 export async function parseTargetExcel(fileOrBuffer: File | ArrayBuffer): Promise<TargetRecord[]> {

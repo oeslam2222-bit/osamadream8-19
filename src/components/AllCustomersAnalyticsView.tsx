@@ -73,6 +73,7 @@ import {
   Cell
 } from 'recharts';
 import { useApp } from '../context/AppContext';
+import * as XLSX from 'xlsx';
 import { Customer, User, Invoice, OrderStatus } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import {
@@ -158,9 +159,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [salesTierFilter, setSalesTierFilter] = useState<'ALL' | 'vip_100k' | 'medium_20k_100k' | 'starter_under_20k' | 'zero_sales'>('ALL');
   const [collectionRateFilter, setCollectionRateFilter] = useState<'ALL' | 'high_80' | 'medium_30_79' | 'low_zero'>('ALL');
 
-  // Power BI Visuals Tab (المسار، معدل السرعة، موازنة المحفظة، الفروع، المناديب، طبيعة النشاط، الضمانات، والمصفوفة)
-  const [activeChartTab, setActiveChartTab] = useState<'monthly' | 'run_rate' | 'portfolio_balance' | 'branches' | 'reps' | 'activity_client' | 'matrix' | 'payment_guarantee'>('monthly');
+  // Power BI Visuals Tab (المسار، معدل السرعة، موازنة المحفظة، الفروع، المناديب، طبيعة النشاط، تفعيل العملاء، الضمانات، والمصفوفة)
+  const [activeChartTab, setActiveChartTab] = useState<'monthly' | 'run_rate' | 'portfolio_balance' | 'branches' | 'reps' | 'activity_client' | 'customer_dealing' | 'matrix' | 'payment_guarantee'>('monthly');
   const [runRateSelectedMonth, setRunRateSelectedMonth] = useState<number>(9);
+
+  // Customer Dealing View Filters (متعامل / غير متعامل / قابل للتعامل)
+  const [dealingSegmentFilter, setDealingSegmentFilter] = useState<'ALL' | 'transacting' | 'non_transacting' | 'prospect'>('ALL');
+  const [dealingSearch, setDealingSearch] = useState<string>('');
+  const [dealingRepFilter, setDealingRepFilter] = useState<string>('ALL');
 
   // Sorting
   const [sortBy, setSortBy] = useState<'name' | 'code' | 'balance' | 'overdue' | 'creditLimit' | 'sales2026' | 'collections2026' | 'lastVisit' | 'order'>('sales2026');
@@ -387,6 +393,30 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       setSelectedRep('ALL');
     }
   }, [availableReps, selectedRep]);
+
+  // Strict RBAC: Branch comparison is exclusively for Admin and Developer only
+  // (Hidden and blocked for Branch Manager, Supervisor, and Sales Rep)
+  useEffect(() => {
+    if (!isAdminOrDev && activeChartTab === 'branches') {
+      setActiveChartTab('monthly');
+    }
+  }, [isAdminOrDev, activeChartTab]);
+
+  // Strict RBAC Isolation: Automatically lock branch and rep filters to user's assigned scope
+  useEffect(() => {
+    if (isRep && currentUser?.name) {
+      if (selectedRep !== currentUser.name && availableReps.includes(currentUser.name)) {
+        setSelectedRep(currentUser.name);
+      }
+      if (currentUser?.branchName && selectedBranch !== currentUser.branchName && availableBranches.includes(currentUser.branchName)) {
+        setSelectedBranch(currentUser.branchName);
+      }
+    } else if ((isBranchManager || isSupervisor) && currentUser?.branchName) {
+      if (selectedBranch !== currentUser.branchName && availableBranches.includes(currentUser.branchName)) {
+        setSelectedBranch(currentUser.branchName);
+      }
+    }
+  }, [isRep, isBranchManager, isSupervisor, currentUser, availableReps, availableBranches, selectedRep, selectedBranch]);
 
   const availableRegions = useMemo(() => {
     const s = new Set<string>();
@@ -1145,22 +1175,117 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     })).sort((a, b) => b.totalDebt - a.totalDebt || b.totalOverdue - a.totalOverdue);
   }, [filteredCustomers, customerMetricsMap, selectedMonth]);
 
+  // Power BI Customer Activation & Dealing Breakdown (متعامل / غير متعامل / قابل / غير قابل)
+  // Strictly isolated by RBAC (Rep sees only his assigned customers, supervisor only team, branch manager only branch)
+  const customerDealingAnalyticsData = useMemo(() => {
+    const map = new Map<string, {
+      branchName: string;
+      repName: string;
+      totalCustomers: number;
+      dealtCustomers: number;
+      nonDealtCustomers: number;
+      eligibleCustomers: number;
+      ineligibleCustomers: number;
+      coverageRate: number;
+      totalDebt: number;
+      totalOverdue: number;
+      totalSales: number;
+      totalCollections: number;
+      collectionRate: number;
+    }>();
+
+    filteredCustomers.forEach((c) => {
+      const m = customerMetricsMap.get(c.id);
+      if (!m) return;
+      const key = `${m.branchName}:::${m.repName}`;
+      let item = map.get(key);
+      if (!item) {
+        item = {
+          branchName: m.branchName,
+          repName: m.repName,
+          totalCustomers: 0,
+          dealtCustomers: 0,
+          nonDealtCustomers: 0,
+          eligibleCustomers: 0,
+          ineligibleCustomers: 0,
+          coverageRate: 0,
+          totalDebt: 0,
+          totalOverdue: 0,
+          totalSales: 0,
+          totalCollections: 0,
+          collectionRate: 0,
+        };
+        map.set(key, item);
+      }
+
+      item.totalCustomers++;
+      item.totalDebt += m.balance;
+      item.totalOverdue += m.overdue;
+      item.totalSales += m.sales2026;
+      item.totalCollections += m.collections2026;
+
+      if (m.isExplicitIneligible) {
+        item.ineligibleCustomers++;
+      } else {
+        item.eligibleCustomers++;
+        if (m.dealtInSelectedMonth) {
+          item.dealtCustomers++;
+        } else {
+          item.nonDealtCustomers++;
+        }
+      }
+    });
+
+    const rows = Array.from(map.values()).map((row) => ({
+      ...row,
+      coverageRate: row.eligibleCustomers > 0 ? Math.round((row.dealtCustomers / row.eligibleCustomers) * 100) : 0,
+      collectionRate: row.totalSales > 0 ? Math.round((row.totalCollections / row.totalSales) * 100) : 0,
+    })).sort((a, b) => b.totalSales - a.totalSales || b.totalDebt - a.totalDebt);
+
+    const summary = {
+      totalCustomers: rows.reduce((acc, r) => acc + r.totalCustomers, 0),
+      dealtCustomers: rows.reduce((acc, r) => acc + r.dealtCustomers, 0),
+      nonDealtCustomers: rows.reduce((acc, r) => acc + r.nonDealtCustomers, 0),
+      eligibleCustomers: rows.reduce((acc, r) => acc + r.eligibleCustomers, 0),
+      ineligibleCustomers: rows.reduce((acc, r) => acc + r.ineligibleCustomers, 0),
+      totalSales: rows.reduce((acc, r) => acc + r.totalSales, 0),
+      totalCollections: rows.reduce((acc, r) => acc + r.totalCollections, 0),
+      totalDebt: rows.reduce((acc, r) => acc + r.totalDebt, 0),
+      totalOverdue: rows.reduce((acc, r) => acc + r.totalOverdue, 0),
+      overallCoverageRate: 0,
+      overallCollectionRate: 0,
+    };
+    summary.overallCoverageRate = summary.eligibleCustomers > 0 ? Math.round((summary.dealtCustomers / summary.eligibleCustomers) * 100) : 0;
+    summary.overallCollectionRate = summary.totalSales > 0 ? Math.round((summary.totalCollections / summary.totalSales) * 100) : 0;
+
+    return { rows, summary };
+  }, [filteredCustomers, customerMetricsMap]);
+
   // Power BI Visuals Computations (Branches, Top Reps, Payment Terms Distribution)
   const branchAnalyticsData = useMemo(() => {
-    const map = new Map<string, { branch: string; sales: number; collections: number; customers: number }>();
+    const map = new Map<string, { branch: string; sales: number; collections: number; customers: number; debt: number; overdue: number; collectionRate: number }>();
     filteredCustomers.forEach((c) => {
       const b = c.branchName || 'الفرع الرئيسي';
-      const cur = map.get(b) || { branch: b, sales: 0, collections: 0, customers: 0 };
+      const cur = map.get(b) || { branch: b, sales: 0, collections: 0, customers: 0, debt: 0, overdue: 0, collectionRate: 0 };
       const sumS = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
       const s = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, sumS);
       const sumC = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
       const col = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, sumC);
+      const d = c.currentBalance ?? c.balance ?? 0;
+      const o = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
       cur.sales += s;
       cur.collections += col;
+      cur.debt += d;
+      cur.overdue += o;
       cur.customers += 1;
       map.set(b, cur);
     });
-    return Array.from(map.values()).sort((a, b) => b.sales - a.sales);
+    return Array.from(map.values())
+      .map((item) => ({
+        ...item,
+        collectionRate: item.sales > 0 ? Math.min(100, Math.round((item.collections / item.sales) * 100)) : 0,
+      }))
+      .sort((a, b) => b.sales - a.sales);
   }, [filteredCustomers]);
 
   const topRepsAnalyticsData = useMemo(() => {
@@ -1240,6 +1365,208 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       })),
     };
   }, [filteredCustomers]);
+
+  // Power BI Visuals: Customer Dealing Analytics (المتعاملين، غير المتعاملين، القابلين للتعامل) بالمندوب والفرع
+  const customerDealingAnalytics = useMemo(() => {
+    const map = new Map<string, {
+      branchName: string;
+      repName: string;
+      total: number;
+      transactingCount: number;
+      transactingSales: number;
+      transactingCollections: number;
+      nonTransactingCount: number;
+      nonTransactingDebt: number;
+      nonTransactingOverdue: number;
+      prospectCount: number;
+      transactingRate: number;
+      nonTransactingRate: number;
+      prospectRate: number;
+      collectionRate: number;
+    }>();
+
+    let totalAll = 0;
+    let totalTransacting = 0;
+    let totalTransactingSales = 0;
+    let totalTransactingCollections = 0;
+    let totalNonTransacting = 0;
+    let totalNonTransactingDebt = 0;
+    let totalNonTransactingOverdue = 0;
+    let totalProspects = 0;
+
+    const classifiedList: Array<{
+      customer: Customer;
+      category: 'transacting' | 'non_transacting' | 'prospect';
+      categoryLabel: string;
+      sales: number;
+      collections: number;
+      debt: number;
+      overdue: number;
+      branchName: string;
+      repName: string;
+    }> = [];
+
+    filteredCustomers.forEach((c) => {
+      const m = customerMetricsMap.get(c.id);
+      const bName = c.branchName || 'غير محدد';
+      const rName = c.salesRepName || c.repName || 'غير محدد';
+      const sales = m ? m.sales2026 : (c.sales2026 || c.totalMonthlySales || 0);
+      const cols = m ? m.collections2026 : (c.collections2026 || c.totalMonthlyCollections || 0);
+      const debt = c.currentBalance ?? c.balance ?? 0;
+      const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
+
+      const hasOrder = customerOrdersLookup.getOrdersForCustomer(c).length > 0;
+      const isTrans = sales > 0 || cols > 0 || hasOrder || Boolean(c.hasDealtIn2026);
+      const isNonTrans = !isTrans && (debt > 0 || overdue > 0 || (m && m.isExplicitIneligible) || (c as any).dealtStatus === 'غير متعامل');
+      const isProspect = !isTrans && !isNonTrans;
+
+      let category: 'transacting' | 'non_transacting' | 'prospect' = 'prospect';
+      let categoryLabel = 'قابل للتعامل ⏳';
+
+      if (isTrans) {
+        category = 'transacting';
+        categoryLabel = 'متعامل نشط ✅';
+      } else if (isNonTrans) {
+        category = 'non_transacting';
+        categoryLabel = 'غير متعامل (راكد) ⚠️';
+      }
+
+      classifiedList.push({
+        customer: c,
+        category,
+        categoryLabel,
+        sales,
+        collections: cols,
+        debt,
+        overdue,
+        branchName: bName,
+        repName: rName,
+      });
+
+      const key = `${bName}:::${rName}`;
+      let item = map.get(key);
+      if (!item) {
+        item = {
+          branchName: bName,
+          repName: rName,
+          total: 0,
+          transactingCount: 0,
+          transactingSales: 0,
+          transactingCollections: 0,
+          nonTransactingCount: 0,
+          nonTransactingDebt: 0,
+          nonTransactingOverdue: 0,
+          prospectCount: 0,
+          transactingRate: 0,
+          nonTransactingRate: 0,
+          prospectRate: 0,
+          collectionRate: 0,
+        };
+        map.set(key, item);
+      }
+
+      item.total++;
+      totalAll++;
+
+      if (isTrans) {
+        item.transactingCount++;
+        item.transactingSales += sales;
+        item.transactingCollections += cols;
+        totalTransacting++;
+        totalTransactingSales += sales;
+        totalTransactingCollections += cols;
+      } else if (isNonTrans) {
+        item.nonTransactingCount++;
+        item.nonTransactingDebt += debt;
+        item.nonTransactingOverdue += overdue;
+        totalNonTransacting++;
+        totalNonTransactingDebt += debt;
+        totalNonTransactingOverdue += overdue;
+      } else {
+        item.prospectCount++;
+        totalProspects++;
+      }
+    });
+
+    const matrixRows = Array.from(map.values()).map((row) => ({
+      ...row,
+      transactingRate: row.total > 0 ? Math.round((row.transactingCount / row.total) * 100) : 0,
+      nonTransactingRate: row.total > 0 ? Math.round((row.nonTransactingCount / row.total) * 100) : 0,
+      prospectRate: row.total > 0 ? Math.round((row.prospectCount / row.total) * 100) : 0,
+      collectionRate: row.transactingSales > 0 ? Math.round((row.transactingCollections / row.transactingSales) * 100) : 0,
+    })).sort((a, b) => b.transactingCount - a.transactingCount || b.transactingSales - a.transactingSales);
+
+    return {
+      matrixRows,
+      classifiedList,
+      kpi: {
+        totalAll,
+        totalTransacting,
+        totalTransactingRate: totalAll > 0 ? Math.round((totalTransacting / totalAll) * 100) : 0,
+        totalTransactingSales,
+        totalTransactingCollections,
+        totalNonTransacting,
+        totalNonTransactingRate: totalAll > 0 ? Math.round((totalNonTransacting / totalAll) * 100) : 0,
+        totalNonTransactingDebt,
+        totalNonTransactingOverdue,
+        totalProspects,
+        totalProspectRate: totalAll > 0 ? Math.round((totalProspects / totalAll) * 100) : 0,
+      }
+    };
+  }, [filteredCustomers, customerMetricsMap, customerOrdersLookup]);
+
+  // Export Customer Dealing Report to Excel
+  const handleExportCustomerDealingExcel = () => {
+    if (customerDealingAnalytics.classifiedList.length === 0) return;
+
+    const filteredToExport = customerDealingAnalytics.classifiedList.filter((item) => {
+      if (dealingSegmentFilter !== 'ALL' && item.category !== dealingSegmentFilter) return false;
+      if (dealingRepFilter !== 'ALL' && item.repName !== dealingRepFilter) return false;
+      if (dealingSearch.trim()) {
+        const q = dealingSearch.trim().toLowerCase();
+        const n = (item.customer.name || '').toLowerCase();
+        const c = (item.customer.code || '').toLowerCase();
+        const s = (item.customer.storeName || '').toLowerCase();
+        const p = (item.customer.phone || '');
+        if (!n.includes(q) && !c.includes(q) && !s.includes(q) && !p.includes(q)) return false;
+      }
+      return true;
+    });
+
+    const rows = filteredToExport.map((item) => ({
+      'كود العميل': item.customer.code || '---',
+      'اسم العميل': item.customer.name,
+      'اسم المحل': item.customer.storeName || '---',
+      'الفرع': item.branchName,
+      'المندوب': item.repName,
+      'تصنيف التعامل': item.categoryLabel,
+      'مبيعات 2026 (ج.م)': item.sales,
+      'تحصيلات 2026 (ج.م)': item.collections,
+      'الرصيد الحالي (ج.م)': item.debt,
+      'المتأخرات (ج.م)': item.overdue,
+      'الهاتف': item.customer.phone || '---',
+      'العنوان / المنطقة': item.customer.address || item.customer.region || '---',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [
+      { wch: 12 },
+      { wch: 25 },
+      { wch: 20 },
+      { wch: 15 },
+      { wch: 20 },
+      { wch: 22 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 15 },
+      { wch: 25 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'تصنيف العملاء Power BI');
+    XLSX.writeFile(wb, `تقرير_تصنيف_العملاء_PowerBI_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
 
   // 3.6. Run-Rate Analytics & Velocity (مقارنة الشهر الحالي بالسابق ورصد التراجع المبكر)
   const runRateAnalyticsData = useMemo(() => {
@@ -1996,6 +2323,18 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </button>
               <button
                 type="button"
+                onClick={() => setActiveChartTab('customer_dealing')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  activeChartTab === 'customer_dealing'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-md ring-2 ring-emerald-300'
+                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 hover:text-emerald-950 border border-emerald-200'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>👥 تصنيف العملاء (متعامل / غير متعامل / قابل للتعامل)</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setActiveChartTab('matrix')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap ${
                   activeChartTab === 'matrix'
@@ -2062,40 +2401,180 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
           {/* Tab 2: Branch Comparison (Admin/Developer only - excludes rep, supervisor, branch manager) */}
           {isAdminOrDev && activeChartTab === 'branches' && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span className="font-bold">ترتيب وأداء الفروع حسب المبيعات والتحصيلات في 2026:</span>
-                <span className="font-bold text-slate-700">{branchAnalyticsData.length} فروع مفحوصة</span>
+            <div className="space-y-4">
+              {/* Executive Admin-Only Notice Banner */}
+              <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-3.5 rounded-xl border border-indigo-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
+                    <Building2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black text-amber-300 flex items-center gap-2">
+                      <span>🏢 لوحة مقارنة الفروع الـ 7 الاستراتيجية (خاصة بالإدارة العامة فقط 🔒)</span>
+                      <span className="text-[10px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 px-2 py-0.5 rounded-full font-bold">
+                        صلاحية Admin فقط
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-300 mt-0.5">
+                      محجوبة تماماً عن مديري الفروع، مشرفي المناديب، والمناديب لضمان سرية المقارنات التنافسية للأداء بين الفروع.
+                    </p>
+                  </div>
+                </div>
+                <div className="text-xs text-slate-300 font-bold bg-white/10 px-3 py-1.5 rounded-lg border border-white/10 whitespace-nowrap">
+                  إجمالي الفروع النشطة: {branchAnalyticsData.length} فرع
+                </div>
               </div>
-              <div className="h-64 sm:h-72 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={branchAnalyticsData}
-                    onClick={(data: any) => {
-                      if (data && data.activeLabel) {
-                        setSelectedBranch(data.activeLabel);
-                        setSelectedRep('ALL');
-                        setSelectedCustomerId('ALL');
-                      }
-                    }}
-                    className="cursor-pointer"
-                    margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                    <XAxis dataKey="branch" tick={{ fontSize: 11, fill: '#64748B' }} />
-                    <YAxis
-                      tick={{ fontSize: 10, fill: '#64748B' }}
-                      tickFormatter={(v) => (isPrivacyMode ? '•••' : `${(v / 1000).toFixed(0)}k`)}
-                    />
-                    <Tooltip
-                      formatter={(val: any) => formatMoney(Number(val) || 0)}
-                      contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '12px', border: 'none' }}
-                    />
-                    <Legend />
-                    <Bar dataKey="sales" name="إجمالي مبيعات 2026" fill="#0078d4" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="collections" name="إجمالي تحصيلات 2026" fill="#107c41" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+
+              {/* Branch Comparison Bar Chart */}
+              <div className="space-y-2 bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span className="font-bold text-slate-700">مخطط مقارنة المبيعات والتحصيلات للفروع لعام 2026:</span>
+                  <span className="text-[11px] text-slate-400">انقر على أي فرع لتصفيته بالسلايسر 🔍</span>
+                </div>
+                <div className="h-64 sm:h-72 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={branchAnalyticsData}
+                      onClick={(data: any) => {
+                        if (data && data.activeLabel) {
+                          setSelectedBranch(data.activeLabel);
+                          setSelectedRep('ALL');
+                          setSelectedCustomerId('ALL');
+                        }
+                      }}
+                      className="cursor-pointer"
+                      margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                      <XAxis dataKey="branch" tick={{ fontSize: 11, fill: '#64748B' }} />
+                      <YAxis
+                        tick={{ fontSize: 10, fill: '#64748B' }}
+                        tickFormatter={(v) => (isPrivacyMode ? '•••' : `${(v / 1000).toFixed(0)}k`)}
+                      />
+                      <Tooltip
+                        formatter={(val: any) => formatMoney(Number(val) || 0)}
+                        contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '12px', border: 'none' }}
+                      />
+                      <Legend />
+                      <Bar dataKey="sales" name="إجمالي مبيعات 2026" fill="#0078d4" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="collections" name="إجمالي تحصيلات 2026" fill="#107c41" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* 7 Branches Executive Leaderboard Table */}
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+                <div className="p-3 bg-slate-900 text-white flex items-center justify-between text-xs font-bold">
+                  <span className="flex items-center gap-1.5 text-amber-300">
+                    <Building2 className="w-4 h-4 text-amber-400" />
+                    <span>جدول الترتيب والمقارنة الشاملة للفروع الـ 7 (المالي والتنفيذي 2026):</span>
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    {branchAnalyticsData.length} فرع مسجل
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs">
+                    <thead className="bg-slate-100 text-slate-700 font-black border-b border-slate-200 whitespace-nowrap">
+                      <tr>
+                        <th className="p-2.5 text-center">الترتيب</th>
+                        <th className="p-2.5">الفرع</th>
+                        <th className="p-2.5 text-center">عدد العملاء</th>
+                        <th className="p-2.5 text-left text-blue-700">مبيعات 2026</th>
+                        <th className="p-2.5 text-left text-emerald-700">تحصيلات 2026</th>
+                        <th className="p-2.5 text-center">نسبة التحصيل</th>
+                        <th className="p-2.5 text-left text-purple-700">إجمالي المديونية</th>
+                        <th className="p-2.5 text-left text-rose-700">المستحقات والمتأخرات</th>
+                        <th className="p-2.5 text-center">حصة المبيعات %</th>
+                        <th className="p-2.5 text-center">إجراء</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {(() => {
+                        const totalAllBranchSales = branchAnalyticsData.reduce((acc, b) => acc + b.sales, 0) || 1;
+                        return branchAnalyticsData.map((b, idx) => {
+                          const salesShare = Math.round((b.sales / totalAllBranchSales) * 100);
+                          const isCurrentFiltered = selectedBranch === b.branch;
+
+                          return (
+                            <tr key={b.branch} className={`hover:bg-slate-50 transition ${isCurrentFiltered ? 'bg-blue-50/60 font-bold' : ''}`}>
+                              <td className="p-2.5 text-center font-black">
+                                <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-black ${
+                                  idx === 0
+                                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                    : idx === 1
+                                    ? 'bg-slate-200 text-slate-800'
+                                    : idx === 2
+                                    ? 'bg-orange-100 text-orange-800'
+                                    : 'bg-slate-100 text-slate-600'
+                                }`}>
+                                  {idx + 1}
+                                </span>
+                              </td>
+                              <td className="p-2.5 font-black text-slate-900 whitespace-nowrap">
+                                <span className="hover:text-blue-700 cursor-pointer" onClick={() => {
+                                  setSelectedBranch(b.branch);
+                                  setSelectedRep('ALL');
+                                  setSelectedCustomerId('ALL');
+                                }}>
+                                  {b.branch}
+                                </span>
+                              </td>
+                              <td className="p-2.5 text-center font-bold text-slate-700">
+                                {b.customers.toLocaleString()}
+                              </td>
+                              <td className="p-2.5 text-left font-mono font-black text-blue-700 whitespace-nowrap" title={isPrivacyMode ? 'مخفي' : undefined}>
+                                {formatMoney(b.sales)}
+                              </td>
+                              <td className="p-2.5 text-left font-mono font-black text-emerald-700 whitespace-nowrap" title={isPrivacyMode ? 'مخفي' : undefined}>
+                                {formatMoney(b.collections)}
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-black ${
+                                  b.collectionRate >= 70
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : b.collectionRate >= 40
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-rose-100 text-rose-800'
+                                }`}>
+                                  {b.collectionRate}%
+                                </span>
+                              </td>
+                              <td className="p-2.5 text-left font-mono font-bold text-purple-900 whitespace-nowrap" title={isPrivacyMode ? 'مخفي' : undefined}>
+                                {formatMoney(b.debt)}
+                              </td>
+                              <td className="p-2.5 text-left font-mono font-bold text-rose-700 whitespace-nowrap" title={isPrivacyMode ? 'مخفي' : undefined}>
+                                {formatMoney(b.overdue)}
+                              </td>
+                              <td className="p-2.5 text-center font-black text-indigo-700">
+                                {salesShare}%
+                              </td>
+                              <td className="p-2.5 text-center whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedBranch(isCurrentFiltered ? 'ALL' : b.branch);
+                                    setSelectedRep('ALL');
+                                    setSelectedCustomerId('ALL');
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                    isCurrentFiltered
+                                      ? 'bg-blue-600 text-white shadow-xs'
+                                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                  }`}
+                                >
+                                  {isCurrentFiltered ? '✓ مصفى به' : 'تصفية 🔍'}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -2239,6 +2718,512 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* Tab: Customer Dealing Analytics (Power BI - متعاملين / غير متعاملين / قابلين للتعامل بالمندوب والفرع) */}
+          {activeChartTab === 'customer_dealing' && (
+            <div className="space-y-4">
+              {/* Security & Strict RBAC Isolation Banner */}
+              <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-3.5 rounded-2xl border border-indigo-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-black text-white">نظام الخصوصية والأمان الصارم (Power BI RBAC):</span>
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                        {isRep
+                          ? `مندوب مبيعات: ${currentUser?.name}`
+                          : isSupervisor
+                          ? `مشرف مناديب: ${currentUser?.branchName}`
+                          : isBranchManager
+                          ? `مدير فرع: ${currentUser?.branchName}`
+                          : 'إدارة عامة وتنفيذية (Admin / CEO)'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 mt-0.5">
+                      {isRep
+                        ? `تشاهد حصرياً عملاءك وأرقامك الخاصة بك كمندوب (${currentUser?.name}) بفرع (${currentUser?.branchName}). محجوب تماماً عن أي مندوب آخر أو فرع آخر لحفظ السرية.`
+                        : isSupervisor
+                        ? `تشاهد فقط المناديب التابعين لإشرافك في فرع (${currentUser?.branchName}). محجوب عن أي فروع أخرى.`
+                        : isBranchManager
+                        ? `تشاهد فقط إحصاءات ومناديب فرع (${currentUser?.branchName}). محجوب عن بيانات الفروع الـ 6 الأخرى.`
+                        : 'عرض تحليلي شامل لكافة فروع الشركة الـ 7 والمناديب مع إمكانية الفلترة والمقارنة.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleExportCustomerDealingExcel}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer shadow-xs border border-emerald-400"
+                    title="تصدير هذا التقرير التفصيلي إلى ملف Excel"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>تصدير Excel 📊</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Power BI Interactive KPI Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Total Customers */}
+                <div
+                  onClick={() => setDealingSegmentFilter('ALL')}
+                  className={`p-3.5 rounded-2xl border transition cursor-pointer ${
+                    dealingSegmentFilter === 'ALL'
+                      ? 'bg-gradient-to-br from-slate-900 to-slate-800 text-white border-slate-700 ring-2 ring-slate-400 shadow-md'
+                      : 'bg-white text-slate-800 border-slate-200 hover:border-slate-300 shadow-2xs'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="font-bold opacity-80">إجمالي قاعدة العملاء</span>
+                    <Users className="w-4 h-4 text-blue-500" />
+                  </div>
+                  <div className="text-2xl font-black font-mono">
+                    {customerDealingAnalytics.kpi.totalAll.toLocaleString()}
+                  </div>
+                  <div className="text-[11px] font-bold mt-1 text-blue-400 flex items-center justify-between">
+                    <span>نسبة المحفظة: 100%</span>
+                    <span>(الكل)</span>
+                  </div>
+                </div>
+
+                {/* Transacting (Active) */}
+                <div
+                  onClick={() => setDealingSegmentFilter('transacting')}
+                  className={`p-3.5 rounded-2xl border transition cursor-pointer ${
+                    dealingSegmentFilter === 'transacting'
+                      ? 'bg-gradient-to-br from-emerald-950 to-teal-900 text-white border-emerald-500 ring-2 ring-emerald-400 shadow-md'
+                      : 'bg-emerald-50/70 text-emerald-950 border-emerald-200 hover:border-emerald-300 shadow-2xs'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="font-bold text-emerald-800">🟢 العملاء المتعاملون (Active)</span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-black font-mono text-emerald-900">
+                      {customerDealingAnalytics.kpi.totalTransacting.toLocaleString()}
+                    </span>
+                    <span className="text-xs font-black px-1.5 py-0.5 rounded-md bg-emerald-200 text-emerald-900">
+                      {customerDealingAnalytics.kpi.totalTransactingRate}% تفعيل
+                    </span>
+                  </div>
+                  <div className="text-[11px] font-mono font-bold mt-1 text-emerald-700 flex items-center justify-between">
+                    <span>مبيعات: {formatMoney(customerDealingAnalytics.kpi.totalTransactingSales)}</span>
+                  </div>
+                </div>
+
+                {/* Non-Transacting (Dormant) */}
+                <div
+                  onClick={() => setDealingSegmentFilter('non_transacting')}
+                  className={`p-3.5 rounded-2xl border transition cursor-pointer ${
+                    dealingSegmentFilter === 'non_transacting'
+                      ? 'bg-gradient-to-br from-rose-950 to-red-900 text-white border-rose-500 ring-2 ring-rose-400 shadow-md'
+                      : 'bg-rose-50/70 text-rose-950 border-rose-200 hover:border-rose-300 shadow-2xs'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="font-bold text-rose-800">🔴 غير المتعاملين (راكد/مديونية)</span>
+                    <AlertCircle className="w-4 h-4 text-rose-600" />
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-black font-mono text-rose-900">
+                      {customerDealingAnalytics.kpi.totalNonTransacting.toLocaleString()}
+                    </span>
+                    <span className="text-xs font-black px-1.5 py-0.5 rounded-md bg-rose-200 text-rose-900">
+                      {customerDealingAnalytics.kpi.totalNonTransactingRate}% ركود
+                    </span>
+                  </div>
+                  <div className="text-[11px] font-mono font-bold mt-1 text-rose-700 flex items-center justify-between">
+                    <span>مديونية معلقة: {formatMoney(customerDealingAnalytics.kpi.totalNonTransactingDebt)}</span>
+                  </div>
+                </div>
+
+                {/* Prospects (Potential) */}
+                <div
+                  onClick={() => setDealingSegmentFilter('prospect')}
+                  className={`p-3.5 rounded-2xl border transition cursor-pointer ${
+                    dealingSegmentFilter === 'prospect'
+                      ? 'bg-gradient-to-br from-sky-950 to-blue-900 text-white border-sky-500 ring-2 ring-sky-400 shadow-md'
+                      : 'bg-sky-50/70 text-sky-950 border-sky-200 hover:border-sky-300 shadow-2xs'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="font-bold text-sky-800">🔵 القابلون للتعامل (فرص واعدة)</span>
+                    <TrendingUp className="w-4 h-4 text-sky-600" />
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-black font-mono text-sky-900">
+                      {customerDealingAnalytics.kpi.totalProspects.toLocaleString()}
+                    </span>
+                    <span className="text-xs font-black px-1.5 py-0.5 rounded-md bg-sky-200 text-sky-900">
+                      {customerDealingAnalytics.kpi.totalProspectRate}% نمو متوقع
+                    </span>
+                  </div>
+                  <div className="text-[11px] font-bold mt-1 text-sky-700">
+                    فرص استكشاف وتوسيع الخط الميداني
+                  </div>
+                </div>
+              </div>
+
+              {/* Power BI Breakdown Matrix Table (بالمندوب والفرع) */}
+              <div className="space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+                    <h3 className="text-xs font-black text-slate-800">
+                      جدول Power BI التحليلي لتصنيف العملاء بالمندوب والفرع (المتعاملين / غير المتعاملين / القابلين للتعامل):
+                    </h3>
+                  </div>
+                  <div className="text-[11px] font-bold text-slate-500">
+                    إجمالي الصفوف: {customerDealingAnalytics.matrixRows.length} صف
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs bg-white">
+                  <table className="w-full text-right border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-900 text-slate-100 font-extrabold border-b border-slate-800 whitespace-nowrap">
+                        {!isRep && <th className="p-2.5">الفرع</th>}
+                        <th className="p-2.5">المندوب</th>
+                        <th className="p-2.5 text-center">إجمالي العملاء</th>
+                        <th className="p-2.5 text-center text-emerald-300">🟢 متعاملين</th>
+                        <th className="p-2.5 text-center text-emerald-300">% التفعيل</th>
+                        <th className="p-2.5 text-left text-emerald-300">مبيعات 2026</th>
+                        <th className="p-2.5 text-left text-emerald-300">تحصيلات 2026</th>
+                        <th className="p-2.5 text-center text-rose-300">🔴 غير متعاملين</th>
+                        <th className="p-2.5 text-center text-rose-300">% الركود</th>
+                        <th className="p-2.5 text-left text-rose-300">مديونية راكدة</th>
+                        <th className="p-2.5 text-center text-sky-300">🔵 قابلين للتعامل</th>
+                        <th className="p-2.5 text-center text-sky-300">% الفرص</th>
+                        <th className="p-2.5 text-center">تقييم التفعيل</th>
+                        <th className="p-2.5 text-center">تصفية سريعة</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {customerDealingAnalytics.matrixRows.map((row, idx) => {
+                        const activeRating =
+                          row.transactingRate >= 65
+                            ? { label: 'ممتاز 🟢', bg: 'bg-emerald-100 text-emerald-900 border-emerald-300' }
+                            : row.transactingRate >= 40
+                            ? { label: 'جيد 🟡', bg: 'bg-amber-100 text-amber-900 border-amber-300' }
+                            : { label: 'بحاجة تنشيط 🔴', bg: 'bg-rose-100 text-rose-900 border-rose-300' };
+
+                        return (
+                          <tr key={`${row.branchName}-${row.repName}-${idx}`} className="hover:bg-slate-50/80 transition">
+                            {!isRep && (
+                              <td className="p-2.5 font-bold text-slate-800 whitespace-nowrap">
+                                {row.branchName}
+                              </td>
+                            )}
+                            <td className="p-2.5 font-black text-indigo-900 whitespace-nowrap">
+                              {row.repName}
+                            </td>
+                            <td className="p-2.5 text-center font-bold text-slate-900">
+                              {row.total.toLocaleString()}
+                            </td>
+
+                            {/* Transacting */}
+                            <td className="p-2.5 text-center font-black text-emerald-700">
+                              {row.transactingCount.toLocaleString()}
+                            </td>
+                            <td className="p-2.5 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <span className="font-bold text-emerald-800">{row.transactingRate}%</span>
+                                <div className="w-12 h-2 rounded-full bg-slate-100 overflow-hidden shrink-0">
+                                  <div
+                                    className="h-full bg-emerald-500 rounded-full"
+                                    style={{ width: `${Math.min(100, row.transactingRate)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-2.5 text-left font-mono font-bold text-slate-900 whitespace-nowrap" title={isPrivacyMode ? 'مخفي' : undefined}>
+                              {formatMoney(row.transactingSales)}
+                            </td>
+                            <td className="p-2.5 text-left font-mono font-bold text-emerald-700 whitespace-nowrap" title={isPrivacyMode ? 'مخفي' : undefined}>
+                              {formatMoney(row.transactingCollections)}
+                            </td>
+
+                            {/* Non-Transacting */}
+                            <td className="p-2.5 text-center font-black text-rose-700">
+                              {row.nonTransactingCount.toLocaleString()}
+                            </td>
+                            <td className="p-2.5 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <span className="font-bold text-rose-800">{row.nonTransactingRate}%</span>
+                                <div className="w-12 h-2 rounded-full bg-slate-100 overflow-hidden shrink-0">
+                                  <div
+                                    className="h-full bg-rose-500 rounded-full"
+                                    style={{ width: `${Math.min(100, row.nonTransactingRate)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-2.5 text-left font-mono font-bold text-rose-700 whitespace-nowrap" title={isPrivacyMode ? 'مخفي' : undefined}>
+                              {formatMoney(row.nonTransactingDebt)}
+                            </td>
+
+                            {/* Prospect */}
+                            <td className="p-2.5 text-center font-black text-sky-700">
+                              {row.prospectCount.toLocaleString()}
+                            </td>
+                            <td className="p-2.5 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <span className="font-bold text-sky-800">{row.prospectRate}%</span>
+                                <div className="w-12 h-2 rounded-full bg-slate-100 overflow-hidden shrink-0">
+                                  <div
+                                    className="h-full bg-sky-500 rounded-full"
+                                    style={{ width: `${Math.min(100, row.prospectRate)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Active Rating */}
+                            <td className="p-2.5 text-center whitespace-nowrap">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${activeRating.bg}`}>
+                                {activeRating.label}
+                              </span>
+                            </td>
+
+                            {/* Filter action */}
+                            <td className="p-2.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDealingRepFilter(dealingRepFilter === row.repName ? 'ALL' : row.repName);
+                                }}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-black transition cursor-pointer border ${
+                                  dealingRepFilter === row.repName
+                                    ? 'bg-indigo-600 text-white border-indigo-700'
+                                    : 'bg-slate-50 text-indigo-700 hover:bg-indigo-50 border-slate-200'
+                                }`}
+                              >
+                                {dealingRepFilter === row.repName ? 'إلغاء الفلتر ✕' : 'عرض عملائه 🔍'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-slate-100 font-black border-t-2 border-slate-300">
+                      <tr>
+                        {!isRep && <td className="p-2.5">الإجمالي الشامل</td>}
+                        <td className="p-2.5 text-indigo-950 font-black">جميع المناديب ({customerDealingAnalytics.matrixRows.length})</td>
+                        <td className="p-2.5 text-center font-mono font-black">{customerDealingAnalytics.kpi.totalAll.toLocaleString()}</td>
+                        <td className="p-2.5 text-center text-emerald-800 font-mono font-black">{customerDealingAnalytics.kpi.totalTransacting.toLocaleString()}</td>
+                        <td className="p-2.5 text-center text-emerald-800 font-mono font-black">{customerDealingAnalytics.kpi.totalTransactingRate}%</td>
+                        <td className="p-2.5 text-left font-mono font-black text-slate-900">{formatMoney(customerDealingAnalytics.kpi.totalTransactingSales)}</td>
+                        <td className="p-2.5 text-left font-mono font-black text-emerald-800">{formatMoney(customerDealingAnalytics.kpi.totalTransactingCollections)}</td>
+                        <td className="p-2.5 text-center text-rose-800 font-mono font-black">{customerDealingAnalytics.kpi.totalNonTransacting.toLocaleString()}</td>
+                        <td className="p-2.5 text-center text-rose-800 font-mono font-black">{customerDealingAnalytics.kpi.totalNonTransactingRate}%</td>
+                        <td className="p-2.5 text-left font-mono font-black text-rose-800">{formatMoney(customerDealingAnalytics.kpi.totalNonTransactingDebt)}</td>
+                        <td className="p-2.5 text-center text-sky-800 font-mono font-black">{customerDealingAnalytics.kpi.totalProspects.toLocaleString()}</td>
+                        <td className="p-2.5 text-center text-sky-800 font-mono font-black">{customerDealingAnalytics.kpi.totalProspectRate}%</td>
+                        <td className="p-2.5 text-center text-slate-600">-</td>
+                        <td className="p-2.5 text-center text-slate-600">-</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              {/* Customer Drilldown Segment Table */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-xs font-black text-slate-900">
+                      قائمة عملاء التنشيط والمتابعة الميدانية التفصيلية:
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      اضغط على أي عميل لفتح ملفه الشامل، جدولة زيارة فورية، أو تحرير طلبية
+                    </p>
+                  </div>
+
+                  {/* Slicer Tabs for Segment */}
+                  <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setDealingSegmentFilter('ALL')}
+                      className={`px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                        dealingSegmentFilter === 'ALL'
+                          ? 'bg-white text-slate-900 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      الكل ({customerDealingAnalytics.kpi.totalAll})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDealingSegmentFilter('transacting')}
+                      className={`px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                        dealingSegmentFilter === 'transacting'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-emerald-800 hover:text-emerald-950'
+                      }`}
+                    >
+                      🟢 المتعاملون ({customerDealingAnalytics.kpi.totalTransacting})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDealingSegmentFilter('non_transacting')}
+                      className={`px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                        dealingSegmentFilter === 'non_transacting'
+                          ? 'bg-rose-600 text-white shadow-xs'
+                          : 'text-rose-800 hover:text-rose-950'
+                      }`}
+                    >
+                      🔴 غير المتعاملين ({customerDealingAnalytics.kpi.totalNonTransacting})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDealingSegmentFilter('prospect')}
+                      className={`px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                        dealingSegmentFilter === 'prospect'
+                          ? 'bg-sky-600 text-white shadow-xs'
+                          : 'text-sky-800 hover:text-sky-950'
+                      }`}
+                    >
+                      🔵 القابلون للتعامل ({customerDealingAnalytics.kpi.totalProspects})
+                    </button>
+                  </div>
+                </div>
+
+                {/* Search & Rep Filter Filter Bar */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="بحث باسم العميل، الكود، المحل، الهاتف..."
+                      value={dealingSearch}
+                      onChange={(e) => setDealingSearch(e.target.value)}
+                      className="w-full pr-8 pl-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50"
+                    />
+                  </div>
+                  {dealingRepFilter !== 'ALL' && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-50 text-indigo-800 border border-indigo-200 text-xs font-black">
+                      <span>المندوب: {dealingRepFilter}</span>
+                      <button
+                        type="button"
+                        onClick={() => setDealingRepFilter('ALL')}
+                        className="text-indigo-600 hover:text-indigo-900 cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  )}
+                </div>
+
+                {/* Customer List Table */}
+                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                  <table className="w-full text-right border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 whitespace-nowrap">
+                        <th className="p-2.5">العميل والمحل</th>
+                        {!isRep && <th className="p-2.5">الفرع</th>}
+                        <th className="p-2.5">المندوب</th>
+                        <th className="p-2.5 text-center">تصنيف التعامل</th>
+                        <th className="p-2.5 text-left">مبيعات 2026</th>
+                        <th className="p-2.5 text-left">تحصيلات 2026</th>
+                        <th className="p-2.5 text-left">الرصيد الحالي</th>
+                        <th className="p-2.5 text-left">المتأخرات</th>
+                        <th className="p-2.5 text-center">إجراءات</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {customerDealingAnalytics.classifiedList
+                        .filter((item) => {
+                          if (dealingSegmentFilter !== 'ALL' && item.category !== dealingSegmentFilter) return false;
+                          if (dealingRepFilter !== 'ALL' && item.repName !== dealingRepFilter) return false;
+                          if (dealingSearch.trim()) {
+                            const q = dealingSearch.trim().toLowerCase();
+                            const n = (item.customer.name || '').toLowerCase();
+                            const c = (item.customer.code || '').toLowerCase();
+                            const s = (item.customer.storeName || '').toLowerCase();
+                            const p = item.customer.phone || '';
+                            if (!n.includes(q) && !c.includes(q) && !s.includes(q) && !p.includes(q)) return false;
+                          }
+                          return true;
+                        })
+                        .slice(0, 50)
+                        .map((item) => {
+                          return (
+                            <tr
+                              key={item.customer.id}
+                              onClick={() => setSelectedCustomer(item.customer)}
+                              className="hover:bg-slate-50 cursor-pointer transition"
+                            >
+                              <td className="p-2.5">
+                                <div className="font-bold text-slate-900">{item.customer.name}</div>
+                                <div className="text-[11px] text-slate-500 font-mono">
+                                  كود: {item.customer.code || '---'} {item.customer.storeName && `• ${item.customer.storeName}`}
+                                </div>
+                              </td>
+                              {!isRep && (
+                                <td className="p-2.5 text-slate-700 whitespace-nowrap">{item.branchName}</td>
+                              )}
+                              <td className="p-2.5 font-bold text-indigo-900 whitespace-nowrap">{item.repName}</td>
+                              <td className="p-2.5 text-center whitespace-nowrap">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                    item.category === 'transacting'
+                                      ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                                      : item.category === 'non_transacting'
+                                      ? 'bg-rose-100 text-rose-900 border border-rose-300'
+                                      : 'bg-sky-100 text-sky-900 border border-sky-300'
+                                  }`}
+                                >
+                                  {item.categoryLabel}
+                                </span>
+                              </td>
+                              <td className="p-2.5 text-left font-mono font-bold text-slate-800 whitespace-nowrap" title={isPrivacyMode ? 'مخفي' : undefined}>
+                                {formatMoney(item.sales)}
+                              </td>
+                              <td className="p-2.5 text-left font-mono font-bold text-emerald-700 whitespace-nowrap" title={isPrivacyMode ? 'مخفي' : undefined}>
+                                {formatMoney(item.collections)}
+                              </td>
+                              <td className="p-2.5 text-left font-mono font-bold text-purple-900 whitespace-nowrap" title={isPrivacyMode ? 'مخفي' : undefined}>
+                                {formatMoney(item.debt)}
+                              </td>
+                              <td className="p-2.5 text-left font-mono font-bold text-rose-700 whitespace-nowrap" title={isPrivacyMode ? 'مخفي' : undefined}>
+                                {formatMoney(item.overdue)}
+                              </td>
+                              <td className="p-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center justify-center gap-1">
+                                  {onOpenNewOrderForCustomer && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onOpenNewOrderForCustomer(item.customer)}
+                                      className="p-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition cursor-pointer"
+                                      title="إنشاء طلبية جديدة"
+                                    >
+                                      🛒
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedCustomer(item.customer)}
+                                    className="p-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+                                    title="عرض الملف والتفاصيل"
+                                  >
+                                    👁️
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}

@@ -473,7 +473,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else {
         // If Supabase has no target records yet, check if there's a saved published Google Sheet URL
         const savedSources = getPublishedDataSources();
-        if (savedSources.targets?.url) {
+        if (savedSources.targets?.enabled && savedSources.targets?.url && /^https?:\/\//i.test(savedSources.targets.url.trim())) {
           try {
             const sheetTargets = await fetchTargetsFromGoogleSheetUrl(savedSources.targets.url);
             if (!cancelled && sheetTargets && sheetTargets.length > 0) {
@@ -481,8 +481,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               setTargets(deduped);
               saveTargetsToSupabase(deduped).catch(() => {});
             }
-          } catch (e) {
-            console.error('Failed to auto-sync targets from saved Google Sheet URL', e);
+          } catch (e: any) {
+            console.warn('Target Google Sheet background auto-sync standby note:', e?.message || e);
           }
         }
       }
@@ -4370,8 +4370,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Sales Rep: STRICT PRIVACY - ONLY his own visits!
     return visits.filter((v) => {
-      // 1. Direct creator or rep ID match
-      if (v.createdBy === currentUser.id) return true;
+      // 1. Direct rep ID match
       if (v.repId === currentUser.id) return true;
       if (currentUser.username && v.repId && v.repId.toLowerCase() === currentUser.username.toLowerCase()) return true;
 
@@ -4380,9 +4379,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return true;
       }
 
-      // 3. Assigned customer match
-      const c = customers.find((cust) => cust.id === v.customerId);
-      return Boolean(c && doesCustomerBelongToRep(c, currentUser));
+      // 3. Created by this rep for himself
+      if (v.createdBy === currentUser.id && (!v.repId || v.repId === currentUser.id)) return true;
+
+      return false;
     });
   };
 
@@ -4470,7 +4470,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : customer.currentBalance,
     };
 
-    setCustomers((prev) => prev.map((c) => (c.id === customer.id ? updatedCustomer : c)));
+    setCustomers((prev) => {
+      const next = prev.map((c) => (c.id === customer.id ? updatedCustomer : c));
+      idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
+      return next;
+    });
 
     return {
       success: true,
@@ -4785,6 +4789,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getVisibleVisits,
         addVisit,
         updateVisit,
+        deleteVisit,
+        syncVisitsWithDatabase,
         getCustomerVisitSummary,
         getVisibleProducts,
         getSupervisorsInBranch,
