@@ -846,14 +846,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     });
 
-    // Strip any customer whose branch resolves to the October central warehouse.
-    // The central warehouse belongs to products/inventory only; it must never
-    // claim a customer. This runs before dedupe so imported sheet rows with a
-    // "فرع أكتوبر"/"مركزي" branch are purged entirely instead of being merged
-    // onto an existing real customer and silently dropping the rep/branch binding.
-    const branchFiltered = normalizedList.filter((c) => normalizeBranchKey(c.branchName) !== 'main');
-
-    return deduplicateAndMergeCustomers(branchFiltered).customers;
+    return deduplicateAndMergeCustomers(normalizedList).customers;
   };
 
   const [products, setProducts] = useState<Product[]>(() => {
