@@ -6,7 +6,9 @@ import {
   doesCustomerBelongToSupervisor,
   isArabicNameMatch,
   isBranchMatch,
-  normalizeArabicText
+  normalizeArabicText,
+  resolveBranchName,
+  MAIN_BRANCH_NAME
 } from './arabicMatchingService';
 import { buildGoogleSheetsPublicCsvUrl } from './excelService';
 import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
@@ -938,7 +940,7 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
       address: rawAddress || (rawRegion ? `${rawRegion} - ${rawGov}` : rawGov),
       region: rawRegion || rawGov || '',
       governorate: rawGov || '',
-      branchName: rawBranch || 'الفرع الرئيسي',
+      branchName: resolveBranchName(rawBranch) || MAIN_BRANCH_NAME,
       repName: rawRep || '',
       salesRepName: rawRep || '',
       supervisorName: rawSupervisor || '',
