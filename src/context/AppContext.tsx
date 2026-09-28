@@ -4279,7 +4279,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Branch Manager: STRICTLY sees ONLY invoices of his own branch
     if (currentUser.role === 'branch_manager') {
       if (!currentUser.branchName) return [];
-      return invoices.filter((i) => Boolean(i.branchName) && isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false }));
+      return invoices.filter((i) => {
+        if (i.branchName && isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false })) return true;
+        const c = customers.find((cust) => cust.id === i.customerId);
+        return Boolean(c && doesCustomerBelongToBranch(c, currentUser.branchName, users));
+      });
     }
 
     // Supervisor: STRICTLY sees ONLY invoices belonging to his branch and his supervised reps

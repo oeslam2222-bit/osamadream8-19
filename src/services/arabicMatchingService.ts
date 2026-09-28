@@ -677,12 +677,6 @@ export function doesCustomerBelongToBranch(
     return true;
   }
 
-  // STRICT BRANCH ISOLATION: If the customer already has an explicit branchName
-  // that does not match this branch, NEVER leak the customer to another branch.
-  if (customer.branchName && !isBranchMatch(customer.branchName, branchName, { allowUnassigned: false })) {
-    return false;
-  }
-
   // 2. Inferred branch from address, city, or notes (only for unassigned branch customers)
   const rawCust = customer as any;
   const textToScan = `${customer.address || ''} ${rawCust.city || ''} ${customer.notes || ''}`.trim();
