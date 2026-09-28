@@ -476,8 +476,8 @@ export function filterTargetsForUser(
         }
       }
 
-      // 3. Branch-scoped token matching: if within rep's branch, match name tokens
-      if (currentUser.branchName && isBranchMatch(r.branch, currentUser.branchName)) {
+// 3. Branch-scoped token matching: if within rep's branch, match name tokens
+       if (currentUser.branchName && isBranchMatch(r.branch, currentUser.branchName, { allowUnassigned: false })) {
         const normR = normalizeArabicText(cleanRepName).replace(/^(مندوب|كود|أستاذ|أ|م)\s*/g, '').trim();
         const normU = normalizeArabicText(currentName).replace(/^(مندوب|كود|أستاذ|أ|م)\s*/g, '').trim();
         const tokensR = normR.split(/\s+/).filter((t) => t.length >= 2);
@@ -519,8 +519,8 @@ export function filterTargetsForUser(
     });
 
     return records.filter((r) => {
-      // Must belong to supervisor's branch or general branch
-      if (!isBranchMatch(r.branch, currentUser.branchName)) return false;
+// Must belong to supervisor's branch or general branch
+       if (!isBranchMatch(r.branch, currentUser.branchName, { allowUnassigned: false })) return false;
 
       // Check if record is for the supervisor himself
       if (isArabicNameMatch(r.repName, currentName)) return true;
@@ -541,7 +541,7 @@ export function filterTargetsForUser(
 
   // 4. Branch Manager: strictly sees records of his branch only
   if (currentUser.role === 'branch_manager') {
-    return records.filter((r) => isBranchMatch(r.branch, currentUser.branchName));
+    return records.filter((r) => isBranchMatch(r.branch, currentUser.branchName, { allowUnassigned: false }));
   }
 
   return [];

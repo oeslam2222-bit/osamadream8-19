@@ -585,7 +585,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setBranches((prev) => {
       const next = prev.map((b) => {
-        if (b.name === branchName || isBranchMatch(b.name, branchName)) {
+        if (b.name === branchName || isBranchMatch(b.name, branchName, { allowUnassigned: false })) {
           const combined = Array.from(new Set([
             ...(primaryEmail ? [primaryEmail] : []),
             ...notifEmails,
@@ -619,7 +619,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const norm = normalizeBranchName(branchName);
     const branchOverride = branchCompanyInfo[norm] || branchCompanyInfo[branchName];
     const matchedBranch = branches.find(
-      (b) => b.name === norm || isBranchMatch(b.name, branchName)
+      (b) => b.name === norm || isBranchMatch(b.name, branchName, { allowUnassigned: false })
     );
 
     if (branchOverride && Object.keys(branchOverride).length > 0) {

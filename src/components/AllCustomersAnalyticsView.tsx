@@ -379,7 +379,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const availableReps = useMemo(() => {
     const s = new Set<string>();
     userVisibleCustomers.forEach((c) => {
-      if (selectedBranch === 'ALL' || isBranchMatch(c.branchName, selectedBranch)) {
+      if (selectedBranch === 'ALL' || (Boolean(c.branchName) && isBranchMatch(c.branchName, selectedBranch, { allowUnassigned: false }))) {
         const r = c.salesRepName || c.repName;
         if (r) s.add(r);
       }
@@ -505,7 +505,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const availableCustomerOptions = useMemo(() => {
     let list = userVisibleCustomers;
     if (selectedBranch !== 'ALL') {
-      list = list.filter((c) => isBranchMatch(c.branchName, selectedBranch));
+      list = list.filter((c) => Boolean(c.branchName) && isBranchMatch(c.branchName, selectedBranch, { allowUnassigned: false }));
     }
     if (selectedRep !== 'ALL') {
       list = list.filter((c) => {
@@ -651,7 +651,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
     // Branch filter
     if (selectedBranch !== 'ALL') {
-      list = list.filter((c) => isBranchMatch(c.branchName, selectedBranch));
+      list = list.filter((c) => Boolean(c.branchName) && isBranchMatch(c.branchName, selectedBranch, { allowUnassigned: false }));
     }
 
     // Rep filter
