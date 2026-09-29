@@ -363,6 +363,37 @@ const resolveDues = (c: Customer): number => {
   return Number(c.currentBalance ?? c.balance ?? 0);
 };
 
+/**
+ * Lightweight fingerprint of the customer data a client is currently showing.
+ * Lets the heartbeat detect that an admin changed the data and pull the fresh
+ * copy, instead of waiting for a manual "publish version" press.
+ */
+const CUSTOMERS_FINGERPRINT_KEY = 'dream_customers_fingerprint_v1';
+
+const buildCustomersFingerprint = (list: Customer[]): string => {
+  let debt = 0;
+  let dues = 0;
+  list.forEach((c) => {
+    debt += Number(c.currentBalance ?? c.balance ?? 0);
+    dues += Number(c.totalOverdueAndDue ?? 0);
+  });
+  return `${list.length}:${Math.round(debt)}:${Math.round(dues)}`;
+};
+
+const saveLocalCustomersFingerprint = (list: Customer[]) => {
+  try {
+    window.localStorage.setItem(CUSTOMERS_FINGERPRINT_KEY, buildCustomersFingerprint(list));
+  } catch {}
+};
+
+const getLocalCustomersFingerprint = (): string => {
+  try {
+    return window.localStorage.getItem(CUSTOMERS_FINGERPRINT_KEY) || '';
+  } catch {
+    return '';
+  }
+};
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Helper to normalize branch names across legacy stored data
   const normalizeBranchName = (name?: string): string => {
@@ -408,6 +439,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return INITIAL_USERS;
     }
   });
+
+  // Ref mirror so long-lived effects always see the current user list when
+  // linking customers to their sales rep, without re-subscribing the listener.
+  const usersRef = useRef<User[]>(users);
+  useEffect(() => {
+    usersRef.current = users;
+  }, [users]);
 
   const [branches, setBranches] = useState<Branch[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.BRANCHES);
@@ -1099,6 +1137,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const sanitized = sanitizeCustomers(savedCustomers);
           const deduped = deduplicateCustomersArray(sanitized);
           setCustomers(deduped);
+          saveLocalCustomersFingerprint(deduped);
           if (deduped.length !== savedCustomers.length) {
             idbSet(STORAGE_KEYS.CUSTOMERS, deduped).catch(() => {});
           }
@@ -1385,7 +1424,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const remoteMeta = await fetchRemoteDataVersion();
       if (!remoteMeta) {
-        return { updated: false, message: 'لم يتم العثور على إصدار سحابي في قاعدة البيانات' };
+        // No version stamp has been published yet. Instead of giving up (which
+        // left every rep frozen on stale data), pull the authoritative customer
+        // list directly and swap state for it.
+        const custRes = await fetchCustomersFromSupabase();
+        if (custRes.success && custRes.customers && custRes.customers.length > 0) {
+          const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers), users);
+          const valid = deduplicateCustomersArray(linked);
+          setCustomers((current) => {
+            if (current.length === valid.length) return current;
+            idbSet(STORAGE_KEYS.CUSTOMERS, valid).catch(() => {});
+            return valid;
+          });
+        }
+        return { updated: false, message: 'تم جلب أحدث بيانات العملاء مباشرة من السيرفر' };
       }
 
       const localMeta = getLocalDataVersion();
@@ -1466,6 +1518,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       saveLocalDataVersion(remoteMeta);
       setGlobalDataVersion(remoteMeta);
+      // Record a fingerprint of the data we just accepted. The heartbeat compares
+      // against it so an admin edit lands on every client even if the version
+      // stamp did not change.
+      saveLocalCustomersFingerprint(customers);
 
       const noticeMsg = `تم استلام أحدث إصدار للبيانات (v${remoteMeta.version}) ومسح الذاكرة المؤقتة القديمة بنجاح! (${remoteMeta.notes || 'تحديث تلقائي'})`;
       setLastVersionSyncNotice(noticeMsg);
@@ -1531,6 +1587,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!isLocalDataHydrated) return;
     let checkInFlight = false;
+    let lastHeartbeatCheck = 0;
+    const HEARTBEAT_INTERVAL_MS = 60 * 1000;
+
     const check = () => {
       if (checkInFlight || document.visibilityState === 'hidden') return;
       checkInFlight = true;
@@ -1538,24 +1597,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         checkInFlight = false;
       });
     };
-    const handleFocus = () => check();
+
+    /**
+     * Content heartbeat. Compares the customer data currently on screen against
+     * the server. If the numbers moved, the client swaps in the fresh list so
+     * every rep/supervisor sees the admin's numbers without doing anything.
+     */
+    const checkCustomersContent = async () => {
+      if (checkInFlight || document.visibilityState === 'hidden') return;
+      checkInFlight = true;
+      try {
+        const res = await fetchCustomersFromSupabase();
+        if (!res.success || !res.customers || res.customers.length === 0) return;
+        const linked = linkCustomersToUsers(sanitizeCustomers(res.customers), usersRef.current);
+        const fresh = deduplicateCustomersArray(linked);
+        const fingerprint = buildCustomersFingerprint(fresh);
+        if (fingerprint === getLocalCustomersFingerprint()) return;
+        setCustomers(fresh);
+        idbSet(STORAGE_KEYS.CUSTOMERS, fresh).catch(() => {});
+        saveLocalCustomersFingerprint(fresh);
+      } catch {
+        // Network hiccup: the next heartbeat retries.
+      } finally {
+        checkInFlight = false;
+      }
+    };
+
+    const handleFocus = () => {
+      check();
+      checkCustomersContent();
+    };
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') check();
+      if (document.visibilityState === 'visible') {
+        check();
+        checkCustomersContent();
+      }
+    };
+
+    const heartbeat = () => {
+      const now = Date.now();
+      if (now - lastHeartbeatCheck < HEARTBEAT_INTERVAL_MS) return;
+      lastHeartbeatCheck = now;
+      check();
+      checkCustomersContent();
     };
 
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleVisibility);
-    const interval = window.setInterval(check, 15 * 1000);
+    const interval = window.setInterval(heartbeat, 30 * 1000);
     const versionChannel = supabase
       .channel('global-data-version-sync')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${GLOBAL_VERSION_RECORD_ID}` },
-        () => check()
+        () => {
+          check();
+          checkCustomersContent();
+        }
       )
       .subscribe();
 
     check();
+    checkCustomersContent();
     return () => {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);

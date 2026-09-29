@@ -392,15 +392,6 @@ export const ExcelImportExport: React.FC = () => {
     }
   };
 
-  const handleForcePurgeLocal = async () => {
-    try {
-      await forcePurgeCacheAndReload('all');
-      showSuccess('تم تفريغ كافة البيانات المؤقتة محلياً وإعادة جلب أحدث نسخة نظيفة بنجاح بدون تكرار!');
-    } catch (e: any) {
-      showError('تعذر تفريغ الكاش المحلي');
-    }
-  };
-
   // ----------------------------------------------------
   // Filtered Lists & Memoized Calculations
   // ----------------------------------------------------
@@ -604,33 +595,11 @@ export const ExcelImportExport: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsPublishModalOpen(true)}
-                className="bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-md flex items-center gap-1.5"
-                title="إصدار تحديث جديد وتفريغ الكاش لجميع أجهزة المناديب والمشرفين فوراً"
+                className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-md flex items-center gap-1.5"
+                title="تحديث قاعدة العملاء على السيرفر — يتم نشرها تلقائياً لكل المناديب والمشرفين خلال ثوانٍ"
               >
-                <Sparkles className="w-4 h-4 text-slate-950 shrink-0" />
-                <span>إصدار تحديث ومسح الكاش للجميع 🚀</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => checkAndSyncDataVersion(true)}
-                disabled={isVersionSyncing}
-                className="bg-slate-800 hover:bg-slate-750 active:scale-95 text-slate-200 border border-slate-700 hover:border-slate-500 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
-                title="فحص فوري وجلب أحدث إصدار من السيرفر"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${isVersionSyncing ? 'animate-spin' : ''}`} />
-                <span>مزامنة فورية</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleForcePurgeLocal}
-                disabled={isVersionSyncing}
-                className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
-                title="تفريغ الكاش المحلي في هذا الجهاز وإعادة البناء من قاعدة البيانات المركزية"
-              >
-                <Trash2 className="w-4 h-4 text-rose-400" />
-                <span>مسح الكاش المحلي 🧹</span>
+                <Sparkles className="w-4 h-4 text-white shrink-0" />
+                <span>تحديث بيانات العملاء للجميع</span>
               </button>
             </div>
           </div>

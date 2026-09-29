@@ -56,6 +56,19 @@ export function extractCoreBusinessName(normalizedName: string): string {
 }
 
 /**
+ * Pick the most conservative (largest magnitude) figure when two rows of the
+ * same customer disagree. Falls back to the shared dues value when neither row
+ * carries its own figure, so a merge can never blank out a known amount.
+ */
+function pickConservative(a?: number, b?: number, fallback?: number): number | undefined {
+  if (a !== undefined && b !== undefined) {
+    return Math.abs(a) >= Math.abs(b) ? a : b;
+  }
+  const single = a !== undefined ? a : b;
+  return single !== undefined ? single : fallback;
+}
+
+/**
  * Merge two customer records (source into target), picking the best available information
  * so no data is lost and duplicates are cleanly consolidated.
  */
@@ -100,19 +113,22 @@ export function mergeTwoCustomers(target: Customer, source: Customer): Customer 
   const finalRepId = target.repId || source.repId;
   const finalRepName = target.salesRepName || target.repName || source.salesRepName || source.repName || '';
 
-  // Balances: pick the latest non-zero value or higher specificity
+  // Balances: keep the most conservative (highest) figure across duplicates.
+  // Picking "first non-zero" made المديونية depend on row order, so any
+  // duplicated row silently corrupted the debt shown to supervisors.
   const targetBal = Number(target.currentBalance ?? target.balance ?? 0);
   const sourceBal = Number(source.currentBalance ?? source.balance ?? 0);
-  const finalBal = sourceBal !== 0 ? sourceBal : targetBal;
+  const finalBal = pickConservative(targetBal, sourceBal, 0)!;
 
+  // Credit limit: same rule. Arbitrary "first non-zero" produced wrong حدود ائتمانية.
   const targetLimit = Number(target.creditLimit ?? 0);
   const sourceLimit = Number(source.creditLimit ?? 0);
-  const finalLimit = sourceLimit !== 0 ? sourceLimit : targetLimit;
+  const finalLimit = pickConservative(targetLimit, sourceLimit, 0)!;
 
-  // Overdue
+  // Overdue / dues: same rule, and it must never silently collapse to zero.
   const targetOverdue = target.totalOverdueAndDue !== undefined ? Number(target.totalOverdueAndDue) : undefined;
   const sourceOverdue = source.totalOverdueAndDue !== undefined ? Number(source.totalOverdueAndDue) : undefined;
-  const finalOverdue = sourceOverdue !== undefined ? sourceOverdue : targetOverdue;
+  const finalOverdue = pickConservative(targetOverdue, sourceOverdue);
 
   // Monthly breakdown dictionaries - merge per month safely taking non-zero / max values
   const mergedMonthlySales: Record<number, number> = {};
@@ -176,6 +192,14 @@ export function mergeTwoCustomers(target: Customer, source: Customer): Customer 
     source.dealt2026 === 'متعامل'
   );
 
+  const targetOverdueBalance = target.overdueBalance !== undefined ? Number(target.overdueBalance) : undefined;
+  const sourceOverdueBalance = source.overdueBalance !== undefined ? Number(source.overdueBalance) : undefined;
+  const mergedOverdueBalance = pickConservative(targetOverdueBalance, sourceOverdueBalance, finalOverdue);
+
+  const targetDueBalance = target.dueBalance !== undefined ? Number(target.dueBalance) : undefined;
+  const sourceDueBalance = source.dueBalance !== undefined ? Number(source.dueBalance) : undefined;
+  const mergedDueBalance = pickConservative(targetDueBalance, sourceDueBalance, finalOverdue);
+
   return {
     ...target,
     ...source,
@@ -192,8 +216,8 @@ export function mergeTwoCustomers(target: Customer, source: Customer): Customer 
     balance: finalBal,
     currentBalance: finalBal,
     totalOverdueAndDue: finalOverdue,
-    overdueBalance: source.overdueBalance !== undefined && Number(source.overdueBalance) !== 0 ? Number(source.overdueBalance) : target.overdueBalance,
-    dueBalance: source.dueBalance !== undefined && Number(source.dueBalance) !== 0 ? Number(source.dueBalance) : target.dueBalance,
+    overdueBalance: mergedOverdueBalance,
+    dueBalance: mergedDueBalance,
     notes: finalNotes,
     tier: finalTier,
     monthlySales2026: Object.keys(mergedMonthlySales).length > 0 ? mergedMonthlySales : (target.monthlySales2026 || source.monthlySales2026),
