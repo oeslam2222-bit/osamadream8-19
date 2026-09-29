@@ -21,6 +21,13 @@ export function normalizeUserRole(rawRole: any, isAdminFlag?: boolean): UserRole
 
 // Initialize Supabase Client
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  global: {
+    // Version checks must never be served from a browser/CDN cache.
+    headers: {
+      'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate',
+      Pragma: 'no-cache',
+    },
+  },
   auth: {
     persistSession: true,
     autoRefreshToken: true,
