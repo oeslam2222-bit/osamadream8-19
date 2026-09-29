@@ -44,7 +44,7 @@ export function filterCustomersByRBAC(
     return customers;
   }
 
-  // Branch Manager only sees customers in his branch
+  // Branch Manager only sees customers in his branch (matching direct branch name, or any rep in the branch)
   if (user.role === 'branch_manager') {
     return customers.filter((c) =>
       doesCustomerBelongToBranch(c, user.branchName, allUsers)

@@ -95,6 +95,54 @@ export interface Product {
   barcode?: string;
   minOrderQuantity?: number;
   notes?: string;
+  variantId?: string;                // رقم/معرف الشباك أو اللون في حال كان متغير
+  variantName?: string;              // اسم الشباك (مثل: شباك 1، شباك 2، أحمر)
+}
+
+export interface ProductVariant {
+  id: string;                        // variant_id (معرف الشباك الفريد)
+  productId: string;                 // product_id (مرتبط بالمنتج الرئيسي)
+  code: string;                      // كود الصنف الفرعي للشباك (SKU)
+  name: string;                      // اسم الشباك / اللون (شباك 1، شباك 2، أحمر، ...)
+  windowNumber?: number;             // رقم الشباك (1, 2, 3...)
+  color: string;                     // اللون
+  colorCode?: string;                // كود أو تمثيل اللون
+  imageUrl?: string;                 // صورة الشباك بدقة عالية وواضحة للعين
+  branchStockActual: number;         // الكمية المتاحة في المخزن للفرع
+  branchStockReserved: number;       // الكمية المحجوزة
+  mainWarehouseActual: number;       // الكمية المتاحة في مخزن أكتوبر الرئيسي
+  mainWarehouseReserved: number;
+  cartonQuantity: number;            // شدة الكرتونة
+  piecePrice: number;                // سعر القطعة
+  cartonPrice: number;               // سعر الكرتونة
+  promoPrice?: number;               // سعر العرض للكرتونة
+  promoPiecePrice?: number;          // سعر العرض للقطعة
+  status: ItemStatus;                // حالة الصنف
+  barcode?: string;
+  rawProduct: Product;               // مرجع كامل للصنف الأصلي لعمليات السلة والطلبيات
+}
+
+export interface ParentProduct {
+  id: string;                        // معرّف المنتج الرئيسي الموحد
+  primaryCode: string;               // الكود الموحد/الأساسي (الكود المشترك للـ 3,444 منتج)
+  unifiedCode?: string;              // الكود الموحد الرسمي (#)
+  name: string;                      // الاسم العام للمنتج
+  department: string;                // القسم / Item group
+  category: string;                  // التصنيف
+  classification: string;            // الفئة / Family Name
+  familyName?: string;
+  salesPriority: SalesPriority;
+  status: ItemStatus;
+  cartonQuantity: number;
+  imageUrl?: string;                 // صورة الصنف العامة عالية الوضوح
+  minPrice: number;                  // أقل سعر بيع بين الشبابيك
+  maxPrice: number;                  // أعلى سعر بيع بين الشبابيك
+  totalBranchStock: number;          // إجمالي رصيد الفرع الحالي لكافة الشبابيك
+  totalOctoberStock: number;         // إجمالي رصيد مخزن أكتوبر لكافة الشبابيك
+  variants: ProductVariant[];        // قائمة المتغيرات والشبابيك المرتبطة
+  variantsCount: number;             // عدد الشبابيك والألوان المتوفرة
+  hasMultipleVariants: boolean;      // هل يحتوي على أكثر من شباك/لون
+  defaultVariant: ProductVariant;    // الشباك الافتراضي (الأول أو المتوفر)
 }
 
 export type CustomerTier = 'مميز' | 'راقي' | 'متوسط' | 'عادي';
@@ -167,6 +215,8 @@ export interface Customer {
   dueBalance?: number;               // المستحق
   creditLimit?: number;              // الحد الائتماني
   lastOrderDate?: string;            // تاريخ آخر طلبية
+  lastCollectionDate?: string;       // تاريخ آخر تحصيل (YYYY-MM-DD أو نص التاريخ)
+  lastCollectionAmount?: number;     // قيمة آخر تحصيل
   totalOrdersCount?: number;         // إجمالي عدد الطلبيات
   totalSpent?: number;               // إجمالي المبيعات للعميل
 
@@ -252,7 +302,8 @@ export type OrderStatus =
   | 'مرتجع جزئي'
   | 'مرفوضة / ملغاة'
   | 'ملغاة';
-export type PaymentMethod = 'نقدي (كاش)' | 'آجل (30 يوم)' | 'آجل (60 يوم)' | 'تحويل بنكي' | 'شيك';
+export type PaymentMethod = 'كاش' | 'آجل' | 'شيكات' | 'نقدي (كاش)' | 'شيك';
+export const ALLOWED_PAYMENT_METHODS: PaymentMethod[] = ['كاش', 'آجل', 'شيكات'];
 
 export interface ReturnedItem {
   productId: string;

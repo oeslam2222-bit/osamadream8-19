@@ -59,10 +59,12 @@ import {
 import { formatCurrency } from '../services/invoiceService';
 import { cacheProductImages, getCachedImagesStats, clearCachedImages } from '../services/imageCacheService';
 import { parseExcelProducts, fetchAndParseGoogleSheet, generateSampleExcelTemplate } from '../services/excelService';
-import { Customer, ItemStatus, Product, SalesPriority } from '../types';
+import { Customer, ItemStatus, Product, SalesPriority, ParentProduct, ProductVariant } from '../types';
 import { DepartmentCategorySlicer } from './DepartmentCategorySlicer';
 import { getDepartmentMeta } from '../data/departmentMeta';
 import { getBranchStockForProduct } from '../services/arabicMatchingService';
+import { groupProductsIntoParents } from '../services/productVariantService';
+import { ProductVariantModal } from './ProductVariantModal';
 import { PosCashierSidebar } from './PosCashierSidebar';
 
 interface ProductCatalogProps {
@@ -147,6 +149,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
   // Modals & UI States
   const [selectedProductForModal, setSelectedProductForModal] = useState<Product | null>(null);
+  const [selectedParentForModal, setSelectedParentForModal] = useState<ParentProduct | null>(null);
+  const [isParentGroupingEnabled, setIsParentGroupingEnabled] = useState<boolean>(true);
   const [addedItemToast, setAddedItemToast] = useState<{ name: string; count: string } | null>(null);
   const [stockErrorToast, setStockErrorToast] = useState<string | null>(null);
   const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
@@ -163,6 +167,18 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
   // Per-card ordering state (custom quantity and carton vs piece toggle)
   const [cardOrderState, setCardOrderState] = useState<Record<string, { type: 'carton' | 'piece'; quantity: number }>>({});
+
+  // Active selected window/variant on parent cards
+  const [cardSelectedVariant, setCardSelectedVariant] = useState<Record<string, string>>({});
+
+  const getParentActiveVariant = (parent: ParentProduct): ProductVariant => {
+    const selectedId = cardSelectedVariant[parent.id];
+    if (selectedId) {
+      const found = parent.variants.find((v) => v.id === selectedId);
+      if (found) return found;
+    }
+    return parent.defaultVariant || parent.variants[0];
+  };
 
   // Cache stats state for phone bandwidth saving
   const [cacheStats, setCacheStats] = useState<{ count: number; estimatedSizeMB: number }>({ count: 0, estimatedSizeMB: 0 });
@@ -535,17 +551,157 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     currentActiveBranch
   ]);
 
+  // Group all visible products into Parent Products with Variants / Windows (~3,444 products from 5,444 items)
+  const parentProducts = useMemo(() => {
+    return groupProductsIntoParents(products);
+  }, [products]);
+
+  // Filtered & Sorted Parent Products (Consolidated 3,444 products)
+  const filteredParentProducts = useMemo(() => {
+    if (!isParentGroupingEnabled) return [];
+
+    let result = parentProducts.filter((p) => {
+      // Search match across parent attributes AND any of its variants
+      if (searchTerm.trim()) {
+        const query = searchTerm.toLowerCase().trim();
+        const cleanQuery = query.replace('#', '').trim();
+
+        const codeMatch = p.primaryCode.toLowerCase().includes(query) || p.primaryCode.toLowerCase().includes(cleanQuery);
+        const unifiedMatch = Boolean(
+          p.unifiedCode && (
+            p.unifiedCode.toLowerCase().includes(cleanQuery) ||
+            p.unifiedCode.toLowerCase().includes(query)
+          )
+        );
+        const nameMatch = p.name.toLowerCase().includes(query);
+        const catMatch = p.category?.toLowerCase().includes(query);
+        const deptMatch = p.department?.toLowerCase().includes(query);
+
+        // Check if any child variant matches code, color, or window name
+        const variantMatch = p.variants.some((v) =>
+          v.code.toLowerCase().includes(query) ||
+          v.name.toLowerCase().includes(query) ||
+          v.color.toLowerCase().includes(query)
+        );
+
+        if (!codeMatch && !unifiedMatch && !nameMatch && !catMatch && !deptMatch && !variantMatch) {
+          return false;
+        }
+      }
+
+      // Official Brand / Item Group Filter
+      if (selectedOfficialDept !== 'الكل') {
+        const target = selectedOfficialDept.toLowerCase().trim();
+        const pDept = (p.department || p.category || '').toLowerCase().trim();
+        if (!pDept.includes(target)) return false;
+      }
+
+      // Sub-category / Family Name Filter
+      if (selectedSubCategory !== 'الكل') {
+        const targetSub = selectedSubCategory.toLowerCase().trim();
+        const pFamily = (p.familyName || '').toLowerCase().trim();
+        const pClass = (p.classification || '').toLowerCase().trim();
+        const pCat = (p.category || '').toLowerCase().trim();
+
+        const match =
+          pFamily === targetSub ||
+          pClass === targetSub ||
+          (pCat === targetSub && !pFamily && !pClass) ||
+          (pFamily && pFamily === targetSub) ||
+          (pClass && pClass === targetSub);
+
+        if (!match) return false;
+      }
+
+      // Priority filter
+      if (selectedPriority !== 'الكل' && p.salesPriority !== selectedPriority) {
+        return false;
+      }
+
+      // Status filter
+      if (selectedStatus !== 'الكل' && p.status !== selectedStatus) {
+        return false;
+      }
+
+      // Stock availability
+      const bStock = p.totalBranchStock;
+      const oStock = p.totalOctoberStock;
+      if (stockAvailabilityFilter === 'offers') {
+        const hasOffer = p.variants.some((v) => Boolean(v.promoPrice && v.promoPrice > 0));
+        if (!hasOffer) return false;
+      } else if (stockAvailabilityFilter === 'out_of_stock') {
+        if (bStock > 0 || oStock > 0) return false;
+      } else if (stockAvailabilityFilter === 'out_of_branch_only') {
+        if (bStock > 0 || oStock <= 0) return false;
+      } else if (stockAvailabilityFilter === 'low_stock') {
+        if (bStock <= 0 || bStock > 5) return false;
+      } else if (stockAvailabilityFilter === 'high_stock') {
+        if (bStock < 30) return false;
+      } else if (stockAvailabilityFilter === 'in_branch') {
+        if (bStock <= 0) return false;
+      } else if (stockAvailabilityFilter === 'in_warehouse') {
+        if (oStock <= 0) return false;
+      }
+
+      return true;
+    });
+
+    // Sorting
+    if (sortBy === 'branch_stock_desc') {
+      result.sort((a, b) => b.totalBranchStock - a.totalBranchStock);
+    } else if (sortBy === 'branch_stock_asc') {
+      result.sort((a, b) => a.totalBranchStock - b.totalBranchStock);
+    } else if (sortBy === 'october_stock_desc') {
+      result.sort((a, b) => b.totalOctoberStock - a.totalOctoberStock);
+    } else if (sortBy === 'october_stock_asc') {
+      result.sort((a, b) => a.totalOctoberStock - b.totalOctoberStock);
+    } else if (sortBy === 'total_stock_desc') {
+      result.sort((a, b) => (b.totalBranchStock + b.totalOctoberStock) - (a.totalBranchStock + a.totalOctoberStock));
+    } else if (sortBy === 'price_asc') {
+      result.sort((a, b) => a.minPrice - b.minPrice);
+    } else if (sortBy === 'price_desc') {
+      result.sort((a, b) => b.minPrice - a.minPrice);
+    } else if (sortBy === 'priority') {
+      const pWeights: Record<SalesPriority, number> = { 'مرتفع': 4, 'متوسط': 3, 'عادي': 2, 'منخفض': 1 };
+      result.sort((a, b) => (pWeights[b.salesPriority] || 0) - (pWeights[a.salesPriority] || 0));
+    } else if (sortBy === 'name_asc') {
+      result.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+    }
+
+    return result;
+  }, [
+    parentProducts,
+    isParentGroupingEnabled,
+    searchTerm,
+    selectedOfficialDept,
+    selectedSubCategory,
+    selectedPriority,
+    selectedStatus,
+    stockAvailabilityFilter,
+    sortBy,
+  ]);
+
+  const activeTotalItems = isParentGroupingEnabled ? filteredParentProducts.length : filteredProducts.length;
+
   // Total pages and chunked display computation
   const totalPages = useMemo(() => {
     if (itemsPerPage === 'all') return 1;
-    return Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
-  }, [filteredProducts.length, itemsPerPage]);
+    return Math.max(1, Math.ceil(activeTotalItems / itemsPerPage));
+  }, [activeTotalItems, itemsPerPage]);
 
   const displayedProducts = useMemo(() => {
+    if (isParentGroupingEnabled) return [];
     if (itemsPerPage === 'all') return filteredProducts;
     const startIndex = (currentPage - 1) * itemsPerPage;
     return filteredProducts.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredProducts, currentPage, itemsPerPage]);
+  }, [filteredProducts, currentPage, itemsPerPage, isParentGroupingEnabled]);
+
+  const displayedParentProducts = useMemo(() => {
+    if (!isParentGroupingEnabled) return [];
+    if (itemsPerPage === 'all') return filteredParentProducts;
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredParentProducts.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredParentProducts, currentPage, itemsPerPage, isParentGroupingEnabled]);
 
   // Filter-First Condition: hide products unless explicitly searched/filtered or user requests to view all
   const isFiltered = Boolean(
@@ -880,6 +1036,38 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             )}
           </div>
 
+          {/* Parent Consolidated (3,444 items) vs All Variants (5,444 items) Switcher */}
+          <div className="flex items-center bg-slate-800 p-0.5 rounded-xl border border-slate-700 h-11 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsParentGroupingEnabled(true)}
+              className={`h-9 px-2.5 sm:px-3 rounded-lg text-xs font-black transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                isParentGroupingEnabled
+                  ? 'bg-amber-400 text-slate-950 shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="عرض موحد لكل كود رئيسي مع اختيار الشبابيك والألوان (3,444 منتج)"
+            >
+              <Boxes className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">أصناف موحدة ({parentProducts.length})</span>
+              <span className="sm:hidden">موحد</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsParentGroupingEnabled(false)}
+              className={`h-9 px-2.5 sm:px-3 rounded-lg text-xs font-black transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                !isParentGroupingEnabled
+                  ? 'bg-amber-400 text-slate-950 shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="عرض تفصيلي لكل شباك ولون منفصلاً (5,444 صنف)"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">كافة الشبابيك ({products.length})</span>
+              <span className="sm:hidden">تفصيلي</span>
+            </button>
+          </div>
+
           {/* View Mode Switcher (Grid Density / List) */}
           <div className="hidden sm:flex items-center bg-slate-800 p-0.5 rounded-xl border border-slate-700 h-11">
             <button
@@ -1122,7 +1310,285 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               : 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3.5'
           }
         >
-          {displayedProducts.map((product, idx) => {
+          {isParentGroupingEnabled ? (
+            displayedParentProducts.map((parent, idx) => {
+              const activeVariant = getParentActiveVariant(parent);
+              const rawProd = activeVariant.rawProduct;
+              const isPromo = Boolean(activeVariant.promoPrice && activeVariant.promoPrice > 0);
+              const dynamicBranchStock = getProductBranchStock(rawProd);
+              const octoberAvail =
+                typeof rawProd.mainWarehouseReserved === 'number'
+                  ? Math.max(0, rawProd.mainWarehouseReserved)
+                  : rawProd.mainWarehouseActual || 0;
+              const totalCartonsAvailable = dynamicBranchStock + octoberAvail;
+              const orderState = getCardState(rawProd.id);
+              const isComfortable = gridDensity === 'comfortable';
+              const appliedPrice = activeVariant.promoPrice && activeVariant.promoPrice > 0
+                ? activeVariant.promoPrice
+                : activeVariant.cartonPrice;
+              const appliedPiecePrice = activeVariant.piecePrice || (activeVariant.cartonQuantity ? Math.round((appliedPrice / activeVariant.cartonQuantity) * 100) / 100 : appliedPrice);
+
+              return (
+                <div
+                  key={parent.id}
+                  className="bg-white rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-slate-200 hover:border-amber-400 shadow-xs hover:shadow-lg transition-all duration-200 flex flex-col justify-between group relative"
+                >
+                  {/* Top Image & Badges */}
+                  <div
+                    className={`relative ${
+                      isComfortable ? 'h-48 sm:h-56' : 'h-36 sm:h-44'
+                    } bg-gradient-to-br from-slate-100 via-slate-50 to-amber-50/20 overflow-hidden cursor-pointer flex items-center justify-center border-b border-slate-100`}
+                    onClick={() => setSelectedParentForModal(parent)}
+                  >
+                    <ProductImage
+                      product={rawProd}
+                      cloudinaryConfig={cloudinaryConfig}
+                      targetSize={isComfortable ? 600 : 400}
+                      sizeVariant="card"
+                      priority={idx < 4}
+                      containerClassName="w-full h-full"
+                      className="w-full h-full object-contain p-2 group-hover:scale-105 transition duration-300"
+                    />
+
+                    {/* Top Right: Code Badge */}
+                    <div className="absolute top-2 right-2 z-10 flex flex-col gap-1 items-end">
+                      <div className="bg-slate-950/90 text-amber-300 text-xs font-black px-2.5 py-1 rounded-xl backdrop-blur-sm shadow-md border border-amber-400/30 font-mono flex items-center gap-1">
+                        <span>كود:</span>
+                        <span>{parent.unifiedCode || parent.primaryCode}</span>
+                      </div>
+                      {activeVariant.code !== parent.primaryCode && (
+                        <div className="bg-slate-900/80 text-slate-300 text-[10px] font-bold px-2 py-0.5 rounded-lg font-mono">
+                          شباك: {activeVariant.code}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Top Left: Variants Count Badge */}
+                    <div className="absolute top-2 left-2 z-10 flex flex-col gap-1 items-start">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedParentForModal(parent);
+                        }}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-black px-2.5 py-1 rounded-xl shadow-md border border-indigo-400/40 flex items-center gap-1 transition"
+                        title="فتح نافذة تفاعلية لاختيار الشباك واللون"
+                      >
+                        <Boxes className="w-3 h-3 text-amber-300" />
+                        <span>{parent.variantsCount} شبابيك / ألوان</span>
+                      </button>
+                      {isPromo && (
+                        <div className="bg-rose-600 text-white text-[10px] font-black px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-sm">
+                          <Flame className="w-3 h-3" />
+                          <span>عرض خاص</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bottom Right: Carton Pack Size */}
+                    <div className="absolute bottom-2 right-2 bg-slate-950/85 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-lg backdrop-blur-sm">
+                      الشدة: <strong className="text-amber-300">{parent.cartonQuantity || 1} ق</strong>
+                    </div>
+
+                    {/* Bottom Left: Eye-friendly Zoom */}
+                    <div className="absolute bottom-2 left-2 bg-white/90 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-lg backdrop-blur-sm border border-slate-200 flex items-center gap-1">
+                      <Eye className="w-3 h-3 text-amber-600" />
+                      <span>معاينة مكبرة</span>
+                    </div>
+                  </div>
+
+                  {/* Card Body */}
+                  <div className={`p-3 sm:p-4 flex-1 flex flex-col justify-between space-y-${isComfortable ? '3' : '2'}`}>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="bg-amber-50 text-amber-900 font-bold px-2 py-0.5 rounded-md text-[11px] truncate max-w-[170px]">
+                          {parent.department || parent.category || 'عام'} {parent.classification ? `• ${parent.classification}` : ''}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400 font-mono">
+                          {activeVariant.name}
+                        </span>
+                      </div>
+
+                      <h3
+                        onClick={() => setSelectedParentForModal(parent)}
+                        className="font-black text-slate-900 text-sm leading-snug line-clamp-2 hover:text-amber-600 cursor-pointer transition min-h-[38px]"
+                        title={parent.name}
+                      >
+                        {parent.name}
+                      </h3>
+
+                      {/* WINDOWS / VARIANTS QUICK SELECTOR */}
+                      {parent.variants.length > 1 && (
+                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-200 space-y-1">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-slate-500">
+                            <span>الشبابيك المتاحة:</span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedParentForModal(parent)}
+                              className="text-amber-600 hover:text-amber-800 cursor-pointer font-black"
+                            >
+                              استعراض الكل ({parent.variants.length}) 🪟
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                            {parent.variants.slice(0, 5).map((v) => {
+                              const isVSelected = activeVariant.id === v.id;
+                              const vStock = (v.branchStockActual || 0) + (v.mainWarehouseActual || 0);
+                              return (
+                                <button
+                                  key={v.id}
+                                  type="button"
+                                  onClick={() => setCardSelectedVariant((prev) => ({ ...prev, [parent.id]: v.id }))}
+                                  className={`px-2 py-1 rounded-lg text-[10px] font-black whitespace-nowrap transition cursor-pointer flex items-center gap-1 shrink-0 ${
+                                    isVSelected
+                                      ? 'bg-amber-400 text-slate-950 shadow-xs ring-1 ring-amber-500'
+                                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                                  }`}
+                                  title={`${v.name} (كود: ${v.code}) - متاح: ${vStock} ك`}
+                                >
+                                  <span className={`w-1.5 h-1.5 rounded-full ${vStock > 0 ? 'bg-emerald-500' : 'bg-rose-400'}`}></span>
+                                  <span>{v.name.replace('شباك', 'ش')}</span>
+                                </button>
+                              );
+                            })}
+                            {parent.variants.length > 5 && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedParentForModal(parent)}
+                                className="px-2 py-1 rounded-lg text-[10px] font-black bg-slate-200/80 text-slate-700 hover:bg-slate-300 whitespace-nowrap cursor-pointer shrink-0"
+                              >
+                                +{parent.variants.length - 5}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Stock details */}
+                      <div className="grid grid-cols-2 gap-1 text-[11px] bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+                        <div className="text-right">
+                          <span className="text-slate-400 text-[10px] block">رصيد الفرع</span>
+                          <span className={dynamicBranchStock > 0 ? 'text-emerald-700 font-black' : 'text-slate-400 font-bold'}>
+                            {dynamicBranchStock > 0 ? `${dynamicBranchStock} ك` : 'نفد'}
+                          </span>
+                        </div>
+                        <div className="text-left">
+                          <span className="text-slate-400 text-[10px] block">مخزن أكتوبر</span>
+                          <span className={octoberAvail > 0 ? 'text-amber-800 font-black' : 'text-slate-400 font-bold'}>
+                            {octoberAvail > 0 ? `${octoberAvail} ك` : 'نفد'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Price Box */}
+                      <div className="flex items-center justify-between p-2 rounded-xl bg-slate-900 text-white">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block font-bold">سعر الكرتونة</span>
+                          <span className="text-sm sm:text-base font-black text-amber-300 font-mono">
+                            {isConfidentialMode ? '••••••' : formatCurrency(appliedPrice)}
+                          </span>
+                        </div>
+                        <div className="text-left">
+                          <span className="text-[10px] text-slate-400 block font-bold">سعر القطعة</span>
+                          <span className="text-xs font-black text-slate-200 font-mono">
+                            {isConfidentialMode ? '••••' : formatCurrency(appliedPiecePrice)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Order Actions */}
+                    <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between gap-1.5">
+                        <div className="flex items-center bg-slate-100 rounded-xl border border-slate-300 p-0.5 shrink-0">
+                          <button
+                            type="button"
+                            disabled={totalCartonsAvailable <= 0 || orderState.quantity <= 1}
+                            onClick={() => adjustCardQuantity(rawProd.id, -1)}
+                            className="w-7 h-7 flex items-center justify-center text-slate-800 active:bg-slate-200 rounded-lg font-black disabled:opacity-30 cursor-pointer"
+                          >
+                            <Minus className="w-3 h-3 stroke-[2.5]" />
+                          </button>
+                          <input
+                            type="number"
+                            min="1"
+                            disabled={totalCartonsAvailable <= 0}
+                            value={orderState.quantity}
+                            onChange={(e) => {
+                              const parsed = parseInt(e.target.value, 10);
+                              setCardQuantityDirect(rawProd.id, parsed);
+                            }}
+                            className="w-9 h-7 text-center font-black text-xs text-slate-950 bg-white border border-slate-200 rounded-lg focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            disabled={totalCartonsAvailable <= 0}
+                            onClick={() => adjustCardQuantity(rawProd.id, 1)}
+                            className="w-7 h-7 flex items-center justify-center text-slate-800 active:bg-slate-200 rounded-lg font-black disabled:opacity-30 cursor-pointer"
+                          >
+                            <Plus className="w-3 h-3 stroke-[2.5]" />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-300 text-[10px] font-bold flex-1">
+                          <button
+                            type="button"
+                            onClick={() => updateCardType(rawProd.id, 'carton')}
+                            className={`flex-1 py-1 rounded-lg transition cursor-pointer text-center ${
+                              orderState.type === 'carton' ? 'bg-amber-400 text-slate-950 font-black shadow-xs' : 'text-slate-600'
+                            }`}
+                          >
+                            📦 كرتونة
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateCardType(rawProd.id, 'piece')}
+                            className={`flex-1 py-1 rounded-lg transition cursor-pointer text-center ${
+                              orderState.type === 'piece' ? 'bg-amber-400 text-slate-950 font-black shadow-xs' : 'text-slate-600'
+                            }`}
+                          >
+                            🏷️ قطعة
+                          </button>
+                        </div>
+                      </div>
+
+                      {totalCartonsAvailable > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => handleQuickAddWithState(rawProd)}
+                          className="w-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 active:scale-[0.98] text-slate-950 font-black h-10 px-3 rounded-xl text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
+                          <span>إضافة ({activeVariant.name}) للسلة</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedParentForModal(parent)}
+                          className="w-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 font-bold h-10 px-3 rounded-xl text-xs flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-amber-600" />
+                          <span>فحص باقي الشبابيك 🪟</span>
+                        </button>
+                      )}
+
+                      {parent.variants.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedParentForModal(parent)}
+                          className="w-full bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-slate-700 hover:text-amber-900 font-bold py-1.5 px-2 rounded-xl text-[11px] transition flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <Boxes className="w-3 h-3 text-amber-600" />
+                          <span>استعراض كافة الشبابيك والألوان ({parent.variants.length})</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            displayedProducts.map((product, idx) => {
             const isPromo = product.promoPrice && product.promoPrice > 0;
             const dynamicBranchStock = getProductBranchStock(product);
             const hasBranchStock = dynamicBranchStock > 0;
@@ -1366,7 +1832,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </div>
               </div>
             );
-          })}
+          }))}
         </div>
       ) : (
         /* Amazon Dense Table View for Fast Order Entry */
@@ -1389,7 +1855,100 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {displayedProducts.map((product) => {
+                {isParentGroupingEnabled ? (
+                  displayedParentProducts.map((parent) => {
+                    const activeVariant = getParentActiveVariant(parent);
+                    const rawProd = activeVariant.rawProduct;
+                    const branchCartons = getProductBranchStock(rawProd);
+                    const mainWhCartons = typeof rawProd.mainWarehouseReserved === 'number'
+                      ? rawProd.mainWarehouseReserved
+                      : (rawProd.mainWarehouseActual || 0);
+
+                    return (
+                      <tr key={parent.id} className="hover:bg-amber-50/40 transition">
+                        <td className="p-2.5">
+                          <div className="flex items-center gap-2">
+                            <ProductImage
+                              product={rawProd}
+                              cloudinaryConfig={cloudinaryConfig}
+                              targetSize={120}
+                              sizeVariant="thumbnail"
+                              containerClassName="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200 cursor-pointer"
+                              className="w-full h-full object-contain"
+                              showBadgeOnFallback={false}
+                              onClick={() => setSelectedParentForModal(parent)}
+                            />
+                            <div className="flex flex-col gap-1 items-start">
+                              <span className="font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-lg text-[11px] font-mono">
+                                {parent.unifiedCode || parent.primaryCode}
+                              </span>
+                              <span className="font-bold text-indigo-900 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded text-[10px]">
+                                {parent.variantsCount} شبابيك
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-2.5">
+                          <div
+                            className="font-black text-slate-900 hover:text-amber-600 cursor-pointer text-sm"
+                            onClick={() => setSelectedParentForModal(parent)}
+                          >
+                            {parent.name}
+                          </div>
+                          <div className="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
+                            <span>الشباك النشط: <strong className="text-slate-800">{activeVariant.name}</strong></span>
+                            <span>كود: {activeVariant.code}</span>
+                          </div>
+                        </td>
+                        <td className="p-2.5 font-bold text-slate-600">{parent.department || parent.category}</td>
+                        <td className="p-2.5 text-center font-black text-slate-800">{parent.cartonQuantity} قطعة</td>
+                        <td className="p-2.5 text-center">
+                          <span className={branchCartons > 0 ? (branchCartons <= 5 ? 'text-amber-900 font-black' : 'text-emerald-700 font-black') : 'text-red-600 font-bold'}>
+                            {branchCartons} كرتونة
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-center">
+                          <span className="text-amber-800 font-black">{mainWhCartons} كرتونة</span>
+                        </td>
+                        <td className="p-2.5 text-left font-black text-amber-950 text-sm">
+                          {isConfidentialMode ? (
+                            <span className="font-mono text-slate-400 text-xs tracking-widest bg-slate-200/60 px-1.5 py-0.5 rounded">••••••</span>
+                          ) : (
+                            formatCurrency(activeVariant.cartonPrice)
+                          )}
+                        </td>
+                        <td className="p-2.5 text-center">
+                          {activeVariant.promoPrice ? (
+                            <span className="text-rose-700 font-black text-xs">{formatCurrency(activeVariant.promoPrice)}</span>
+                          ) : (
+                            <span className="text-slate-300 font-medium">---</span>
+                          )}
+                        </td>
+                        <td className="p-2.5 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => setSelectedParentForModal(parent)}
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-3 py-1.5 rounded-xl text-xs transition cursor-pointer shadow-xs flex items-center gap-1 whitespace-nowrap"
+                            >
+                              <Boxes className="w-3.5 h-3.5" />
+                              <span>اختر الشباك 🪟</span>
+                            </button>
+                            {(branchCartons + mainWhCartons) > 0 && (
+                              <button
+                                onClick={() => handleDirectAdd(rawProd, 'carton', 1)}
+                                className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-black px-2 py-1.5 rounded-xl text-xs transition cursor-pointer shadow-xs whitespace-nowrap"
+                                title={`إضافة 1 كرتونة من (${activeVariant.name})`}
+                              >
+                                +1 ك
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  displayedProducts.map((product) => {
                   const branchCartons = getProductBranchStock(product);
                   const mainWhCartons = typeof product.mainWarehouseReserved === 'number'
                     ? product.mainWarehouseReserved
@@ -1495,7 +2054,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       </td>
                     </tr>
                   );
-                })}
+                }))}
               </tbody>
             </table>
           </div>
@@ -1503,7 +2062,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       )}
 
       {/* Pagination & Progressive Loading Controller */}
-      {filteredProducts.length > 0 && (
+      {activeTotalItems > 0 && (
         <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
           
           {/* Left / Info & Per-Page selector */}
@@ -1512,8 +2071,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <span className="text-slate-400 font-normal">عرض الأصناف:</span>
               <strong className="text-slate-900">
                 {itemsPerPage === 'all'
-                  ? `كافة الأصناف (${filteredProducts.length})`
-                  : `${Math.min((currentPage - 1) * itemsPerPage + 1, filteredProducts.length)} - ${Math.min(currentPage * itemsPerPage, filteredProducts.length)} من أصل ${filteredProducts.length}`}
+                  ? `كافة الأصناف (${activeTotalItems})`
+                  : `${Math.min((currentPage - 1) * itemsPerPage + 1, activeTotalItems)} - ${Math.min(currentPage * itemsPerPage, activeTotalItems)} من أصل ${activeTotalItems}`}
               </strong>
             </div>
 
@@ -2127,6 +2686,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           </div>
         </div>
       )}
+
+      {/* Interactive Parent Product & Variants / Windows Modal */}
+      <ProductVariantModal
+        parentProduct={selectedParentForModal}
+        isOpen={Boolean(selectedParentForModal)}
+        onClose={() => setSelectedParentForModal(null)}
+        onOpenCart={onOpenCart}
+        isConfidentialMode={isConfidentialMode}
+      />
 
       {/* Bottom Floating Cart Bar (Amazon / Noon Style) - Mobile & Tablet quick checkout */}
       {cart.length > 0 && onOpenCart && (

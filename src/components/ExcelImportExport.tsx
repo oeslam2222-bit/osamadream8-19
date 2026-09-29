@@ -87,6 +87,10 @@ export const ExcelImportExport: React.FC = () => {
     importTargetsFromGoogleSheet,
     exportTargetsReport,
     resetTargetsToDefault,
+    globalDataVersion,
+    isVersionSyncing,
+    checkAndSyncDataVersion,
+    forcePurgeCacheAndReload,
   } = useApp();
 
   // Exactly THREE core tabs as requested by user:
@@ -358,6 +362,15 @@ export const ExcelImportExport: React.FC = () => {
     }
   };
 
+  const handleForcePurgeLocal = async () => {
+    try {
+      await forcePurgeCacheAndReload('all');
+      showSuccess('تم تفريغ كافة البيانات المؤقتة محلياً وإعادة جلب أحدث نسخة نظيفة بنجاح بدون تكرار!');
+    } catch (e: any) {
+      showError('تعذر تفريغ الكاش المحلي');
+    }
+  };
+
   // ----------------------------------------------------
   // Filtered Lists & Memoized Calculations
   // ----------------------------------------------------
@@ -531,6 +544,56 @@ export const ExcelImportExport: React.FC = () => {
           <div className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-100 px-3.5 py-2 rounded-xl self-start md:self-auto border border-slate-200">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
             <span>صلاحية حصرية: المدير العام والمطور فقط</span>
+          </div>
+        </div>
+
+        {/* نظام التحديث التلقائي ومزامنة البيانات ومسح الكاش */}
+        <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-slate-700/80 shadow-md">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-black text-xs shadow-xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>المزامنة التلقائية نشطة</span>
+                </span>
+                <span className="bg-slate-800 text-amber-300 text-xs px-2.5 py-1 rounded-lg border border-slate-700 font-mono font-black">
+                  الإصدار السحابي: v{globalDataVersion?.version || 100}
+                </span>
+                <span className="bg-slate-800 text-slate-300 text-[11px] px-2.5 py-1 rounded-lg border border-slate-700 font-bold">
+                  {globalDataVersion?.updatedAt
+                    ? `آخر تحديث: ${new Date(globalDataVersion.updatedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })} (${globalDataVersion.updatedBy || 'مدير النظام'})`
+                    : 'جاهز للنشر والمزامنة'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed pt-1">
+                ⚡ بمجرد رفع أو تحديث شيت المخزون أو العملاء أو التارجت، يتم تحديث كافة الحسابات ومسح الكاش القديم تلقائياً عند جميع المناديب والمشرفين لمنع التدبيل.
+                <span className="text-amber-300 font-bold mr-1"> الفواتير والزيارات محفوظة بالكامل ومحمية ولا تُمس، وكافة البيانات معروضة بدقة وفقاً لصلاحيات كل دور.</span>
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <button
+                type="button"
+                onClick={() => checkAndSyncDataVersion(true)}
+                disabled={isVersionSyncing}
+                className="bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-md flex items-center gap-1.5"
+                title="فحص فوري ومزامنة البيانات الآن"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-slate-950 ${isVersionSyncing ? 'animate-spin' : ''}`} />
+                <span>مزامنة فورية 🔄</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleForcePurgeLocal}
+                disabled={isVersionSyncing}
+                className="bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white border border-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                title="تفريغ الكاش المحلي في هذا الجهاز وإعادة البناء من قاعدة البيانات المركزية"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                <span>تفريغ الكاش المحلي 🧹</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1594,6 +1657,124 @@ export const ExcelImportExport: React.FC = () => {
               >
                 {isWiping ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                 <span>نعم، تصفير ومسح الكل</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Publish Global Data Version Modal */}
+      {isPublishModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl space-y-5 border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center font-black">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-slate-900">إصدار تحديث جديد لقاعدة البيانات</h3>
+                  <p className="text-xs text-slate-500">نشر إصدار جديد وتوجيه جميع الأجهزة لمسح الكاش وتحديث الأرقام</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPublishModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Scope Selector */}
+              <div>
+                <label className="block text-xs font-black text-slate-700 mb-1.5">نطاق التحديث المُراد نشره:</label>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPublishScope('all')}
+                    className={`p-2.5 rounded-xl font-bold border transition text-right flex items-center justify-between cursor-pointer ${
+                      publishScope === 'all' ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-xs' : 'bg-slate-50 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    <span>كافة البيانات (شامل)</span>
+                    {publishScope === 'all' && <Check className="w-4 h-4 shrink-0" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPublishScope('products')}
+                    className={`p-2.5 rounded-xl font-bold border transition text-right flex items-center justify-between cursor-pointer ${
+                      publishScope === 'products' ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-xs' : 'bg-slate-50 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    <span>الأصناف والأسعار فقط</span>
+                    {publishScope === 'products' && <Check className="w-4 h-4 shrink-0" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPublishScope('customers')}
+                    className={`p-2.5 rounded-xl font-bold border transition text-right flex items-center justify-between cursor-pointer ${
+                      publishScope === 'customers' ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-xs' : 'bg-slate-50 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    <span>قاعدة العملاء والأرصدة</span>
+                    {publishScope === 'customers' && <Check className="w-4 h-4 shrink-0" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPublishScope('targets')}
+                    className={`p-2.5 rounded-xl font-bold border transition text-right flex items-center justify-between cursor-pointer ${
+                      publishScope === 'targets' ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-xs' : 'bg-slate-50 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    <span>التارجت والمحققات البيعية</span>
+                    {publishScope === 'targets' && <Check className="w-4 h-4 shrink-0" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Notes Input */}
+              <div>
+                <label className="block text-xs font-black text-slate-700 mb-1.5">ملاحظات التحديث (تظهر للمستخدمين والمناديب):</label>
+                <input
+                  type="text"
+                  value={publishNotes}
+                  onChange={(e) => setPublishNotes(e.target.value)}
+                  placeholder="مثال: تحديث أسعار وشدات الكراتين، إضافة عملاء فرع القاهرة..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-slate-50 focus:bg-white"
+                />
+              </div>
+
+              {/* Force Purge Checkbox */}
+              <label className="flex items-center gap-2 p-3 bg-amber-50/70 rounded-xl border border-amber-200 cursor-pointer text-xs font-bold text-amber-950">
+                <input
+                  type="checkbox"
+                  checked={publishForcePurge}
+                  onChange={(e) => setPublishForcePurge(e.target.checked)}
+                  className="rounded text-amber-500 focus:ring-amber-400"
+                />
+                <span>إجبار كافة أجهزة المناديب على تفريغ الذاكرة المؤقتة القديمة فوراً لمنع التدبيل</span>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                disabled={isPublishingVersion}
+                onClick={() => setIsPublishModalOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-700 hover:bg-slate-50 transition text-xs cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                disabled={isPublishingVersion}
+                onClick={handlePublishNewVersion}
+                className="flex-1 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-500 active:scale-95 font-black text-slate-950 shadow-md transition text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {isPublishingVersion ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                <span>تأكيد النشر ومسح الكاش 🚀</span>
               </button>
             </div>
           </div>

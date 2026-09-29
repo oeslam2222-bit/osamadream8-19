@@ -452,16 +452,34 @@ export function normalizeBranchKey(branch?: string): string {
     return 'main';
   }
   const branchNorm = normalizeArabicText(resolved);
-  if (branchNorm.includes('اكتوبر') || branchNorm.includes('مركزي') || branchNorm.includes('رئيسي') || branchNorm.includes('main') || branchNorm.includes('giza') || branchNorm.includes('aljizah') || branchNorm.includes('جيزه')) {
+  if (
+    branchNorm.includes('اكتوبر') ||
+    branchNorm.includes('مركزي') ||
+    branchNorm.includes('رئيسي') ||
+    branchNorm.includes('main') ||
+    branchNorm.includes('giza') ||
+    branchNorm.includes('aljizah') ||
+    branchNorm.includes('جيزه')
+  ) {
     return 'main';
   }
   if (branchNorm.includes('منيا القمح') || branchNorm.includes('القمح') || branchNorm.includes('meq')) return 'meq';
   if (branchNorm.includes('المنيا') || branchNorm.includes('منيا') || branchNorm.includes('minya') || branchNorm.includes('min')) return 'minya';
-  if (branchNorm.includes('ديمشلت') || branchNorm.includes('دكرنس') || branchNorm.includes('دقهليه') || branchNorm.includes('dimeshalt') || branchNorm.includes('dim')) return 'dimeshalt';
+  if (branchNorm.includes('ديمشلت') || branchNorm.includes('دكرنس') || branchNorm.includes('دقهليه') || branchNorm.includes('المنصوره') || branchNorm.includes('منصوره') || branchNorm.includes('dimeshalt') || branchNorm.includes('dim')) return 'dimeshalt';
   if (branchNorm.includes('فيوم') || branchNorm.includes('الفيوم') || branchNorm.includes('fayoum') || branchNorm.includes('fay')) return 'fayoum';
-  if (branchNorm.includes('قاهره') || branchNorm.includes('القاهره') || branchNorm.includes('cairo') || branchNorm.includes('cai')) return 'cairo';
-  if (branchNorm.includes('بحيره') || branchNorm.includes('البحيره') || branchNorm.includes('beheira') || branchNorm.includes('beh')) return 'beheira';
-  if (branchNorm.includes('منوف') || branchNorm.includes('المنوفيه') || branchNorm.includes('menouf') || branchNorm.includes('mnf')) return 'menouf';
+  if (branchNorm.includes('قاهره') || branchNorm.includes('القاهره') || branchNorm.includes('cairo') || branchNorm.includes('cai') || branchNorm.includes('مدينة نصر') || branchNorm.includes('المعادي')) return 'cairo';
+  if (branchNorm.includes('بحيره') || branchNorm.includes('البحيره') || branchNorm.includes('دمنهور') || branchNorm.includes('beheira') || branchNorm.includes('beh')) return 'beheira';
+  if (branchNorm.includes('منوف') || branchNorm.includes('المنوفيه') || branchNorm.includes('شبين') || branchNorm.includes('menouf') || branchNorm.includes('mnf')) return 'menouf';
+  if (branchNorm.includes('طنطا') || branchNorm.includes('الغربيه') || branchNorm.includes('غربيه') || branchNorm.includes('tanta')) return 'tanta';
+  if (branchNorm.includes('اسكندريه') || branchNorm.includes('الاسكندريه') || branchNorm.includes('alex')) return 'alex';
+  if (branchNorm.includes('زقازيق') || branchNorm.includes('الشرقيه') || branchNorm.includes('شرقيه')) return 'meq';
+  if (branchNorm.includes('بني سويف') || branchNorm.includes('سويف')) return 'benisuef';
+  if (branchNorm.includes('اسيوط') || branchNorm.includes('الاسيوط')) return 'assiut';
+  if (branchNorm.includes('سوهاج')) return 'sohag';
+  if (branchNorm.includes('قنا') || branchNorm.includes('الاقصر') || branchNorm.includes('اسوان')) return 'upperegypt';
+  if (branchNorm.includes('اسماعيليه') || branchNorm.includes('سويس') || branchNorm.includes('بورسعيد')) return 'canal';
+  if (branchNorm.includes('قليوبيه') || branchNorm.includes('بنها') || branchNorm.includes('شبرا')) return 'qalyubia';
+  if (branchNorm.includes('كفر الشيخ') || branchNorm.includes('كفرالشيخ')) return 'kafr';
   return branchNorm;
 }
 
@@ -480,6 +498,19 @@ export function isBranchMatch(
 
   if (!normA || !normB) {
     return options.allowUnassigned !== false;
+  }
+
+  // Direct normalized text exact match
+  const cleanA = normalizeArabicText(normA);
+  const cleanB = normalizeArabicText(normB);
+  if (cleanA === cleanB) return true;
+
+  // Stripped "فرع" comparison
+  const strippedA = cleanA.replace(/^فرع\s+/, '').trim();
+  const strippedB = cleanB.replace(/^فرع\s+/, '').trim();
+  if (strippedA && strippedB) {
+    if (strippedA === strippedB) return true;
+    if (strippedA.includes(strippedB) || strippedB.includes(strippedA)) return true;
   }
 
   const keyA = normalizeBranchKey(normA);

@@ -4,6 +4,7 @@ import {
   ArrowDownUp,
   Boxes,
   Building,
+  Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -149,9 +150,20 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         return;
       }
 
-      if (!branchMap.has(bName)) {
+      // Robust branch lookup with isBranchMatch
+      let branchData = branchMap.get(bName);
+      if (!branchData) {
+        for (const [k, v] of branchMap.entries()) {
+          if (isBranchMatch(k, bName, { allowUnassigned: false })) {
+            branchData = v;
+            break;
+          }
+        }
+      }
+
+      if (!branchData) {
         if (isAdminOrDev) {
-          branchMap.set(bName, {
+          branchData = {
             name: bName,
             code: '',
             city: bName.replace('فرع ', ''),
@@ -161,14 +173,15 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             deliveredCount: 0,
             deliveredSales: 0,
             pendingCount: 0,
-          });
+          };
+          branchMap.set(bName, branchData);
+        } else if (branchMap.size === 1) {
+          // For branch manager, attribute all visible invoices to their branch
+          branchData = Array.from(branchMap.values())[0];
         } else {
           return;
         }
       }
-
-      const branchData = branchMap.get(bName);
-      if (!branchData) return;
 
       branchData.ordersCount += 1;
 
@@ -176,7 +189,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         branchData.totalSales += inv.estimatedGrandTotal || 0;
         branchData.totalCartons += inv.totalCartons || 0;
       }
-      if (inv.status === 'تم التسليم') {
+      if (inv.status === 'تم التسليم' || inv.status === 'إغلاق الطلبية') {
         branchData.deliveredCount += 1;
         branchData.deliveredSales += inv.estimatedGrandTotal || 0;
       }
@@ -207,7 +220,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
       if (
         (currentUser?.role === 'admin' || currentUser?.role === 'developer') &&
         selectedBranchFilter !== 'الكل' &&
-        inv.branchName !== selectedBranchFilter
+        !isBranchMatch(inv.branchName, selectedBranchFilter)
       ) {
         return false;
       }
@@ -259,9 +272,11 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     return accessibleInvoices.slice(start, start + itemsPerPage);
   }, [accessibleInvoices, currentPage, itemsPerPage]);
 
-  // High-Level Dashboard Metrics
+  // High-Level Dashboard Metrics (Sales, Collections, and Workflow Status)
   const metrics = useMemo(() => {
     let totalRevenue = 0;
+    let totalAllSales = 0;
+    let totalCollections = 0;
     let totalCartons = 0;
     let pendingApprovals = 0;
     let outForDelivery = 0;
@@ -275,20 +290,30 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     let preparingCount = 0;
 
     accessibleInvoices.forEach((inv) => {
+      // Calculate total sales across all non-cancelled orders
+      if (inv.status !== 'مرفوضة / ملغاة' && inv.status !== 'ملغاة') {
+        totalAllSales += inv.estimatedGrandTotal || 0;
+      }
+
       const isApprovedOrActive =
         inv.status === 'معتمدة ومصروفة من المخزن' ||
         inv.status === 'معتمدة' ||
         inv.status === 'جاري التجهيز' ||
-  inv.status === 'قيد التوصيل' ||
-  inv.status === 'تم التسليم' ||
-  inv.status === 'إغلاق الطلبية';
+        inv.status === 'قيد التوصيل' ||
+        inv.status === 'تم التسليم' ||
+        inv.status === 'إغلاق الطلبية';
 
       if (isApprovedOrActive) {
         totalRevenue += inv.estimatedGrandTotal || 0;
         totalCartons += inv.totalCartons || 0;
       }
 
-      if (inv.status === 'معتمدة ومصروفة من المخزن' || inv.status === 'معتمدة') {
+      // Collections: delivered or closed orders
+      if (inv.status === 'تم التسليم' || inv.status === 'إغلاق الطلبية') {
+        deliveredCount += 1;
+        deliveredRevenue += inv.estimatedGrandTotal || 0;
+        totalCollections += inv.estimatedGrandTotal || 0;
+      } else if (inv.status === 'معتمدة ومصروفة من المخزن' || inv.status === 'معتمدة') {
         approvedCount += 1;
       } else if (inv.status === 'جاري التجهيز') {
         preparingCount += 1;
@@ -302,9 +327,6 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         pendingApprovals += 1;
       } else if (inv.status === 'قيد التوصيل') {
         outForDelivery += 1;
-  } else if (inv.status === 'تم التسليم' || inv.status === 'إغلاق الطلبية') {
-  deliveredCount += 1;
-  deliveredRevenue += inv.estimatedGrandTotal || 0;
       } else if (inv.status === 'مرتجع') {
         returnedCount += 1;
         returnedRevenue += inv.estimatedGrandTotal || 0;
@@ -312,13 +334,18 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
       }
     });
 
+    const effectiveTotalSales = totalRevenue > 0 ? totalRevenue : totalAllSales;
     const completedInvoices = deliveredCount + approvedCount;
     const inProgressInvoices = preparingCount + outForDelivery + pendingApprovals;
     const totalProcessed = deliveredCount + returnedCount + outForDelivery;
     const deliveryRate = totalProcessed > 0 ? Math.round((deliveredCount / totalProcessed) * 100) : 100;
+    const collectionRate = effectiveTotalSales > 0 ? Math.min(100, Math.round((totalCollections / effectiveTotalSales) * 100)) : 100;
 
     return {
-      totalRevenue,
+      totalRevenue: effectiveTotalSales,
+      totalAllSales,
+      totalCollections,
+      collectionRate,
       totalCartons,
       pendingApprovals,
       outForDelivery,
@@ -528,14 +555,22 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           </div>
         </div>
 
-        {/* Aggregate KPI Stats Grid - Top Row: Orders Workflow */}
+        {/* Aggregate KPI Stats Grid - Top Row: Sales, Collections & Orders Workflow */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
           
-          {/* Total Revenue */}
-          <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700/80 space-y-1">
-            <div className="text-[11px] text-slate-400 font-bold flex items-center gap-1">
-              <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
-              <span>{currentUser?.role === 'sales_rep' ? 'إجمالي مبيعاتي' : 'إجمالي المبيعات'}</span>
+          {/* Card 1: Total Sales */}
+          <div className="bg-slate-800/90 p-3.5 rounded-2xl border border-slate-700/80 space-y-1 relative overflow-hidden group">
+            <div className="text-[11px] text-amber-300 font-bold flex items-center justify-between">
+              <span className="flex items-center gap-1">
+                <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
+                <span>
+                  {currentUser?.role === 'sales_rep'
+                    ? 'إجمالي مبيعاتي'
+                    : currentUser?.role === 'branch_manager'
+                    ? `مبيعات ${currentUser.branchName || 'الفرع'}`
+                    : 'إجمالي المبيعات'}
+                </span>
+              </span>
             </div>
             <div className="text-base sm:text-lg font-black text-amber-300">
               {formatCurrency(metrics.totalRevenue)}
@@ -545,21 +580,46 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             </div>
           </div>
 
-          {/* Completed Invoices */}
-          <div className="bg-emerald-500/10 p-3.5 rounded-2xl border border-emerald-500/30 space-y-1">
-            <div className="text-[11px] text-emerald-300 font-bold flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{currentUser?.role === 'sales_rep' ? 'طلبياتي المسلّمة' : 'الفواتير المكتملة'}</span>
+          {/* Card 2: Total Collections (التحصيلات) */}
+          <div className="bg-emerald-500/10 p-3.5 rounded-2xl border border-emerald-500/30 space-y-1 relative overflow-hidden group">
+            <div className="text-[11px] text-emerald-300 font-bold flex items-center justify-between">
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>
+                  {currentUser?.role === 'sales_rep'
+                    ? 'تحصيلاتي'
+                    : currentUser?.role === 'branch_manager'
+                    ? `تحصيلات ${currentUser.branchName || 'الفرع'}`
+                    : 'إجمالي التحصيلات'}
+                </span>
+              </span>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-black">
+                {metrics.collectionRate}%
+              </span>
             </div>
-            <div className="text-base sm:text-lg font-black text-emerald-400">
-              {metrics.completedInvoices} فاتورة
+            <div className="text-base sm:text-lg font-black text-emerald-400 font-mono">
+              {formatCurrency(metrics.totalCollections)}
             </div>
             <div className="text-[10px] text-emerald-300/80 font-medium">
+              محصل من الفواتير والتسليم
+            </div>
+          </div>
+
+          {/* Card 3: Completed Invoices */}
+          <div className="bg-slate-800/70 p-3.5 rounded-2xl border border-slate-700/70 space-y-1">
+            <div className="text-[11px] text-slate-300 font-bold flex items-center gap-1">
+              <Check className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{currentUser?.role === 'sales_rep' ? 'طلبياتي المسلّمة' : 'الفواتير المكتملة'}</span>
+            </div>
+            <div className="text-base sm:text-lg font-black text-white">
+              {metrics.completedInvoices} فاتورة
+            </div>
+            <div className="text-[10px] text-slate-400 font-medium">
               {metrics.deliveredCount} مسلّمة • {metrics.approvedCount} معتمدة
             </div>
           </div>
 
-          {/* In-Progress / Under Prep Invoices */}
+          {/* Card 4: In-Progress / Under Prep Invoices */}
           <div className="bg-cyan-500/10 p-3.5 rounded-2xl border border-cyan-500/30 space-y-1">
             <div className="text-[11px] text-cyan-300 font-bold flex items-center gap-1">
               <Truck className="w-3.5 h-3.5 text-cyan-400" />
@@ -573,7 +633,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             </div>
           </div>
 
-          {/* Pending Approvals */}
+          {/* Card 5: Pending Approvals */}
           <div className="bg-amber-500/10 p-3.5 rounded-2xl border border-amber-500/30 space-y-1">
             <div className="text-[11px] text-amber-300 font-bold flex items-center gap-1">
               <Clock className="w-3.5 h-3.5 text-amber-400" />
@@ -587,7 +647,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             </div>
           </div>
 
-          {/* Shortages & Backorders */}
+          {/* Card 6: Shortages & Backorders */}
           <button
             type="button"
             onClick={() => setActiveStatusTab(activeStatusTab === 'فواتير النواقص' ? 'الكل' : 'فواتير النواقص')}
@@ -605,7 +665,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               {metrics.shortageInvoicesCount} فاتورة
             </div>
             <div className={`text-[10px] font-medium ${activeStatusTab === 'فواتير النواقص' ? 'text-indigo-100' : 'text-indigo-300/80'}`}>
-              طلب توريد من أكتوبر (اضغط للتصفية)
+              طلب توريد من أكتوبر
             </div>
           </button>
 
@@ -680,8 +740,8 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         </div>
       </div>
 
-      {/* Real-Time Branch Sales Performance Tracker (Admin & Developer Overview) */}
-      {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+      {/* Real-Time Branch Sales Performance Tracker (Admin, Developer & Branch Manager Overview) */}
+      {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'branch_manager' || currentUser?.role === 'supervisor') && (
         <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2.5">
@@ -690,18 +750,24 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               </div>
               <div>
                 <h3 className="font-black text-sm sm:text-base text-slate-900">
-                  متابعة مبيعات وأداء الفروع لحظياً (Real-Time Branch Performance)
+                  {currentUser?.role === 'branch_manager'
+                    ? `متابعة مبيعات وأداء ${currentUser.branchName || 'الفرع'} لحظياً`
+                    : 'متابعة مبيعات وأداء الفروع لحظياً (Real-Time Branch Performance)'}
                 </h3>
                 <p className="text-xs text-slate-500">
-                  إجمالي مبيعات كل فرع، عدد الكراتين المحجوزة، ونسبة التنفيذ المباشرة
+                  {currentUser?.role === 'branch_manager'
+                    ? 'إجمالي مبيعات الفرع، المبالغ المحصلة، الكراتين المحجوزة، وحالات الطلبيات'
+                    : 'إجمالي مبيعات كل فرع، عدد الكراتين المحجوزة، ونسبة التنفيذ المباشرة'}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-500">إجمالي مبيعات كافة الفروع:</span>
-              <span className="bg-slate-900 text-amber-300 font-black px-3 py-1 rounded-xl text-xs sm:text-sm">
-                {formatCurrency(totalAllBranchSales)}
+              <span className="text-xs font-bold text-slate-500">
+                {currentUser?.role === 'branch_manager' ? 'إجمالي مبيعات فرعك:' : 'إجمالي مبيعات كافة الفروع:'}
+              </span>
+              <span className="bg-slate-900 text-amber-300 font-black px-3 py-1 rounded-xl text-xs sm:text-sm font-mono">
+                {formatCurrency(totalAllBranchSales > 0 ? totalAllBranchSales : metrics.totalRevenue)}
               </span>
             </div>
           </div>
@@ -809,12 +875,22 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                   </select>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 bg-amber-50/60 px-3 py-2 rounded-xl border border-amber-200">
+                <div className="flex items-center gap-2 bg-amber-50/80 px-3 py-2 rounded-xl border border-amber-300">
                   <Building className="w-3.5 h-3.5 text-amber-700 shrink-0" />
                   <span className="text-amber-800 font-bold whitespace-nowrap">فرعك:</span>
                   <span className="font-black text-amber-950 text-xs">
                     {currentUser?.branchName || 'الفرع المحدد'}
                   </span>
+                  {currentUser?.role === 'branch_manager' && (
+                    <div className="flex items-center gap-1.5 mr-2">
+                      <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded-md font-mono">
+                        مبيعات: {formatCurrency(metrics.totalRevenue)}
+                      </span>
+                      <span className="bg-emerald-600 text-white font-black text-[10px] px-2 py-0.5 rounded-md font-mono">
+                        تحصيلات: {formatCurrency(metrics.totalCollections)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 

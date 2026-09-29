@@ -66,7 +66,12 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     triggerInstallPrompt,
     installPromptEvent,
     isInstallModalOpen,
-    setIsInstallModalOpen
+    setIsInstallModalOpen,
+    globalDataVersion,
+    isVersionSyncing,
+    lastVersionSyncNotice,
+    clearVersionSyncNotice,
+    checkAndSyncDataVersion,
   } = useApp();
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -180,6 +185,23 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
       )}
 
       <header className="sticky top-0 z-40 bg-slate-900 text-white shadow-lg border-b border-slate-800">
+        {/* Real-time Data Version Sync Banner */}
+        {lastVersionSyncNotice && (
+          <div className="bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 text-white text-xs px-3 sm:px-4 py-2 font-bold flex items-center justify-between shadow-inner border-b border-emerald-500/50 animate-in slide-in-from-top duration-300">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-200 shrink-0" />
+              <span>{lastVersionSyncNotice}</span>
+            </div>
+            <button
+              onClick={clearVersionSyncNotice}
+              className="p-1 hover:bg-white/20 rounded-lg text-white transition cursor-pointer"
+              title="إغلاق التنبيه"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Top Banner - Compact on mobile with large touch controls */}
         <div className="max-w-7xl mx-auto px-2 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2">
           
@@ -253,6 +275,25 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                   <span className="sm:hidden text-[11px]">باقة</span>
                 </>
               )}
+            </button>
+
+            {/* Global Data Version Sync Button & Status Badge */}
+            <button
+              type="button"
+              onClick={() => checkAndSyncDataVersion(true)}
+              disabled={isVersionSyncing}
+              className={`flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 h-9 sm:h-10 rounded-xl text-xs font-bold border transition cursor-pointer active:scale-95 ${
+                isVersionSyncing
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-400 animate-pulse'
+                  : 'bg-slate-800 text-slate-200 border-slate-700 hover:border-amber-400 hover:text-white'
+              }`}
+              title="مزامنة أحدث إصدار لقاعدة البيانات السحابية ومسح الكاش لمنع تدبيل البيانات"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-amber-400 shrink-0 ${isVersionSyncing ? 'animate-spin' : ''}`} />
+              <span className="font-mono text-amber-300 font-extrabold text-[11px] sm:text-xs">
+                v{globalDataVersion?.version || 100}
+              </span>
+              <span className="hidden xl:inline text-[10px] text-slate-300">مزامنة</span>
             </button>
 
             {/* Offline / Online Status Badge (Visible everywhere with high contrast) */}

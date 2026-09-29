@@ -58,6 +58,17 @@ import {
 import { deduplicateAndMergeCustomers } from '../services/customerDeduplicationService';
 import { saveSingleSourceUrl, getPublishedDataSources } from '../services/dataSourceService';
 import {
+  fetchRemoteDataVersion,
+  getLocalDataVersion,
+  saveLocalDataVersion,
+  isClientVersionStale,
+  publishNewDataVersion,
+  purgeLocalDataCaches,
+  GlobalDataVersionMeta,
+  SyncScope,
+  GLOBAL_VERSION_RECORD_ID,
+} from '../services/dataVersionService';
+import {
   AccountingSyncLog,
   AuditLog,
   Branch,
@@ -253,6 +264,19 @@ interface AppContextType {
   resetTargetsToDefault: () => void;
   addOrUpdateTargetRecord: (record: TargetRecord) => void;
   deleteTargetRecord: (id: string) => void;
+
+  // Data Version Sync (إصدار التحديثات ومسح الكاش التلقائي لضمان عدم التدبيل)
+  globalDataVersion: GlobalDataVersionMeta | null;
+  isVersionSyncing: boolean;
+  lastVersionSyncNotice: string | null;
+  clearVersionSyncNotice: () => void;
+  checkAndSyncDataVersion: (force?: boolean) => Promise<{ updated: boolean; version?: number; message: string }>;
+  publishDataVersionUpdate: (params: {
+    scope?: SyncScope;
+    notes?: string;
+    forcePurge?: boolean;
+  }) => Promise<{ success: boolean; version: number; message: string }>;
+  forcePurgeCacheAndReload: (scope?: SyncScope) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -504,6 +528,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const deduplicated = deduplicateTargetRecords(parsed);
       setTargets(deduplicated);
       await saveTargetsToSupabase(deduplicated);
+      publishNewDataVersion({
+        scope: 'targets',
+        updatedBy: currentUser?.name || 'مدير النظام',
+        notes: `تحديث شيت الأهداف والمحققات البيعية (${deduplicated.length} هدف)`,
+        targetsCount: deduplicated.length,
+        forcePurge: true,
+      }).catch(() => {});
       return { success: true, count: deduplicated.length, message: `تم تحديث ومزامنة ${deduplicated.length} هدف بنجاح بدون تكرار السجلات!` };
     } catch (err: any) {
       return { success: false, count: 0, message: err?.message || 'حدث خطأ أثناء قراءة ملف الإكسل' };
@@ -524,6 +555,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const deduplicated = deduplicateTargetRecords(parsed);
       setTargets(deduplicated);
       await saveTargetsToSupabase(deduplicated);
+      publishNewDataVersion({
+        scope: 'targets',
+        updatedBy: currentUser?.name || 'مدير النظام',
+        notes: `تحديث شيت الأهداف من Google Sheets (${deduplicated.length} هدف)`,
+        targetsCount: deduplicated.length,
+        forcePurge: true,
+      }).catch(() => {});
       saveSingleSourceUrl('targets', cleanUrl);
       return { success: true, count: deduplicated.length, message: `تمت مزامنة وتحديث ${deduplicated.length} هدف بنجاح بدون تكرار وحفظ الرابط!` };
     } catch (err: any) {
@@ -856,6 +894,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [customers, setCustomers] = useState<Customer[]>(() => {
     return [];
   });
+
+  // Data Version Sync State (آلية إصدار التحديثات ومسح الكاش التلقائي لضمان عدم التدبيل)
+  const [globalDataVersion, setGlobalDataVersion] = useState<GlobalDataVersionMeta | null>(() => getLocalDataVersion());
+  const [isVersionSyncing, setIsVersionSyncing] = useState<boolean>(false);
+  const [lastVersionSyncNotice, setLastVersionSyncNotice] = useState<string | null>(null);
+  const clearVersionSyncNotice = () => setLastVersionSyncNotice(null);
 
   const [visits, setVisits] = useState<CustomerVisit[]>(() => {
     try {
@@ -1294,6 +1338,157 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  /**
+   * Check remote published data version and automatically purge stale client caches
+   * This guarantees that when an admin uploads a new Excel catalog or customer list,
+   * no sales rep or user experiences duplicate records or outdated prices/stocks.
+   */
+  const checkAndSyncDataVersion = async (force: boolean = false): Promise<{ updated: boolean; version?: number; message: string }> => {
+    try {
+      const remoteMeta = await fetchRemoteDataVersion();
+      if (!remoteMeta) {
+        return { updated: false, message: 'لم يتم العثور على إصدار سحابي في قاعدة البيانات' };
+      }
+
+      const localMeta = getLocalDataVersion();
+      const isStale = isClientVersionStale(localMeta, remoteMeta);
+
+      if (!force && !isStale) {
+        setGlobalDataVersion(remoteMeta);
+        return { updated: false, version: remoteMeta.version, message: 'البيانات الحالية محدثة لأحدث إصدار' };
+      }
+
+      setIsVersionSyncing(true);
+      const scope = remoteMeta.scope || 'all';
+
+      // 1. Purge stale local caches for this scope to completely prevent duplicates
+      await purgeLocalDataCaches(scope);
+
+      // 2. Refresh products if in scope
+      if (scope === 'all' || scope === 'products') {
+        const prodRes = await fetchProductsFromSupabase();
+        if (prodRes.success && prodRes.products) {
+          const valid = sanitizeProducts(prodRes.products);
+          setProducts(valid);
+          idbSet(STORAGE_KEYS.PRODUCTS, valid).catch(() => {});
+        }
+      }
+
+      // 3. Refresh customers if in scope
+      if (scope === 'all' || scope === 'customers') {
+        const custRes = await fetchCustomersFromSupabase();
+        if (custRes.success && custRes.customers) {
+          const validCust = sanitizeCustomers(linkCustomersToUsers(custRes.customers, users));
+          setCustomers(validCust);
+          idbSet(STORAGE_KEYS.CUSTOMERS, validCust).catch(() => {});
+        }
+      }
+
+      // 4. Refresh targets if in scope
+      if (scope === 'all' || scope === 'targets') {
+        const trgRes = await fetchTargetsFromSupabase();
+        if (trgRes.success && trgRes.targets && trgRes.targets.length > 0) {
+          const mapped: TargetRecord[] = trgRes.targets.map((row: any) => ({
+            id: String(row.id),
+            branch: resolveBranchName(row.branch) || row.branch || '',
+            repName: row.rep_name || '',
+            salesTarget: Number(row.sales_target || 0),
+            salesAchieved: Number(row.sales_achieved || 0),
+            salesPercentage: Number(row.sales_percentage || 0),
+            collectionTarget: Number(row.collection_target || 0),
+            collectionAchieved: Number(row.collection_achieved || 0),
+            collectionPercentage: Number(row.collection_percentage || 0),
+            date: row.target_date || '',
+            month: Number(row.month),
+            year: Number(row.year),
+            quarter: row.quarter,
+            remainingSales: Number(row.remaining_sales || 0),
+            remainingCollection: Number(row.remaining_collection || 0),
+            updatedAt: row.updated_at,
+            notes: row.notes || undefined,
+          }));
+          setTargets(mapped);
+          safeLocalStorageSet(STORAGE_KEYS.TARGETS, JSON.stringify(mapped));
+        }
+      }
+
+      saveLocalDataVersion(remoteMeta);
+      setGlobalDataVersion(remoteMeta);
+
+      const noticeMsg = `تم استلام أحدث إصدار للبيانات (v${remoteMeta.version}) ومسح الذاكرة المؤقتة القديمة بنجاح! (${remoteMeta.notes || 'تحديث تلقائي'})`;
+      setLastVersionSyncNotice(noticeMsg);
+      setTimeout(() => setLastVersionSyncNotice(null), 8000);
+
+      return { updated: true, version: remoteMeta.version, message: noticeMsg };
+    } catch (err: any) {
+      console.warn('Check & sync data version error:', err);
+      return { updated: false, message: err?.message || 'فشل فحص إصدار البيانات' };
+    } finally {
+      setIsVersionSyncing(false);
+    }
+  };
+
+  /**
+   * Publish a new global data version to Supabase
+   * This broadcasts a signal to all connected client devices to purge their local caches
+   */
+  const publishDataVersionUpdate = async (params: {
+    scope?: SyncScope;
+    notes?: string;
+    forcePurge?: boolean;
+  }): Promise<{ success: boolean; version: number; message: string }> => {
+    try {
+      setIsVersionSyncing(true);
+      const newMeta = await publishNewDataVersion({
+        scope: params.scope || 'all',
+        updatedBy: currentUser?.name || 'مدير النظام',
+        notes: params.notes || 'تحديث عام لقاعدة البيانات ومسح الكاش لجميع المستخدمين',
+        forcePurge: params.forcePurge ?? true,
+        productsCount: products.length,
+        customersCount: customers.length,
+        targetsCount: targets.length,
+      });
+
+      setGlobalDataVersion(newMeta);
+      const msg = `تم نشر الإصدار الجديد (v${newMeta.version}) بنجاح وتوجيه جميع أجهزة المستخدمين لتحديث البيانات وتفريغ الكاش!`;
+      setLastVersionSyncNotice(msg);
+      setTimeout(() => setLastVersionSyncNotice(null), 8000);
+      return { success: true, version: newMeta.version, message: msg };
+    } catch (err: any) {
+      return { success: false, version: 0, message: err?.message || 'فشل نشر الإصدار' };
+    } finally {
+      setIsVersionSyncing(false);
+    }
+  };
+
+  /**
+   * Force client to purge local caches and re-fetch clean dataset from scratch
+   */
+  const forcePurgeCacheAndReload = async (scope: SyncScope = 'all'): Promise<void> => {
+    setIsVersionSyncing(true);
+    try {
+      await purgeLocalDataCaches(scope);
+      await checkAndSyncDataVersion(true);
+    } finally {
+      setIsVersionSyncing(false);
+    }
+  };
+
+  // Periodic heartbeat & tab focus check for published data versions
+  useEffect(() => {
+    const handleFocus = () => {
+      checkAndSyncDataVersion(false).catch(() => {});
+    };
+    window.addEventListener('focus', handleFocus);
+    const interval = setInterval(() => {
+      checkAndSyncDataVersion(false).catch(() => {});
+    }, 2 * 60 * 1000); // Check every 2 minutes
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, [users]);
+
   // Initial Supabase connection check, fetch users, products, invoices & real-time sync
   useEffect(() => {
     testSupabaseConnection().then((status) => {
@@ -1339,14 +1534,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         });
 
-        // 2. Fetch Central Catalog from Supabase (Only if local IndexedDB cache is empty; Realtime pushes changes automatically)
-        idbGet<Product[]>(STORAGE_KEYS.PRODUCTS).then((cached) => {
-          if (!cached || cached.length === 0) {
-            fetchProductsFromSupabase().then((res) => {
-              if (res.success && res.products) {
-                const validProducts = sanitizeProducts(res.products);
-                setProducts(validProducts);
-                idbSet(STORAGE_KEYS.PRODUCTS, validProducts);
+        // 2 & 4. Automatic Data Version Sync & Clean Fetch:
+        // Checks if server has a newer version or if client data is unversioned.
+        // If newer, cleanly purges old cache and loads fresh data without duplicates!
+        checkAndSyncDataVersion(false).then((syncRes) => {
+          if (!syncRes.updated) {
+            // Fallback: If version wasn't newer, ensure products and customers are loaded from Supabase if empty
+            fetchProductsFromSupabase().then((pRes) => {
+              if (pRes.success && pRes.products && pRes.products.length > 0) {
+                setProducts((curr) => {
+                  if (curr.length === 0) {
+                    const valid = sanitizeProducts(pRes.products!);
+                    idbSet(STORAGE_KEYS.PRODUCTS, valid).catch(() => {});
+                    return valid;
+                  }
+                  return curr;
+                });
+              }
+            });
+            fetchCustomersFromSupabase().then((cRes) => {
+              if (cRes.success && cRes.customers && cRes.customers.length > 0) {
+                setCustomers((curr) => {
+                  if (curr.length === 0) {
+                    const valid = sanitizeCustomers(linkCustomersToUsers(cRes.customers!, users));
+                    idbSet(STORAGE_KEYS.CUSTOMERS, valid).catch(() => {});
+                    return valid;
+                  }
+                  return curr;
+                });
               }
             });
           }
@@ -1373,19 +1588,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const next = Array.from(merged.values());
               idbSet(STORAGE_KEYS.INVOICES, next);
               return next;
-            });
-          }
-        });
-
-        // 4. Fetch Customers from Supabase (Only if local cache is empty to avoid downloading customer table on every reload)
-        idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS).then((cached) => {
-          if (!cached || cached.length === 0) {
-            fetchCustomersFromSupabase().then((res) => {
-              if (res.success && res.customers) {
-                const validCustomers = sanitizeCustomers(linkCustomersToUsers(res.customers, users));
-                setCustomers(validCustomers);
-                idbSet(STORAGE_KEYS.CUSTOMERS, validCustomers);
-              }
             });
           }
         });
@@ -1447,7 +1649,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 taxPercentage: 0,
                 taxAmount: 0,
                 estimatedGrandTotal: raw.estimated_grand_total || raw.estimatedGrandTotal || 0,
-                paymentMethod: raw.payment_method || raw.paymentMethod || 'نقدي (كاش)',
+                paymentMethod: raw.payment_method || raw.paymentMethod || 'كاش',
                 status: raw.status || 'قيد مراجعة المشرف',
                 notes: raw.notes || '',
                 syncedToAccounting: raw.synced_to_accounting || false,
@@ -1481,7 +1683,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             const raw = payload.new as any;
-            if (raw && raw.id === '00000000-0000-0000-0000-000000000001' && raw.items) {
+            if (raw && (raw.id === GLOBAL_VERSION_RECORD_ID || raw.status === 'global_data_version_stamp')) {
+              console.log('Realtime notification: new global data version detected!', raw);
+              checkAndSyncDataVersion(true);
+            } else if (raw && raw.id === '00000000-0000-0000-0000-000000000001' && raw.items) {
               const remoteProducts: Product[] = Array.isArray(raw.items)
                 ? raw.items
                 : typeof raw.items === 'string'
@@ -1845,7 +2050,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     idbSet(STORAGE_KEYS.CUSTOMERS, finalCustomers).catch(() => {});
     setCustomers(finalCustomers);
-    saveCustomersToSupabase(finalCustomers).catch((e) => console.warn('Supabase customer bulk save error:', e));
+    saveCustomersToSupabase(finalCustomers).then(() => {
+      publishNewDataVersion({
+        scope: 'customers',
+        updatedBy: currentUser?.name || 'مدير النظام',
+        notes: `تحديث قاعدة بيانات العملاء (${mode === 'replace' ? 'استبدال كامل' : 'دمج وتحديث'})`,
+        customersCount: finalCustomers.length,
+        forcePurge: true,
+      }).catch(() => {});
+    }).catch((e) => console.warn('Supabase customer bulk save error:', e));
   };
 
   const clearCustomersCacheAndReset = () => {
@@ -2774,7 +2987,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Persist full catalog to Supabase so reps & branch supervisors instantly receive it on all devices
-    saveProductsToSupabase(finalUpdated).catch((err) => {
+    saveProductsToSupabase(finalUpdated).then(() => {
+      publishNewDataVersion({
+        scope: 'products',
+        updatedBy: currentUser?.name || 'مدير النظام',
+        notes: `تحديث كتالوج الأصناف والأسعار (${mode === 'replace' ? 'استبدال كامل' : 'دمج وتحديث'})`,
+        productsCount: finalUpdated.length,
+        forcePurge: true,
+      }).catch(() => {});
+    }).catch((err) => {
       console.warn('Supabase catalog auto-sync warning:', err);
     });
 
@@ -3052,7 +3273,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       taxPercentage: 0,
       taxAmount: 0,
       estimatedGrandTotal: primaryTotals.estimatedGrandTotal,
-      paymentMethod: orderData.paymentMethod || 'نقدي (كاش)',
+      paymentMethod: orderData.paymentMethod || 'كاش',
       status: initialStatus,
       notes: orderFinalNotes,
       syncedToAccounting: false,
@@ -3101,7 +3322,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         taxPercentage: 0,
         taxAmount: 0,
         estimatedGrandTotal: shortageTotals.estimatedGrandTotal,
-        paymentMethod: orderData.paymentMethod || 'نقدي (كاش)',
+        paymentMethod: orderData.paymentMethod || 'كاش',
         status: 'قيد مراجعة المشرف',
         notes: `فاتورة تحويل نواقص من المخزن المركزي (6 أكتوبر) تابعة للفاتورة الأساسية #${newInvoiceNumber}`,
         syncedToAccounting: false,
@@ -4801,6 +5022,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetTargetsToDefault,
         addOrUpdateTargetRecord,
         deleteTargetRecord,
+        globalDataVersion,
+        isVersionSyncing,
+        lastVersionSyncNotice,
+        clearVersionSyncNotice,
+        checkAndSyncDataVersion,
+        publishDataVersionUpdate,
+        forcePurgeCacheAndReload,
       }}
     >
       {children}

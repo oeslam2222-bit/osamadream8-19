@@ -184,14 +184,22 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   // Aggregate Metrics
   const metrics = useMemo(() => {
     let totalRevenue = 0;
+    let totalCollections = 0;
     let totalCartons = 0;
     let totalPieces = 0;
     let pendingCount = 0;
+    let deliveredCount = 0;
 
     accessibleInvoices.forEach((inv) => {
-      totalRevenue += inv.estimatedGrandTotal;
-      totalCartons += inv.totalCartons;
-      totalPieces += inv.totalPieces;
+      if (inv.status !== 'مرفوضة / ملغاة' && inv.status !== 'ملغاة') {
+        totalRevenue += inv.estimatedGrandTotal || 0;
+        totalCartons += inv.totalCartons || 0;
+        totalPieces += inv.totalPieces || 0;
+      }
+      if (inv.status === 'تم التسليم' || inv.status === 'إغلاق الطلبية') {
+        totalCollections += inv.estimatedGrandTotal || 0;
+        deliveredCount++;
+      }
       if (
         inv.status === 'قيد مراجعة المشرف' ||
         inv.status === 'معلقة بانتظار اعتماد الفرع' ||
@@ -201,7 +209,18 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       }
     });
 
-    return { totalRevenue, totalCartons, totalPieces, pendingCount, count: accessibleInvoices.length };
+    const collectionRate = totalRevenue > 0 ? Math.round((totalCollections / totalRevenue) * 100) : 100;
+
+    return {
+      totalRevenue,
+      totalCollections,
+      collectionRate,
+      deliveredCount,
+      totalCartons,
+      totalPieces,
+      pendingCount,
+      count: accessibleInvoices.length,
+    };
   }, [accessibleInvoices]);
 
   const repsList = useMemo(() => {
@@ -344,32 +363,66 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         </div>
 
         {/* Dashboard Aggregate Stat Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-2">
+          {/* Card 1: Total Sales */}
           <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
-            <div className="text-[11px] text-slate-500 font-bold">إجمالي مبيعات الفواتير</div>
-            <div className="text-base sm:text-lg font-black text-slate-900">
+            <div className="text-[11px] text-slate-500 font-bold">
+              {currentUser?.role === 'branch_manager' ? `مبيعات ${currentUser.branchName || 'الفرع'}` : 'إجمالي مبيعات الفواتير'}
+            </div>
+            <div className="text-base sm:text-lg font-black text-slate-900 font-mono">
               {formatCurrency(metrics.totalRevenue)}
+            </div>
+            <div className="text-[10px] text-slate-400 font-medium">
+              {metrics.count} فاتورة مسجلة
             </div>
           </div>
 
+          {/* Card 2: Total Collections */}
+          <div className="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 space-y-1">
+            <div className="text-[11px] text-emerald-800 font-bold flex items-center justify-between">
+              <span>{currentUser?.role === 'branch_manager' ? `تحصيلات ${currentUser.branchName || 'الفرع'}` : 'إجمالي التحصيلات'}</span>
+              <span className="bg-emerald-200/80 text-emerald-950 text-[10px] font-black px-1.5 py-0.2 rounded">
+                {metrics.collectionRate}%
+              </span>
+            </div>
+            <div className="text-base sm:text-lg font-black text-emerald-700 font-mono">
+              {formatCurrency(metrics.totalCollections)}
+            </div>
+            <div className="text-[10px] text-emerald-700/80 font-medium">
+              محصل من الفواتير المسلّمة
+            </div>
+          </div>
+
+          {/* Card 3: Delivered Invoices */}
+          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
+            <div className="text-[11px] text-slate-500 font-bold">الفواتير المسلّمة للعملاء</div>
+            <div className="text-base sm:text-lg font-black text-teal-800">
+              {metrics.deliveredCount} فاتورة
+            </div>
+            <div className="text-[10px] text-slate-400 font-medium">
+              تم تسليمها وإغلاقها
+            </div>
+          </div>
+
+          {/* Card 4: Total Cartons */}
           <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
             <div className="text-[11px] text-slate-500 font-bold">إجمالي الكراتين المطلوبة</div>
             <div className="text-base sm:text-lg font-black text-amber-800">
               {metrics.totalCartons} كرتونة
             </div>
-          </div>
-
-          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
-            <div className="text-[11px] text-slate-500 font-bold">إجمالي القطع</div>
-            <div className="text-base sm:text-lg font-black text-slate-900">
+            <div className="text-[10px] text-slate-400 font-medium">
               {metrics.totalPieces} قطعة
             </div>
           </div>
 
+          {/* Card 5: Pending Approvals */}
           <div className="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 space-y-1">
-            <div className="text-[11px] text-amber-800 font-bold">طلبيات معلقة بانتظار الاعتماد</div>
+            <div className="text-[11px] text-amber-800 font-bold">طلبيات بانتظار الاعتماد</div>
             <div className="text-base sm:text-lg font-black text-amber-900">
               {metrics.pendingCount} طلبية
+            </div>
+            <div className="text-[10px] text-amber-700 font-medium">
+              مراجعة المشرف والفرع
             </div>
           </div>
         </div>
@@ -475,8 +528,15 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </select>
           </div>
 
-          {/* Branch Filter for Admin, Developer & Supervisor */}
-          {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor') && (
+          {/* Branch Filter for Admin, Developer & Supervisor, or Fixed Branch Badge for Branch Manager */}
+          {currentUser?.role === 'branch_manager' ? (
+            <div className="flex items-center gap-1.5 bg-amber-50/90 px-3 py-2 rounded-xl border border-amber-300">
+              <span className="text-amber-800 font-bold whitespace-nowrap">الفرع:</span>
+              <span className="font-black text-amber-950 text-xs">
+                {currentUser?.branchName || 'الفرع المحدد'}
+              </span>
+            </div>
+          ) : (currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor') ? (
             <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
               <span className="text-slate-500 font-bold whitespace-nowrap">الفرع:</span>
               <select
@@ -492,7 +552,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 ))}
               </select>
             </div>
-          )}
+          ) : null}
 
           {currentUser?.role !== 'sales_rep' && (
             <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">

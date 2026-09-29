@@ -1,0 +1,652 @@
+import {
+  Boxes,
+  Check,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  Flame,
+  Layers,
+  Maximize2,
+  Minus,
+  Package,
+  Plus,
+  RotateCcw,
+  ShieldCheck,
+  ShoppingCart,
+  Sparkles,
+  Tag,
+  Warehouse,
+  X,
+  ZoomIn
+} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ParentProduct, ProductVariant } from '../types';
+import { useApp } from '../context/AppContext';
+import { formatCurrency } from '../services/invoiceService';
+import { getHighResVariantImageUrl } from '../services/productVariantService';
+import { ProductImage } from './ProductImage';
+
+interface ProductVariantModalProps {
+  parentProduct: ParentProduct | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onOpenCart?: () => void;
+  isConfidentialMode?: boolean;
+}
+
+export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
+  parentProduct,
+  isOpen,
+  onClose,
+  onOpenCart,
+  isConfidentialMode = false,
+}) => {
+  const { addToCart, cart } = useApp();
+
+  const [activeVariant, setActiveVariant] = useState<ProductVariant | null>(null);
+  const [orderType, setOrderType] = useState<'carton' | 'piece'>('carton');
+  const [quantity, setQuantity] = useState<number>(1);
+  const [piecesCount, setPiecesCount] = useState<number>(0);
+  const [successNotice, setSuccessNotice] = useState<string | null>(null);
+  const [stockError, setStockError] = useState<string | null>(null);
+  const [isImageZoomed, setIsImageZoomed] = useState(false);
+
+  // Sync active variant when modal opens
+  useEffect(() => {
+    if (parentProduct && parentProduct.variants.length > 0) {
+      // Default to defaultVariant or first variant
+      setActiveVariant(parentProduct.defaultVariant || parentProduct.variants[0]);
+      setQuantity(1);
+      setPiecesCount(0);
+      setSuccessNotice(null);
+      setStockError(null);
+      setIsImageZoomed(false);
+    }
+  }, [parentProduct]);
+
+  if (!isOpen || !parentProduct || !activeVariant) {
+    return null;
+  }
+
+  const rawProd = activeVariant.rawProduct;
+  const cartonQty = rawProd.cartonQuantity && rawProd.cartonQuantity > 0 ? rawProd.cartonQuantity : 1;
+  
+  // Stock calculations
+  const branchStock = rawProd.branchStockActual || 0;
+  const branchReserved = rawProd.branchStockReserved || 0;
+  const octoberStock = rawProd.mainWarehouseActual || 0;
+  const totalStockAvailable = branchStock + octoberStock;
+
+  // Check how many units of this variant are already in cart
+  const itemInCart = cart.find((item) => item.product.id === rawProd.id);
+  const cartCartons = itemInCart?.cartonCount || 0;
+  const cartPieces = itemInCart?.pieceCount || 0;
+
+  const handleSelectVariant = (variant: ProductVariant) => {
+    setActiveVariant(variant);
+    setStockError(null);
+    setSuccessNotice(null);
+  };
+
+  const handleAddToCart = () => {
+    setStockError(null);
+    const res = addToCart(
+      rawProd,
+      orderType,
+      orderType === 'carton' ? quantity : 0,
+      orderType === 'piece' ? quantity : piecesCount
+    );
+
+    if (res.success) {
+      const qDesc = orderType === 'carton' ? `${quantity} كرتونة` : `${quantity} قطعة`;
+      setSuccessNotice(`تمت إضافة (${activeVariant.name} - ${qDesc}) إلى السلة بنجاح!`);
+      setTimeout(() => setSuccessNotice(null), 3500);
+    } else {
+      setStockError(res.message || 'تعذر إضافة الصنف للسلة');
+    }
+  };
+
+  const appliedPrice = activeVariant.promoPrice && activeVariant.promoPrice > 0
+    ? activeVariant.promoPrice
+    : activeVariant.cartonPrice;
+
+  const currentPiecePrice = activeVariant.piecePrice || (cartonQty > 0 ? Math.round((appliedPrice / cartonQty) * 100) / 100 : appliedPrice);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+      <div
+        className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden text-slate-900"
+        dir="rtl"
+      >
+        {/* Header Bar */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-900 text-white shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-sm shadow-md">
+              <Boxes className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded-lg text-xs font-black border border-amber-400/30">
+                  {parentProduct.unifiedCode || parentProduct.primaryCode}
+                </span>
+                <span className="text-xs text-slate-400 font-bold">
+                  {parentProduct.department} {parentProduct.classification ? `• ${parentProduct.classification}` : ''}
+                </span>
+              </div>
+              <h2 className="text-base sm:text-lg font-black text-white leading-tight mt-0.5">
+                {parentProduct.name}
+              </h2>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {onOpenCart && cart.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenCart();
+                }}
+                className="hidden sm:flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-black shadow transition cursor-pointer"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                <span>عرض السلة ({cart.length})</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer"
+              title="إغلاق"
+              aria-label="إغلاق النافذة"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Content Body */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+          {/* Notifications */}
+          {successNotice && (
+            <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-2xl p-3 sm:p-4 text-xs font-bold flex items-center justify-between shadow-xs animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{successNotice}</span>
+              </div>
+              {onOpenCart && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenCart();
+                  }}
+                  className="bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-xs font-black hover:bg-emerald-700 cursor-pointer"
+                >
+                  الذهاب للسلة ⬅️
+                </button>
+              )}
+            </div>
+          )}
+
+          {stockError && (
+            <div className="bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl p-3 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+              <X className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{stockError}</span>
+            </div>
+          )}
+
+          {/* Main 2-Column Grid: Large Clear Image + Interactive Variant Selector */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+            
+            {/* Column 1: Eye-Friendly High-Res Image Display */}
+            <div className="md:col-span-5 space-y-3">
+              <div className="relative bg-slate-50 border-2 border-slate-200 rounded-3xl overflow-hidden shadow-inner flex items-center justify-center min-h-[280px] sm:min-h-[340px] group">
+                <ProductImage
+                  product={rawProd}
+                  alt={`${parentProduct.name} - ${activeVariant.name}`}
+                  className="w-full h-full object-contain max-h-[360px] p-3 transition-transform duration-300 group-hover:scale-105"
+                />
+
+                {/* Window Badge Overlay */}
+                <div className="absolute top-3 right-3 bg-slate-900/90 text-white font-black text-xs px-3 py-1.5 rounded-xl shadow-lg border border-slate-700 backdrop-blur-sm flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                  <span>{activeVariant.name}</span>
+                </div>
+
+                {/* Zoom / Lightbox Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setIsImageZoomed(!isImageZoomed)}
+                  className="absolute bottom-3 left-3 bg-white/90 hover:bg-white text-slate-800 p-2 rounded-xl shadow-md border border-slate-200 transition cursor-pointer"
+                  title="تكبير الصورة بحجم كامل"
+                >
+                  <Maximize2 className="w-4 h-4" />
+                </button>
+
+                {activeVariant.promoPrice && activeVariant.promoPrice > 0 && (
+                  <div className="absolute top-3 left-3 bg-rose-600 text-white font-black text-xs px-2.5 py-1 rounded-xl shadow-md flex items-center gap-1">
+                    <Flame className="w-3.5 h-3.5" />
+                    <span>عرض ترويجي</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Window Thumbnails Strip for Quick Image Browsing */}
+              {parentProduct.variants.length > 1 && (
+                <div>
+                  <div className="text-[11px] font-bold text-slate-500 mb-1.5 flex items-center justify-between">
+                    <span>صور ومعاينات الشبابيك ({parentProduct.variants.length})</span>
+                    <span className="text-amber-600 text-[10px]">اضغط للتنقل</span>
+                  </div>
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                    {parentProduct.variants.map((v) => {
+                      const isSelected = activeVariant.id === v.id;
+                      return (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onClick={() => handleSelectVariant(v)}
+                          className={`w-14 h-14 rounded-xl border-2 p-1 flex-shrink-0 transition bg-white overflow-hidden cursor-pointer relative ${
+                            isSelected
+                              ? 'border-amber-500 shadow-md ring-2 ring-amber-400/40'
+                              : 'border-slate-200 hover:border-slate-300 opacity-75 hover:opacity-100'
+                          }`}
+                          title={v.name}
+                        >
+                          <ProductImage
+                            product={v.rawProduct}
+                            alt={v.name}
+                            className="w-full h-full object-contain"
+                          />
+                          <div className="absolute bottom-0 inset-x-0 bg-slate-900/80 text-[8px] font-black text-white text-center py-0.5 truncate">
+                            {v.name.replace('شباك', 'ش')}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Column 2: Windows / Variants Interactive Controls & Cart Actions */}
+            <div className="md:col-span-7 space-y-4">
+              
+              {/* 1. Interactive Windows / Colors Selector Buttons */}
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-black text-slate-900 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <span>اختر الشباك أو اللون المطلوب:</span>
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-500">
+                    متوفر {parentProduct.variants.length} خيارات
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                  {parentProduct.variants.map((variant) => {
+                    const isSelected = activeVariant.id === variant.id;
+                    const vBranchStock = variant.branchStockActual || 0;
+                    const vOctStock = variant.mainWarehouseActual || 0;
+                    const vTotalStock = vBranchStock + vOctStock;
+                    const inCart = cart.find((i) => i.product.id === variant.rawProduct.id);
+
+                    return (
+                      <button
+                        key={variant.id}
+                        type="button"
+                        onClick={() => handleSelectVariant(variant)}
+                        className={`p-2.5 rounded-xl border-2 text-right transition cursor-pointer relative flex flex-col justify-between min-h-[68px] ${
+                          isSelected
+                            ? 'bg-amber-400 border-slate-950 text-slate-950 shadow-md scale-[1.02] ring-2 ring-amber-400/40'
+                            : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800 hover:bg-slate-100/80'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span className="font-black text-xs truncate">
+                            {variant.name}
+                          </span>
+                          {inCart && (
+                            <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[9px] font-bold shrink-0" title="موجود بالسلة">
+                              ✓
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between w-full mt-1.5 text-[10px]">
+                          <span className="font-mono text-slate-500">
+                            {variant.code}
+                          </span>
+                          <span
+                            className={`font-black font-mono px-1.5 py-0.5 rounded-md ${
+                              vTotalStock > 0
+                                ? isSelected
+                                  ? 'bg-slate-900 text-amber-300'
+                                  : 'bg-emerald-100 text-emerald-800'
+                                : 'bg-rose-100 text-rose-700'
+                            }`}
+                          >
+                            {vTotalStock > 0 ? `${vTotalStock} ك` : 'منتهي'}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. Selected Window Details & Stock Card */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold block">الشباك المحدد حالياً:</span>
+                    <span className="text-sm font-black text-slate-900 flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                      <span>{activeVariant.name}</span>
+                      <span className="text-xs font-normal text-slate-500 font-mono">({activeVariant.code})</span>
+                    </span>
+                  </div>
+
+                  <div className="text-left">
+                    <span className="text-[10px] text-slate-400 font-bold block">شدة الكرتونة:</span>
+                    <span className="text-xs font-black text-slate-800">{cartonQty} قطعة / كرتونة</span>
+                  </div>
+                </div>
+
+                {/* Stock Details Grid */}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
+                    <div className="text-[11px] text-slate-500 font-bold flex items-center gap-1">
+                      <Warehouse className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>رصيد الفرع الحالي:</span>
+                    </div>
+                    <div className="text-base font-black text-emerald-700 font-mono">
+                      {branchStock} كرتونة
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-medium">
+                      متاح فوري للتسليم بالفرع
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
+                    <div className="text-[11px] text-slate-500 font-bold flex items-center gap-1">
+                      <Package className="w-3.5 h-3.5 text-amber-600" />
+                      <span>مخزن أكتوبر المركزي:</span>
+                    </div>
+                    <div className="text-base font-black text-amber-700 font-mono">
+                      {octoberStock} كرتونة
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-medium">
+                      صرف مركزي ونواقص
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pricing Box */}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold">سعر الكرتونة</span>
+                    <div className="text-lg font-black text-amber-300">
+                      {isConfidentialMode ? '••••••' : formatCurrency(appliedPrice)}
+                    </div>
+                  </div>
+
+                  <div className="text-center">
+                    <span className="text-[10px] text-slate-400 block font-bold">سعر القطعة</span>
+                    <div className="text-sm font-black text-slate-200">
+                      {isConfidentialMode ? '••••' : formatCurrency(currentPiecePrice)}
+                    </div>
+                  </div>
+
+                  {activeVariant.promoPrice && activeVariant.promoPrice > 0 && (
+                    <div className="text-left">
+                      <span className="text-[10px] text-rose-300 block font-bold">وفر</span>
+                      <div className="text-xs font-black text-rose-400">
+                        خصم عرض
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* In Cart Indicator */}
+                {cartCartons > 0 || cartPieces > 0 ? (
+                  <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Check className="w-4 h-4 text-emerald-600" />
+                      <span>مضاف في السلة حالياً من هذا الشباك:</span>
+                    </div>
+                    <span className="font-black text-emerald-700 font-mono">
+                      {cartCartons > 0 && `${cartCartons} كرتونة `}
+                      {cartPieces > 0 && `${cartPieces} قطعة`}
+                    </span>
+                  </div>
+                ) : null}
+
+                {/* 3. Quantity Stepper & Order Controls */}
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <div className="flex items-center justify-between gap-2">
+                    {/* Unit Switcher */}
+                    <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-300 text-xs font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setOrderType('carton')}
+                        className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                          orderType === 'carton'
+                            ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
+                            : 'text-slate-600 hover:text-slate-950'
+                        }`}
+                      >
+                        📦 بالكرتونة
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOrderType('piece')}
+                        className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                          orderType === 'piece'
+                            ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
+                            : 'text-slate-600 hover:text-slate-950'
+                        }`}
+                      >
+                        🏷️ بالقطعة
+                      </button>
+                    </div>
+
+                    {/* Stepper */}
+                    <div className="flex items-center bg-slate-100 rounded-xl border border-slate-300 p-0.5">
+                      <button
+                        type="button"
+                        disabled={quantity <= 1}
+                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                        className="w-9 h-9 flex items-center justify-center text-slate-800 active:bg-slate-200 rounded-lg font-black disabled:opacity-30 cursor-pointer"
+                        title="إنقاص (-1)"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+
+                      <input
+                        type="number"
+                        min="1"
+                        value={quantity}
+                        onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                        className="w-14 h-9 text-center font-black text-sm text-slate-950 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => setQuantity(quantity + 1)}
+                        className="w-9 h-9 flex items-center justify-center text-slate-800 active:bg-slate-200 rounded-lg font-black cursor-pointer"
+                        title="زيادة (+1)"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Quick Add Presets */}
+                    <div className="hidden sm:flex items-center gap-1">
+                      {[5, 10, 20].map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => setQuantity(num)}
+                          className="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
+                        >
+                          +{num}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Add to Cart Button */}
+                  <button
+                    type="button"
+                    disabled={totalStockAvailable <= 0}
+                    onClick={handleAddToCart}
+                    className="w-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 active:scale-[0.98] text-slate-950 font-black h-12 px-4 rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <ShoppingCart className="w-4 h-4" />
+                    <span>
+                      {totalStockAvailable <= 0
+                        ? 'الصنف غير متاح حالياً بالمخازن'
+                        : `إضافة (${activeVariant.name}) للسلة • ${quantity} ${orderType === 'carton' ? 'كرتونة' : 'قطعة'}`}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+          {/* Quick Matrix for Multi-Window Orders */}
+          {parentProduct.variants.length > 1 && (
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between text-xs font-black text-slate-900">
+                <span className="flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-indigo-600" />
+                  <span>جدول شبابيك الصنف بالكامل (طلب سريع لعدة شبابيك معاً):</span>
+                </span>
+                <span className="text-slate-500 font-normal">
+                  يمكنك طلب أي شباك مباشرة من الجدول
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-right border-collapse">
+                  <thead>
+                    <tr className="bg-slate-200/80 text-slate-700 font-bold border-b border-slate-300">
+                      <th className="p-2.5">الشباك / اللون</th>
+                      <th className="p-2.5">الكود</th>
+                      <th className="p-2.5 text-center">رصيد الفرع</th>
+                      <th className="p-2.5 text-center">رصيد أكتوبر</th>
+                      <th className="p-2.5 text-left">سعر الكرتونة</th>
+                      <th className="p-2.5 text-center">حالة السلة</th>
+                      <th className="p-2.5 text-center">إجراء سريع</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 bg-white">
+                    {parentProduct.variants.map((v) => {
+                      const inCart = cart.find((i) => i.product.id === v.rawProduct.id);
+                      const isCurr = activeVariant.id === v.id;
+                      const vTotal = (v.branchStockActual || 0) + (v.mainWarehouseActual || 0);
+
+                      return (
+                        <tr
+                          key={v.id}
+                          className={`hover:bg-slate-50 transition ${isCurr ? 'bg-amber-50/60 font-semibold' : ''}`}
+                        >
+                          <td className="p-2.5 font-black text-slate-900 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                            <span>{v.name}</span>
+                          </td>
+                          <td className="p-2.5 font-mono text-slate-500">{v.code}</td>
+                          <td className="p-2.5 text-center font-mono font-bold text-emerald-700">
+                            {v.branchStockActual || 0} ك
+                          </td>
+                          <td className="p-2.5 text-center font-mono font-bold text-amber-700">
+                            {v.mainWarehouseActual || 0} ك
+                          </td>
+                          <td className="p-2.5 text-left font-bold text-slate-900">
+                            {isConfidentialMode ? '••••' : formatCurrency(v.cartonPrice)}
+                          </td>
+                          <td className="p-2.5 text-center">
+                            {inCart ? (
+                              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full">
+                                {inCart.cartonCount} كرتونة
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[10px]">---</span>
+                            )}
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleSelectVariant(v)}
+                                className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer"
+                              >
+                                معاينة 👁️
+                              </button>
+                              <button
+                                type="button"
+                                disabled={vTotal <= 0}
+                                onClick={() => {
+                                  addToCart(v.rawProduct, 'carton', 1);
+                                  setSuccessNotice(`تمت إضافة 1 كرتونة من (${v.name}) للسلة!`);
+                                  setTimeout(() => setSuccessNotice(null), 3000);
+                                }}
+                                className="px-2 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 text-[11px] font-black shadow-2xs transition cursor-pointer disabled:opacity-30"
+                              >
+                                +1 كرتونة 🛒
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        {/* Footer Navigation Bar */}
+        <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-xs shrink-0">
+          <div className="text-slate-500 font-medium">
+            كود الصنف الأساسي: <strong className="font-mono text-slate-900">{parentProduct.primaryCode}</strong> • إجمالي الشبابيك: <strong className="text-slate-900">{parentProduct.variants.length}</strong>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-bold transition cursor-pointer"
+            >
+              إغلاق
+            </button>
+
+            {onOpenCart && cart.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenCart();
+                }}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 rounded-xl font-black shadow transition cursor-pointer flex items-center gap-1.5"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                <span>إتمام الطلبية ({cart.length})</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+};
