@@ -130,14 +130,16 @@ export async function publishNewDataVersion(params: {
   };
 
   try {
-    await supabase.from('orders').upsert({
+    const { error } = await supabase.from('orders').upsert({
       id: GLOBAL_VERSION_RECORD_ID,
       status: 'global_data_version_stamp',
       total: nextVersion,
       items: newMeta as any,
     });
+    if (error) throw error;
   } catch (err) {
     console.warn('Failed to persist global data version stamp to Supabase:', err);
+    throw err;
   }
 
   saveLocalDataVersion(newMeta);

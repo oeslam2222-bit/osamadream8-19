@@ -1474,23 +1474,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Periodic heartbeat & tab focus check for published data versions
+  // Re-check on focus, tab visibility, realtime version broadcasts, and as a short heartbeat.
+  // The heartbeat is intentionally defensive: realtime can be disconnected on mobile networks.
   useEffect(() => {
-    const handleFocus = () => {
-      checkAndSyncDataVersion(false).catch(() => {});
+    let checkInFlight = false;
+    const check = () => {
+      if (checkInFlight || document.visibilityState === 'hidden') return;
+      checkInFlight = true;
+      checkAndSyncDataVersion(false).catch(() => {}).finally(() => {
+        checkInFlight = false;
+      });
     };
+    const handleFocus = () => check();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') check();
+    };
+
     window.addEventListener('focus', handleFocus);
-    const interval = setInterval(() => {
-      checkAndSyncDataVersion(false).catch(() => {});
-    }, 2 * 60 * 1000); // Check every 2 minutes
+    document.addEventListener('visibilitychange', handleVisibility);
+    const interval = window.setInterval(check, 15 * 1000);
+    const versionChannel = supabase
+      .channel('global-data-version-sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${GLOBAL_VERSION_RECORD_ID}` },
+        () => check()
+      )
+      .subscribe();
+
+    check();
     return () => {
       window.removeEventListener('focus', handleFocus);
-      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.clearInterval(interval);
+      supabase.removeChannel(versionChannel);
     };
   }, [users]);
 
   // Initial Supabase connection check, fetch users, products, invoices & real-time sync
   useEffect(() => {
+    // Wait for IndexedDB hydration before checking the remote version. Otherwise a
+    // late hydration can restore the stale snapshot immediately after it is purged.
+    if (!isLocalDataHydrated) return;
+
     testSupabaseConnection().then((status) => {
       setSupabaseStatus(status);
       if (status.connected) {
@@ -1791,7 +1817,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.warn('Realtime channel error:', e);
     }
-  }, []);
+  }, [isLocalDataHydrated]);
 
   useEffect(() => {
     const handleOnlineSync = () => {
