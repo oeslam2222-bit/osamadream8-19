@@ -12,6 +12,8 @@ import {
   Building2,
   UserCheck,
   CreditCard,
+  Banknote,
+  CalendarDays,
   AlertTriangle,
   CheckCircle2,
   TrendingUp,
@@ -5757,7 +5759,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                                 {orderSummary.latestOrder.status || 'مسجل'}
                               </span>
                               <span className="text-[10px] font-mono font-bold text-slate-600">
-                                {formatMoney(orderSummary.latestOrder.total)}
+                                {formatMoney(
+                                  orderSummary.latestOrder.estimatedGrandTotal ||
+                                    orderSummary.latestOrder.subtotal ||
+                                    0
+                                )}
                               </span>
                             </div>
                           </div>
@@ -6173,6 +6179,102 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   <div className="text-[11px] font-bold text-rose-600 mt-1 border-t border-rose-100 pt-1 flex items-center justify-between">
                     <span>الحالة:</span>
                     <span>واجبة التحصيل فوراً</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ===== كشف حساب العميل — الضمان والحد الائتماني وآخر تحصيل ===== */}
+              <div className="rounded-2xl border-2 border-slate-800 bg-white overflow-hidden shadow-sm">
+                <div className="px-4 py-2.5 bg-slate-900 text-white flex items-center justify-between gap-2 flex-wrap">
+                  <h4 className="font-black text-xs sm:text-sm flex items-center gap-2">
+                    <Receipt className="w-4 h-4 text-amber-400" />
+                    <span>كشف حساب العميل</span>
+                  </h4>
+                  <span className="text-[10.5px] font-black px-2.5 py-1 rounded-lg bg-white/15">
+                    متاح عند فتح الفاتورة
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+                  {/* أوراق الضمان */}
+                  <div className="p-3.5">
+                    <div className="text-[10.5px] font-black text-slate-400 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>أوراق الضمان</span>
+                    </div>
+                    {hasGuaranteePapers(selectedCustomer) ? (
+                      <>
+                        <div className="text-sm font-black text-emerald-800 mt-1 leading-tight">
+                          {normalizeGuaranteeCategory(selectedCustomer)}
+                        </div>
+                        {Number(selectedCustomer.guaranteeAmount || 0) > 0 && (
+                          <div className="text-lg font-black font-mono text-emerald-950 mt-0.5">
+                            {formatMoney(Number(selectedCustomer.guaranteeAmount))}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-sm font-black text-slate-400 mt-1">لا يوجد ورق ضمان</div>
+                    )}
+                  </div>
+
+                  {/* الحد الائتماني */}
+                  <div className="p-3.5">
+                    <div className="text-[10.5px] font-black text-slate-400 flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-blue-600" />
+                      <span>الحد الائتماني</span>
+                    </div>
+                    <div className="text-lg font-black font-mono text-blue-950 mt-1">
+                      {formatMoney(selectedCustomer.creditLimit || 0)}
+                    </div>
+                    {(() => {
+                      const bal = selectedCustomer.currentBalance ?? selectedCustomer.balance ?? 0;
+                      const lim = selectedCustomer.creditLimit || 0;
+                      const over = bal > lim && lim > 0;
+                      return (
+                        <div className={`text-[11px] font-bold mt-1 border-t border-slate-100 pt-1 flex items-center justify-between`}>
+                          <span>المستخدم:</span>
+                          <span className={`font-mono ${over ? 'text-rose-600' : 'text-slate-600'}`}>
+                            {lim > 0 ? `${Math.round((bal / lim) * 100)}%` : '—'}
+                            {over && <span className="text-rose-600 font-black"> ⛔</span>}
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* آخر تحصيل */}
+                  <div className="p-3.5">
+                    <div className="text-[10.5px] font-black text-slate-400 flex items-center gap-1.5">
+                      <Banknote className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>آخر تحصيل</span>
+                    </div>
+                    {Number(selectedCustomer.lastCollectionAmount || 0) > 0 ? (
+                      <div className="text-lg font-black font-mono text-emerald-950 mt-1">
+                        {formatMoney(Number(selectedCustomer.lastCollectionAmount))}
+                      </div>
+                    ) : (
+                      <div className="text-sm font-black text-slate-400 mt-1">لا يوجد تحصيل مسجل</div>
+                    )}
+                  </div>
+
+                  {/* تاريخ آخر تحصيل */}
+                  <div className="p-3.5">
+                    <div className="text-[10.5px] font-black text-slate-400 flex items-center gap-1.5">
+                      <CalendarDays className="w-3.5 h-3.5 text-violet-600" />
+                      <span>تاريخ آخر تحصيل</span>
+                    </div>
+                    {selectedCustomer.lastCollectionDate ? (
+                      <div className="text-sm font-black text-violet-900 mt-1 font-mono">
+                        {selectedCustomer.lastCollectionDate}
+                      </div>
+                    ) : (
+                      <div className="text-sm font-black text-slate-400 mt-1">—</div>
+                    )}
+                    <div className="text-[11px] font-bold text-slate-500 mt-1 border-t border-slate-100 pt-1 flex items-center justify-between">
+                      <span>إجمالي تحصيلات 2026:</span>
+                      <span className="font-mono text-emerald-700">{formatMoney(selectedCustomer.collections2026 || 0)}</span>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -62,7 +62,7 @@ import { parseExcelProducts, fetchAndParseGoogleSheet, generateSampleExcelTempla
 import { Customer, ItemStatus, Product, SalesPriority, ParentProduct, ProductVariant } from '../types';
 import { DepartmentCategorySlicer } from './DepartmentCategorySlicer';
 import { getDepartmentMeta } from '../data/departmentMeta';
-import { getBranchStockForProduct } from '../services/arabicMatchingService';
+import { getBranchStockForProduct, CANONICAL_BRANCHES, MAIN_BRANCH_NAME } from '../services/arabicMatchingService';
 import { groupProductsIntoParents } from '../services/productVariantService';
 import { ProductVariantModal } from './ProductVariantModal';
 import { PosCashierSidebar } from './PosCashierSidebar';
@@ -414,6 +414,51 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       inWarehouse,
     };
   }, [products, currentActiveBranch]);
+
+  // ===== مخزون أكتوبر + إجمالي المخزون في كل الفروع (الأدمن فقط) =====
+  const [warehousePanelOpen, setWarehousePanelOpen] = useState(false);
+  const [warehouseProductId, setWarehouseProductId] = useState<string | null>(null);
+
+  const warehouseSummary = useMemo(() => {
+    let octoberTotal = 0;
+    let allBranchesTotal = 0;
+    let withOctoberStock = 0;
+
+    CANONICAL_BRANCHES.forEach((branch) => {
+      visibleProducts.forEach((p) => {
+        const stock = getBranchStockForProduct(p, branch);
+        if (stock > 0) {
+          allBranchesTotal += stock;
+          if (branch === MAIN_BRANCH_NAME) {
+            octoberTotal += stock;
+            withOctoberStock++;
+          }
+        }
+      });
+    });
+
+    return { octoberTotal, allBranchesTotal, withOctoberStock };
+  }, [visibleProducts]);
+
+  // تفصيل مخزون المنتج الواحد عبر كل الفروع
+  const warehouseProductBreakdown = useMemo(() => {
+    if (!warehouseProductId) return [];
+    const product = visibleProducts.find((p) => p.id === warehouseProductId);
+    if (!product) return [];
+
+    return CANONICAL_BRANCHES.map((branch) => ({
+      branch,
+      stock: getBranchStockForProduct(product, branch),
+    }));
+  }, [warehouseProductId, visibleProducts]);
+
+  const warehouseProductTotals = useMemo(
+    () => warehouseProductBreakdown.reduce(
+      (acc, b) => ({ october: acc.october + (b.branch === MAIN_BRANCH_NAME ? b.stock : 0), total: acc.total + b.stock }),
+      { october: 0, total: 0 }
+    ),
+    [warehouseProductBreakdown]
+  );
 
   // Filtered & Sorted Products
   const filteredProducts = useMemo(() => {
@@ -1218,6 +1263,185 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       <div className="lg:grid lg:grid-cols-12 lg:gap-5 items-start mt-4">
         {/* Left Main Catalog Column */}
         <div className="lg:col-span-8 xl:col-span-8.5 space-y-4">
+          {/* ===== لوحة مخزون الفروع — الأدمن فقط ===== */}
+      {isAdminOrDev && (
+        <div className="bg-white rounded-3xl border-2 border-slate-800 shadow-xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setWarehousePanelOpen((v) => !v)}
+            className="w-full px-4 sm:px-5 py-3.5 flex items-center justify-between gap-3 bg-slate-900 hover:bg-slate-800 transition cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0">
+                <Warehouse className="w-5 h-5" />
+              </div>
+              <div className="text-right">
+                <h3 className="font-black text-white text-sm sm:text-base">لوحة مخزون الفروع</h3>
+                <p className="text-[10.5px] text-slate-400 font-bold">مخزون أكتوبر + إجمالي المخزون في كل الفروع</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="px-2.5 py-1 rounded-lg bg-amber-400 text-slate-950 text-[11px] font-black font-mono">
+                أكتوبر: {warehouseSummary.octoberTotal.toLocaleString()}
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-white/15 text-white text-[11px] font-black font-mono">
+                الإجمالي: {warehouseSummary.allBranchesTotal.toLocaleString()}
+              </span>
+              <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${warehousePanelOpen ? 'rotate-180' : ''}`} />
+            </div>
+          </button>
+
+          {warehousePanelOpen && (
+            <div className="p-4 sm:p-5 space-y-4 animate-in fade-in">
+              {/* بطاقات الملخص */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3.5 rounded-2xl bg-amber-50 border-2 border-amber-300">
+                  <div className="text-[10.5px] font-black text-amber-700">مخزن أكتوبر (المركزي)</div>
+                  <div className="text-2xl font-black font-mono text-amber-950 mt-1">
+                    {warehouseSummary.octoberTotal.toLocaleString()}
+                  </div>
+                  <div className="text-[10px] font-bold text-amber-600 mt-0.5">
+                    {warehouseSummary.withOctoberStock} صنف متوفر بالمخزن
+                  </div>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-slate-100 border-2 border-slate-300">
+                  <div className="text-[10.5px] font-black text-slate-600">إجمالي المخزون (كل الفروع)</div>
+                  <div className="text-2xl font-black font-mono text-slate-900 mt-1">
+                    {warehouseSummary.allBranchesTotal.toLocaleString()}
+                  </div>
+                  <div className="text-[10px] font-bold text-slate-500 mt-0.5">
+                    {CANONICAL_BRANCHES.length} فروع
+                  </div>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-emerald-50 border-2 border-emerald-300">
+                  <div className="text-[10.5px] font-black text-emerald-700">أكتوبر كنسبة من الإجمالي</div>
+                  <div className="text-2xl font-black font-mono text-emerald-950 mt-1">
+                    {warehouseSummary.allBranchesTotal > 0
+                      ? Math.round((warehouseSummary.octoberTotal / warehouseSummary.allBranchesTotal) * 100)
+                      : 0}%
+                  </div>
+                  <div className="h-1.5 rounded-full bg-emerald-200 mt-2 overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500 rounded-full transition-all"
+                      style={{
+                        width: warehouseSummary.allBranchesTotal > 0
+                          ? `${(warehouseSummary.octoberTotal / warehouseSummary.allBranchesTotal) * 100}%`
+                          : '0%',
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* اختيار المنتج لعرض توزيعه على الفروع */}
+              <div>
+                <label className="text-[11px] font-black text-slate-600 block mb-1.5">
+                  اختر صنفاً لعرض مخزونه في كل الفروع:
+                </label>
+                <select
+                  value={warehouseProductId || ''}
+                  onChange={(e) => setWarehouseProductId(e.target.value || null)}
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500 transition cursor-pointer"
+                >
+                  <option value="">— كل الأصناف (إجمالي المخزون) —</option>
+                  {visibleProducts.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.code} — {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* جدول التوزيع على الفروع */}
+              {warehouseProductId ? (
+                <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                  <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-[11px] font-black text-slate-700">
+                      {visibleProducts.find((p) => p.id === warehouseProductId)?.name}
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 text-[10.5px] font-black font-mono">
+                        أكتوبر {warehouseProductTotals.october.toLocaleString()}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-lg bg-slate-900 text-white text-[10.5px] font-black font-mono">
+                        الإجمالي {warehouseProductTotals.total.toLocaleString()}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto">
+                    {warehouseProductBreakdown.map(({ branch, stock }) => {
+                      const isMain = branch === MAIN_BRANCH_NAME;
+                      const pct = warehouseProductTotals.total > 0 ? (stock / warehouseProductTotals.total) * 100 : 0;
+                      return (
+                        <div
+                          key={branch}
+                          className={`px-4 py-2.5 flex items-center justify-between gap-3 border-b border-slate-100 last:border-0 ${
+                            isMain ? 'bg-amber-50/60' : 'bg-white'
+                          }`}
+                        >
+                          <span className={`text-[11.5px] ${isMain ? 'font-black text-amber-900' : 'font-bold text-slate-700'}`}>
+                            {isMain ? '🏭 ' : '🏪 '}{branch}
+                          </span>
+                          <span className="flex items-center gap-2 shrink-0">
+                            <span className="w-16 h-1.5 rounded-full bg-slate-200 overflow-hidden hidden sm:block">
+                              <span
+                                className={`block h-full rounded-full ${isMain ? 'bg-amber-500' : 'bg-slate-700'}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </span>
+                            <span className={`text-xs font-black font-mono ${stock > 0 ? 'text-slate-900' : 'text-slate-300'}`}>
+                              {stock.toLocaleString()}
+                            </span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                  <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-[11px] font-black text-slate-700">
+                    إجمالي مخزون كل فرع (كل الأصناف)
+                  </div>
+                  <div className="max-h-72 overflow-y-auto">
+                    {CANONICAL_BRANCHES.map((branch) => {
+                      const total = visibleProducts.reduce((acc, p) => acc + getBranchStockForProduct(p, branch), 0);
+                      const isMain = branch === MAIN_BRANCH_NAME;
+                      const pct = warehouseSummary.allBranchesTotal > 0
+                        ? (total / warehouseSummary.allBranchesTotal) * 100
+                        : 0;
+                      return (
+                        <div
+                          key={branch}
+                          className={`px-4 py-2.5 flex items-center justify-between gap-3 border-b border-slate-100 last:border-0 ${
+                            isMain ? 'bg-amber-50/60' : 'bg-white'
+                          }`}
+                        >
+                          <span className={`text-[11.5px] ${isMain ? 'font-black text-amber-900' : 'font-bold text-slate-700'}`}>
+                            {isMain ? '🏭 ' : '🏪 '}{branch}
+                          </span>
+                          <span className="flex items-center gap-2 shrink-0">
+                            <span className="w-16 h-1.5 rounded-full bg-slate-200 overflow-hidden hidden sm:block">
+                              <span
+                                className={`block h-full rounded-full ${isMain ? 'bg-amber-500' : 'bg-slate-700'}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </span>
+                            <span className={`text-xs font-black font-mono ${total > 0 ? 'text-slate-900' : 'text-slate-300'}`}>
+                              {total.toLocaleString()}
+                            </span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
           {/* Fresh Upload / Setup Box (Visible ONLY to Admin and Developer) */}
       {isAdminOrDev && isUploadBoxOpen && (
         <div className="bg-white rounded-3xl p-5 sm:p-6 border-2 border-amber-400 shadow-xl space-y-4 animate-in fade-in">
