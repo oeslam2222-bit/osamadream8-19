@@ -196,7 +196,6 @@ export interface CustomerVisit {
   isReturn?: boolean;                 // هل الزيارة تضمنت مرتجع؟
   returnValue?: number;               // قيمة المرتجع بالجنيه
   returnReason?: string;              // سبب المرتجع
-  returnDifficulty?: 'سهل' | 'متوسط' | 'صعب' | 'معقد'; // صعوبة إتمام المرتجع
   returnStatus?: 'بانتظار المشرف' | 'تم تحويله لأمين المخزن';
   returnHandledBy?: string;           // اسم المشرف الذي أكّد التحويل
   returnHandledAt?: string;           // وقت تأكيد التحويل لأمين المخزن

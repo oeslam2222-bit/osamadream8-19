@@ -216,7 +216,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [visitHasReturn, setVisitHasReturn] = useState(false);
   const [visitReturnValue, setVisitReturnValue] = useState('');
   const [visitReturnReason, setVisitReturnReason] = useState('');
-  const [visitReturnDifficulty, setVisitReturnDifficulty] = useState<'سهل' | 'متوسط' | 'صعب' | 'معقد'>('متوسط');
   const [visitReturnDetails, setVisitReturnDetails] = useState('');
 
   // Fast Indexed Customer Orders Lookup
@@ -1810,7 +1809,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       isReturn: visitHasReturn,
       returnValue: visitHasReturn ? (parseFloat(visitReturnValue) || 0) : undefined,
       returnReason: visitHasReturn ? visitReturnReason.trim() : undefined,
-      returnDifficulty: visitHasReturn ? visitReturnDifficulty : undefined,
       returnStatus: visitHasReturn ? 'بانتظار المشرف' : undefined,
     });
 
@@ -5885,30 +5883,15 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         تفاصيل المرتجع — سيتم إشعار المشرف فوراً
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        <div>
-                          <label className="text-[11px] font-bold text-rose-600 block mb-1">قيمة المرتجع (ج.م): *</label>
-                          <input
-                            type="number"
-                            placeholder="0.00"
-                            value={visitReturnValue}
-                            onChange={(e) => setVisitReturnValue(e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-white border border-rose-200 rounded-xl text-xs font-bold"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[11px] font-bold text-rose-600 block mb-1">صعوبة المرتجع:</label>
-                          <select
-                            value={visitReturnDifficulty}
-                            onChange={(e) => setVisitReturnDifficulty(e.target.value as any)}
-                            className="w-full px-2.5 py-1.5 bg-white border border-rose-200 rounded-xl text-xs font-bold"
-                          >
-                            <option value="سهل">سهل</option>
-                            <option value="متوسط">متوسط</option>
-                            <option value="صعب">صعب</option>
-                            <option value="معقد">معقد</option>
-                          </select>
-                        </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-rose-600 block mb-1">قيمة المرتجع (ج.م): *</label>
+                        <input
+                          type="number"
+                          placeholder="0.00"
+                          value={visitReturnValue}
+                          onChange={(e) => setVisitReturnValue(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-white border border-rose-200 rounded-xl text-xs font-bold"
+                        />
                       </div>
 
                       <div>
