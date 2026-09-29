@@ -333,9 +333,18 @@ export function parseTargetRawRows(rawRows: any[][]): TargetRecord[] {
     const branch = String(row[colMap['branch']] || '').trim();
     const repName = String(row[colMap['rep']] || '').trim();
 
-    // Skip empty or summary rows
+    // Skip empty or summary rows. Summary rows must never be imported as a rep,
+    // otherwise their aggregate collection amount is added a second time to the KPI.
     if (!branch && !repName) continue;
-    if (branch.includes('إجمالي') || branch.includes('اجمالي') || repName.includes('إجمالي') || repName.includes('اجمالي')) {
+    const summaryText = normalizeArabicText(`${branch} ${repName}`)
+      .replace(/[\s:：_-]+/g, '')
+      .toLowerCase();
+    if (
+      summaryText.includes('اجمال') ||
+      summaryText.includes('إجمال') ||
+      summaryText.includes('total') ||
+      summaryText.includes('grandtotal')
+    ) {
       continue;
     }
 
