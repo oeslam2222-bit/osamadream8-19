@@ -128,7 +128,7 @@ interface AppContextType {
   addCustomer: (customer: Customer) => void;
   updateCustomer: (customer: Customer) => void;
   deleteCustomer: (customerId: string) => void;
-  importCustomersList: (newCustomers: Customer[], mode?: 'merge' | 'replace' | 'upsert') => void;
+  importCustomersList: (newCustomers: Customer[], mode?: 'merge' | 'replace' | 'upsert') => Promise<{ success: boolean; count: number; removed: number; message: string }>;
   cleanAndDeduplicateCustomers: () => { originalCount: number; deduplicatedCount: number; duplicatesRemoved: number };
   clearCustomersCacheAndReset: () => void;
   refreshCustomerRepLinks: () => {
@@ -447,6 +447,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     usersRef.current = users;
   }, [users]);
+
+  // Timestamp of the last authoritative customer write made by THIS client.
+  // While it is recent, the heartbeat must not replace local data with a
+  // server copy that has not caught up yet (that caused correct data to revert).
+  const authoritativeWriteAtRef = useRef<number>(0);
 
   const [branches, setBranches] = useState<Branch[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.BRANCHES);
@@ -1423,6 +1428,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
    */
   const checkAndSyncDataVersion = async (force: boolean = false): Promise<{ updated: boolean; version?: number; message: string }> => {
     try {
+      // Never purge and re-pull while our own authoritative write is still
+      // landing on the server: the old copy would overwrite the fresh one.
+      if (!force && Date.now() - authoritativeWriteAtRef.current < 120000) {
+        return { updated: false, message: 'جارٍ حفظ التحديث الحالي' };
+      }
       const remoteMeta = await fetchRemoteDataVersion();
       if (!remoteMeta) {
         // No version stamp has been published yet. Instead of giving up (which
@@ -1524,7 +1534,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // stamp did not change.
       saveLocalCustomersFingerprint(customers);
 
-      const noticeMsg = `تم استلام أحدث إصدار للبيانات (v${remoteMeta.version}) ومسح الذاكرة المؤقتة القديمة بنجاح! (${remoteMeta.notes || 'تحديث تلقائي'})`;
+      const noticeMsg = `تم تحديث البيانات تلقائياً ومسح الذاكرة المؤقتة القديمة بنجاح! (${remoteMeta.notes || 'تحديث تلقائي'})`;
       setLastVersionSyncNotice(noticeMsg);
       setTimeout(() => setLastVersionSyncNotice(null), 8000);
 
@@ -1559,7 +1569,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       setGlobalDataVersion(newMeta);
-      const msg = `تم نشر الإصدار الجديد (v${newMeta.version}) بنجاح وتوجيه جميع أجهزة المستخدمين لتحديث البيانات وتفريغ الكاش!`;
+      const msg = `تم نشر التحديث بنجاح وتوجيه جميع أجهزة المستخدمين لتحديث البيانات تلقائياً!`;
       setLastVersionSyncNotice(msg);
       setTimeout(() => setLastVersionSyncNotice(null), 8000);
       return { success: true, version: newMeta.version, message: msg };
@@ -1606,6 +1616,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
      */
     const checkCustomersContent = async () => {
       if (checkInFlight || document.visibilityState === 'hidden') return;
+      // Skip while our own write is still propagating, otherwise a lagging
+      // server response overwrites the fresh data we just published.
+      if (Date.now() - authoritativeWriteAtRef.current < 120000) return;
       checkInFlight = true;
       try {
         const res = await fetchCustomersFromSupabase();
@@ -2220,7 +2233,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const importCustomersList = (newCustomers: Customer[], mode: 'merge' | 'replace' | 'upsert' = 'replace') => {
+  const importCustomersList = async (
+    newCustomers: Customer[],
+    mode: 'merge' | 'replace' | 'upsert' = 'replace'
+  ): Promise<{ success: boolean; count: number; removed: number; message: string }> => {
     const sanitizedIncoming = sanitizeCustomers(newCustomers);
     const linked = linkCustomersToUsers(sanitizedIncoming, users);
     const incomingDeduped = deduplicateCustomersArray(linked);
@@ -2229,20 +2245,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const finalCustomers = mode === 'replace' ? incomingDeduped : deduplicateCustomersArray([...customers, ...incomingDeduped]);
     idbSet(STORAGE_KEYS.CUSTOMERS, finalCustomers).catch(() => {});
     setCustomers(finalCustomers);
-    replaceCustomersInSupabase(finalCustomers).then((res) => {
+    authoritativeWriteAtRef.current = Date.now();
+    saveLocalCustomersFingerprint(finalCustomers);
+
+    try {
+      const res = await replaceCustomersInSupabase(finalCustomers);
+      if (!res.success) {
+        // Do NOT publish a version stamp on a failed write. Doing so made the
+        // next heartbeat pull the previous server copy, which looked like the
+        // correct data spontaneously reverting.
+        const msg = `لم يتم حفظ التحديث على السيرفر: ${res.error || 'خطأ غير معروف'}`;
+        setLastVersionSyncNotice(msg);
+        setTimeout(() => setLastVersionSyncNotice(null), 12000);
+        return { success: false, count: finalCustomers.length, removed: 0, message: msg };
+      }
       const dupNote = res.removed > 0 ? ` وحذف ${res.removed} سجل مكرر` : '';
       setLastVersionSyncNotice(
         `تم تحديث قاعدة العملاء (${finalCustomers.length} عميل)${dupNote} — البيانات الآن موحدة لكل المناديب والمشرفين`
       );
       setTimeout(() => setLastVersionSyncNotice(null), 8000);
-      publishNewDataVersion({
+      await publishNewDataVersion({
         scope: 'customers',
         updatedBy: currentUser?.name || 'مدير النظام',
         notes: `تحديث قاعدة بيانات العملاء (${mode === 'replace' ? 'استبدال كامل' : 'دمج وتحديث'}) - ${finalCustomers.length} عميل`,
         customersCount: finalCustomers.length,
         forcePurge: true,
       }).catch(() => {});
-    }).catch((e) => console.warn('Supabase customer bulk save error:', e));
+      return {
+        success: true,
+        count: finalCustomers.length,
+        removed: res.removed,
+        message: `تم تحديث ${finalCustomers.length} عميل وتحديث جميع المناديب والمشرفين تلقائياً${dupNote}`,
+      };
+    } catch (e: any) {
+      const msg = `تعذر حفظ التحديث على السيرفر: ${e?.message || 'خطأ غير معروف'}`;
+      setLastVersionSyncNotice(msg);
+      setTimeout(() => setLastVersionSyncNotice(null), 12000);
+      return { success: false, count: finalCustomers.length, removed: 0, message: msg };
+    }
   };
 
   const clearCustomersCacheAndReset = () => {
@@ -2253,15 +2293,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   /**
-   * Push the current authoritative customer list to the server and broadcast a
-   * new version stamp, so every rep / supervisor / branch manager refreshes on
+   * Push an authoritative customer list to the server and broadcast a new
+   * version stamp, so every rep / supervisor / branch manager refreshes on
    * their next heartbeat without anyone pressing a button.
+   *
+   * The list MUST be passed in. Reading `customers` from the closure here would
+   * push the previous list: React has not re-rendered yet when this is called
+   * right after a state update, which silently reverted correct data.
    */
-  const broadcastCustomersToEveryone = (reason: string) => {
-    const clean = deduplicateCustomersArray(customers);
+  const broadcastCustomersToEveryone = (list: Customer[], reason: string) => {
+    const clean = deduplicateCustomersArray(list);
     if (clean.length === 0) return;
+    // Block the heartbeat from clobbering this client with a stale server copy
+    // while the write is still in flight.
+    authoritativeWriteAtRef.current = Date.now();
     replaceCustomersInSupabase(clean)
       .then((res) => {
+        if (!res.success) {
+          setLastVersionSyncNotice(`لم يتم حفظ التحديث على السيرفر: ${res.error || 'خطأ غير معروف'}`);
+          setTimeout(() => setLastVersionSyncNotice(null), 12000);
+          return;
+        }
         const dupNote = res.removed > 0 ? ` وحذف ${res.removed} سجل مكرر` : '';
         setLastVersionSyncNotice(
           `تم تحديث قاعدة العملاء (${clean.length} عميل)${dupNote} — ${reason}`
@@ -2315,7 +2367,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         idbSet(STORAGE_KEYS.CUSTOMERS, incoming).catch(() => {});
         setCustomers(incoming);
-        broadcastCustomersToEveryone('تم التحديث تلقائياً من شيت العملاء');
+        // Pass the fresh list explicitly. Reading `customers` here would push the
+        // previous list and undo this very sync.
+        broadcastCustomersToEveryone(incoming, 'تم التحديث تلقائياً من شيت العملاء');
       } catch {
         // Offline or sheet unavailable: retry on the next tick.
       } finally {

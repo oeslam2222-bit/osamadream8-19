@@ -701,19 +701,21 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
   };
 
   // Confirm and Apply Import
-  const handleApplyImport = () => {
+  const handleApplyImport = async () => {
     if (!importPreview || importPreview.customers.length === 0) return;
 
-    importCustomersList(importPreview.customers, importMode);
+    const preview = importPreview;
+    const dupes = (preview as any).duplicatesCount;
+    const dupesMsg = dupes ? ` (تم دمج وتوحيد ${dupes} سجل مكرر)` : '';
     setIsImportModalOpen(false);
-    const dupes = (importPreview as any).duplicatesCount;
-    const dupesMsg = dupes ? ` (تم دمج وتوحيد ${dupes} سجل مكرر من إجمالي ${(importPreview as any).totalRows || importPreview.customers.length + dupes} سطر في الملف)` : '';
     setImportPreview(null);
-    setSyncFeedback({
-      show: true,
-      msg: `تم بنجاح تحميل وتثبيت (${importPreview.customers.length}) عميل معتمد في المنظومة مع المبيعات والفروع والمناديب والمديونيات وحفظ الرابط${dupesMsg}!`,
-      type: 'success',
-    });
+
+    const saved = await importCustomersList(preview.customers, importMode);
+    setSyncFeedback(
+      saved.success
+        ? { show: true, msg: `${saved.message}${dupesMsg}`, type: 'success' }
+        : { show: true, msg: saved.message, type: 'warning' }
+    );
   };
 
   // Export Exact Format Requested by User

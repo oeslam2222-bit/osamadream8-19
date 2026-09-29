@@ -307,11 +307,11 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
       };
     });
 
+    const failures: string[] = [];
     for (let i = 0; i < payload.length; i += 100) {
       const chunk = payload.slice(i, i + 100);
       const { error: err1 } = await supabase.from('customers').upsert(chunk);
       if (err1) {
-        console.warn('Supabase customer upsert notice:', err1.message);
         // The dues columns require add_customer_financial_columns.sql. Retry the
         // chunk without them so a missing migration degrades the dues figure
         // instead of blocking the entire customer sync.
@@ -322,10 +322,22 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
           });
           const { error: retryErr } = await supabase.from('customers').upsert(legacyChunk);
           if (retryErr) {
-            console.warn('Supabase customer upsert retry notice:', retryErr.message);
+            failures.push(retryErr.message);
           }
+        } else {
+          failures.push(err1.message);
         }
       }
+    }
+
+    // Report the truth. Returning success here while every chunk failed made the
+    // UI claim a sync that never happened, so the next heartbeat pulled the old
+    // server copy and correct data appeared to "revert" on its own.
+    if (failures.length > 0) {
+      return {
+        success: false,
+        error: `فشل حفظ ${failures.length} من المجموعات: ${failures[0]}`,
+      };
     }
     return { success: true };
   } catch (e: any) {
@@ -352,7 +364,7 @@ export async function saveCustomerToSupabase(customer: Customer): Promise<{ succ
  */
 export async function replaceCustomersInSupabase(
   customers: Customer[]
-): Promise<{ success: boolean; removed: number; error?: string }> {
+): Promise<{ success: boolean; removed: number; error?: string; verified?: boolean }> {
   try {
     if (!customers || customers.length === 0) {
       return { success: false, removed: 0, error: 'قائمة العملاء فارغة - تم إيقاف المزامنة لمنع حذف البيانات' };
@@ -371,7 +383,7 @@ export async function replaceCustomersInSupabase(
 
     const { data: remoteRows, error: readErr } = await fetchAllRows('customers');
     if (readErr || !remoteRows) {
-      return { success: true, removed: 0, error: 'تم التحديث لكن تعذر تنظيف السجلات القديمة' };
+      return { success: true, removed: 0, verified: false, error: 'تم التحديث لكن تعذر تنظيف السجلات القديمة' };
     }
 
     const orphans = remoteRows
@@ -389,7 +401,37 @@ export async function replaceCustomersInSupabase(
       }
     }
 
-    return { success: true, removed };
+    // Verify the server really holds the numbers we just sent. Without this the
+    // client showed "synced" while the server kept the previous values, and the
+    // next heartbeat silently restored the old figures.
+    const { data: verifyRows } = await supabase
+      .from('customers')
+      .select('id, balance, current_balance, total_overdue_and_due')
+      .limit(5000);
+    const expectedById = new Map(
+      customers.map((c) => [
+        c.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.id)
+          ? c.id
+          : stringToUuid(c.code ? `cust-${c.code}` : `cust-${c.name}-${c.phone || ''}`),
+        Number(c.currentBalance ?? c.balance ?? 0),
+      ])
+    );
+    const mismatches = (verifyRows || []).filter((r: any) => {
+      const expected = expectedById.get(String(r.id));
+      if (expected === undefined) return false;
+      return Math.abs(Number(r.current_balance ?? r.balance ?? 0) - expected) > 0.5;
+    }).length;
+
+    if (mismatches > 0) {
+      return {
+        success: false,
+        removed,
+        verified: false,
+        error: `تعذر تأكيد الحفظ على السيرفر (${mismatches} عميل مختلف). راجع صلاحيات الجدول customers في Supabase.`,
+      };
+    }
+
+    return { success: true, removed, verified: true };
   } catch (e: any) {
     console.error('Supabase customer replace exception:', e);
     return { success: false, removed: 0, error: e?.message };

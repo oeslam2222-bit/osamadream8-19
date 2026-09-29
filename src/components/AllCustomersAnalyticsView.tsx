@@ -1870,14 +1870,15 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       if (!result.customers || result.customers.length === 0) {
         setSyncStatus({ type: 'error', message: 'لم يتم العثور على أي عملاء في الرابط.' });
       } else {
-        importCustomersList(result.customers, 'replace');
+        const saved = await importCustomersList(result.customers, 'replace');
         const dupesMsg = (result as any).duplicatesCount
-          ? ` (تم دمج وتوحيد ${(result as any).duplicatesCount} سجل مكرر من إجمالي ${(result as any).totalRows || result.customers.length} سطر)`
+          ? ` (تم دمج وتوحيد ${(result as any).duplicatesCount} سجل مكرر)`
           : '';
-        setSyncStatus({
-          type: 'success',
-          message: `تم بنجاح استيراد ومزامنة ${result.customers.length} عميل بالبيانات والمبيعات الكاملة (مطابقة تامة للشيت بدون تكرار) وحفظ الرابط دائماً في المنظومة${dupesMsg}!`,
-        });
+        setSyncStatus(
+          saved.success
+            ? { type: 'success', message: `${saved.message}${dupesMsg}` }
+            : { type: 'error', message: saved.message }
+        );
       }
     } catch (err: any) {
       setSyncStatus({ type: 'error', message: err?.message || 'فشل الاتصال بجوجل شيت' });
@@ -1897,14 +1898,15 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       if (!result.customers || result.customers.length === 0) {
         setSyncStatus({ type: 'error', message: 'الملف فارغ أو غير متوافق.' });
       } else {
-        importCustomersList(result.customers, 'replace');
+        const saved = await importCustomersList(result.customers, 'replace');
         const dupesMsg = (result as any).duplicatesCount
-          ? ` (تم دمج وتوحيد ${(result as any).duplicatesCount} سجل مكرر من إجمالي ${(result as any).totalRows || result.customers.length} سطر)`
+          ? ` (تم دمج وتوحيد ${(result as any).duplicatesCount} سجل مكرر)`
           : '';
-        setSyncStatus({
-          type: 'success',
-          message: `تم قراءة واستيراد وتوحيد ${result.customers.length} عميل بنجاح (مطابقة تامة للشيت بدون تكرار) مع المبيعات والتحصيلات${dupesMsg}!`,
-        });
+        setSyncStatus(
+          saved.success
+            ? { type: 'success', message: `${saved.message}${dupesMsg}` }
+            : { type: 'error', message: saved.message }
+        );
       }
     } catch (err: any) {
       setSyncStatus({ type: 'error', message: err?.message || 'حدث خطأ أثناء قراءة ملف الإكسل' });

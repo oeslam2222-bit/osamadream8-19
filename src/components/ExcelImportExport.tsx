@@ -268,13 +268,16 @@ export const ExcelImportExport: React.FC = () => {
       }
 
       // The Google Sheet is the authoritative customer source: replace the
-      // entire local catalog so re-uploading the same sheet (or a refreshed one)
-      // never stacks duplicates (3000 + 3000 -> 6000). The sheet rows are deduped
-      // internally before they reach storage anyway.
-      importCustomersList(res.customers, 'replace');
+      // entire catalog and wait for the server to confirm, so a failed save is
+      // never reported as a successful sync.
+      const saved = await importCustomersList(res.customers, 'replace');
       saveSingleSourceUrl('customers', cleanUrl);
 
-      showSuccess(`تم بنجاح جلب وتحديث قاعدة بيانات ${res.customers.length} عميل بنظام الاستبدال الموحد (بدون تكرار) وحفظ الرابط!`);
+      if (saved.success) {
+        showSuccess(saved.message);
+      } else {
+        showError(saved.message);
+      }
     } catch (err: any) {
       showError(err?.message || 'حدث خطأ أثناء قراءة شيت العملاء من Google Sheets.');
     } finally {
@@ -293,8 +296,12 @@ export const ExcelImportExport: React.FC = () => {
         return;
       }
       // Replace mode so repeated uploads of the same/refresh sheet never duplicate
-      importCustomersList(res.customers, 'replace');
-      showSuccess(`تم رفع وتحديث ${res.customers.length} عميل بنظام الاستبدام الموحد بنظام دمج ذكي بدون تكرار!`);
+      const saved = await importCustomersList(res.customers, 'replace');
+      if (saved.success) {
+        showSuccess(saved.message);
+      } else {
+        showError(saved.message);
+      }
     } catch (err: any) {
       showError(err?.message || 'فشل قراءة ملف العملاء.');
     } finally {
@@ -575,12 +582,12 @@ export const ExcelImportExport: React.FC = () => {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-400 text-slate-950 font-black text-xs shadow-xs">
                   <RefreshCw className={`w-3.5 h-3.5 ${isVersionSyncing ? 'animate-spin' : ''}`} />
-                  <span>الإصدار السحابي المعتمد: v{globalDataVersion?.version || 100}</span>
+                  تحديث تلقائي لكل المستخدمين
                 </span>
                 <span className="bg-slate-800 text-slate-300 text-[11px] px-2.5 py-1 rounded-lg border border-slate-700 font-bold">
                   {globalDataVersion?.updatedAt
-                    ? `آخر نشر: ${new Date(globalDataVersion.updatedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })} (${globalDataVersion.updatedBy || 'مدير النظام'})`
-                    : 'جاهز للنشر والمزامنة'}
+                    ? `آخر تحديث: ${new Date(globalDataVersion.updatedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })} (${globalDataVersion.updatedBy || 'مدير النظام'})`
+                    : 'يتم التحديث تلقائياً'}
                 </span>
                 <span className="bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 text-[11px] px-2.5 py-1 rounded-lg font-bold">
                   نطاق التحديث: {globalDataVersion?.scope === 'all' ? 'شامل لكافة البيانات' : globalDataVersion?.scope === 'products' ? 'الأصناف والأسعار' : globalDataVersion?.scope === 'customers' ? 'قاعدة العملاء' : 'الأهداف والمحققات'}
@@ -589,18 +596,6 @@ export const ExcelImportExport: React.FC = () => {
               <p className="text-xs text-slate-300 leading-relaxed pt-1">
                 {globalDataVersion?.notes || 'آلية إصدار التحديثات تضمن مسح الكاش القديم تلقائياً عند جميع المناديب والمشرفين فور نشر أي شيت جديد، مما يمنع تدبيل البيانات ويوحد الأرقام.'}
               </p>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsPublishModalOpen(true)}
-                className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-md flex items-center gap-1.5"
-                title="تحديث قاعدة العملاء على السيرفر — يتم نشرها تلقائياً لكل المناديب والمشرفين خلال ثوانٍ"
-              >
-                <Sparkles className="w-4 h-4 text-white shrink-0" />
-                <span>تحديث بيانات العملاء للجميع</span>
-              </button>
             </div>
           </div>
         </div>
