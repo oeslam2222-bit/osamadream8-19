@@ -319,6 +319,36 @@ export function deduplicateAndMergeCustomers(list: Customer[]): {
         }
       }
     }
+    // 4b. Same branch + identical phone: a re-imported row with a freshly
+    // generated code is the same account, so merge it even when codes differ.
+    else if (phone && phoneIndex.has(phone)) {
+      const candidateIdx = phoneIndex.get(phone)!;
+      const candidate = resultList[candidateIdx];
+      const candidateBranch = (candidate?.branchName || '').trim();
+      const rawBranch = (rawC.branchName || '').trim();
+      if (candidateBranch && rawBranch && candidateBranch === rawBranch) {
+        matchedIdx = candidateIdx;
+      }
+    }
+    // 4c. Same branch + identical core business name. Generated codes like
+    // CUST-1001 change on every import, so code comparison alone let the whole
+    // customer base duplicate itself. Identity here is the branch + core name.
+    else if (coreName && coreName.length >= 4 && rawC.branchName) {
+      const branchKey = `${rawC.branchName.trim().toLowerCase()}:::${coreName}`;
+      if (coreNameIndex.has(branchKey)) {
+        const candidateIdx = coreNameIndex.get(branchKey)!;
+        const candidate = resultList[candidateIdx];
+        const candidateBranch = (candidate?.branchName || '').trim();
+        const sameBranch = candidateBranch === rawC.branchName.trim();
+        if (sameBranch) {
+          const candidateCode = cleanCustomerCode(candidate?.code);
+          // Both sides carry a real, manually assigned code: distinct accounts.
+          if (!code || !candidateCode || code === candidateCode) {
+            matchedIdx = candidateIdx;
+          }
+        }
+      }
+    }
     // 5. Core Business Name match (STRICT: only if branch matches AND no conflicting codes)
     else if (coreName && coreName.length >= 4) {
       const branchKey = rawC.branchName ? `${rawC.branchName.trim().toLowerCase()}:::${coreName}` : '';

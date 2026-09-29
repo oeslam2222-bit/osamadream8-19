@@ -2,6 +2,28 @@
 -- Product images are stored in public.products.image_url; there is no separate
 -- image table in this application.
 
+-- ---------------------------------------------------------------------------
+-- CUSTOMERS: collapse the duplicated customer base.
+-- Repeated admin imports/upserts inserted the same account again under a new
+-- id whenever the generated code shifted, which doubled the table.
+-- Identity = normalized account name + branch. Keep the richest row.
+-- ---------------------------------------------------------------------------
+WITH ranked AS (
+  SELECT id,
+         row_number() OVER (
+           PARTITION BY lower(regexp_replace(trim(name), '[\\s\\u064B-\\u065F]+', '', 'g'))
+                        || ':::' || lower(trim(coalesce(branch_name, '')))
+           ORDER BY (credit_limit > 0)::int + (balance > 0)::int + (current_balance > 0)::int DESC,
+                    updated_at DESC NULLS LAST,
+                    id DESC
+         ) AS row_no
+  FROM public.customers
+  WHERE name IS NOT NULL AND trim(name) <> ''
+)
+DELETE FROM public.customers c
+USING ranked r
+WHERE c.id = r.id AND r.row_no > 1;
+
 -- Keep the newest product row for each code, then make code unique.
 WITH ranked AS (
   SELECT id,

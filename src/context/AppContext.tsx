@@ -2120,23 +2120,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const sanitizedIncoming = sanitizeCustomers(newCustomers);
     const linked = linkCustomersToUsers(sanitizedIncoming, users);
     const incomingDeduped = deduplicateCustomersArray(linked);
-    let finalCustomers: Customer[];
-    if (mode === 'replace') {
-      finalCustomers = incomingDeduped;
-    } else {
-      // Upsert / merge: update existing matching customers with the new sheet data
-      // and only append unique new entries, guaranteeing zero duplicates and accurate mirroring
-      finalCustomers = deduplicateCustomersArray([...customers, ...incomingDeduped]);
-    }
+    // 'replace' is the admin's authoritative sheet: drop the local list entirely
+    // so a previously duplicated cache can never re-seed the server.
+    const finalCustomers = mode === 'replace' ? incomingDeduped : deduplicateCustomersArray([...customers, ...incomingDeduped]);
     idbSet(STORAGE_KEYS.CUSTOMERS, finalCustomers).catch(() => {});
     setCustomers(finalCustomers);
     replaceCustomersInSupabase(finalCustomers).then((res) => {
-      if (res.removed > 0) {
-        setLastVersionSyncNotice(
-          `تم تحديث قاعدة العملاء وحذف ${res.removed} سجل مكرر من السيرفر — البيانات الآن موحدة لكل المناديب والمشرفين`
-        );
-        setTimeout(() => setLastVersionSyncNotice(null), 8000);
-      }
+      const dupNote = res.removed > 0 ? ` وحذف ${res.removed} سجل مكرر` : '';
+      setLastVersionSyncNotice(
+        `تم تحديث قاعدة العملاء (${finalCustomers.length} عميل)${dupNote} — البيانات الآن موحدة لكل المناديب والمشرفين`
+      );
+      setTimeout(() => setLastVersionSyncNotice(null), 8000);
       publishNewDataVersion({
         scope: 'customers',
         updatedBy: currentUser?.name || 'مدير النظام',
