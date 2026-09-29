@@ -1367,8 +1367,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 2. Refresh products if in scope
       if (scope === 'all' || scope === 'products') {
         const prodRes = await fetchProductsFromSupabase();
-        if (prodRes.success && prodRes.products) {
-          const valid = sanitizeProducts(prodRes.products);
+        if (prodRes.success) {
+          const valid = sanitizeProducts(prodRes.products || []);
           setProducts(valid);
           idbSet(STORAGE_KEYS.PRODUCTS, valid).catch(() => {});
         }
@@ -1377,8 +1377,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 3. Refresh customers if in scope
       if (scope === 'all' || scope === 'customers') {
         const custRes = await fetchCustomersFromSupabase();
-        if (custRes.success && custRes.customers) {
-          const validCust = sanitizeCustomers(linkCustomersToUsers(custRes.customers, users));
+        if (custRes.success) {
+          const validCust = sanitizeCustomers(linkCustomersToUsers(custRes.customers || [], users));
           setCustomers(validCust);
           idbSet(STORAGE_KEYS.CUSTOMERS, validCust).catch(() => {});
         }
@@ -1387,8 +1387,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 4. Refresh targets if in scope
       if (scope === 'all' || scope === 'targets') {
         const trgRes = await fetchTargetsFromSupabase();
-        if (trgRes.success && trgRes.targets && trgRes.targets.length > 0) {
-          const mapped: TargetRecord[] = trgRes.targets.map((row: any) => ({
+        if (trgRes.success) {
+          const mapped: TargetRecord[] = (trgRes.targets || []).map((row: any) => ({
             id: String(row.id),
             branch: resolveBranchName(row.branch) || row.branch || '',
             repName: row.rep_name || '',
@@ -1477,6 +1477,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Re-check on focus, tab visibility, realtime version broadcasts, and as a short heartbeat.
   // The heartbeat is intentionally defensive: realtime can be disconnected on mobile networks.
   useEffect(() => {
+    if (!isLocalDataHydrated) return;
     let checkInFlight = false;
     const check = () => {
       if (checkInFlight || document.visibilityState === 'hidden') return;
@@ -1509,7 +1510,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.clearInterval(interval);
       supabase.removeChannel(versionChannel);
     };
-  }, [users]);
+  }, [users, isLocalDataHydrated]);
 
   // Initial Supabase connection check, fetch users, products, invoices & real-time sync
   useEffect(() => {
@@ -2124,7 +2125,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     listToAnalyze.forEach((c) => {
       const rep = (c.salesRepName || c.repName || '').trim();
-      if (!rep || rep === 'مندوب المبيعات' || rep === 'المندوب' || rep === 'غير محدد') {
+      if (!rep || rep === 'مند��ب المبيعات' || rep === 'المندوب' || rep === 'غير محدد') {
         unassignedCount++;
         return;
       }
