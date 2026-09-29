@@ -1364,6 +1364,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 1. Purge stale local caches for this scope to completely prevent duplicates
       await purgeLocalDataCaches(scope);
 
+      // 2. Clear in-memory caches that live outside React state so stale data cannot
+      //    leak into the fresh fetch (prevents the duplication users see on cache clear)
+      if (scope === 'all' || scope === 'customers') {
+        setActiveCustomersCache([]);
+        setCustomers([]);
+      }
+      if (scope === 'all' || scope === 'products') {
+        setProducts([]);
+      }
+      if (scope === 'all' || scope === 'targets') {
+        setTargets([]);
+      }
+
       // 2. Refresh products if in scope
       if (scope === 'all' || scope === 'products') {
         const prodRes = await fetchProductsFromSupabase();
@@ -2090,6 +2103,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const clearCustomersCacheAndReset = () => {
     setCustomers([]);
+    setActiveCustomersCache([]);
     idbDelete(STORAGE_KEYS.CUSTOMERS).catch(() => {});
     localStorage.removeItem(STORAGE_KEYS.CUSTOMERS);
   };

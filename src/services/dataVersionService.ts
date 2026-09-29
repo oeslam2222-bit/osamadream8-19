@@ -1,10 +1,10 @@
 import { supabase } from './supabaseService';
-import { idbDelete } from './storageService';
+import { idbDelete, idbClear } from './storageService';
 
 export const GLOBAL_VERSION_RECORD_ID = 'dream_app_global_sync_version_v1';
 export const CLIENT_VERSION_STORAGE_KEY = 'dream_dist_client_data_version_meta_v1';
 
-export type SyncScope = 'all' | 'products' | 'customers' | 'targets';
+export type SyncScope = 'all' | 'products' | 'customers' | 'targets' | 'invoices' | 'visits';
 
 export interface GlobalDataVersionMeta {
   id: string;
@@ -155,15 +155,21 @@ export async function purgeLocalDataCaches(scope: SyncScope = 'all'): Promise<vo
 
   if (scope === 'all' || scope === 'products') {
     tasks.push(idbDelete('dream_dist_products_v9'));
+    tasks.push(idbDelete('dream_dist_products_v8'));
     try {
       window.localStorage.removeItem('dream_dist_products_v9');
+      window.localStorage.removeItem('dream_dist_products_v8');
     } catch {}
   }
 
   if (scope === 'all' || scope === 'customers') {
     tasks.push(idbDelete('dream_dist_customers_v9'));
+    tasks.push(idbDelete('dream_dist_customers_v8'));
+    tasks.push(idbDelete('dream_dist_customers_v3'));
     try {
       window.localStorage.removeItem('dream_dist_customers_v9');
+      window.localStorage.removeItem('dream_dist_customers_v8');
+      window.localStorage.removeItem('dream_dist_customers_v3');
     } catch {}
   }
 
@@ -171,6 +177,37 @@ export async function purgeLocalDataCaches(scope: SyncScope = 'all'): Promise<vo
     tasks.push(idbDelete('dream_dist_targets_v1'));
     try {
       window.localStorage.removeItem('dream_dist_targets_v1');
+    } catch {}
+  }
+
+  if (scope === 'all' || scope === 'invoices') {
+    tasks.push(idbDelete('dream_dist_invoices_v9'));
+    tasks.push(idbDelete('dream_dist_invoices_v8'));
+    try {
+      window.localStorage.removeItem('dream_dist_invoices_v9');
+      window.localStorage.removeItem('dream_dist_invoices_v8');
+    } catch {}
+  }
+
+  if (scope === 'all' || scope === 'visits') {
+    tasks.push(idbDelete('dream_dist_customer_visits_v1'));
+    try {
+      window.localStorage.removeItem('dream_dist_customer_visits_v1');
+    } catch {}
+  }
+
+  // When purging ALL scopes, also clear the entire IndexedDB store to catch any
+  // legacy keys or orphaned entries that the individual deletes above might miss,
+  // which is what causes the duplication users see when clearing cache.
+  if (scope === 'all') {
+    tasks.push(idbClear());
+    try {
+      // Clear any lingering localStorage keys
+      Object.keys(window.localStorage).forEach((k) => {
+        if (k.startsWith('dream_dist_')) {
+          window.localStorage.removeItem(k);
+        }
+      });
     } catch {}
   }
 

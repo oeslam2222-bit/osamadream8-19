@@ -162,29 +162,55 @@ export async function fetchCustomersFromSupabase(): Promise<{ success: boolean; 
     }
 
     if (rawCustomers && rawCustomers.length > 0) {
-      const mapped: Customer[] = rawCustomers.map((c: any, idx: number) => ({
-        id: c.id || `cust-${idx + 1}`,
-        code: c.code || c.customer_code || `CUST-${1000 + idx + 1}`,
-        name: c.name || c.customer_name || 'عميل بدون اسم',
-        storeName: c.store_name || c.storeName || c.name || '',
-        phone: c.phone || c.mobile || '',
-        address: c.address || c.region || c.city || '',
-        governorate: c.governorate || '',
-        branchName: c.branch_name || c.branchName || 'فرع القاهرة',
-        repName: c.rep_name || c.repName || 'مندوب المبيعات',
-        salesRepName: c.rep_name || c.repName || 'مندوب المبيعات',
-        repId: c.rep_id || c.repId || '',
-        taxNumber: c.tax_number || c.taxNumber || '',
-        tier: c.tier || 'متوسط',
-        creditLimit: Number(c.credit_limit ?? c.creditLimit ?? 0),
-        balance: Number(c.balance ?? c.current_balance ?? 0),
-        currentBalance: Number(c.current_balance ?? c.balance ?? 0),
+      const mapped: Customer[] = rawCustomers.map((c: any, idx: number) => {
+        const parseMonthlyMap = (raw: any): Record<number, number> | undefined => {
+          if (!raw) return undefined;
+          try {
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            if (parsed && typeof parsed === 'object') return parsed;
+          } catch {}
+          return undefined;
+        };
+        return {
+          id: c.id || `cust-${idx + 1}`,
+          code: c.code || c.customer_code || `CUST-${1000 + idx + 1}`,
+          name: c.name || c.customer_name || 'عميل بدون اسم',
+          storeName: c.store_name || c.storeName || c.name || '',
+          phone: c.phone || c.mobile || '',
+          address: c.address || c.region || c.city || '',
+          governorate: c.governorate || '',
+          branchName: c.branch_name || c.branchName || 'فرع القاهرة',
+          repName: c.rep_name || c.repName || 'مندوب المبيعات',
+          salesRepName: c.rep_name || c.repName || 'مندوب المبيعات',
+          repId: c.rep_id || c.repId || '',
+          taxNumber: c.tax_number || c.taxNumber || '',
+          tier: c.tier || 'متوسط',
+          creditLimit: Number(c.credit_limit ?? c.creditLimit ?? 0),
+          balance: Number(c.balance ?? c.current_balance ?? 0),
+          currentBalance: Number(c.current_balance ?? c.balance ?? 0),
           notes: c.notes || '',
           lastVisitDate: c.last_visit_date || c.lastVisitDate || undefined,
           visitCount2026: c.visit_count_2026 !== undefined ? Number(c.visit_count_2026) : undefined,
           visitHistory: c.visit_history ? (typeof c.visit_history === 'string' ? JSON.parse(c.visit_history) : c.visit_history) : undefined,
           createdAt: c.created_at || new Date().toISOString(),
-      }));
+          // Sales & Collections analytics (mapped back so totals are not lost on sync)
+          sales2026: Number(c.sales_2026 || c.sales2026 || 0),
+          totalMonthlySales: Number(c.total_monthly_sales || c.totalMonthlySales || c.sales_2026 || 0),
+          totalOverallSales: Number(c.total_overall_sales || c.totalOverallSales || 0),
+          collections2026: Number(c.collections_2026 || c.collections2026 || 0),
+          totalMonthlyCollections: Number(c.total_monthly_collections || c.totalMonthlyCollections || c.collections_2026 || 0),
+          totalOverallCollections: Number(c.total_overall_collections || c.totalOverallCollections || 0),
+          monthlySales2026: parseMonthlyMap(c.monthly_sales_2026 || c.monthlySales2026),
+          monthlyCollections2026: parseMonthlyMap(c.monthly_collections_2026 || c.monthlyCollections2026),
+          sales2025: c.sales_2025 !== undefined && c.sales_2026 !== undefined ? Number(c.sales_2025) : (c.sales2025 !== undefined ? Number(c.sales2025) : undefined),
+          collections2025: c.collections_2025 !== undefined ? Number(c.collections_2025) : (c.collections2025 !== undefined ? Number(c.collections2025) : undefined),
+          overdue2025: c.overdue_2025 !== undefined ? Number(c.overdue_2025) : (c.overdue2025 !== undefined ? Number(c.overdue2025) : undefined),
+          overdue2026: c.overdue_2026 !== undefined ? Number(c.overdue_2026) : (c.overdue2026 !== undefined ? Number(c.overdue2026) : undefined),
+          dueUntilPeriod: c.due_until_period !== undefined && c.due_until_period !== null ? Number(c.due_until_period) : (c.dueUntilPeriod !== undefined ? Number(c.dueUntilPeriod) : undefined),
+          openingBalance2026: c.opening_balance_2026 !== undefined ? Number(c.opening_balance_2026) : (c.openingBalance2026 !== undefined ? Number(c.openingBalance2026) : undefined),
+          hasDealtIn2026: c.has_dealt_in_2026 || c.hasDealtIn2026 || undefined,
+        };
+      });
       return { success: true, customers: mapped };
     }
 
@@ -224,6 +250,22 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
         last_visit_date: c.lastVisitDate || null,
         visit_count_2026: Number(c.visitCount2026 || 0),
         visit_history: (c.visitHistory || []).length > 0 ? JSON.stringify(c.visitHistory) : null,
+        // Sales & Collections analytics (to prevent totals disappearing after sync)
+        sales_2026: Number(c.sales2026 || 0),
+        total_monthly_sales: Number(c.totalMonthlySales || 0),
+        total_overall_sales: Number(c.totalOverallSales || 0),
+        collections_2026: Number(c.collections2026 || 0),
+        total_monthly_collections: Number(c.totalMonthlyCollections || 0),
+        total_overall_collections: Number(c.totalOverallCollections || 0),
+        monthly_sales_2026: c.monthlySales2026 ? JSON.stringify(c.monthlySales2026) : null,
+        monthly_collections_2026: c.monthlyCollections2026 ? JSON.stringify(c.monthlyCollections2026) : null,
+        sales_2025: c.sales2025 !== undefined ? Number(c.sales2025) : null,
+        collections_2025: c.collections2025 !== undefined ? Number(c.collections2025) : null,
+        overdue_2025: c.overdue2025 !== undefined ? Number(c.overdue2025) : null,
+        overdue_2026: c.overdue2026 !== undefined ? Number(c.overdue2026) : null,
+        due_until_period: c.dueUntilPeriod !== undefined ? Number(c.dueUntilPeriod) : null,
+        opening_balance_2026: c.openingBalance2026 !== undefined ? Number(c.openingBalance2026) : null,
+        has_dealt_in_2026: c.hasDealtIn2026 || false,
         updated_at: new Date().toISOString(),
       };
     });
