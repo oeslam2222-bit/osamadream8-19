@@ -221,7 +221,21 @@ export async function fetchCustomersFromSupabase(): Promise<{ success: boolean; 
             ? Boolean(c.dealt_in_2026)
             : (c.has_dealt_in_2026 !== undefined && c.has_dealt_in_2026 !== null
                 ? Boolean(c.has_dealt_in_2026)
-                : undefined),        };
+                : undefined),
+          // Sheet slicer columns restored so the analytics slicers stay dynamic.
+          activityType: c.activity_type || c.activityType || undefined,
+          clientType: c.client_type || c.clientType || undefined,
+          paymentTerms: c.payment_terms || c.paymentTerms || undefined,
+          guaranteeDocs: c.guarantee_docs || c.guaranteeDocs || undefined,
+          guaranteeAmount: c.guarantee_amount !== undefined && c.guarantee_amount !== null
+            ? Number(c.guarantee_amount)
+            : (c.guaranteeAmount !== undefined ? Number(c.guaranteeAmount) : undefined),
+          region: c.region || undefined,
+          lastCollectionDate: c.last_collection_date || c.lastCollectionDate || undefined,
+          lastCollectionAmount: c.last_collection_amount !== undefined && c.last_collection_amount !== null
+            ? Number(c.last_collection_amount)
+            : (c.lastCollectionAmount !== undefined ? Number(c.lastCollectionAmount) : undefined),
+        };
       });
       return { success: true, customers: mapped };
     }
@@ -314,6 +328,16 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
         deal_eligibility: c.dealEligibility || null,
         dealt_2026: c.dealt2026 || null,
         dealt_in_2026: c.hasDealtIn2026 || false,
+        // Sheet slicer columns. These power the whole "بيانات تجارية وائتمانية"
+        // section in the analytics view; without them every slicer reads 0.
+        activity_type: c.activityType || null,
+        client_type: c.clientType || null,
+        payment_terms: c.paymentTerms || null,
+        guarantee_docs: c.guaranteeDocs || null,
+        guarantee_amount: Number(c.guaranteeAmount || 0),
+        region: c.region || c.district || c.route || null,
+        last_collection_date: c.lastCollectionDate || null,
+        last_collection_amount: Number(c.lastCollectionAmount || 0),
         updated_at: new Date().toISOString(),
       };
     });

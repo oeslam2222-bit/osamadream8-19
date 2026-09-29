@@ -687,7 +687,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   }, [userVisibleCustomers, selectedMonth]);
 
   // 2. Multi-Filter & Search Pipeline
-  const filteredCustomers = useMemo(() => {
+  const filterResult = useMemo(() => {
     let list = userVisibleCustomers;
 
     // Branch filter
@@ -708,16 +708,20 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       list = list.filter((c) => c.id === selectedCustomerId || c.code === selectedCustomerId);
     }
 
-    // Deal Eligibility Slicer (العملاء المتعامل والقابل والغير قابل من الشيت)
+    // Snapshot before the deal-status slicer runs, so the slicer cards can keep
+    // showing the count of the side that is currently filtered out.
+    const preDealList = [...list];
+
+    // Deal Status Slicer — a clean binary taken from the sheet: the customer
+    // traded in the selected period, or did not. Selecting one side still
+    // shows how many customers sit on the other side.
     if (dealEligibilityFilter !== 'ALL') {
       list = list.filter((c) => {
         const m = customerMetricsMap.get(c.id);
         if (!m) return false;
-        if (dealEligibilityFilter === 'ineligible') return m.isExplicitIneligible;
-        if (dealEligibilityFilter === 'eligible') return !m.isExplicitIneligible;
-        if (dealEligibilityFilter === 'dealt') return !m.isExplicitIneligible && m.isDealtCustomer;
-        const e = (c.dealEligibility || '').trim();
-        return e === dealEligibilityFilter || e.includes(dealEligibilityFilter);
+        if (dealEligibilityFilter === 'dealt') return m.isDealtCustomer;
+        if (dealEligibilityFilter === 'eligible') return !m.isDealtCustomer;
+        return true;
       });
     }
 
@@ -947,7 +951,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       return 0;
     });
 
-    return list;
+    return { list, preDealList };
   }, [
     userVisibleCustomers,
     customerMetricsMap,
@@ -969,6 +973,22 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     sortBy,
     sortOrder,
   ]);
+
+  const filteredCustomers = filterResult.list;
+  const preDealFilteredCustomers = filterResult.preDealList;
+
+  // Counts for the deal-status slicer cards. These deliberately come from the
+  // list BEFORE the deal filter runs, so picking "متعامل" still shows how many
+  // customers sit on the "غير متعامل" side — Power BI slicer behaviour.
+  const dealStatusCounts = useMemo(() => {
+    let dealt = 0;
+    preDealFilteredCustomers.forEach((c) => {
+      const m = customerMetricsMap.get(c.id);
+      if (m?.isDealtCustomer) dealt++;
+    });
+    const total = preDealFilteredCustomers.length;
+    return { total, dealt, notDealt: total - dealt };
+  }, [preDealFilteredCustomers, customerMetricsMap]);
 
   // Reset pagination on filter changes
   useEffect(() => {
@@ -2465,10 +2485,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               {filteredCustomers.length.toLocaleString()} عميل
             </span>
             <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-black">
-              ✅ متعامل: {kpiStats.activeFilteredCount.toLocaleString()}
+              ✅ متعامل: {dealStatusCounts.dealt.toLocaleString()}
             </span>
             <span className="px-2.5 py-1 rounded-lg bg-sky-100 text-sky-800 border border-sky-200 text-[11px] font-black">
-              ⏳ غير متعامل: {kpiStats.nonDealtFilteredCount.toLocaleString()}
+              ⏳ غير متعامل: {dealStatusCounts.notDealt.toLocaleString()}
             </span>
           </div>
           {activeFiltersCount > 0 && (
@@ -4464,7 +4484,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   onChange={(e) => setActivityTypeFilter(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 transition shadow-2xs cursor-pointer"
                 >
-                  <option value="ALL">جميع الأنشطة ({availableActivityTypes.length})</option>
+                  <option value="ALL">جميع الأنشطة ({userVisibleCustomers.length})</option>
                   {availableActivityTypes.map(([act, count]) => (
                     <option key={act} value={act}>
                       {act} ({count} عميل)
@@ -4527,7 +4547,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   onChange={(e) => setPaymentTermsFilter(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-purple-500 transition shadow-2xs cursor-pointer"
                 >
-                  <option value="ALL">جميع طرق الدفع ({availablePaymentTerms.length})</option>
+                  <option value="ALL">جميع طرق الدفع ({userVisibleCustomers.length})</option>
                   {availablePaymentTerms.map(([pt, count]) => (
                     <option key={pt} value={pt}>
                       {pt} ({count} عميل)
@@ -4553,7 +4573,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   onChange={(e) => setClientTypeFilter(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500 transition shadow-2xs cursor-pointer"
                 >
-                  <option value="ALL">جميع التصنيفات ({availableClientTypes.length})</option>
+                  <option value="ALL">جميع التصنيفات ({userVisibleCustomers.length})</option>
                   {availableClientTypes.map(([ct, count]) => (
                     <option key={ct} value={ct}>
                       {ct} ({count} عميل)
@@ -4584,7 +4604,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
                     }`}
                   >
-                    الكل ({userVisibleCustomers.length})
+                    الكل ({dealStatusCounts.total})
                   </button>
                   <button
                     type="button"
@@ -4596,19 +4616,19 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     }`}
                   >
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>متعامل ✅ ({kpiStats.activeFilteredCount})</span>
+                    <span>متعامل ✅ ({dealStatusCounts.dealt})</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setDealEligibilityFilter('eligible')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
                       dealEligibilityFilter === 'eligible'
                         ? 'bg-sky-600 text-white shadow-sm ring-2 ring-sky-400'
                         : 'bg-sky-50 text-sky-800 hover:bg-sky-100 border border-sky-200'
                     }`}
                   >
                     <Clock className="w-3.5 h-3.5 text-sky-500" />
-                    <span>غير متعامل ⏳ ({kpiStats.nonDealtFilteredCount})</span>
+                    <span>غير متعامل ⏳ ({dealStatusCounts.notDealt})</span>
                   </button>
                 </div>
               </div>
@@ -5230,26 +5250,52 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </div>
             </div>
 
-            {/* Box 3: Customers Breakdown (Dealt / Eligible / Ineligible) */}
+            {/* Box 3: Customers Breakdown (Dealt / Non-Dealt) — clickable slicer */}
             <div className="bg-slate-900/90 rounded-xl p-3.5 border border-emerald-500/30 shadow-inner">
               <div className="text-xs font-bold text-emerald-300 flex items-center justify-between">
-                <span>تصنيف العملاء في الفترة</span>
+                <span>👥 حالة التعامل (من الشيت)</span>
                 <Users className="w-4 h-4 text-emerald-400" />
               </div>
-              <div className="mt-2 space-y-1 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-emerald-400 font-bold flex items-center gap-1">
-                    <span>✅ متعامل:</span>
-                  </span>
-                  <span className="text-base font-black text-white">{kpiStats.activeFilteredCount.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sky-300 font-semibold flex items-center gap-1">
-                    <span>⏳ غير متعامل:</span>
-                  </span>
-                  <span className="text-base font-black text-white">{kpiStats.nonDealtFilteredCount.toLocaleString()}</span>
-                </div>
+
+              {/* Clickable classification cards — press to filter the table */}
+              <div className="mt-2.5 space-y-1.5">
+                {(
+                  [
+                    { key: 'ALL', label: 'الكل', n: dealStatusCounts.total, active: 'bg-white text-slate-900', idle: 'bg-slate-800/70 text-slate-300 hover:bg-slate-700', dot: '' },
+                    { key: 'dealt', label: 'متعامل ✅', n: dealStatusCounts.dealt, active: 'bg-emerald-500 text-white', idle: 'bg-emerald-900/40 text-emerald-200 hover:bg-emerald-900/70', dot: '' },
+                    { key: 'eligible', label: 'غير متعامل ⏳', n: dealStatusCounts.notDealt, active: 'bg-sky-500 text-white', idle: 'bg-sky-900/40 text-sky-200 hover:bg-sky-900/70', dot: '' },
+                  ] as const
+                ).map(({ key, label, n, active, idle }) => {
+                  const isActive = dealEligibilityFilter === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setDealEligibilityFilter(isActive && key !== 'ALL' ? 'ALL' : key)}
+                      className={`w-full flex items-center justify-between rounded-xl px-3 py-2 border transition cursor-pointer ${
+                        isActive
+                          ? `${active} border-transparent shadow-lg`
+                          : `${idle} border-slate-700/60`
+                      }`}
+                    >
+                      <span className="text-[11.5px] font-black">{label}</span>
+                      <span className={`text-sm font-black font-mono ${isActive ? 'opacity-90' : 'opacity-80'}`}>
+                        {n.toLocaleString()}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
+
+              {dealEligibilityFilter !== 'ALL' && (
+                <button
+                  type="button"
+                  onClick={() => setDealEligibilityFilter('ALL')}
+                  className="mt-2 w-full text-[10.5px] font-black text-slate-400 hover:text-white transition cursor-pointer"
+                >
+                  ← إلغاء الفلتر وعرض الكل
+                </button>
+              )}
             </div>
 
             {/* Box 4: Coverage & Efficiency Rates */}
