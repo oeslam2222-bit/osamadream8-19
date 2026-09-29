@@ -6,6 +6,7 @@ import { idbClear, idbDelete, idbGet, idbSet, safeLocalStorageSet } from '../ser
 import {
   doesCustomerBelongToBranch,
   doesCustomerBelongToRep,
+  findOwningSalesRep,
   doesCustomerBelongToSupervisor,
   isArabicNameMatch,
   isBranchMatch,
@@ -5178,17 +5179,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const supervisedRepIds = new Set(
         users.filter((u) => u.role === 'sales_rep' && u.supervisorId === currentUser.id).map((u) => u.id)
       );
-  return customers.filter((c) => {
-  const isSameBranch = Boolean(c.branchName) && isBranchMatch(c.branchName, currentUser.branchName, { allowUnassigned: false });
-  if (!isSameBranch) return false;
-  if (c.repId && supervisedRepIds.has(c.repId)) return true;
-  const assignedRep = users.find(
-  (u) => u.role === 'sales_rep' && supervisedRepIds.has(u.id) && doesCustomerBelongToRep(c, u)
-  );
-  return Boolean(assignedRep) || (
-  c.supervisorName && normalizeArabicText(c.supervisorName) === normalizeArabicText(currentUser.name)
-  );
-  });
+      return customers.filter((c) => {
+        const isSameBranch = Boolean(c.branchName) && isBranchMatch(c.branchName, currentUser.branchName, { allowUnassigned: false });
+        if (!isSameBranch) return false;
+        if (c.repId && supervisedRepIds.has(c.repId)) return true;
+
+        // A supervisor sees ONLY the customers of his own reps. If another rep
+        // owns this customer, the supervisorName column must not hand it over —
+        // that is what made the supervisor see the whole branch.
+        const owner = findOwningSalesRep(c, users);
+        if (owner) return supervisedRepIds.has(owner.id);
+
+        // Unassigned customer: honour the explicit supervisorName column.
+        return Boolean(
+          c.supervisorName && normalizeArabicText(c.supervisorName) === normalizeArabicText(currentUser.name)
+        );
+      });
     }
     // Sales Rep: ONLY customers belonging directly to this rep
     return customers.filter((c) => doesCustomerBelongToRep(c, currentUser));

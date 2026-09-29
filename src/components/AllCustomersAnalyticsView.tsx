@@ -1827,7 +1827,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     setVisitReturnValue('');
     setVisitReturnReason('');
     setVisitReturnDetails('');
-    setVisitReturnDifficulty('متوسط');
   };
 
   // ===== تنبيهات المرتجع (Supervisor) =====
@@ -2231,15 +2230,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                           السبب: {v.returnReason}
                         </span>
                       )}
-                      {v.returnDifficulty && (
-                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-black border ${
-                          v.returnDifficulty === 'سهل' ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                            : v.returnDifficulty === 'متوسط' ? 'bg-sky-100 text-sky-700 border-sky-200'
-                            : 'bg-rose-100 text-rose-700 border-rose-200'
-                        }`}>
-                          صعوبة: {v.returnDifficulty}
-                        </span>
-                      )}
                     </div>
                     {v.notes && (
                       <div className="text-[11px] text-slate-600 mt-1.5 bg-slate-50 rounded-lg px-2 py-1 border border-slate-100">
@@ -2295,6 +2285,62 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   ))}
                 </div>
               </details>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ===== نطاق البيانات: أرقام شخصية / فريق العمل / الفرع كله ===== */}
+      {(isRep || isSupervisor || isBranchManager) && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg ${
+                isRep ? 'bg-sky-100' : isSupervisor ? 'bg-violet-100' : 'bg-emerald-100'
+              }`}>
+                👤
+              </div>
+              <div>
+                <div className="text-[11px] text-slate-400 font-bold">أنت تشاهد</div>
+                <div className="text-sm font-black text-slate-800">
+                  {isRep
+                    ? 'أرقامي الشخصية 👤'
+                    : isSupervisor
+                      ? `فريق العمل (${availableReps.length} مندوب)`
+                      : `فرع ${currentUser?.branchName || 'الرئيسي'}`}
+                </div>
+              </div>
+            </div>
+
+            {isSupervisor && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] font-black text-violet-700">المندوب:</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRep('ALL')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                    selectedRep === 'ALL'
+                      ? 'bg-violet-600 text-white shadow'
+                      : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
+                  }`}
+                >
+                  كل الفريق
+                </button>
+                {availableReps.map((rep) => (
+                  <button
+                    key={rep}
+                    type="button"
+                    onClick={() => setSelectedRep(rep)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                      selectedRep === rep
+                        ? 'bg-violet-600 text-white shadow'
+                        : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
+                    }`}
+                  >
+                    {rep}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         </div>

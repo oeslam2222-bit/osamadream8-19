@@ -676,6 +676,21 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
 }
 
 /**
+ * Find the sales rep that actually owns this customer.
+ *
+ * Returns null when no rep claims the customer, which lets callers distinguish
+ * "assigned to someone else" from "not assigned at all". A supervisor must only
+ * see the customers of their own reps, so this distinction is what keeps a
+ * branch-wide supervisorName column from exposing the whole branch.
+ */
+export function findOwningSalesRep(customer: Customer, allUsers: User[]): User | null {
+  if (!customer || !Array.isArray(allUsers)) return null;
+  const reps = allUsers.filter((u) => u.role === 'sales_rep');
+  if (reps.length === 0) return null;
+  return reps.find((rep) => doesCustomerBelongToRep(customer, rep)) || null;
+}
+
+/**
  * Check if a customer belongs to a supervisor's supervised team
  */
 export function doesCustomerBelongToSupervisor(
@@ -697,7 +712,16 @@ export function doesCustomerBelongToSupervisor(
     return true;
   }
 
-  // 2. Check if customer explicitly names this supervisor in supervisorName field
+  // 2. If the customer is owned by another sales rep, the supervisor sees it ONLY
+  //    when that rep reports to this supervisor. A supervisorName column that
+  //    carries the same supervisor for a whole branch must never override the
+  //    real rep assignment, otherwise the supervisor sees the entire branch.
+  const owner = findOwningSalesRep(customer, allUsers);
+  if (owner && owner.id !== supervisorUser.id) {
+    return owner.supervisorId === supervisorUser.id;
+  }
+
+  // 3. Unassigned customer: fall back to the explicit supervisorName column.
   if (
     customer.supervisorName &&
     (isArabicNameMatch(customer.supervisorName, supervisorUser.name) ||
@@ -706,13 +730,13 @@ export function doesCustomerBelongToSupervisor(
     return true;
   }
 
-  // 3. Find sales reps belonging directly to this supervisor (by explicit supervisorId only).
+  // 4. Find sales reps belonging directly to this supervisor (by explicit supervisorId only).
   //    Branch membership alone must NEVER grant a rep to a supervisor — only an explicit
   //    supervisorId assignment should. This prevents unlinked reps in the same branch from
   //    leaking into every supervisor's data.
   const supervisedReps = allUsers.filter((u) => u.supervisorId === supervisorUser.id);
 
-  // 4. Check if customer belongs to any of these reps
+  // 5. Check if customer belongs to any of these reps
   return supervisedReps.some((rep) => doesCustomerBelongToRep(customer, rep));
 }
 

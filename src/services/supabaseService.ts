@@ -1425,7 +1425,7 @@ export async function fetchVisitsFromSupabase(): Promise<{ success: boolean; vis
       isReturn: v.is_return !== undefined ? Boolean(v.is_return) : (v.isReturn !== undefined ? Boolean(v.isReturn) : false),
       returnValue: v.return_value !== undefined && v.return_value !== null ? Number(v.return_value) : (v.returnValue !== undefined ? Number(v.returnValue) : undefined),
       returnReason: v.return_reason || v.returnReason || undefined,
-      returnDifficulty: v.return_difficulty || v.returnDifficulty || undefined,
+
       returnStatus: v.return_status || v.returnStatus || undefined,
       returnHandledBy: v.return_handled_by || v.returnHandledBy || undefined,
       returnHandledAt: v.return_handled_at || v.returnHandledAt || undefined,
@@ -1492,7 +1492,7 @@ export async function saveVisitsToSupabase(visits: CustomerVisit[]): Promise<{ s
         is_return: Boolean(v.isReturn),
         return_value: v.returnValue ?? null,
         return_reason: v.returnReason || null,
-        return_difficulty: v.returnDifficulty || null,
+
         return_status: v.isReturn ? (v.returnStatus || 'بانتظار المشرف') : null,
         return_handled_by: v.returnHandledBy || null,
         return_handled_at: v.returnHandledAt || null,
