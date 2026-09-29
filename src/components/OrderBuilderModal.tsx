@@ -98,7 +98,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
   // Financial & Order Options
   const [discountPercent, setDiscountPercent] = useState<number>(0);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('كاش');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('نقدي (كاش)');
   const [invoiceNotes, setInvoiceNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
@@ -1107,13 +1107,13 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   <label className="text-xs font-bold text-slate-300 block mb-1.5">
                     طريقة السداد:
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['كاش', 'آجل', 'شيكات'] as PaymentMethod[]).map((method) => (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {(['نقدي (كاش)', 'آجل', 'على دفعات', 'شيكات'] as PaymentMethod[]).map((method) => (
                       <button
                         key={method}
                         type="button"
                         onClick={() => setPaymentMethod(method)}
-                        className={`p-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-center ${
+                        className={`p-2 rounded-xl text-xs font-bold transition cursor-pointer text-center ${
                           paymentMethod === method
                             ? 'bg-amber-400 text-slate-950 font-black shadow-md'
                             : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-850'

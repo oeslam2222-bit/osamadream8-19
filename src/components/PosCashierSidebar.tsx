@@ -64,7 +64,7 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
   } = useApp();
 
   const [discountPercent, setDiscountPercent] = useState<number>(0);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('كاش');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('نقدي (كاش)');
   const [customerSearch, setCustomerSearch] = useState('');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [localCustomer, setLocalCustomer] = useState<Customer | null>(selectedCustomer || null);
@@ -585,7 +585,7 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
 
           {/* Payment Method Toggle */}
           <div className="flex items-center justify-between gap-1">
-            {(['كاش', 'آجل', 'شيكات'] as PaymentMethod[]).map((method) => (
+            {(['نقدي (كاش)', 'آجل (30 يوم)', 'تحويل بنكي'] as PaymentMethod[]).map((method) => (
               <button
                 key={method}
                 onClick={() => setPaymentMethod(method)}
@@ -595,7 +595,7 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
                     : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
                 }`}
               >
-                {method}
+                {method === 'نقدي (كاش)' ? 'نقدي' : method === 'آجل (30 يوم)' ? 'آجل 30 يوم' : 'تحويل بنكي'}
               </button>
             ))}
           </div>

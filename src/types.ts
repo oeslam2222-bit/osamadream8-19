@@ -302,8 +302,7 @@ export type OrderStatus =
   | 'مرتجع جزئي'
   | 'مرفوضة / ملغاة'
   | 'ملغاة';
-export type PaymentMethod = 'كاش' | 'آجل' | 'شيكات' | 'نقدي (كاش)' | 'شيك';
-export const ALLOWED_PAYMENT_METHODS: PaymentMethod[] = ['كاش', 'آجل', 'شيكات'];
+export type PaymentMethod = 'نقدي (كاش)' | 'آجل (30 يوم)' | 'آجل (60 يوم)' | 'تحويل بنكي' | 'شيك';
 
 export interface ReturnedItem {
   productId: string;

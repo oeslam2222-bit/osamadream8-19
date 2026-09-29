@@ -90,8 +90,16 @@ export const ExcelImportExport: React.FC = () => {
     globalDataVersion,
     isVersionSyncing,
     checkAndSyncDataVersion,
+    publishDataVersionUpdate,
     forcePurgeCacheAndReload,
   } = useApp();
+
+  // Data Version Sync Release State
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+  const [publishScope, setPublishScope] = useState<'all' | 'products' | 'customers' | 'targets'>('all');
+  const [publishNotes, setPublishNotes] = useState('');
+  const [publishForcePurge, setPublishForcePurge] = useState(true);
+  const [isPublishingVersion, setIsPublishingVersion] = useState(false);
 
   // Exactly THREE core tabs as requested by user:
   // 1. رابط الأصناف والرصيد (Products & Inventory)
@@ -362,6 +370,28 @@ export const ExcelImportExport: React.FC = () => {
     }
   };
 
+  const handlePublishNewVersion = async () => {
+    setIsPublishingVersion(true);
+    try {
+      const res = await publishDataVersionUpdate({
+        scope: publishScope,
+        notes: publishNotes.trim() || undefined,
+        forcePurge: publishForcePurge,
+      });
+      if (res.success) {
+        showSuccess(res.message);
+        setIsPublishModalOpen(false);
+        setPublishNotes('');
+      } else {
+        showError(res.message);
+      }
+    } catch (e: any) {
+      showError(e?.message || 'فشل نشر الإصدار الجديد');
+    } finally {
+      setIsPublishingVersion(false);
+    }
+  };
+
   const handleForcePurgeLocal = async () => {
     try {
       await forcePurgeCacheAndReload('all');
@@ -547,51 +577,60 @@ export const ExcelImportExport: React.FC = () => {
           </div>
         </div>
 
-        {/* نظام التحديث التلقائي ومزامنة البيانات ومسح الكاش */}
+        {/* منظومة إصدار التحديثات ومسح الكاش التلقائي لضمان عدم تدبيل البيانات */}
         <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-slate-700/80 shadow-md">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-black text-xs shadow-xs">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span>المزامنة التلقائية نشطة</span>
-                </span>
-                <span className="bg-slate-800 text-amber-300 text-xs px-2.5 py-1 rounded-lg border border-slate-700 font-mono font-black">
-                  الإصدار السحابي: v{globalDataVersion?.version || 100}
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-400 text-slate-950 font-black text-xs shadow-xs">
+                  <RefreshCw className={`w-3.5 h-3.5 ${isVersionSyncing ? 'animate-spin' : ''}`} />
+                  <span>الإصدار السحابي المعتمد: v{globalDataVersion?.version || 100}</span>
                 </span>
                 <span className="bg-slate-800 text-slate-300 text-[11px] px-2.5 py-1 rounded-lg border border-slate-700 font-bold">
                   {globalDataVersion?.updatedAt
-                    ? `آخر تحديث: ${new Date(globalDataVersion.updatedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })} (${globalDataVersion.updatedBy || 'مدير النظام'})`
+                    ? `آخر نشر: ${new Date(globalDataVersion.updatedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })} (${globalDataVersion.updatedBy || 'مدير النظام'})`
                     : 'جاهز للنشر والمزامنة'}
+                </span>
+                <span className="bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 text-[11px] px-2.5 py-1 rounded-lg font-bold">
+                  نطاق التحديث: {globalDataVersion?.scope === 'all' ? 'شامل لكافة البيانات' : globalDataVersion?.scope === 'products' ? 'الأصناف والأسعار' : globalDataVersion?.scope === 'customers' ? 'قاعدة العملاء' : 'الأهداف والمحققات'}
                 </span>
               </div>
               <p className="text-xs text-slate-300 leading-relaxed pt-1">
-                ⚡ بمجرد رفع أو تحديث شيت المخزون أو العملاء أو التارجت، يتم تحديث كافة الحسابات ومسح الكاش القديم تلقائياً عند جميع المناديب والمشرفين لمنع التدبيل.
-                <span className="text-amber-300 font-bold mr-1"> الفواتير والزيارات محفوظة بالكامل ومحمية ولا تُمس، وكافة البيانات معروضة بدقة وفقاً لصلاحيات كل دور.</span>
+                {globalDataVersion?.notes || 'آلية إصدار التحديثات تضمن مسح الكاش القديم تلقائياً عند جميع المناديب والمشرفين فور نشر أي شيت جديد، مما يمنع تدبيل البيانات ويوحد الأرقام.'}
               </p>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap shrink-0">
               <button
                 type="button"
+                onClick={() => setIsPublishModalOpen(true)}
+                className="bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-md flex items-center gap-1.5"
+                title="إصدار تحديث جديد وتفريغ الكاش لجميع أجهزة المناديب والمشرفين فوراً"
+              >
+                <Sparkles className="w-4 h-4 text-slate-950 shrink-0" />
+                <span>إصدار تحديث ومسح الكاش للجميع 🚀</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => checkAndSyncDataVersion(true)}
                 disabled={isVersionSyncing}
-                className="bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-md flex items-center gap-1.5"
-                title="فحص فوري ومزامنة البيانات الآن"
+                className="bg-slate-800 hover:bg-slate-750 active:scale-95 text-slate-200 border border-slate-700 hover:border-slate-500 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                title="فحص فوري وجلب أحدث إصدار من السيرفر"
               >
-                <RefreshCw className={`w-3.5 h-3.5 text-slate-950 ${isVersionSyncing ? 'animate-spin' : ''}`} />
-                <span>مزامنة فورية 🔄</span>
+                <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${isVersionSyncing ? 'animate-spin' : ''}`} />
+                <span>مزامنة فورية</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleForcePurgeLocal}
                 disabled={isVersionSyncing}
-                className="bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white border border-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
                 title="تفريغ الكاش المحلي في هذا الجهاز وإعادة البناء من قاعدة البيانات المركزية"
               >
-                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-                <span>تفريغ الكاش المحلي 🧹</span>
+                <Trash2 className="w-4 h-4 text-rose-400" />
+                <span>مسح الكاش المحلي 🧹</span>
               </button>
             </div>
           </div>
