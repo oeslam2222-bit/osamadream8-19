@@ -214,8 +214,7 @@ export async function fetchCustomersFromSupabase(): Promise<{ success: boolean; 
           totalOverdue: c.total_overdue !== undefined && c.total_overdue !== null ? Number(c.total_overdue) : undefined,
           totalOverdueAndDue: c.total_overdue_and_due !== undefined && c.total_overdue_and_due !== null ? Number(c.total_overdue_and_due) : undefined,
           overdueBalance: c.overdue_balance !== undefined && c.overdue_balance !== null ? Number(c.overdue_balance) : undefined,
-          dueBalance: c.due_balance !== undefined && c.due_balance !== null ? Number(c.due_balance) : undefined,
-        };
+          dueBalance: c.due_balance !== undefined && c.due_balance !== null ? Number(c.due_balance) : undefined,        };
       });
       return { success: true, customers: mapped };
     }
@@ -224,6 +223,30 @@ export async function fetchCustomersFromSupabase(): Promise<{ success: boolean; 
   } catch (err: any) {
     return { success: false, error: err?.message || 'خطأ في جلب قاعدة بيانات العملاء' };
   }
+}
+
+const firstDefinedNumber = (...values: (number | undefined | null)[]): number | undefined => {
+  for (const v of values) {
+    if (v === undefined || v === null) continue;
+    const n = Number(v);
+    if (!isNaN(n)) return n;
+  }
+  return undefined;
+};
+
+/**
+ * Single source of truth for إجمالي المستحقات (dues).
+ *
+ * Order must stay identical to the client-side resolver in AppContext so the
+ * value written here is exactly what every role later reads back:
+ * explicit dues column -> derived overdue columns -> debt balance (last resort).
+ */
+export function resolveCustomerDues(c: Customer): number {
+  const explicit = firstDefinedNumber(c.totalOverdueAndDue, c.overdueBalance, c.totalOverdue, c.dueBalance);
+  if (explicit !== undefined) return explicit;
+  const derived = firstDefinedNumber(c.overdue2026, c.dueUntilPeriod, c.overdue2025);
+  if (derived !== undefined) return derived;
+  return Number(c.currentBalance ?? c.balance ?? 0);
 }
 
 /**
@@ -236,6 +259,9 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
     const payload = customers.map((c) => {
       const stableSeed = c.code ? `cust-${c.code}` : `cust-${c.name}-${c.phone || ''}`;
       const safeId = c.id && isUuid(c.id) ? c.id : stringToUuid(stableSeed);
+      // Persist a concrete dues number. Writing null made every other role fall
+      // back to the debt balance, which is why المديونية and المستحقات matched.
+      const persistedDues = resolveCustomerDues(c);
       return {
         id: safeId,
         code: c.code || null,
@@ -273,9 +299,9 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
         opening_balance_2026: c.openingBalance2026 !== undefined ? Number(c.openingBalance2026) : null,
         has_dealt_in_2026: c.hasDealtIn2026 || false,
         // Dues / receivables persist separately from the debt balance
-        total_overdue: c.totalOverdue !== undefined ? Number(c.totalOverdue) : null,
-        total_overdue_and_due: c.totalOverdueAndDue !== undefined ? Number(c.totalOverdueAndDue) : null,
-        overdue_balance: c.overdueBalance !== undefined ? Number(c.overdueBalance) : null,
+        total_overdue: c.totalOverdue !== undefined ? Number(c.totalOverdue) : persistedDues,
+        total_overdue_and_due: persistedDues,
+        overdue_balance: c.overdueBalance !== undefined ? Number(c.overdueBalance) : persistedDues,
         due_balance: c.dueBalance !== undefined ? Number(c.dueBalance) : null,
         updated_at: new Date().toISOString(),
       };
@@ -286,6 +312,19 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
       const { error: err1 } = await supabase.from('customers').upsert(chunk);
       if (err1) {
         console.warn('Supabase customer upsert notice:', err1.message);
+        // The dues columns require add_customer_financial_columns.sql. Retry the
+        // chunk without them so a missing migration degrades the dues figure
+        // instead of blocking the entire customer sync.
+        if (/column .*(total_overdue_and_due|overdue_balance|due_balance|total_overdue)|schema cache/i.test(err1.message)) {
+          const legacyChunk = chunk.map((row: any) => {
+            const { total_overdue_and_due, overdue_balance, due_balance, total_overdue, ...rest } = row;
+            return rest;
+          });
+          const { error: retryErr } = await supabase.from('customers').upsert(legacyChunk);
+          if (retryErr) {
+            console.warn('Supabase customer upsert retry notice:', retryErr.message);
+          }
+        }
       }
     }
     return { success: true };
