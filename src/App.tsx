@@ -15,7 +15,7 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
-import React, { Component, ErrorInfo, Suspense, useState } from 'react';
+import React, { Component, ErrorInfo, Suspense, useState, useEffect } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { ProductCatalog } from './components/ProductCatalog';
@@ -50,7 +50,15 @@ const TabLoadingSkeleton = () => (
 const MainLayout: React.FC = () => {
   const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder } = useApp();
 
-  const [activeTab, setActiveTab] = useState<string>('catalog');
+  // First screen on launch: reps land on their visits, everyone else on the
+  // customer database so they start from their core data.
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('dream8_landing_tab');
+      if (saved === 'visits' || saved === 'all_customers' || saved === 'catalog') return saved;
+    } catch { /* ignore */ }
+    return 'all_customers';
+  });
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
@@ -60,11 +68,30 @@ const MainLayout: React.FC = () => {
     return <LoginPage />;
   }
 
+  // Reps open on Visits; supervisors, branch managers, admin and dev open on
+  // the customer database. Re-evaluated once the user is known.
+  const isRep = currentUser.role === 'sales_rep';
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('dream8_landing_tab');
+      const desired = saved === 'catalog' ? 'catalog' : (isRep ? 'visits' : 'all_customers');
+      setActiveTab((cur) => (cur === 'catalog' ? desired : cur));
+    } catch { /* ignore */ }
+  }, [isRep]);
+
   const cartSummary = getCartSummary();
 
   const handleOpenOrderForCustomer = (cust: Customer) => {
     setOrderInitialCustomer(cust);
     setActiveTab('catalog');
+  };
+
+  // Remember the section the user works in, so the app reopens on it next time.
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    if (tab === 'visits' || tab === 'all_customers' || tab === 'catalog') {
+      try { localStorage.setItem('dream8_landing_tab', tab); } catch { /* ignore */ }
+    }
   };
 
   const handleEditInvoice = (invoice: Invoice) => {
@@ -94,7 +121,7 @@ const MainLayout: React.FC = () => {
       {/* Main Responsive Navbar */}
       <Navbar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleTabChange}
         onOpenCart={() => setIsOrderModalOpen(true)}
       />
 

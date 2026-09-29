@@ -17,6 +17,7 @@ import {
   Eye,
   FileText,
   AlertCircle,
+  AlertTriangle,
   XCircle,
   Clock,
   ExternalLink,
@@ -91,6 +92,9 @@ export const VisitsDashboard: React.FC = () => {
     competitorNotes: '',
     customerRating: 5 as NonNullable<CustomerVisit['customerRating']>,
     nextVisitDate: '',
+    returnValue: 0 as number | undefined,
+    returnReason: '',
+    returnItems: '',
     location: undefined as CustomerVisit['location'],
   });
 
@@ -252,13 +256,15 @@ export const VisitsDashboard: React.FC = () => {
       const repName = (v.repName || '').toLowerCase();
       const notes = (v.notes || '').toLowerCase();
       const outcome = (v.outcome || '').toLowerCase();
+      const returnItems = (v.returnItems || '').toLowerCase();
 
       return (
         customerName.includes(q) ||
         customerCode.includes(q) ||
         repName.includes(q) ||
         notes.includes(q) ||
-        outcome.includes(q)
+        outcome.includes(q) ||
+        returnItems.includes(q)
       );
     });
   }, [visible, timePreset, month, exactDate, branch, rep, statusFilter, searchQuery, customers, todayStr, weekAgoStr, currentUser?.role, users]);
@@ -370,6 +376,9 @@ export const VisitsDashboard: React.FC = () => {
       competitorNotes: v.competitorNotes || '',
       customerRating: v.customerRating || 5,
       nextVisitDate: '',
+      returnValue: v.returnValue,
+      returnReason: v.returnReason || '',
+      returnItems: v.returnItems || '',
       location: v.location,
     });
     if (c) {
@@ -442,6 +451,8 @@ export const VisitsDashboard: React.FC = () => {
     const r = reps.find((u) => u.id === form.repId) || users.find((u) => u.id === form.repId) || (currentUser?.role === 'sales_rep' ? currentUser : undefined);
     const c = customers.find((x) => x.id === form.customerId);
 
+    const isReturnOutcome = form.outcome === 'مرتجع لدي العميل';
+
     const result = addVisit({
       ...form,
       customerId: c?.id || form.customerId,
@@ -455,6 +466,11 @@ export const VisitsDashboard: React.FC = () => {
       orderAmount: form.outcome === 'تم عمل طلبية' ? Number(form.orderAmount) || 0 : undefined,
       collectedAmount: form.outcome === 'تم التحصيل' ? Number(form.collectedAmount) || 0 : Number(form.collectedAmount) || 0,
       nextVisitDate: form.nextVisitDate || undefined,
+      isReturn: isReturnOutcome,
+      returnValue: isReturnOutcome ? Number(form.returnValue) || 0 : undefined,
+      returnReason: isReturnOutcome ? (form.returnReason || '').trim() : undefined,
+      returnItems: isReturnOutcome ? (form.returnItems || '').trim() : undefined,
+      returnStatus: isReturnOutcome ? 'بانتظار المشرف' : undefined,
     });
 
     if (result.success) {
@@ -477,6 +493,9 @@ export const VisitsDashboard: React.FC = () => {
         competitorNotes: '',
         customerRating: 5,
         nextVisitDate: '',
+        returnValue: 0,
+        returnReason: '',
+        returnItems: '',
         location: undefined,
       });
       setModalCustomerSearch('');
@@ -936,8 +955,14 @@ export const VisitsDashboard: React.FC = () => {
                     <td className="p-3">
                       <div className="font-bold text-slate-700">{v.type || 'زيارة دورية'}</div>
                       {v.outcome && (
-                        <div className="text-[10px] font-semibold text-emerald-800 mt-0.5">
+                        <div className={`text-[10px] font-semibold mt-0.5 ${v.isReturn ? 'text-rose-700' : 'text-emerald-800'}`}>
                           {v.outcome}
+                        </div>
+                      )}
+                      {v.isReturn && (
+                        <div className="text-[10px] font-black text-rose-700 mt-0.5">
+                          ↩️ مرتجع: {formatCurrency(v.returnValue || 0)}
+                          {v.returnStatus ? ` • ${v.returnStatus}` : ' • بانتظار المشرف'}
                         </div>
                       )}
                     </td>
@@ -951,7 +976,10 @@ export const VisitsDashboard: React.FC = () => {
                       {v.orderAmount ? (
                         <div className="font-bold text-blue-700">طلب: {formatCurrency(v.orderAmount)}</div>
                       ) : null}
-                      {!v.collectedAmount && !v.orderAmount && (
+                      {v.isReturn ? (
+                        <div className="font-bold text-rose-700">مرتجع: {formatCurrency(v.returnValue || 0)}</div>
+                      ) : null}
+                      {!v.collectedAmount && !v.orderAmount && !v.isReturn && (
                         <span className="text-slate-400">-</span>
                       )}
                     </td>
@@ -1381,10 +1409,51 @@ export const VisitsDashboard: React.FC = () => {
                     <option value="تأجيل سداد">تأجيل سداد بميعاد محدد ⏳</option>
                     <option value="المحل مغلق">المحل مغلق ⛔</option>
                     <option value="متابعة فقط">متابعة وفحص دوري 🔍</option>
+                    <option value="مرتجع لدي العميل">مرتجع لدي العميل 📦↩️</option>
                   </select>
                 </div>
 
-                {form.outcome === 'تم التحصيل' ? (
+                {form.outcome === 'مرتجع لدي العميل' ? (
+                  <div className="sm:col-span-2 rounded-2xl border-2 border-rose-300 bg-rose-50/70 p-3 space-y-3 animate-in fade-in">
+                    <div className="flex items-center gap-2 text-rose-700 font-black text-[11px]">
+                      <AlertTriangle className="w-4 h-4" />
+                      تفاصيل المرتجع — سيتم إبلاغ المشرف ومدير الفرع وأمين المخزن فوراً
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-rose-700 mb-1">قيمة المرتجع (ج.م) *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={form.returnValue || ''}
+                          onChange={(e) => setForm({ ...form, returnValue: parseFloat(e.target.value) || 0 })}
+                          placeholder="0.00"
+                          className="w-full border border-rose-300 rounded-xl p-2.5 text-xs font-bold text-rose-900 bg-white focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-rose-700 mb-1">سبب المرتجع *</label>
+                        <input
+                          type="text"
+                          value={form.returnReason || ''}
+                          onChange={(e) => setForm({ ...form, returnReason: e.target.value })}
+                          placeholder="مثال: تالف، Near Expiry، خطأ في الكمية"
+                          className="w-full border border-rose-300 rounded-xl p-2.5 text-xs font-bold text-rose-900 bg-white focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-rose-700 mb-1">أصناف المرتجع (صنف × الكمية في كل سطر) *</label>
+                      <textarea
+                        rows={3}
+                        value={form.returnItems || ''}
+                        onChange={(e) => setForm({ ...form, returnItems: e.target.value })}
+                        placeholder={'DRM-101 أطقم كاسات × 3\nDRM-220 برطمانات × 5'}
+                        className="w-full border border-rose-300 rounded-xl p-2.5 text-xs font-bold text-rose-900 bg-white focus:bg-white focus:outline-none resize-none font-mono"
+                      />
+                    </div>
+                  </div>
+                ) : form.outcome === 'تم التحصيل' ? (
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">المبلغ المحصل (ج.م)</label>
                     <input

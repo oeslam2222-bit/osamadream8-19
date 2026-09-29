@@ -163,7 +163,7 @@ export interface CustomerVisit {
   supervisorName?: string;
   status?: CustomerVisitStatus;
   type?: 'زيارة تحصيل' | 'زيارة بيع وطلبية' | 'زيارة دورية' | 'متابعة حساب' | 'أخرى';
-  outcome?: 'تم عمل طلبية' | 'تم التحصيل' | 'تأجيل سداد' | 'المحل مغلق' | 'متابعة فقط' | 'أخرى';
+  outcome?: 'تم عمل طلبية' | 'تم التحصيل' | 'تأجيل سداد' | 'المحل مغلق' | 'متابعة فقط' | 'مرتجع لدي العميل' | 'أخرى';
   collectedAmount?: number;          // المبلغ المحصل إن وجد
   notes?: string;                    // ملاحظات الزيارة
   createdBy?: string;
