@@ -1491,6 +1491,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Initial Supabase connection check, fetch users, products, invoices & real-time sync
   useEffect(() => {
+    // Wait for IndexedDB hydration before checking the remote version. Otherwise a
+    // late hydration can restore the stale snapshot immediately after it is purged.
+    if (!isLocalDataHydrated) return;
+
     testSupabaseConnection().then((status) => {
       setSupabaseStatus(status);
       if (status.connected) {
@@ -1791,7 +1795,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.warn('Realtime channel error:', e);
     }
-  }, []);
+  }, [isLocalDataHydrated]);
 
   useEffect(() => {
     const handleOnlineSync = () => {
