@@ -208,13 +208,20 @@ export async function fetchCustomersFromSupabase(): Promise<{ success: boolean; 
           overdue2026: c.overdue_2026 !== undefined ? Number(c.overdue_2026) : (c.overdue2026 !== undefined ? Number(c.overdue2026) : undefined),
           dueUntilPeriod: c.due_until_period !== undefined && c.due_until_period !== null ? Number(c.due_until_period) : (c.dueUntilPeriod !== undefined ? Number(c.dueUntilPeriod) : undefined),
           openingBalance2026: c.opening_balance_2026 !== undefined ? Number(c.opening_balance_2026) : (c.openingBalance2026 !== undefined ? Number(c.openingBalance2026) : undefined),
-          hasDealtIn2026: c.has_dealt_in_2026 || c.hasDealtIn2026 || undefined,
           // Dues / receivables are stored in their own columns so that a signed-in
           // supervisor never falls back to the debt balance for المستحقات.
           totalOverdue: c.total_overdue !== undefined && c.total_overdue !== null ? Number(c.total_overdue) : undefined,
           totalOverdueAndDue: c.total_overdue_and_due !== undefined && c.total_overdue_and_due !== null ? Number(c.total_overdue_and_due) : undefined,
           overdueBalance: c.overdue_balance !== undefined && c.overdue_balance !== null ? Number(c.overdue_balance) : undefined,
-          dueBalance: c.due_balance !== undefined && c.due_balance !== null ? Number(c.due_balance) : undefined,        };
+          dueBalance: c.due_balance !== undefined && c.due_balance !== null ? Number(c.due_balance) : undefined,
+          // Authoritative قابل / غير قابل classification from the sheet.
+          dealEligibility: c.deal_eligibility || undefined,
+          dealt2026: c.dealt_2026 || undefined,
+          hasDealtIn2026: c.dealt_in_2026 !== undefined && c.dealt_in_2026 !== null
+            ? Boolean(c.dealt_in_2026)
+            : (c.has_dealt_in_2026 !== undefined && c.has_dealt_in_2026 !== null
+                ? Boolean(c.has_dealt_in_2026)
+                : undefined),        };
       });
       return { success: true, customers: mapped };
     }
@@ -303,6 +310,10 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
         total_overdue_and_due: persistedDues,
         overdue_balance: c.overdueBalance !== undefined ? Number(c.overdueBalance) : persistedDues,
         due_balance: c.dueBalance !== undefined ? Number(c.dueBalance) : null,
+        // قابل / غير قابل and the dealt label drive the dashboard classification.
+        deal_eligibility: c.dealEligibility || null,
+        dealt_2026: c.dealt2026 || null,
+        dealt_in_2026: c.hasDealtIn2026 || false,
         updated_at: new Date().toISOString(),
       };
     });
@@ -315,9 +326,13 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
         // The dues columns require add_customer_financial_columns.sql. Retry the
         // chunk without them so a missing migration degrades the dues figure
         // instead of blocking the entire customer sync.
-        if (/column .*(total_overdue_and_due|overdue_balance|due_balance|total_overdue)|schema cache/i.test(err1.message)) {
+        if (/column .*(total_overdue_and_due|overdue_balance|due_balance|total_overdue|deal_eligibility|dealt_2026|dealt_in_2026)|schema cache/i.test(err1.message)) {
           const legacyChunk = chunk.map((row: any) => {
-            const { total_overdue_and_due, overdue_balance, due_balance, total_overdue, ...rest } = row;
+            const {
+              total_overdue_and_due, overdue_balance, due_balance, total_overdue,
+              deal_eligibility, dealt_2026, dealt_in_2026,
+              ...rest
+            } = row;
             return rest;
           });
           const { error: retryErr } = await supabase.from('customers').upsert(legacyChunk);

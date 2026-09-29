@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx-js-style';
 import { COMPANY_INFO } from '../data/mockData';
 import { Customer, CustomerTier, Invoice, ItemStatus, Product, SalesPriority, User } from '../types';
-import { inferBranchFromText, resolveCustomerFinancials, getBranchStockForProduct, resolveBranchName } from './arabicMatchingService';
+import { inferBranchFromText, resolveCustomerFinancials, getBranchStockForProduct, resolveBranchName, BRANCH_CODE_MAP } from './arabicMatchingService';
 import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
 import { deduplicateAndMergeCustomers } from './customerDeduplicationService';
 
@@ -67,20 +67,12 @@ export function normalizeExcelBranchName(rawBranch?: string): string {
   }
   const clean = rawBranch.trim();
 
-  // Branch codes from the customer sheet. Keep this mapping explicit so a
-  // numeric branch value is never mistaken for a customer or rep field.
-  const branchCodeMap: Record<string, string> = {
-    '15': 'فرع الفيوم',
-    '45': 'فرع ديمشلت',
-    '55': 'فرع منوف',
-    '65': 'فرع منيا القمح',
-    '75': 'فرع القاهرة',
-    '90': 'فرع البحيرة',
-    '95': 'فرع المنيا',
-  };
+  // Single shared source of truth. The customer sheet and the target sheet must
+  // resolve the same numeric branch (15 -> الفيوم, 45 -> ديمشلت, ...) the same
+  // way, so both go through BRANCH_CODE_MAP instead of local copies that drift.
   const branchCode = clean.replace(/^فرع\s*/i, '').trim();
-  if (branchCodeMap[branchCode]) {
-    return branchCodeMap[branchCode];
+  if (BRANCH_CODE_MAP[branchCode] || BRANCH_CODE_MAP[branchCode.toLowerCase()]) {
+    return BRANCH_CODE_MAP[branchCode] || BRANCH_CODE_MAP[branchCode.toLowerCase()];
   }
 
   // Route everything else through the canonical resolver so branch names,
@@ -2337,7 +2329,19 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     const parsedAnnualTarget = parseNumberValue(colMap.annualTarget);
     const parsedOpeningBalance2026 = parseNumberValue(colMap.openingBalance2026);
     const rawDealt2026 = getVal(row, colMap.dealt2026);
-    const rawDealEligibility = getVal(row, colMap.dealEligibility);
+      const rawDealEligibility = getVal(row, colMap.dealEligibility);
+      // The sheet carries a dedicated "متعامل / غير متعامل" column. Read it as a
+      // stable yearly fact instead of deriving it from the selected month, which
+      // is what made this flag flip whenever the month slicer moved.
+      const normalizeDealtFlag = (raw: string): boolean | undefined => {
+        const t = (raw || '').trim();
+        if (!t || t === '-' || /^(غير\s*متعامل|لا|لاشيء|0|no|none)$/i.test(t)) return false;
+        if (/^(متعامل|نعم|تعامل|yes|1)$/i.test(t)) return true;
+        if (t.includes('غير') && t.includes('متعامل')) return false;
+        if (t.includes('متعامل') || t.includes('تعامل')) return true;
+        return undefined;
+      };
+      const sheetDealtFlag = normalizeDealtFlag(rawDealt2026);
     const rawDebtStatus = getVal(row, colMap.debtStatus);
     const parsedTotalMonthlySalesCol = parseNumberValue(colMap.totalMonthlySales);
     const parsedTotalMonthlyCollectionsColRaw = parseNumberValue(colMap.totalMonthlyCollections);
@@ -2547,7 +2551,9 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       adjustments: parsedAdjustments,
       annualTarget: parsedAnnualTarget,
       openingBalance2026: parsedOpeningBalance2026,
-      dealt2026: rawDealt2026 || ((resolvedSales2026 > 0 || resolvedCollections2026 > 0) ? 'متعامل' : undefined),
+      dealt2026: sheetDealtFlag === undefined
+        ? ((resolvedSales2026 > 0 || resolvedCollections2026 > 0) ? 'متعامل' : 'غير متعامل')
+        : (sheetDealtFlag ? 'متعامل' : 'غير متعامل'),
       dealEligibility: rawDealEligibility,
       debtStatus: rawDebtStatus,
       sales2026: resolvedSales2026,
@@ -2556,7 +2562,10 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       collections2026: resolvedCollections2026,
       totalMonthlyCollections: resolvedCollections2026,
       totalOverallCollections: parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : resolvedCollections2026,
-      hasDealtIn2026: (resolvedSales2026 > 0) || (resolvedCollections2026 > 0) || rawDealt2026 === 'متعامل',
+      // Yearly, sheet-backed flag. Never month-dependent.
+      hasDealtIn2026: sheetDealtFlag !== undefined
+        ? sheetDealtFlag
+        : ((resolvedSales2026 > 0) || (resolvedCollections2026 > 0)),
       monthlySales2026: Object.keys(rowMonthlySales).length > 0 ? rowMonthlySales : undefined,
       monthlyCollections2026: Object.keys(rowMonthlyCollections).length > 0 ? rowMonthlyCollections : undefined,
       sales2025: parsedSales2025,

@@ -138,4 +138,28 @@ BEGIN
   ) THEN
     ALTER TABLE public.customers ADD COLUMN total_overdue numeric;
   END IF;
+
+  -- قابل / غير قابل classification from the sheet. Without this the column was
+  -- read locally for the admin only, and every other role saw an empty value
+  -- and counted everyone as قابل.
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'customers' AND column_name = 'deal_eligibility'
+  ) THEN
+    ALTER TABLE public.customers ADD COLUMN deal_eligibility text;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'customers' AND column_name = 'dealt_2026'
+  ) THEN
+    ALTER TABLE public.customers ADD COLUMN dealt_2026 text;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'customers' AND column_name = 'dealt_in_2026'
+  ) THEN
+    ALTER TABLE public.customers ADD COLUMN dealt_in_2026 boolean;
+  END IF;
 END $$;

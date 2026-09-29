@@ -546,7 +546,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       periodCollections: number;
       collectionRate: number;
       isExplicitIneligible: boolean;
-      dealtInSelectedMonth: boolean;
+      isDealtCustomer: boolean;
       orderSummary: ReturnType<typeof getCustomerOrderSummary>;
     }>();
 
@@ -608,13 +608,17 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         debtSt.includes('متعثر')
       );
 
-      // Dealing check in selected month / quarter (Active = has sales/invoice in the specified period)
-      let dealtInSelectedMonth = false;
-      if (selectedMonth === 'ALL') {
-        dealtInSelectedMonth = Boolean(c.hasDealtIn2026 || sales2026 > 0 || (c.monthlySales2026 && Object.values(c.monthlySales2026).some((v) => Number(v) > 0)));
-      } else {
-        dealtInSelectedMonth = periodSales > 0;
-      }
+      // "متعامل" is intentionally a per-period figure: it answers "who traded in
+      // the period I am looking at", so it must move with the month slicer.
+      // The authoritative yearly classification is قابل / غير قابل below.
+      const isDealtCustomer =
+        selectedMonth === 'ALL'
+          ? Boolean(
+              c.hasDealtIn2026 ||
+              (c.monthlySales2026 && Object.values(c.monthlySales2026).some((v) => Number(v) > 0)) ||
+              (c.monthlyCollections2026 && Object.values(c.monthlyCollections2026).some((v) => Number(v) > 0))
+            )
+          : periodSales > 0 || periodCollections > 0;
 
       map.set(c.id, {
         id: c.id,
@@ -637,7 +641,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         periodCollections,
         collectionRate,
         isExplicitIneligible,
-        dealtInSelectedMonth,
+        isDealtCustomer,
         orderSummary: getCustomerOrderSummary(c),
       });
     });
@@ -674,17 +678,19 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         if (!m) return false;
         if (dealEligibilityFilter === 'ineligible') return m.isExplicitIneligible;
         if (dealEligibilityFilter === 'eligible') return !m.isExplicitIneligible;
-        if (dealEligibilityFilter === 'dealt') return !m.isExplicitIneligible && m.dealtInSelectedMonth;
+        if (dealEligibilityFilter === 'dealt') return !m.isExplicitIneligible && m.isDealtCustomer;
         const e = (c.dealEligibility || '').trim();
         return e === dealEligibilityFilter || e.includes(dealEligibilityFilter);
       });
     }
 
     // Dealt 2026 Activity Slicer (متعامل 2026 من الشيت)
+    // Uses the same stable yearly flag as the badge, so the slicer and the label
+    // can never disagree and neither moves with the month.
     if (dealtFilter !== 'ALL') {
       list = list.filter((c) => {
         const m = customerMetricsMap.get(c.id);
-        const hasDealt = Boolean(c.hasDealtIn2026 || (m && m.sales2026 > 0) || (c.dealt2026 && (c.dealt2026.includes('متعامل') || c.dealt2026.includes('نعم'))));
+        const hasDealt = m ? m.isDealtCustomer : Boolean(c.hasDealtIn2026);
         if (dealtFilter === 'dealt') return hasDealt;
         if (dealtFilter === 'not_dealt') return !hasDealt;
         return true;
@@ -1020,7 +1026,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         ineligibleCount++;
       } else {
         eligibleCount++;
-        if (m?.dealtInSelectedMonth) {
+        if (m?.isDealtCustomer) {
           dealtCount++;
         }
       }
@@ -1161,7 +1167,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         item.ineligibleCustomers++;
       } else {
         item.eligibleCustomers++;
-        if (m.dealtInSelectedMonth) {
+        if (m.isDealtCustomer) {
           item.dealtCustomers++;
         }
       }
@@ -1228,7 +1234,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         item.ineligibleCustomers++;
       } else {
         item.eligibleCustomers++;
-        if (m.dealtInSelectedMonth) {
+        if (m.isDealtCustomer) {
           item.dealtCustomers++;
         } else {
           item.nonDealtCustomers++;
@@ -5017,7 +5023,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-black bg-rose-50 text-rose-700 border border-rose-200">
                             غير قابل ⛔
                           </span>
-                        ) : metrics?.dealtInSelectedMonth ? (
+                        ) : metrics?.isDealtCustomer ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
                             متعامل ✅
                           </span>
@@ -5281,7 +5287,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                             <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
                             غير قابل ⛔
                           </span>
-                        ) : metrics?.dealtInSelectedMonth ? (
+                        ) : metrics?.isDealtCustomer ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                             متعامل ✅

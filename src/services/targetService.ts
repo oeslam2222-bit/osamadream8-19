@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx-js-style';
 import { TargetQuarter, TargetRecord, User } from '../types';
-import { isArabicNameMatch, isBranchMatch, normalizeArabicText, resolveBranchName } from './arabicMatchingService';
+import { isArabicNameMatch, isBranchMatch, normalizeArabicText, resolveBranchName, BRANCH_CODE_MAP } from './arabicMatchingService';
 import { decodeBufferSmart } from './encodingService';
 import { getPublishedCsvUrl } from './dataSourceService';
 
@@ -241,7 +241,9 @@ export function parseTargetRawRows(rawRows: any[][]): TargetRecord[] {
     const tempMap: Record<string, number> = {};
 
     row.forEach((cell, idx) => {
-      if (cell.includes('فرع') || cell.includes('branch')) {
+      // Accept a named branch column OR a bare branch number (15 / 45 / ...),
+      // so an uploaded target sheet can carry the branch as a code.
+      if (cell.includes('فرع') || cell.includes('branch') || BRANCH_CODE_MAP[cell] !== undefined) {
         hasBranch = true;
         tempMap['branch'] = idx;
       }
@@ -366,9 +368,14 @@ export function parseTargetRawRows(rawRows: any[][]): TargetRecord[] {
     const remainingSales = Math.max(0, salesTarget - salesAchieved);
     const remainingCollection = Math.max(0, collectionTarget - collectionAchieved);
 
+    // Resolve the branch ONCE and use it for both the id and the value. Building
+    // the id from the raw cell meant the same branch uploaded as "15" and as
+    // "فرع الفيوم" produced two different records.
+    const resolvedBranch = resolveBranchName(branch) || branch || 'الفرع الرئيسي';
+
     const record: TargetRecord = {
-      id: `trg-${normalizeArabicText(branch).replace(/\s+/g, '_')}__${normalizeArabicText(repName).replace(/\s+/g, '_')}__${dateStr || 'nodate'}_${month || 'm0'}_${year || 'y0'}`,
-      branch: resolveBranchName(branch) || branch || 'الفرع الرئيسي',
+      id: `trg-${normalizeArabicText(resolvedBranch).replace(/\s+/g, '_')}__${normalizeArabicText(repName).replace(/\s+/g, '_')}__${dateStr || 'nodate'}_${month || 'm0'}_${year || 'y0'}`,
+      branch: resolvedBranch,
       repName: repName || 'مندوب غير محدد',
       salesTarget,
       salesAchieved,
