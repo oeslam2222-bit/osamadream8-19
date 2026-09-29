@@ -36,6 +36,7 @@ import {
   sanitizeEmail,
   sanitizeIdentifier,
   saveCustomersToSupabase,
+  replaceCustomersInSupabase,
   saveInvoiceToSupabase,
   saveInvoicesToSupabase,
   saveProductsToSupabase,
@@ -338,6 +339,28 @@ const markVisitAsDeletedInStorage = (visitId: string) => {
     if (visitId) current.add(visitId);
     localStorage.setItem(STORAGE_KEYS.DELETED_VISIT_IDS, JSON.stringify(Array.from(current)));
   } catch {}
+};
+
+const firstNumber = (...values: (number | undefined | null)[]): number | undefined => {
+  for (const v of values) {
+    const n = Number(v);
+    if (v !== undefined && v !== null && !isNaN(n)) return n;
+  }
+  return undefined;
+};
+
+/**
+ * Resolve إجمالي المستحقات (dues) for a customer.
+ * Dues are a separate figure from المديونية and must never be silently
+ * replaced by the debt balance; the balance fallback only applies when the
+ * source has no dues figure at all.
+ */
+const resolveDues = (c: Customer): number => {
+  const explicit = firstNumber(c.totalOverdueAndDue, c.overdueBalance, c.totalOverdue, c.dueBalance);
+  if (explicit !== undefined) return explicit;
+  const derived = firstNumber(c.overdue2026, c.dueUntilPeriod, c.overdue2025);
+  if (derived !== undefined) return derived;
+  return Number(c.currentBalance ?? c.balance ?? 0);
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -867,8 +890,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         branchName: resolvedBranch || c.branchName || '',
         currentBalance: Number(c.currentBalance ?? c.balance ?? 0),
         balance: Number(c.currentBalance ?? c.balance ?? 0),
-        totalOverdueAndDue: Number(c.totalOverdueAndDue !== undefined ? c.totalOverdueAndDue : (c.currentBalance ?? c.balance ?? 0)),
-        overdueBalance: Number(c.totalOverdueAndDue !== undefined ? c.totalOverdueAndDue : (c.currentBalance ?? c.balance ?? 0)),
+        totalOverdueAndDue: resolveDues(c),
+        overdueBalance: c.overdueBalance !== undefined ? Number(c.overdueBalance) : resolveDues(c),
+        dueBalance: c.dueBalance !== undefined ? Number(c.dueBalance) : undefined,
         creditLimit: Math.max(0, Number(c.creditLimit || 0)),
         totalMonthlySales: s26,
         sales2026: s26,
@@ -1265,6 +1289,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       let fetchedInvoicesCount = 0;
       let pushedUsersCount = 0;
       let pushedInvoicesCount = 0;
+      let pushedCustomersCount = 0;
+      let removedCustomersCount = 0;
 
       // 2. Fetch remote users and invoices if requested
       if (direction === 'fetch' || direction === 'both') {
@@ -1300,7 +1326,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (direction === 'fetch' || direction === 'both') {
         const custRes = await fetchCustomersFromSupabase();
         if (custRes.success) {
-          const validCustomers = sanitizeCustomers(linkCustomersToUsers(custRes.customers || [], users));
+          const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers || []), users);
+          const validCustomers = deduplicateCustomersArray(linked);
           setCustomers(validCustomers);
           idbSet(STORAGE_KEYS.CUSTOMERS, validCustomers);
         }
@@ -1323,12 +1350,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (visits.length > 0) {
           await saveVisitsToSupabase(visits);
         }
+        // Push customers as an authoritative replacement so every role reads
+        // the same numbers and no duplicate rows accumulate on the server
+        if (customers.length > 0) {
+          const cleanCustomers = deduplicateCustomersArray(customers);
+          const custPushRes = await replaceCustomersInSupabase(cleanCustomers);
+          if (custPushRes.success) {
+            pushedCustomersCount = cleanCustomers.length;
+            removedCustomersCount = custPushRes.removed;
+          }
+        }
       }
 
       const updatedConn = await testSupabaseConnection();
       setSupabaseStatus(updatedConn);
 
-      const msg = `تمت المزامنة السحابية بنجاح مع Supabase! (مستخدمين: ${fetchedUsersCount || pushedUsersCount}, فواتير وطلبيات: ${fetchedInvoicesCount || pushedInvoicesCount}).`;
+      const dupNote = removedCustomersCount > 0 ? `، حذف ${removedCustomersCount} سجل مكرر` : '';
+      const msg = `تمت المزامنة السحابية بنجاح مع Supabase! (مستخدمين: ${fetchedUsersCount || pushedUsersCount}, فواتير وطلبيات: ${fetchedInvoicesCount || pushedInvoicesCount}, عملاء: ${pushedCustomersCount}${dupNote}).`;
       return { success: true, message: msg };
     } catch (err: any) {
       return {
@@ -1391,7 +1429,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (scope === 'all' || scope === 'customers') {
         const custRes = await fetchCustomersFromSupabase();
         if (custRes.success) {
-          const validCust = sanitizeCustomers(linkCustomersToUsers(custRes.customers || [], users));
+          const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers || []), users);
+          const validCust = deduplicateCustomersArray(linked);
           setCustomers(validCust);
           idbSet(STORAGE_KEYS.CUSTOMERS, validCust).catch(() => {});
         }
@@ -1596,7 +1635,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               if (cRes.success && cRes.customers && cRes.customers.length > 0) {
                 setCustomers((curr) => {
                   if (curr.length === 0) {
-                    const valid = sanitizeCustomers(linkCustomersToUsers(cRes.customers!, users));
+                    const linked = linkCustomersToUsers(sanitizeCustomers(cRes.customers!), users);
+                    const valid = deduplicateCustomersArray(linked);
                     idbSet(STORAGE_KEYS.CUSTOMERS, valid).catch(() => {});
                     return valid;
                   }
@@ -2090,11 +2130,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     idbSet(STORAGE_KEYS.CUSTOMERS, finalCustomers).catch(() => {});
     setCustomers(finalCustomers);
-    saveCustomersToSupabase(finalCustomers).then(() => {
+    replaceCustomersInSupabase(finalCustomers).then((res) => {
+      if (res.removed > 0) {
+        setLastVersionSyncNotice(
+          `تم تحديث قاعدة العملاء وحذف ${res.removed} سجل مكرر من السيرفر — البيانات الآن موحدة لكل المناديب والمشرفين`
+        );
+        setTimeout(() => setLastVersionSyncNotice(null), 8000);
+      }
       publishNewDataVersion({
         scope: 'customers',
         updatedBy: currentUser?.name || 'مدير النظام',
-        notes: `تحديث قاعدة بيانات العملاء (${mode === 'replace' ? 'استبدال كامل' : 'دمج وتحديث'})`,
+        notes: `تحديث قاعدة بيانات العملاء (${mode === 'replace' ? 'استبدال كامل' : 'دمج وتحديث'}) - ${finalCustomers.length} عميل`,
         customersCount: finalCustomers.length,
         forcePurge: true,
       }).catch(() => {});

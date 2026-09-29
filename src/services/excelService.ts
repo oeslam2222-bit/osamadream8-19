@@ -1956,6 +1956,9 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('اجماليالمستحقات') ||
       norm.includes('المستحقاتالواجبه') ||
       norm.includes('المستحقاتالواجبة') ||
+      norm.includes('مستحقات') ||
+      norm.includes('مستحق') ||
+      norm.includes('المستحق') ||
       norm.includes('المستحقالسداد') ||
       norm.includes('واجبةالسداد') ||
       norm.includes('واجبةالسداد') ||
@@ -1964,8 +1967,12 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('مستحقواجب') ||
       norm.includes('totaloverdue') ||
       norm.includes('overdue') ||
+      norm.includes('totaldues') ||
+      norm.includes('totaldue') ||
       norm === 'dues' ||
-      norm === 'due'
+      norm === 'due' ||
+      norm.includes('المتبقي') ||
+      norm.includes('متبقي')
     ) {
       if (colMap.totalOverdue === -1) colMap.totalOverdue = idx;
       if (colMap.totalOverdueAndDue === -1) colMap.totalOverdueAndDue = idx;

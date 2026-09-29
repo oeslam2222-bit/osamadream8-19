@@ -209,6 +209,12 @@ export async function fetchCustomersFromSupabase(): Promise<{ success: boolean; 
           dueUntilPeriod: c.due_until_period !== undefined && c.due_until_period !== null ? Number(c.due_until_period) : (c.dueUntilPeriod !== undefined ? Number(c.dueUntilPeriod) : undefined),
           openingBalance2026: c.opening_balance_2026 !== undefined ? Number(c.opening_balance_2026) : (c.openingBalance2026 !== undefined ? Number(c.openingBalance2026) : undefined),
           hasDealtIn2026: c.has_dealt_in_2026 || c.hasDealtIn2026 || undefined,
+          // Dues / receivables are stored in their own columns so that a signed-in
+          // supervisor never falls back to the debt balance for المستحقات.
+          totalOverdue: c.total_overdue !== undefined && c.total_overdue !== null ? Number(c.total_overdue) : undefined,
+          totalOverdueAndDue: c.total_overdue_and_due !== undefined && c.total_overdue_and_due !== null ? Number(c.total_overdue_and_due) : undefined,
+          overdueBalance: c.overdue_balance !== undefined && c.overdue_balance !== null ? Number(c.overdue_balance) : undefined,
+          dueBalance: c.due_balance !== undefined && c.due_balance !== null ? Number(c.due_balance) : undefined,
         };
       });
       return { success: true, customers: mapped };
@@ -266,6 +272,11 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
         due_until_period: c.dueUntilPeriod !== undefined ? Number(c.dueUntilPeriod) : null,
         opening_balance_2026: c.openingBalance2026 !== undefined ? Number(c.openingBalance2026) : null,
         has_dealt_in_2026: c.hasDealtIn2026 || false,
+        // Dues / receivables persist separately from the debt balance
+        total_overdue: c.totalOverdue !== undefined ? Number(c.totalOverdue) : null,
+        total_overdue_and_due: c.totalOverdueAndDue !== undefined ? Number(c.totalOverdueAndDue) : null,
+        overdue_balance: c.overdueBalance !== undefined ? Number(c.overdueBalance) : null,
+        due_balance: c.dueBalance !== undefined ? Number(c.dueBalance) : null,
         updated_at: new Date().toISOString(),
       };
     });
@@ -289,6 +300,61 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
  */
 export async function saveCustomerToSupabase(customer: Customer): Promise<{ success: boolean; error?: string }> {
   return saveCustomersToSupabase([customer]);
+}
+
+/**
+ * Authoritative full replacement of the customers table.
+ *
+ * Plain upserts keep old rows alive forever: a customer whose id/code changed
+ * between imports is inserted again, so every admin sync doubled the database.
+ * This writes the whole authoritative list, then removes every remote row that
+ * is not part of it, so all reps / supervisors / managers read exactly the same
+ * numbers with zero duplicates.
+ */
+export async function replaceCustomersInSupabase(
+  customers: Customer[]
+): Promise<{ success: boolean; removed: number; error?: string }> {
+  try {
+    if (!customers || customers.length === 0) {
+      return { success: false, removed: 0, error: 'قائمة العملاء فارغة - تم إيقاف المزامنة لمنع حذف البيانات' };
+    }
+
+    const saveRes = await saveCustomersToSupabase(customers);
+    if (!saveRes.success) {
+      return { success: false, removed: 0, error: saveRes.error };
+    }
+
+    const keepIds = new Set(
+      customers.map((c) => (c.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.id)
+        ? c.id
+        : stringToUuid(c.code ? `cust-${c.code}` : `cust-${c.name}-${c.phone || ''}`)))
+    );
+
+    const { data: remoteRows, error: readErr } = await fetchAllRows('customers');
+    if (readErr || !remoteRows) {
+      return { success: true, removed: 0, error: 'تم التحديث لكن تعذر تنظيف السجلات القديمة' };
+    }
+
+    const orphans = remoteRows
+      .map((r: any) => String(r.id || ''))
+      .filter((id: string) => id && !keepIds.has(id));
+
+    let removed = 0;
+    for (let i = 0; i < orphans.length; i += 200) {
+      const chunk = orphans.slice(i, i + 200);
+      const { error: delErr } = await supabase.from('customers').delete().in('id', chunk);
+      if (delErr) {
+        console.warn('Supabase orphan customer cleanup notice:', delErr.message);
+      } else {
+        removed += chunk.length;
+      }
+    }
+
+    return { success: true, removed };
+  } catch (e: any) {
+    console.error('Supabase customer replace exception:', e);
+    return { success: false, removed: 0, error: e?.message };
+  }
 }
 
 const CATALOG_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000001';

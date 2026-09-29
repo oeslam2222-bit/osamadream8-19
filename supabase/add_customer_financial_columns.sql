@@ -110,4 +110,32 @@ BEGIN
   ) THEN
     ALTER TABLE public.customers ADD COLUMN has_dealt_in_2026 boolean DEFAULT false;
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'customers' AND column_name = 'total_overdue_and_due'
+  ) THEN
+    ALTER TABLE public.customers ADD COLUMN total_overdue_and_due numeric;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'customers' AND column_name = 'overdue_balance'
+  ) THEN
+    ALTER TABLE public.customers ADD COLUMN overdue_balance numeric;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'customers' AND column_name = 'due_balance'
+  ) THEN
+    ALTER TABLE public.customers ADD COLUMN due_balance numeric;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'customers' AND column_name = 'total_overdue'
+  ) THEN
+    ALTER TABLE public.customers ADD COLUMN total_overdue numeric;
+  END IF;
 END $$;
