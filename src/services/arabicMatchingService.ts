@@ -152,12 +152,15 @@ export function isArabicNameMatch(nameA?: string, nameB?: string): boolean {
   if (!normA || !normB) return false;
   if (normA === normB) return true;
 
-  // Compact space-stripped match (e.g. "احمدعلاء" vs "احمد علاء")
+  // Compact space-stripped match (e.g. "احمدعلاء" vs "احمد علاء").
+  // Only allowed when the shorter name has 2+ tokens: a single long token like
+  // "ياسمين" must not substring-match "ياسمين عبدالله".
   const compactA = normA.replace(/\s+/g, '');
   const compactB = normB.replace(/\s+/g, '');
   if (compactA === compactB) return true;
   if (compactA.length >= 6 && compactB.length >= 6) {
-    if (compactA.includes(compactB) || compactB.includes(compactA)) return true;
+    const shortIsMultiToken = normA.includes(' ') ? normA.split(/\s+/).length >= 2 : normB.split(/\s+/).length >= 2;
+    if (shortIsMultiToken && (compactA.includes(compactB) || compactB.includes(compactA))) return true;
   }
 
   const tokensA = getArabicTokens(nameA);
@@ -615,15 +618,25 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
     if (normRepField && normUserName) {
       if (normRepField === normUserName) return true;
 
-      // Word boundary match (e.g. "مندوب احمد علاء فرع الفيوم" contains "احمد علاء")
-      if ((` ${normRepField} `).includes(` ${normUserName} `) || (` ${normUserName} `).includes(` ${normRepField} `)) {
+      // Word boundary match (e.g. "مندوب احمد علاء فرع الفيوم" contains "احمد علاء").
+      // Guarded the same way: a one-token name must match the whole rep field,
+      // otherwise every rep sharing a first name claims the same customers.
+      if (normUserName.includes(' ')) {
+        if ((` ${normRepField} `).includes(` ${normUserName} `) || (` ${normUserName} `).includes(` ${normRepField} `)) {
+          return true;
+        }
+      } else if (normRepField === normUserName) {
         return true;
       }
 
-      // Compact match without spaces (e.g. "احمدعلاء" vs "احمد علاء")
-      const normRepCompact = normRepField.replace(/\s+/g, '');
-      if (normUserCompact && normRepCompact.includes(normUserCompact)) return true;
-      if (normRepCompact.length >= 6 && normUserCompact.includes(normRepCompact)) return true;
+      // Compact match without spaces (e.g. "احمدعلاء" vs "احمد علاء").
+      // Guarded: a one-token name like "احمد" must never substring-match
+      // "احمد اشرف", or one rep absorbs every same-first-name rep's customers.
+      if (normUserName.includes(' ')) {
+        const normRepCompact = normRepField.replace(/\s+/g, '');
+        if (normUserCompact && normRepCompact.includes(normUserCompact)) return true;
+        if (normRepCompact.length >= 6 && normUserCompact.includes(normRepCompact)) return true;
+      }
     }
 
     // Tokenized Arabic matching
@@ -632,17 +645,30 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
     );
 
     if (cleanUserTokens.length > 0 && repTokens.length > 0) {
-      // If all tokens of user name exist in the rep field (e.g. user "احمد علاء" in "احمد علاء الدين" or "احمد علاء عمر")
-      const allUserTokensMatch = cleanUserTokens.every((tok) => repTokens.includes(tok));
-      if (allUserTokensMatch) return true;
-
-      // If all rep tokens exist in user name tokens (e.g. rep field is "احمد علاء" and user is "احمد علاء محمد")
-      const allRepTokensInUser = repTokens.every((tok) => cleanUserTokens.includes(tok));
-      if (allRepTokensInUser) return true;
-
-      // Check shared non-trivial name tokens (e.g. first and second name match)
+      // A single shared token is not an identity. A rep named "احمد" used to
+      // claim every customer whose rep field contained "احمد", which inflated
+      // each rep's totals to cover the whole branch. Require the shared part to
+      // be the user's FULL name (or at least two significant tokens) before
+      // treating the customer as theirs.
       const sharedTokens = cleanUserTokens.filter((tok) => repTokens.includes(tok));
-      if (sharedTokens.length >= 2) return true;
+
+      // Single-token user names are far too common in this dataset to be treated
+      // as a match on their own; they must match exactly (handled above).
+      if (cleanUserTokens.length === 1) {
+        const exactSingle = cleanUserTokens[0] === repField.trim();
+        if (exactSingle) return true;
+      } else {
+        // If all tokens of user name exist in the rep field (e.g. user "احمد علاء" in "احمد علاء الدين")
+        const allUserTokensMatch = cleanUserTokens.every((tok) => repTokens.includes(tok));
+        if (allUserTokensMatch) return true;
+
+        // If all rep tokens exist in user name tokens (e.g. rep field is "احمد علاء" and user is "احمد علاء محمد")
+        const allRepTokensInUser = repTokens.every((tok) => cleanUserTokens.includes(tok));
+        if (allRepTokensInUser) return true;
+
+        // Check shared non-trivial name tokens (e.g. first and second name match)
+        if (sharedTokens.length >= 2) return true;
+      }
     }
   }
 
