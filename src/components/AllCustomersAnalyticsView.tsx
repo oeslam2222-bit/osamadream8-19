@@ -216,6 +216,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [visitHasReturn, setVisitHasReturn] = useState(false);
   const [visitReturnValue, setVisitReturnValue] = useState('');
   const [visitReturnReason, setVisitReturnReason] = useState('');
+  const [visitReturnItems, setVisitReturnItems] = useState('');
   const [visitReturnDetails, setVisitReturnDetails] = useState('');
 
   // Fast Indexed Customer Orders Lookup
@@ -425,15 +426,17 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     }
   }, [isRep, isBranchManager, isSupervisor, currentUser, availableReps, availableBranches, selectedRep, selectedBranch]);
 
+  // Regions come from the sheet; keep the customer count for each so the slicer
+  // shows real numbers instead of the number of distinct values.
   const availableRegions = useMemo(() => {
-    const s = new Set<string>();
+    const map = new Map<string, number>();
     userVisibleCustomers.forEach((c) => {
       const val = (c.region || c.district || c.route || '').trim();
       if (val && val !== '-' && val !== 'غير محدد') {
-        s.add(val);
+        map.set(val, (map.get(val) || 0) + 1);
       }
     });
-    return Array.from(s).sort((a, b) => a.localeCompare(b, 'ar'));
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], 'ar'));
   }, [userVisibleCustomers]);
 
   // Distinct Sheet Payment Terms with counts
@@ -448,17 +451,42 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
   }, [userVisibleCustomers]);
 
-  // Distinct Sheet Guarantee Docs with counts
+  // The guarantee column in the sheet is an AMOUNT, not free text. Older stored
+  // rows still carry the old text form ("ماضي على ورق ضمان (5,000 ج.م)"), which
+  // produced one slicer entry per customer. Normalise every variant to a small
+  // set of real categories, and keep the amount in guaranteeAmount.
+  const normalizeGuaranteeCategory = (c: Customer): string => {
+    const raw = (c.guaranteeDocs || '').trim();
+    const amt = Number(c.guaranteeAmount || 0);
+    if (!raw || raw === '-' || raw === '0') return amt > 0 ? 'أوراق ضمان' : 'لا يوجد ورق ضمان';
+    if (raw.includes('لا يوجد') || raw.includes('بدون') || raw.includes('غير محدد')) return 'لا يوجد ورق ضمان';
+    if (raw.includes('كمبيال')) return 'أوراق ضمان (كمبيالة)';
+    if (raw.includes('شيك')) return 'أوراق ضمان (شيك)';
+    if (raw.includes('امان') || raw.includes('أمان')) return 'أوراق ضمان (إيصال أمانة)';
+    if (raw.includes('رهن')) return 'أوراق ضمان (رهن)';
+    // Any remaining text is a document name: keep it, but strip the amount so
+    // identical documents with different values collapse into one entry.
+    const stripped = raw.replace(/[\d.,\s]+/g, '').replace(/[()]/g, '').trim();
+    return stripped || 'أوراق ضمان';
+  };
+
+  const hasGuaranteePapers = (c: Customer): boolean =>
+    Number(c.guaranteeAmount || 0) > 0 || c.hasGuarantee === true || normalizeGuaranteeCategory(c) !== 'لا يوجد ورق ضمان';
+
+  // Distinct guarantee categories with live customer counts
   const availableGuaranteeDocs = useMemo(() => {
     const map = new Map<string, number>();
     userVisibleCustomers.forEach((c) => {
-      const g = (c.guaranteeDocs || '').trim();
-      if (g && g !== '-' && g !== 'غير محدد') {
-        map.set(g, (map.get(g) || 0) + 1);
-      }
+      const g = normalizeGuaranteeCategory(c);
+      map.set(g, (map.get(g) || 0) + 1);
     });
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
   }, [userVisibleCustomers]);
+
+  const guaranteedCustomerCount = useMemo(
+    () => userVisibleCustomers.filter(hasGuaranteePapers).length,
+    [userVisibleCustomers]
+  );
 
   // Distinct Sheet Activity Types with counts (طبيعة النشاط)
   const availableActivityTypes = useMemo(() => {
@@ -783,17 +811,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     // Guarantee Documents filter (اوراق الضمان من الشيت)
     if (guaranteeFilter !== 'ALL') {
       list = list.filter((c) => {
-        const g = (c.guaranteeDocs || '').toLowerCase();
-        const amt = Number(c.guaranteeAmount || 0);
-        const hasAmt = amt > 0;
-        const isSigned = hasAmt || c.hasGuarantee === true || (g && !g.includes('بدون') && !g.includes('لا يوجد') && g !== '0') || (c.creditLimit && c.creditLimit > 0);
+        const cat = normalizeGuaranteeCategory(c);
+        // A real amount or a named document means the customer has papers.
+        const isSigned = hasGuaranteePapers(c);
 
         if (guaranteeFilter === 'has_guarantee') return isSigned;
-        if (guaranteeFilter === 'cheque') return g.includes('شيك') || (!g && (c.creditLimit || 0) > 0);
-        if (guaranteeFilter === 'promissory') return g.includes('كمبيال');
-        if (guaranteeFilter === 'trust_receipt') return g.includes('أمانة') || g.includes('امانة');
         if (guaranteeFilter === 'unsecured') return !isSigned;
-        return (c.guaranteeDocs || '').trim() === guaranteeFilter || g.includes(guaranteeFilter.toLowerCase());
+        return cat === guaranteeFilter;
       });
     }
 
@@ -980,6 +1004,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     let ineligibleCount = 0;
     let eligibleCount = 0;
     let dealtCount = 0;
+    let activeFilteredCount = 0;
+    let nonDealtFilteredCount = 0;
 
     // Monthly totals for 2026
     const monthlySalesTotals: Record<number, number> = {};
@@ -1012,7 +1038,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       totalOverdue += overdue;
       totalCreditLimit += cLimit;
       if (cLimit > 0 && bal > cLimit) overLimitCount++;
-      if ((g && !g.includes('بدون')) || cLimit > 0) guaranteedCount++;
+      if (hasGuaranteePapers(c)) guaranteedCount++;
 
       totalVisits2026 += c.visitCount2026 || (c.lastVisitDate ? 1 : 0);
 
@@ -1028,14 +1054,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         churnRiskCount++;
       }
 
-      // Active / Eligible / Ineligible Calculation
-      if (m?.isExplicitIneligible) {
-        ineligibleCount++;
+      // متعامل = المبيعات > 0 في الفترة المختارة فقط. غير متعامل = الباقي.
+      if (pSales > 0) {
+        activeFilteredCount++;
       } else {
-        eligibleCount++;
-        if (m?.isDealtCustomer) {
-          dealtCount++;
-        }
+        nonDealtFilteredCount++;
       }
 
       if (c.monthlySales2026) {
@@ -1054,7 +1077,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     const collectionRate = totalSales2026 > 0 ? Math.round((totalCollections2026 / totalSales2026) * 100) : 0;
     const periodCollectionRate = totalPeriodSales > 0 ? Math.round((totalPeriodCollections / totalPeriodSales) * 100) : 0;
     const activeRate = filteredCustomers.length > 0 ? Math.round((active2026Count / filteredCustomers.length) * 100) : 0;
-    const coverageRate = eligibleCount > 0 ? Math.round((dealtCount / eligibleCount) * 100) : 0;
+    const coverageRate = filteredCustomers.length > 0 ? Math.round((activeFilteredCount / filteredCustomers.length) * 100) : 0;
 
     // Monthly Chart Data (Jan - Dec 2026)
     const monthlyChartData = MONTH_NAMES_AR.map((monthName, idx) => {
@@ -1092,6 +1115,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       ineligibleCount,
       eligibleCount,
       dealtCount,
+      activeFilteredCount,
+      nonDealtFilteredCount,
       coverageRate,
     };
   }, [filteredCustomers, customerMetricsMap]);
@@ -1809,6 +1834,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       isReturn: visitHasReturn,
       returnValue: visitHasReturn ? (parseFloat(visitReturnValue) || 0) : undefined,
       returnReason: visitHasReturn ? visitReturnReason.trim() : undefined,
+      returnItems: visitHasReturn ? visitReturnItems.trim() : undefined,
       returnStatus: visitHasReturn ? 'بانتظار المشرف' : undefined,
     });
 
@@ -1826,6 +1852,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     setVisitHasReturn(false);
     setVisitReturnValue('');
     setVisitReturnReason('');
+    setVisitReturnItems('');
     setVisitReturnDetails('');
   };
 
@@ -1839,14 +1866,33 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     return (getVisibleVisits ? getVisibleVisits() : []).filter((v) => v.isReturn);
   }, [isSupervisor, isBranchManager, isAdminOrDev, customers]);
 
-  const pendingReturns = returnAlerts.filter((v) => v.returnStatus !== 'تم تحويله لأمين المخزن');
-  const handledReturns = returnAlerts.filter((v) => v.returnStatus === 'تم تحويله لأمين المخزن');
+  const pendingReturns = returnAlerts.filter((v) => v.returnStatus === 'بانتظار المشرف' || !v.returnStatus);
+  const sentReturns = returnAlerts.filter((v) => v.returnStatus === 'تم الإرسال لأمين المخزن');
+  const handledReturns = returnAlerts.filter((v) => v.returnStatus === 'تم الاستلام من أمين المخزن');
   const pendingReturnValue = pendingReturns.reduce((a, v) => a + (Number(v.returnValue) || 0), 0);
+  const sentReturnValue = sentReturns.reduce((a, v) => a + (Number(v.returnValue) || 0), 0);
 
-  const handleReturnHandover = (visit: CustomerVisit) => {
+  // Turn the free-text "الصنف × الكمية" lines into structured rows for the
+  // supervisor card and the warehouse keeper's hand-off sheet.
+  const parseReturnItems = (raw?: string): { name: string; qty: string }[] => {
+    if (!raw) return [];
+    return raw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const parts = line.split(/\s*[x×]\s*|\s{2,}|\s*\|\s*/);
+        const name = (parts[0] || '').trim();
+        const qty = (parts[1] || '').trim();
+        return { name, qty };
+      })
+      .filter((r) => r.name);
+  };
+
+  const handleReturnHandover = (visit: CustomerVisit, nextStatus: 'تم الإرسال لأمين المخزن' | 'تم الاستلام من أمين المخزن') => {
     updateVisit({
       ...visit,
-      returnStatus: 'تم تحويله لأمين المخزن',
+      returnStatus: nextStatus,
       returnHandledBy: currentUser?.name || 'المشرف',
       returnHandledAt: new Date().toISOString(),
       returnNote: (returnNoteDraft[visit.id] || '').trim() || undefined,
@@ -2138,15 +2184,15 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </span>
           </div>
           <div className="text-2xl sm:text-3xl font-black text-emerald-400 mt-2 tracking-tight">
-            {kpiStats.dealtCount.toLocaleString()}{' '}
-            <span className="text-sm font-semibold text-slate-300">من {kpiStats.eligibleCount.toLocaleString()} قابل</span>
+            {kpiStats.activeFilteredCount.toLocaleString()}{' '}
+            <span className="text-sm font-semibold text-slate-300">من {kpiStats.totalCount.toLocaleString()} عميل</span>
           </div>
           <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between">
             <span className="text-emerald-300 font-black">
               نسبة التغطية: {kpiStats.coverageRate}%
             </span>
             <span className="text-slate-500 text-[10px]">
-              (استبعاد {kpiStats.ineligibleCount} غير قابل)
+              (غير متعامل {kpiStats.nonDealtFilteredCount.toLocaleString()})
             </span>
           </div>
         </div>
@@ -2192,13 +2238,19 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               <div>
                 <div className="text-sm font-black">تنبيهات المرتجع</div>
                 <div className="text-[11px] opacity-90 font-semibold">
-                  مرتجعات مسجلة من المناديب وتحتاج التحويل لأمين المخزن
+                  مرتجعات المناديب — يتم إبلاغ أمين المخزن فور الإرسال
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2.5 py-1 rounded-lg bg-white/25 text-[11px] font-black">
+                بانتظار الإرسال: {pendingReturns.length}
+              </span>
               <span className="px-2.5 py-1 rounded-lg bg-white/20 text-[11px] font-black">
-                بانتظار التحويل: {pendingReturns.length}
+                تم الإرسال: {sentReturns.length}
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-white/20 text-[11px] font-black">
+                تم الاستلام: {handledReturns.length}
               </span>
               <span className="px-2.5 py-1 rounded-lg bg-white/20 text-[11px] font-black">
                 القيمة: {formatMoney(pendingReturnValue)}
@@ -2231,6 +2283,25 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         </span>
                       )}
                     </div>
+
+                    {parseReturnItems(v.returnItems).length > 0 && (
+                      <div className="mt-2 rounded-xl border border-slate-200 bg-white overflow-hidden">
+                        <div className="px-2.5 py-1 bg-slate-50 border-b border-slate-100 text-[10.5px] font-black text-slate-500">
+                          أصناف المرتجع
+                        </div>
+                        {parseReturnItems(v.returnItems).map((item, i) => (
+                          <div key={i} className="px-2.5 py-1 flex items-center justify-between text-[11px] border-b border-slate-50 last:border-0">
+                            <span className="font-bold text-slate-800">{item.name}</span>
+                            {item.qty && (
+                              <span className="px-1.5 py-0.5 rounded-md bg-slate-900 text-white text-[10px] font-black font-mono">
+                                × {item.qty}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     {v.notes && (
                       <div className="text-[11px] text-slate-600 mt-1.5 bg-slate-50 rounded-lg px-2 py-1 border border-slate-100">
                         {v.notes}
@@ -2241,17 +2312,17 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   <div className="flex items-center gap-2 shrink-0">
                     <input
                       type="text"
-                      placeholder="ملاحظة التحويل (اختياري)"
+                      placeholder="ملاحظة الإرسال (اختياري)"
                       value={returnNoteDraft[v.id] || ''}
                       onChange={(e) => setReturnNoteDraft((p) => ({ ...p, [v.id]: e.target.value }))}
                       className="w-44 px-2.5 py-1.5 bg-white border border-rose-200 rounded-xl text-[11px] font-bold"
                     />
                     <button
                       type="button"
-                      onClick={() => handleReturnHandover(v)}
+                      onClick={() => handleReturnHandover(v, 'تم الإرسال لأمين المخزن')}
                       className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black shadow transition cursor-pointer whitespace-nowrap"
                     >
-                      تم التحويل لأمين المخزن
+                      تم الإرسال لأمين المخزن
                     </button>
                   </div>
                 </div>
@@ -2260,14 +2331,51 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
             {pendingReturns.length === 0 && (
               <div className="p-4 text-center text-xs font-black text-emerald-700 bg-emerald-50/60">
-                لا يوجد مرتجعات بانتظار التحويل — كل المرتجعات تم تحويلها لأمين المخزن ✅
+                لا يوجد مرتجعات بانتظار الإرسال — كل المرتجعات تم إرسالها لأمين المخزن ✅
               </div>
+            )}
+
+            {sentReturns.length > 0 && (
+              <details className="bg-sky-50/60" open>
+                <summary className="px-4 py-2.5 text-[11px] font-black text-sky-700 cursor-pointer select-none">
+                  تم إرسالها لأمين المخزن ({sentReturns.length}) — {formatMoney(sentReturnValue)}
+                </summary>
+                <div className="divide-y divide-sky-100">
+                  {sentReturns.map((v) => (
+                    <div key={v.id} className="px-4 py-2.5 text-[11px] text-slate-600 flex items-center justify-between gap-3 flex-wrap">
+                      <span>
+                        <span className="font-black text-slate-800">{v.customerName}</span>
+                        {' — '}{formatMoney(Number(v.returnValue) || 0)}
+                        {v.returnReason ? ` — ${v.returnReason}` : ''}
+                        {parseReturnItems(v.returnItems).length > 0 && (
+                          <span className="block text-[10.5px] text-slate-500 mt-0.5 font-mono">
+                            {parseReturnItems(v.returnItems).map((i) => `${i.name}${i.qty ? ` ×${i.qty}` : ''}`).join(' | ')}
+                          </span>
+                        )}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <span className="font-bold text-sky-700">
+                          بواسطة {v.returnHandledBy || 'المشرف'}
+                          {v.returnHandledAt ? ` • ${new Date(v.returnHandledAt).toLocaleString('ar-EG')}` : ''}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleReturnHandover(v, 'تم الاستلام من أمين المخزن')}
+                          className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-[10.5px] font-black cursor-pointer"
+                        >
+                          تم الاستلام من المخزن
+                        </button>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </details>
             )}
 
             {handledReturns.length > 0 && (
               <details className="bg-emerald-50/50">
                 <summary className="px-4 py-2.5 text-[11px] font-black text-emerald-700 cursor-pointer select-none">
-                  تم تحويلها ({handledReturns.length})
+                  تم استلامها من أمين المخزن ({handledReturns.length})
                 </summary>
                 <div className="divide-y divide-emerald-100">
                   {handledReturns.map((v) => (
@@ -2346,6 +2454,33 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
       )}
 
+      {/* ===== ملخص نتائج الفلاتر — يتحدث لحظياً ===== */}
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] font-black text-slate-400">نتيجة الفلاتر:</span>
+            <span className="px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-black">
+              {filteredCustomers.length.toLocaleString()} عميل
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-black">
+              ✅ متعامل: {kpiStats.activeFilteredCount.toLocaleString()}
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-sky-100 text-sky-800 border border-sky-200 text-[11px] font-black">
+              ⏳ غير متعامل: {kpiStats.nonDealtFilteredCount.toLocaleString()}
+            </span>
+          </div>
+          {activeFiltersCount > 0 && (
+            <button
+              type="button"
+              onClick={handleResetAllSlicers}
+              className="px-3 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-[11px] font-black shadow transition cursor-pointer"
+            >
+              مسح كل الفلاتر ({activeFiltersCount})
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Power BI Executive KPI Cards (Top Accent Colored Stripes & High Contrast) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5">
         {/* Total Customers */}
@@ -2358,7 +2493,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             {kpiStats.totalCount.toLocaleString()}
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5 font-semibold">
-            {kpiStats.dealtCount.toLocaleString()} متعامل ({kpiStats.coverageRate}%)
+            {kpiStats.activeFilteredCount.toLocaleString()} متعامل ({kpiStats.coverageRate}%)
           </div>
         </div>
 
@@ -4234,9 +4369,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   onChange={(e) => setSelectedRegion(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-teal-500 transition shadow-2xs cursor-pointer"
                 >
-                  <option value="ALL">جميع المناطق والخطوط ({availableRegions.length})</option>
-                  {availableRegions.map((reg) => (
-                    <option key={reg} value={reg}>{reg}</option>
+                  <option value="ALL">جميع المناطق والخطوط ({userVisibleCustomers.length})</option>
+                  {availableRegions.map(([reg, count]) => (
+                    <option key={reg} value={reg}>{reg} ({count} عميل)</option>
                   ))}
                 </select>
               </div>
@@ -4347,21 +4482,30 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <button type="button" onClick={() => setGuaranteeFilter('ALL')} className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer">إلغاء</button>
                   )}
                 </label>
-                <select
-                  id="analytics-guarantee-select"
-                  value={guaranteeFilter}
-                  onChange={(e) => setGuaranteeFilter(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500 transition shadow-2xs cursor-pointer"
-                >
-                  <option value="ALL">جميع الضمانات ({availableGuaranteeDocs.length})</option>
-                  <option value="has_guarantee">✓ بأوراق ضمان معتمدة ({kpiStats.guaranteedCount})</option>
-                  <option value="unsecured">✗ بدون ضمان ({userVisibleCustomers.length - kpiStats.guaranteedCount})</option>
-                  {availableGuaranteeDocs.map(([g, count]) => (
-                    <option key={g} value={g}>
-                      {g} ({count} عميل)
-                    </option>
-                  ))}
-                </select>
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { v: 'ALL', label: 'الكل', n: userVisibleCustomers.length, cls: 'bg-slate-800 text-white border-slate-700' },
+                    { v: 'has_guarantee', label: '✓ بأوراق ضمان', n: guaranteedCustomerCount, cls: 'bg-emerald-600 text-white border-emerald-500' },
+                    { v: 'unsecured', label: '✗ بدون ضمان', n: userVisibleCustomers.length - guaranteedCustomerCount, cls: 'bg-rose-600 text-white border-rose-500' },
+                    ...availableGuaranteeDocs
+                      .filter(([g]) => g !== 'لا يوجد ورق ضمان')
+                      .map(([g, count]) => ({ v: g, label: g, n: count, cls: 'bg-amber-500 text-slate-950 border-amber-400' })),
+                  ].map(({ v, label, n, cls }) => {
+                    const active = guaranteeFilter === v;
+                    return (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setGuaranteeFilter(active && v !== 'ALL' ? 'ALL' : v)}
+                        className={`px-2 py-1 rounded-lg text-[10.5px] font-black border transition cursor-pointer ${
+                          active ? cls : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                        }`}
+                      >
+                        {label} <span className="opacity-80 font-mono">({n.toLocaleString()})</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* 3. طريقة الدفع (كاش، آجل، دفعات، شيكات...) */}
@@ -4450,7 +4594,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     }`}
                   >
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>متعامل ✅ ({kpiStats.dealtCount})</span>
+                    <span>متعامل ✅ ({kpiStats.activeFilteredCount})</span>
                   </button>
                   <button
                     type="button"
@@ -4462,19 +4606,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     }`}
                   >
                     <Clock className="w-3.5 h-3.5 text-sky-500" />
-                    <span>قابل للتعامل ⏳ ({kpiStats.eligibleCount})</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDealEligibilityFilter('ineligible')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
-                      dealEligibilityFilter === 'ineligible'
-                        ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-400'
-                        : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
-                    }`}
-                  >
-                    <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
-                    <span>غير قابل ⛔ ({kpiStats.ineligibleCount})</span>
+                    <span>غير متعامل ⏳ ({kpiStats.nonDealtFilteredCount})</span>
                   </button>
                 </div>
               </div>
@@ -4929,7 +5061,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 {formatMoney(selectedSlicerCustomer.creditLimit || 0)}
               </span>
               <span className="text-[10px] text-slate-300 mt-0.5 block truncate">
-                الضمان: {selectedSlicerCustomer.guaranteeDocs || 'بدون ضمان'}
+                الضمان: {normalizeGuaranteeCategory(selectedSlicerCustomer)}
+                {Number(selectedSlicerCustomer.guaranteeAmount || 0) > 0
+                  ? ` — ${formatMoney(Number(selectedSlicerCustomer.guaranteeAmount))}`
+                  : ''}
               </span>
             </div>
 
@@ -5104,19 +5239,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   <span className="text-emerald-400 font-bold flex items-center gap-1">
                     <span>✅ متعامل:</span>
                   </span>
-                  <span className="text-base font-black text-white">{kpiStats.dealtCount.toLocaleString()}</span>
+                  <span className="text-base font-black text-white">{kpiStats.activeFilteredCount.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sky-300 font-semibold flex items-center gap-1">
-                    <span>⏳ قابل للتعامل:</span>
+                    <span>⏳ غير متعامل:</span>
                   </span>
-                  <span className="text-base font-black text-white">{kpiStats.eligibleCount.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-rose-400 font-semibold flex items-center gap-1">
-                    <span>⛔ غير قابل / موقوف:</span>
-                  </span>
-                  <span className="text-xs font-bold text-rose-300">{kpiStats.ineligibleCount.toLocaleString()}</span>
+                  <span className="text-base font-black text-white">{kpiStats.nonDealtFilteredCount.toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -5941,10 +6070,24 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       </div>
 
                       <div>
+                        <label className="text-[11px] font-bold text-rose-600 block mb-1">أصناف المرتجع: *</label>
+                        <textarea
+                          rows={3}
+                          placeholder={'اسم الصنف × الكمية\nمثال:\nDRM-101 أطقم كاسات × 3\nDRM-220 برطمانات × 5'}
+                          value={visitReturnItems}
+                          onChange={(e) => setVisitReturnItems(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-white border border-rose-200 rounded-xl text-xs font-bold resize-none font-mono"
+                        />
+                        <div className="text-[10px] text-rose-500 mt-1 font-bold">
+                          اكتب كل صنف في سطر مع كميته — يظهر للمشرف وأمين المخزن مباشرة
+                        </div>
+                      </div>
+
+                      <div>
                         <label className="text-[11px] font-bold text-rose-600 block mb-1">سبب المرتجع: *</label>
                         <input
                           type="text"
-                          placeholder="مثال: تالف،CHANGE،Near Expiry، خطأ في الكمية"
+                          placeholder="مثال: تالف،Near Expiry، خطأ في الكمية"
                           value={visitReturnReason}
                           onChange={(e) => setVisitReturnReason(e.target.value)}
                           className="w-full px-2.5 py-1.5 bg-white border border-rose-200 rounded-xl text-xs font-bold"

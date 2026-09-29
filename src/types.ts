@@ -196,10 +196,11 @@ export interface CustomerVisit {
   isReturn?: boolean;                 // هل الزيارة تضمنت مرتجع؟
   returnValue?: number;               // قيمة المرتجع بالجنيه
   returnReason?: string;              // سبب المرتجع
-  returnStatus?: 'بانتظار المشرف' | 'تم تحويله لأمين المخزن';
-  returnHandledBy?: string;           // اسم المشرف الذي أكّد التحويل
-  returnHandledAt?: string;           // وقت تأكيد التحويل لأمين المخزن
-  returnNote?: string;                // ملاحظة المشرف عند التحويل
+  returnItems?: string;               // تفاصيل الأصناف المرتجعة
+  returnStatus?: 'بانتظار المشرف' | 'تم الإرسال لأمين المخزن' | 'تم الاستلام من أمين المخزن';
+  returnHandledBy?: string;           // اسم المشرف الذي أكّد الإرسال
+  returnHandledAt?: string;           // وقت تأكيد الإرسال
+  returnNote?: string;                // ملاحظة المشرف عند الإرسال
 }
 
 export interface Customer {
