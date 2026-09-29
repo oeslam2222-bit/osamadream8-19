@@ -7,13 +7,32 @@
 -- Repeated admin imports/upserts inserted the same account again under a new
 -- id whenever the generated code shifted, which doubled the table.
 -- Identity = normalized account name + branch. Keep the richest row.
+--
+-- ORDER MATTERS: run this AFTER add_customer_financial_columns.sql so the dues
+-- figures (total_overdue_and_due / credit_limit) are present and the survivor
+-- is chosen on real values instead of defaults.
 -- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'customers' AND column_name = 'total_overdue_and_due'
+  ) THEN
+    RAISE NOTICE 'total_overdue_and_due is missing - run add_customer_financial_columns.sql first';
+  END IF;
+END $$;
+
 WITH ranked AS (
   SELECT id,
          row_number() OVER (
            PARTITION BY lower(regexp_replace(trim(name), '[\\s\\u064B-\\u065F]+', '', 'g'))
                         || ':::' || lower(trim(coalesce(branch_name, '')))
-           ORDER BY (credit_limit > 0)::int + (balance > 0)::int + (current_balance > 0)::int DESC,
+           ORDER BY (credit_limit > 0)::int
+                    + (coalesce(balance, 0) > 0)::int
+                    + (coalesce(current_balance, 0) > 0)::int
+                    + (coalesce(total_overdue_and_due, 0) > 0)::int
+                    + (coalesce(total_monthly_sales, 0) > 0)::int
+                    + (coalesce(total_monthly_collections, 0) > 0)::int DESC,
                     updated_at DESC NULLS LAST,
                     id DESC
          ) AS row_no

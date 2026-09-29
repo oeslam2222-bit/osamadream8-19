@@ -57,7 +57,8 @@ import {
   fetchTargetsFromGoogleSheetUrl,
 } from '../services/targetService';
 import { deduplicateAndMergeCustomers } from '../services/customerDeduplicationService';
-import { saveSingleSourceUrl, getPublishedDataSources } from '../services/dataSourceService';
+import { fetchCustomersFromGoogleSheetUrl } from '../services/excelService';
+import { saveSingleSourceUrl, getPublishedDataSources, getSavedSourceUrl } from '../services/dataSourceService';
 import {
   fetchRemoteDataVersion,
   getLocalDataVersion,
@@ -2250,6 +2251,101 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     idbDelete(STORAGE_KEYS.CUSTOMERS).catch(() => {});
     localStorage.removeItem(STORAGE_KEYS.CUSTOMERS);
   };
+
+  /**
+   * Push the current authoritative customer list to the server and broadcast a
+   * new version stamp, so every rep / supervisor / branch manager refreshes on
+   * their next heartbeat without anyone pressing a button.
+   */
+  const broadcastCustomersToEveryone = (reason: string) => {
+    const clean = deduplicateCustomersArray(customers);
+    if (clean.length === 0) return;
+    replaceCustomersInSupabase(clean)
+      .then((res) => {
+        const dupNote = res.removed > 0 ? ` وحذف ${res.removed} سجل مكرر` : '';
+        setLastVersionSyncNotice(
+          `تم تحديث قاعدة العملاء (${clean.length} عميل)${dupNote} — ${reason}`
+        );
+        setTimeout(() => setLastVersionSyncNotice(null), 8000);
+        saveLocalCustomersFingerprint(clean);
+        publishNewDataVersion({
+          scope: 'customers',
+          updatedBy: currentUser?.name || 'مدير النظام',
+          notes: `${reason} - ${clean.length} عميل`,
+          customersCount: clean.length,
+          forcePurge: true,
+        }).catch(() => {});
+      })
+      .catch((e) => console.warn('Customer broadcast failed:', e));
+  };
+
+  /**
+   * Fully automatic source-of-truth sync.
+   *
+   * The customer Google Sheet URL is already stored in the app, so the sheet is
+   * re-read on a timer and pushed to the server whenever it actually changed.
+   * Nobody has to press a sync button: the admin edits the sheet, and every
+   * account in the system converges on the new numbers on its own.
+   */
+  useEffect(() => {
+    if (!isLocalDataHydrated || !currentUser) return;
+    if (currentUser.role !== 'admin' && currentUser.role !== 'developer' && currentUser.role !== 'branch_manager') return;
+
+    const url = (getSavedSourceUrl('customers') || '').trim();
+    if (!url) return;
+
+    let inFlight = false;
+    let lastRun = 0;
+    const SHEET_SYNC_INTERVAL_MS = 5 * 60 * 1000;
+
+    const runSheetSync = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const res = await fetchCustomersFromGoogleSheetUrl(url);
+        if (!res || !res.customers || res.customers.length === 0) return;
+
+        const incoming = deduplicateCustomersArray(
+          linkCustomersToUsers(sanitizeCustomers(res.customers), usersRef.current)
+        );
+        if (incoming.length === 0) return;
+
+        // Only act when the sheet actually moved, so this never thrashes the server.
+        if (buildCustomersFingerprint(incoming) === getLocalCustomersFingerprint()) return;
+
+        idbSet(STORAGE_KEYS.CUSTOMERS, incoming).catch(() => {});
+        setCustomers(incoming);
+        broadcastCustomersToEveryone('تم التحديث تلقائياً من شيت العملاء');
+      } catch {
+        // Offline or sheet unavailable: retry on the next tick.
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const tick = () => {
+      if (document.visibilityState === 'hidden') return;
+      const now = Date.now();
+      if (now - lastRun < SHEET_SYNC_INTERVAL_MS) return;
+      lastRun = now;
+      runSheetSync();
+    };
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+
+    // First run shortly after load, then on a timer.
+    const initial = window.setTimeout(tick, 5000);
+    const interval = window.setInterval(tick, 60 * 1000);
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [isLocalDataHydrated, currentUser]);
 
   const refreshCustomerRepLinks = (): {
     updatedCount: number;
