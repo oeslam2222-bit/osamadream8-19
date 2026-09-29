@@ -608,9 +608,24 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           monthlyColsSum += Number(c.monthlyCollections2026[m]) || 0;
         }
       }
-      const explicitCollections = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, c.totalOverallCollections || 0);
-      const collections2026 = explicitCollections > 0 ? explicitCollections : monthlyColsSum;
-      const collectionRate = sales2026 > 0 ? Math.round((collections2026 / sales2026) * 100) : 0;
+      // Collections keep the sheet's sign (collection negative, return positive),
+      // so compare candidates by magnitude instead of with Math.max — max() on
+      // signed values would always pick the least-negative (wrong) figure.
+      const byMagnitude = (...vals: (number | undefined)[]): number => {
+        const defined = vals.filter((v): v is number => typeof v === 'number' && !isNaN(v));
+        if (defined.length === 0) return 0;
+        return defined.reduce((best, v) => (Math.abs(v) > Math.abs(best) ? v : best));
+      };
+      const explicitCollections = byMagnitude(
+        c.collections2026,
+        c.totalMonthlyCollections,
+        c.totalOverallCollections
+      );
+      const collections2026 = explicitCollections !== 0 ? explicitCollections : monthlyColsSum;
+      // Rate uses the magnitude of the net so a net return reads as 0%, not -x%.
+      const collectionRate = sales2026 > 0
+        ? Math.round((Math.abs(collections2026) / sales2026) * 100)
+        : 0;
 
       // Period-specific sales and collections (based on selectedMonth or quarter)
       let periodSales = sales2026;
@@ -655,7 +670,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               (c.monthlySales2026 && Object.values(c.monthlySales2026).some((v) => Number(v) > 0)) ||
               (c.monthlyCollections2026 && Object.values(c.monthlyCollections2026).some((v) => Number(v) > 0))
             )
-          : periodSales > 0 || periodCollections > 0;
+          : periodSales > 0 || periodCollections !== 0;
 
       map.set(c.id, {
         id: c.id,
@@ -1096,8 +1111,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     });
 
     const salesGrowth = totalSales2025 > 0 ? Math.round(((totalSales2026 - totalSales2025) / totalSales2025) * 100) : (totalSales2026 > 0 ? 100 : 0);
-    const collectionRate = totalSales2026 > 0 ? Math.round((totalCollections2026 / totalSales2026) * 100) : 0;
-    const periodCollectionRate = totalPeriodSales > 0 ? Math.round((totalPeriodCollections / totalPeriodSales) * 100) : 0;
+    // Rates compare magnitudes: collections are negative by the sheet's
+    // convention, so dividing the raw signed sums would report a negative rate.
+    const collectionRate = totalSales2026 > 0 ? Math.round((Math.abs(totalCollections2026) / totalSales2026) * 100) : 0;
+    const periodCollectionRate = totalPeriodSales > 0 ? Math.round((Math.abs(totalPeriodCollections) / totalPeriodSales) * 100) : 0;
     const activeRate = filteredCustomers.length > 0 ? Math.round((active2026Count / filteredCustomers.length) * 100) : 0;
     const coverageRate = filteredCustomers.length > 0 ? Math.round((activeFilteredCount / filteredCustomers.length) * 100) : 0;
 
@@ -1476,7 +1493,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
 
       const hasOrder = customerOrdersLookup.getOrdersForCustomer(c).length > 0;
-      const isTrans = sales > 0 || cols > 0 || hasOrder || Boolean(c.hasDealtIn2026);
+      const isTrans = sales > 0 || cols !== 0 || hasOrder || Boolean(c.hasDealtIn2026);
       const isNonTrans = !isTrans && (debt > 0 || overdue > 0 || (m && m.isExplicitIneligible) || (c as any).dealtStatus === 'غير متعامل');
       const isProspect = !isTrans && !isNonTrans;
 
@@ -2239,7 +2256,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             {formatMoney(selectedMonth === 'ALL' ? kpiStats.totalSales2026 : kpiStats.totalPeriodSales)}
           </div>
           <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between flex-wrap gap-1">
-            <span>المحصل: <strong className="text-emerald-400 font-mono">{formatMoney(selectedMonth === 'ALL' ? kpiStats.totalCollections2026 : kpiStats.totalPeriodCollections)}</strong></span>
+            <span>المحصل: <strong className="text-emerald-400 font-mono">{formatMoney(Math.abs(selectedMonth === 'ALL' ? kpiStats.totalCollections2026 : kpiStats.totalPeriodCollections))}</strong></span>
             {selectedMonth === 'ALL' ? (
               <span className="text-sky-400 font-bold">{kpiStats.salesGrowth >= 0 ? `+${kpiStats.salesGrowth}% نمو` : `${kpiStats.salesGrowth}%`}</span>
             ) : (
@@ -2555,7 +2572,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             <DollarSign className="w-3.5 h-3.5 text-[#107c41]" />
           </div>
           <div className="text-base sm:text-lg font-black text-slate-900 mt-1 truncate" title={isPrivacyMode ? 'مخفي' : undefined}>
-            {formatMoney(selectedMonth === 'ALL' ? kpiStats.totalCollections2026 : kpiStats.totalPeriodCollections)}
+            {formatMoney(Math.abs(selectedMonth === 'ALL' ? kpiStats.totalCollections2026 : kpiStats.totalPeriodCollections))}
           </div>
           <div className="text-[10px] text-[#107c41] font-extrabold mt-0.5">
             {selectedMonth === 'ALL' ? kpiStats.collectionRate : kpiStats.periodCollectionRate}% نسبة التحصيل

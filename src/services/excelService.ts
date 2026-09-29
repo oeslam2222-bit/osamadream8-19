@@ -2344,34 +2344,23 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       const sheetDealtFlag = normalizeDealtFlag(rawDealt2026);
     const rawDebtStatus = getVal(row, colMap.debtStatus);
     const parsedTotalMonthlySalesCol = parseNumberValue(colMap.totalMonthlySales);
-    const parsedTotalMonthlyCollectionsColRaw = parseNumberValue(colMap.totalMonthlyCollections);
-    // User requirement: التحصيلات كلها بالسالب اضرب في سالب واحد وخليها بالموجب
-    const parsedTotalMonthlyCollectionsCol = parsedTotalMonthlyCollectionsColRaw === undefined
-      ? undefined
-      : (parsedTotalMonthlyCollectionsColRaw < 0 ? parsedTotalMonthlyCollectionsColRaw * -1 : parsedTotalMonthlyCollectionsColRaw);
+    // Collections keep the sheet's sign on purpose. A collection is negative and
+    // a return (مردودة) is positive, so only the NET is meaningful. Taking the
+    // absolute value of each cell independently would add a return on top of the
+    // collection instead of netting it out, and the 12 monthly values would stop
+    // adding up to the annual figure.
+    const parsedTotalMonthlyCollectionsCol = parseNumberValue(colMap.totalMonthlyCollections);
     const parsedSales2026Col = parseNumberValue(colMap.sales2026);
-    const parsedCollections2026ColRaw = parseNumberValue(colMap.collections2026);
-    const parsedCollections2026Col = parsedCollections2026ColRaw === undefined
-      ? undefined
-      : (parsedCollections2026ColRaw < 0 ? parsedCollections2026ColRaw * -1 : parsedCollections2026ColRaw);
+    const parsedCollections2026Col = parseNumberValue(colMap.collections2026);
     const parsedSales2025 = parseNumberValue(colMap.sales2025);
-    const parsedCollections2025Raw = parseNumberValue(colMap.collections2025);
-    const parsedCollections2025 = parsedCollections2025Raw === undefined
-      ? undefined
-      : (parsedCollections2025Raw < 0 ? parsedCollections2025Raw * -1 : parsedCollections2025Raw);
+    const parsedCollections2025 = parseNumberValue(colMap.collections2025);
     const parsedOverdue2025 = parseNumberValue(colMap.overdue2025);
     const parsedOverdue2026 = parseNumberValue(colMap.overdue2026);
     const parsedDueUntilPeriod = parseNumberValue(colMap.dueUntilPeriod);
     const parsedTotalOverallSales = parseNumberValue(colMap.totalOverallSales);
-    const parsedTotalOverallCollectionsRaw = parseNumberValue(colMap.totalOverallCollections);
-    const parsedTotalOverallCollections = parsedTotalOverallCollectionsRaw === undefined
-      ? undefined
-      : (parsedTotalOverallCollectionsRaw < 0 ? parsedTotalOverallCollectionsRaw * -1 : parsedTotalOverallCollectionsRaw);
+    const parsedTotalOverallCollections = parseNumberValue(colMap.totalOverallCollections);
     const parsedSales2024 = parseNumberValue(colMap.sales2024);
-    const parsedCollections2024Raw = parseNumberValue(colMap.collections2024);
-    const parsedCollections2024 = parsedCollections2024Raw === undefined
-      ? undefined
-      : (parsedCollections2024Raw < 0 ? parsedCollections2024Raw * -1 : parsedCollections2024Raw);
+    const parsedCollections2024 = parseNumberValue(colMap.collections2024);
 
     // Dynamic Monthly Sales & Collections parsing (Months 1-12)
     const rowMonthlySales: Record<number, number> = {};
@@ -2392,10 +2381,10 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     const activeCollectionMonthsList: number[] = [];
 
     monthlyCollectionCols.forEach(({ month, colIdx }) => {
-      const rawVal = parseNumberValue(colIdx);
-      if (rawVal !== undefined) {
-        // Multiplied by -1 if negative to guarantee positive collections
-        const val = rawVal < 0 ? rawVal * -1 : rawVal;
+      const val = parseNumberValue(colIdx);
+      if (val !== undefined) {
+        // Keep the sign: the monthly value is the net of that month's
+        // collections and returns, so summing 12 months reproduces the year.
         rowMonthlyCollections[month] = val;
         dynamicMonthlyCollectionsSum += val;
         if (val > 0) activeCollectionMonthsList.push(month);
@@ -2409,13 +2398,20 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
           ? Math.max(parsedTotalMonthlySalesCol, dynamicMonthlySalesSum)
           : (dynamicMonthlySalesSum > 0 ? dynamicMonthlySalesSum : (parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : undefined)));
 
-    const explicitCollectionsTotal = parsedCollections2026Col !== undefined ? parsedCollections2026Col : 0;
-    const explicitTotalMonthlyCollections = parsedTotalMonthlyCollectionsCol !== undefined ? parsedTotalMonthlyCollectionsCol : 0;
-    const finalTotalMonthlyCollections = explicitCollectionsTotal > 0
-      ? explicitCollectionsTotal
-      : (explicitTotalMonthlyCollections > 0
-          ? explicitTotalMonthlyCollections
-          : (dynamicMonthlyCollectionsSum > 0 ? dynamicMonthlyCollectionsSum : (parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : undefined)));
+    // Collections: prefer the explicit 2026 column, then the generic total
+    // column, then the net of the 12 months. Compare by magnitude, because a
+    // valid net is negative.
+    const byMagnitude = (...vals: (number | undefined)[]): number | undefined => {
+      const defined = vals.filter((v): v is number => v !== undefined);
+      if (defined.length === 0) return undefined;
+      return defined.reduce((best, v) => (Math.abs(v) > Math.abs(best) ? v : best));
+    };
+    const finalTotalMonthlyCollections = byMagnitude(
+      parsedCollections2026Col,
+      parsedTotalMonthlyCollectionsCol,
+      dynamicMonthlyCollectionsSum !== 0 ? dynamicMonthlyCollectionsSum : undefined,
+      parsedTotalOverallCollections
+    );
 
     const finalCreditLimit = parsedCredit !== undefined ? parsedCredit : 0;
 
