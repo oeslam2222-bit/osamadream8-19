@@ -74,7 +74,7 @@ import {
 } from 'recharts';
 import { useApp } from '../context/AppContext';
 import * as XLSX from 'xlsx';
-import { Customer, User, Invoice, OrderStatus } from '../types';
+import { Customer, CustomerVisit, User, Invoice, OrderStatus } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import {
   MONTH_NAMES_AR,
@@ -102,6 +102,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     importCustomersList,
     updateCustomer,
     addVisit,
+    updateVisit,
+    getVisibleVisits,
     invoices = [],
     isPrivacyMode,
     togglePrivacyMode,
@@ -210,6 +212,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [visitOutcome, setVisitOutcome] = useState<'تم عمل طلبية' | 'تم التحصيل' | 'تأجيل سداد' | 'المحل مغلق' | 'متابعة فقط'>('تم عمل طلبية');
   const [visitCollected, setVisitCollected] = useState('');
   const [visitNotes, setVisitNotes] = useState('');
+  // ===== المرتجع =====
+  const [visitHasReturn, setVisitHasReturn] = useState(false);
+  const [visitReturnValue, setVisitReturnValue] = useState('');
+  const [visitReturnReason, setVisitReturnReason] = useState('');
+  const [visitReturnDifficulty, setVisitReturnDifficulty] = useState<'سهل' | 'متوسط' | 'صعب' | 'معقد'>('متوسط');
+  const [visitReturnDetails, setVisitReturnDetails] = useState('');
 
   // Fast Indexed Customer Orders Lookup
   const customerOrdersLookup = useMemo(() => {
@@ -1793,9 +1801,17 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       type: visitType,
       outcome: visitOutcome,
       collectedAmount,
-      notes: visitNotes,
+      notes: visitHasReturn && visitReturnDetails
+        ? `${visitNotes}\n[تفاصيل المرتجع: ${visitReturnDetails}]`.trim()
+        : visitNotes,
       branchName: currentUser.branchName || selectedCustomer.branchName || '',
       supervisorId: currentUser.supervisorId,
+      // المرتجع — the supervisor is alerted until it reaches the warehouse.
+      isReturn: visitHasReturn,
+      returnValue: visitHasReturn ? (parseFloat(visitReturnValue) || 0) : undefined,
+      returnReason: visitHasReturn ? visitReturnReason.trim() : undefined,
+      returnDifficulty: visitHasReturn ? visitReturnDifficulty : undefined,
+      returnStatus: visitHasReturn ? 'بانتظار المشرف' : undefined,
     });
 
     if (success) {
@@ -1809,6 +1825,40 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     setIsLoggingVisit(false);
     setVisitNotes('');
     setVisitCollected('');
+    setVisitHasReturn(false);
+    setVisitReturnValue('');
+    setVisitReturnReason('');
+    setVisitReturnDetails('');
+    setVisitReturnDifficulty('متوسط');
+  };
+
+  // ===== تنبيهات المرتجع (Supervisor) =====
+  // Every return logged by a rep shows up here until the supervisor confirms it
+  // was handed to the warehouse keeper.
+  const [returnNoteDraft, setReturnNoteDraft] = useState<Record<string, string>>({});
+
+  const returnAlerts = useMemo<CustomerVisit[]>(() => {
+    if (!isSupervisor && !isBranchManager && !isAdminOrDev) return [];
+    return (getVisibleVisits ? getVisibleVisits() : []).filter((v) => v.isReturn);
+  }, [isSupervisor, isBranchManager, isAdminOrDev, customers]);
+
+  const pendingReturns = returnAlerts.filter((v) => v.returnStatus !== 'تم تحويله لأمين المخزن');
+  const handledReturns = returnAlerts.filter((v) => v.returnStatus === 'تم تحويله لأمين المخزن');
+  const pendingReturnValue = pendingReturns.reduce((a, v) => a + (Number(v.returnValue) || 0), 0);
+
+  const handleReturnHandover = (visit: CustomerVisit) => {
+    updateVisit({
+      ...visit,
+      returnStatus: 'تم تحويله لأمين المخزن',
+      returnHandledBy: currentUser?.name || 'المشرف',
+      returnHandledAt: new Date().toISOString(),
+      returnNote: (returnNoteDraft[visit.id] || '').trim() || undefined,
+    });
+    setReturnNoteDraft((prev) => {
+      const next = { ...prev };
+      delete next[visit.id];
+      return next;
+    });
   };
 
   // Power BI Active Slicers Count & Reset Handler
@@ -2133,6 +2183,124 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           </div>
         </div>
       </div>
+
+      {/* ===== تنبيهات المرتجع — تظهر للمشرف ومدير الفرع ===== */}
+      {(isSupervisor || isBranchManager || isAdminOrDev) && returnAlerts.length > 0 && (
+        <div className="rounded-2xl border-2 border-rose-300 bg-gradient-to-br from-rose-50 to-orange-50 shadow-lg overflow-hidden">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 bg-rose-600 text-white">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+                <RotateCcw className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-sm font-black">تنبيهات المرتجع</div>
+                <div className="text-[11px] opacity-90 font-semibold">
+                  مرتجعات مسجلة من المناديب وتحتاج التحويل لأمين المخزن
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 rounded-lg bg-white/20 text-[11px] font-black">
+                بانتظار التحويل: {pendingReturns.length}
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-white/20 text-[11px] font-black">
+                القيمة: {formatMoney(pendingReturnValue)}
+              </span>
+            </div>
+          </div>
+
+          <div className="divide-y divide-rose-100">
+            {pendingReturns.map((v) => (
+              <div key={v.id} className="p-3.5 bg-white/70 hover:bg-white transition">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="px-2 py-0.5 rounded-md text-[10.5px] font-black bg-rose-100 text-rose-700 border border-rose-200">
+                        عميل مرتجع
+                      </span>
+                      <span className="text-sm font-black text-slate-900">{v.customerName || 'عميل بدون اسم'}</span>
+                      <span className="text-[11px] font-bold text-slate-400">{v.branchName}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-1 font-semibold">
+                      المندوب: {v.repName} • {v.date} • {v.time || ''}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap mt-2">
+                      <span className="px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-black font-mono">
+                        {formatMoney(Number(v.returnValue) || 0)}
+                      </span>
+                      {v.returnReason && (
+                        <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                          السبب: {v.returnReason}
+                        </span>
+                      )}
+                      {v.returnDifficulty && (
+                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-black border ${
+                          v.returnDifficulty === 'سهل' ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                            : v.returnDifficulty === 'متوسط' ? 'bg-sky-100 text-sky-700 border-sky-200'
+                            : 'bg-rose-100 text-rose-700 border-rose-200'
+                        }`}>
+                          صعوبة: {v.returnDifficulty}
+                        </span>
+                      )}
+                    </div>
+                    {v.notes && (
+                      <div className="text-[11px] text-slate-600 mt-1.5 bg-slate-50 rounded-lg px-2 py-1 border border-slate-100">
+                        {v.notes}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <input
+                      type="text"
+                      placeholder="ملاحظة التحويل (اختياري)"
+                      value={returnNoteDraft[v.id] || ''}
+                      onChange={(e) => setReturnNoteDraft((p) => ({ ...p, [v.id]: e.target.value }))}
+                      className="w-44 px-2.5 py-1.5 bg-white border border-rose-200 rounded-xl text-[11px] font-bold"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleReturnHandover(v)}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black shadow transition cursor-pointer whitespace-nowrap"
+                    >
+                      تم التحويل لأمين المخزن
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {pendingReturns.length === 0 && (
+              <div className="p-4 text-center text-xs font-black text-emerald-700 bg-emerald-50/60">
+                لا يوجد مرتجعات بانتظار التحويل — كل المرتجعات تم تحويلها لأمين المخزن ✅
+              </div>
+            )}
+
+            {handledReturns.length > 0 && (
+              <details className="bg-emerald-50/50">
+                <summary className="px-4 py-2.5 text-[11px] font-black text-emerald-700 cursor-pointer select-none">
+                  تم تحويلها ({handledReturns.length})
+                </summary>
+                <div className="divide-y divide-emerald-100">
+                  {handledReturns.map((v) => (
+                    <div key={v.id} className="px-4 py-2.5 text-[11px] text-slate-600 flex items-center justify-between gap-3 flex-wrap">
+                      <span>
+                        <span className="font-black text-slate-800">{v.customerName}</span>
+                        {' — '}{formatMoney(Number(v.returnValue) || 0)}
+                        {v.returnReason ? ` — ${v.returnReason}` : ''}
+                      </span>
+                      <span className="font-bold text-emerald-700">
+                        بواسطة {v.returnHandledBy || 'المشرف'}
+                        {v.returnHandledAt ? ` • ${new Date(v.returnHandledAt).toLocaleString('ar-EG')}` : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Power BI Executive KPI Cards (Top Accent Colored Stripes & High Contrast) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5">
@@ -5693,6 +5861,79 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       />
                     </div>
                   </div>
+
+                  {/* ===== تسجيل مرتجع (Return) ===== */}
+                  <button
+                    type="button"
+                    onClick={() => setVisitHasReturn((v) => !v)}
+                    className={`w-full flex items-center justify-center gap-2.5 rounded-2xl py-3 border-2 transition cursor-pointer ${
+                      visitHasReturn
+                        ? 'bg-rose-600 text-white border-rose-700 shadow-lg shadow-rose-600/30'
+                        : 'bg-white text-rose-600 border-rose-300 border-dashed hover:bg-rose-50'
+                    }`}
+                  >
+                    <RotateCcw className={`w-5 h-5 ${visitHasReturn ? 'animate-pulse' : ''}`} />
+                    <span className="text-sm font-black">
+                      {visitHasReturn ? 'تم تفعيل تسجيل مرتجع — اضغط للإلغاء' : 'هل يوجد مرتجع في هذه الزيارة؟'}
+                    </span>
+                  </button>
+
+                  {visitHasReturn && (
+                    <div className="rounded-2xl border-2 border-rose-200 bg-rose-50/70 p-3.5 space-y-3 animate-in slide-in-from-top-2">
+                      <div className="flex items-center gap-2 text-rose-700 font-black text-xs">
+                        <AlertTriangle className="w-4 h-4" />
+                        تفاصيل المرتجع — سيتم إشعار المشرف فوراً
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="text-[11px] font-bold text-rose-600 block mb-1">قيمة المرتجع (ج.م): *</label>
+                          <input
+                            type="number"
+                            placeholder="0.00"
+                            value={visitReturnValue}
+                            onChange={(e) => setVisitReturnValue(e.target.value)}
+                            className="w-full px-2.5 py-1.5 bg-white border border-rose-200 rounded-xl text-xs font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-bold text-rose-600 block mb-1">صعوبة المرتجع:</label>
+                          <select
+                            value={visitReturnDifficulty}
+                            onChange={(e) => setVisitReturnDifficulty(e.target.value as any)}
+                            className="w-full px-2.5 py-1.5 bg-white border border-rose-200 rounded-xl text-xs font-bold"
+                          >
+                            <option value="سهل">سهل</option>
+                            <option value="متوسط">متوسط</option>
+                            <option value="صعب">صعب</option>
+                            <option value="معقد">معقد</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-rose-600 block mb-1">سبب المرتجع: *</label>
+                        <input
+                          type="text"
+                          placeholder="مثال: تالف،CHANGE،Near Expiry، خطأ في الكمية"
+                          value={visitReturnReason}
+                          onChange={(e) => setVisitReturnReason(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-white border border-rose-200 rounded-xl text-xs font-bold"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-rose-600 block mb-1">تفاصيل إضافية:</label>
+                        <textarea
+                          rows={2}
+                          placeholder="اكتب تفاصيل المرتجع: الأصناف، الكميات، أي ملاحظة للمشرف"
+                          value={visitReturnDetails}
+                          onChange={(e) => setVisitReturnDetails(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-white border border-rose-200 rounded-xl text-xs font-bold resize-none"
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex justify-end pt-1">
                     <button

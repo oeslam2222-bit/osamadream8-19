@@ -1422,6 +1422,14 @@ export async function fetchVisitsFromSupabase(): Promise<{ success: boolean; vis
       nextVisitDate: v.next_visit_date || v.nextVisitDate,
       orderCreatedId: v.order_created_id || v.orderCreatedId,
       orderAmount: v.order_amount || v.orderAmount,
+      isReturn: v.is_return !== undefined ? Boolean(v.is_return) : (v.isReturn !== undefined ? Boolean(v.isReturn) : false),
+      returnValue: v.return_value !== undefined && v.return_value !== null ? Number(v.return_value) : (v.returnValue !== undefined ? Number(v.returnValue) : undefined),
+      returnReason: v.return_reason || v.returnReason || undefined,
+      returnDifficulty: v.return_difficulty || v.returnDifficulty || undefined,
+      returnStatus: v.return_status || v.returnStatus || undefined,
+      returnHandledBy: v.return_handled_by || v.returnHandledBy || undefined,
+      returnHandledAt: v.return_handled_at || v.returnHandledAt || undefined,
+      returnNote: v.return_note || v.returnNote || undefined,
       syncStatus: 'synced',
       createdBy: v.created_by || v.createdBy || '',
       createdAt: v.created_at || v.createdAt || new Date().toISOString(),
@@ -1479,6 +1487,16 @@ export async function saveVisitsToSupabase(visits: CustomerVisit[]): Promise<{ s
         outcome: v.outcome || '',
         collected_amount: v.collectedAmount ?? 0,
         notes: enhancedNotes.trim(),
+        // Returns (مرتجع) — kept as real columns, not folded into notes, so the
+        // supervisor can alert on them and record the handover to the warehouse.
+        is_return: Boolean(v.isReturn),
+        return_value: v.returnValue ?? null,
+        return_reason: v.returnReason || null,
+        return_difficulty: v.returnDifficulty || null,
+        return_status: v.isReturn ? (v.returnStatus || 'بانتظار المشرف') : null,
+        return_handled_by: v.returnHandledBy || null,
+        return_handled_at: v.returnHandledAt || null,
+        return_note: v.returnNote || null,
         created_by: v.createdBy || '',
         created_at: v.createdAt || new Date().toISOString(),
         updated_at: v.updatedAt || new Date().toISOString(),
@@ -1487,6 +1505,30 @@ export async function saveVisitsToSupabase(visits: CustomerVisit[]): Promise<{ s
 
     const { data, error } = await supabase.from('visits').upsert(payload, { onConflict: 'id' }).select();
     if (error) {
+      // The return columns require add_visit_return_columns.sql. Retry without
+      // them so a missing migration never blocks saving a visit.
+      if (/column .*(is_return|return_value|return_reason|return_difficulty|return_status|return_handled_by|return_handled_at|return_note)|schema cache/i.test(error.message)) {
+        const legacyPayload = payload.map((row: any) => {
+          const {
+            is_return, return_value, return_reason, return_difficulty,
+            return_status, return_handled_by, return_handled_at, return_note,
+            ...rest
+          } = row;
+          // Keep the return visible in the notes as a degraded fallback.
+          return {
+            ...rest,
+            notes: row.is_return
+              ? `${rest.notes}\n[مرتجع بقيمة ${row.return_value ?? 0} - ${row.return_reason || ''} - ${row.return_status || 'بانتظار المشرف'}]`.trim()
+              : rest.notes,
+          };
+        });
+        const { error: retryErr } = await supabase.from('visits').upsert(legacyPayload, { onConflict: 'id' }).select();
+        if (retryErr) {
+          console.warn('Supabase upsert visits retry note:', retryErr.message);
+          return { success: false, savedCount: 0, error: retryErr.message };
+        }
+        return { success: true, savedCount: payload.length };
+      }
       console.warn('Supabase upsert visits note:', error.message);
       return { success: false, savedCount: 0, error: error.message };
     }

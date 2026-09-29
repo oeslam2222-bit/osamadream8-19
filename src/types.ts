@@ -189,6 +189,18 @@ export interface CustomerVisit {
   orderCreatedId?: string;           // كود الطلبية المنشأة أثناء الزيارة
   orderAmount?: number;              // قيمة الطلبية إن وجدت
   syncStatus?: 'synced' | 'pending_sync' | 'local_only'; // تأكيد الحفظ في قاعدة البيانات
+
+  // ===== المرتجع (Return) =====
+  // Logged by the sales rep during the visit. Surfaces to the supervisor as an
+  // alert until it is handed over to the warehouse keeper.
+  isReturn?: boolean;                 // هل الزيارة تضمنت مرتجع؟
+  returnValue?: number;               // قيمة المرتجع بالجنيه
+  returnReason?: string;              // سبب المرتجع
+  returnDifficulty?: 'سهل' | 'متوسط' | 'صعب' | 'معقد'; // صعوبة إتمام المرتجع
+  returnStatus?: 'بانتظار المشرف' | 'تم تحويله لأمين المخزن';
+  returnHandledBy?: string;           // اسم المشرف الذي أكّد التحويل
+  returnHandledAt?: string;           // وقت تأكيد التحويل لأمين المخزن
+  returnNote?: string;                // ملاحظة المشرف عند التحويل
 }
 
 export interface Customer {
