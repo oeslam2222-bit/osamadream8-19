@@ -184,7 +184,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   // Aggregate Metrics
   const metrics = useMemo(() => {
     let totalRevenue = 0;
-    let totalCollections = 0;
+    let count = 0;
     let totalCartons = 0;
     let totalPieces = 0;
     let pendingCount = 0;
@@ -195,9 +195,9 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         totalRevenue += inv.estimatedGrandTotal || 0;
         totalCartons += inv.totalCartons || 0;
         totalPieces += inv.totalPieces || 0;
+        count++;
       }
       if (inv.status === 'تم التسليم' || inv.status === 'إغلاق الطلبية') {
-        totalCollections += inv.estimatedGrandTotal || 0;
         deliveredCount++;
       }
       if (
@@ -209,17 +209,13 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       }
     });
 
-    const collectionRate = totalRevenue > 0 ? Math.round((totalCollections / totalRevenue) * 100) : 100;
-
     return {
       totalRevenue,
-      totalCollections,
-      collectionRate,
-      deliveredCount,
+      count,
       totalCartons,
       totalPieces,
       pendingCount,
-      count: accessibleInvoices.length,
+      deliveredCount,
     };
   }, [accessibleInvoices]);
 
@@ -377,23 +373,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </div>
           </div>
 
-          {/* Card 2: Total Collections */}
-          <div className="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 space-y-1">
-            <div className="text-[11px] text-emerald-800 font-bold flex items-center justify-between">
-              <span>{currentUser?.role === 'branch_manager' ? `تحصيلات ${currentUser.branchName || 'الفرع'}` : 'إجمالي التحصيلات'}</span>
-              <span className="bg-emerald-200/80 text-emerald-950 text-[10px] font-black px-1.5 py-0.2 rounded">
-                {metrics.collectionRate}%
-              </span>
-            </div>
-            <div className="text-base sm:text-lg font-black text-emerald-700 font-mono">
-              {formatCurrency(metrics.totalCollections)}
-            </div>
-            <div className="text-[10px] text-emerald-700/80 font-medium">
-              محصل من الفواتير المسلّمة
-            </div>
-          </div>
-
-          {/* Card 3: Delivered Invoices */}
+          {/* Card 2: Delivered Invoices */}
           <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
             <div className="text-[11px] text-slate-500 font-bold">الفواتير المسلّمة للعملاء</div>
             <div className="text-base sm:text-lg font-black text-teal-800">
@@ -404,7 +384,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </div>
           </div>
 
-          {/* Card 4: Total Cartons */}
+          {/* Card 3: Total Cartons */}
           <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
             <div className="text-[11px] text-slate-500 font-bold">إجمالي الكراتين المطلوبة</div>
             <div className="text-base sm:text-lg font-black text-amber-800">
@@ -415,7 +395,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </div>
           </div>
 
-          {/* Card 5: Pending Approvals */}
+          {/* Card 4: Pending Approvals */}
           <div className="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 space-y-1">
             <div className="text-[11px] text-amber-800 font-bold">طلبيات بانتظار الاعتماد</div>
             <div className="text-base sm:text-lg font-black text-amber-900">
