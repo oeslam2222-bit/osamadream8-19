@@ -37,13 +37,14 @@ import {
   Copy,
   RotateCcw,
   Package,
-  PackageCheck
+  PackageCheck,
+  Target
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import { doesCustomerBelongToRep, doesCustomerBelongToBranch, doesCustomerBelongToSupervisor, isArabicNameMatch } from '../services/arabicMatchingService';
-import type { CustomerVisit } from '../types';
+import type { CustomerVisit, Customer } from '../types';
 
 export const VisitsDashboard: React.FC = () => {
   const {
@@ -82,6 +83,9 @@ export const VisitsDashboard: React.FC = () => {
   // Modals & Active Items
   const [showForm, setShowForm] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState<CustomerVisit | null>(null);
+  // Quick customer dossier opened straight from the visits table, so the rep can
+  // read the credit limit, debt and guarantee status before negotiating.
+  const [dossierCustomer, setDossierCustomer] = useState<Customer | null>(null);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isSyncingDB, setIsSyncingDB] = useState(false);
   const [isCapturingGPS, setIsCapturingGPS] = useState(false);
@@ -441,6 +445,204 @@ export const VisitsDashboard: React.FC = () => {
       totalCollected
     };
   }, [filtered]);
+
+  // Daily progress for the signed-in rep. Deliberately scoped to the rep's own
+  // visits for today and NOT to `filtered`, so the bar does not jump around
+  // when the manager switches branch/rep/date filters above it.
+  // "Planned" means a visit record exists for today. A visit is treated as done
+  // when the rep actually executed it (status 'منفذة' or a check-out time),
+  // not merely when it was ticked off.
+  const todayProgress = useMemo(() => {
+    const mine = visible.filter(
+      (v) => v.date === todayStr && (currentUser?.role !== 'sales_rep' || v.repId === currentUser.id || v.repName === currentUser.name)
+    );
+    const completed = mine.filter((v) => v.status === 'منفذة' || Boolean(v.checkOutTime)).length;
+    const scheduledOnly = mine.filter((v) => v.status === 'مجدولة').length;
+    const missed = mine.filter((v) => v.status === 'لم تتم' || v.status === 'ملغاة').length;
+    const collected = mine.reduce((sum, v) => sum + (Number(v.collectedAmount) || 0), 0);
+    const orders = mine.filter((v) => Boolean(v.orderCreatedId) || v.outcome === 'تم عمل طلبية').length;
+    return {
+      total: mine.length,
+      completed,
+      remaining: Math.max(0, scheduledOnly),
+      missed,
+      collected,
+      orders,
+      rate: mine.length > 0 ? Math.round((completed / mine.length) * 100) : 0,
+    };
+  }, [visible, todayStr, currentUser?.role, currentUser?.id, currentUser?.name]);
+
+  // Weekly efficiency per rep, for supervisors and branch managers.
+  // Status uses the real Arabic values ('مجدولة' | 'منفذة' | 'ملغاة' | 'لم تتم').
+  // "Remaining" (not yet executed) and "missed" (did not happen) are kept apart:
+  // a pending visit is not a missed one until the rep closes the day.
+  // Orders and collections are taken from the recorded invoice/amount rather
+  // than the rep's own outcome checkbox, so the report cannot be self-reported.
+  const weeklyByRep = useMemo(() => {
+    const from = weekAgoStr;
+    const to = todayStr;
+    const inRange = visible.filter((v) => v.date >= from && v.date <= to);
+
+    const map = new Map<string, {
+      repId: string;
+      repName: string;
+      branchName: string;
+      scheduled: number;
+      completed: number;
+      pending: number;
+      missed: number;
+      cancelled: number;
+      orders: number;
+      orderValue: number;
+      collectionVisits: number;
+      amountCollected: number;
+    }>();
+
+    inRange.forEach((v) => {
+      const key = v.repId || v.repName || 'غير محدد';
+      let row = map.get(key);
+      if (!row) {
+        row = {
+          repId: v.repId || '',
+          repName: v.repName || 'غير محدد',
+          branchName: v.branchName || 'غير محدد',
+          scheduled: 0,
+          completed: 0,
+          pending: 0,
+          missed: 0,
+          cancelled: 0,
+          orders: 0,
+          orderValue: 0,
+          collectionVisits: 0,
+          amountCollected: 0,
+        };
+        map.set(key, row);
+      }
+
+      row.scheduled++;
+      if (v.status === 'منفذة' || Boolean(v.checkOutTime)) row.completed++;
+      else if (v.status === 'ملغاة') row.cancelled++;
+      else if (v.status === 'لم تتم') row.missed++;
+      else row.pending++;
+
+      if (v.orderCreatedId || v.outcome === 'تم عمل طلبية') {
+        row.orders++;
+        row.orderValue += Number(v.orderAmount) || 0;
+      }
+      if (v.outcome === 'تم التحصيل' || Number(v.collectedAmount) > 0) {
+        row.collectionVisits++;
+        row.amountCollected += Number(v.collectedAmount) || 0;
+      }
+    });
+
+    return Array.from(map.values())
+      .map((r) => ({
+        ...r,
+        coverageRate: r.scheduled > 0 ? Math.round((r.completed / r.scheduled) * 100) : 0,
+        orderValue: r.orderValue,
+      }))
+      .sort((a, b) => b.completed - a.completed || b.scheduled - a.scheduled);
+  }, [visible, weekAgoStr, todayStr]);
+
+  const weeklyTotals = useMemo(() => {
+    return weeklyByRep.reduce(
+      (acc, r) => ({
+        scheduled: acc.scheduled + r.scheduled,
+        completed: acc.completed + r.completed,
+        pending: acc.pending + r.pending,
+        missed: acc.missed + r.missed,
+        cancelled: acc.cancelled + r.cancelled,
+        orders: acc.orders + r.orders,
+        orderValue: acc.orderValue + r.orderValue,
+        amountCollected: acc.amountCollected + r.amountCollected,
+      }),
+      { scheduled: 0, completed: 0, pending: 0, missed: 0, cancelled: 0, orders: 0, orderValue: 0, amountCollected: 0 }
+    );
+  }, [weeklyByRep]);
+
+  // Weekly report export for management: one summary sheet per rep plus a
+  // detailed sheet listing every visit, built from the same weeklyByRep /
+  // filtered sources as the on-screen board so the two can never disagree.
+  const handleExportWeeklyReport = () => {
+    if (weeklyByRep.length === 0) {
+      showToast('error', 'لا توجد زيارات في آخر 7 أيام لتصديرها.');
+      return;
+    }
+    const repKey = rep !== 'الكل' ? rep : '';
+    const inRange = visible.filter((v) => v.date >= weekAgoStr && v.date <= todayStr);
+
+    const summaryRows = weeklyByRep
+      .filter((r) => {
+        if (currentUser?.role === 'sales_rep') return r.repId === currentUser.id || r.repName === currentUser.name;
+        if (currentUser?.role === 'branch_manager' && currentUser.branchName) return r.branchName === currentUser.branchName;
+        if (repKey) {
+          const repUser = users.find((u) => u.id === repKey);
+          return r.repId === repKey || (repUser ? isArabicNameMatch(r.repName, repUser.name) : false);
+        }
+        return true;
+      })
+      .map((r) => ({
+        'اسم المندوب': r.repName,
+        'الفرع': r.branchName,
+        'المجدول': r.scheduled,
+        'المنفذة': r.completed,
+        'لم تنفذ بعد': r.pending,
+        'لم تتم / ملغاة': r.missed + r.cancelled,
+        'زيارات بطلبية': r.orders,
+        'قيمة الطلبيات (ج.م)': r.orderValue,
+        'إجمالي المحصل (ج.م)': r.amountCollected,
+        'نسبة الإنجاز %': r.coverageRate,
+      }));
+
+    if (summaryRows.length === 0) {
+      showToast('error', 'لا توجد بيانات مندوبين مطابقة للفلترة المحددة.');
+      return;
+    }
+
+    const detailRows = inRange
+      .filter((v) => {
+        const row = weeklyByRep.find((r) => (r.repId || r.repName) === (v.repId || v.repName));
+        if (!row) return false;
+        if (currentUser?.role === 'sales_rep') return v.repId === currentUser.id || v.repName === currentUser.name;
+        if (currentUser?.role === 'branch_manager' && currentUser.branchName) return v.branchName === currentUser.branchName;
+        if (repKey) {
+          const repUser = users.find((u) => u.id === repKey);
+          return v.repId === repKey || (repUser ? isArabicNameMatch(v.repName || '', repUser.name) : false);
+        }
+        return true;
+      })
+      .map((v) => {
+        const c = customers.find((x) => x.id === v.customerId);
+        return {
+          'تاريخ الزيارة': v.date,
+          'وقت الزيارة': v.time || '-',
+          'المندوب': v.repName || '-',
+          'الفرع': v.branchName || c?.branchName || '-',
+          'كود العميل': c?.code || v.customerCode || '-',
+          'اسم العميل': c?.name || v.customerName || '-',
+          'نوع الزيارة': v.type || 'زيارة دورية',
+          'حالة الزيارة': v.status === 'منفذة' || v.checkOutTime ? 'تمت الزيارة' : v.status || 'مجدولة',
+          'هل تم عمل طلبية؟': v.orderCreatedId || v.outcome === 'تم عمل طلبية' ? 'نعم' : 'لا',
+          'قيمة الطلبية (ج.م)': Number(v.orderAmount) || 0,
+          'هل تم التحصيل؟': v.outcome === 'تم التحصيل' || Number(v.collectedAmount) > 0 ? 'نعم' : 'لا',
+          'المبلغ المحصل (ج.م)': Number(v.collectedAmount) || 0,
+          'وقت تسجيل الحضور': v.checkInTime || '-',
+          'وقت تسجيل الانصراف': v.checkOutTime || '-',
+          'مدة الزيارة (دقيقة)': v.durationMinutes || 0,
+          'تقييم العميل': v.customerRating ? `${v.customerRating}/5` : '-',
+          'ملاحظات المندوب': v.notes || 'لا يوجد',
+        };
+      });
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryRows), 'ملخص المناديب');
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(detailRows), 'تفاصيل الزيارات');
+    XLSX.writeFile(
+      workbook,
+      `تقرير_زيارات_أسبوعي_${weekAgoStr}_${todayStr}.xlsx`
+    );
+    showToast('success', `تم تصدير تقرير الأسبوع (${summaryRows.length} مندوب / ${detailRows.length} زيارة) للإدارة 📊`);
+  };
 
   // Capture GPS Geolocation for Visit Verification
   const handleCaptureGPS = () => {
@@ -814,6 +1016,18 @@ export const VisitsDashboard: React.FC = () => {
             <span>تصدير إكسل ({filtered.length})</span>
           </button>
 
+          {(isSupervisor || isBranchManager || isAdmin || isDeveloper) && (
+            <button
+              type="button"
+              onClick={handleExportWeeklyReport}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-3.5 py-2.5 rounded-xl flex items-center gap-2 text-xs shadow-sm transition cursor-pointer"
+              title="تصدير تقرير الزيارات الأسبوعي (ملخص المناديب + تفاصيل كل زيارة) للإدارة"
+            >
+              <Download className="w-4 h-4" />
+              <span>تقرير الأسبوع للإدارة</span>
+            </button>
+          )}
+
           {returnAlerts.length > 0 && (
             <button
               type="button"
@@ -838,6 +1052,36 @@ export const VisitsDashboard: React.FC = () => {
             <span>تسجيل وتطوير زيارة جديدة</span>
           </button>
         </div>
+      </div>
+
+      {/* Daily progress bar — today only, scoped to the signed-in rep */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Target className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="text-xs font-black text-slate-700 truncate">تقدم اليوم ({todayStr})</span>
+          </div>
+          <span className="text-[11px] font-black text-emerald-700 shrink-0">
+            {todayProgress.rate}% · {todayProgress.completed} من {todayProgress.total}
+          </span>
+        </div>
+        <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
+          <div
+            className="h-full rounded-full bg-gradient-to-l from-emerald-500 to-emerald-600 transition-all duration-500"
+            style={{ width: `${todayProgress.rate}%` }}
+          />
+        </div>
+        {todayProgress.total > 0 ? (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[10.5px] font-bold text-slate-500">
+            <span className="text-emerald-700">✔️ منفذة: {todayProgress.completed}</span>
+            <span className="text-blue-700">⏳ متبقية: {todayProgress.remaining}</span>
+            {todayProgress.missed > 0 && <span className="text-rose-700">⚠️ لم تتم/ملغاة: {todayProgress.missed}</span>}
+            <span>🧾 طلبيات: {todayProgress.orders}</span>
+            <span>💰 محصل: {formatCurrency(todayProgress.collected)}</span>
+          </div>
+        ) : (
+          <p className="text-[10.5px] font-bold text-slate-400 mt-2">لا توجد زيارات مسجلة اليوم — ابدأ بتسجيل أول زيارة.</p>
+        )}
       </div>
 
       {/* KPI Stats Strip */}
@@ -1230,6 +1474,106 @@ export const VisitsDashboard: React.FC = () => {
             </select>
           </div>
 
+          {/* Weekly efficiency board — supervisors, branch managers and admin */}
+          {(isSupervisor || isBranchManager || isAdmin || isDeveloper) && (
+            <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-emerald-600" />
+                  <h3 className="text-xs font-black text-slate-800">كفاءة الزيارات الأسبوعية</h3>
+                </div>
+                <span className="text-[10.5px] font-bold text-slate-400 font-mono">
+                  {weekAgoStr} → {todayStr}
+                </span>
+              </div>
+
+              {weeklyByRep.length === 0 ? (
+                <p className="text-[11px] font-bold text-slate-400">لا توجد زيارات مسجلة خلال آخر 7 أيام.</p>
+              ) : (
+                <>
+                  {/* Team totals */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="text-[10px] font-bold text-slate-500">المجدول</div>
+                      <div className="text-base font-black font-mono text-slate-800">{weeklyTotals.scheduled}</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                      <div className="text-[10px] font-bold text-emerald-700">المنفذة</div>
+                      <div className="text-base font-black font-mono text-emerald-800">{weeklyTotals.completed}</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200">
+                      <div className="text-[10px] font-bold text-blue-700">لم تُنفَّذ بعد</div>
+                      <div className="text-base font-black font-mono text-blue-800">{weeklyTotals.pending}</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200">
+                      <div className="text-[10px] font-bold text-rose-700">لم تتم / ملغاة</div>
+                      <div className="text-base font-black font-mono text-rose-800">{weeklyTotals.missed + weeklyTotals.cancelled}</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200">
+                      <div className="text-[10px] font-bold text-purple-700">زيارات بطلبية</div>
+                      <div className="text-base font-black font-mono text-purple-800">
+                        {weeklyTotals.orders}
+                        <span className="text-[10px] font-bold mr-1">({formatCurrency(weeklyTotals.orderValue)})</span>
+                      </div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-teal-50 border border-teal-200">
+                      <div className="text-[10px] font-bold text-teal-700">إجمالي المحصل</div>
+                      <div className="text-base font-black font-mono text-teal-800">{formatCurrency(weeklyTotals.amountCollected)}</div>
+                    </div>
+                  </div>
+
+                  {/* Per-rep breakdown */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-right text-[11px]">
+                      <thead className="bg-slate-900 text-slate-200 font-bold">
+                        <tr>
+                          <th className="p-2">المندوب</th>
+                          <th className="p-2">الفرع</th>
+                          <th className="p-2 text-center">مجدول</th>
+                          <th className="p-2 text-center">منفذة</th>
+                          <th className="p-2 text-center">متبقية</th>
+                          <th className="p-2 text-center">لم تتم</th>
+                          <th className="p-2 text-center">طلبيات</th>
+                          <th className="p-2 text-left">قيمة الطلبية</th>
+                          <th className="p-2 text-left">المحصل</th>
+                          <th className="p-2 text-center">نسبة الإنجاز</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {weeklyByRep.map((r) => (
+                          <tr key={r.repId || r.repName} className="hover:bg-slate-50 transition">
+                            <td className="p-2 font-black text-slate-900">{r.repName}</td>
+                            <td className="p-2 text-slate-500">{r.branchName}</td>
+                            <td className="p-2 text-center font-mono">{r.scheduled}</td>
+                            <td className="p-2 text-center font-mono text-emerald-700 font-black">{r.completed}</td>
+                            <td className="p-2 text-center font-mono text-blue-700">{r.pending}</td>
+                            <td className="p-2 text-center font-mono text-rose-700">{r.missed + r.cancelled}</td>
+                            <td className="p-2 text-center font-mono text-purple-700 font-black">{r.orders}</td>
+                            <td className="p-2 text-left font-mono">{formatCurrency(r.orderValue)}</td>
+                            <td className="p-2 text-left font-mono text-teal-700 font-black">{formatCurrency(r.amountCollected)}</td>
+                            <td className="p-2">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <span className={`font-black ${r.coverageRate >= 65 ? 'text-emerald-700' : r.coverageRate >= 40 ? 'text-amber-700' : 'text-rose-700'}`}>
+                                  {r.coverageRate}%
+                                </span>
+                                <div className="w-14 h-1.5 rounded-full bg-slate-100 overflow-hidden shrink-0">
+                                  <div
+                                    className={`h-full rounded-full ${r.coverageRate >= 65 ? 'bg-emerald-500' : r.coverageRate >= 40 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                                    style={{ width: `${Math.min(100, r.coverageRate)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Return Filter (فلتر المرتجعات وتحويل المخزن) */}
           <div>
             <select
@@ -1313,6 +1657,21 @@ export const VisitsDashboard: React.FC = () => {
                       <div className="text-[11px] text-slate-500">
                         كود: {v.customerCode || c?.code || '-'} {c?.storeName && `• ${c.storeName}`}
                       </div>
+                      {c && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            // The whole row opens the visit, so the click must not
+                            // bubble up or the customer card never appears.
+                            e.stopPropagation();
+                            setDossierCustomer(c);
+                          }}
+                          className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-sky-50 border border-sky-200 text-sky-800 text-[10.5px] font-black hover:bg-sky-100 cursor-pointer transition"
+                        >
+                          <ShieldCheck className="w-3 h-3" />
+                          تفاصيل العميل / المديونية
+                        </button>
+                      )}
                     </td>
                     <td className="p-3 text-slate-600 font-medium">{v.branchName || c?.branchName || 'عام'}</td>
                     <td className="p-3 font-bold text-slate-800">{v.repName}</td>
@@ -2339,6 +2698,121 @@ export const VisitsDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Customer Dossier Modal (credit limit, debt, guarantee, 2026 figures) */}
+      {dossierCustomer && (() => {
+        const dc = dossierCustomer;
+        const balance = Number(dc.currentBalance ?? dc.balance ?? 0);
+        const overdue = Number(dc.totalOverdueAndDue ?? dc.overdueBalance ?? 0);
+        const limit = Number(dc.creditLimit || 0);
+        // Papers count only when there is an actual amount behind them, so a
+        // blank or zero cell reads as "no papers" instead of a false pass.
+        const guaranteeAmount = Number(dc.guaranteeAmount || 0);
+        const hasPapers = guaranteeAmount > 0 || dc.hasGuarantee === true;
+        // Collections are negative in the sheet, so display the magnitude.
+        const cols2026 = (() => {
+          const raw = Number(dc.totalMonthlyCollections ?? dc.collections2026 ?? 0);
+          if (!isFinite(raw) || raw === 0) return 0;
+          return raw < 0 ? Math.abs(raw) : -raw;
+        })();
+        return (
+          <div
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3.5 z-50 animate-in fade-in duration-150"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setDossierCustomer(null);
+            }}
+          >
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[88vh] overflow-y-auto">
+              <div className="sticky top-0 bg-slate-900 text-white px-4 py-3 flex items-start justify-between gap-3 rounded-t-2xl">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-black truncate">{dc.name || 'عميل'}</h3>
+                  <p className="text-[10.5px] text-slate-300 font-bold mt-0.5">
+                    كود: {dc.code || '-'} {dc.storeName ? `• ${dc.storeName}` : ''} {dc.branchName ? `• ${dc.branchName}` : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDossierCustomer(null)}
+                  className="text-slate-300 hover:text-white font-black text-xl leading-none cursor-pointer shrink-0"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="p-4 space-y-3">
+                {/* Debt and credit limit */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className={`p-3 rounded-xl border ${overdue > 0 ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="text-[10.5px] font-bold text-slate-500">المستحقات المتأخرة</div>
+                    <div className={`text-lg font-black font-mono ${overdue > 0 ? 'text-rose-700' : 'text-slate-700'}`}>
+                      {formatCurrency(overdue)}
+                    </div>
+                  </div>
+                  <div className={`p-3 rounded-xl border ${balance > limit && limit > 0 ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="text-[10.5px] font-bold text-slate-500">المديونية الحالية</div>
+                    <div className={`text-lg font-black font-mono ${balance > limit && limit > 0 ? 'text-rose-700' : 'text-slate-700'}`}>
+                      {formatCurrency(balance)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Credit limit with over-limit warning */}
+                <div className={`p-3 rounded-xl border ${balance > limit && limit > 0 ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-slate-600">الحد الائتماني</span>
+                    <span className="text-sm font-black font-mono text-slate-800">{limit > 0 ? formatCurrency(limit) : 'غير محدد'}</span>
+                  </div>
+                  {limit > 0 && (
+                    <div className="text-[11px] font-black mt-1.5">
+                      {balance > limit ? (
+                        <span className="text-rose-700">⚠️ تجاوز الحد بمقدار {formatCurrency(balance - limit)}</span>
+                      ) : (
+                        <span className="text-emerald-700">✓ المتاح آمن: {formatCurrency(limit - balance)}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Guarantee papers */}
+                <div className={`p-3 rounded-xl border ${hasPapers ? 'bg-sky-50 border-sky-200' : 'bg-slate-50 border-slate-200'}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-slate-600">أوراق الضمان</span>
+                    <span className={`text-[11px] font-black px-2 py-0.5 rounded-lg ${hasPapers ? 'bg-sky-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                      {hasPapers ? 'ماضي على أوراق ضمان' : 'مش ماضي'}
+                    </span>
+                  </div>
+                  <div className="text-[10.5px] font-bold text-slate-500 mt-1">
+                    {dc.guaranteeDocs || 'لا يوجد ورق ضمان'}
+                    {hasPapers && guaranteeAmount > 0 ? ` • المبلغ: ${formatCurrency(guaranteeAmount)}` : ''}
+                  </div>
+                </div>
+
+                {/* 2026 figures */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="p-3 rounded-xl bg-blue-50 border border-blue-200">
+                    <div className="text-[10.5px] font-bold text-blue-700">مبيعات 2026</div>
+                    <div className="text-base font-black font-mono text-blue-800">
+                      {formatCurrency(Number(dc.sales2026 ?? dc.totalMonthlySales ?? 0))}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+                    <div className="text-[10.5px] font-bold text-emerald-700">تحصيلات 2026</div>
+                    <div className="text-base font-black font-mono text-emerald-800">{formatCurrency(cols2026)}</div>
+                  </div>
+                </div>
+
+                {/* Last visit */}
+                <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <span className="text-[11px] font-bold text-slate-600">تاريخ آخر زيارة</span>
+                  <span className="text-[11px] font-black font-mono text-slate-800">
+                    {dc.lastVisitDate || 'لا توجد زيارات سابقة'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </main>
   );
 };
