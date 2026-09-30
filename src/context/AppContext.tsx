@@ -2963,6 +2963,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 totalPrice,
                 orderType: 'carton',
                 quantityDescription: newCartonCount > 0 && newPieceCount > 0 ? `${newCartonCount} كرتونة و ${newPieceCount} قطعة` : newCartonCount > 0 ? `${newCartonCount} كرتونة` : `${newPieceCount} قطعة`,
+                // Re-evaluate the source: the same line can cross from branch
+                // stock into a deficit once more cartons are added.
+                fulfillFromMainWarehouse:
+                  availableInBranch < newCartonCount + newPieceCount / cartonQty &&
+                  availableInWarehouse > 0,
               }
             : item
         );
@@ -2983,7 +2988,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             pricePerPiece: piecePrice,
             totalPrice,
             quantityDescription: cartonsToAdd > 0 && piecesToAdd > 0 ? `${cartonsToAdd} كرتونة و ${piecesToAdd} قطعة` : cartonsToAdd > 0 ? `${cartonsToAdd} كرتونة` : `${piecesToAdd} قطعة`,
-            fulfillFromMainWarehouse: latestProd.branchStockActual <= 0 && latestProd.mainWarehouseActual > 0,
+            // Split by the actual shortfall. The old test only asked whether the
+            // branch was completely empty, so a rep asking for 5 cartons when
+            // the branch holds 3 was tagged as fully available at the branch and
+            // the shortage vanished from the deficit report.
+            fulfillFromMainWarehouse:
+              availableInBranch < totalRequiredCartonFraction && availableInWarehouse > 0,
           },
         ];
       }

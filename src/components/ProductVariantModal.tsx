@@ -56,6 +56,28 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
   const [stockError, setStockError] = useState<string | null>(null);
   const [isImageZoomed, setIsImageZoomed] = useState(false);
   const [showAllBranchesStock, setShowAllBranchesStock] = useState(true);
+  // Tabs keep the three long blocks from stacking into one dense scroll.
+  const [activeTab, setActiveTab] = useState<'main' | 'stock' | 'matrix'>('main');
+  const tabOrder: Array<'main' | 'stock' | 'matrix'> = ['main', 'stock', 'matrix'];
+
+  const handleTabKey = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    e.preventDefault();
+    const step = e.key === 'ArrowRight' ? 1 : -1;
+    const idx = tabOrder.indexOf(activeTab);
+    setActiveTab(tabOrder[(idx + step + tabOrder.length) % tabOrder.length]);
+  };
+
+  // Close the zoom with Escape — the lightbox covers the modal, so the usual
+  // close button is not reachable while it is open.
+  useEffect(() => {
+    if (!isImageZoomed) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsImageZoomed(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isImageZoomed]);
 
   // Sync active variant when modal opens
   useEffect(() => {
@@ -253,12 +275,66 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
             </div>
           )}
 
-          {/* Main 2-Column Grid: Large Clear Image + Interactive Variant Selector */}
+          {/* Tabs — the three long blocks used to stack into one dense column */}
+          <div role="tablist" onKeyDown={handleTabKey} className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200 shrink-0">
+            {(
+              [
+                { key: 'main', label: 'الرئيسية', icon: Sparkles, badge: '' },
+                { key: 'stock', label: 'المخزون بالفروع', icon: Building2, badge: `${branchInventoryList.length} مخزن` },
+                { key: 'matrix', label: 'جدول الشبابيك', icon: Layers, badge: `${parentProduct.variants.length}` },
+              ] as const
+            ).map(({ key, label, icon: Icon, badge }) => {
+              const isActive = activeTab === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => setActiveTab(key)}
+                  tabIndex={isActive ? 0 : -1}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                    isActive
+                      ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-slate-700' : 'text-slate-400'}`} />
+                  <span className="truncate">{label}</span>
+                  {badge && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-black ${
+                      isActive ? 'bg-slate-100 text-slate-600' : 'bg-slate-200/70 text-slate-500'
+                    }`}>
+                      {badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {activeTab === 'main' && (
           <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
             
             {/* Column 1: Eye-Friendly High-Res Image Display */}
             <div className="md:col-span-5 space-y-3">
-              <div className="relative bg-slate-50 border-2 border-slate-200 rounded-3xl overflow-hidden shadow-inner flex items-center justify-center min-h-[280px] sm:min-h-[340px] group">
+              <div
+                role="button"
+                tabIndex={0}
+                aria-label="تكبير صورة المنتج"
+                onClick={() => setIsImageZoomed(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setIsImageZoomed(true);
+                  }
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  setIsImageZoomed(true);
+                }}
+                className="relative bg-slate-50 border-2 border-slate-200 rounded-3xl overflow-hidden shadow-inner flex items-center justify-center min-h-[280px] sm:min-h-[340px] group cursor-zoom-in"
+              >
                 <ProductImage
                   product={rawProd}
                   alt={`${parentProduct.name} - ${activeVariant.name}`}
@@ -274,7 +350,10 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                 {/* Zoom / Lightbox Toggle */}
                 <button
                   type="button"
-                  onClick={() => setIsImageZoomed(!isImageZoomed)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsImageZoomed(true);
+                  }}
                   className="absolute bottom-3 left-3 bg-white/90 hover:bg-white text-slate-800 p-2 rounded-xl shadow-md border border-slate-200 transition cursor-pointer"
                   title="تكبير الصورة بحجم كامل"
                 >
@@ -294,7 +373,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                 <div>
                   <div className="text-[11px] font-bold text-slate-500 mb-1.5 flex items-center justify-between">
                     <span>صور ومعاينات الشبابيك ({parentProduct.variants.length})</span>
-                    <span className="text-amber-600 text-[10px]">اضغط للتنقل</span>
+                    <span className="text-slate-400 text-[10px]">اضغط للاختيار • دبل كليك للتكبير</span>
                   </div>
                   <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
                     {parentProduct.variants.map((v) => {
@@ -304,12 +383,17 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                           key={v.id}
                           type="button"
                           onClick={() => handleSelectVariant(v)}
+                          onDoubleClick={(e) => {
+                            e.preventDefault();
+                            setActiveVariant(v);
+                            setIsImageZoomed(true);
+                          }}
                           className={`w-14 h-14 rounded-xl border-2 p-1 flex-shrink-0 transition bg-white overflow-hidden cursor-pointer relative ${
                             isSelected
                               ? 'border-amber-500 shadow-md ring-2 ring-amber-400/40'
                               : 'border-slate-200 hover:border-slate-300 opacity-75 hover:opacity-100'
                           }`}
-                          title={v.name}
+                          title={`${v.name} — اضغط للاختيار، دبل كليك للتكبير`}
                         >
                           <ProductImage
                             product={v.rawProduct}
@@ -409,132 +493,6 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                   <div className="text-left">
                     <span className="text-[10px] text-slate-400 font-bold block">شدة الكرتونة:</span>
                     <span className="text-xs font-black text-slate-800">{cartonQty} قطعة / كرتونة</span>
-                  </div>
-                </div>
-
-                {/* Executive Multi-Branch Stock Overview Card (تفاصيل المخزون بكل فرع والمخزن المركزي) */}
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 overflow-hidden shadow-2xs">
-                  {/* Top Header Summary */}
-                  <div className="bg-slate-900 text-white p-3 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-amber-400 text-slate-950 flex items-center justify-center font-black">
-                        <Building2 className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-black text-white flex items-center gap-1.5">
-                          <span>تفاصيل المخزون بكافة الفروع</span>
-                          <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.2 rounded font-bold border border-amber-400/30">
-                            {branchInventoryList.length} مخازن
-                          </span>
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-medium">
-                          تحديث جردي فوري لجميع نقاط التوزيع
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <div className="text-left bg-slate-800/90 px-2.5 py-1 rounded-xl border border-slate-700">
-                        <span className="text-[9px] text-slate-400 block font-bold">إجمالي رصيد الشركة</span>
-                        <span className="text-sm font-black text-amber-300 font-mono">
-                          {grandTotalAllWarehouses.toLocaleString()} كرتونة
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* High-Level Stock Split */}
-                  <div className="grid grid-cols-2 gap-2 p-2.5 bg-white border-b border-slate-200 text-xs">
-                    <div className="p-2 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] text-amber-800 font-bold block flex items-center gap-1">
-                          <Package className="w-3 h-3 text-amber-600" />
-                          <span>المخزن المركزي (أكتوبر)</span>
-                        </span>
-                        <span className="text-sm font-black text-slate-900 font-mono">
-                          {mainWarehouseStock} كرتونة
-                        </span>
-                      </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                        mainWarehouseStock > 10 ? 'bg-emerald-100 text-emerald-800' : mainWarehouseStock > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'
-                      }`}>
-                        {mainWarehouseStock > 0 ? 'متاح للصرف' : 'نافد'}
-                      </span>
-                    </div>
-
-                    <div className="p-2 rounded-xl bg-sky-50/70 border border-sky-200/80 flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] text-sky-800 font-bold block flex items-center gap-1">
-                          <Building2 className="w-3 h-3 text-sky-600" />
-                          <span>إجمالي فروع التوزيع</span>
-                        </span>
-                        <span className="text-sm font-black text-slate-900 font-mono">
-                          {totalBranchesStockOnly} كرتونة
-                        </span>
-                      </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                        totalBranchesStockOnly > 10 ? 'bg-emerald-100 text-emerald-800' : totalBranchesStockOnly > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'
-                      }`}>
-                        {totalBranchesStockOnly > 0 ? 'موزعة بالفروع' : 'نافد'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Full Branch Breakdown Table / Grid */}
-                  <div className="p-2.5">
-                    <div className="text-[11px] font-black text-slate-700 mb-1.5 flex items-center justify-between">
-                      <span>رصيد الشباك الحالي ({activeVariant.name}) بكل فرع:</span>
-                      <span className="text-[10px] text-slate-400">
-                        {branchInventoryList.filter(b => b.stock > 0).length} فروع بها رصيد متاح
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                      {branchInventoryList.map((branch) => {
-                        const isAvailable = branch.stock > 0;
-                        const isCritical = branch.stock > 0 && branch.stock <= 5;
-                        return (
-                          <div
-                            key={branch.name}
-                            className={`p-2 rounded-xl border transition flex flex-col justify-between ${
-                              branch.isMain
-                                ? 'bg-amber-50/50 border-amber-300 ring-1 ring-amber-400/30'
-                                : isAvailable
-                                  ? 'bg-white border-slate-200 hover:border-slate-300'
-                                  : 'bg-slate-100/60 border-slate-200/60 opacity-60'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="text-[11px] font-bold text-slate-800 truncate" title={branch.name}>
-                                {branch.shortName}
-                              </span>
-                              {branch.isMain && (
-                                <span className="text-[8px] bg-amber-500 text-slate-950 font-black px-1 py-0.2 rounded shrink-0">
-                                  رئيسي
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="flex items-center justify-between mt-1 text-[10px]">
-                              <span className={`font-mono font-black text-xs ${
-                                isCritical ? 'text-amber-800' : isAvailable ? 'text-emerald-700' : 'text-slate-400'
-                              }`}>
-                                {branch.stock} ك
-                              </span>
-                              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
-                                isCritical
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : isAvailable
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : 'bg-rose-50 text-rose-600'
-                              }`}>
-                                {isCritical ? 'حرج' : isAvailable ? 'متاح' : 'نافد'}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
                   </div>
                 </div>
 
@@ -672,7 +630,143 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
             </div>
 
           </div>
+          )}
 
+          {/* Stock across branches */}
+          {activeTab === 'stock' && (
+            <div className="space-y-4">
+              {/* Executive Multi-Branch Stock Overview Card (تفاصيل المخزون بكل فرع والمخزن المركزي) */}
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 overflow-hidden shadow-2xs">
+                {/* Top Header Summary */}
+                <div className="bg-slate-900 text-white p-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-amber-400 text-slate-950 flex items-center justify-center font-black">
+                      <Building2 className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-white flex items-center gap-1.5">
+                        <span>تفاصيل المخزون بكافة الفروع</span>
+                        <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.2 rounded font-bold border border-amber-400/30">
+                          {branchInventoryList.length} مخازن
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-medium">
+                        تحديث جردي فوري لجميع نقاط التوزيع
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="text-left bg-slate-800/90 px-2.5 py-1 rounded-xl border border-slate-700">
+                      <span className="text-[9px] text-slate-400 block font-bold">إجمالي رصيد الشركة</span>
+                      <span className="text-sm font-black text-amber-300 font-mono">
+                        {grandTotalAllWarehouses.toLocaleString()} كرتونة
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* High-Level Stock Split */}
+                <div className="grid grid-cols-2 gap-2 p-2.5 bg-white border-b border-slate-200 text-xs">
+                  <div className="p-2 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-amber-800 font-bold block flex items-center gap-1">
+                        <Package className="w-3 h-3 text-amber-600" />
+                        <span>المخزن المركزي (أكتوبر)</span>
+                      </span>
+                      <span className="text-sm font-black text-slate-900 font-mono">
+                        {mainWarehouseStock} كرتونة
+                      </span>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                      mainWarehouseStock > 10 ? 'bg-emerald-100 text-emerald-800' : mainWarehouseStock > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'
+                    }`}>
+                      {mainWarehouseStock > 0 ? 'متاح للصرف' : 'نافد'}
+                    </span>
+                  </div>
+
+                  <div className="p-2 rounded-xl bg-sky-50/70 border border-sky-200/80 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-sky-800 font-bold block flex items-center gap-1">
+                        <Building2 className="w-3 h-3 text-sky-600" />
+                        <span>إجمالي فروع التوزيع</span>
+                      </span>
+                      <span className="text-sm font-black text-slate-900 font-mono">
+                        {totalBranchesStockOnly} كرتونة
+                      </span>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                      totalBranchesStockOnly > 10 ? 'bg-emerald-100 text-emerald-800' : totalBranchesStockOnly > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'
+                    }`}>
+                      {totalBranchesStockOnly > 0 ? 'موزعة بالفروع' : 'نافد'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Full Branch Breakdown Table / Grid */}
+                <div className="p-2.5">
+                  <div className="text-[11px] font-black text-slate-700 mb-1.5 flex items-center justify-between">
+                    <span>رصيد الشباك الحالي ({activeVariant.name}) بكل فرع:</span>
+                    <span className="text-[10px] text-slate-400">
+                      {branchInventoryList.filter(b => b.stock > 0).length} فروع بها رصيد متاح
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                    {branchInventoryList.map((branch) => {
+                      const isAvailable = branch.stock > 0;
+                      const isCritical = branch.stock > 0 && branch.stock <= 5;
+                      return (
+                        <div
+                          key={branch.name}
+                          className={`p-2 rounded-xl border transition flex flex-col justify-between ${
+                            branch.isMain
+                              ? 'bg-slate-100 border-slate-400 ring-1 ring-slate-300'
+                              : isAvailable
+                                ? 'bg-white border-slate-200 hover:border-slate-300'
+                                : 'bg-slate-100/60 border-slate-200/60 opacity-60'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-[11px] font-bold text-slate-800 truncate" title={branch.name}>
+                              {branch.shortName}
+                            </span>
+                            {branch.isMain && (
+                              <span className="text-[8px] bg-slate-700 text-white font-black px-1 py-0.2 rounded shrink-0">
+                                رئيسي
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between mt-1 text-[10px]">
+                            <span className={`font-mono font-black text-xs ${
+                              isCritical ? 'text-amber-800' : isAvailable ? 'text-emerald-700' : 'text-slate-400'
+                            }`}>
+                              {branch.stock} ك
+                            </span>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                              isCritical
+                                ? 'bg-amber-100 text-amber-800'
+                                : isAvailable
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-rose-50 text-rose-600'
+                            }`}>
+                              {isCritical ? 'حرج' : isAvailable ? 'متاح' : 'نافد'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* All windows/variants table */}
+          {activeTab === 'matrix' && parentProduct.variants.length > 1 && (
+            <div className="space-y-3">
           {/* Quick Matrix for Multi-Window Orders */}
           {parentProduct.variants.length > 1 && (
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
@@ -686,17 +780,17 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                 </span>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="max-h-[420px] overflow-auto rounded-xl border border-slate-200">
                 <table className="w-full text-xs text-right border-collapse">
                   <thead>
-                    <tr className="bg-slate-200/80 text-slate-700 font-bold border-b border-slate-300">
+                    <tr className="bg-slate-200/80 text-slate-700 font-bold border-b border-slate-300 sticky top-0 z-10">
                       <th className="p-2.5">الشباك / اللون</th>
                       <th className="p-2.5">الكود</th>
                       <th className="p-2.5 text-center">رصيد الفرع</th>
                       <th className="p-2.5 text-center">رصيد أكتوبر</th>
                       <th className="p-2.5 text-left">سعر الكرتونة</th>
                       <th className="p-2.5 text-center">حالة السلة</th>
-                      <th className="p-2.5 text-center">إجراء سريع</th>
+                      <th className="p-2.5 text-center">إضافة</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 bg-white">
@@ -708,11 +802,17 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                       return (
                         <tr
                           key={v.id}
-                          className={`hover:bg-slate-50 transition ${isCurr ? 'bg-amber-50/60 font-semibold' : ''}`}
+                          onClick={() => handleSelectVariant(v)}
+                          title="اضغط لعرض هذا الشباك في تبويب الرئيسية"
+                          className={`cursor-pointer transition even:bg-slate-50/70 hover:bg-slate-100 ${
+                            isCurr ? 'bg-slate-100 font-semibold ring-1 ring-inset ring-slate-300' : ''
+                          }`}
                         >
-                          <td className="p-2.5 font-black text-slate-900 flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                            <span>{v.name}</span>
+                          <td className="p-2.5 font-black text-slate-900">
+                            <span className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full shrink-0 ${isCurr ? 'bg-slate-700' : 'bg-slate-300'}`}></span>
+                              <span>{v.name}</span>
+                            </span>
                           </td>
                           <td className="p-2.5 font-mono text-slate-500">{v.code}</td>
                           <td className="p-2.5 text-center font-mono font-bold text-emerald-700">
@@ -737,22 +837,18 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                             <div className="flex items-center justify-center gap-1">
                               <button
                                 type="button"
-                                onClick={() => handleSelectVariant(v)}
-                                className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer"
-                              >
-                                معاينة 👁️
-                              </button>
-                              <button
-                                type="button"
                                 disabled={vTotal <= 0}
-                                onClick={() => {
+                                title={vTotal > 0 ? 'إضافة كرتونة واحدة للسلة' : 'لا يوجد رصيد متاح'}
+                                aria-label={`إضافة ${v.name} للسلة`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   addToCart(v.rawProduct, 'carton', 1);
                                   setSuccessNotice(`تمت إضافة 1 كرتونة من (${v.name}) للسلة!`);
                                   setTimeout(() => setSuccessNotice(null), 3000);
                                 }}
-                                className="px-2 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 text-[11px] font-black shadow-2xs transition cursor-pointer disabled:opacity-30"
+                                className="w-8 h-8 rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-900 hover:text-white hover:border-slate-900 transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center shrink-0"
                               >
-                                +1 كرتونة 🛒
+                                <ShoppingCart className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           </td>
@@ -762,6 +858,8 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
             </div>
           )}
 
@@ -799,6 +897,47 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
         </div>
 
       </div>
+
+      {/* Full-size image lightbox */}
+      {isImageZoomed && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`صورة ${parentProduct.name} - ${activeVariant.name}`}
+          onClick={() => setIsImageZoomed(false)}
+          className="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-sm flex flex-col items-center justify-center gap-3 p-4 animate-in fade-in cursor-zoom-out"
+        >
+          <div className="flex items-center justify-between w-full max-w-4xl text-white text-xs font-black shrink-0">
+            <span className="truncate">
+              {parentProduct.name} — {activeVariant.name}
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsImageZoomed(false)}
+              className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition cursor-pointer shrink-0"
+              title="إغلاق (Esc)"
+              aria-label="إغلاق الصورة"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[80vh] w-full max-w-5xl flex items-center justify-center overflow-auto"
+          >
+            <ProductImage
+              product={rawProd}
+              alt={`${parentProduct.name} - ${activeVariant.name}`}
+              className="max-h-[78vh] w-auto object-contain drop-shadow-2xl"
+            />
+          </div>
+
+          <span className="text-[11px] text-slate-400 font-bold shrink-0">
+            اضغط في أي مكان خارج الصورة للإغلاق
+          </span>
+        </div>
+      )}
     </div>
   );
 };

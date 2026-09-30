@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Phone,
   MapPin,
+  Package,
   Building2,
   UserCheck,
   CreditCard,
@@ -76,7 +77,7 @@ import {
 } from 'recharts';
 import { useApp } from '../context/AppContext';
 import * as XLSX from 'xlsx';
-import { Customer, CustomerVisit, User, Invoice, OrderStatus } from '../types';
+import { Customer, CustomerVisit, User, Invoice, OrderStatus, Product } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import {
   MONTH_NAMES_AR,
@@ -107,6 +108,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     updateVisit,
     getVisibleVisits,
     invoices = [],
+    products = [],
+    syncToAccounting,
     isPrivacyMode,
     togglePrivacyMode,
     cleanAndDeduplicateCustomers
@@ -117,6 +120,17 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const isSupervisor = currentUser?.role === 'supervisor';
   const isBranchManager = currentUser?.role === 'branch_manager';
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+  // Branch deficits report: the branch manager works their own branch, the
+  // supervisor works every rep they supervise, and the admin sees everything.
+  const canSeeDeficits = isBranchManager || isSupervisor || isAdminOrDev;
+
+  // --- Branch deficits (نواقص أكتوبر) filters ---
+  const [deficitDateMode, setDeficitDateMode] = useState<'today' | 'date' | 'range'>('today');
+  const [deficitSingleDate, setDeficitSingleDate] = useState(new Date().toISOString().slice(0, 10));
+  const [deficitFromDate, setDeficitFromDate] = useState(new Date().toISOString().slice(0, 10));
+  const [deficitToDate, setDeficitToDate] = useState(new Date().toISOString().slice(0, 10));
+  const [deficitStatus, setDeficitStatus] = useState<'all' | 'pending' | 'uploaded'>('pending');
+  const [expandedDeficitRep, setExpandedDeficitRep] = useState<string | null>(null);
 
   // Confidential Currency Formatter (respects Privacy Mode for executive security)
   const formatMoney = (amount: number | undefined | null): string => {
@@ -164,7 +178,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [collectionRateFilter, setCollectionRateFilter] = useState<'ALL' | 'high_80' | 'medium_30_79' | 'low_zero'>('ALL');
 
   // Power BI Visuals Tab (المسار، معدل السرعة، موازنة المحفظة، الفروع، المناديب، طبيعة النشاط، تفعيل العملاء، الضمانات، والمصفوفة)
-  const [activeChartTab, setActiveChartTab] = useState<'monthly' | 'run_rate' | 'portfolio_balance' | 'branches' | 'reps' | 'activity_client' | 'customer_dealing' | 'matrix' | 'payment_guarantee'>('monthly');
+  const [activeChartTab, setActiveChartTab] = useState<'monthly' | 'run_rate' | 'portfolio_balance' | 'branches' | 'reps' | 'activity_client' | 'customer_dealing' | 'matrix' | 'payment_guarantee' | 'deficits'>('monthly');
   const [runRateSelectedMonth, setRunRateSelectedMonth] = useState<number>(9);
 
   // Customer Dealing View Filters (متعامل / غير متعامل / قابل للتعامل)
@@ -1198,6 +1212,211 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     };
   }, [filteredCustomers, customerMetricsMap]);
 
+  // 3.4b. Branch Deficits (نواقص أكتوبر) — split every invoice line by where the
+  // stock has to come from, then group by rep so the branch manager can export
+  // one sheet per day and the supervisor can see his whole team.
+  // null = no restriction. A supervisor is scoped to the reps he actually
+  // supervises (matched on supervisorName), a branch manager to his branch, and
+  // the admin/developer to everything.
+  const deficitScope = useMemo(() => {
+    if (!currentUser) return { branchName: null as string | null, supervisorName: null as string | null };
+    if (isAdminOrDev) return { branchName: null, supervisorName: null };
+    if (isSupervisor) return { branchName: currentUser.branchName || null, supervisorName: currentUser.name };
+    return { branchName: currentUser.branchName || branches[0] || null, supervisorName: null };
+  }, [currentUser, isAdminOrDev, isSupervisor, branches]);
+
+  const deficitDateRange = useMemo(() => {
+    if (deficitDateMode === 'today') {
+      const t = new Date().toISOString().slice(0, 10);
+      return { from: t, to: t };
+    }
+    if (deficitDateMode === 'date') return { from: deficitSingleDate, to: deficitSingleDate };
+    return {
+      from: deficitFromDate <= deficitToDate ? deficitFromDate : deficitToDate,
+      to: deficitFromDate <= deficitToDate ? deficitToDate : deficitFromDate,
+    };
+  }, [deficitDateMode, deficitSingleDate, deficitFromDate, deficitToDate]);
+
+  // Live product index so each line can show the current warehouse balance,
+  // not just what the invoice asked for. Invoices may carry the product code,
+  // the unified code, or the id depending on how the order was created.
+  const productByKey = useMemo(() => {
+    const map = new Map<string, Product>();
+    products.forEach((p) => {
+      if (p.id) map.set(String(p.id), p);
+      if (p.code) map.set(String(p.code), p);
+      if (p.unifiedCode) map.set(String(p.unifiedCode), p);
+    });
+    return map;
+  }, [products]);
+
+  // Branch balance for a product, preferring the per-branch map so a rep in
+  // another branch does not see this branch's number.
+  const branchBalanceOf = (p: Product | undefined, branchName: string | undefined): number => {
+    if (!p) return 0;
+    if (p.branchStocks && branchName) {
+      const key = Object.keys(p.branchStocks).find((k) => k.replace(/^(فرع|مخزن)\s*/, '').trim() === branchName.replace(/^(فرع|مخزن)\s*/, '').trim());
+      if (key !== undefined) return Number(p.branchStocks[key]) || 0;
+    }
+    return Number(p.branchStockActual) || 0;
+  };
+
+  const deficitRows = useMemo(() => {
+    if (!canSeeDeficits) return [];
+    const { from, to } = deficitDateRange;
+
+    return invoices
+      .filter((inv) => {
+        // A draft has not been submitted yet, so its lines are not a real demand.
+        if (inv.status === 'مسودة') return false;
+        // Invoice.date is the business date; fall back to createdAt for older rows.
+        const day = (inv.createdAt || inv.date || '').slice(0, 10);
+        if (!day || day < from || day > to) return false;
+        if (deficitScope.branchName && inv.branchName !== deficitScope.branchName) return false;
+        // Supervisors only report on their own team.
+        if (deficitScope.supervisorName && inv.supervisorName !== deficitScope.supervisorName) return false;
+        if (deficitStatus === 'pending' && inv.syncedToAccounting) return false;
+        if (deficitStatus === 'uploaded' && !inv.syncedToAccounting) return false;
+        return true;
+      })
+      .map((inv) => {
+        // Each line is already tagged with its source warehouse. Anything coming
+        // from 6 أكتوبر is a deficit the branch cannot ship on its own.
+        const october = inv.items.filter((it) => it.fulfilledFrom === 'main_warehouse');
+        const fromBranch = inv.items.filter((it) => it.fulfilledFrom !== 'main_warehouse');
+        return {
+          invoice: inv,
+          repName: inv.repName || 'غير محدد',
+          supervisorName: inv.supervisorName || '',
+          branchName: inv.branchName,
+          // --- deficits (نواقص أكتوبر) ---
+          deficitCartons: october.reduce((s, it) => s + (it.cartonCount || 0), 0),
+          deficitPieces: october.reduce((s, it) => s + (it.pieceCount || 0), 0),
+          deficitLines: october,
+          // --- available at the branch ---
+          branchCartons: fromBranch.reduce((s, it) => s + (it.cartonCount || 0), 0),
+          branchPieces: fromBranch.reduce((s, it) => s + (it.pieceCount || 0), 0),
+          branchLines: fromBranch,
+        };
+      })
+      .filter((r) => r.deficitLines.length > 0 || r.branchLines.length > 0);
+  }, [canSeeDeficits, invoices, deficitDateRange, deficitScope, deficitStatus]);
+
+  // Group by rep, then by product inside each rep, so the export is ready to
+  // hand to the company system without any manual merging.
+  const deficitByRep = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        repName: string;
+        supervisorName: string;
+        branchName: string;
+        invoiceIds: string[];
+        deficitByProduct: Map<
+          string,
+          {
+            productCode: string;
+            unifiedCode: string;
+            productName: string;
+            color: string;
+            size: string;
+            cartons: number;
+            pieces: number;
+            invoices: Set<string>;
+            stockBranch: number;
+            stockOctober: number;
+          }
+        >;
+        branchByProduct: Map<
+          string,
+          { productCode: string; unifiedCode: string; productName: string; cartons: number; pieces: number }
+        >;
+        deficitCartons: number;
+        deficitPieces: number;
+        branchCartons: number;
+        branchPieces: number;
+      }
+    >();
+
+    deficitRows.forEach((row) => {
+      if (!map.has(row.repName)) {
+        map.set(row.repName, {
+          repName: row.repName,
+          supervisorName: row.supervisorName,
+          branchName: row.branchName,
+          invoiceIds: [],
+          deficitByProduct: new Map(),
+          branchByProduct: new Map(),
+          deficitCartons: 0,
+          deficitPieces: 0,
+          branchCartons: 0,
+          branchPieces: 0,
+        });
+      }
+      const agg = map.get(row.repName)!;
+      agg.invoiceIds.push(row.invoice.id);
+      if (row.supervisorName) agg.supervisorName = row.supervisorName;
+
+      row.deficitLines.forEach((it) => {
+        const key = it.unifiedCode || it.productCode || it.productId;
+        // Pull the live record so the row can show real balances and the
+        // unified code, which is what the warehouse actually keys on.
+        const live = productByKey.get(String(key)) || productByKey.get(String(it.productCode)) || productByKey.get(String(it.productId));
+        const cur = agg.deficitByProduct.get(key) || {
+          productCode: it.productCode,
+          unifiedCode: it.unifiedCode || live?.unifiedCode || it.productCode,
+          productName: it.productName,
+          color: live?.color || '',
+          size: live?.size || '',
+          cartons: 0,
+          pieces: 0,
+          invoices: new Set<string>(),
+          stockBranch: branchBalanceOf(live, row.branchName),
+          stockOctober: Number(live?.mainWarehouseActual) || 0,
+        };
+        cur.cartons += it.cartonCount || 0;
+        cur.pieces += it.pieceCount || 0;
+        cur.invoices.add(row.invoice.invoiceNumber);
+        agg.deficitByProduct.set(key, cur);
+        agg.deficitCartons += it.cartonCount || 0;
+        agg.deficitPieces += it.pieceCount || 0;
+      });
+
+      row.branchLines.forEach((it) => {
+        const key = it.unifiedCode || it.productCode || it.productId;
+        const liveB = productByKey.get(String(key)) || productByKey.get(String(it.productCode)) || productByKey.get(String(it.productId));
+        const cur = agg.branchByProduct.get(key) || {
+          productCode: it.productCode,
+          unifiedCode: it.unifiedCode || liveB?.unifiedCode || it.productCode,
+          productName: it.productName,
+          cartons: 0,
+          pieces: 0,
+        };
+        cur.cartons += it.cartonCount || 0;
+        cur.pieces += it.pieceCount || 0;
+        agg.branchByProduct.set(key, cur);
+        agg.branchCartons += it.cartonCount || 0;
+        agg.branchPieces += it.pieceCount || 0;
+      });
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.deficitCartons - a.deficitCartons);
+  }, [deficitRows, productByKey]);
+
+  const deficitTotals = useMemo(() => {
+    return deficitByRep.reduce(
+      (acc, r) => ({
+        deficitCartons: acc.deficitCartons + r.deficitCartons,
+        deficitPieces: acc.deficitPieces + r.deficitPieces,
+        branchCartons: acc.branchCartons + r.branchCartons,
+        branchPieces: acc.branchPieces + r.branchPieces,
+        invoices: acc.invoices + r.invoiceIds.length,
+        reps: acc.reps + 1,
+      }),
+      { deficitCartons: 0, deficitPieces: 0, branchCartons: 0, branchPieces: 0, invoices: 0, reps: 0 }
+    );
+  }, [deficitByRep]);
+
   // 3.5. Power BI Rep & Branch Financial Matrix (إجمالي المستحقات والمديونيات لكل مندوب وكل فرع)
   const repAndBranchSummary = useMemo(() => {
     const map = new Map<string, {
@@ -2041,6 +2260,98 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   };
 
   // Google Sheets Live Sync
+  // Builds one workbook: a "نواقص أكتوبر" sheet grouped per rep, plus a
+  // "متوفر بالفرع" sheet so the branch manager sees both sides of the same day.
+  const handleExportDeficitsToExcel = () => {
+    if (deficitByRep.length === 0) return;
+    const { from, to } = deficitDateRange;
+    const branchLabel = deficitScope.branchName || 'كل_الفروع';
+    const rangeLabel = from === to ? from : `${from}_${to}`;
+
+    const wb = XLSX.utils.book_new();
+
+    const deficitRowsOut: any[][] = [
+      ['الفرع', 'المشرف', 'المندوب', 'كود المنتج', 'الكود الموحد', 'اسم المنتج', 'اللون / الحجم', 'الكمية المطلوبة (نواقص)', 'قطع نواقص', 'رصيد الفرع', 'رصيد أكتوبر', 'الحالة', 'عدد الفواتير', 'أرقام الفواتير'],
+    ];
+    const branchRowsOut: any[][] = [
+      ['الفرع', 'المندوب', 'كود المنتج', 'الكود الموحد', 'اسم المنتج', 'كراتين متوفر', 'قطع متوفر'],
+    ];
+    const invoiceRowsOut: any[][] = [
+      ['رقم الفاتورة', 'التاريخ', 'الوقت', 'العميل', 'الفرع', 'المندوب', 'المشرف', 'حالة الرفع', 'تاريخ الرفع', 'نواقص (ك)', 'متوفر الفرع (ك)'],
+    ];
+
+    deficitByRep.forEach((rep) => {
+      rep.deficitByProduct.forEach((p) => {
+        deficitRowsOut.push([
+          rep.branchName,
+          rep.supervisorName || '',
+          rep.repName,
+          p.productCode,
+          p.unifiedCode,
+          p.productName,
+          [p.color, p.size].filter(Boolean).join(' - '),
+          p.cartons,
+          p.pieces,
+          p.stockBranch,
+          p.stockOctober,
+          p.stockOctober >= p.cartons ? 'يكفي' : `ناقص ${p.cartons - p.stockOctober}`,
+          p.invoices.size,
+          Array.from(p.invoices).join(' , '),
+        ]);
+      });
+      rep.branchByProduct.forEach((p) => {
+        branchRowsOut.push([rep.branchName, rep.repName, p.productCode, p.unifiedCode, p.productName, p.cartons, p.pieces]);
+      });
+    });
+
+    deficitRows.forEach((r) => {
+      invoiceRowsOut.push([
+        r.invoice.invoiceNumber,
+        r.invoice.date,
+        r.invoice.time,
+        r.invoice.customerName,
+        r.branchName,
+        r.repName,
+        r.supervisorName || '',
+        r.invoice.syncedToAccounting ? 'تم الرفع' : 'غير مرفوع',
+        r.invoice.accountingSyncDate || '',
+        r.deficitCartons,
+        r.branchCartons,
+      ]);
+    });
+
+    const money = (ws: XLSX.WorkSheet, width: number[]) => {
+      ws['!cols'] = width.map((w) => ({ wch: w }));
+    };
+    const makeSheet = (rows: any[][], widths: number[]) => {
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      money(ws, widths);
+      return ws;
+    };
+
+    XLSX.utils.book_append_sheet(
+      wb,
+      makeSheet(deficitRowsOut, [18, 18, 18, 14, 14, 32, 16, 16, 11, 11, 12, 14, 12, 32]),
+      'نواقص أكتوبر'
+    );
+    XLSX.utils.book_append_sheet(wb, makeSheet(branchRowsOut, [18, 18, 14, 14, 32, 13, 12]), 'متوفر بالفرع');
+    XLSX.utils.book_append_sheet(wb, makeSheet(invoiceRowsOut, [16, 12, 10, 24, 18, 18, 18, 12, 18, 12, 14]), 'الفواتير');
+
+    XLSX.writeFile(wb, `نواقص_أكتوبر_${branchLabel}_${rangeLabel}.xlsx`);
+  };
+
+  // Marks every invoice currently in the report as sent to the company system.
+  const handleMarkDeficitsUploaded = async () => {
+    const ids = deficitRows.map((r) => r.invoice.id);
+    if (ids.length === 0) return;
+    if (typeof syncToAccounting !== 'function') return;
+    for (const id of ids) {
+      // Sequential on purpose: each call writes its own sync log entry.
+      // eslint-disable-next-line no-await-in-loop
+      await syncToAccounting(id);
+    }
+  };
+
   const handleSyncGoogleSheet = async () => {
     if (!googleSheetUrl) return;
     const cleanUrl = googleSheetUrl.trim();
@@ -2591,6 +2902,20 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 <Scale className="w-3.5 h-3.5 text-purple-600" />
                 <span>⚖️ موازنة المحفظة وخطوط السير</span>
               </button>
+              {canSeeDeficits && (
+                <button
+                  type="button"
+                  onClick={() => setActiveChartTab('deficits')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                    activeChartTab === 'deficits'
+                      ? 'bg-white text-orange-900 shadow-xs ring-1 ring-orange-300'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Package className="w-3.5 h-3.5 text-orange-600" />
+                  <span>📦 نواقص أكتوبر ({deficitTotals.deficitCartons} ك)</span>
+                </button>
+              )}
               {isAdminOrDev && (
                 <button
                   type="button"
@@ -3725,6 +4050,303 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           )}
 
           {/* Tab: Run-Rate & Monthly Pace Early Warning */}
+          {canSeeDeficits && activeChartTab === 'deficits' && (
+            <div className="space-y-4">
+              {/* Header + actions */}
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white rounded-2xl p-3.5 border border-slate-200 shadow-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-xl bg-orange-500/10 text-orange-600 flex items-center justify-center shrink-0">
+                    <Package className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">نواقص أكتوبر — ما لم يتوفر بالفرع</h3>
+                    <p className="text-[11px] text-slate-500 font-bold">
+                      {deficitScope.branchName ? `فرع ${deficitScope.branchName}` : 'كل الفروع'} · {deficitByRep.length} مندوب · {deficitTotals.invoices} فاتورة
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleExportDeficitsToExcel}
+                    disabled={deficitByRep.length === 0}
+                    className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black shadow transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>تصدير Excel</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleMarkDeficitsUploaded}
+                    disabled={deficitRows.length === 0 || typeof syncToAccounting !== 'function'}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-900 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black shadow transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>تم الرفع على السيستم ({deficitRows.length})</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Filters */}
+              <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-xs space-y-3">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <label className="block text-[10.5px] font-black text-slate-500 mb-1">الفترة الزمنية</label>
+                    <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                      {(
+                        [
+                          { key: 'today', label: 'اليوم' },
+                          { key: 'date', label: 'يوم محدد' },
+                          { key: 'range', label: 'نطاق' },
+                        ] as const
+                      ).map((m) => (
+                        <button
+                          key={m.key}
+                          type="button"
+                          onClick={() => setDeficitDateMode(m.key)}
+                          className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                            deficitDateMode === m.key ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {deficitDateMode === 'date' && (
+                    <input
+                      type="date"
+                      value={deficitSingleDate}
+                      max={new Date().toISOString().slice(0, 10)}
+                      onChange={(e) => setDeficitSingleDate(e.target.value)}
+                      className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-800 bg-white"
+                    />
+                  )}
+                  {deficitDateMode === 'range' && (
+                    <>
+                      <input
+                        type="date"
+                        value={deficitFromDate}
+                        max={new Date().toISOString().slice(0, 10)}
+                        onChange={(e) => setDeficitFromDate(e.target.value)}
+                        className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-800 bg-white"
+                      />
+                      <span className="text-slate-400 text-xs font-black">←</span>
+                      <input
+                        type="date"
+                        value={deficitToDate}
+                        max={new Date().toISOString().slice(0, 10)}
+                        onChange={(e) => setDeficitToDate(e.target.value)}
+                        className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-800 bg-white"
+                      />
+                    </>
+                  )}
+
+                  <div>
+                    <label className="block text-[10.5px] font-black text-slate-500 mb-1">حالة الرفع</label>
+                    <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                      {(
+                        [
+                          { key: 'pending', label: 'غير مرفوع ⏳' },
+                          { key: 'uploaded', label: 'تم الرفع 🟢' },
+                          { key: 'all', label: 'الكل' },
+                        ] as const
+                      ).map((m) => (
+                        <button
+                          key={m.key}
+                          type="button"
+                          onClick={() => setDeficitStatus(m.key)}
+                          className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                            deficitStatus === m.key ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Totals */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {(
+                  [
+                    { label: 'نواقص أكتوبر (كراتين)', value: deficitTotals.deficitCartons, sub: `${deficitTotals.deficitPieces} قطعة`, tone: 'text-orange-600' },
+                    { label: 'متوفر بالفرع (كراتين)', value: deficitTotals.branchCartons, sub: `${deficitTotals.branchPieces} قطعة`, tone: 'text-emerald-600' },
+                    { label: 'عدد الفواتير', value: deficitTotals.invoices, sub: `${deficitByRep.length} مندوب`, tone: 'text-slate-900' },
+                    { label: 'نسبة النواقص', value: (() => { const t = deficitTotals.deficitCartons + deficitTotals.branchCartons; return t > 0 ? Math.round((deficitTotals.deficitCartons / t) * 100) : 0; })(), sub: '% من الكمية', tone: 'text-rose-600' },
+                  ] as const
+                ).map((c) => (
+                  <div key={c.label} className="bg-white rounded-2xl p-3.5 border border-slate-200 border-t-4 border-t-slate-300 shadow-xs">
+                    <div className="text-[11px] font-bold text-slate-500">{c.label}</div>
+                    <div className={`text-2xl font-black font-mono mt-1 ${c.tone}`}>{c.value.toLocaleString()}</div>
+                    <div className="text-[10px] text-slate-400 font-bold mt-0.5">{c.sub}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Per rep */}
+              {deficitByRep.length === 0 ? (
+                <div className="bg-white rounded-2xl p-10 text-center border border-slate-200">
+                  <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
+                  <p className="text-sm font-black text-slate-700 mt-2">لا توجد نواقص في الفترة المختارة</p>
+                  <p className="text-[11px] text-slate-400 font-bold mt-1">كل الأصناف متوفرة بالفرع أو تم رفعها بالفعل</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {deficitByRep.map((rep) => {
+                    const isOpen = expandedDeficitRep === rep.repName;
+                    return (
+                      <div key={rep.repName} className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedDeficitRep(isOpen ? null : rep.repName)}
+                          className="w-full px-4 py-3 flex items-center justify-between gap-3 hover:bg-slate-50 transition cursor-pointer text-right"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                              <UserCheck className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-black text-slate-900 truncate">{rep.repName}</div>
+                              <div className="text-[10.5px] text-slate-500 font-bold truncate">
+                                {rep.branchName}
+                                {rep.supervisorName ? ` · تحت إشراف ${rep.supervisorName}` : ''} · {rep.invoiceIds.length} فاتورة
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="px-2.5 py-1 rounded-lg bg-orange-50 text-orange-700 border border-orange-200 text-[11px] font-black">
+                              نواقص {rep.deficitCartons} ك
+                            </span>
+                            <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-black">
+                              متوفر {rep.branchCartons} ك
+                            </span>
+                            <span className={`text-slate-400 transition ${isOpen ? 'rotate-90' : ''}`}>
+                              <ArrowUpDown className="w-4 h-4" />
+                            </span>
+                          </div>
+                        </button>
+
+                        {isOpen && (
+                          <div className="border-t border-slate-100 p-3.5 space-y-4">
+                            {/* deficits table */}
+                            <div>
+                              <div className="text-[11px] font-black text-orange-700 mb-1.5">نواقص مخزن أكتوبر</div>
+                              <div className="max-h-64 overflow-auto rounded-xl border border-slate-200">
+                                <table className="w-full text-[11px] text-right border-collapse">
+                                  <thead>
+                                    <tr className="bg-slate-100 text-slate-600 font-black sticky top-0">
+                                      <th className="p-2">كود المنتج</th>
+                                      <th className="p-2">الكود الموحد</th>
+                                      <th className="p-2">الصنف / اللون</th>
+                                      <th className="p-2 text-center bg-orange-50">المطلوب</th>
+                                      <th className="p-2 text-center bg-emerald-50">رصيد الفرع</th>
+                                      <th className="p-2 text-center bg-sky-50">رصيد أكتوبر</th>
+                                      <th className="p-2 text-center">الحالة</th>
+                                      <th className="p-2 text-center">فواتير</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {Array.from(rep.deficitByProduct.values()).map((p, i) => {
+                                      const canCover = p.stockOctober >= p.cartons;
+                                      return (
+                                        <tr key={i} className="even:bg-slate-50/70 hover:bg-slate-100">
+                                          <td className="p-2 font-mono text-slate-600">{p.productCode}</td>
+                                          <td className="p-2 font-mono font-black text-slate-800">{p.unifiedCode}</td>
+                                          <td className="p-2 font-bold text-slate-800">
+                                            <div>{p.productName}</div>
+                                            {(p.color || p.size) && (
+                                              <div className="text-[9.5px] font-bold text-slate-400">
+                                                {[p.color, p.size].filter(Boolean).join(' • ')}
+                                              </div>
+                                            )}
+                                          </td>
+                                          <td className="p-2 text-center">
+                                            <div className="font-mono font-black text-orange-700">{p.cartons} ك</div>
+                                            {p.pieces > 0 && <div className="text-[9.5px] font-bold text-slate-500">{p.pieces} قطعة</div>}
+                                          </td>
+                                          <td className="p-2 text-center font-mono font-black text-emerald-700">
+                                            {p.stockBranch}
+                                          </td>
+                                          <td className="p-2 text-center font-mono font-black text-sky-700">
+                                            {p.stockOctober}
+                                          </td>
+                                          <td className="p-2 text-center">
+                                            {canCover ? (
+                                              <span className="inline-block px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9.5px] font-black">يكفي</span>
+                                            ) : (
+                                              <span className="inline-block px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[9.5px] font-black">
+                                                ناقص {p.cartons - p.stockOctober}
+                                              </span>
+                                            )}
+                                          </td>
+                                          <td className="p-2 text-center text-[9.5px] font-bold text-slate-500">{Array.from(p.invoices).join(' , ')}</td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                  <tfoot className="bg-slate-100 font-black border-t border-slate-300">
+                                    <tr>
+                                      <td className="p-2" colSpan={3}>الإجمالي</td>
+                                      <td className="p-2 text-center font-mono text-orange-700">
+                                        {rep.deficitCartons} ك{rep.deficitPieces > 0 ? ` / ${rep.deficitPieces} قطعة` : ''}
+                                      </td>
+                                      <td className="p-2 text-center font-mono text-emerald-700">{rep.branchCartons}</td>
+                                      <td className="p-2 text-center font-mono text-sky-700">
+                                        {Array.from(rep.deficitByProduct.values()).reduce((n, x) => n + x.stockOctober, 0)}
+                                      </td>
+                                      <td className="p-2" colSpan={2} />
+                                    </tr>
+                                  </tfoot>
+                                </table>
+                              </div>
+                            </div>
+
+                            {/* branch-available table */}
+                            {rep.branchByProduct.size > 0 && (
+                              <div>
+                                <div className="text-[11px] font-black text-emerald-700 mb-1.5">متوفر بالفرع (جاهز للتسليم)</div>
+                                <div className="max-h-64 overflow-auto rounded-xl border border-slate-200">
+                                  <table className="w-full text-[11px] text-right border-collapse">
+                                    <thead>
+                                      <tr className="bg-slate-100 text-slate-600 font-black sticky top-0">
+                                        <th className="p-2">كود المنتج</th>
+                                        <th className="p-2">الكود الموحد</th>
+                                        <th className="p-2">الصنف</th>
+                                        <th className="p-2 text-center">كراتين</th>
+                                        <th className="p-2 text-center">قطع</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                      {Array.from(rep.branchByProduct.values()).map((p, i) => (
+                                        <tr key={i} className="even:bg-slate-50/70">
+                                          <td className="p-2 font-mono text-slate-600">{p.productCode}</td>
+                                          <td className="p-2 font-mono font-black text-slate-800">{p.unifiedCode}</td>
+                                          <td className="p-2 font-bold text-slate-800">{p.productName}</td>
+                                          <td className="p-2 text-center font-mono font-black text-emerald-700">{p.cartons}</td>
+                                          <td className="p-2 text-center font-mono font-bold text-slate-600">{p.pieces}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeChartTab === 'run_rate' && (
             <div className="space-y-4">
               {/* Month Selector Bar & Explanation */}
