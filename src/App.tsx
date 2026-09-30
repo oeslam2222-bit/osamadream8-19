@@ -63,14 +63,11 @@ const MainLayout: React.FC = () => {
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
 
-  // If user is not logged in, show dedicated Login / Registration Page
-  if (!isAuthenticated || !currentUser) {
-    return <LoginPage />;
-  }
-
   // Reps open on Visits; supervisors, branch managers, admin and dev open on
   // the customer database. Re-evaluated once the user is known.
-  const isRep = currentUser.role === 'sales_rep';
+  // `isRep` must be derived safely here: the early return for the login page
+  // below happens after this effect, so currentUser can still be null.
+  const isRep = currentUser?.role === 'sales_rep';
   useEffect(() => {
     try {
       const saved = localStorage.getItem('dream8_landing_tab');
@@ -78,6 +75,14 @@ const MainLayout: React.FC = () => {
       setActiveTab((cur) => (cur === 'catalog' ? desired : cur));
     } catch { /* ignore */ }
   }, [isRep]);
+
+  // If user is not logged in, show dedicated Login / Registration Page.
+  // This must stay after the useEffect above: returning early before a hook
+  // makes React render a different number of hooks once the session restores,
+  // which is the "Rendered more hooks than during the previous render" crash.
+  if (!isAuthenticated || !currentUser) {
+    return <LoginPage />;
+  }
 
   const cartSummary = getCartSummary();
 
