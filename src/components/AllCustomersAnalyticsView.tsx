@@ -142,7 +142,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [selectedRep, setSelectedRep] = useState<string>('ALL');
   const [selectedMonth, setSelectedMonth] = useState<number | 'ALL' | 'Q1' | 'Q2' | 'Q3' | 'Q4'>('ALL');
   const [dealEligibilityFilter, setDealEligibilityFilter] = useState<string>('ALL');
-  const [dealtFilter, setDealtFilter] = useState<'ALL' | 'dealt' | 'not_dealt'>('ALL');
+  // The sheet dashboard opens on the requested "متعامل" segment; all other
+  // slicers remain interactive and can be cleared by the user.
+  const [dealtFilter, setDealtFilter] = useState<'ALL' | 'dealt' | 'not_dealt'>('dealt');
   const [sortMode, setSortMode] = useState<'highest_debt' | 'lowest_debt' | 'highest_overdue' | 'highest_sales' | 'highest_collections' | 'name_asc' | 'code_asc' | 'route_asc'>('highest_debt');
   const [showRepMatrix, setShowRepMatrix] = useState<boolean>(true);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
@@ -457,23 +459,18 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   // rows still carry the old text form ("ماضي على ورق ضمان (5,000 ج.م)"), which
   // produced one slicer entry per customer. Normalise every variant to a small
   // set of real categories, and keep the amount in guaranteeAmount.
-  const normalizeGuaranteeCategory = (c: Customer): string => {
-    const raw = (c.guaranteeDocs || '').trim();
-    const amt = Number(c.guaranteeAmount || 0);
-    if (!raw || raw === '-' || raw === '0') return amt > 0 ? 'أوراق ضمان' : 'لا يوجد ورق ضمان';
-    if (raw.includes('لا يوجد') || raw.includes('بدون') || raw.includes('غير محدد')) return 'لا يوجد ورق ضمان';
-    if (raw.includes('كمبيال')) return 'أوراق ضمان (كمبيالة)';
-    if (raw.includes('شيك')) return 'أوراق ضمان (شيك)';
-    if (raw.includes('امان') || raw.includes('أمان')) return 'أوراق ضمان (إيصال أمانة)';
-    if (raw.includes('رهن')) return 'أوراق ضمان (رهن)';
-    // Any remaining text is a document name: keep it, but strip the amount so
-    // identical documents with different values collapse into one entry.
-    const stripped = raw.replace(/[\d.,\s]+/g, '').replace(/[()]/g, '').trim();
-    return stripped || 'أوراق ضمان';
+  const normalizeGuaranteeCategory = (c: Customer): string =>
+    getGuaranteeAmount(c) > 0 ? 'ماضي على أوراق الضمان' : 'مش ماضي على أوراق الضمان';
+
+  const getGuaranteeAmount = (c: Customer): number => {
+    const explicitAmount = Number(c.guaranteeAmount || 0);
+    if (explicitAmount > 0) return explicitAmount;
+    const rawAmount = (c.guaranteeDocs || '').replace(/[^\d.]/g, '');
+    const parsedAmount = Number.parseFloat(rawAmount);
+    return Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : 0;
   };
 
-  const hasGuaranteePapers = (c: Customer): boolean =>
-    Number(c.guaranteeAmount || 0) > 0 || c.hasGuarantee === true || normalizeGuaranteeCategory(c) !== 'لا يوجد ورق ضمان';
+  const hasGuaranteePapers = (c: Customer): boolean => getGuaranteeAmount(c) > 0;
 
   // Distinct guarantee categories with live customer counts
   const availableGuaranteeDocs = useMemo(() => {
@@ -663,14 +660,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       // "متعامل" is intentionally a per-period figure: it answers "who traded in
       // the period I am looking at", so it must move with the month slicer.
       // The authoritative yearly classification is قابل / غير قابل below.
-      const isDealtCustomer =
-        selectedMonth === 'ALL'
-          ? Boolean(
-              c.hasDealtIn2026 ||
-              (c.monthlySales2026 && Object.values(c.monthlySales2026).some((v) => Number(v) > 0)) ||
-              (c.monthlyCollections2026 && Object.values(c.monthlyCollections2026).some((v) => Math.abs(Number(v)) > 0))
-            )
-          : periodSales > 0 || Math.abs(periodCollections) > 0;
+      const isDealtCustomer = c.hasDealtIn2026 !== undefined
+        ? c.hasDealtIn2026
+        : normalizeArabicText(c.dealt2026 || '').includes('متعامل');
 
       map.set(c.id, {
         id: c.id,
@@ -2515,7 +2507,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 <span>تحليلات ومؤشرات Power BI التنفيذية لعام 2026</span>
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                مخططات بيانية تفاعلية تستجيب فوراً لجميع الفلاتر والتقسيمات المختارة
+                مخططات بيانية تفاعلية تستجيب فوراً لجميع الفلاتر والتقسيما�� المختارة
               </p>
             </div>
 
@@ -4461,7 +4453,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           <div className="pt-2 border-t border-slate-100">
             <div className="text-[11px] font-black text-slate-500 mb-1.5 flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
-              <span>مؤشرات الأداء والمديونية والفترة الزمنية (قوائم منسدلة مطابقة للشيت):</span>
+              <span>مؤشرات الأداء والمديونية والفترة الزمنية (��وائم منسدلة مطابقة للشيت):</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5">
               {/* 1. حالة التعامل */}
@@ -5002,7 +4994,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
           {/* Page Size Selector */}
           <div className="flex items-center gap-1.5 font-bold">
-            <span>عدد الصفوف:</span>
+            <span>عدد ا��صفوف:</span>
             <select
               value={pageSize}
               onChange={(e) => setPageSize(Number(e.target.value))}

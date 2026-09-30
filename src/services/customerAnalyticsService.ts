@@ -912,14 +912,16 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
 
     // Dealings status
     const rawDealt = colMap.hasDealt2026 !== -1 ? getCellStr(row, colMap.hasDealt2026).toLowerCase() : '';
-    const hasDealtIn2026 =
-      finalSales2026 > 0 ||
-      Math.abs(finalCollections2026) > 0 ||
-      rawDealt.includes('متعامل') ||
+// When the sheet has an explicit "متعامل 2026" column, it is the
+  // source of truth. Do not infer a customer as متعامل from old sales totals.
+  const hasDealtColumn = colMap.hasDealt2026 !== -1;
+  const hasDealtIn2026 = hasDealtColumn
+    ? rawDealt.includes('متعامل') ||
       rawDealt.includes('نعم') ||
       rawDealt.includes('نشط') ||
       rawDealt.includes('yes') ||
-      rawDealt.includes('active');
+      rawDealt.includes('active')
+    : finalSales2026 > 0 || Math.abs(finalCollections2026) > 0;
 
     const hasPreviousDeals = s2025 > 0 || Math.abs(c2025) > 0 || hasDealtIn2026 || balance > 0;
 
