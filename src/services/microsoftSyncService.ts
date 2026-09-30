@@ -10,6 +10,13 @@ import { resolveCustomerFinancials, isBranchMatch, normalizeBranchName } from '.
 export const DEFAULT_MICROSOFT_WEBHOOK_URL =
   'https://default18403f5514a341be950585562989bf.28.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/31/workflows/dde3e3cd8b464d71a367abfc307d0734/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=7puuyQmL-0PiJ06T_ecIyppAtA0T-k4pI5vDVQ5s7Sg';
 
+/**
+ * How long to wait for the Power Automate webhook before giving up. The payload
+ * carries base64 PDF and Excel files, so a generous window is needed on slow
+ * connections, but it must be finite.
+ */
+const SYNC_TIMEOUT_MS = 30000;
+
 export function getMicrosoftWebhookUrl(): string {
   try {
     const saved = localStorage.getItem('ms_power_automate_webhook_url');
@@ -364,13 +371,41 @@ export async function sendOrderToMicrosoft365(
     markInvoiceDispatched(invoice.id);
 
     // 5. HTTP POST to Microsoft Power Automate
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    // The webhook is a third-party endpoint, so the request gets a hard timeout.
+    // Without it a stalled network leaves the call pending until the browser
+    // gives up, and the UI sits on a pending state the whole time.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SYNC_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+    } catch (err: any) {
+      const isTimeout = err?.name === 'AbortError';
+      const detail = isTimeout
+        ? `انتهت مهلة الاتصال بعد ${SYNC_TIMEOUT_MS / 1000} ثانية`
+        : err?.message || String(err);
+      const result: MicrosoftSyncResponse = {
+        success: false,
+        message: isTimeout
+          ? 'انتهت مهلة الاتصال بخادم Power Automate. تأكد من الإنترنت ثم أعد الإرسال.'
+          : 'فشل الاتصال برابط مايكروسوفت Power Automate',
+        error: detail,
+        timestamp: new Date().toLocaleTimeString('ar-EG'),
+      };
+      // A timed-out request may still reach the flow, so the dispatch is not
+      // recorded as sent: the user must be able to retry.
+      saveOrderDispatchRecord(invoice.id, false, detail);
+      return result;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     const isOk = response.ok || response.status === 202 || response.status === 200;
 
@@ -457,13 +492,30 @@ export async function testMicrosoftWebhookConnection(): Promise<MicrosoftSyncRes
       excel_content: '',
     };
 
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(testPayload),
-    });
+    const testController = new AbortController();
+    const testTimeoutId = setTimeout(() => testController.abort(), SYNC_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(testPayload),
+        signal: testController.signal,
+      });
+    } catch (e: any) {
+      clearTimeout(testTimeoutId);
+      return {
+        success: false,
+        message: e?.name === 'AbortError'
+          ? 'انتهت مهلة الاتصال. قد تكون الشبكة محجوبة أو الـ Flow متوقف.'
+          : 'فشل الاتصال بخادم Power Automate',
+        error: e?.message || String(e),
+      };
+    } finally {
+      clearTimeout(testTimeoutId);
+    }
 
     if (response.ok || response.status === 202 || response.status === 200) {
       return {

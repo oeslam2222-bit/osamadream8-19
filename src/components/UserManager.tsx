@@ -588,7 +588,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
         branchName: assignedBranch,
         supervisorId: formData.role === 'sales_rep' ? (formData.supervisorId || undefined) : undefined,
         phone: formData.phone || '',
-        avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80`,
+        avatar: '/pwa-192x192.png',
         commissionRate: formData.commissionRate || 2.5,
         isActive: formData.isActive ?? true,
         approvalStatus: 'active',

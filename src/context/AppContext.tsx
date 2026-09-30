@@ -2723,7 +2723,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isActive: true,
       approvalStatus: userData.role === 'developer' || userData.role === 'admin' ? 'active' : 'pending_approval', // Requires admin approval for reps
       registrationDate: new Date().toISOString().slice(0, 10),
-      avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80`
+      avatar: '/pwa-192x192.png'
     };
 
     setUsers((prev) => [...prev, newUser]);

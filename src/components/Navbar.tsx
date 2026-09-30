@@ -385,7 +385,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                 className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 active:bg-slate-700 px-2.5 h-9 sm:h-10 rounded-xl border border-slate-700 transition cursor-pointer"
               >
                 <img
-                  src={currentUser.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&auto=format&fit=crop&q=80'}
+                  src={currentUser.avatar || '/pwa-192x192.png'}
                   alt={currentUser.name}
                   className="w-6 h-6 rounded-full object-cover border border-amber-400"
                 />
@@ -405,7 +405,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                 <div className="absolute left-0 sm:right-0 mt-2 w-80 bg-slate-900 border border-slate-750 rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in slide-in-from-top-2 text-xs">
                   <div className="flex items-center gap-3 p-2 bg-slate-950 rounded-xl border border-slate-800 mb-2.5">
                     <img
-                      src={currentUser.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&auto=format&fit=crop&q=80'}
+                      src={currentUser.avatar || '/pwa-192x192.png'}
                       alt={currentUser.name}
                       className="w-10 h-10 rounded-full object-cover border-2 border-amber-400"
                     />
@@ -561,7 +561,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
             <div className="p-4 border-b border-slate-850 flex items-center justify-between bg-slate-900">
               <div className="flex items-center gap-3">
                 <img
-                  src={currentUser.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&auto=format&fit=crop&q=80'}
+                  src={currentUser.avatar || '/pwa-192x192.png'}
                   alt={currentUser.name}
                   className="w-10 h-10 rounded-full object-cover border-2 border-amber-400"
                 />
