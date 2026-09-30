@@ -70,21 +70,22 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
     }
   }, [parentProduct]);
 
-  if (!isOpen || !parentProduct || !activeVariant) {
-    return null;
-  }
-
-  const rawProd = activeVariant.rawProduct;
-  const cartonQty = rawProd.cartonQuantity && rawProd.cartonQuantity > 0 ? rawProd.cartonQuantity : 1;
+  // Every hook below must run on every render, including while the modal is
+  // closed, so the "nothing to show" exit has to sit at the very end of the
+  // component. Returning early above these useMemo calls made the hook count
+  // change between renders, which is React error #310.
+  const rawProd = activeVariant?.rawProduct;
+  const cartonQty = rawProd && rawProd.cartonQuantity && rawProd.cartonQuantity > 0 ? rawProd.cartonQuantity : 1;
   
   // Stock calculations
-  const branchStock = rawProd.branchStockActual || 0;
-  const branchReserved = rawProd.branchStockReserved || 0;
-  const octoberStock = rawProd.mainWarehouseActual || 0;
+  const branchStock = rawProd?.branchStockActual || 0;
+  const branchReserved = rawProd?.branchStockReserved || 0;
+  const octoberStock = rawProd?.mainWarehouseActual || 0;
   const totalStockAvailable = branchStock + octoberStock;
 
   // Multi-branch inventory for this active variant
   const branchInventoryList = useMemo(() => {
+    if (!rawProd) return [];
     const defaultBranchDefs = [
       { name: 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)', shortName: 'الفرع الرئيسي (أكتوبر)', city: '6 أكتوبر / الجيزة', isMain: true },
       { name: 'فرع القاهرة', shortName: 'القاهرة', city: 'القاهرة', isMain: false },
@@ -119,6 +120,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
   }, [branchInventoryList]);
 
   const mainWarehouseStock = useMemo(() => {
+    if (!rawProd) return 0;
     const mainItem = branchInventoryList.find(b => b.isMain);
     return mainItem ? mainItem.stock : (rawProd.mainWarehouseActual || 0);
   }, [branchInventoryList, rawProd]);
@@ -126,7 +128,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
   const grandTotalAllWarehouses = totalBranchesStockOnly + mainWarehouseStock;
 
   // Check how many units of this variant are already in cart
-  const itemInCart = cart.find((item) => item.product.id === rawProd.id);
+  const itemInCart = rawProd ? cart.find((item) => item.product.id === rawProd.id) : undefined;
   const cartCartons = itemInCart?.cartonCount || 0;
   const cartPieces = itemInCart?.pieceCount || 0;
 
@@ -137,6 +139,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
   };
 
   const handleAddToCart = () => {
+    if (!rawProd || !activeVariant) return;
     setStockError(null);
     const res = addToCart(
       rawProd,
@@ -154,11 +157,16 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
     }
   };
 
-  const appliedPrice = activeVariant.promoPrice && activeVariant.promoPrice > 0
+  const appliedPrice = activeVariant?.promoPrice && activeVariant.promoPrice > 0
     ? activeVariant.promoPrice
-    : activeVariant.cartonPrice;
+    : (activeVariant?.cartonPrice || 0);
 
-  const currentPiecePrice = activeVariant.piecePrice || (cartonQty > 0 ? Math.round((appliedPrice / cartonQty) * 100) / 100 : appliedPrice);
+  const currentPiecePrice = activeVariant?.piecePrice || (cartonQty > 0 ? Math.round((appliedPrice / cartonQty) * 100) / 100 : appliedPrice);
+
+  // Safe to bail out only now — all hooks above have already run this render.
+  if (!isOpen || !parentProduct || !activeVariant) {
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-in fade-in">

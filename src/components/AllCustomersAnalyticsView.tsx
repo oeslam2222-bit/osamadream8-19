@@ -475,21 +475,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const hasGuaranteePapers = (c: Customer): boolean =>
     Number(c.guaranteeAmount || 0) > 0 || c.hasGuarantee === true || normalizeGuaranteeCategory(c) !== 'لا يوجد ورق ضمان';
 
-  // Distinct guarantee categories with live customer counts
-  const availableGuaranteeDocs = useMemo(() => {
-    const map = new Map<string, number>();
-    userVisibleCustomers.forEach((c) => {
-      const g = normalizeGuaranteeCategory(c);
-      map.set(g, (map.get(g) || 0) + 1);
-    });
-    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
-  }, [userVisibleCustomers]);
-
-  const guaranteedCustomerCount = useMemo(
-    () => userVisibleCustomers.filter(hasGuaranteePapers).length,
-    [userVisibleCustomers]
-  );
-
   // Distinct Sheet Activity Types with counts (طبيعة النشاط)
   const availableActivityTypes = useMemo(() => {
     const map = new Map<string, number>();
@@ -829,16 +814,20 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       });
     }
 
-    // Guarantee Documents filter (اوراق الضمان من الشيت)
+    // Snapshot before the guarantee slicer runs, so its counts can react to the
+    // other active filters (rep / branch / activity / deal status) while still
+    // showing the size of the side that is currently filtered out.
+    const preGuaranteeList = [...list];
+
+    // Guarantee filter (أوراق الضمان من الشيت)
+    // The sheet column is an amount: above 0 means papers exist (ماضي),
+    // 0 or blank means none (مش ماضي).
     if (guaranteeFilter !== 'ALL') {
       list = list.filter((c) => {
-        const cat = normalizeGuaranteeCategory(c);
-        // A real amount or a named document means the customer has papers.
         const isSigned = hasGuaranteePapers(c);
-
         if (guaranteeFilter === 'has_guarantee') return isSigned;
         if (guaranteeFilter === 'unsecured') return !isSigned;
-        return cat === guaranteeFilter;
+        return true;
       });
     }
 
@@ -966,7 +955,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       return 0;
     });
 
-    return { list, preDealList };
+    return { list, preDealList, preGuaranteeList };
   }, [
     userVisibleCustomers,
     customerMetricsMap,
@@ -991,6 +980,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
   const filteredCustomers = filterResult.list;
   const preDealFilteredCustomers = filterResult.preDealList;
+  const preGuaranteeFilteredCustomers = filterResult.preGuaranteeList;
 
   // Counts for the deal-status slicer cards. These deliberately come from the
   // list BEFORE the deal filter runs, so picking "متعامل" still shows how many
@@ -1004,6 +994,16 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     const total = preDealFilteredCustomers.length;
     return { total, dealt, notDealt: total - dealt };
   }, [preDealFilteredCustomers, customerMetricsMap]);
+
+  // Guarantee counts. Same Power BI behaviour as the deal slicer, and derived
+  // from the list before the guarantee filter, so they react to every other
+  // active slicer (rep / branch / activity / deal status) instead of always
+  // reporting the whole customer base.
+  const guaranteeCounts = useMemo(() => {
+    const signed = preGuaranteeFilteredCustomers.filter(hasGuaranteePapers).length;
+    const total = preGuaranteeFilteredCustomers.length;
+    return { total, signed, unsigned: total - signed };
+  }, [preGuaranteeFilteredCustomers]);
 
   // Reset pagination on filter changes
   useEffect(() => {
@@ -1170,6 +1170,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       ineligibleCustomers: number;
       eligibleCustomers: number;
       dealtCustomers: number;
+      nonDealtCustomers: number;
       coverageRate: number;
       totalDebt: number;
       totalOverdue: number;
@@ -1194,6 +1195,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           ineligibleCustomers: 0,
           eligibleCustomers: 0,
           dealtCustomers: 0,
+          nonDealtCustomers: 0,
           coverageRate: 0,
           totalDebt: 0,
           totalOverdue: 0,
@@ -1235,13 +1237,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       item.periodSales += pSales;
       item.periodCollections += pCols;
 
-      if (m.isExplicitIneligible) {
-        item.ineligibleCustomers++;
+      // Every customer lands in exactly one bucket so the columns add up to
+      // إجمالي العملاء. "غير قابل" is no longer a visible category, so those
+      // customers simply count as غير متعامل.
+      item.eligibleCustomers++;
+      if (m.isDealtCustomer) {
+        item.dealtCustomers++;
       } else {
-        item.eligibleCustomers++;
-        if (m.isDealtCustomer) {
-          item.dealtCustomers++;
-        }
+        item.nonDealtCustomers++;
       }
     });
 
@@ -1302,15 +1305,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       item.totalSales += m.sales2026;
       item.totalCollections += m.collections2026;
 
-      if (m.isExplicitIneligible) {
-        item.ineligibleCustomers++;
+      // Every customer lands in exactly one bucket so the columns add up to
+      // إجمالي العملاء. "غير قابل" is no longer a visible category, so those
+      // customers simply count as غير متعامل.
+      item.eligibleCustomers++;
+      if (m.isDealtCustomer) {
+        item.dealtCustomers++;
       } else {
-        item.eligibleCustomers++;
-        if (m.isDealtCustomer) {
-          item.dealtCustomers++;
-        } else {
-          item.nonDealtCustomers++;
-        }
+        item.nonDealtCustomers++;
       }
     });
 
@@ -2899,8 +2901,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       <th className="p-2.5">الفرع</th>
                       <th className="p-2.5">المندوب</th>
                       <th className="p-2.5 text-center">إجمالي العملاء</th>
-                      <th className="p-2.5 text-center text-rose-300">غير قابل ⛔</th>
-                      <th className="p-2.5 text-center text-sky-300">قابل للتعامل ⏳</th>
+                      <th className="p-2.5 text-center text-sky-300">غير متعامل ⏳</th>
                       <th className="p-2.5 text-center text-emerald-300">متعامل ✅</th>
                       <th className="p-2.5 text-center text-amber-300">نسبة التغطية %</th>
                       <th className="p-2.5 text-left text-purple-300">إجمالي المديونية</th>
@@ -2938,11 +2939,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         <td className="p-2.5 text-center font-bold text-slate-900">
                           {row.totalCustomers.toLocaleString()}
                         </td>
-                        <td className="p-2.5 text-center font-bold text-rose-700">
-                          {row.ineligibleCustomers.toLocaleString()}
-                        </td>
                         <td className="p-2.5 text-center font-bold text-sky-700">
-                          {row.eligibleCustomers.toLocaleString()}
+                          {row.nonDealtCustomers.toLocaleString()}
                         </td>
                         <td className="p-2.5 text-center font-black text-emerald-700">
                           {row.dealtCustomers.toLocaleString()}
@@ -4141,7 +4139,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
             {dealEligibilityFilter !== 'ALL' && (
               <span className="inline-flex items-center gap-1 bg-white border border-sky-200 text-sky-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
-                <span>حالة التعامل: {dealEligibilityFilter === 'dealt' ? 'متعامل' : dealEligibilityFilter === 'eligible' ? 'قابل' : 'غير قابل'}</span>
+                <span>حالة التعامل: {dealEligibilityFilter === 'dealt' ? 'متعامل' : 'غير متعامل'}</span>
                 <button type="button" onClick={() => setDealEligibilityFilter('ALL')} className="text-sky-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
               </span>
             )}
@@ -4392,14 +4390,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   onChange={(e) => setGuaranteeFilter(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500 transition shadow-2xs cursor-pointer"
                 >
-                  <option value="ALL">جميع حالات الضمان ({userVisibleCustomers.length})</option>
-                  <option value="has_guarantee">✓ بأوراق ضمان ({guaranteedCustomerCount} عميل)</option>
-                  <option value="unsecured">✗ بدون أوراق ضمان ({userVisibleCustomers.length - guaranteedCustomerCount} عميل)</option>
-                  {availableGuaranteeDocs.map(([g, count]) => (
-                    <option key={g} value={g}>
-                      {g} ({count} عميل)
-                    </option>
-                  ))}
+                  <option value="ALL">جميع حالات الضمان ({guaranteeCounts.total})</option>
+                  <option value="has_guarantee">ماضي على أوراق الضمان ({guaranteeCounts.signed} عميل)</option>
+                  <option value="unsecured">مش ماضي ({guaranteeCounts.unsigned} عميل)</option>
                 </select>
               </div>
 
@@ -4918,13 +4911,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 <Users className="w-4 h-4 text-emerald-400" />
               </div>
 
-              {/* Clickable classification cards — press to filter the table */}
+              {/* Clickable classification cards — press to filter the table.
+                  "الكل" is dropped because متعامل + غير متعامل already sum to the
+                  total, and the reset button below clears the slicer. */}
               <div className="mt-2.5 space-y-1.5">
                 {(
                   [
-                    { key: 'ALL', label: 'الكل', n: dealStatusCounts.total, active: 'bg-white text-slate-900', idle: 'bg-slate-800/70 text-slate-300 hover:bg-slate-700', dot: '' },
-                    { key: 'dealt', label: 'متعامل ✅', n: dealStatusCounts.dealt, active: 'bg-emerald-500 text-white', idle: 'bg-emerald-900/40 text-emerald-200 hover:bg-emerald-900/70', dot: '' },
-                    { key: 'eligible', label: 'غير متعامل ⏳', n: dealStatusCounts.notDealt, active: 'bg-sky-500 text-white', idle: 'bg-sky-900/40 text-sky-200 hover:bg-sky-900/70', dot: '' },
+                    { key: 'dealt', label: 'متعامل ✅', n: dealStatusCounts.dealt, active: 'bg-emerald-500 text-white', idle: 'bg-emerald-900/40 text-emerald-200 hover:bg-emerald-900/70' },
+                    { key: 'eligible', label: 'غير متعامل ⏳', n: dealStatusCounts.notDealt, active: 'bg-sky-500 text-white', idle: 'bg-sky-900/40 text-sky-200 hover:bg-sky-900/70' },
                   ] as const
                 ).map(({ key, label, n, active, idle }) => {
                   const isActive = dealEligibilityFilter === key;
@@ -4932,7 +4926,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <button
                       key={key}
                       type="button"
-                      onClick={() => setDealEligibilityFilter(isActive && key !== 'ALL' ? 'ALL' : key)}
+                      onClick={() => setDealEligibilityFilter(isActive ? 'ALL' : key)}
                       className={`w-full flex items-center justify-between rounded-xl px-3 py-2 border transition cursor-pointer ${
                         isActive
                           ? `${active} border-transparent shadow-lg`
@@ -5069,11 +5063,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
                       {/* Eligibility Badge */}
                       <div className="shrink-0">
-                        {metrics?.isExplicitIneligible ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-black bg-rose-50 text-rose-700 border border-rose-200">
-                            غير قابل ⛔
-                          </span>
-                        ) : metrics?.isDealtCustomer ? (
+                        {metrics?.isDealtCustomer ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
                             متعامل ✅
                           </span>
@@ -5332,12 +5322,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
                       {/* قابل / غير */}
                       <td className="p-3 text-center whitespace-nowrap">
-                        {metrics?.isExplicitIneligible ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-black bg-rose-50 text-rose-700 border border-rose-200">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                            غير قابل ⛔
-                          </span>
-                        ) : metrics?.isDealtCustomer ? (
+                        {metrics?.isDealtCustomer ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                             متعامل ✅
