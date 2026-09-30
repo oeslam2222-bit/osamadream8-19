@@ -1979,7 +1979,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     setSelectedRegion('ALL');
     setSelectedMonth('ALL');
     setDealEligibilityFilter('ALL');
-    setDealtFilter('ALL');
+    // Keep the dashboard scoped to the requested "متعامل" segment after reset.
+    setDealtFilter('dealt');
     setPaymentTermsFilter('ALL');
     setGuaranteeFilter('ALL');
     setActivityTypeFilter('ALL');
@@ -2355,9 +2356,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </span>
             <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-black">
               ✅ متعامل: {dealStatusCounts.dealt.toLocaleString()}
-            </span>
-            <span className="px-2.5 py-1 rounded-lg bg-sky-100 text-sky-800 border border-sky-200 text-[11px] font-black">
-              ⏳ غير متعامل: {dealStatusCounts.notDealt.toLocaleString()}
             </span>
           </div>
           {activeFiltersCount > 0 && (
@@ -3585,7 +3583,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-black text-slate-800 flex items-center gap-1">
                       <Award className="w-3.5 h-3.5 text-amber-600" />
-                      <span>تصنيف العملاء (خ/ك - كبار عملاء / خاص / خط):</span>
+                      <span>تصنيف العملاء (��/ك - كبار عملاء / خاص / خط):</span>
                     </span>
                     <span className="text-[11px] text-slate-500 font-semibold">{filteredCustomers.length} عميل</span>
                   </div>
