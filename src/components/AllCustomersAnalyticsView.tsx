@@ -90,15 +90,15 @@ import {
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
 import { getSavedSourceUrl, saveSingleSourceUrl, getSavedSheetHistory } from '../services/dataSourceService';
 
-// Sheet sign convention for collections: NEGATIVE = a real collection,
-// POSITIVE = a مردود (return). Summing the raw signs would let a return cancel
+// Sheet sign convention for collections: POSITIVE = a real collection,
+// NEGATIVE = a مردود (return). Summing the raw signs would let a return cancel
 // a real collection, and taking Math.abs of everything would instead add the two
-// together and inflate the figure. So each value keeps its direction and the net
-// effect is the collection total minus the returns total.
+// together and inflate the figure. So each value is classified by its direction:
+// a return contributes nothing to إجمالي التحصيلات, it is tracked separately.
 const collectionMagnitude = (v: unknown): number => {
   const n = Number(v);
-  if (!isFinite(n) || n === 0) return 0;
-  return n < 0 ? Math.abs(n) : -n;
+  if (!isFinite(n) || n <= 0) return 0;
+  return n;
 };
 
 interface AllCustomersAnalyticsViewProps {
@@ -517,16 +517,16 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     return stripped || 'أوراق ضمان';
   };
 
-  // Sheet sign convention for collections: NEGATIVE = a real collection,
-  // POSITIVE = a مردود (return). Summing the raw signs would let a return
+  // Sheet sign convention for collections: POSITIVE = a real collection,
+  // NEGATIVE = a مردود (return). Summing the raw signs would let a return
   // cancel a real collection, and taking Math.abs of everything would instead
   // add the two together and inflate the figure. So each value is split into
   // the two sides and kept apart.
   const splitCollection = (v: unknown): { collections: number; returns: number } => {
     const n = Number(v);
     if (!isFinite(n) || n === 0) return { collections: 0, returns: 0 };
-    if (n < 0) return { collections: Math.abs(n), returns: 0 };
-    return { collections: 0, returns: n };
+    if (n > 0) return { collections: n, returns: 0 };
+    return { collections: 0, returns: Math.abs(n) };
   };
 
   const hasGuaranteePapers = (c: Customer): boolean =>
@@ -668,16 +668,15 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         if (overall !== undefined && overall !== null && !isNaN(Number(overall))) return splitCollection(overall);
         return splitCollection(c.collections2026 || 0);
       })();
-      // "إجمالي التحصيلات الفعلي" counts real collections only (the negative
-      // figures), so it is never inflated by a مردود. The month sum is the
-      // fallback for rows whose إجمالي التحصيلات column is empty. The net
-      // figure — collections minus returns — is kept alongside it.
+      // "إجمالي التحصيلات الفعلي" counts real collections only, so it is never
+      // inflated by a مردود. The month sum is the fallback for rows whose
+      // إجمالي التحصيلات column is empty. The net figure — collections minus
+      // returns — is kept alongside it.
       const hasExplicitCollections = explicitSplit.collections !== 0 || explicitSplit.returns !== 0;
       const collections2026 = hasExplicitCollections ? explicitSplit.collections : monthlyColsSum;
       const returns2026 = hasExplicitCollections ? explicitSplit.returns : monthlyReturnsSum;
       const explicitCollections = collections2026 - returns2026;
-      // Collections are stored negative and a positive value means a مردود, so
-      // the rate always divides the magnitude.
+      // Both sides are plain positive magnitudes, so the rate divides directly.
       const collectionRate = sales2026 > 0
         ? Math.round((collections2026 / sales2026) * 100)
         : 0;
@@ -1193,8 +1192,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     });
 
     const salesGrowth = totalSales2025 > 0 ? Math.round(((totalSales2026 - totalSales2025) / totalSales2025) * 100) : (totalSales2026 > 0 ? 100 : 0);
-    // Rates compare magnitudes: collections are negative by the sheet's
-    // convention, so dividing the raw signed sums would report a negative rate.
+    // Both sums are plain positive magnitudes, so the rate divides directly.
     const collectionRate = totalSales2026 > 0 ? Math.round((totalCollections2026 / totalSales2026) * 100) : 0;
     const periodCollectionRate = totalPeriodSales > 0 ? Math.round((totalPeriodCollections / totalPeriodSales) * 100) : 0;
     const activeRate = filteredCustomers.length > 0 ? Math.round((active2026Count / filteredCustomers.length) * 100) : 0;
@@ -1524,7 +1522,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         pCols = collectionMagnitude(c.monthlyCollections2026?.[10]) + collectionMagnitude(c.monthlyCollections2026?.[11]) + collectionMagnitude(c.monthlyCollections2026?.[12]);
       } else if (typeof selectedMonth === 'number') {
         pSales = Number(c.monthlySales2026?.[selectedMonth]) || 0;
-        pCols = Number(c.monthlyCollections2026?.[selectedMonth]) || 0;
+        pCols = collectionMagnitude(c.monthlyCollections2026?.[selectedMonth]);
       }
       item.periodSales += pSales;
       item.periodCollections += pCols;
