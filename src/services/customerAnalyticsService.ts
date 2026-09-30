@@ -620,17 +620,25 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     ) {
       colMap.openingBalance2026 = idx;
     }
-    // 11. Overdue & Due Total
+    // 11. Overdue & Due Total (المستحقات والمتأخرات)
     else if (
       colMap.totalOverdueAndDue === -1 &&
-      (h.includes('اجمالي المتأخرات') ||
+      (h.includes('مستحق') ||
+        h.includes('المستحق') ||
+        h.includes('المستحقات') ||
+        h.includes('مستحقات') ||
+        h.includes('اجمالي المستحقات') ||
+        h.includes('إجمالي المستحقات') ||
+        h.includes('مستحق حتي') ||
+        h.includes('مستحق حتى') ||
+        h.includes('مستحق السداد') ||
+        h.includes('اجمالي المتأخرات') ||
         h.includes('إجمالي المتأخرات') ||
         h.includes('اجمالي المتاخرات') ||
         h.includes('المتأخرات') ||
         h.includes('المتاخرات') ||
-        h.includes('مستحق حتي') ||
-        h.includes('مستحق حتى') ||
-        h.includes('overdue'))
+        h.includes('overdue') ||
+        h.includes('due'))
     ) {
       colMap.totalOverdueAndDue = idx;
     }
@@ -664,13 +672,16 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     ) {
       colMap.collections2026 = idx;
     }
-    // 16. Debt / Current Balance
+    // 16. Debt / Current Balance (المديونية / الرصيد الحالي)
     else if (
       colMap.currentBalance === -1 &&
       !h.includes('حد') &&
       !h.includes('ائتمان') &&
+      !h.includes('مستحق') &&
       (h.includes('مديونية العميل') ||
         h.includes('مديونيه العميل') ||
+        h.includes('إجمالي المديونية') ||
+        h.includes('اجمالي المديونية') ||
         h.includes('المديونيه') ||
         h.includes('المديونية') ||
         h.includes('مديونية') ||
@@ -683,7 +694,6 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
         h.includes('debt') ||
         h === 'الرصيد' ||
         h === 'رصيد' ||
-        h === 'المستحق' ||
         h === 'عليه')
     ) {
       colMap.currentBalance = idx;
@@ -797,9 +807,9 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     const balance = colMap.currentBalance !== -1 ? cleanNumber(row[colMap.currentBalance]) : 0;
     const creditLimit = colMap.creditLimit !== -1 ? cleanNumber(row[colMap.creditLimit]) : 0;
     const s2025 = colMap.sales2025 !== -1 ? cleanNumber(row[colMap.sales2025]) : 0;
-    // Collections in accounting sheets are often negative: convert to absolute positive
-    const c2025 = colMap.collections2025 !== -1 ? Math.abs(cleanNumber(row[colMap.collections2025])) : 0;
-    const overdueAndDue = colMap.totalOverdueAndDue !== -1 ? cleanNumber(row[colMap.totalOverdueAndDue]) : balance;
+    // Keep signed collections from sheet (can be negative or positive as in source)
+    const c2025 = colMap.collections2025 !== -1 ? cleanNumber(row[colMap.collections2025]) : 0;
+    const overdueAndDue = colMap.totalOverdueAndDue !== -1 ? cleanNumber(row[colMap.totalOverdueAndDue]) : (colMap.currentBalance !== -1 ? balance : 0);
     const annualTarget = colMap.annualTarget !== -1 ? cleanNumber(row[colMap.annualTarget]) : 0;
     const openingBalance = colMap.openingBalance2026 !== -1 ? cleanNumber(row[colMap.openingBalance2026]) : balance;
 
@@ -812,15 +822,15 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     for (let m = 1; m <= 12; m++) {
       if (colMap.monthlySales[m] !== undefined && colMap.monthlySales[m] > -1) {
         const val = cleanNumber(row[colMap.monthlySales[m]]);
-        if (val > 0) {
+        if (val !== 0) {
           monthlySales[m] = val;
           computedSales2026 += val;
         }
       }
       if (colMap.monthlyCollections[m] !== undefined && colMap.monthlyCollections[m] > -1) {
-        // Collections are converted to positive numbers even if negative in source
-        const val = Math.abs(cleanNumber(row[colMap.monthlyCollections[m]]));
-        if (val > 0) {
+        // Keep signed value from sheet as requested by user (negative if negative in sheet)
+        const val = cleanNumber(row[colMap.monthlyCollections[m]]);
+        if (val !== 0) {
           monthlyCollections[m] = val;
           computedCollections2026 += val;
         }
@@ -828,14 +838,11 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     }
 
     const explicitSales2026 = colMap.sales2026 !== -1 ? cleanNumber(row[colMap.sales2026]) : 0;
-    const finalSales2026 = Math.max(explicitSales2026, computedSales2026);
+    const finalSales2026 = explicitSales2026 !== 0 ? explicitSales2026 : computedSales2026;
 
-    // Explicit collections 2026 converted to positive
-    const explicitCollections2026 = colMap.collections2026 !== -1 ? Math.abs(cleanNumber(row[colMap.collections2026])) : 0;
-    // Prefer the explicit sheet total when available (> 0); fall back to computed monthly sum only
-    // when there is no explicit column or its value is missing/empty. This prevents the system
-    // from over-calculating when monthly column matching picks up extra columns.
-    const finalCollections2026 = explicitCollections2026 > 0 ? explicitCollections2026 : computedCollections2026;
+    // Explicit collections 2026: preserves exact sheet sign (negative if entered negative in accounting)
+    const explicitCollections2026 = colMap.collections2026 !== -1 ? cleanNumber(row[colMap.collections2026]) : 0;
+    const finalCollections2026 = explicitCollections2026 !== 0 ? explicitCollections2026 : computedCollections2026;
 
     // Guarantee docs logic:
     // لو كبر من صفر يبقي ماضي علي ورق ضمان بالمبلغ ده
@@ -907,14 +914,14 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     const rawDealt = colMap.hasDealt2026 !== -1 ? getCellStr(row, colMap.hasDealt2026).toLowerCase() : '';
     const hasDealtIn2026 =
       finalSales2026 > 0 ||
-      finalCollections2026 > 0 ||
+      Math.abs(finalCollections2026) > 0 ||
       rawDealt.includes('متعامل') ||
       rawDealt.includes('نعم') ||
       rawDealt.includes('نشط') ||
       rawDealt.includes('yes') ||
       rawDealt.includes('active');
 
-    const hasPreviousDeals = s2025 > 0 || c2025 > 0 || hasDealtIn2026 || balance > 0;
+    const hasPreviousDeals = s2025 > 0 || Math.abs(c2025) > 0 || hasDealtIn2026 || balance > 0;
 
     let status2026: 'active' | 'inactive' | 'churn_risk' | 'new_customer' = 'inactive';
     if (hasDealtIn2026 && !s2025) {
@@ -999,14 +1006,15 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
       if (uniqueCodeMap.has(cleanCode)) {
         duplicatesCount++;
         const prev = uniqueCodeMap.get(cleanCode)!;
+        const pickCol = (a?: number, b?: number) => (Math.abs(a || 0) >= Math.abs(b || 0) ? (a || 0) : (b || 0));
         uniqueCodeMap.set(cleanCode, {
           ...prev,
           ...c,
           id: prev.id,
           sales2026: Math.max(c.sales2026 || 0, prev.sales2026 || 0),
-          collections2026: Math.max(c.collections2026 || 0, prev.collections2026 || 0),
+          collections2026: pickCol(c.collections2026, prev.collections2026),
           totalMonthlySales: Math.max(c.totalMonthlySales || 0, prev.totalMonthlySales || 0),
-          totalMonthlyCollections: Math.max(c.totalMonthlyCollections || 0, prev.totalMonthlyCollections || 0),
+          totalMonthlyCollections: pickCol(c.totalMonthlyCollections, prev.totalMonthlyCollections),
           creditLimit: Math.max(c.creditLimit || 0, prev.creditLimit || 0),
           guaranteeDocs: c.guaranteeDocs && !c.guaranteeDocs.includes('لا يوجد') ? c.guaranteeDocs : prev.guaranteeDocs,
           guaranteeAmount: Math.max(c.guaranteeAmount || 0, prev.guaranteeAmount || 0),

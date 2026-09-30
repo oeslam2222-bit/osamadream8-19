@@ -668,9 +668,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           ? Boolean(
               c.hasDealtIn2026 ||
               (c.monthlySales2026 && Object.values(c.monthlySales2026).some((v) => Number(v) > 0)) ||
-              (c.monthlyCollections2026 && Object.values(c.monthlyCollections2026).some((v) => Number(v) > 0))
+              (c.monthlyCollections2026 && Object.values(c.monthlyCollections2026).some((v) => Math.abs(Number(v)) > 0))
             )
-          : periodSales > 0 || periodCollections !== 0;
+          : periodSales > 0 || Math.abs(periodCollections) > 0;
 
       map.set(c.id, {
         id: c.id,
@@ -1091,8 +1091,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         churnRiskCount++;
       }
 
-      // متعامل = المبيعات > 0 في الفترة المختارة فقط. غير متعامل = الباقي.
-      if (pSales > 0) {
+      // متعامل = مسجل في الشيت أو حقق مبيعات/تحصيلات في الفترة المحددة
+      const isDealt = m ? m.isDealtCustomer : (pSales > 0 || Math.abs(pCols) > 0 || Boolean(c.hasDealtIn2026));
+      if (isDealt) {
         activeFilteredCount++;
       } else {
         nonDealtFilteredCount++;
@@ -1344,12 +1345,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     filteredCustomers.forEach((c) => {
       const b = c.branchName || 'الفرع الرئيسي';
       const cur = map.get(b) || { branch: b, sales: 0, collections: 0, customers: 0, debt: 0, overdue: 0, collectionRate: 0 };
-      const sumS = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-      const s = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, sumS);
-      const sumC = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-      const col = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, sumC);
-      const d = c.currentBalance ?? c.balance ?? 0;
-      const o = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
+      const m = customerMetricsMap.get(c.id);
+      const s = m ? m.sales2026 : (c.sales2026 || c.totalMonthlySales || 0);
+      const col = m ? m.collections2026 : (c.collections2026 || c.totalMonthlyCollections || 0);
+      const d = m ? m.balance : (c.currentBalance ?? c.balance ?? 0);
+      const o = m ? m.overdue : (c.totalOverdueAndDue ?? c.overdueBalance ?? 0);
       cur.sales += s;
       cur.collections += col;
       cur.debt += d;
@@ -1360,10 +1360,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     return Array.from(map.values())
       .map((item) => ({
         ...item,
-        collectionRate: item.sales > 0 ? Math.min(100, Math.round((item.collections / item.sales) * 100)) : 0,
+        collectionRate: item.sales > 0 ? Math.min(100, Math.round((Math.abs(item.collections) / item.sales) * 100)) : 0,
       }))
       .sort((a, b) => b.sales - a.sales);
-  }, [filteredCustomers]);
+  }, [filteredCustomers, customerMetricsMap]);
 
   const topRepsAnalyticsData = useMemo(() => {
     const map = new Map<string, { rep: string; sales: number; collections: number; customers: number }>();
@@ -1371,17 +1371,16 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const r = c.salesRepName || c.repName;
       if (!r || r === 'غير محدد') return;
       const cur = map.get(r) || { rep: r, sales: 0, collections: 0, customers: 0 };
-      const sumS = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-      const s = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, sumS);
-      const sumC = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-      const col = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, sumC);
+      const m = customerMetricsMap.get(c.id);
+      const s = m ? m.sales2026 : (c.sales2026 || c.totalMonthlySales || 0);
+      const col = m ? m.collections2026 : (c.collections2026 || c.totalMonthlyCollections || 0);
       cur.sales += s;
       cur.collections += col;
       cur.customers += 1;
       map.set(r, cur);
     });
     return Array.from(map.values()).sort((a, b) => b.sales - a.sales).slice(0, 8);
-  }, [filteredCustomers]);
+  }, [filteredCustomers, customerMetricsMap]);
 
   const paymentGuaranteePieData = useMemo(() => {
     let cashCount = 0;
@@ -1906,8 +1905,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   }, [isSupervisor, isBranchManager, isAdminOrDev, customers]);
 
   const pendingReturns = returnAlerts.filter((v) => v.returnStatus === 'بانتظار المشرف' || !v.returnStatus);
-  const sentReturns = returnAlerts.filter((v) => v.returnStatus === 'تم الإرسال لأمين المخزن');
-  const handledReturns = returnAlerts.filter((v) => v.returnStatus === 'تم الاستلام من أمين المخزن');
+  const sentReturns = returnAlerts.filter((v) => v.returnStatus === 'تم الإرسال لأمين المخزن' || v.returnStatus === 'تم التحويل لأمين المخزن');
+  const handledReturns = returnAlerts.filter((v) => v.returnStatus === 'تم الاستلام من أمين المخزن' || v.returnStatus === 'تم الاستلام بالمخزن');
   const pendingReturnValue = pendingReturns.reduce((a, v) => a + (Number(v.returnValue) || 0), 0);
   const sentReturnValue = sentReturns.reduce((a, v) => a + (Number(v.returnValue) || 0), 0);
 
@@ -1928,13 +1927,20 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       .filter((r) => r.name);
   };
 
-  const handleReturnHandover = (visit: CustomerVisit, nextStatus: 'تم الإرسال لأمين المخزن' | 'تم الاستلام من أمين المخزن') => {
+  const handleReturnHandover = (visit: CustomerVisit, nextStatus: 'تم التحويل لأمين المخزن' | 'تم الإرسال لأمين المخزن' | 'تم الاستلام من أمين المخزن') => {
+    const roleLabel =
+      currentUser?.role === 'branch_manager' ? 'مدير الفرع' :
+      currentUser?.role === 'supervisor' ? 'مشرف المندوب' :
+      currentUser?.role === 'admin' ? 'الإدارة' :
+      currentUser?.role === 'developer' ? 'المطور' : 'المشرف';
+
     updateVisit({
       ...visit,
       returnStatus: nextStatus,
-      returnHandledBy: currentUser?.name || 'المشرف',
+      returnHandledBy: `${currentUser?.name || 'المشرف'} (${roleLabel})`,
       returnHandledAt: new Date().toISOString(),
-      returnNote: (returnNoteDraft[visit.id] || '').trim() || undefined,
+      returnHandledRole: currentUser?.role,
+      returnNote: (returnNoteDraft[visit.id] || '').trim() || visit.returnNote || undefined,
     });
     setReturnNoteDraft((prev) => {
       const next = { ...prev };
@@ -2165,14 +2171,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       )}
 
       {/* Power BI Financial Summary Cards (Top Highlighted Executive Ribbon) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         {/* Card 1: Total Debts */}
         <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 text-white rounded-2xl p-4 border border-indigo-500/30 shadow-md relative overflow-hidden group">
           <div className="absolute top-0 right-0 left-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-400"></div>
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-indigo-300 flex items-center gap-1.5">
               <CreditCard className="w-4 h-4 text-indigo-400" />
-              <span>إجمالي المديونية الحالية (Total Debts)</span>
+              <span>إجمالي المديونية (Total Debts)</span>
             </span>
             <span className="text-[10px] bg-indigo-500/20 text-indigo-200 px-2 py-0.5 rounded-full font-bold border border-indigo-400/30">
               {filteredCustomers.filter(c => (customerMetricsMap.get(c.id)?.balance || 0) > 0).length.toLocaleString()} مدين
@@ -2195,7 +2201,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-rose-300 flex items-center gap-1.5">
               <AlertCircle className="w-4 h-4 text-rose-400" />
-              <span>إجمالي المستحقات الواجبة (Total Dues)</span>
+              <span>إجمالي المستحقات (Total Dues)</span>
             </span>
             <span className="text-[10px] bg-rose-500/20 text-rose-200 px-2 py-0.5 rounded-full font-bold border border-rose-400/30">
               {filteredCustomers.filter(c => (customerMetricsMap.get(c.id)?.overdue || 0) > 0).length.toLocaleString()} مستحق
@@ -2210,33 +2216,34 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           </div>
         </div>
 
-        {/* Card 3: Active Monthly Coverage Target */}
+        {/* Card 3: Total Collections (المحصل بالسالب كما بالشيت) */}
         <div className="bg-gradient-to-br from-emerald-950 via-slate-900 to-slate-950 text-white rounded-2xl p-4 border border-emerald-500/30 shadow-md relative overflow-hidden group">
           <div className="absolute top-0 right-0 left-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400"></div>
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-emerald-300 flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>تغطية العملاء المتعاملين (Active Rate)</span>
+              <DollarSign className="w-4 h-4 text-emerald-400" />
+              <span>إجمالي التحصيلات (Collections)</span>
             </span>
             <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold border border-emerald-400/30">
-              {selectedMonth === 'ALL' ? 'عام 2026' : `شهر ${selectedMonth}`}
+              كفاءة {selectedMonth === 'ALL' ? kpiStats.collectionRate : kpiStats.periodCollectionRate}%
             </span>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-emerald-400 mt-2 tracking-tight">
-            {kpiStats.activeFilteredCount.toLocaleString()}{' '}
-            <span className="text-sm font-semibold text-slate-300">من {kpiStats.totalCount.toLocaleString()} عميل</span>
+          <div className="text-2xl sm:text-3xl font-black text-emerald-400 mt-2 tracking-tight font-mono" title={isPrivacyMode ? 'مخفي' : undefined}>
+            {formatMoney(selectedMonth === 'ALL' ? kpiStats.totalCollections2026 : kpiStats.totalPeriodCollections)}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between">
-            <span className="text-emerald-300 font-black">
-              نسبة التغطية: {kpiStats.coverageRate}%
+          <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between flex-wrap gap-1">
+            <span>
+              {selectedMonth === 'ALL' ? 'إجمالي المحصل الفعلي' : `تحصيلات فترة ${selectedMonth}`}
             </span>
-            <span className="text-slate-500 text-[10px]">
-              (غير متعامل {kpiStats.nonDealtFilteredCount.toLocaleString()})
-            </span>
+            {(selectedMonth === 'ALL' ? kpiStats.totalCollections2026 : kpiStats.totalPeriodCollections) < 0 && (
+              <span className="text-emerald-300/90 text-[10px] font-bold">
+                (بالسالب طبقاً للشيت)
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Card 4: 2026 Sales & Collection Rate */}
+        {/* Card 4: 2026 Sales */}
         <div className="bg-gradient-to-br from-sky-950 via-slate-900 to-slate-950 text-white rounded-2xl p-4 border border-sky-500/30 shadow-md relative overflow-hidden group">
           <div className="absolute top-0 right-0 left-0 h-1 bg-gradient-to-r from-sky-500 via-blue-500 to-teal-400"></div>
           <div className="flex items-center justify-between">
@@ -2244,198 +2251,51 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               <TrendingUp className="w-4 h-4 text-sky-400" />
               <span>
                 {selectedMonth === 'ALL'
-                  ? 'مبيعات وتحصيلات 2026'
-                  : `مبيعات وتحصيلات ${selectedMonth === 'Q1' ? 'الربع الأول Q1' : selectedMonth === 'Q2' ? 'الربع الثاني Q2' : selectedMonth === 'Q3' ? 'الربع الثالث Q3' : selectedMonth === 'Q4' ? 'الربع الرابع Q4' : `شهر ${selectedMonth} (${MONTH_NAMES_AR[Number(selectedMonth) - 1]})`}`}
+                  ? 'مبيعات 2026'
+                  : `مبيعات ${selectedMonth === 'Q1' ? 'الربع الأول Q1' : selectedMonth === 'Q2' ? 'الربع الثاني Q2' : selectedMonth === 'Q3' ? 'الربع الثالث Q3' : selectedMonth === 'Q4' ? 'الربع الرابع Q4' : `شهر ${selectedMonth}`}`}
               </span>
             </span>
             <span className="text-[10px] bg-sky-500/20 text-sky-200 px-2 py-0.5 rounded-full font-bold border border-sky-400/30">
-              كفاءة {selectedMonth === 'ALL' ? kpiStats.collectionRate : kpiStats.periodCollectionRate}%
+              {kpiStats.salesGrowth >= 0 ? `+${kpiStats.salesGrowth}% نمو` : `${kpiStats.salesGrowth}%`}
             </span>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-white mt-2 tracking-tight truncate" title={isPrivacyMode ? 'مخفي' : undefined}>
+          <div className="text-2xl sm:text-3xl font-black text-white mt-2 tracking-tight truncate font-mono" title={isPrivacyMode ? 'مخفي' : undefined}>
             {formatMoney(selectedMonth === 'ALL' ? kpiStats.totalSales2026 : kpiStats.totalPeriodSales)}
           </div>
           <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between flex-wrap gap-1">
-            <span>المحصل: <strong className="text-emerald-400 font-mono">{formatMoney(Math.abs(selectedMonth === 'ALL' ? kpiStats.totalCollections2026 : kpiStats.totalPeriodCollections))}</strong></span>
-            {selectedMonth === 'ALL' ? (
-              <span className="text-sky-400 font-bold">{kpiStats.salesGrowth >= 0 ? `+${kpiStats.salesGrowth}% نمو` : `${kpiStats.salesGrowth}%`}</span>
-            ) : (
-              <span className="text-slate-400 text-[10px]">المجمع 2026: {formatMoney(kpiStats.totalSales2026)}</span>
-            )}
+            <span>
+              {selectedMonth === 'ALL' ? 'إجمالي المبيعات المحققة' : `المجمع السنوي: ${formatMoney(kpiStats.totalSales2026)}`}
+            </span>
+            <span className="text-sky-300 font-bold">مبيعات فعلية</span>
+          </div>
+        </div>
+
+        {/* Card 5: Active Monthly Coverage Target */}
+        <div className="bg-gradient-to-br from-violet-950 via-slate-900 to-slate-950 text-white rounded-2xl p-4 border border-violet-500/30 shadow-md relative overflow-hidden group">
+          <div className="absolute top-0 right-0 left-0 h-1 bg-gradient-to-r from-violet-500 via-purple-500 to-violet-400"></div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black text-violet-300 flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-violet-400" />
+              <span>تغطية المتعاملين (Active Rate)</span>
+            </span>
+            <span className="text-[10px] bg-violet-500/20 text-violet-300 px-2 py-0.5 rounded-full font-bold border border-violet-400/30">
+              {selectedMonth === 'ALL' ? 'عام 2026' : `شهر ${selectedMonth}`}
+            </span>
+          </div>
+          <div className="text-2xl sm:text-3xl font-black text-violet-300 mt-2 tracking-tight">
+            {kpiStats.activeFilteredCount.toLocaleString()}{' '}
+            <span className="text-xs font-semibold text-slate-300">من {kpiStats.totalCount.toLocaleString()} عميل</span>
+          </div>
+          <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between">
+            <span className="text-violet-300 font-black">
+              نسبة التغطية: {kpiStats.coverageRate}%
+            </span>
+            <span className="text-slate-500 text-[10px]">
+              (غير متعامل {kpiStats.nonDealtFilteredCount.toLocaleString()})
+            </span>
           </div>
         </div>
       </div>
-
-      {/* ===== تنبيهات المرتجع — تظهر للمشرف ومدير الفرع ===== */}
-      {(isSupervisor || isBranchManager || isAdminOrDev) && returnAlerts.length > 0 && (
-        <div className="rounded-2xl border-2 border-rose-300 bg-gradient-to-br from-rose-50 to-orange-50 shadow-lg overflow-hidden">
-          <div className="flex items-center justify-between gap-3 px-4 py-3 bg-rose-600 text-white">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
-                <RotateCcw className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-sm font-black">تنبيهات المرتجع</div>
-                <div className="text-[11px] opacity-90 font-semibold">
-                  مرتجعات المناديب — يتم إبلاغ أمين المخزن فور الإرسال
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-2.5 py-1 rounded-lg bg-white/25 text-[11px] font-black">
-                بانتظار الإرسال: {pendingReturns.length}
-              </span>
-              <span className="px-2.5 py-1 rounded-lg bg-white/20 text-[11px] font-black">
-                تم الإرسال: {sentReturns.length}
-              </span>
-              <span className="px-2.5 py-1 rounded-lg bg-white/20 text-[11px] font-black">
-                تم الاستلام: {handledReturns.length}
-              </span>
-              <span className="px-2.5 py-1 rounded-lg bg-white/20 text-[11px] font-black">
-                القيمة: {formatMoney(pendingReturnValue)}
-              </span>
-            </div>
-          </div>
-
-          <div className="divide-y divide-rose-100">
-            {pendingReturns.map((v) => (
-              <div key={v.id} className="p-3.5 bg-white/70 hover:bg-white transition">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="px-2 py-0.5 rounded-md text-[10.5px] font-black bg-rose-100 text-rose-700 border border-rose-200">
-                        عميل مرتجع
-                      </span>
-                      <span className="text-sm font-black text-slate-900">{v.customerName || 'عميل بدون اسم'}</span>
-                      <span className="text-[11px] font-bold text-slate-400">{v.branchName}</span>
-                    </div>
-                    <div className="text-[11px] text-slate-500 mt-1 font-semibold">
-                      المندوب: {v.repName} • {v.date} • {v.time || ''}
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap mt-2">
-                      <span className="px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-black font-mono">
-                        {formatMoney(Number(v.returnValue) || 0)}
-                      </span>
-                      {v.returnReason && (
-                        <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                          السبب: {v.returnReason}
-                        </span>
-                      )}
-                    </div>
-
-                    {parseReturnItems(v.returnItems).length > 0 && (
-                      <div className="mt-2 rounded-xl border border-slate-200 bg-white overflow-hidden">
-                        <div className="px-2.5 py-1 bg-slate-50 border-b border-slate-100 text-[10.5px] font-black text-slate-500">
-                          أصناف المرتجع
-                        </div>
-                        {parseReturnItems(v.returnItems).map((item, i) => (
-                          <div key={i} className="px-2.5 py-1 flex items-center justify-between text-[11px] border-b border-slate-50 last:border-0">
-                            <span className="font-bold text-slate-800">{item.name}</span>
-                            {item.qty && (
-                              <span className="px-1.5 py-0.5 rounded-md bg-slate-900 text-white text-[10px] font-black font-mono">
-                                × {item.qty}
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {v.notes && (
-                      <div className="text-[11px] text-slate-600 mt-1.5 bg-slate-50 rounded-lg px-2 py-1 border border-slate-100">
-                        {v.notes}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <input
-                      type="text"
-                      placeholder="ملاحظة الإرسال (اختياري)"
-                      value={returnNoteDraft[v.id] || ''}
-                      onChange={(e) => setReturnNoteDraft((p) => ({ ...p, [v.id]: e.target.value }))}
-                      className="w-44 px-2.5 py-1.5 bg-white border border-rose-200 rounded-xl text-[11px] font-bold"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleReturnHandover(v, 'تم الإرسال لأمين المخزن')}
-                      className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black shadow transition cursor-pointer whitespace-nowrap"
-                    >
-                      تم الإرسال لأمين المخزن
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {pendingReturns.length === 0 && (
-              <div className="p-4 text-center text-xs font-black text-emerald-700 bg-emerald-50/60">
-                لا يوجد مرتجعات بانتظار الإرسال — كل المرتجعات تم إرسالها لأمين المخزن ✅
-              </div>
-            )}
-
-            {sentReturns.length > 0 && (
-              <details className="bg-sky-50/60" open>
-                <summary className="px-4 py-2.5 text-[11px] font-black text-sky-700 cursor-pointer select-none">
-                  تم إرسالها لأمين المخزن ({sentReturns.length}) — {formatMoney(sentReturnValue)}
-                </summary>
-                <div className="divide-y divide-sky-100">
-                  {sentReturns.map((v) => (
-                    <div key={v.id} className="px-4 py-2.5 text-[11px] text-slate-600 flex items-center justify-between gap-3 flex-wrap">
-                      <span>
-                        <span className="font-black text-slate-800">{v.customerName}</span>
-                        {' — '}{formatMoney(Number(v.returnValue) || 0)}
-                        {v.returnReason ? ` — ${v.returnReason}` : ''}
-                        {parseReturnItems(v.returnItems).length > 0 && (
-                          <span className="block text-[10.5px] text-slate-500 mt-0.5 font-mono">
-                            {parseReturnItems(v.returnItems).map((i) => `${i.name}${i.qty ? ` ×${i.qty}` : ''}`).join(' | ')}
-                          </span>
-                        )}
-                      </span>
-                      <span className="flex items-center gap-2">
-                        <span className="font-bold text-sky-700">
-                          بواسطة {v.returnHandledBy || 'المشرف'}
-                          {v.returnHandledAt ? ` • ${new Date(v.returnHandledAt).toLocaleString('ar-EG')}` : ''}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleReturnHandover(v, 'تم الاستلام من أمين المخزن')}
-                          className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-[10.5px] font-black cursor-pointer"
-                        >
-                          تم الاستلام من المخزن
-                        </button>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </details>
-            )}
-
-            {handledReturns.length > 0 && (
-              <details className="bg-emerald-50/50">
-                <summary className="px-4 py-2.5 text-[11px] font-black text-emerald-700 cursor-pointer select-none">
-                  تم استلامها من أمين المخزن ({handledReturns.length})
-                </summary>
-                <div className="divide-y divide-emerald-100">
-                  {handledReturns.map((v) => (
-                    <div key={v.id} className="px-4 py-2.5 text-[11px] text-slate-600 flex items-center justify-between gap-3 flex-wrap">
-                      <span>
-                        <span className="font-black text-slate-800">{v.customerName}</span>
-                        {' — '}{formatMoney(Number(v.returnValue) || 0)}
-                        {v.returnReason ? ` — ${v.returnReason}` : ''}
-                      </span>
-                      <span className="font-bold text-emerald-700">
-                        بواسطة {v.returnHandledBy || 'المشرف'}
-                        {v.returnHandledAt ? ` • ${new Date(v.returnHandledAt).toLocaleString('ar-EG')}` : ''}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </details>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* ===== نطاق البيانات: أرقام شخصية / فريق العمل / الفرع كله ===== */}
       {(isRep || isSupervisor || isBranchManager) && (
@@ -2572,10 +2432,15 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             <DollarSign className="w-3.5 h-3.5 text-[#107c41]" />
           </div>
           <div className="text-base sm:text-lg font-black text-slate-900 mt-1 truncate" title={isPrivacyMode ? 'مخفي' : undefined}>
-            {formatMoney(Math.abs(selectedMonth === 'ALL' ? kpiStats.totalCollections2026 : kpiStats.totalPeriodCollections))}
+            {formatMoney(selectedMonth === 'ALL' ? kpiStats.totalCollections2026 : kpiStats.totalPeriodCollections)}
           </div>
-          <div className="text-[10px] text-[#107c41] font-extrabold mt-0.5">
-            {selectedMonth === 'ALL' ? kpiStats.collectionRate : kpiStats.periodCollectionRate}% نسبة التحصيل
+          <div className="text-[10px] text-[#107c41] font-extrabold mt-0.5 flex items-center justify-between flex-wrap gap-1">
+            <span>{selectedMonth === 'ALL' ? kpiStats.collectionRate : kpiStats.periodCollectionRate}% نسبة التحصيل</span>
+            {(selectedMonth === 'ALL' ? kpiStats.totalCollections2026 : kpiStats.totalPeriodCollections) < 0 && (
+              <span className="text-slate-400 font-normal text-[9px] font-mono">
+                (بالسالب طبقاً للشيت)
+              </span>
+            )}
           </div>
         </div>
 
@@ -4179,13 +4044,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-black tracking-wide text-white">سلايسر وفلاتر Power BI التنفيذية</span>
+                <span className="text-sm font-black tracking-wide text-white">فلاتر وقوائم التصفية المنسدلة من الشيت الأساسي</span>
                 <span className="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
-                  {activeFiltersCount > 0 ? `${activeFiltersCount} سلايسر نشط` : 'أعمدة الشيت الأصلية'}
+                  {activeFiltersCount > 0 ? `${activeFiltersCount} فلتر نشط` : 'أعمدة الشيت الأصلية'}
                 </span>
               </div>
               <p className="text-[11px] text-slate-300">
-                تصفية تفاعلية دقيقة مطابقة لأعمدة الشيت: الفرع، المندوب، العميل، خط السير، طبيعة النشاط، أوراق الضمان، طريقة الدفع، وتصنيف خ/ك
+                تصفية تفاعلية دقيقة بقوائم منسدلة مطابقة لأعمدة الشيت: الفرع، المندوب، خط السير، العميل، النشاط، الضمان، الدفع، خ/ك، حالة التعامل، المديونية، والفترة
               </p>
             </div>
           </div>
@@ -4201,21 +4066,21 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 type="button"
                 onClick={handleResetAllSlicers}
                 className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs animate-in fade-in"
-                title="إلغاء وتصفير جميع السلايسر"
+                title="إلغاء وتصفير جميع الفلاتر والقوائم"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span>تصفير السلايسر ({activeFiltersCount})</span>
+                <span>تصفير الفلاتر ({activeFiltersCount})</span>
               </button>
             )}
           </div>
         </div>
 
-        {/* Active Slicers Breadcrumb Ribbon (شريط السلايسر النشطة) */}
+        {/* Active Filters Breadcrumb Ribbon (شريط الفلاتر النشطة) */}
         {activeFiltersCount > 0 && (
           <div className="bg-amber-50/70 border-b border-amber-200/80 px-4 py-2 flex items-center gap-2 flex-wrap text-xs">
             <span className="text-[11px] font-black text-amber-900 flex items-center gap-1 shrink-0">
               <SlidersHorizontal className="w-3.5 h-3.5 text-amber-700" />
-              <span>السلايسر المطبقة حالياً:</span>
+              <span>الفلاتر والقوائم المطبقة حالياً:</span>
             </span>
 
             {selectedBranch !== 'ALL' && (
@@ -4521,30 +4386,21 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <button type="button" onClick={() => setGuaranteeFilter('ALL')} className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer">إلغاء</button>
                   )}
                 </label>
-                <div className="flex flex-wrap gap-1">
-                  {[
-                    { v: 'ALL', label: 'الكل', n: userVisibleCustomers.length, cls: 'bg-slate-800 text-white border-slate-700' },
-                    { v: 'has_guarantee', label: '✓ بأوراق ضمان', n: guaranteedCustomerCount, cls: 'bg-emerald-600 text-white border-emerald-500' },
-                    { v: 'unsecured', label: '✗ بدون ضمان', n: userVisibleCustomers.length - guaranteedCustomerCount, cls: 'bg-rose-600 text-white border-rose-500' },
-                    ...availableGuaranteeDocs
-                      .filter(([g]) => g !== 'لا يوجد ورق ضمان')
-                      .map(([g, count]) => ({ v: g, label: g, n: count, cls: 'bg-amber-500 text-slate-950 border-amber-400' })),
-                  ].map(({ v, label, n, cls }) => {
-                    const active = guaranteeFilter === v;
-                    return (
-                      <button
-                        key={v}
-                        type="button"
-                        onClick={() => setGuaranteeFilter(active && v !== 'ALL' ? 'ALL' : v)}
-                        className={`px-2 py-1 rounded-lg text-[10.5px] font-black border transition cursor-pointer ${
-                          active ? cls : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                        }`}
-                      >
-                        {label} <span className="opacity-80 font-mono">({n.toLocaleString()})</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                <select
+                  id="analytics-guarantee-select"
+                  value={guaranteeFilter}
+                  onChange={(e) => setGuaranteeFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500 transition shadow-2xs cursor-pointer"
+                >
+                  <option value="ALL">جميع حالات الضمان ({userVisibleCustomers.length})</option>
+                  <option value="has_guarantee">✓ بأوراق ضمان ({guaranteedCustomerCount} عميل)</option>
+                  <option value="unsecured">✗ بدون أوراق ضمان ({userVisibleCustomers.length - guaranteedCustomerCount} عميل)</option>
+                  {availableGuaranteeDocs.map(([g, count]) => (
+                    <option key={g} value={g}>
+                      {g} ({count} عميل)
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* 3. طريقة الدفع (كاش، آجل، دفعات، شيكات...) */}
@@ -4601,394 +4457,182 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </div>
           </div>
 
-          {/* Section 3: Financial Status & Segment Slicers (حالة التعامل، المديونية، شرائح المبيعات، والترتيب) */}
-          <div className="pt-2 border-t border-slate-100 space-y-2.5">
-            {/* Row 3A: Deal Eligibility & Debt Slicers */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-              {/* Deal Eligibility Slicer */}
-              <div className="bg-slate-50/90 p-2.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 shrink-0">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>حالة التعامل (من الشيت):</span>
-                </span>
-                <div className="flex items-center gap-1 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setDealEligibilityFilter('ALL')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      dealEligibilityFilter === 'ALL'
-                        ? 'bg-slate-900 text-white shadow-xs'
-                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                    }`}
-                  >
-                    الكل ({dealStatusCounts.total})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDealEligibilityFilter('dealt')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
-                      dealEligibilityFilter === 'dealt'
-                        ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400'
-                        : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
-                    }`}
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>متعامل ✅ ({dealStatusCounts.dealt})</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDealEligibilityFilter('eligible')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
-                      dealEligibilityFilter === 'eligible'
-                        ? 'bg-sky-600 text-white shadow-sm ring-2 ring-sky-400'
-                        : 'bg-sky-50 text-sky-800 hover:bg-sky-100 border border-sky-200'
-                    }`}
-                  >
-                    <Clock className="w-3.5 h-3.5 text-sky-500" />
-                    <span>غير متعامل ⏳ ({dealStatusCounts.notDealt})</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Quick Sorting */}
-              <div className="bg-slate-50/90 p-2.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 shrink-0">
-                  <ArrowUpDown className="w-4 h-4 text-purple-600" />
-                  <span>الترتيب الذكي:</span>
-                </span>
-                <div className="flex items-center gap-1 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setSortMode('highest_debt')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
-                      sortMode === 'highest_debt'
-                        ? 'bg-purple-700 text-white shadow-sm ring-2 ring-purple-400'
-                        : 'bg-white text-purple-800 hover:bg-purple-50 border border-purple-200'
-                    }`}
-                  >
-                    🔴 الأكثر مديونية
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSortMode('highest_overdue')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      sortMode === 'highest_overdue'
-                        ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-400'
-                        : 'bg-white text-rose-800 hover:bg-rose-50 border border-rose-200'
-                    }`}
-                  >
-                    ⚠️ الأكثر مستحقات
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSortMode('highest_sales')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      sortMode === 'highest_sales'
-                        ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400'
-                        : 'bg-white text-blue-800 hover:bg-blue-50 border border-blue-200'
-                    }`}
-                  >
-                    📈 أعلى مبيعات
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSortMode('route_asc')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
-                      sortMode === 'route_asc'
-                        ? 'bg-teal-700 text-white shadow-sm ring-2 ring-teal-400'
-                        : 'bg-white text-teal-800 hover:bg-teal-50 border border-teal-200'
-                    }`}
-                  >
-                    <Navigation className="w-3.5 h-3.5 text-teal-600" />
-                    <span>🗺️ خط السير</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSortMode('name_asc')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      sortMode === 'name_asc'
-                        ? 'bg-slate-800 text-white shadow-sm'
-                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                    }`}
-                  >
-                    🔤 أبجدي
-                  </button>
-                </div>
-              </div>
+          {/* Section 3: Performance, Financial Status & Time Horizon Drop Lists (قوائم منسدلة مستخرجة من الشيت) */}
+          <div className="pt-2 border-t border-slate-100">
+            <div className="text-[11px] font-black text-slate-500 mb-1.5 flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+              <span>مؤشرات الأداء والمديونية والفترة الزمنية (قوائم منسدلة مطابقة للشيت):</span>
             </div>
-
-            {/* Row 3B: Debt & Overdue Status Slicer */}
-            <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/90 flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5">
-              <div className="flex items-center gap-1.5 shrink-0">
-                <BadgeDollarSign className="w-4 h-4 text-rose-600" />
-                <span className="text-xs font-black text-slate-800">سلايسر المديونية والمستحقات:</span>
-              </div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setDebtFilter('ALL')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    debtFilter === 'ALL'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                  }`}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5">
+              {/* 1. حالة التعامل */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>حالة التعامل (الشيت)</span>
+                  </span>
+                  {dealEligibilityFilter !== 'ALL' && (
+                    <button type="button" onClick={() => setDealEligibilityFilter('ALL')} className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer">إلغاء</button>
+                  )}
+                </label>
+                <select
+                  id="analytics-deal-status-select"
+                  value={dealEligibilityFilter}
+                  onChange={(e) => setDealEligibilityFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 transition shadow-2xs cursor-pointer"
                 >
-                  الكل
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDebtFilter('highest_debt')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
-                    debtFilter === 'highest_debt'
-                      ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-400'
-                      : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
-                  }`}
-                >
-                  <span>🔴 الأكثر مديونية</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDebtFilter('lowest_debt')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
-                    debtFilter === 'lowest_debt'
-                      ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400'
-                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
-                  }`}
-                >
-                  <span>🟢 الأقل مديونية</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDebtFilter('highest_overdue')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
-                    debtFilter === 'highest_overdue'
-                      ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-400'
-                      : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
-                  }`}
-                >
-                  <span>⚠️ الأكثر مستحقات واجبة</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDebtFilter('zero_debt')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    debtFilter === 'zero_debt'
-                      ? 'bg-slate-700 text-white shadow-xs'
-                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                  }`}
-                >
-                  <span>خالص المديونية (0)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDebtFilter('over_limit')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    debtFilter === 'over_limit'
-                      ? 'bg-purple-700 text-white shadow-xs'
-                      : 'bg-white text-purple-700 hover:bg-purple-50 border border-purple-200'
-                  }`}
-                >
-                  <span>⛔ متجاوز الحد الائتماني</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Row 3C: Sales Tier & Collection Efficiency Slicers */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-              {/* Sales Tier Slicer */}
-              <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 shrink-0">
-                  <TrendingUp className="w-4 h-4 text-blue-600" />
-                  <span>شريحة مبيعات 2026:</span>
-                </span>
-                <div className="flex items-center gap-1 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setSalesTierFilter('ALL')}
-                    className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      salesTierFilter === 'ALL' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 border border-slate-200'
-                    }`}
-                  >
-                    الكل
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSalesTierFilter('vip_100k')}
-                    className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      salesTierFilter === 'vip_100k' ? 'bg-blue-600 text-white shadow-xs' : 'bg-blue-50 text-blue-800 border border-blue-200'
-                    }`}
-                  >
-                    ⭐ كبار العملاء (+100k)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSalesTierFilter('medium_20k_100k')}
-                    className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      salesTierFilter === 'medium_20k_100k' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-indigo-50 text-indigo-800 border border-indigo-200'
-                    }`}
-                  >
-                    💼 متوسط (20k-100k)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSalesTierFilter('starter_under_20k')}
-                    className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      salesTierFilter === 'starter_under_20k' ? 'bg-teal-600 text-white shadow-xs' : 'bg-teal-50 text-teal-800 border border-teal-200'
-                    }`}
-                  >
-                    🥉 ناشئ (&lt;20k)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSalesTierFilter('zero_sales')}
-                    className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      salesTierFilter === 'zero_sales' ? 'bg-rose-600 text-white shadow-xs' : 'bg-rose-50 text-rose-800 border border-rose-200'
-                    }`}
-                  >
-                    ⭕ مبيعات صفرية
-                  </button>
-                </div>
+                  <option value="ALL">جميع حالات التعامل ({dealStatusCounts.total})</option>
+                  <option value="dealt">متعامل ✅ ({dealStatusCounts.dealt} عميل)</option>
+                  <option value="eligible">غير متعامل ⏳ ({dealStatusCounts.notDealt} عميل)</option>
+                </select>
               </div>
 
-              {/* Collection Rate Slicer */}
-              <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 shrink-0">
-                  <DollarSign className="w-4 h-4 text-emerald-600" />
-                  <span>كفاءة التحصيل:</span>
-                </span>
-                <div className="flex items-center gap-1 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setCollectionRateFilter('ALL')}
-                    className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      collectionRateFilter === 'ALL' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 border border-slate-200'
-                    }`}
-                  >
-                    الكل
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCollectionRateFilter('high_80')}
-                    className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      collectionRateFilter === 'high_80' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                    }`}
-                  >
-                    🟢 مرتفع (+80%)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCollectionRateFilter('medium_30_79')}
-                    className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      collectionRateFilter === 'medium_30_79' ? 'bg-amber-600 text-white shadow-xs' : 'bg-amber-50 text-amber-800 border border-amber-200'
-                    }`}
-                  >
-                    🟡 متوسط (30-79%)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCollectionRateFilter('low_zero')}
-                    className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      collectionRateFilter === 'low_zero' ? 'bg-rose-600 text-white shadow-xs' : 'bg-rose-50 text-rose-800 border border-rose-200'
-                    }`}
-                  >
-                    🔴 ضعيف (&lt;30%)
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 4: Time Horizon Slicer (شهري / كوارتر / كامل عام 2026 من الشيت) */}
-          <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-3 rounded-xl border border-slate-700/80 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3 shadow-inner">
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              <div>
-                <div className="text-xs font-black text-emerald-400 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>سلايسر الفترة المستهدفة (شهري / كوارتر / كامل 2026 من الشيت):</span>
-                </div>
-                <div className="text-[10px] text-slate-300">
-                  {selectedMonth === 'ALL'
-                    ? 'كامل عام 2026 (أي عميل تعامل خلال السنة)'
-                    : selectedMonth === 'Q1'
-                    ? 'الربع الأول Q1 (مبيعات 1 يناير + 2 فبراير + 3 مارس)'
-                    : selectedMonth === 'Q2'
-                    ? 'الربع الثاني Q2 (مبيعات 4 أبريل + 5 مايو + 6 يونيو)'
-                    : selectedMonth === 'Q3'
-                    ? 'الربع الثالث Q3 (مبيعات 7 يوليو + 8 أغسطس + 9 سبتمبر)'
-                    : selectedMonth === 'Q4'
-                    ? 'الربع الرابع Q4 (مبيعات 10 أكتوبر + 11 نوفمبر + 12 ديسمبر)'
-                    : `مبيعات شهر ${selectedMonth} (${MONTH_NAMES_AR[Number(selectedMonth) - 1]})`}
-                </div>
-              </div>
-            </div>
-
-            {/* Slicer Buttons: Quarters & Months */}
-            <div className="flex flex-wrap items-center gap-1 overflow-x-auto no-scrollbar py-0.5 w-full xl:w-auto">
-              <button
-                type="button"
-                onClick={() => setSelectedMonth('ALL')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap ${
-                  selectedMonth === 'ALL'
-                    ? 'bg-emerald-500 text-slate-950 shadow-md font-black'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
-                }`}
-              >
-                كامل 2026
-              </button>
-
-              {/* Quarters Slicers */}
-              <div className="flex items-center gap-0.5 bg-slate-950/60 p-0.5 rounded-lg border border-slate-700">
-                {[
-                  { q: 'Q1' as const, label: 'Q1 (يناير-مارس)' },
-                  { q: 'Q2' as const, label: 'Q2 (أبريل-يونيو)' },
-                  { q: 'Q3' as const, label: 'Q3 (يوليو-سبتمبر)' },
-                  { q: 'Q4' as const, label: 'Q4 (أكتوبر-ديسمبر)' },
-                ].map(({ q, label }) => (
-                  <button
-                    key={q}
-                    type="button"
-                    onClick={() => setSelectedMonth(q)}
-                    className={`px-2 py-1 rounded-md text-[11px] font-black transition cursor-pointer whitespace-nowrap ${
-                      selectedMonth === q
-                        ? 'bg-indigo-500 text-white shadow-md'
-                        : 'text-indigo-300 hover:text-white hover:bg-slate-800'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
+              {/* 2. المديونية والمستحقات */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <BadgeDollarSign className="w-3.5 h-3.5 text-rose-600" />
+                    <span>المديونية والمستحقات</span>
+                  </span>
+                  {debtFilter !== 'ALL' && (
+                    <button type="button" onClick={() => setDebtFilter('ALL')} className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer">إلغاء</button>
+                  )}
+                </label>
+                <select
+                  id="analytics-debt-select"
+                  value={debtFilter}
+                  onChange={(e) => setDebtFilter(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500 transition shadow-2xs cursor-pointer"
+                >
+                  <option value="ALL">جميع المديونيات ({userVisibleCustomers.length})</option>
+                  <option value="highest_debt">🔴 الأكثر مديونية (المديونية &gt; 0)</option>
+                  <option value="lowest_debt">🟢 الأقل مديونية</option>
+                  <option value="highest_overdue">⚠️ الأكثر مستحقات واجبة السداد</option>
+                  <option value="zero_debt">خالص المديونية (مديونية = 0)</option>
+                  <option value="over_limit">⛔ متجاوز الحد الائتماني</option>
+                </select>
               </div>
 
-              {/* Individual Months 1 to 12 */}
-              <div className="flex items-center gap-0.5 overflow-x-auto no-scrollbar">
-                {[
-                  { m: 1, name: '1 (يناير)' },
-                  { m: 2, name: '2 (فبراير)' },
-                  { m: 3, name: '3 (مارس)' },
-                  { m: 4, name: '4 (أبريل)' },
-                  { m: 5, name: '5 (مايو)' },
-                  { m: 6, name: '6 (يونيو)' },
-                  { m: 7, name: '7 (يوليو)' },
-                  { m: 8, name: '8 (أغسطس)' },
-                  { m: 9, name: '9 (سبتمبر)' },
-                  { m: 10, name: '10 (أكتوبر)' },
-                  { m: 11, name: '11 (نوفمبر)' },
-                  { m: 12, name: '12 (ديسمبر)' },
-                ].map(({ m, name }) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setSelectedMonth(m)}
-                    className={`px-2 py-1 rounded-lg text-[10.5px] font-bold transition cursor-pointer whitespace-nowrap ${
-                      selectedMonth === m
-                        ? 'bg-amber-400 text-slate-950 font-black shadow-md'
-                        : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/60'
-                    }`}
-                  >
-                    {name}
-                  </button>
-                ))}
+              {/* 3. الفترة المستهدفة */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>الفترة المستهدفة (2026)</span>
+                  </span>
+                  {selectedMonth !== 'ALL' && (
+                    <button type="button" onClick={() => setSelectedMonth('ALL')} className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer">إلغاء</button>
+                  )}
+                </label>
+                <select
+                  id="analytics-period-select"
+                  value={selectedMonth}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'ALL' || val === 'Q1' || val === 'Q2' || val === 'Q3' || val === 'Q4') {
+                      setSelectedMonth(val);
+                    } else {
+                      setSelectedMonth(Number(val));
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500 transition shadow-2xs cursor-pointer"
+                >
+                  <option value="ALL">كامل عام 2026 (جميع الشهور)</option>
+                  <optgroup label="الأرباع الربع سنوية">
+                    <option value="Q1">الربع الأول Q1 (يناير-مارس)</option>
+                    <option value="Q2">الربع الثاني Q2 (أبريل-يونيو)</option>
+                    <option value="Q3">الربع الثالث Q3 (يوليو-سبتمبر)</option>
+                    <option value="Q4">الربع الرابع Q4 (أكتوبر-ديسمبر)</option>
+                  </optgroup>
+                  <optgroup label="شهور الشيت 2026">
+                    <option value="1">شهر 1 - يناير</option>
+                    <option value="2">شهر 2 - فبراير</option>
+                    <option value="3">شهر 3 - مارس</option>
+                    <option value="4">شهر 4 - أبريل</option>
+                    <option value="5">شهر 5 - مايو</option>
+                    <option value="6">شهر 6 - يونيو</option>
+                    <option value="7">شهر 7 - يوليو</option>
+                    <option value="8">شهر 8 - أغسطس</option>
+                    <option value="9">شهر 9 - سبتمبر</option>
+                    <option value="10">شهر 10 - أكتوبر</option>
+                    <option value="11">شهر 11 - نوفمبر</option>
+                    <option value="12">شهر 12 - ديسمبر</option>
+                  </optgroup>
+                </select>
+              </div>
+
+              {/* 4. شريحة المبيعات */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <TrendingUp className="w-3.5 h-3.5 text-blue-600" />
+                    <span>شريحة مبيعات 2026</span>
+                  </span>
+                  {salesTierFilter !== 'ALL' && (
+                    <button type="button" onClick={() => setSalesTierFilter('ALL')} className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer">إلغاء</button>
+                  )}
+                </label>
+                <select
+                  id="analytics-sales-tier-select"
+                  value={salesTierFilter}
+                  onChange={(e) => setSalesTierFilter(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500 transition shadow-2xs cursor-pointer"
+                >
+                  <option value="ALL">جميع شرائح المبيعات ({userVisibleCustomers.length})</option>
+                  <option value="vip_100k">⭐ كبار العملاء (+100k)</option>
+                  <option value="medium_20k_100k">💼 متوسط (20k - 100k)</option>
+                  <option value="starter_under_20k">🥉 ناشئ (&lt;20k)</option>
+                  <option value="zero_sales">⭕ مبيعات صفرية</option>
+                </select>
+              </div>
+
+              {/* 5. كفاءة التحصيل */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>كفاءة التحصيل</span>
+                  </span>
+                  {collectionRateFilter !== 'ALL' && (
+                    <button type="button" onClick={() => setCollectionRateFilter('ALL')} className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer">إلغاء</button>
+                  )}
+                </label>
+                <select
+                  id="analytics-collection-rate-select"
+                  value={collectionRateFilter}
+                  onChange={(e) => setCollectionRateFilter(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 transition shadow-2xs cursor-pointer"
+                >
+                  <option value="ALL">جميع معدلات التحصيل ({userVisibleCustomers.length})</option>
+                  <option value="high_80">🟢 مرتفع (+80%)</option>
+                  <option value="medium_30_79">🟡 متوسط (30% - 79%)</option>
+                  <option value="low_zero">🔴 ضعيف أو صفري (&lt;30%)</option>
+                </select>
+              </div>
+
+              {/* 6. الترتيب الذكي */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <ArrowUpDown className="w-3.5 h-3.5 text-purple-600" />
+                    <span>الترتيب</span>
+                  </span>
+                  {sortMode !== 'highest_debt' && (
+                    <button type="button" onClick={() => setSortMode('highest_debt')} className="text-[10px] text-purple-600 font-bold hover:underline cursor-pointer">افتراضي</button>
+                  )}
+                </label>
+                <select
+                  id="analytics-sort-select"
+                  value={sortMode}
+                  onChange={(e) => setSortMode(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-purple-500 transition shadow-2xs cursor-pointer"
+                >
+                  <option value="highest_debt">🔴 الأكثر مديونية أولاً</option>
+                  <option value="highest_overdue">⚠️ الأكثر مستحقات واجبة السداد</option>
+                  <option value="highest_sales">📈 أعلى مبيعات 2026</option>
+                  <option value="route_asc">🗺️ ترتيب حسب خط السير</option>
+                  <option value="name_asc">🔤 أبجدي (أ - ي)</option>
+                </select>
               </div>
             </div>
           </div>

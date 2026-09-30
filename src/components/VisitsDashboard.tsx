@@ -34,7 +34,10 @@ import {
   Navigation,
   ShieldCheck,
   Zap,
-  Copy
+  Copy,
+  RotateCcw,
+  Package,
+  PackageCheck
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useApp } from '../context/AppContext';
@@ -64,7 +67,17 @@ export const VisitsDashboard: React.FC = () => {
   const [branch, setBranch] = useState('الكل');
   const [rep, setRep] = useState('الكل');
   const [statusFilter, setStatusFilter] = useState<'الكل' | CustomerVisit['status']>('الكل');
+  const [returnFilter, setReturnFilter] = useState<'all' | 'returns_only' | 'pending_transfer' | 'transferred_to_store' | 'received'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [returnHandoverDraft, setReturnHandoverDraft] = useState<Record<string, string>>({});
+  const [isReturnsRibbonExpanded, setIsReturnsRibbonExpanded] = useState(true);
+
+  // User role permissions for return handover to warehouse manager
+  const isSupervisor = currentUser?.role === 'supervisor';
+  const isBranchManager = currentUser?.role === 'branch_manager';
+  const isAdmin = currentUser?.role === 'admin';
+  const isDeveloper = currentUser?.role === 'developer';
+  const canManageReturns = isSupervisor || isBranchManager || isAdmin || isDeveloper;
 
   // Modals & Active Items
   const [showForm, setShowForm] = useState(false);
@@ -247,6 +260,12 @@ export const VisitsDashboard: React.FC = () => {
       // 4. Status match
       if (statusFilter !== 'الكل' && v.status !== statusFilter) return false;
 
+      // 4.5. Return Outcome and Handover Status Match
+      if (returnFilter === 'returns_only' && !v.isReturn) return false;
+      if (returnFilter === 'pending_transfer' && (!v.isReturn || (v.returnStatus && v.returnStatus !== 'بانتظار المشرف'))) return false;
+      if (returnFilter === 'transferred_to_store' && (!v.isReturn || (v.returnStatus !== 'تم التحويل لأمين المخزن' && v.returnStatus !== 'تم الإرسال لأمين المخزن'))) return false;
+      if (returnFilter === 'received' && (!v.isReturn || (v.returnStatus !== 'تم الاستلام من أمين المخزن' && v.returnStatus !== 'تم الاستلام بالمخزن'))) return false;
+
       // 5. Search query
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase().trim();
@@ -257,6 +276,7 @@ export const VisitsDashboard: React.FC = () => {
       const notes = (v.notes || '').toLowerCase();
       const outcome = (v.outcome || '').toLowerCase();
       const returnItems = (v.returnItems || '').toLowerCase();
+      const returnHandledBy = (v.returnHandledBy || '').toLowerCase();
 
       return (
         customerName.includes(q) ||
@@ -264,10 +284,145 @@ export const VisitsDashboard: React.FC = () => {
         repName.includes(q) ||
         notes.includes(q) ||
         outcome.includes(q) ||
-        returnItems.includes(q)
+        returnItems.includes(q) ||
+        returnHandledBy.includes(q)
       );
     });
-  }, [visible, timePreset, month, exactDate, branch, rep, statusFilter, searchQuery, customers, todayStr, weekAgoStr, currentUser?.role, users]);
+  }, [visible, timePreset, month, exactDate, branch, rep, statusFilter, returnFilter, searchQuery, customers, todayStr, weekAgoStr, currentUser?.role, users]);
+
+  // Return alerts and handover tracking (إشعارات المرتجعات وتحويلها لأمين/مدير المخزن)
+  const returnAlerts = useMemo(() => {
+    return visible.filter((v) => Boolean(v.isReturn));
+  }, [visible]);
+
+  const pendingReturns = useMemo(() => {
+    return returnAlerts.filter((v) => !v.returnStatus || v.returnStatus === 'بانتظار المشرف');
+  }, [returnAlerts]);
+
+  const transferredReturns = useMemo(() => {
+    return returnAlerts.filter(
+      (v) => v.returnStatus === 'تم التحويل لأمين المخزن' || v.returnStatus === 'تم الإرسال لأمين المخزن'
+    );
+  }, [returnAlerts]);
+
+  const receivedReturns = useMemo(() => {
+    return returnAlerts.filter(
+      (v) => v.returnStatus === 'تم الاستلام من أمين المخزن' || v.returnStatus === 'تم الاستلام بالمخزن'
+    );
+  }, [returnAlerts]);
+
+  const pendingReturnsValue = useMemo(() => {
+    return pendingReturns.reduce((sum, v) => sum + (Number(v.returnValue) || 0), 0);
+  }, [pendingReturns]);
+
+  const transferredReturnsValue = useMemo(() => {
+    return transferredReturns.reduce((sum, v) => sum + (Number(v.returnValue) || 0), 0);
+  }, [transferredReturns]);
+
+  // Transfer Return to Storekeeper / Warehouse Manager handler (تحويل الزيارة والمرتجع لأمين المخزن)
+  const handleTransferToStorekeeper = (visit: CustomerVisit, note?: string) => {
+    const roleLabel =
+      currentUser?.role === 'branch_manager' ? 'مدير الفرع' :
+      currentUser?.role === 'supervisor' ? 'مشرف المندوب' :
+      currentUser?.role === 'admin' ? 'الإدارة (Admin)' :
+      currentUser?.role === 'developer' ? 'المطور' : 'المسؤول';
+
+    const handoverUser = currentUser?.name || 'المشرف';
+    const updatedVisit: CustomerVisit = {
+      ...visit,
+      returnStatus: 'تم التحويل لأمين المخزن',
+      returnHandledBy: `${handoverUser} (${roleLabel})`,
+      returnHandledAt: new Date().toISOString(),
+      returnHandledRole: currentUser?.role,
+      returnNote: (note !== undefined ? note : returnHandoverDraft[visit.id])?.trim() || visit.returnNote,
+    };
+
+    const res = updateVisit(updatedVisit);
+    if (res.success) {
+      showToast('success', `تم تحويل الزيارة والمرتجع بنجاح إلى مدير المخزن / أمين المخزن بواسطة ${handoverUser} 📦✅`);
+      if (selectedVisit && selectedVisit.id === visit.id) {
+        setSelectedVisit(updatedVisit);
+      }
+      setReturnHandoverDraft((prev) => {
+        const next = { ...prev };
+        delete next[visit.id];
+        return next;
+      });
+    } else {
+      showToast('error', res.message || 'تعذر تحديث حالة المرتجع');
+    }
+  };
+
+  // Confirm receipt by storekeeper handler (تأكيد استلام المرتجع في المخزن)
+  const handleConfirmStoreReceipt = (visit: CustomerVisit) => {
+    const updatedVisit: CustomerVisit = {
+      ...visit,
+      returnStatus: 'تم الاستلام من أمين المخزن',
+      returnHandledBy: `${visit.returnHandledBy || currentUser?.name || 'المخزن'} - تم الاستلام معتمد`,
+      returnHandledAt: new Date().toISOString(),
+    };
+
+    const res = updateVisit(updatedVisit);
+    if (res.success) {
+      showToast('success', `تم اعتماد وتأكيد استلام المرتجع في المخزن بنجاح ✅`);
+      if (selectedVisit && selectedVisit.id === visit.id) {
+        setSelectedVisit(updatedVisit);
+      }
+    } else {
+      showToast('error', res.message || 'تعذر تأكيد الاستلام');
+    }
+  };
+
+  // Specialized Returns & Warehouse Report Export (تصدير تقرير المرتجعات والمخزن)
+  const handleExportReturnsReport = () => {
+    if (returnAlerts.length === 0) {
+      showToast('error', 'لا توجد مرتجعات في سجل الزيارات لتصديرها.');
+      return;
+    }
+
+    const rows = returnAlerts.map((v) => {
+      const c = customers.find((x) => x.id === v.customerId);
+      return {
+        'كود العميل': c?.code || v.customerCode || '---',
+        'اسم العميل': v.customerName || c?.name || '---',
+        'الفرع': v.branchName || c?.branchName || '---',
+        'المندوب': v.repName || '---',
+        'تاريخ الزيارة': v.date,
+        'وقت الزيارة': v.time || '---',
+        'قيمة المرتجع (ج.م)': v.returnValue || 0,
+        'سبب المرتجع': v.returnReason || 'غير محدد',
+        'أصناف المرتجع': v.returnItems || '---',
+        'حالة تحويل المرتجع': v.returnStatus || 'بانتظار المشرف',
+        'المسؤول عن التحويل للمخزن': v.returnHandledBy || 'لم يتم التحويل بعد',
+        'تاريخ ووقت التحويل': v.returnHandledAt ? new Date(v.returnHandledAt).toLocaleString('ar-EG') : '---',
+        'ملاحظات التحويل': v.returnNote || '---',
+        'الملاحظات العامة': v.notes || '',
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    worksheet['!cols'] = [
+      { wch: 12 },
+      { wch: 25 },
+      { wch: 15 },
+      { wch: 20 },
+      { wch: 12 },
+      { wch: 10 },
+      { wch: 18 },
+      { wch: 20 },
+      { wch: 30 },
+      { wch: 22 },
+      { wch: 25 },
+      { wch: 22 },
+      { wch: 25 },
+      { wch: 30 },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'تقرير مرتجعات المخزن');
+    XLSX.writeFile(workbook, `تقرير_مرتجعات_الزيارات_المحولة_للمخزن_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    showToast('success', `تم تصدير تقرير المرتجعات (${rows.length} مرتجع) بنجاح للإدارة والمشرفين 📊`);
+  };
 
   // Key KPI stats
   const stats = useMemo(() => {
@@ -659,6 +814,18 @@ export const VisitsDashboard: React.FC = () => {
             <span>تصدير إكسل ({filtered.length})</span>
           </button>
 
+          {returnAlerts.length > 0 && (
+            <button
+              type="button"
+              onClick={handleExportReturnsReport}
+              className="bg-rose-50 hover:bg-rose-100 text-rose-800 font-black px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 text-xs border border-rose-300 transition cursor-pointer shadow-2xs"
+              title="تصدير تقرير شامل لكافة المرتجعات وحالة تحويلها لمدير المخزن"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
+              <span>تقرير المرتجعات والمخزن ({returnAlerts.length}) 📊</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => {
@@ -732,6 +899,187 @@ export const VisitsDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Return Notifications & Storekeeper Handover Ribbon (شريط تنبيهات المرتجعات وتحويلها لأمين/مدير المخزن) */}
+      {returnAlerts.length > 0 && (
+        <div className="rounded-3xl border-2 border-rose-300 bg-gradient-to-br from-rose-50 via-white to-orange-50 shadow-md overflow-hidden">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 bg-gradient-to-r from-rose-600 to-rose-700 text-white">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                <RotateCcw className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="text-sm font-black flex items-center gap-2">
+                  <span>تنبيهات مرتجعات الزيارات الميدانية</span>
+                  {pendingReturns.length > 0 && (
+                    <span className="bg-amber-400 text-slate-950 text-[10.5px] font-black px-2 py-0.5 rounded-full animate-pulse shadow-xs">
+                      {pendingReturns.length} بانتظار التحويل للمخزن ⏳
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-rose-100 font-semibold">
+                  تحويل فوري لأمين المخزن لمشرف المندوب، مدير الفرع، والإدارة لضبط تقارير حركة البضاعة
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2.5 py-1 rounded-xl bg-white/25 text-[11px] font-black">
+                بانتظار التحويل: {pendingReturns.length} ({formatCurrency(pendingReturnsValue)})
+              </span>
+              <span className="px-2.5 py-1 rounded-xl bg-white/20 text-[11px] font-black">
+                تم التحويل للمخزن: {transferredReturns.length} ({formatCurrency(transferredReturnsValue)})
+              </span>
+              <span className="px-2.5 py-1 rounded-xl bg-white/20 text-[11px] font-black">
+                تم الاستلام: {receivedReturns.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsReturnsRibbonExpanded(!isReturnsRibbonExpanded)}
+                className="px-2.5 py-1 rounded-lg bg-black/25 hover:bg-black/35 text-white text-[11px] font-bold cursor-pointer transition shadow-2xs"
+              >
+                {isReturnsRibbonExpanded ? 'طي الشريط ▲' : 'عرض التفاصيل ▼'}
+              </button>
+            </div>
+          </div>
+
+          {isReturnsRibbonExpanded && (
+            <div className="p-4 space-y-4">
+              {/* Pending Returns Awaiting Storekeeper Transfer */}
+              {pendingReturns.length > 0 ? (
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between text-xs font-black text-rose-900 border-b border-rose-200 pb-1.5 flex-wrap gap-1">
+                    <span className="flex items-center gap-1.5">
+                      <AlertTriangle className="w-4 h-4 text-amber-600" />
+                      <span>مرتجعات معلقة بانتظار اعتماد وتحويل المشرف أو مدير الفرع لأمين المخزن ({pendingReturns.length}):</span>
+                    </span>
+                    <span className="text-[11px] font-mono text-rose-700 bg-rose-100 px-2 py-0.5 rounded-md font-black">
+                      إجمالي معلق: {formatCurrency(pendingReturnsValue)}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {pendingReturns.map((v) => {
+                      const c = customers.find((x) => x.id === v.customerId);
+                      return (
+                        <div key={v.id} className="p-3.5 bg-white rounded-2xl border-2 border-rose-200/90 shadow-xs space-y-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                                <span>{v.customerName || c?.name || 'عميل بدون اسم'}</span>
+                                <span className="font-mono text-[10px] text-slate-400">({c?.code || v.customerCode || '-'})</span>
+                              </div>
+                              <div className="text-[10.5px] text-slate-500 font-semibold mt-0.5">
+                                المندوب: <strong className="text-slate-800">{v.repName}</strong> • {v.branchName || 'فرع غير محدد'} • {v.date}
+                              </div>
+                            </div>
+
+                            <span className="px-2.5 py-1 rounded-xl bg-slate-950 text-white text-xs font-black font-mono shrink-0">
+                              {formatCurrency(Number(v.returnValue) || 0)}
+                            </span>
+                          </div>
+
+                          {v.returnReason && (
+                            <div className="text-[11px] text-rose-900 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-100 font-semibold">
+                              <span className="font-bold text-slate-500">سبب المرتجع: </span>
+                              <span className="font-black text-rose-950">{v.returnReason}</span>
+                            </div>
+                          )}
+
+                          {v.returnItems && (
+                            <div className="text-[10.5px] bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                              <span className="font-bold text-slate-500 block mb-0.5">الأصناف المرتجعة:</span>
+                              <pre className="font-mono text-slate-800 whitespace-pre-wrap font-bold leading-tight">
+                                {v.returnItems}
+                              </pre>
+                            </div>
+                          )}
+
+                          {/* Action Button: Transfer to Storekeeper */}
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                            <input
+                              type="text"
+                              placeholder="ملاحظة التحويل للمخزن (اختياري)..."
+                              value={returnHandoverDraft[v.id] || ''}
+                              onChange={(e) => setReturnHandoverDraft((p) => ({ ...p, [v.id]: e.target.value }))}
+                              className="flex-1 min-w-[140px] px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold focus:bg-white focus:outline-none focus:border-rose-400"
+                            />
+
+                            {canManageReturns ? (
+                              <button
+                                type="button"
+                                onClick={() => handleTransferToStorekeeper(v)}
+                                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-xs transition cursor-pointer flex items-center gap-1.5 shrink-0"
+                              >
+                                <Package className="w-3.5 h-3.5" />
+                                <span>تحويل لأمين المخزن 📦</span>
+                              </button>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 font-bold">بانتظار اعتماد المشرف</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 text-center text-xs font-black text-emerald-800 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>لا يوجد أي مرتجعات معلقة حالياً — تم تحويل كافة المرتجعات لأمين المخزن بنجاح ✅</span>
+                </div>
+              )}
+
+              {/* Transferred to Storekeeper List (Accordion) */}
+              {transferredReturns.length > 0 && (
+                <details className="bg-sky-50/70 rounded-2xl border border-sky-200 overflow-hidden" open>
+                  <summary className="px-4 py-2.5 text-xs font-black text-sky-900 cursor-pointer select-none flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Package className="w-4 h-4 text-sky-600" />
+                      <span>مرتجعات تم تحويلها لمدير المخزن ({transferredReturns.length}) — بقيمة {formatCurrency(transferredReturnsValue)}</span>
+                    </span>
+                    <span className="text-[11px] text-sky-700 font-bold">معتمدة للإدارة والمطور</span>
+                  </summary>
+
+                  <div className="p-3 divide-y divide-sky-100 space-y-2">
+                    {transferredReturns.map((v) => (
+                      <div key={v.id} className="pt-2 first:pt-0 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div>
+                          <div className="font-black text-slate-900 flex items-center gap-2">
+                            <span>{v.customerName}</span>
+                            <span className="font-mono text-emerald-700 font-black">{formatCurrency(v.returnValue || 0)}</span>
+                            {v.returnReason && <span className="text-[10.5px] text-slate-500 font-normal">({v.returnReason})</span>}
+                          </div>
+                          <div className="text-[10.5px] text-sky-900 font-black mt-0.5 bg-sky-100/80 px-2 py-0.5 rounded-md inline-flex items-center gap-1 border border-sky-200">
+                            <span>📦 تم تحويل الزيارة والمرتجع إلى مدير المخزن بواسطة {v.returnHandledBy || 'المشرف'}</span>
+                            {v.returnHandledAt ? ` • ${new Date(v.returnHandledAt).toLocaleString('ar-EG')}` : ''}
+                          </div>
+                          {v.returnNote && (
+                            <div className="text-[10px] text-slate-500 italic mt-0.5">
+                              ملاحظة التحويل: {v.returnNote}
+                            </div>
+                          )}
+                        </div>
+
+                        {canManageReturns && (
+                          <button
+                            type="button"
+                            onClick={() => handleConfirmStoreReceipt(v)}
+                            className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-[10.5px] font-black cursor-pointer shadow-2xs flex items-center gap-1"
+                          >
+                            <PackageCheck className="w-3.5 h-3.5" />
+                            <span>تأكيد الاستلام بالمخزن ✅</span>
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Advanced Filter Bar with Quick Presets */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3.5">
@@ -872,7 +1220,7 @@ export const VisitsDashboard: React.FC = () => {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-emerald-500 transition"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-emerald-500 transition cursor-pointer"
             >
               <option value="الكل">كل حالات الزيارة</option>
               <option value="مجدولة">مجدولة</option>
@@ -881,16 +1229,36 @@ export const VisitsDashboard: React.FC = () => {
               <option value="ملغاة">ملغاة</option>
             </select>
           </div>
+
+          {/* Return Filter (فلتر المرتجعات وتحويل المخزن) */}
+          <div>
+            <select
+              value={returnFilter}
+              onChange={(e) => setReturnFilter(e.target.value as any)}
+              className={`w-full px-3 py-2 border rounded-xl text-xs font-black focus:outline-none transition cursor-pointer ${
+                returnFilter !== 'all'
+                  ? 'bg-rose-50 border-rose-400 text-rose-900 ring-1 ring-rose-300'
+                  : 'bg-slate-50 border-slate-200 text-slate-700 focus:border-rose-500'
+              }`}
+            >
+              <option value="all">حالة المرتجعات (الكل)</option>
+              <option value="returns_only">📦 زيارات بها مرتجعات فقط ({returnAlerts.length})</option>
+              <option value="pending_transfer">⏳ بانتظار التحويل للمخزن ({pendingReturns.length})</option>
+              <option value="transferred_to_store">🚚 تم تحويلها لمدير المخزن ({transferredReturns.length})</option>
+              <option value="received">✅ تم الاستلام بالمخزن ({receivedReturns.length})</option>
+            </select>
+          </div>
         </div>
 
         {/* Reset Filter Button */}
-        {(searchQuery || statusFilter !== 'الكل' || branch !== 'الكل' || rep !== 'الكل' || timePreset !== 'month') && (
+        {(searchQuery || statusFilter !== 'الكل' || returnFilter !== 'all' || branch !== 'الكل' || rep !== 'الكل' || timePreset !== 'month') && (
           <div className="flex justify-end pt-1">
             <button
               type="button"
               onClick={() => {
                 setSearchQuery('');
                 setStatusFilter('الكل');
+                setReturnFilter('all');
                 setBranch('الكل');
                 setRep('الكل');
                 setTimePreset('month');
@@ -960,9 +1328,49 @@ export const VisitsDashboard: React.FC = () => {
                         </div>
                       )}
                       {v.isReturn && (
-                        <div className="text-[10px] font-black text-rose-700 mt-0.5">
-                          ↩️ مرتجع: {formatCurrency(v.returnValue || 0)}
-                          {v.returnStatus ? ` • ${v.returnStatus}` : ' • بانتظار المشرف'}
+                        <div className="space-y-1 mt-1">
+                          <div className="text-[11px] font-black text-rose-700 flex items-center gap-1">
+                            <span>↩️ مرتجع:</span>
+                            <span className="font-mono bg-rose-100 text-rose-900 px-1.5 py-0.2 rounded font-black">
+                              {formatCurrency(v.returnValue || 0)}
+                            </span>
+                          </div>
+                          {v.returnStatus === 'تم التحويل لأمين المخزن' || v.returnStatus === 'تم الإرسال لأمين المخزن' ? (
+                            <div className="text-[9.5px] font-black text-sky-900 bg-sky-50 border border-sky-200 rounded-md p-1 shadow-2xs">
+                              <div className="flex items-center gap-1">
+                                <Package className="w-3 h-3 text-sky-600 shrink-0" />
+                                <span>تم تحويلها لمدير المخزن 📦</span>
+                              </div>
+                              <div className="text-[8.5px] text-slate-500 font-semibold truncate mt-0.5" title={v.returnHandledBy}>
+                                بواسطة: {v.returnHandledBy || 'المشرف'}
+                              </div>
+                            </div>
+                          ) : v.returnStatus === 'تم الاستلام من أمين المخزن' || v.returnStatus === 'تم الاستلام بالمخزن' ? (
+                            <div className="text-[9.5px] font-black text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-md p-1 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <span>تم الاستلام بالمخزن ✅</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span className="text-[9.5px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                ⏳ بانتظار التحويل للمخزن
+                              </span>
+                              {canManageReturns && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleTransferToStorekeeper(v);
+                                  }}
+                                  className="text-[9.5px] font-black bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 rounded shadow-xs cursor-pointer whitespace-nowrap flex items-center gap-1 transition"
+                                  title="تحويل الزيارة والمرتجع لأمين المخزن فوراً"
+                                >
+                                  <Package className="w-3 h-3" />
+                                  <span>تحويل للمخزن</span>
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </td>
@@ -1762,6 +2170,112 @@ export const VisitsDashboard: React.FC = () => {
                       </div>
                     ) : null}
                   </div>
+
+                  {/* Return and Storekeeper Handover Section (تفاصيل المرتجع وإجراءات التحويل لأمين المخزن) */}
+                  {selectedVisit.isReturn && (
+                    <div className="p-4 rounded-2xl border-2 border-rose-300 bg-gradient-to-br from-rose-50 via-white to-orange-50 space-y-3 shadow-xs">
+                      <div className="flex items-center justify-between border-b border-rose-200 pb-2 flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center font-black shrink-0">
+                            <RotateCcw className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-black text-rose-950">سجل إجراءات المرتجع والتحويل لمدير المخزن</h4>
+                            <span className="text-[10px] text-rose-700 font-bold">توثيق رسمي يظهر للمطور والإدارة ومدير الفرع والمشرف</span>
+                          </div>
+                        </div>
+                        <span className="px-3 py-1 rounded-xl bg-slate-900 text-white text-xs font-black font-mono">
+                          قيمة المرتجع: {formatCurrency(selectedVisit.returnValue || 0)}
+                        </span>
+                      </div>
+
+                      {selectedVisit.returnReason && (
+                        <div className="text-xs text-rose-900 bg-rose-50/80 p-2.5 rounded-xl border border-rose-200 font-semibold">
+                          <span className="font-bold text-slate-500">سبب المرتجع: </span>
+                          <span className="font-black text-rose-950">{selectedVisit.returnReason}</span>
+                        </div>
+                      )}
+
+                      {selectedVisit.returnItems && (
+                        <div className="bg-white rounded-xl border border-rose-200 p-2.5">
+                          <span className="font-bold text-slate-500 text-[11px] block mb-1">الأصناف المرتجعة وكمياتها:</span>
+                          <pre className="text-xs font-mono font-bold text-slate-800 whitespace-pre-wrap leading-relaxed">
+                            {selectedVisit.returnItems}
+                          </pre>
+                        </div>
+                      )}
+
+                      {/* Handover Status & Metadata */}
+                      <div className="bg-white/95 p-3 rounded-xl border border-rose-200 space-y-2">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <span className="text-xs font-bold text-slate-600">حالة تسليم المرتجع للمخزن:</span>
+                          {selectedVisit.returnStatus === 'تم التحويل لأمين المخزن' || selectedVisit.returnStatus === 'تم الإرسال لأمين المخزن' ? (
+                            <span className="px-3 py-1 rounded-full text-xs font-black bg-sky-100 text-sky-900 border border-sky-300 flex items-center gap-1.5 shadow-2xs">
+                              <Package className="w-3.5 h-3.5 text-sky-700" />
+                              <span>تم تحويلها لمدير المخزن 📦</span>
+                            </span>
+                          ) : selectedVisit.returnStatus === 'تم الاستلام من أمين المخزن' || selectedVisit.returnStatus === 'تم الاستلام بالمخزن' ? (
+                            <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1.5 shadow-2xs">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                              <span>تم الاستلام بالمخزن معتمد ✅</span>
+                            </span>
+                          ) : (
+                            <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-amber-700" />
+                              <span>بانتظار التحويل لأمين المخزن ⏳</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {selectedVisit.returnHandledBy && (
+                          <div className="text-[11px] text-slate-700 border-t border-slate-100 pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                            <span>
+                              القائم بإجراء التحويل: <strong className="text-slate-900">{selectedVisit.returnHandledBy}</strong>
+                            </span>
+                            {selectedVisit.returnHandledAt && (
+                              <span className="font-mono text-slate-500 text-[10px]">
+                                {new Date(selectedVisit.returnHandledAt).toLocaleString('ar-EG')}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {selectedVisit.returnNote && (
+                          <div className="text-[11px] text-slate-700 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                            <span className="font-bold text-slate-500 block text-[10px]">ملاحظات التحويل:</span>
+                            <span>{selectedVisit.returnNote}</span>
+                          </div>
+                        )}
+
+                        {/* Handover Action Buttons */}
+                        {canManageReturns && (
+                          <div className="pt-2 border-t border-slate-200 flex items-center gap-2 flex-wrap">
+                            {(!selectedVisit.returnStatus || selectedVisit.returnStatus === 'بانتظار المشرف') && (
+                              <button
+                                type="button"
+                                onClick={() => handleTransferToStorekeeper(selectedVisit)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                              >
+                                <Package className="w-4 h-4" />
+                                <span>تحويل الزيارة والمرتجع إلى مدير المخزن الآن 📦</span>
+                              </button>
+                            )}
+
+                            {(selectedVisit.returnStatus === 'تم التحويل لأمين المخزن' || selectedVisit.returnStatus === 'تم الإرسال لأمين المخزن') && (
+                              <button
+                                type="button"
+                                onClick={() => handleConfirmStoreReceipt(selectedVisit)}
+                                className="bg-teal-600 hover:bg-teal-700 text-white font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                              >
+                                <PackageCheck className="w-4 h-4" />
+                                <span>تأكيد استلام المرتجع في المخزن رسمياً ✅</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {selectedVisit.nextVisitDate && (
                     <div className="p-3 bg-purple-50 rounded-2xl border border-purple-200 flex items-center justify-between">

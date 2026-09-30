@@ -130,21 +130,22 @@ export function mergeTwoCustomers(target: Customer, source: Customer): Customer 
   const sourceOverdue = source.totalOverdueAndDue !== undefined ? Number(source.totalOverdueAndDue) : undefined;
   const finalOverdue = pickConservative(targetOverdue, sourceOverdue);
 
-  // Monthly breakdown dictionaries - merge per month safely taking non-zero / max values
+  // Monthly breakdown dictionaries - merge per month safely taking non-zero values by magnitude
   const mergedMonthlySales: Record<number, number> = {};
   for (let m = 1; m <= 12; m++) {
     const tVal = Number(target.monthlySales2026?.[m] || 0);
     const sVal = Number(source.monthlySales2026?.[m] || 0);
-    const mVal = Math.max(tVal, sVal);
-    if (mVal > 0) mergedMonthlySales[m] = mVal;
+    const mVal = Math.abs(tVal) >= Math.abs(sVal) ? tVal : sVal;
+    if (mVal !== 0) mergedMonthlySales[m] = mVal;
   }
 
   const mergedMonthlyCollections: Record<number, number> = {};
   for (let m = 1; m <= 12; m++) {
     const tVal = Number(target.monthlyCollections2026?.[m] || 0);
     const sVal = Number(source.monthlyCollections2026?.[m] || 0);
-    const mVal = Math.max(tVal, sVal);
-    if (mVal > 0) mergedMonthlyCollections[m] = mVal;
+    // Keep signed value (negative or positive) based on larger magnitude
+    const mVal = Math.abs(tVal) >= Math.abs(sVal) ? tVal : sVal;
+    if (mVal !== 0) mergedMonthlyCollections[m] = mVal;
   }
 
   // Visit history
@@ -166,28 +167,35 @@ export function mergeTwoCustomers(target: Customer, source: Customer): Customer 
     finalTier = source.tier;
   }
 
+  // Helper to pick figure by magnitude while preserving sheet sign
+  const pickByMagnitude = (...vals: (number | undefined)[]): number => {
+    const valid = vals.filter((v): v is number => typeof v === 'number' && !isNaN(v) && v !== 0);
+    if (valid.length === 0) return 0;
+    return valid.reduce((best, v) => (Math.abs(v) >= Math.abs(best) ? v : best));
+  };
+
   // Financial calculations: safely compute maximum effective values
   const monthlySalesSum = Object.values(mergedMonthlySales).reduce((acc, v) => acc + (Number(v) || 0), 0);
   const targetSales = Number(target.sales2026 || target.totalMonthlySales || target.totalOverallSales || 0);
   const sourceSales = Number(source.sales2026 || source.totalMonthlySales || source.totalOverallSales || 0);
-  const finalSales2026 = Math.max(targetSales, sourceSales, monthlySalesSum);
+  const finalSales2026 = pickByMagnitude(targetSales, sourceSales, monthlySalesSum);
 
   const monthlyColsSum = Object.values(mergedMonthlyCollections).reduce((acc, v) => acc + (Number(v) || 0), 0);
   const targetCols = Number(target.collections2026 || target.totalMonthlyCollections || target.totalOverallCollections || 0);
   const sourceCols = Number(source.collections2026 || source.totalMonthlyCollections || source.totalOverallCollections || 0);
-  const finalCollections2026 = Math.max(targetCols, sourceCols, monthlyColsSum);
+  const finalCollections2026 = pickByMagnitude(targetCols, sourceCols, monthlyColsSum);
 
-  const finalSales2025 = Math.max(Number(target.sales2025 || 0), Number(source.sales2025 || 0));
-  const finalCollections2025 = Math.max(Number(target.collections2025 || 0), Number(source.collections2025 || 0));
-  const finalSales2024 = Math.max(Number(target.sales2024 || 0), Number(source.sales2024 || 0));
-  const finalCollections2024 = Math.max(Number(target.collections2024 || 0), Number(source.collections2024 || 0));
+  const finalSales2025 = pickByMagnitude(Number(target.sales2025 || 0), Number(source.sales2025 || 0));
+  const finalCollections2025 = pickByMagnitude(Number(target.collections2025 || 0), Number(source.collections2025 || 0));
+  const finalSales2024 = pickByMagnitude(Number(target.sales2024 || 0), Number(source.sales2024 || 0));
+  const finalCollections2024 = pickByMagnitude(Number(target.collections2024 || 0), Number(source.collections2024 || 0));
   const finalAnnualTarget = Math.max(Number(target.annualTarget || 0), Number(source.annualTarget || 0));
 
   const finalHasDealtIn2026 = Boolean(
     target.hasDealtIn2026 ||
     source.hasDealtIn2026 ||
     finalSales2026 > 0 ||
-    finalCollections2026 > 0 ||
+    Math.abs(finalCollections2026) > 0 ||
     target.dealt2026 === 'متعامل' ||
     source.dealt2026 === 'متعامل'
   );

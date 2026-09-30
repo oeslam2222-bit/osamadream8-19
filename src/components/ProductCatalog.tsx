@@ -177,6 +177,19 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       const found = parent.variants.find((v) => v.id === selectedId);
       if (found) return found;
     }
+    // When searching, auto-surface the variant or window that matches the search query
+    if (searchTerm.trim()) {
+      const query = searchTerm.toLowerCase().trim();
+      const clean = query.replace('#', '').trim();
+      const matchingVariant = parent.variants.find(
+        (v) =>
+          v.name.toLowerCase().includes(query) ||
+          v.code.toLowerCase().includes(clean) ||
+          v.code.toLowerCase().includes(query) ||
+          (v.color && v.color.toLowerCase().includes(query))
+      );
+      if (matchingVariant) return matchingVariant;
+    }
     return parent.defaultVariant || parent.variants[0];
   };
 
@@ -1081,36 +1094,22 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             )}
           </div>
 
-          {/* Parent Consolidated (3,444 items) vs All Variants (5,444 items) Switcher */}
-          <div className="flex items-center bg-slate-800 p-0.5 rounded-xl border border-slate-700 h-11 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsParentGroupingEnabled(true)}
-              className={`h-9 px-2.5 sm:px-3 rounded-lg text-xs font-black transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                isParentGroupingEnabled
-                  ? 'bg-amber-400 text-slate-950 shadow-xs'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-              title="عرض موحد لكل كود رئيسي مع اختيار الشبابيك والألوان (3,444 منتج)"
-            >
-              <Boxes className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">أصناف موحدة ({parentProducts.length})</span>
-              <span className="sm:hidden">موحد</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsParentGroupingEnabled(false)}
-              className={`h-9 px-2.5 sm:px-3 rounded-lg text-xs font-black transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                !isParentGroupingEnabled
-                  ? 'bg-amber-400 text-slate-950 shadow-xs'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-              title="عرض تفصيلي لكل شباك ولون منفصلاً (5,444 صنف)"
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">كافة الشبابيك ({products.length})</span>
-              <span className="sm:hidden">تفصيلي</span>
-            </button>
+          {/* Unified Products Active Badge (Consolidated Catalog with all Windows embedded) */}
+          <div className="flex items-center bg-slate-800/90 px-3 py-1 rounded-xl border border-slate-700 h-11 shrink-0 gap-2" title="الكتالوج يعمل بنظام الأصناف الموحدة حيث تظهر كافة الشبابيك والتفريعات مدمجة داخل كل صنف رئيسي">
+            <div className="w-7 h-7 rounded-lg bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0">
+              <Boxes className="w-4 h-4" />
+            </div>
+            <div className="text-right">
+              <div className="text-xs font-black text-amber-300 flex items-center gap-1.5 leading-tight">
+                <span>أصناف موحدة شاملة الشبابيك</span>
+                <span className="text-[10px] bg-amber-400/20 text-amber-200 px-1.5 py-0.2 rounded font-mono font-black border border-amber-400/30">
+                  {parentProducts.length.toLocaleString()}
+                </span>
+              </div>
+              <div className="text-[9.5px] text-slate-400 hidden sm:block">
+                كافة الشبابيك والألوان والتفريعات مدمجة بداخل كل صنف
+              </div>
+            </div>
           </div>
 
           {/* View Mode Switcher (Grid Density / List) */}
@@ -1641,23 +1640,33 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         {parent.name}
                       </h3>
 
-                      {/* WINDOWS / VARIANTS QUICK SELECTOR */}
-                      {parent.variants.length > 1 && (
+                      {/* WINDOWS / VARIANTS QUICK SELECTOR (إظهار شبابيك الصنف الموحد) */}
+                      {parent.variants.length > 1 ? (
                         <div className="bg-slate-50 p-2 rounded-xl border border-slate-200 space-y-1">
                           <div className="flex items-center justify-between text-[10px] font-bold text-slate-500">
-                            <span>الشبابيك المتاحة:</span>
+                            <span className="flex items-center gap-1 text-slate-700">
+                              <span>🪟 شبابيك وتفريعات الصنف:</span>
+                              <span className="bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded-md font-black">
+                                {parent.variants.length} خيارات
+                              </span>
+                            </span>
                             <button
                               type="button"
                               onClick={() => setSelectedParentForModal(parent)}
                               className="text-amber-600 hover:text-amber-800 cursor-pointer font-black"
                             >
-                              استعراض الكل ({parent.variants.length}) 🪟
+                              استعراض الكل 🔍
                             </button>
                           </div>
                           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-                            {parent.variants.slice(0, 5).map((v) => {
+                            {parent.variants.slice(0, 6).map((v) => {
                               const isVSelected = activeVariant.id === v.id;
                               const vStock = (v.branchStockActual || 0) + (v.mainWarehouseActual || 0);
+                              const isSearchMatch = Boolean(
+                                searchTerm.trim() &&
+                                (v.name.toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
+                                 v.code.toLowerCase().includes(searchTerm.toLowerCase().trim().replace('#', '')))
+                              );
                               return (
                                 <button
                                   key={v.id}
@@ -1665,44 +1674,97 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                                   onClick={() => setCardSelectedVariant((prev) => ({ ...prev, [parent.id]: v.id }))}
                                   className={`px-2 py-1 rounded-lg text-[10px] font-black whitespace-nowrap transition cursor-pointer flex items-center gap-1 shrink-0 ${
                                     isVSelected
-                                      ? 'bg-amber-400 text-slate-950 shadow-xs ring-1 ring-amber-500'
-                                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                                      ? 'bg-amber-400 text-slate-950 shadow-xs ring-2 ring-amber-500 font-black'
+                                      : isSearchMatch
+                                        ? 'bg-amber-100 border border-amber-300 text-amber-900 ring-1 ring-amber-400'
+                                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
                                   }`}
                                   title={`${v.name} (كود: ${v.code}) - متاح: ${vStock} ك`}
                                 >
                                   <span className={`w-1.5 h-1.5 rounded-full ${vStock > 0 ? 'bg-emerald-500' : 'bg-rose-400'}`}></span>
                                   <span>{v.name.replace('شباك', 'ش')}</span>
+                                  {isSearchMatch && <span className="text-[8px] bg-amber-500 text-slate-950 px-1 rounded">مطابق</span>}
                                 </button>
                               );
                             })}
-                            {parent.variants.length > 5 && (
+                            {parent.variants.length > 6 && (
                               <button
                                 type="button"
                                 onClick={() => setSelectedParentForModal(parent)}
                                 className="px-2 py-1 rounded-lg text-[10px] font-black bg-slate-200/80 text-slate-700 hover:bg-slate-300 whitespace-nowrap cursor-pointer shrink-0"
                               >
-                                +{parent.variants.length - 5}
+                                +{parent.variants.length - 6}
                               </button>
                             )}
                           </div>
                         </div>
+                      ) : (
+                        searchTerm.trim() && (
+                          <div className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100 flex items-center justify-between">
+                            <span>الشباك الحالي: <strong className="text-slate-800">{activeVariant.name}</strong></span>
+                            <span className="font-mono text-slate-400">كود: {activeVariant.code}</span>
+                          </div>
+                        )
                       )}
 
                       {/* Stock details */}
-                      <div className="grid grid-cols-2 gap-1 text-[11px] bg-slate-50 p-1.5 rounded-xl border border-slate-200">
-                        <div className="text-right">
-                          <span className="text-slate-400 text-[10px] block">رصيد الفرع</span>
-                          <span className={dynamicBranchStock > 0 ? 'text-emerald-700 font-black' : 'text-slate-400 font-bold'}>
-                            {dynamicBranchStock > 0 ? `${dynamicBranchStock} ك` : 'نفد'}
-                          </span>
+                      {isAdminOrDev ? (
+                        <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-2.5 rounded-xl border border-amber-400/40 shadow-xs space-y-1.5">
+                          {(() => {
+                            const dynamicBranchNames = branches && branches.length > 0
+                              ? branches.filter(b => !b.isMainWarehouse && !b.name.includes('أكتوبر')).map(b => b.name)
+                              : ['فرع القاهرة', 'فرع الفيوم', 'فرع المنيا', 'فرع ديمشلت', 'فرع البحيرة', 'فرع منوف', 'فرع منيا القمح'];
+                            const extraKeys = rawProd.branchStocks ? Object.keys(rawProd.branchStocks) : [];
+                            const combinedBranches = Array.from(new Set([...dynamicBranchNames, ...extraKeys])).filter(
+                              (n) => !n.includes('أكتوبر') && !n.includes('الرئيسي') && n !== 'main'
+                            );
+                            const otherBranchesStock = combinedBranches.reduce(
+                              (sum, bName) => sum + getBranchStockForProduct(rawProd, bName),
+                              0
+                            );
+                            const grandStock = otherBranchesStock + octoberAvail;
+                            return (
+                              <>
+                                <div className="flex items-center justify-between text-xs font-black">
+                                  <span className="text-amber-300 flex items-center gap-1.5 text-[11.5px]">
+                                    <Warehouse className="w-4 h-4 text-amber-400" />
+                                    <span>إجمالي مخزون الفروع + الرئيسي:</span>
+                                  </span>
+                                  <span className="font-mono text-base font-black text-amber-300">
+                                    {grandStock.toLocaleString()} ك
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between text-[10.5px] text-slate-300 pt-1.5 border-t border-slate-800">
+                                  <span>الرئيسي (أكتوبر): <strong className="text-emerald-400">{octoberAvail} ك</strong></span>
+                                  <span>باقي الفروع ({combinedBranches.length}): <strong className="text-sky-300">{otherBranchesStock} ك</strong></span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedParentForModal(parent)}
+                                    className="text-amber-400 hover:text-amber-300 font-black text-[10px] cursor-pointer bg-slate-800 hover:bg-slate-700 px-2 py-0.5 rounded-md border border-amber-400/30 transition"
+                                  >
+                                    تفاصيل الفروع 🏢
+                                  </button>
+                                </div>
+                              </>
+                            );
+                          })()}
                         </div>
-                        <div className="text-left">
-                          <span className="text-slate-400 text-[10px] block">مخزن أكتوبر</span>
-                          <span className={octoberAvail > 0 ? 'text-amber-800 font-black' : 'text-slate-400 font-bold'}>
-                            {octoberAvail > 0 ? `${octoberAvail} ك` : 'نفد'}
-                          </span>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-1 text-[11px] bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+                          <div className="text-right">
+                            <span className="text-slate-400 text-[10px] block">رصيد الفرع</span>
+                            <span className={dynamicBranchStock > 0 ? 'text-emerald-700 font-black' : 'text-slate-400 font-bold'}>
+                              {dynamicBranchStock > 0 ? `${dynamicBranchStock} ك` : 'نفد'}
+                            </span>
+                          </div>
+                          <div className="text-left">
+                            <span className="text-slate-400 text-[10px] block">مخزن أكتوبر</span>
+                            <span className={octoberAvail > 0 ? 'text-amber-800 font-black' : 'text-slate-400 font-bold'}>
+                              {octoberAvail > 0 ? `${octoberAvail} ك` : 'نفد'}
+                            </span>
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* Price Box */}
                       <div className="flex items-center justify-between p-2 rounded-xl bg-slate-900 text-white">

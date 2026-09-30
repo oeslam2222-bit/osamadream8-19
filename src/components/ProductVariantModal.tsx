@@ -1,5 +1,6 @@
 import {
   Boxes,
+  Building2,
   Check,
   CheckCircle2,
   ChevronLeft,
@@ -7,6 +8,7 @@ import {
   Eye,
   Flame,
   Layers,
+  MapPin,
   Maximize2,
   Minus,
   Package,
@@ -20,11 +22,12 @@ import {
   X,
   ZoomIn
 } from 'lucide-react';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ParentProduct, ProductVariant } from '../types';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import { getHighResVariantImageUrl } from '../services/productVariantService';
+import { getBranchStockForProduct } from '../services/arabicMatchingService';
 import { ProductImage } from './ProductImage';
 
 interface ProductVariantModalProps {
@@ -42,7 +45,8 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
   onOpenCart,
   isConfidentialMode = false,
 }) => {
-  const { addToCart, cart } = useApp();
+  const { addToCart, cart, branches, currentUser } = useApp();
+  const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
   const [activeVariant, setActiveVariant] = useState<ProductVariant | null>(null);
   const [orderType, setOrderType] = useState<'carton' | 'piece'>('carton');
@@ -51,6 +55,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const [stockError, setStockError] = useState<string | null>(null);
   const [isImageZoomed, setIsImageZoomed] = useState(false);
+  const [showAllBranchesStock, setShowAllBranchesStock] = useState(true);
 
   // Sync active variant when modal opens
   useEffect(() => {
@@ -77,6 +82,48 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
   const branchReserved = rawProd.branchStockReserved || 0;
   const octoberStock = rawProd.mainWarehouseActual || 0;
   const totalStockAvailable = branchStock + octoberStock;
+
+  // Multi-branch inventory for this active variant
+  const branchInventoryList = useMemo(() => {
+    const defaultBranchDefs = [
+      { name: 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)', shortName: 'الفرع الرئيسي (أكتوبر)', city: '6 أكتوبر / الجيزة', isMain: true },
+      { name: 'فرع القاهرة', shortName: 'القاهرة', city: 'القاهرة', isMain: false },
+      { name: 'فرع الفيوم', shortName: 'الفيوم', city: 'الفيوم', isMain: false },
+      { name: 'فرع المنيا', shortName: 'المنيا', city: 'المنيا', isMain: false },
+      { name: 'فرع ديمشلت', shortName: 'ديمشلت', city: 'الدقهلية', isMain: false },
+      { name: 'فرع البحيرة', shortName: 'البحيرة', city: 'البحيرة', isMain: false },
+      { name: 'فرع منوف', shortName: 'منوف', city: 'المنوفية', isMain: false },
+      { name: 'فرع منيا القمح', shortName: 'منيا القمح', city: 'الشرقية', isMain: false },
+    ];
+
+    const branchList = (branches && branches.length > 0)
+      ? branches.map(b => ({
+          name: b.name,
+          shortName: b.name.replace('فرع ', '').replace('الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)', 'المخزن الرئيسي (أكتوبر)'),
+          city: b.city || '',
+          isMain: Boolean(b.isMainWarehouse || b.name.includes('الرئيسي') || b.name.includes('أكتوبر')),
+        }))
+      : defaultBranchDefs;
+
+    return branchList.map(b => {
+      const stock = getBranchStockForProduct(rawProd, b.name);
+      return {
+        ...b,
+        stock,
+      };
+    });
+  }, [branches, rawProd]);
+
+  const totalBranchesStockOnly = useMemo(() => {
+    return branchInventoryList.filter(b => !b.isMain).reduce((acc, b) => acc + (b.stock || 0), 0);
+  }, [branchInventoryList]);
+
+  const mainWarehouseStock = useMemo(() => {
+    const mainItem = branchInventoryList.find(b => b.isMain);
+    return mainItem ? mainItem.stock : (rawProd.mainWarehouseActual || 0);
+  }, [branchInventoryList, rawProd]);
+
+  const grandTotalAllWarehouses = totalBranchesStockOnly + mainWarehouseStock;
 
   // Check how many units of this variant are already in cart
   const itemInCart = cart.find((item) => item.product.id === rawProd.id);
@@ -357,31 +404,128 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                   </div>
                 </div>
 
-                {/* Stock Details Grid */}
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
-                    <div className="text-[11px] text-slate-500 font-bold flex items-center gap-1">
-                      <Warehouse className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>رصيد الفرع الحالي:</span>
+                {/* Executive Multi-Branch Stock Overview Card (تفاصيل المخزون بكل فرع والمخزن المركزي) */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 overflow-hidden shadow-2xs">
+                  {/* Top Header Summary */}
+                  <div className="bg-slate-900 text-white p-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-amber-400 text-slate-950 flex items-center justify-center font-black">
+                        <Building2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-black text-white flex items-center gap-1.5">
+                          <span>تفاصيل المخزون بكافة الفروع</span>
+                          <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.2 rounded font-bold border border-amber-400/30">
+                            {branchInventoryList.length} مخازن
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-medium">
+                          تحديث جردي فوري لجميع نقاط التوزيع
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-base font-black text-emerald-700 font-mono">
-                      {branchStock} كرتونة
-                    </div>
-                    <div className="text-[10px] text-slate-400 font-medium">
-                      متاح فوري للتسليم بالفرع
+
+                    <div className="flex items-center gap-2">
+                      <div className="text-left bg-slate-800/90 px-2.5 py-1 rounded-xl border border-slate-700">
+                        <span className="text-[9px] text-slate-400 block font-bold">إجمالي رصيد الشركة</span>
+                        <span className="text-sm font-black text-amber-300 font-mono">
+                          {grandTotalAllWarehouses.toLocaleString()} كرتونة
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
-                    <div className="text-[11px] text-slate-500 font-bold flex items-center gap-1">
-                      <Package className="w-3.5 h-3.5 text-amber-600" />
-                      <span>مخزن أكتوبر المركزي:</span>
+                  {/* High-Level Stock Split */}
+                  <div className="grid grid-cols-2 gap-2 p-2.5 bg-white border-b border-slate-200 text-xs">
+                    <div className="p-2 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] text-amber-800 font-bold block flex items-center gap-1">
+                          <Package className="w-3 h-3 text-amber-600" />
+                          <span>المخزن المركزي (أكتوبر)</span>
+                        </span>
+                        <span className="text-sm font-black text-slate-900 font-mono">
+                          {mainWarehouseStock} كرتونة
+                        </span>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                        mainWarehouseStock > 10 ? 'bg-emerald-100 text-emerald-800' : mainWarehouseStock > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'
+                      }`}>
+                        {mainWarehouseStock > 0 ? 'متاح للصرف' : 'نافد'}
+                      </span>
                     </div>
-                    <div className="text-base font-black text-amber-700 font-mono">
-                      {octoberStock} كرتونة
+
+                    <div className="p-2 rounded-xl bg-sky-50/70 border border-sky-200/80 flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] text-sky-800 font-bold block flex items-center gap-1">
+                          <Building2 className="w-3 h-3 text-sky-600" />
+                          <span>إجمالي فروع التوزيع</span>
+                        </span>
+                        <span className="text-sm font-black text-slate-900 font-mono">
+                          {totalBranchesStockOnly} كرتونة
+                        </span>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                        totalBranchesStockOnly > 10 ? 'bg-emerald-100 text-emerald-800' : totalBranchesStockOnly > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'
+                      }`}>
+                        {totalBranchesStockOnly > 0 ? 'موزعة بالفروع' : 'نافد'}
+                      </span>
                     </div>
-                    <div className="text-[10px] text-slate-400 font-medium">
-                      صرف مركزي ونواقص
+                  </div>
+
+                  {/* Full Branch Breakdown Table / Grid */}
+                  <div className="p-2.5">
+                    <div className="text-[11px] font-black text-slate-700 mb-1.5 flex items-center justify-between">
+                      <span>رصيد الشباك الحالي ({activeVariant.name}) بكل فرع:</span>
+                      <span className="text-[10px] text-slate-400">
+                        {branchInventoryList.filter(b => b.stock > 0).length} فروع بها رصيد متاح
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                      {branchInventoryList.map((branch) => {
+                        const isAvailable = branch.stock > 0;
+                        const isCritical = branch.stock > 0 && branch.stock <= 5;
+                        return (
+                          <div
+                            key={branch.name}
+                            className={`p-2 rounded-xl border transition flex flex-col justify-between ${
+                              branch.isMain
+                                ? 'bg-amber-50/50 border-amber-300 ring-1 ring-amber-400/30'
+                                : isAvailable
+                                  ? 'bg-white border-slate-200 hover:border-slate-300'
+                                  : 'bg-slate-100/60 border-slate-200/60 opacity-60'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-[11px] font-bold text-slate-800 truncate" title={branch.name}>
+                                {branch.shortName}
+                              </span>
+                              {branch.isMain && (
+                                <span className="text-[8px] bg-amber-500 text-slate-950 font-black px-1 py-0.2 rounded shrink-0">
+                                  رئيسي
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center justify-between mt-1 text-[10px]">
+                              <span className={`font-mono font-black text-xs ${
+                                isCritical ? 'text-amber-800' : isAvailable ? 'text-emerald-700' : 'text-slate-400'
+                              }`}>
+                                {branch.stock} ك
+                              </span>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                                isCritical
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : isAvailable
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : 'bg-rose-50 text-rose-600'
+                              }`}>
+                                {isCritical ? 'حرج' : isAvailable ? 'متاح' : 'نافد'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
