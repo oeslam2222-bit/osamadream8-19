@@ -787,16 +787,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     // showing the count of the side that is currently filtered out.
     const preDealList = [...list];
 
-    // Deal Status Slicer — a clean binary taken from the sheet: the customer
-    // traded in the selected period, or did not. Selecting one side still
-    // shows how many customers sit on the other side.
+    // Deal Status Slicer — the sheet's own حالة التعامل column, so the rows shown
+    // always match the counts printed on the slicer card. Selecting one side
+    // still shows how many customers sit on the other side.
     if (dealEligibilityFilter !== 'ALL') {
       list = list.filter((c) => {
-        const m = customerMetricsMap.get(c.id);
-        if (!m) return false;
-        if (dealEligibilityFilter === 'dealt') return m.isDealtCustomer;
-        if (dealEligibilityFilter === 'eligible') return !m.isDealtCustomer;
-        if (dealEligibilityFilter === 'qualified') return !m.isDealtCustomer && isSheetQualified(c);
+        if (dealEligibilityFilter === 'dealt') return sheetDealStatus(c);
+        if (dealEligibilityFilter === 'eligible') return !sheetDealStatus(c);
+        if (dealEligibilityFilter === 'qualified') return !sheetDealStatus(c) && isSheetQualified(c);
         return true;
       });
     }
@@ -1065,13 +1063,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     let dealt = 0;
     let qualified = 0;
     preDealFilteredCustomers.forEach((c) => {
-      const m = customerMetricsMap.get(c.id);
-      if (m?.isDealtCustomer) dealt++;
+      if (sheetDealStatus(c)) dealt++;
       else if (isSheetQualified(c)) qualified++;
     });
     const total = preDealFilteredCustomers.length;
     return { total, dealt, qualified, notDealt: total - dealt };
-  }, [preDealFilteredCustomers, customerMetricsMap]);
+  }, [preDealFilteredCustomers]);
 
   // Guarantee counts. Same Power BI behaviour as the deal slicer, and derived
   // from the list before the guarantee filter, so they react to every other
@@ -4778,7 +4775,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
             {dealEligibilityFilter !== 'ALL' && (
               <span className="inline-flex items-center gap-1 bg-white border border-sky-200 text-sky-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
-                <span>حالة التعامل: {dealEligibilityFilter === 'dealt' ? 'متعامل' : dealEligibilityFilter === 'eligible' ? 'غير متعامل' : 'الكل'}</span>
+                <span>حالة التعامل: {dealEligibilityFilter === 'dealt' ? 'متعامل' : dealEligibilityFilter === 'eligible' ? 'غير متعامل' : dealEligibilityFilter === 'qualified' ? 'قابل للتجارة' : 'الكل'}</span>
                 <button type="button" onClick={() => setDealEligibilityFilter('ALL')} className="text-sky-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
               </span>
             )}
@@ -5116,6 +5113,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   <option value="ALL">جميع حالات التعامل ({dealStatusCounts.total})</option>
                   <option value="dealt">متعامل ✅ ({dealStatusCounts.dealt} عميل)</option>
                   <option value="eligible">غير متعامل ⏳ ({dealStatusCounts.notDealt} عميل)</option>
+                  <option value="qualified">قابل للتجارة 💠 ({dealStatusCounts.qualified} عميل)</option>
                 </select>
               </div>
 
@@ -5550,13 +5548,15 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 <Users className="w-4 h-4 text-emerald-400" />
               </div>
 
-              {/* This analysis card reports the dealing customers only, so
-                  غير متعامل stays out of it. The deal-status
-                  dropdown above still offers the full set. */}
+              {/* The sheet carries two independent columns: حالة التعامل
+                  (متعامل / غير متعامل) and قابل. Both are listed so the counts
+                  can be read off the slicer instead of guessed from the month. */}
               <div className="mt-2.5 space-y-1.5">
                 {(
                   [
                     { key: 'dealt', label: 'متعامل ✅', n: dealStatusCounts.dealt, active: 'bg-emerald-500 text-white', idle: 'bg-emerald-900/40 text-emerald-200 hover:bg-emerald-900/70' },
+                    { key: 'eligible', label: 'غير متعامل ⏳', n: dealStatusCounts.notDealt, active: 'bg-sky-500 text-white', idle: 'bg-sky-900/40 text-sky-200 hover:bg-sky-900/70' },
+                    { key: 'qualified', label: 'قابل للتجارة 💠', n: dealStatusCounts.qualified, active: 'bg-amber-500 text-white', idle: 'bg-amber-900/40 text-amber-200 hover:bg-amber-900/70' },
                   ] as const
                 ).map(({ key, label, n, active, idle }) => {
                   const isActive = dealEligibilityFilter === key;
@@ -5789,9 +5789,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </div>
 
               <div className="mt-2 text-[10.5px] font-bold text-slate-500 leading-relaxed">
-                إجمالي العملاء في النطاق: {dealStatusCounts.total.toLocaleString()} — غير المتعاملين
-                {' '}({dealStatusCounts.notDealt.toLocaleString()}). الاختيار الكامل من قائمة
-                "حالة التعامل" بالأعلى.
+إجمالي العملاء في النطاق: {dealStatusCounts.total.toLocaleString()} — متعامل ({dealStatusCounts.dealt.toLocaleString()})، غير متعامل ({dealStatusCounts.notDealt.toLocaleString()})، قابل للتجارة ({dealStatusCounts.qualified.toLocaleString()}).
               </div>
 
 

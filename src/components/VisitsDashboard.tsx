@@ -1129,7 +1129,7 @@ export const VisitsDashboard: React.FC = () => {
   };
 
   return (
-    <main className="w-full p-3.5 sm:p-6 space-y-4 sm:space-y-6 pb-20" dir="rtl">
+    <main className="w-full p-3.5 sm:p-6 space-y-3 sm:space-y-4 pb-20" dir="rtl">
       {/* Toast Notification */}
       {toastMessage && (
         <div
@@ -1145,8 +1145,12 @@ export const VisitsDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* Top shell: on a wide monitor the title, the export window, today's
+          progress and the KPI strip used to be four separate full-width rows,
+          which left most of the screen empty. They now pair up two-by-two. */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 sm:gap-4 items-start">
       {/* Header & Main Actions */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="xl:col-span-7 bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-emerald-600 text-xs font-black mb-1">
             <CalendarCheck className="w-4 h-4" />
@@ -1222,7 +1226,7 @@ export const VisitsDashboard: React.FC = () => {
       {/* Export period bar — the window both Excel exports and the per-rep
           efficiency board read from, so a manager can pull last week, this month,
           or any custom from/to range without touching the on-screen log filter. */}
-      <div className="bg-slate-900 text-white rounded-2xl border border-slate-700 p-3.5 sm:p-4 shadow-sm">
+      <div className="xl:col-span-5 bg-slate-900 text-white rounded-2xl border border-slate-700 p-3.5 sm:p-4 shadow-sm">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
@@ -1302,7 +1306,7 @@ export const VisitsDashboard: React.FC = () => {
       </div>
 
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+      <div className="xl:col-span-5 bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3 mb-2">
           <div className="flex items-center gap-2 min-w-0">
             <Target className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1331,9 +1335,10 @@ export const VisitsDashboard: React.FC = () => {
         )}
       </div>
 
-      {/* KPI Stats Strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-4">
-        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between">
+      {/* KPI Stats Strip — three columns on wide screens so the five cards fill the
+          box instead of squeezing into one thin row with gaps either side. */}
+      <div className="xl:col-span-7 grid grid-cols-2 md:grid-cols-6 gap-2.5 sm:gap-4 self-start">
+        <div className="md:col-span-2 bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-[11px] font-bold text-slate-400 block">إجمالي الزيارات</span>
             <span className="text-xl sm:text-2xl font-black text-slate-900">{stats.total}</span>
@@ -1344,7 +1349,7 @@ export const VisitsDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between">
+        <div className="md:col-span-2 bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-[11px] font-bold text-emerald-700 block">زيارات منفذة</span>
             <span className="text-xl sm:text-2xl font-black text-emerald-700">{stats.completed}</span>
@@ -1357,7 +1362,7 @@ export const VisitsDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between">
+        <div className="md:col-span-2 bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-[11px] font-bold text-blue-700 block">مجدولة وقادمة</span>
             <span className="text-xl sm:text-2xl font-black text-blue-700">{stats.scheduled}</span>
@@ -1368,7 +1373,7 @@ export const VisitsDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between">
+        <div className="md:col-span-2 bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-[11px] font-bold text-amber-700 block">لم تتم / ملغاة</span>
             <span className="text-xl sm:text-2xl font-black text-amber-700">{stats.missed + stats.cancelled}</span>
@@ -1379,7 +1384,7 @@ export const VisitsDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between col-span-2 lg:col-span-1">
+        <div className="col-span-2 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-[11px] font-bold text-purple-700 block">المحصل بالزيارات</span>
             <span className="text-lg sm:text-xl font-black text-purple-700">{formatCurrency(stats.totalCollected)}</span>
@@ -1389,6 +1394,7 @@ export const VisitsDashboard: React.FC = () => {
             <DollarSign className="w-5 h-5" />
           </div>
         </div>
+      </div>
       </div>
 
       {/* Return Notifications & Storekeeper Handover Ribbon (شريط تنبيهات المرتجعات وتحويلها لأمين/مدير المخزن) */}
