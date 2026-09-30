@@ -575,15 +575,24 @@ export const TargetPerformanceDashboard: React.FC = () => {
           return sum + (isNaN(val) ? 0 : val);
         }, 0),
         collections: repCustomers.reduce((sum, customer) => {
-          const monthly = selectedMonth === 'ALL'
-            ? Math.max(
-                Object.values(customer.monthlyCollections2026 || {}).reduce((total, value) => total + (Number(value) || 0), 0),
-                Math.abs(Number(customer.collections2026 || 0)),
-                Math.abs(Number(customer.totalMonthlyCollections || 0)),
-                Math.abs(Number(customer.totalOverallCollections || 0))
-              )
-            : Number(customer.monthlyCollections2026?.[selectedMonth]) || 0;
-          return sum + Math.abs(Number(monthly) || 0);
+          // Same source rule as the analytics view: "إجمالي التحصيلات" wins by
+          // name. The old Math.max() compared a signed month sum against raw
+          // magnitudes, so it returned whichever number was largest rather than
+          // the correct one.
+          const readTotal = (): number => {
+            const total = customer.totalMonthlyCollections;
+            if (total !== undefined && total !== null && !isNaN(Number(total))) return Number(total);
+            const overall = customer.totalOverallCollections;
+            if (overall !== undefined && overall !== null && !isNaN(Number(overall))) return Number(overall);
+            return Number(customer.collections2026 || 0);
+          };
+          const annual = readTotal();
+          const monthSum = Object.values(customer.monthlyCollections2026 || {})
+            .reduce((total, value) => total + (Number(value) || 0), 0);
+          const value = selectedMonth === 'ALL'
+            ? (annual !== 0 ? annual : monthSum)
+            : (Number(customer.monthlyCollections2026?.[selectedMonth]) || 0);
+          return sum + Math.abs(value);
         }, 0),
       };
       map.set(repName, summary);

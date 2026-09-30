@@ -453,6 +453,18 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
   }, [userVisibleCustomers]);
 
+  // Deal status read straight from the base sheet column, so the "قابل / غير"
+  // column always mirrors the sheet instead of a figure derived from the month
+  // slicer. The sheet stores free text (متعامل / غير متعامل / نعم / لا).
+  const sheetDealStatus = (c: Customer): boolean => {
+    const raw = (c.dealt2026 || '').trim();
+    if (raw && raw !== '-' && raw !== 'غير محدد') {
+      if (raw.includes('غير')) return false;
+      if (raw.includes('متعامل') || raw.includes('نعم')) return true;
+    }
+    return Boolean(c.hasDealtIn2026);
+  };
+
   // The guarantee column in the sheet is an AMOUNT, not free text. Older stored
   // rows still carry the old text form ("ماضي على ورق ضمان (5,000 ج.م)"), which
   // produced one slicer entry per customer. Normalise every variant to a small
@@ -593,19 +605,19 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           monthlyColsSum += Number(c.monthlyCollections2026[m]) || 0;
         }
       }
-      // Collections keep the sheet's sign (collection negative, return positive),
-      // so compare candidates by magnitude instead of with Math.max — max() on
-      // signed values would always pick the least-negative (wrong) figure.
-      const byMagnitude = (...vals: (number | undefined)[]): number => {
-        const defined = vals.filter((v): v is number => typeof v === 'number' && !isNaN(v));
-        if (defined.length === 0) return 0;
-        return defined.reduce((best, v) => (Math.abs(v) > Math.abs(best) ? v : best));
-      };
-      const explicitCollections = byMagnitude(
-        c.collections2026,
-        c.totalMonthlyCollections,
-        c.totalOverallCollections
-      );
+      // "إجمالي التحصيلات" is the authoritative sheet column for collections.
+      // These used to be resolved by picking whichever of the three collection
+      // fields had the largest absolute value, which picked up the negative
+      // balance figure whenever it outweighed the total — that is what made the
+      // collection totals come out wrong. Pick the source by name instead, and
+      // only fall back to the month sum when the column is genuinely missing.
+      const explicitCollections = (() => {
+        const total = c.totalMonthlyCollections;
+        if (total !== undefined && total !== null && !isNaN(Number(total))) return Number(total);
+        const overall = c.totalOverallCollections;
+        if (overall !== undefined && overall !== null && !isNaN(Number(overall))) return Number(overall);
+        return Number(c.collections2026 || 0);
+      })();
       const collections2026 = explicitCollections !== 0 ? explicitCollections : monthlyColsSum;
       // Rate uses the magnitude of the net so a net return reads as 0%, not -x%.
       const collectionRate = sales2026 > 0
@@ -1120,12 +1132,16 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     const coverageRate = filteredCustomers.length > 0 ? Math.round((activeFilteredCount / filteredCustomers.length) * 100) : 0;
 
     // Monthly Chart Data (Jan - Dec 2026)
+    // The sheet stores collections as negative, which drew those bars below the
+    // axis and made sales and collections look mirrored. Chart the magnitude so
+    // both series stand side by side above the baseline; the signed figure is
+    // still preserved everywhere it is used for accounting.
     const monthlyChartData = MONTH_NAMES_AR.map((monthName, idx) => {
       const monthNum = idx + 1;
       return {
         month: monthName,
         'مبيعات 2026': monthlySalesTotals[monthNum] || 0,
-        'تحصيلات 2026': monthlyCollectionTotals[monthNum] || 0,
+        'تحصيلات 2026': Math.abs(monthlyCollectionTotals[monthNum] || 0),
       };
     });
 
@@ -2290,7 +2306,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           </div>
           <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between">
             <span className="text-violet-300 font-black">
-              نسبة التغطية: {kpiStats.coverageRate}%
+              نسبة التغطية (من القابلين): {kpiStats.coverageRate}%
             </span>
             <span className="text-slate-500 text-[10px]">
               (غير متعامل {kpiStats.nonDealtFilteredCount.toLocaleString()})
@@ -2635,25 +2651,36 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           {/* Tab 1: Monthly Sales & Collections */}
           {activeChartTab === 'monthly' && (
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-slate-500">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
                 <span className="font-bold">مقارنة حركة المبيعات والتحصيلات على مدار 12 شهراً لعام 2026:</span>
+                <span className="text-[11px] font-bold text-slate-400">
+                  التحصيلات معروضة بالقيمة المطلقة لوضوح المقارنة
+                </span>
               </div>
-              <div className="h-64 sm:h-72 w-full">
+              <div className="h-80 sm:h-96 w-full" dir="ltr">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={kpiStats.monthlyChartData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748B' }} />
+                  <BarChart
+                    data={kpiStats.monthlyChartData}
+                    margin={{ top: 10, right: 10, left: 10, bottom: 5 }}
+                    barGap={2}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748B' }} axisLine={{ stroke: '#CBD5E1' }} tickLine={false} />
                     <YAxis
                       tick={{ fontSize: 10, fill: '#64748B' }}
                       tickFormatter={(v) => (isPrivacyMode ? '•••' : `${(v / 1000).toFixed(0)}k`)}
+                      axisLine={false}
+                      tickLine={false}
                     />
                     <Tooltip
-                      formatter={(val: any) => formatMoney(Number(val) || 0)}
-                      contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '12px', border: 'none' }}
+                      formatter={(val: any) => formatMoney(Math.abs(Number(val) || 0))}
+                      cursor={{ fill: 'rgba(15, 23, 42, 0.04)' }}
+                      contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '12px', border: 'none', fontSize: 12 }}
+                      labelStyle={{ color: '#94A3B8', fontWeight: 700, marginBottom: 4 }}
                     />
-                    <Legend />
-                    <Bar dataKey="مبيعات 2026" fill="#0284c7" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="تحصيلات 2026" fill="#10B981" radius={[4, 4, 0, 0]} />
+                    <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
+                    <Bar dataKey="مبيعات 2026" name="مبيعات 2026" fill="#0284c7" radius={[4, 4, 0, 0]} maxBarSize={22} />
+                    <Bar dataKey="تحصيلات 2026" name="تحصيلات 2026" fill="#10B981" radius={[4, 4, 0, 0]} maxBarSize={22} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -3101,7 +3128,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <span>مديونية معلقة: {formatMoney(customerDealingAnalytics.kpi.totalNonTransactingDebt)}</span>
                   </div>
                 </div>
-
                 {/* Prospects (Potential) */}
                 <div
                   onClick={() => setDealingSegmentFilter('prospect')}
@@ -4911,14 +4937,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 <Users className="w-4 h-4 text-emerald-400" />
               </div>
 
-              {/* Clickable classification cards — press to filter the table.
-                  "الكل" is dropped because متعامل + غير متعامل already sum to the
-                  total, and the reset button below clears the slicer. */}
+              {/* This analysis card reports the dealing customers only, so
+                  غير متعامل / قابل للتعامل stay out of it. The deal-status
+                  dropdown above still offers the full set. */}
               <div className="mt-2.5 space-y-1.5">
                 {(
                   [
                     { key: 'dealt', label: 'متعامل ✅', n: dealStatusCounts.dealt, active: 'bg-emerald-500 text-white', idle: 'bg-emerald-900/40 text-emerald-200 hover:bg-emerald-900/70' },
-                    { key: 'eligible', label: 'غير متعامل ⏳', n: dealStatusCounts.notDealt, active: 'bg-sky-500 text-white', idle: 'bg-sky-900/40 text-sky-200 hover:bg-sky-900/70' },
                   ] as const
                 ).map(({ key, label, n, active, idle }) => {
                   const isActive = dealEligibilityFilter === key;
@@ -4962,7 +4987,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               <div className="mt-2 space-y-2">
                 <div>
                   <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-slate-300 font-bold">نسبة التغطية (من القابلين):</span>
+                    <span className="text-slate-300 font-bold">نسبة التغطية:</span>
                     <span className="text-amber-400 font-black">{kpiStats.coverageRate}%</span>
                   </div>
                   <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
@@ -5061,9 +5086,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         </div>
                       </div>
 
-                      {/* Eligibility Badge */}
+                      {/* Deal badge — value comes from the base sheet */}
                       <div className="shrink-0">
-                        {metrics?.isDealtCustomer ? (
+                        {sheetDealStatus(c) ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
                             متعامل ✅
                           </span>
@@ -5146,9 +5171,15 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       </button>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-2 text-[10.5px] font-bold text-slate-500 leading-relaxed">
+                إجمالي العملاء في النطاق: {dealStatusCounts.total.toLocaleString()} — غير المتعاملين
+                {' '}({dealStatusCounts.notDealt.toLocaleString()}) متاحين من قائمة "حالة التعامل" بالأعلى.
+              </div>
+
 
             {/* Desktop View: Full Comprehensive Table (hidden md:block) */}
             <div className="hidden md:block overflow-x-auto">
@@ -5320,9 +5351,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         </div>
                       </td>
 
-                      {/* قابل / غير */}
+                      {/* قابل / غير — value comes from the base sheet */}
                       <td className="p-3 text-center whitespace-nowrap">
-                        {metrics?.isDealtCustomer ? (
+                        {sheetDealStatus(c) ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                             متعامل ✅
@@ -5330,7 +5361,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
                             <Clock className="w-3 h-3 text-sky-600" />
-                            قابل للتعامل ⏳
+                            غير متعامل ⏳
                           </span>
                         )}
                       </td>
