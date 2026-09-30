@@ -143,8 +143,15 @@ export function matchTotalSalesHeader(rawH: string): boolean {
     h.includes('السنه') ||
     h.includes('السنة') ||
     h.includes('العام') ||
+    h.includes('كلها') ||
+    h.includes('كلي') ||
+    h.includes('كامل') ||
+    h.includes('المجمع') ||
+    h.includes('الكل') ||
+    h.includes('المجموع') ||
     h.includes('total') ||
-    h.includes('all');
+    h.includes('all') ||
+    h.includes('everything');
 
   // If header mentions a specific month (1-12 or month name) without explicit total word, it is NOT total sales
   if (hasMonthlySpecifierToken(h) && !hasExplicitTotalWord) {
@@ -205,8 +212,15 @@ export function matchTotalCollectionsHeader(rawH: string): boolean {
     h.includes('السنه') ||
     h.includes('السنة') ||
     h.includes('العام') ||
+    h.includes('كلها') ||
+    h.includes('كلي') ||
+    h.includes('كامل') ||
+    h.includes('المجمع') ||
+    h.includes('الكل') ||
+    h.includes('المجموع') ||
     h.includes('total') ||
-    h.includes('all');
+    h.includes('all') ||
+    h.includes('everything');
 
   // If header mentions a specific month (1-12 or month name) without explicit total word, it is NOT total collections
   if (hasMonthlySpecifierToken(h) && !hasExplicitTotalWord) {
