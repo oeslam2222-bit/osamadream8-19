@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   CalendarCheck,
   CheckCircle2,
@@ -34,6 +34,7 @@ import {
   Navigation,
   ShieldCheck,
   Zap,
+  ArrowUpDown,
   Copy,
   RotateCcw,
   Package,
@@ -61,6 +62,15 @@ export const VisitsDashboard: React.FC = () => {
 
   const visible = getVisibleVisits();
 
+  // Helper date boundaries. Declared before the filter/export state because the
+  // export range initialises from them.
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const weekAgoStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().slice(0, 10);
+  }, []);
+
   // Date filters: Quick presets or Month / Exact Date
   const [timePreset, setTimePreset] = useState<'today' | 'week' | 'month' | 'all'>('month');
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -70,10 +80,27 @@ export const VisitsDashboard: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'الكل' | CustomerVisit['status']>('الكل');
   const [returnFilter, setReturnFilter] = useState<'all' | 'returns_only' | 'pending_transfer' | 'transferred_to_store' | 'received'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Customer routing board: the visit log only shows customers that already have
+  // a visit record, which makes it useless for planning tomorrow's round. These
+  // controls drive a separate customer table that lists every customer the signed-in
+  // role is allowed to see, ranked by debt, so a visit can be scheduled from it.
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [routeSort, setRouteSort] = useState<'debt_desc' | 'debt_asc' | 'name' | 'today'>('debt_desc');
+  const [routePage, setRoutePage] = useState(1);
+  const ROUTE_PAGE_SIZE = 25;
+
+  // Export period. Kept separate from the on-screen `timePreset` so the board can
+  // stay on "today" while a manager exports last month, or a custom from/to range.
+  const [exportPreset, setExportPreset] = useState<'week' | 'month' | 'custom'>('week');
+  const [exportFrom, setExportFrom] = useState(weekAgoStr);
+  const [exportTo, setExportTo] = useState(todayStr);
+
   const [returnHandoverDraft, setReturnHandoverDraft] = useState<Record<string, string>>({});
   const [isReturnsRibbonExpanded, setIsReturnsRibbonExpanded] = useState(true);
 
   // User role permissions for return handover to warehouse manager
+  const isRep = currentUser?.role === 'sales_rep';
   const isSupervisor = currentUser?.role === 'supervisor';
   const isBranchManager = currentUser?.role === 'branch_manager';
   const isAdmin = currentUser?.role === 'admin';
@@ -181,6 +208,134 @@ export const VisitsDashboard: React.FC = () => {
     return customers;
   }, [currentUser, customers, users]);
 
+  // Resolved export window, derived from the preset so the date inputs and the
+  // filename can never disagree about which period was actually exported.
+  const exportRange = useMemo(() => {
+    if (exportPreset === 'week') return { from: weekAgoStr, to: todayStr };
+    if (exportPreset === 'month') {
+      const d = new Date();
+      const to = new Date().toISOString().slice(0, 10);
+      const from = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+      return { from, to };
+    }
+    const from = exportFrom || weekAgoStr;
+    const to = exportTo || todayStr;
+    return from <= to ? { from, to } : { from: to, to: from };
+  }, [exportPreset, exportFrom, exportTo, weekAgoStr, todayStr]);
+
+  // Which rep owns a customer, matched by id first and by name second so legacy
+  // rows that only carry a name still land on the right rep.
+  const repMatchesCustomer = (c: Customer, repId: string): boolean => {
+    const repUser = users.find((u) => u.id === repId);
+    const ownerId = (c as any).repId || c.repId;
+    const ownerName = c.salesRepName || c.repName || '';
+    if (repUser) {
+      return ownerId === repUser.id || isArabicNameMatch(ownerName, repUser.name);
+    }
+    return false;
+  };
+
+  const customerDebt = (c: Customer): number =>
+    Number(c.currentBalance ?? c.balance ?? c.totalOverdueAndDue ?? c.overdueBalance ?? 0) || 0;
+
+  // Today's visit state per customer, so the routing board can show who is already
+  // covered today and who still needs a visit without scanning the visit log.
+  const todayVisitsByCustomer = useMemo(() => {
+    const map = new Map<string, CustomerVisit[]>();
+    visible.forEach((v) => {
+      if (!v.customerId || v.date !== todayStr) return;
+      const arr = map.get(v.customerId) || [];
+      arr.push(v);
+      map.set(v.customerId, arr);
+    });
+    return map;
+  }, [visible, todayStr]);
+
+  // The customer routing board: every customer this role may see, narrowed by the
+  // branch/rep slicers and the name search, ranked by debt. Customers with no visit
+  // record at all are included on purpose — they are the ones that need scheduling.
+  const routeCustomers = useMemo(() => {
+    const q = customerSearch.trim();
+    const qDigits = q.replace(/[^0-9]/g, '');
+
+    const list = myCustomers.filter((c) => {
+      if (branch !== 'الكل') {
+        if (!c.branchName || c.branchName !== branch) return false;
+      }
+      if (rep !== 'الكل') {
+        return repMatchesCustomer(c, rep);
+      }
+      if (!q) return true;
+      const name = (c.name || '').toLowerCase();
+      const code = (c.code || '').toLowerCase();
+      const store = (c.storeName || '').toLowerCase();
+      const address = (c.address || '').toLowerCase();
+      const phone = (c.phone || '').replace(/[^0-9]/g, '');
+      return (
+        name.includes(q) ||
+        code.includes(q) ||
+        store.includes(q) ||
+        address.includes(q) ||
+        (qDigits.length > 0 && phone.includes(qDigits))
+      );
+    });
+
+    const todayCount = (c: Customer) => todayVisitsByCustomer.get(c.id)?.length || 0;
+    const todayDone = (c: Customer) =>
+      (todayVisitsByCustomer.get(c.id) || []).some((v) => v.status === 'منفذة' || Boolean(v.checkOutTime));
+
+    return [...list].sort((a, b) => {
+      if (routeSort === 'debt_desc') return customerDebt(b) - customerDebt(a);
+      if (routeSort === 'debt_asc') return customerDebt(a) - customerDebt(b);
+      if (routeSort === 'name') return (a.name || '').localeCompare(b.name || '', 'ar');
+      // today: customers with a scheduled visit today first, then the rest, and
+      // within each group the biggest debt decides the running order.
+      const aPending = todayCount(a) - (todayDone(a) ? 1 : 0);
+      const bPending = todayCount(b) - (todayDone(b) ? 1 : 0);
+      if (aPending !== bPending) return bPending - aPending;
+      return customerDebt(b) - customerDebt(a);
+    });
+  }, [myCustomers, branch, rep, customerSearch, routeSort, todayVisitsByCustomer, users]);
+
+  const routeTotals = useMemo(() => {
+    let debt = 0;
+    let overdue = 0;
+    let visitedToday = 0;
+    routeCustomers.forEach((c) => {
+      debt += customerDebt(c);
+      overdue += Number(c.totalOverdueAndDue ?? c.overdueBalance ?? 0) || 0;
+      if ((todayVisitsByCustomer.get(c.id) || []).some((v) => v.status === 'منفذة' || Boolean(v.checkOutTime))) {
+        visitedToday++;
+      }
+    });
+    return { debt, overdue, visitedToday, total: routeCustomers.length };
+  }, [routeCustomers, todayVisitsByCustomer]);
+
+  const routeTotalPages = Math.max(1, Math.ceil(routeCustomers.length / ROUTE_PAGE_SIZE));
+  const routePageRows = useMemo(
+    () => routeCustomers.slice((routePage - 1) * ROUTE_PAGE_SIZE, routePage * ROUTE_PAGE_SIZE),
+    [routeCustomers, routePage]
+  );
+
+  // A rep filter is a real scoping decision, so collapse the page when it changes
+  // instead of leaving the board on an out-of-range page.
+  useEffect(() => {
+    setRoutePage(1);
+  }, [rep, branch, customerSearch, routeSort]);
+
+  // Open the schedule form already aimed at one customer, for one rep, today.
+  const scheduleVisitForCustomer = (c: Customer) => {
+    setForm((prev) => ({
+      ...prev,
+      customerId: c.id,
+      repId: (c as any).repId || c.repId || (currentUser?.role === 'sales_rep' ? currentUser.id : ''),
+      date: todayStr,
+      status: 'مجدولة',
+    }));
+    setModalCustomerSearch(c.name);
+    setShowForm(true);
+  };
+
   // Filtered customer candidates in the schedule visit modal
   const modalFilteredCustomers = useMemo(() => {
     if (!modalCustomerSearch.trim()) {
@@ -221,14 +376,6 @@ export const VisitsDashboard: React.FC = () => {
       .filter((v) => v.customerId === custId && v.id !== currentVisitId)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [selectedVisit?.customerId, selectedVisit?.id, executingVisit?.customerId, executingVisit?.id, visible]);
-
-  // Helper date boundaries
-  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const weekAgoStr = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 7);
-    return d.toISOString().slice(0, 10);
-  }, []);
 
   // Filter visits
   const filtered = useMemo(() => {
@@ -472,15 +619,16 @@ export const VisitsDashboard: React.FC = () => {
     };
   }, [visible, todayStr, currentUser?.role, currentUser?.id, currentUser?.name]);
 
-  // Weekly efficiency per rep, for supervisors and branch managers.
-  // Status uses the real Arabic values ('مجدولة' | 'منفذة' | 'ملغاة' | 'لم تتم').
+  // Efficiency per rep over the SELECTED period (weekly / this month / custom),
+  // for supervisors and branch managers. Status uses the real Arabic values
+  // ('مجدولة' | 'منفذة' | 'ملغاة' | 'لم تتم').
   // "Remaining" (not yet executed) and "missed" (did not happen) are kept apart:
   // a pending visit is not a missed one until the rep closes the day.
   // Orders and collections are taken from the recorded invoice/amount rather
   // than the rep's own outcome checkbox, so the report cannot be self-reported.
   const weeklyByRep = useMemo(() => {
-    const from = weekAgoStr;
-    const to = todayStr;
+    const from = exportRange.from;
+    const to = exportRange.to;
     const inRange = visible.filter((v) => v.date >= from && v.date <= to);
 
     const map = new Map<string, {
@@ -542,7 +690,7 @@ export const VisitsDashboard: React.FC = () => {
         orderValue: r.orderValue,
       }))
       .sort((a, b) => b.completed - a.completed || b.scheduled - a.scheduled);
-  }, [visible, weekAgoStr, todayStr]);
+  }, [visible, exportRange]);
 
   const weeklyTotals = useMemo(() => {
     return weeklyByRep.reduce(
@@ -560,16 +708,16 @@ export const VisitsDashboard: React.FC = () => {
     );
   }, [weeklyByRep]);
 
-  // Weekly report export for management: one summary sheet per rep plus a
+  // Period report export for management: one summary sheet per rep plus a
   // detailed sheet listing every visit, built from the same weeklyByRep /
   // filtered sources as the on-screen board so the two can never disagree.
   const handleExportWeeklyReport = () => {
     if (weeklyByRep.length === 0) {
-      showToast('error', 'لا توجد زيارات في آخر 7 أيام لتصديرها.');
+      showToast('error', `لا توجد زيارات بين ${exportRange.from} و ${exportRange.to} لتصديرها.`);
       return;
     }
     const repKey = rep !== 'الكل' ? rep : '';
-    const inRange = visible.filter((v) => v.date >= weekAgoStr && v.date <= todayStr);
+    const inRange = visible.filter((v) => v.date >= exportRange.from && v.date <= exportRange.to);
 
     const summaryRows = weeklyByRep
       .filter((r) => {
@@ -639,9 +787,9 @@ export const VisitsDashboard: React.FC = () => {
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(detailRows), 'تفاصيل الزيارات');
     XLSX.writeFile(
       workbook,
-      `تقرير_زيارات_أسبوعي_${weekAgoStr}_${todayStr}.xlsx`
+      `تقرير_زيارات_${exportRange.from}_${exportRange.to}.xlsx`
     );
-    showToast('success', `تم تصدير تقرير الأسبوع (${summaryRows.length} مندوب / ${detailRows.length} زيارة) للإدارة 📊`);
+    showToast('success', `تم تصدير تقرير الفترة (${summaryRows.length} مندوب / ${detailRows.length} زيارة) للإدارة 📊`);
   };
 
   // Capture GPS Geolocation for Visit Verification
@@ -875,14 +1023,28 @@ export const VisitsDashboard: React.FC = () => {
     }
   };
 
-  // Export filtered visits to Excel
+  // Visits inside the export window, honouring the same role/branch/rep scope the
+  // board is showing so an export can never leak rows the user cannot see.
+  const exportRows = useMemo(() => {
+    return filtered.filter((v) => {
+      if (v.date < exportRange.from || v.date > exportRange.to) return false;
+      if (rep !== 'الكل') {
+        const repUser = users.find((u) => u.id === rep);
+        if (!repUser) return false;
+        if (v.repId !== rep && !isArabicNameMatch(v.repName || '', repUser.name)) return false;
+      }
+      return true;
+    });
+  }, [filtered, exportRange, rep, users]);
+
+  // Export visits to Excel for the chosen period (weekly / this month / custom)
   const handleExportVisitsExcel = () => {
-    if (filtered.length === 0) {
-      showToast('error', 'لا توجد زيارات لتصديرها وفق الفلترة المحددة.');
+    if (exportRows.length === 0) {
+      showToast('error', `لا توجد زيارات بين ${exportRange.from} و ${exportRange.to} وفق الفلترة المحددة.`);
       return;
     }
 
-    const rows = filtered.map((v) => {
+    const rows = exportRows.map((v) => {
       const c = customers.find((x) => x.id === v.customerId);
       return {
         'كود العميل': c?.code || '---',
@@ -920,8 +1082,11 @@ export const VisitsDashboard: React.FC = () => {
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'سجل الزيارات');
-    XLSX.writeFile(workbook, `تقرير_زيارات_العملاء_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    showToast('success', `تم تصدير ${filtered.length} زيارة إلى ملف الإكسل بنجاح!`);
+    XLSX.writeFile(workbook, `تقرير_زيارات_العملاء_${exportRange.from}_${exportRange.to}.xlsx`);
+    showToast(
+      'success',
+      `تم تصدير ${exportRows.length} زيارة للفترة من ${exportRange.from} إلى ${exportRange.to} بنجاح!`
+    );
   };
 
   const getStatusBadge = (status: CustomerVisit['status']) => {
@@ -964,7 +1129,7 @@ export const VisitsDashboard: React.FC = () => {
   };
 
   return (
-    <main className="p-3.5 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-6 pb-20" dir="rtl">
+    <main className="w-full p-3.5 sm:p-6 space-y-4 sm:space-y-6 pb-20" dir="rtl">
       {/* Toast Notification */}
       {toastMessage && (
         <div
@@ -1010,10 +1175,10 @@ export const VisitsDashboard: React.FC = () => {
             type="button"
             onClick={handleExportVisitsExcel}
             className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3.5 py-2.5 rounded-xl flex items-center gap-2 text-xs border border-slate-300 transition cursor-pointer"
-            title="تصدير الزيارات المعروضة إلى إكسل"
+            title="تصدير الزيارات للفترة المحددة إلى إكسل"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            <span>تصدير إكسل ({filtered.length})</span>
+            <span>تصدير إكسل ({exportRows.length})</span>
           </button>
 
           {(isSupervisor || isBranchManager || isAdmin || isDeveloper) && (
@@ -1021,10 +1186,10 @@ export const VisitsDashboard: React.FC = () => {
               type="button"
               onClick={handleExportWeeklyReport}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-3.5 py-2.5 rounded-xl flex items-center gap-2 text-xs shadow-sm transition cursor-pointer"
-              title="تصدير تقرير الزيارات الأسبوعي (ملخص المناديب + تفاصيل كل زيارة) للإدارة"
+              title="تصدير تقرير الزيارات للفترة المحددة (ملخص المناديب + تفاصيل كل زيارة) للإدارة"
             >
               <Download className="w-4 h-4" />
-              <span>تقرير الأسبوع للإدارة</span>
+              <span>تقرير الفترة للإدارة</span>
             </button>
           )}
 
@@ -1054,7 +1219,89 @@ export const VisitsDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Daily progress bar — today only, scoped to the signed-in rep */}
+      {/* Export period bar — the window both Excel exports and the per-rep
+          efficiency board read from, so a manager can pull last week, this month,
+          or any custom from/to range without touching the on-screen log filter. */}
+      <div className="bg-slate-900 text-white rounded-2xl border border-slate-700 p-3.5 sm:p-4 shadow-sm">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+              <Calendar className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-black text-emerald-400">فترة تصدير تقرير الزيارات (إكسل)</div>
+              <div className="text-[10.5px] text-slate-300 font-mono">
+                {exportRange.from} ← {exportRange.to} · {exportRows.length} زيارة مشمولة
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {([
+              { v: 'week' as const, label: 'أسبوعي (آخر 7 أيام)' },
+              { v: 'month' as const, label: 'شهري (هذا الشهر)' },
+              { v: 'custom' as const, label: 'فترة مخصصة' },
+            ]).map(({ v, label }) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setExportPreset(v)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
+                  exportPreset === v
+                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+
+            {exportPreset === 'custom' && (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={exportFrom}
+                  max={exportTo}
+                  onChange={(e) => setExportFrom(e.target.value)}
+                  className="px-2 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[11px] font-bold text-slate-100 focus:outline-none focus:border-emerald-400"
+                />
+                <span className="text-[11px] text-slate-400 font-bold">إلى</span>
+                <input
+                  type="date"
+                  value={exportTo}
+                  min={exportFrom}
+                  onChange={(e) => setExportTo(e.target.value)}
+                  className="px-2 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[11px] font-bold text-slate-100 focus:outline-none focus:border-emerald-400"
+                />
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleExportVisitsExcel}
+              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-sm transition cursor-pointer flex items-center gap-1.5"
+              title="تصدير سجل الزيارات للفترة المحددة"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>تصدير السجل ({exportRows.length})</span>
+            </button>
+
+            {(isSupervisor || isBranchManager || isAdmin || isDeveloper) && (
+              <button
+                type="button"
+                onClick={handleExportWeeklyReport}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 text-xs font-black border border-emerald-500/40 transition cursor-pointer flex items-center gap-1.5"
+                title="تصدير ملخص المناديب + تفاصيل الزيارات للفترة المحددة"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>ملخص المناديب</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+
       <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3 mb-2">
           <div className="flex items-center gap-2 min-w-0">
@@ -1476,19 +1723,19 @@ export const VisitsDashboard: React.FC = () => {
 
           {/* Weekly efficiency board — supervisors, branch managers and admin */}
           {(isSupervisor || isBranchManager || isAdmin || isDeveloper) && (
-            <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm space-y-3">
+            <div className="lg:col-span-4 bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-emerald-600" />
-                  <h3 className="text-xs font-black text-slate-800">كفاءة الزيارات الأسبوعية</h3>
+                  <h3 className="text-xs font-black text-slate-800">كفاءة الزيارات للفترة المحددة</h3>
                 </div>
                 <span className="text-[10.5px] font-bold text-slate-400 font-mono">
-                  {weekAgoStr} → {todayStr}
+                  {exportRange.from} → {exportRange.to}
                 </span>
               </div>
 
               {weeklyByRep.length === 0 ? (
-                <p className="text-[11px] font-bold text-slate-400">لا توجد زيارات مسجلة خلال آخر 7 أيام.</p>
+                <p className="text-[11px] font-bold text-slate-400">لا توجد زيارات مسجلة خلال الفترة المحددة.</p>
               ) : (
                 <>
                   {/* Team totals */}
@@ -1613,6 +1860,334 @@ export const VisitsDashboard: React.FC = () => {
               <X className="w-3.5 h-3.5" />
               <span>إلغاء جميع الفلاتر</span>
             </button>
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* Customer routing board — every customer this role may see, ranked by    */}
+      {/* debt, so a visit can be scheduled before it ever exists in the log.     */}
+      {/* ========================================================================= */}
+      <div className="w-full bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-3.5 sm:p-4 bg-gradient-to-l from-slate-900 to-slate-800 text-white border-b border-slate-700">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+                <Users className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-black flex items-center gap-2">
+                  <span>جدول عملاء {rep !== 'الكل' ? (users.find((u) => u.id === rep)?.name || 'المندوب') : 'النطاق'}</span>
+                  <span className="px-2 py-0.5 rounded-full bg-white/15 text-[10.5px] font-black">
+                    {routeTotals.total.toLocaleString()} عميل
+                  </span>
+                </div>
+                <div className="text-[10.5px] text-slate-300">
+                  {isRep
+                    ? 'عملاءك المسندين لك فقط — رتّبهم بالمديونية وجدول الزيارة من هنا'
+                    : isSupervisor
+                    ? 'عملاء مناديب إشرافك — اختر مندوب أو عميل لعرض بياناته'
+                    : isBranchManager
+                    ? 'كافة عملاء فرعك ومناديبه — اختر مندوب أو عميل لعرض بياناته'
+                    : 'كافة العملاء والمناديب — اختر مندوب أو عميل لعرض بياناته'}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="px-2.5 py-1.5 bg-white/10 border border-white/10 rounded-lg text-[11px] font-black">
+                مديونية: <span className="text-purple-300">{formatCurrency(routeTotals.debt)}</span>
+              </div>
+              <div className="px-2.5 py-1.5 bg-white/10 border border-white/10 rounded-lg text-[11px] font-black">
+                مستحقات: <span className="text-rose-300">{formatCurrency(routeTotals.overdue)}</span>
+              </div>
+              <div className="px-2.5 py-1.5 bg-white/10 border border-white/10 rounded-lg text-[11px] font-black">
+                زيارة اليوم: <span className="text-emerald-300">{routeTotals.visitedToday}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Search by customer name + sort controls */}
+        <div className="p-3 sm:p-4 bg-slate-50 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center gap-2.5">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              value={customerSearch}
+              onChange={(e) => setCustomerSearch(e.target.value)}
+              placeholder="بحث باسم العميل أو الكود أو المحل أو الهاتف..."
+              className="w-full pr-9 pl-8 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition"
+            />
+            {customerSearch && (
+              <button
+                type="button"
+                onClick={() => setCustomerSearch('')}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] font-black text-slate-500 flex items-center gap-1">
+              <ArrowUpDown className="w-3.5 h-3.5" />
+              الترتيب:
+            </span>
+            {([
+              { v: 'debt_desc' as const, label: '🔴 الأعلى مديونية', cls: 'bg-rose-600 text-white border-rose-500' },
+              { v: 'today' as const, label: '📅 زيارات اليوم', cls: 'bg-blue-600 text-white border-blue-500' },
+              { v: 'debt_asc' as const, label: '🟢 الأقل مديونية', cls: 'bg-emerald-600 text-white border-emerald-500' },
+              { v: 'name' as const, label: '🔤 أبجدي', cls: 'bg-slate-700 text-white border-slate-600' },
+            ]).map(({ v, label, cls }) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setRouteSort(v)}
+                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black border transition cursor-pointer whitespace-nowrap ${
+                  routeSort === v ? cls : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Desktop: full-width customer table */}
+        <div className="hidden lg:block overflow-x-auto">
+          <table className="w-full text-right text-xs border-collapse">
+            <thead className="bg-slate-100 text-slate-700 font-black border-b border-slate-200">
+              <tr>
+                <th className="p-3 text-center w-12">#</th>
+                <th className="p-3 min-w-[220px]">العميل / المحل</th>
+                {currentUser?.role !== 'sales_rep' && <th className="p-3">الفرع</th>}
+                {currentUser?.role !== 'sales_rep' && <th className="p-3">المندوب</th>}
+                <th className="p-3 text-left">المديونية الحالية</th>
+                <th className="p-3 text-left">المستحقات</th>
+                <th className="p-3 text-left">حد الائتمان</th>
+                <th className="p-3 text-center">زيارة اليوم</th>
+                <th className="p-3 text-center">آخر زيارة</th>
+                <th className="p-3 text-center">إجراء</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {routePageRows.map((c, i) => {
+                const todayList = todayVisitsByCustomer.get(c.id) || [];
+                const doneToday = todayList.some((v) => v.status === 'منفذة' || Boolean(v.checkOutTime));
+                const debt = customerDebt(c);
+                const overdue = Number(c.totalOverdueAndDue ?? c.overdueBalance ?? 0) || 0;
+                const limit = Number(c.creditLimit || 0) || 0;
+                const ownerName = c.salesRepName || c.repName || 'غير محدد';
+                return (
+                  <tr key={c.id} className="hover:bg-emerald-50/40 transition">
+                    <td className="p-3 text-center font-black text-slate-400">
+                      {(routePage - 1) * ROUTE_PAGE_SIZE + i + 1}
+                    </td>
+                    <td className="p-3">
+                      <div className="font-black text-slate-900">{c.name}</div>
+                      <div className="text-[10.5px] text-slate-500 font-mono">
+                        كود: {c.code || '---'} {c.storeName ? `• ${c.storeName}` : ''}
+                      </div>
+                      {c.phone && (
+                        <a
+                          href={`tel:${c.phone}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-[10.5px] text-emerald-700 font-bold hover:underline inline-flex items-center gap-1 mt-0.5"
+                        >
+                          <Phone className="w-3 h-3" />
+                          {c.phone}
+                        </a>
+                      )}
+                    </td>
+                    {currentUser?.role !== 'sales_rep' && (
+                      <td className="p-3 text-slate-600 font-medium whitespace-nowrap">{c.branchName || 'غير محدد'}</td>
+                    )}
+                    {currentUser?.role !== 'sales_rep' && (
+                      <td className="p-3 font-bold text-indigo-900 whitespace-nowrap">{ownerName}</td>
+                    )}
+                    <td className="p-3 text-left font-mono font-black whitespace-nowrap">
+                      <span className={debt > 0 ? 'text-purple-900' : 'text-slate-400'}>
+                        {formatCurrency(debt)}
+                      </span>
+                      {limit > 0 && debt > limit && (
+                        <span className="block text-[9px] font-black text-rose-600 bg-rose-50 border border-rose-200 rounded px-1 py-0.5 mt-0.5 w-fit">
+                          ⛔ تجاوز الحد
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-3 text-left font-mono font-black whitespace-nowrap">
+                      <span className={overdue > 0 ? 'text-rose-700' : 'text-slate-400'}>
+                        {formatCurrency(overdue)}
+                      </span>
+                    </td>
+                    <td className="p-3 text-left font-mono font-bold text-slate-700 whitespace-nowrap">
+                      {limit > 0 ? formatCurrency(limit) : <span className="text-slate-400">—</span>}
+                    </td>
+                    <td className="p-3 text-center whitespace-nowrap">
+                      {doneToday ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10.5px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          <CheckCircle2 className="w-3 h-3" />
+                          تمت الزيارة
+                        </span>
+                      ) : todayList.length > 0 ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10.5px] font-black bg-blue-50 text-blue-800 border border-blue-200">
+                          <Clock className="w-3 h-3" />
+                          مجدولة ({todayList.length})
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10.5px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          <Plus className="w-3 h-3" />
+                          لم تُجدول
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-3 text-center font-mono text-[10.5px] text-slate-500 whitespace-nowrap">
+                      {c.lastVisitDate || 'لم تسجل'}
+                    </td>
+                    <td className="p-3 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => scheduleVisitForCustomer(c)}
+                          className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black shadow-xs transition cursor-pointer flex items-center gap-1"
+                          title="جدولة زيارة لهذا العميل"
+                        >
+                          <CalendarCheck className="w-3.5 h-3.5" />
+                          <span>جدولة زيارة</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDossierCustomer(c)}
+                          className="p-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition cursor-pointer border border-slate-200"
+                          title="تفاصيل العميل والمديونية"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            {routeCustomers.length > 0 && (
+              <tfoot className="bg-slate-900 text-white font-black border-t-2 border-slate-800">
+                <tr>
+                  <td className="p-3 text-center">Σ</td>
+                  <td className="p-3">إجمالي {routeTotals.total.toLocaleString()} عميل</td>
+                  {currentUser?.role !== 'sales_rep' && <td className="p-3">—</td>}
+                  {currentUser?.role !== 'sales_rep' && <td className="p-3">—</td>}
+                  <td className="p-3 text-left font-mono text-purple-200">{formatCurrency(routeTotals.debt)}</td>
+                  <td className="p-3 text-left font-mono text-rose-200">{formatCurrency(routeTotals.overdue)}</td>
+                  <td className="p-3 text-left font-mono text-slate-300">—</td>
+                  <td className="p-3 text-center font-mono text-emerald-300">{routeTotals.visitedToday}</td>
+                  <td className="p-3 text-center">—</td>
+                  <td className="p-3 text-center">—</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+
+        {/* Mobile: touch cards */}
+        <div className="lg:hidden divide-y divide-slate-100">
+          {routePageRows.map((c) => {
+            const todayList = todayVisitsByCustomer.get(c.id) || [];
+            const doneToday = todayList.some((v) => v.status === 'منفذة' || Boolean(v.checkOutTime));
+            const debt = customerDebt(c);
+            return (
+              <div key={c.id} className="p-3.5 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-black text-slate-900 text-sm">{c.name}</div>
+                    <div className="text-[10.5px] text-slate-500 font-mono">كود: {c.code || '---'}</div>
+                    <div className="text-[11px] text-slate-600 mt-0.5">
+                      {c.branchName} • {c.salesRepName || c.repName || 'غير محدد'}
+                    </div>
+                  </div>
+                  {doneToday ? (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
+                      تمت اليوم ✅
+                    </span>
+                  ) : todayList.length > 0 ? (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-50 text-blue-800 border border-blue-200 shrink-0">
+                      مجدولة ⏳
+                    </span>
+                  ) : null}
+                </div>
+                <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
+                  <div>
+                    <div className="text-[10px] text-slate-500 font-bold">المديونية</div>
+                    <div className="font-black font-mono text-purple-900">{formatCurrency(debt)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-rose-600 font-bold">المستحقات</div>
+                    <div className="font-black font-mono text-rose-700">
+                      {formatCurrency(Number(c.totalOverdueAndDue ?? c.overdueBalance ?? 0) || 0)}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => scheduleVisitForCustomer(c)}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-1.5 px-2 rounded-xl text-xs flex items-center justify-center gap-1 transition cursor-pointer"
+                  >
+                    <CalendarCheck className="w-3.5 h-3.5" />
+                    <span>جدولة زيارة</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDossierCustomer(c)}
+                    className="p-1.5 rounded-xl bg-slate-100 text-slate-700 border border-slate-200"
+                    title="تفاصيل العميل"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {routeCustomers.length === 0 && (
+          <div className="py-12 px-4 text-center space-y-2">
+            <Users className="w-10 h-10 text-slate-300 mx-auto" />
+            <p className="text-sm font-bold text-slate-600">لا يوجد عملاء مطابقون للبحث أو الفلترة</p>
+            <p className="text-xs text-slate-400">جرّب تغيير اسم العميل أو إلغاء فلتر المندوب</p>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {routeTotalPages > 1 && (
+          <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between flex-wrap gap-2 text-[11px] font-bold text-slate-600">
+            <span>
+              عرض {(routePage - 1) * ROUTE_PAGE_SIZE + 1} إلى{' '}
+              {Math.min(routePage * ROUTE_PAGE_SIZE, routeCustomers.length)} من أصل{' '}
+              {routeCustomers.length.toLocaleString()}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setRoutePage((p) => Math.max(1, p - 1))}
+                disabled={routePage === 1}
+                className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+              >
+                السابق
+              </button>
+              <span className="px-3 py-1 rounded-lg bg-slate-900 text-amber-300 font-black">
+                {routePage} / {routeTotalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setRoutePage((p) => Math.min(routeTotalPages, p + 1))}
+                disabled={routePage === routeTotalPages}
+                className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+              >
+                التالي
+              </button>
+            </div>
           </div>
         )}
       </div>
