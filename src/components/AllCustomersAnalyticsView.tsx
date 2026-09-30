@@ -90,6 +90,17 @@ import {
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
 import { getSavedSourceUrl, saveSingleSourceUrl, getSavedSheetHistory } from '../services/dataSourceService';
 
+// Sheet sign convention for collections: NEGATIVE = a real collection,
+// POSITIVE = a مردود (return). Summing the raw signs would let a return cancel
+// a real collection, and taking Math.abs of everything would instead add the two
+// together and inflate the figure. So each value keeps its direction and the net
+// effect is the collection total minus the returns total.
+const collectionMagnitude = (v: unknown): number => {
+  const n = Number(v);
+  if (!isFinite(n) || n === 0) return 0;
+  return n < 0 ? Math.abs(n) : -n;
+};
+
 interface AllCustomersAnalyticsViewProps {
   onOpenNewOrderForCustomer?: (customer: Customer) => void;
 }
@@ -181,8 +192,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [activeChartTab, setActiveChartTab] = useState<'monthly' | 'run_rate' | 'portfolio_balance' | 'branches' | 'reps' | 'activity_client' | 'customer_dealing' | 'matrix' | 'payment_guarantee' | 'deficits'>('monthly');
   const [runRateSelectedMonth, setRunRateSelectedMonth] = useState<number>(9);
 
-  // Customer Dealing View Filters (متعامل / غير متعامل / قابل للتعامل)
-  const [dealingSegmentFilter, setDealingSegmentFilter] = useState<'ALL' | 'transacting' | 'non_transacting' | 'prospect'>('ALL');
+  // Customer Dealing View Filters (متعامل / غير متعامل فقط)
+  const [dealingSegmentFilter, setDealingSegmentFilter] = useState<'ALL' | 'transacting' | 'non_transacting'>('ALL');
   const [dealingSearch, setDealingSearch] = useState<string>('');
   const [dealingRepFilter, setDealingRepFilter] = useState<string>('ALL');
 
@@ -506,6 +517,18 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     return stripped || 'أوراق ضمان';
   };
 
+  // Sheet sign convention for collections: NEGATIVE = a real collection,
+  // POSITIVE = a مردود (return). Summing the raw signs would let a return
+  // cancel a real collection, and taking Math.abs of everything would instead
+  // add the two together and inflate the figure. So each value is split into
+  // the two sides and kept apart.
+  const splitCollection = (v: unknown): { collections: number; returns: number } => {
+    const n = Number(v);
+    if (!isFinite(n) || n === 0) return { collections: 0, returns: 0 };
+    if (n < 0) return { collections: Math.abs(n), returns: 0 };
+    return { collections: 0, returns: n };
+  };
+
   const hasGuaranteePapers = (c: Customer): boolean =>
     Number(c.guaranteeAmount || 0) > 0 || c.hasGuarantee === true || normalizeGuaranteeCategory(c) !== 'لا يوجد ورق ضمان';
 
@@ -598,6 +621,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       isOverLimit: boolean;
       sales2026: number;
       collections2026: number;
+      returns2026: number;
+      netCollections2026: number;
       periodSales: number;
       periodCollections: number;
       collectionRate: number;
@@ -622,12 +647,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const sales2026 = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, monthlySalesSum);
 
       let monthlyColsSum = 0;
+      let monthlyReturnsSum = 0;
       if (c.monthlyCollections2026) {
         for (let m = 1; m <= 12; m++) {
-          // Sheet convention: a collection is negative, a مردود is positive.
-          // A plain signed sum would let a return cancel out real collections,
-          // so every month contributes its magnitude.
-          monthlyColsSum += Math.abs(Number(c.monthlyCollections2026[m]) || 0);
+          const s = splitCollection(c.monthlyCollections2026[m]);
+          monthlyColsSum += s.collections;
+          monthlyReturnsSum += s.returns;
         }
       }
       // "إجمالي التحصيلات" is the authoritative sheet column for collections.
@@ -636,14 +661,21 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       // balance figure whenever it outweighed the total — that is what made the
       // collection totals come out wrong. Pick the source by name instead, and
       // only fall back to the month sum when the column is genuinely missing.
-      const explicitCollections = (() => {
+      const explicitSplit = (() => {
         const total = c.totalMonthlyCollections;
-        if (total !== undefined && total !== null && !isNaN(Number(total))) return Math.abs(Number(total));
+        if (total !== undefined && total !== null && !isNaN(Number(total))) return splitCollection(total);
         const overall = c.totalOverallCollections;
-        if (overall !== undefined && overall !== null && !isNaN(Number(overall))) return Math.abs(Number(overall));
-        return Math.abs(Number(c.collections2026 || 0));
+        if (overall !== undefined && overall !== null && !isNaN(Number(overall))) return splitCollection(overall);
+        return splitCollection(c.collections2026 || 0);
       })();
-      const collections2026 = explicitCollections !== 0 ? explicitCollections : monthlyColsSum;
+      // "إجمالي التحصيلات الفعلي" counts real collections only (the negative
+      // figures), so it is never inflated by a مردود. The month sum is the
+      // fallback for rows whose إجمالي التحصيلات column is empty. The net
+      // figure — collections minus returns — is kept alongside it.
+      const hasExplicitCollections = explicitSplit.collections !== 0 || explicitSplit.returns !== 0;
+      const collections2026 = hasExplicitCollections ? explicitSplit.collections : monthlyColsSum;
+      const returns2026 = hasExplicitCollections ? explicitSplit.returns : monthlyReturnsSum;
+      const explicitCollections = collections2026 - returns2026;
       // Collections are stored negative and a positive value means a مردود, so
       // the rate always divides the magnitude.
       const collectionRate = sales2026 > 0
@@ -653,27 +685,27 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       // Period-specific sales and collections (based on selectedMonth or quarter)
       // Collection months use the magnitude too, so a مردود month does not
       // subtract from the real collections of the same period.
-      const monthAbs = (m: number) => Math.abs(Number(c.monthlyCollections2026?.[m]) || 0);
+      const monthCollections = (m: number) => splitCollection(c.monthlyCollections2026?.[m]).collections;
       let periodSales = sales2026;
       let periodCollections = collections2026;
       if (selectedMonth === 'Q1') {
         periodSales = (Number(c.monthlySales2026?.[1]) || 0) + (Number(c.monthlySales2026?.[2]) || 0) + (Number(c.monthlySales2026?.[3]) || 0);
-        periodCollections = monthAbs(1) + monthAbs(2) + monthAbs(3);
+        periodCollections = monthCollections(1) + monthCollections(2) + monthCollections(3);
       } else if (selectedMonth === 'Q2') {
         periodSales = (Number(c.monthlySales2026?.[4]) || 0) + (Number(c.monthlySales2026?.[5]) || 0) + (Number(c.monthlySales2026?.[6]) || 0);
-        periodCollections = monthAbs(4) + monthAbs(5) + monthAbs(6);
+        periodCollections = monthCollections(4) + monthCollections(5) + monthCollections(6);
       } else if (selectedMonth === 'Q3') {
         periodSales = (Number(c.monthlySales2026?.[7]) || 0) + (Number(c.monthlySales2026?.[8]) || 0) + (Number(c.monthlySales2026?.[9]) || 0);
-        periodCollections = monthAbs(7) + monthAbs(8) + monthAbs(9);
+        periodCollections = monthCollections(7) + monthCollections(8) + monthCollections(9);
       } else if (selectedMonth === 'Q4') {
         periodSales = (Number(c.monthlySales2026?.[10]) || 0) + (Number(c.monthlySales2026?.[11]) || 0) + (Number(c.monthlySales2026?.[12]) || 0);
-        periodCollections = monthAbs(10) + monthAbs(11) + monthAbs(12);
+        periodCollections = monthCollections(10) + monthCollections(11) + monthCollections(12);
       } else if (typeof selectedMonth === 'number') {
         periodSales = Number(c.monthlySales2026?.[selectedMonth]) || 0;
-        periodCollections = monthAbs(selectedMonth);
+        periodCollections = monthCollections(selectedMonth);
       }
 
-      // Ineligibility logic (غير قابل للتعامل / موقوف / ممتنع / مستبعد)
+      // Ineligibility flags from the sheet (موقوف / ممتنع / مستبعد / متعثر)
       const elig = normalizeArabicText(c.dealEligibility || '');
       const st = normalizeArabicText(c.status2026 || '');
       const debtSt = normalizeArabicText(c.debtStatus || '');
@@ -715,6 +747,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         isOverLimit,
         sales2026,
         collections2026,
+        returns2026,
+        netCollections2026: explicitCollections,
         periodSales,
         periodCollections,
         collectionRate,
@@ -1104,8 +1138,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       // Fallbacks for rows with no precomputed metric must follow the same
       // magnitude rule, otherwise a missing metric silently reintroduces the
       // signed sum that lets a مردود cancel out real collections.
-      const c25 = Math.abs(c.collections2025 || 0);
-      const c26 = m ? m.collections2026 : Math.abs(c.collections2026 || 0);
+      const c25 = collectionMagnitude(c.collections2025);
+      const c26 = m ? m.collections2026 : collectionMagnitude(c.collections2026);
       const pCols = m ? m.periodCollections : c26;
       const bal = m ? m.balance : (c.currentBalance ?? c.balance ?? 0);
       const overdue = m ? m.overdue : (c.totalOverdueAndDue ?? c.overdueBalance ?? c.totalOverdue ?? c.dueUntilPeriod ?? 0);
@@ -1153,7 +1187,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       }
       if (c.monthlyCollections2026) {
         for (let mon = 1; mon <= 12; mon++) {
-          monthlyCollectionTotals[mon] += Math.abs(Number(c.monthlyCollections2026[mon]) || 0);
+          monthlyCollectionTotals[mon] += collectionMagnitude(c.monthlyCollections2026[mon]);
         }
       }
     });
@@ -1469,23 +1503,25 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       item.totalDebt += m.balance;
       item.totalOverdue += m.overdue;
       item.totalSales += m.sales2026;
-      item.totalCollections += Math.abs(m.collections2026 || 0);
+      // m.collections2026 is already the net magnitude (collections - returns),
+      // so summing it directly keeps a مردود from cancelling a real collection.
+      item.totalCollections += m.collections2026;
 
       // Period Sales & Collections (Month or Quarter)
       let pSales = m.sales2026;
       let pCols = m.collections2026;
       if (selectedMonth === 'Q1') {
         pSales = (Number(c.monthlySales2026?.[1]) || 0) + (Number(c.monthlySales2026?.[2]) || 0) + (Number(c.monthlySales2026?.[3]) || 0);
-        pCols = (Number(c.monthlyCollections2026?.[1]) || 0) + (Number(c.monthlyCollections2026?.[2]) || 0) + (Number(c.monthlyCollections2026?.[3]) || 0);
+        pCols = collectionMagnitude(c.monthlyCollections2026?.[1]) + collectionMagnitude(c.monthlyCollections2026?.[2]) + collectionMagnitude(c.monthlyCollections2026?.[3]);
       } else if (selectedMonth === 'Q2') {
         pSales = (Number(c.monthlySales2026?.[4]) || 0) + (Number(c.monthlySales2026?.[5]) || 0) + (Number(c.monthlySales2026?.[6]) || 0);
-        pCols = (Number(c.monthlyCollections2026?.[4]) || 0) + (Number(c.monthlyCollections2026?.[5]) || 0) + (Number(c.monthlyCollections2026?.[6]) || 0);
+        pCols = collectionMagnitude(c.monthlyCollections2026?.[4]) + collectionMagnitude(c.monthlyCollections2026?.[5]) + collectionMagnitude(c.monthlyCollections2026?.[6]);
       } else if (selectedMonth === 'Q3') {
         pSales = (Number(c.monthlySales2026?.[7]) || 0) + (Number(c.monthlySales2026?.[8]) || 0) + (Number(c.monthlySales2026?.[9]) || 0);
-        pCols = (Number(c.monthlyCollections2026?.[7]) || 0) + (Number(c.monthlyCollections2026?.[8]) || 0) + (Number(c.monthlyCollections2026?.[9]) || 0);
+        pCols = collectionMagnitude(c.monthlyCollections2026?.[7]) + collectionMagnitude(c.monthlyCollections2026?.[8]) + collectionMagnitude(c.monthlyCollections2026?.[9]);
       } else if (selectedMonth === 'Q4') {
         pSales = (Number(c.monthlySales2026?.[10]) || 0) + (Number(c.monthlySales2026?.[11]) || 0) + (Number(c.monthlySales2026?.[12]) || 0);
-        pCols = (Number(c.monthlyCollections2026?.[10]) || 0) + (Number(c.monthlyCollections2026?.[11]) || 0) + (Number(c.monthlyCollections2026?.[12]) || 0);
+        pCols = collectionMagnitude(c.monthlyCollections2026?.[10]) + collectionMagnitude(c.monthlyCollections2026?.[11]) + collectionMagnitude(c.monthlyCollections2026?.[12]);
       } else if (typeof selectedMonth === 'number') {
         pSales = Number(c.monthlySales2026?.[selectedMonth]) || 0;
         pCols = Number(c.monthlyCollections2026?.[selectedMonth]) || 0;
@@ -1559,7 +1595,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       item.totalDebt += m.balance;
       item.totalOverdue += m.overdue;
       item.totalSales += m.sales2026;
-      item.totalCollections += Math.abs(m.collections2026 || 0);
+      item.totalCollections += m.collections2026;
 
       // Every customer lands in exactly one bucket so the columns add up to
       // إجمالي العملاء. "غير قابل" is no longer a visible category, so those
@@ -1605,7 +1641,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const cur = map.get(b) || { branch: b, sales: 0, collections: 0, customers: 0, debt: 0, overdue: 0, collectionRate: 0 };
       const m = customerMetricsMap.get(c.id);
       const s = m ? m.sales2026 : (c.sales2026 || c.totalMonthlySales || 0);
-      const col = m ? m.collections2026 : (c.collections2026 || c.totalMonthlyCollections || 0);
+      const col = m ? m.collections2026 : collectionMagnitude(c.collections2026 ?? c.totalMonthlyCollections);
       const d = m ? m.balance : (c.currentBalance ?? c.balance ?? 0);
       const o = m ? m.overdue : (c.totalOverdueAndDue ?? c.overdueBalance ?? 0);
       cur.sales += s;
@@ -1618,7 +1654,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     return Array.from(map.values())
       .map((item) => ({
         ...item,
-        collectionRate: item.sales > 0 ? Math.min(100, Math.round((Math.abs(item.collections) / item.sales) * 100)) : 0,
+        collectionRate: item.sales > 0 ? Math.min(100, Math.round((item.collections / item.sales) * 100)) : 0,
       }))
       .sort((a, b) => b.sales - a.sales);
   }, [filteredCustomers, customerMetricsMap]);
@@ -1631,7 +1667,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const cur = map.get(r) || { rep: r, sales: 0, collections: 0, customers: 0 };
       const m = customerMetricsMap.get(c.id);
       const s = m ? m.sales2026 : (c.sales2026 || c.totalMonthlySales || 0);
-      const col = m ? m.collections2026 : (c.collections2026 || c.totalMonthlyCollections || 0);
+      const col = m ? m.collections2026 : collectionMagnitude(c.collections2026 ?? c.totalMonthlyCollections);
       cur.sales += s;
       cur.collections += col;
       cur.customers += 1;
@@ -1670,7 +1706,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const cl = (c.clientType || '').trim() || 'عادي / خط';
       const bal = c.currentBalance ?? c.balance ?? 0;
       const sales = c.sales2026 || c.totalMonthlySales || 0;
-      const cols = c.collections2026 || c.totalMonthlyCollections || 0;
+      const cols = collectionMagnitude(c.collections2026 ?? c.totalMonthlyCollections);
 
       const actItem = actMap.get(act) || { activity: act, count: 0, sales: 0, debt: 0, collections: 0 };
       actItem.count++;
@@ -1700,7 +1736,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     };
   }, [filteredCustomers]);
 
-  // Power BI Visuals: Customer Dealing Analytics (المتعاملين، غير المتعاملين، القابلين للتعامل) بالمندوب والفرع
+  // Power BI Visuals: Customer Dealing Analytics (المتعاملين وغير المتعاملين) بالمندوب والفرع
   const customerDealingAnalytics = useMemo(() => {
     const map = new Map<string, {
       branchName: string;
@@ -1712,10 +1748,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       nonTransactingCount: number;
       nonTransactingDebt: number;
       nonTransactingOverdue: number;
-      prospectCount: number;
       transactingRate: number;
       nonTransactingRate: number;
-      prospectRate: number;
       collectionRate: number;
     }>();
 
@@ -1726,11 +1760,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     let totalNonTransacting = 0;
     let totalNonTransactingDebt = 0;
     let totalNonTransactingOverdue = 0;
-    let totalProspects = 0;
 
     const classifiedList: Array<{
       customer: Customer;
-      category: 'transacting' | 'non_transacting' | 'prospect';
+      category: 'transacting' | 'non_transacting';
       categoryLabel: string;
       sales: number;
       collections: number;
@@ -1745,24 +1778,21 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const bName = c.branchName || 'غير محدد';
       const rName = c.salesRepName || c.repName || 'غير محدد';
       const sales = m ? m.sales2026 : (c.sales2026 || c.totalMonthlySales || 0);
-      const cols = m ? m.collections2026 : (c.collections2026 || c.totalMonthlyCollections || 0);
+      const cols = m ? m.collections2026 : collectionMagnitude(c.collections2026 ?? c.totalMonthlyCollections);
       const debt = c.currentBalance ?? c.balance ?? 0;
       const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
 
       const hasOrder = customerOrdersLookup.getOrdersForCustomer(c).length > 0;
       const isTrans = sales > 0 || cols !== 0 || hasOrder || Boolean(c.hasDealtIn2026);
       const isNonTrans = !isTrans && (debt > 0 || overdue > 0 || (m && m.isExplicitIneligible) || (c as any).dealtStatus === 'غير متعامل');
-      const isProspect = !isTrans && !isNonTrans;
 
-      let category: 'transacting' | 'non_transacting' | 'prospect' = 'prospect';
-      let categoryLabel = 'قابل للتعامل ⏳';
+      // فقط فئتان: متعامل وغير متعامل. أي عميل ليس متعاملاً يُحسب غير متعامل.
+      let category: 'transacting' | 'non_transacting' = 'non_transacting';
+      let categoryLabel = 'غير متعامل (راكد) ⚠️';
 
       if (isTrans) {
         category = 'transacting';
         categoryLabel = 'متعامل نشط ✅';
-      } else if (isNonTrans) {
-        category = 'non_transacting';
-        categoryLabel = 'غير متعامل (راكد) ⚠️';
       }
 
       classifiedList.push({
@@ -1790,10 +1820,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           nonTransactingCount: 0,
           nonTransactingDebt: 0,
           nonTransactingOverdue: 0,
-          prospectCount: 0,
           transactingRate: 0,
           nonTransactingRate: 0,
-          prospectRate: 0,
           collectionRate: 0,
         };
         map.set(key, item);
@@ -1817,8 +1845,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         totalNonTransactingDebt += debt;
         totalNonTransactingOverdue += overdue;
       } else {
-        item.prospectCount++;
-        totalProspects++;
+        // العميل الذي لا يتحقق له شرط الركون يبقى غير متعامل: لا توجد فئة ثالثة.
+        item.nonTransactingCount++;
+        item.nonTransactingDebt += debt;
+        item.nonTransactingOverdue += overdue;
+        totalNonTransacting++;
+        totalNonTransactingDebt += debt;
+        totalNonTransactingOverdue += overdue;
       }
     });
 
@@ -1826,7 +1859,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       ...row,
       transactingRate: row.total > 0 ? Math.round((row.transactingCount / row.total) * 100) : 0,
       nonTransactingRate: row.total > 0 ? Math.round((row.nonTransactingCount / row.total) * 100) : 0,
-      prospectRate: row.total > 0 ? Math.round((row.prospectCount / row.total) * 100) : 0,
       collectionRate: row.transactingSales > 0 ? Math.round((row.transactingCollections / row.transactingSales) * 100) : 0,
     })).sort((a, b) => b.transactingCount - a.transactingCount || b.transactingSales - a.transactingSales);
 
@@ -1843,8 +1875,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         totalNonTransactingRate: totalAll > 0 ? Math.round((totalNonTransacting / totalAll) * 100) : 0,
         totalNonTransactingDebt,
         totalNonTransactingOverdue,
-        totalProspects,
-        totalProspectRate: totalAll > 0 ? Math.round((totalProspects / totalAll) * 100) : 0,
       }
     };
   }, [filteredCustomers, customerMetricsMap, customerOrdersLookup]);
@@ -2636,7 +2666,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           </div>
           <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between">
             <span className="text-violet-300 font-black">
-              نسبة التغطية (من القابلين): {kpiStats.coverageRate}%
+              نسبة التغطية (من الإجمالي): {kpiStats.coverageRate}%
             </span>
             <span className="text-slate-500 text-[10px]">
               (غير متعامل {kpiStats.nonDealtFilteredCount.toLocaleString()})
@@ -2950,7 +2980,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 }`}
               >
                 <Users className="w-3.5 h-3.5" />
-                <span>👥 تصنيف العملاء (متعامل / غير متعامل / قابل للتعامل)</span>
+                <span>👥 تصنيف العملاء (متعامل / غير متعامل)</span>
               </button>
               <button
                 type="button"
@@ -3470,31 +3500,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <span>مديونية معلقة: {formatMoney(customerDealingAnalytics.kpi.totalNonTransactingDebt)}</span>
                   </div>
                 </div>
-                {/* Prospects (Potential) */}
-                <div
-                  onClick={() => setDealingSegmentFilter('prospect')}
-                  className={`p-3.5 rounded-2xl border transition cursor-pointer ${
-                    dealingSegmentFilter === 'prospect'
-                      ? 'bg-gradient-to-br from-sky-950 to-blue-900 text-white border-sky-500 ring-2 ring-sky-400 shadow-md'
-                      : 'bg-sky-50/70 text-sky-950 border-sky-200 hover:border-sky-300 shadow-2xs'
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="font-bold text-sky-800">🔵 القابلون للتعامل (فرص واعدة)</span>
-                    <TrendingUp className="w-4 h-4 text-sky-600" />
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-black font-mono text-sky-900">
-                      {customerDealingAnalytics.kpi.totalProspects.toLocaleString()}
-                    </span>
-                    <span className="text-xs font-black px-1.5 py-0.5 rounded-md bg-sky-200 text-sky-900">
-                      {customerDealingAnalytics.kpi.totalProspectRate}% نمو متوقع
-                    </span>
-                  </div>
-                  <div className="text-[11px] font-bold mt-1 text-sky-700">
-                    فرص استكشاف وتوسيع الخط الميداني
-                  </div>
-                </div>
               </div>
 
               {/* Power BI Breakdown Matrix Table (بالمندوب والفرع) */}
@@ -3503,7 +3508,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
                     <h3 className="text-xs font-black text-slate-800">
-                      جدول Power BI التحليلي لتصنيف العملاء بالمندوب والفرع (المتعاملين / غير المتعاملين / القابلين للتعامل):
+                      جدول Power BI التحليلي لتصنيف العملاء بالمندوب والفرع (المتعاملين / غير المتعاملين):
                     </h3>
                   </div>
                   <div className="text-[11px] font-bold text-slate-500">
@@ -3525,8 +3530,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         <th className="p-2.5 text-center text-rose-300">🔴 غير متعاملين</th>
                         <th className="p-2.5 text-center text-rose-300">% الركود</th>
                         <th className="p-2.5 text-left text-rose-300">مديونية راكدة</th>
-                        <th className="p-2.5 text-center text-sky-300">🔵 قابلين للتعامل</th>
-                        <th className="p-2.5 text-center text-sky-300">% الفرص</th>
                         <th className="p-2.5 text-center">تقييم التفعيل</th>
                         <th className="p-2.5 text-center">تصفية سريعة</th>
                       </tr>
@@ -3595,22 +3598,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                               {formatMoney(row.nonTransactingDebt)}
                             </td>
 
-                            {/* Prospect */}
-                            <td className="p-2.5 text-center font-black text-sky-700">
-                              {row.prospectCount.toLocaleString()}
-                            </td>
-                            <td className="p-2.5 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
-                                <span className="font-bold text-sky-800">{row.prospectRate}%</span>
-                                <div className="w-12 h-2 rounded-full bg-slate-100 overflow-hidden shrink-0">
-                                  <div
-                                    className="h-full bg-sky-500 rounded-full"
-                                    style={{ width: `${Math.min(100, row.prospectRate)}%` }}
-                                  />
-                                </div>
-                              </div>
-                            </td>
-
                             {/* Active Rating */}
                             <td className="p-2.5 text-center whitespace-nowrap">
                               <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${activeRating.bg}`}>
@@ -3650,8 +3637,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         <td className="p-2.5 text-center text-rose-800 font-mono font-black">{customerDealingAnalytics.kpi.totalNonTransacting.toLocaleString()}</td>
                         <td className="p-2.5 text-center text-rose-800 font-mono font-black">{customerDealingAnalytics.kpi.totalNonTransactingRate}%</td>
                         <td className="p-2.5 text-left font-mono font-black text-rose-800">{formatMoney(customerDealingAnalytics.kpi.totalNonTransactingDebt)}</td>
-                        <td className="p-2.5 text-center text-sky-800 font-mono font-black">{customerDealingAnalytics.kpi.totalProspects.toLocaleString()}</td>
-                        <td className="p-2.5 text-center text-sky-800 font-mono font-black">{customerDealingAnalytics.kpi.totalProspectRate}%</td>
                         <td className="p-2.5 text-center text-slate-600">-</td>
                         <td className="p-2.5 text-center text-slate-600">-</td>
                       </tr>
@@ -3706,17 +3691,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       }`}
                     >
                       🔴 غير المتعاملين ({customerDealingAnalytics.kpi.totalNonTransacting})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDealingSegmentFilter('prospect')}
-                      className={`px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
-                        dealingSegmentFilter === 'prospect'
-                          ? 'bg-sky-600 text-white shadow-xs'
-                          : 'text-sky-800 hover:text-sky-950'
-                      }`}
-                    >
-                      🔵 القابلون للتعامل ({customerDealingAnalytics.kpi.totalProspects})
                     </button>
                   </div>
                 </div>
@@ -4804,7 +4778,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
             {dealEligibilityFilter !== 'ALL' && (
               <span className="inline-flex items-center gap-1 bg-white border border-sky-200 text-sky-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
-                <span>حالة التعامل: {dealEligibilityFilter === 'dealt' ? 'متعامل' : dealEligibilityFilter === 'eligible' ? 'غير متعامل' : 'قابل للتعامل'}</span>
+                <span>حالة التعامل: {dealEligibilityFilter === 'dealt' ? 'متعامل' : dealEligibilityFilter === 'eligible' ? 'غير متعامل' : 'الكل'}</span>
                 <button type="button" onClick={() => setDealEligibilityFilter('ALL')} className="text-sky-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
               </span>
             )}
@@ -5142,7 +5116,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   <option value="ALL">جميع حالات التعامل ({dealStatusCounts.total})</option>
                   <option value="dealt">متعامل ✅ ({dealStatusCounts.dealt} عميل)</option>
                   <option value="eligible">غير متعامل ⏳ ({dealStatusCounts.notDealt} عميل)</option>
-                  <option value="qualified">قابل للتعامل ⏳ ({dealStatusCounts.qualified} عميل)</option>
                 </select>
               </div>
 
@@ -5578,7 +5551,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </div>
 
               {/* This analysis card reports the dealing customers only, so
-                  غير متعامل / قابل للتعامل stay out of it. The deal-status
+                  غير متعامل stays out of it. The deal-status
                   dropdown above still offers the full set. */}
               <div className="mt-2.5 space-y-1.5">
                 {(
@@ -5817,8 +5790,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
               <div className="mt-2 text-[10.5px] font-bold text-slate-500 leading-relaxed">
                 إجمالي العملاء في النطاق: {dealStatusCounts.total.toLocaleString()} — غير المتعاملين
-                {' '}({dealStatusCounts.notDealt.toLocaleString()})، منهم قابل للتعامل
-                {' '}({dealStatusCounts.qualified.toLocaleString()}). الاختيار الكامل من قائمة
+                {' '}({dealStatusCounts.notDealt.toLocaleString()}). الاختيار الكامل من قائمة
                 "حالة التعامل" بالأعلى.
               </div>
 
