@@ -2439,15 +2439,27 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : 0,
       dynamicMonthlySalesSum
     );
-    // Prefer the explicit sheet total when available; fall back to computed monthly sum only
-    // when no explicit column has a positive value. This prevents over-calculation when
-    // monthly column matching picks up extra columns.
-    const explicitCollectionsSum = Math.max(
-      parsedCollections2026Col !== undefined ? parsedCollections2026Col : 0,
-      parsedTotalMonthlyCollectionsCol !== undefined ? parsedTotalMonthlyCollectionsCol : 0,
-      parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : 0
-    );
-    const resolvedCollections2026 = explicitCollectionsSum > 0 ? explicitCollectionsSum : dynamicMonthlyCollectionsSum;
+    // Prefer the explicit sheet total when available, and fall back to the
+    // computed monthly sum only when no explicit column has a value.
+    // The guard must test "has a value" (not "!== 0" on a max) and never
+    // "is positive": the sheet stores collections NEGATIVE, so a positive test
+    // threw away every real collection and fell back to the monthly sum, which
+    // is 0 when the monthly columns are not part of the sheet. The candidates
+    // are compared as signed figures, so a positive (return) cannot win over a
+    // negative (collection) on magnitude alone.
+    const explicitCollectionsCandidates = [
+      parsedCollections2026Col,
+      parsedTotalMonthlyCollectionsCol,
+      parsedTotalOverallCollections,
+    ].filter((v): v is number => v !== undefined && isFinite(v));
+    // `Math.max` is kept for equal-magnitude ties between two negative values,
+    // which is harmless; the sign itself is preserved.
+    const explicitCollectionsSum = explicitCollectionsCandidates.length
+      ? Math.max(...explicitCollectionsCandidates)
+      : undefined;
+    const resolvedCollections2026 = explicitCollectionsSum !== undefined
+      ? explicitCollectionsSum
+      : dynamicMonthlyCollectionsSum;
 
     // Guarantee docs logic:
     // لو كبر من صفر يبقي ماضي علي ورق ضمان بالمبلغ ده
