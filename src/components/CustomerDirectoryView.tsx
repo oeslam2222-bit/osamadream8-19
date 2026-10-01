@@ -400,14 +400,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       const overdueDue = Number(c.totalOverdueAndDue !== undefined ? c.totalOverdueAndDue : debt);
       const mSalesSum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
       const sales = Math.max(Number(c.sales2026 || 0), Number(c.totalMonthlySales || 0), Number(c.totalOverallSales || 0), mSalesSum);
-      const monthlyCollections = c.monthlyCollections2026
-        ? Object.values(c.monthlyCollections2026).reduce((sum, value) => sum + (Number(value) || 0), 0)
-        : 0;
-      const signedCollections = c.collections2026 !== undefined && c.collections2026 !== null
-        ? Number(c.collections2026) || 0
-        : c.totalMonthlyCollections !== undefined && c.totalMonthlyCollections !== null
-          ? Number(c.totalMonthlyCollections) || 0
-          : monthlyCollections;
+      const signedCollections = Number(c.collections2026) || 0;
       const limit = Number(c.creditLimit || 0);
 
       if (debt > 0) {

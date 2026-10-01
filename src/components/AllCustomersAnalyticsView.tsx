@@ -108,11 +108,7 @@ const signedCustomerCollections = (
   if (customer.collections2026 !== undefined && customer.collections2026 !== null) {
     return parseCleanNumber(customer.collections2026);
   }
-  if (customer.totalMonthlyCollections !== undefined && customer.totalMonthlyCollections !== null) {
-    return parseCleanNumber(customer.totalMonthlyCollections);
-  }
-  return Object.values(customer.monthlyCollections2026 || {})
-    .reduce((sum, amount) => sum + parseCleanNumber(amount), 0);
+  return 0;
 };
 
 interface AllCustomersAnalyticsViewProps {
