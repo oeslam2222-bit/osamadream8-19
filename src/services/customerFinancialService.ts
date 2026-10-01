@@ -107,11 +107,13 @@ export function parseCleanNumber(val: any): number {
   for (let i = 0; i < 10; i++) {
     str = str.split(arabicNumerals[i]).join(String(i));
   }
-  str = str.replace(/,/g, '').replace(/٬/g, '').replace(/٫/g, '.');
-  const clean = str.replace(/[^\d.-]/g, '');
+  const isNegative = /^\s*\(.*\)\s*$/.test(str) || /-\s*$/.test(str) || /^\s*-/.test(str);
+  str = str.replace(/,/g, '').replace(/٬/g, '').replace(/\.(?=\d{3})/g, '').replace(/٫/g, '.');
+  const clean = str.replace(/[^\d.]/g, '');
   if (!clean) return 0;
   const num = parseFloat(clean);
-  return isNaN(num) || !isFinite(num) ? 0 : num;
+  if (isNaN(num) || !isFinite(num)) return 0;
+  return isNegative ? -num : num;
 }
 
 /**
