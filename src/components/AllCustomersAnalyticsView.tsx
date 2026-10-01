@@ -89,18 +89,36 @@ import {
 } from '../services/customerAnalyticsService';
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
 import { getSavedSourceUrl, saveSingleSourceUrl, getSavedSheetHistory } from '../services/dataSourceService';
-import { calculateCustomerFinancials, isSummaryOrTotalRow } from '../services/customerFinancialService';
+import { calculateCustomerFinancials, isSummaryOrTotalRow, parseCleanNumber } from '../services/customerFinancialService';
 
-// Sheet numbers parser (مرآة دقيقة لأرقام ومبالغ الشيت الأصلية بدون أي اجتهاد أو قلب إشارات)
-const parseCleanNumber = (v: unknown): number => {
-  if (v === undefined || v === null || v === '') return 0;
-  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, '').replace(/[^\d.-]/g, ''));
-  if (!isFinite(n) || isNaN(n)) return 0;
-  return Math.abs(n);
+const signedCustomerCollections = (
+  customer: Customer,
+  period: number | 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'ALL' = 'ALL'
+): number => {
+  if (period !== 'ALL') {
+    const months = typeof period === 'number'
+      ? [period]
+      : period === 'Q1' ? [1, 2, 3]
+        : period === 'Q2' ? [4, 5, 6]
+          : period === 'Q3' ? [7, 8, 9]
+            : [10, 11, 12];
+    return months.reduce((sum, month) => sum + parseCleanNumber(customer.monthlyCollections2026?.[month]), 0);
+  }
+
+  const annualCollections = parseCleanNumber(customer.collections2026);
+  if (annualCollections !== 0) return annualCollections;
+
+  const monthlyTotal = parseCleanNumber(customer.totalMonthlyCollections);
+  if (monthlyTotal !== 0) return monthlyTotal;
+
+  const monthlySum = Object.values(customer.monthlyCollections2026 || {})
+    .reduce((sum, amount) => sum + parseCleanNumber(amount), 0);
+  if (monthlySum !== 0) return monthlySum;
+
+  return parseCleanNumber(customer.totalOverallCollections);
 };
 
-// Backward-compatible alias
-const collectionMagnitude = parseCleanNumber;
+const netCollectionAmount = (signedTotal: number): number => Math.max(0, -signedTotal);
 
 interface AllCustomersAnalyticsViewProps {
   onOpenNewOrderForCustomer?: (customer: Customer) => void;
@@ -1073,12 +1091,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const s25 = c.sales2025 || 0;
       const s26 = m ? m.sales2026 : (c.sales2026 || 0);
       const pSales = m ? m.periodSales : s26;
-      // Fallbacks for rows with no precomputed metric must follow the same
-      // magnitude rule, otherwise a missing metric silently reintroduces the
-      // signed sum that lets a مردود cancel out real collections.
-      const c25 = collectionMagnitude(c.collections2025);
-      const c26 = m ? m.collections2026 : collectionMagnitude(c.collections2026);
-      const pCols = m ? m.periodCollections : c26;
+      // Keep the sheet's signs so refunds offset collections in company totals.
+      const c25 = parseCleanNumber(c.collections2025);
+      const c26 = signedCustomerCollections(c);
+      const pCols = signedCustomerCollections(c, selectedMonth);
       const bal = m ? m.balance : (c.currentBalance ?? c.balance ?? 0);
       const overdue = m ? m.overdue : (c.totalOverdueAndDue ?? c.overdueBalance ?? c.totalOverdue ?? c.dueUntilPeriod ?? 0);
       const cLimit = m ? m.creditLimit : (c.creditLimit || 0);
@@ -1125,30 +1141,27 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       }
       if (c.monthlyCollections2026) {
         for (let mon = 1; mon <= 12; mon++) {
-          monthlyCollectionTotals[mon] += collectionMagnitude(c.monthlyCollections2026[mon]);
+          monthlyCollectionTotals[mon] += parseCleanNumber(c.monthlyCollections2026[mon]);
         }
       }
     });
 
     const salesGrowth = totalSales2025 > 0 ? Math.round(((totalSales2026 - totalSales2025) / totalSales2025) * 100) : (totalSales2026 > 0 ? 100 : 0);
-    // Rates compare magnitudes: collections are negative by the sheet's
-    // convention, so dividing the raw signed sums would report a negative rate.
-    const collectionRate = totalSales2026 > 0 ? Math.round((totalCollections2026 / totalSales2026) * 100) : 0;
-    const periodCollectionRate = totalPeriodSales > 0 ? Math.round((totalPeriodCollections / totalPeriodSales) * 100) : 0;
+    const netCollections2025 = netCollectionAmount(totalCollections2025);
+    const netCollections2026 = netCollectionAmount(totalCollections2026);
+    const netPeriodCollections = netCollectionAmount(totalPeriodCollections);
+    const collectionRate = totalSales2026 > 0 ? Math.round((netCollections2026 / totalSales2026) * 100) : 0;
+    const periodCollectionRate = totalPeriodSales > 0 ? Math.round((netPeriodCollections / totalPeriodSales) * 100) : 0;
     const activeRate = filteredCustomers.length > 0 ? Math.round((active2026Count / filteredCustomers.length) * 100) : 0;
     const coverageRate = filteredCustomers.length > 0 ? Math.round((activeFilteredCount / filteredCustomers.length) * 100) : 0;
 
-    // Monthly Chart Data (Jan - Dec 2026)
-    // The sheet stores collections as negative, which drew those bars below the
-    // axis and made sales and collections look mirrored. Chart the magnitude so
-    // both series stand side by side above the baseline; the signed figure is
-    // still preserved everywhere it is used for accounting.
+    // Net each month's signed adjustments before showing collection magnitudes.
     const monthlyChartData = MONTH_NAMES_AR.map((monthName, idx) => {
       const monthNum = idx + 1;
       return {
         month: monthName,
         'مبيعات 2026': monthlySalesTotals[monthNum] || 0,
-        'تحصيلات 2026': monthlyCollectionTotals[monthNum] || 0,
+        'تحصيلات 2026': netCollectionAmount(monthlyCollectionTotals[monthNum] || 0),
       };
     });
 
@@ -1161,9 +1174,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       totalSales2026,
       totalPeriodSales,
       salesGrowth,
-      totalCollections2025,
-      totalCollections2026,
-      totalPeriodCollections,
+      totalCollections2025: netCollections2025,
+      totalCollections2026: netCollections2026,
+      totalPeriodCollections: netPeriodCollections,
       collectionRate,
       periodCollectionRate,
       totalDebt,
@@ -1441,28 +1454,21 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       item.totalDebt += m.balance;
       item.totalOverdue += m.overdue;
       item.totalSales += m.sales2026;
-      // m.collections2026 is already the net magnitude (collections - returns),
-      // so summing it directly keeps a مردود from cancelling a real collection.
-      item.totalCollections += m.collections2026;
+      item.totalCollections += signedCustomerCollections(c);
 
       // Period Sales & Collections (Month or Quarter)
       let pSales = m.sales2026;
-      let pCols = m.collections2026;
+      const pCols = signedCustomerCollections(c, selectedMonth);
       if (selectedMonth === 'Q1') {
         pSales = (Number(c.monthlySales2026?.[1]) || 0) + (Number(c.monthlySales2026?.[2]) || 0) + (Number(c.monthlySales2026?.[3]) || 0);
-        pCols = collectionMagnitude(c.monthlyCollections2026?.[1]) + collectionMagnitude(c.monthlyCollections2026?.[2]) + collectionMagnitude(c.monthlyCollections2026?.[3]);
       } else if (selectedMonth === 'Q2') {
         pSales = (Number(c.monthlySales2026?.[4]) || 0) + (Number(c.monthlySales2026?.[5]) || 0) + (Number(c.monthlySales2026?.[6]) || 0);
-        pCols = collectionMagnitude(c.monthlyCollections2026?.[4]) + collectionMagnitude(c.monthlyCollections2026?.[5]) + collectionMagnitude(c.monthlyCollections2026?.[6]);
       } else if (selectedMonth === 'Q3') {
         pSales = (Number(c.monthlySales2026?.[7]) || 0) + (Number(c.monthlySales2026?.[8]) || 0) + (Number(c.monthlySales2026?.[9]) || 0);
-        pCols = collectionMagnitude(c.monthlyCollections2026?.[7]) + collectionMagnitude(c.monthlyCollections2026?.[8]) + collectionMagnitude(c.monthlyCollections2026?.[9]);
       } else if (selectedMonth === 'Q4') {
         pSales = (Number(c.monthlySales2026?.[10]) || 0) + (Number(c.monthlySales2026?.[11]) || 0) + (Number(c.monthlySales2026?.[12]) || 0);
-        pCols = collectionMagnitude(c.monthlyCollections2026?.[10]) + collectionMagnitude(c.monthlyCollections2026?.[11]) + collectionMagnitude(c.monthlyCollections2026?.[12]);
       } else if (typeof selectedMonth === 'number') {
         pSales = Number(c.monthlySales2026?.[selectedMonth]) || 0;
-        pCols = collectionMagnitude(c.monthlyCollections2026?.[selectedMonth]);
       }
       item.periodSales += pSales;
       item.periodCollections += pCols;
@@ -1478,12 +1484,18 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       }
     });
 
-    return Array.from(map.values()).map((row) => ({
-      ...row,
-      coverageRate: row.eligibleCustomers > 0 ? Math.round((row.dealtCustomers / row.eligibleCustomers) * 100) : 0,
-      collectionRate: row.totalSales > 0 ? Math.round((row.totalCollections / row.totalSales) * 100) : 0,
-      periodCollectionRate: row.periodSales > 0 ? Math.round((row.periodCollections / row.periodSales) * 100) : 0,
-    })).sort((a, b) => b.totalDebt - a.totalDebt || b.totalOverdue - a.totalOverdue);
+    return Array.from(map.values()).map((row) => {
+      const totalCollections = netCollectionAmount(row.totalCollections);
+      const periodCollections = netCollectionAmount(row.periodCollections);
+      return {
+        ...row,
+        totalCollections,
+        periodCollections,
+        coverageRate: row.eligibleCustomers > 0 ? Math.round((row.dealtCustomers / row.eligibleCustomers) * 100) : 0,
+        collectionRate: row.totalSales > 0 ? Math.round((totalCollections / row.totalSales) * 100) : 0,
+        periodCollectionRate: row.periodSales > 0 ? Math.round((periodCollections / row.periodSales) * 100) : 0,
+      };
+    }).sort((a, b) => b.totalDebt - a.totalDebt || b.totalOverdue - a.totalOverdue);
   }, [filteredCustomers, customerMetricsMap, selectedMonth]);
 
   // Power BI Customer Activation & Dealing Breakdown (متعامل / غير متعامل / قابل / غير قابل)
@@ -1533,7 +1545,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       item.totalDebt += m.balance;
       item.totalOverdue += m.overdue;
       item.totalSales += m.sales2026;
-      item.totalCollections += m.collections2026;
+      item.totalCollections += signedCustomerCollections(c);
 
       // Every customer lands in exactly one bucket so the columns add up to
       // إجمالي العملاء. "غير قابل" is no longer a visible category, so those
@@ -1546,11 +1558,15 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       }
     });
 
-    const rows = Array.from(map.values()).map((row) => ({
-      ...row,
-      coverageRate: row.eligibleCustomers > 0 ? Math.round((row.dealtCustomers / row.eligibleCustomers) * 100) : 0,
-      collectionRate: row.totalSales > 0 ? Math.round((row.totalCollections / row.totalSales) * 100) : 0,
-    })).sort((a, b) => b.totalSales - a.totalSales || b.totalDebt - a.totalDebt);
+    const rows = Array.from(map.values()).map((row) => {
+      const totalCollections = netCollectionAmount(row.totalCollections);
+      return {
+        ...row,
+        totalCollections,
+        coverageRate: row.eligibleCustomers > 0 ? Math.round((row.dealtCustomers / row.eligibleCustomers) * 100) : 0,
+        collectionRate: row.totalSales > 0 ? Math.round((totalCollections / row.totalSales) * 100) : 0,
+      };
+    }).sort((a, b) => b.totalSales - a.totalSales || b.totalDebt - a.totalDebt);
 
     const summary = {
       totalCustomers: rows.reduce((acc, r) => acc + r.totalCustomers, 0),
@@ -1559,7 +1575,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       eligibleCustomers: rows.reduce((acc, r) => acc + r.eligibleCustomers, 0),
       ineligibleCustomers: rows.reduce((acc, r) => acc + r.ineligibleCustomers, 0),
       totalSales: rows.reduce((acc, r) => acc + r.totalSales, 0),
-      totalCollections: rows.reduce((acc, r) => acc + r.totalCollections, 0),
+      totalCollections: netCollectionAmount(
+        filteredCustomers.reduce((sum, customer) => sum + signedCustomerCollections(customer), 0)
+      ),
       totalDebt: rows.reduce((acc, r) => acc + r.totalDebt, 0),
       totalOverdue: rows.reduce((acc, r) => acc + r.totalOverdue, 0),
       overallCoverageRate: 0,
@@ -1579,7 +1597,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const cur = map.get(b) || { branch: b, sales: 0, collections: 0, customers: 0, debt: 0, overdue: 0, collectionRate: 0 };
       const m = customerMetricsMap.get(c.id);
       const s = m ? m.sales2026 : (c.sales2026 || c.totalMonthlySales || 0);
-      const col = m ? m.collections2026 : collectionMagnitude(c.collections2026 ?? c.totalMonthlyCollections);
+      const col = signedCustomerCollections(c);
       const d = m ? m.balance : (c.currentBalance ?? c.balance ?? 0);
       const o = m ? m.overdue : (c.totalOverdueAndDue ?? c.overdueBalance ?? 0);
       cur.sales += s;
@@ -1590,10 +1608,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       map.set(b, cur);
     });
     return Array.from(map.values())
-      .map((item) => ({
-        ...item,
-        collectionRate: item.sales > 0 ? Math.min(100, Math.round((item.collections / item.sales) * 100)) : 0,
-      }))
+      .map((item) => {
+        const collections = netCollectionAmount(item.collections);
+        return {
+          ...item,
+          collections,
+          collectionRate: item.sales > 0 ? Math.min(100, Math.round((collections / item.sales) * 100)) : 0,
+        };
+      })
       .sort((a, b) => b.sales - a.sales);
   }, [filteredCustomers, customerMetricsMap]);
 
@@ -1605,13 +1627,16 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const cur = map.get(r) || { rep: r, sales: 0, collections: 0, customers: 0 };
       const m = customerMetricsMap.get(c.id);
       const s = m ? m.sales2026 : (c.sales2026 || c.totalMonthlySales || 0);
-      const col = m ? m.collections2026 : collectionMagnitude(c.collections2026 ?? c.totalMonthlyCollections);
+      const col = signedCustomerCollections(c);
       cur.sales += s;
       cur.collections += col;
       cur.customers += 1;
       map.set(r, cur);
     });
-    return Array.from(map.values()).sort((a, b) => b.sales - a.sales).slice(0, 8);
+    return Array.from(map.values())
+      .map((item) => ({ ...item, collections: netCollectionAmount(item.collections) }))
+      .sort((a, b) => b.sales - a.sales)
+      .slice(0, 8);
   }, [filteredCustomers, customerMetricsMap]);
 
   const paymentGuaranteePieData = useMemo(() => {
@@ -1644,7 +1669,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const cl = (c.clientType || '').trim() || 'عادي / خط';
       const bal = c.currentBalance ?? c.balance ?? 0;
       const sales = c.sales2026 || c.totalMonthlySales || 0;
-      const cols = collectionMagnitude(c.collections2026 ?? c.totalMonthlyCollections);
+      const cols = signedCustomerCollections(c);
 
       const actItem = actMap.get(act) || { activity: act, count: 0, sales: 0, debt: 0, collections: 0 };
       actItem.count++;
@@ -1664,9 +1689,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     const colors = ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#64748b'];
 
     return {
-      activities: Array.from(actMap.values()).sort((a, b) => b.sales - a.sales),
+      activities: Array.from(actMap.values())
+        .map((item) => ({ ...item, collections: netCollectionAmount(item.collections) }))
+        .sort((a, b) => b.sales - a.sales),
       clientTypes: Array.from(clientMap.values()).sort((a, b) => b.sales - a.sales).map((item, idx) => ({
         ...item,
+        collections: netCollectionAmount(item.collections),
         name: item.clientType,
         value: item.count,
         color: colors[idx % colors.length]
@@ -1716,7 +1744,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const bName = c.branchName || 'غير محدد';
       const rName = c.salesRepName || c.repName || 'غير محدد';
       const sales = m ? m.sales2026 : (c.sales2026 || c.totalMonthlySales || 0);
-      const cols = m ? m.collections2026 : collectionMagnitude(c.collections2026 ?? c.totalMonthlyCollections);
+      const signedCols = signedCustomerCollections(c);
+      const cols = netCollectionAmount(signedCols);
       const debt = c.currentBalance ?? c.balance ?? 0;
       const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
 
@@ -1771,10 +1800,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       if (isTrans) {
         item.transactingCount++;
         item.transactingSales += sales;
-        item.transactingCollections += cols;
+        item.transactingCollections += signedCols;
         totalTransacting++;
         totalTransactingSales += sales;
-        totalTransactingCollections += cols;
+        totalTransactingCollections += signedCols;
       } else if (isNonTrans) {
         item.nonTransactingCount++;
         item.nonTransactingDebt += debt;
@@ -1793,12 +1822,16 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       }
     });
 
-    const matrixRows = Array.from(map.values()).map((row) => ({
-      ...row,
-      transactingRate: row.total > 0 ? Math.round((row.transactingCount / row.total) * 100) : 0,
-      nonTransactingRate: row.total > 0 ? Math.round((row.nonTransactingCount / row.total) * 100) : 0,
-      collectionRate: row.transactingSales > 0 ? Math.round((row.transactingCollections / row.transactingSales) * 100) : 0,
-    })).sort((a, b) => b.transactingCount - a.transactingCount || b.transactingSales - a.transactingSales);
+    const matrixRows = Array.from(map.values()).map((row) => {
+      const transactingCollections = netCollectionAmount(row.transactingCollections);
+      return {
+        ...row,
+        transactingCollections,
+        transactingRate: row.total > 0 ? Math.round((row.transactingCount / row.total) * 100) : 0,
+        nonTransactingRate: row.total > 0 ? Math.round((row.nonTransactingCount / row.total) * 100) : 0,
+        collectionRate: row.transactingSales > 0 ? Math.round((transactingCollections / row.transactingSales) * 100) : 0,
+      };
+    }).sort((a, b) => b.transactingCount - a.transactingCount || b.transactingSales - a.transactingSales);
 
     return {
       matrixRows,
@@ -1808,7 +1841,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         totalTransacting,
         totalTransactingRate: totalAll > 0 ? Math.round((totalTransacting / totalAll) * 100) : 0,
         totalTransactingSales,
-        totalTransactingCollections,
+        totalTransactingCollections: netCollectionAmount(totalTransactingCollections),
         totalNonTransacting,
         totalNonTransactingRate: totalAll > 0 ? Math.round((totalNonTransacting / totalAll) * 100) : 0,
         totalNonTransactingDebt,
