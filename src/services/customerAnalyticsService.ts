@@ -82,7 +82,7 @@ export function cleanNumber(val: any, fallback = 0): number {
   }
   // Check accounting negative format: (1234), 1234-, or -1234
   const isNegative = /^\s*\(.*\)\s*$/.test(str) || /-\s*$/.test(str) || /^\s*-/.test(str);
-  str = str.replace(/,/g, '').replace(/٬/g, '').replace(/٫/g, '.');
+  str = str.replace(/,/g, '').replace(/٬/g, '').replace(/\.(?=\d{3})/g, '').replace(/٫/g, '.');
   const clean = str.replace(/[^\d.]/g, '');
   if (!clean) return fallback;
   const parsed = parseFloat(clean);
