@@ -1020,15 +1020,22 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
       if (uniqueCodeMap.has(cleanCode)) {
         duplicatesCount++;
         const prev = uniqueCodeMap.get(cleanCode)!;
-        const pickCol = (a?: number, b?: number) => (Math.abs(a || 0) >= Math.abs(b || 0) ? (a || 0) : (b || 0));
+        const mergedMonthlyCollections = { ...(prev.monthlyCollections2026 || {}) };
+        Object.entries(c.monthlyCollections2026 || {}).forEach(([month, amount]) => {
+          const monthNumber = Number(month);
+          mergedMonthlyCollections[monthNumber] =
+            (Number(mergedMonthlyCollections[monthNumber]) || 0) + (Number(amount) || 0);
+        });
         uniqueCodeMap.set(cleanCode, {
           ...prev,
           ...c,
           id: prev.id,
           sales2026: Math.max(c.sales2026 || 0, prev.sales2026 || 0),
-          collections2026: pickCol(c.collections2026, prev.collections2026),
+          collections2026: (Number(prev.collections2026) || 0) + (Number(c.collections2026) || 0),
           totalMonthlySales: Math.max(c.totalMonthlySales || 0, prev.totalMonthlySales || 0),
-          totalMonthlyCollections: pickCol(c.totalMonthlyCollections, prev.totalMonthlyCollections),
+          totalMonthlyCollections: (Number(prev.totalMonthlyCollections) || 0) + (Number(c.totalMonthlyCollections) || 0),
+          totalOverallCollections: (Number(prev.totalOverallCollections) || 0) + (Number(c.totalOverallCollections) || 0),
+          monthlyCollections2026: Object.keys(mergedMonthlyCollections).length > 0 ? mergedMonthlyCollections : undefined,
           creditLimit: Math.max(c.creditLimit || 0, prev.creditLimit || 0),
           guaranteeDocs: c.guaranteeDocs && !c.guaranteeDocs.includes('لا يوجد') ? c.guaranteeDocs : prev.guaranteeDocs,
           guaranteeAmount: Math.max(c.guaranteeAmount || 0, prev.guaranteeAmount || 0),
