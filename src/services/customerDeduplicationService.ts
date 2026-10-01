@@ -1,5 +1,6 @@
 import { Customer } from '../types';
 import { normalizeArabicText } from './arabicMatchingService';
+import { isSummaryOrTotalRow } from './customerFinancialService';
 
 /**
  * Clean and validate a customer code.
@@ -297,7 +298,7 @@ export function deduplicateAndMergeCustomers(list: Customer[]): {
   };
 
   for (const rawC of list) {
-    if (!rawC) continue;
+    if (!rawC || isSummaryOrTotalRow(rawC.name, rawC.code, rawC.branchName, rawC.salesRepName || rawC.repName)) continue;
 
     const code = cleanCustomerCode(rawC.code);
     const phone = cleanCustomerPhone(rawC.phone);

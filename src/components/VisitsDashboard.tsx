@@ -45,6 +45,7 @@ import * as XLSX from 'xlsx';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import { doesCustomerBelongToRep, doesCustomerBelongToBranch, doesCustomerBelongToSupervisor, isArabicNameMatch } from '../services/arabicMatchingService';
+import { calculateCustomerFinancials, isSummaryOrTotalRow } from '../services/customerFinancialService';
 import type { CustomerVisit, Customer } from '../types';
 
 export const VisitsDashboard: React.FC = () => {
@@ -194,18 +195,21 @@ export const VisitsDashboard: React.FC = () => {
     );
   }, [currentUser, users, branch]);
 
-  // Customers accessible to current user
+  // Customers accessible to current user (excluding sheet summary / total rows)
   const myCustomers = useMemo(() => {
+    const cleanCustomers = customers.filter(
+      (c) => !isSummaryOrTotalRow(c.name, c.code, c.branchName, c.salesRepName || c.repName)
+    );
     if (currentUser?.role === 'sales_rep') {
-      return customers.filter((c) => doesCustomerBelongToRep(c, currentUser));
+      return cleanCustomers.filter((c) => doesCustomerBelongToRep(c, currentUser));
     }
     if (currentUser?.role === 'branch_manager') {
-      return customers.filter((c) => doesCustomerBelongToBranch(c, currentUser.branchName, users));
+      return cleanCustomers.filter((c) => doesCustomerBelongToBranch(c, currentUser.branchName, users));
     }
     if (currentUser?.role === 'supervisor') {
-      return customers.filter((c) => doesCustomerBelongToSupervisor(c, currentUser, users));
+      return cleanCustomers.filter((c) => doesCustomerBelongToSupervisor(c, currentUser, users));
     }
-    return customers;
+    return cleanCustomers;
   }, [currentUser, customers, users]);
 
   // Resolved export window, derived from the preset so the date inputs and the
@@ -235,8 +239,10 @@ export const VisitsDashboard: React.FC = () => {
     return false;
   };
 
-  const customerDebt = (c: Customer): number =>
-    Number(c.currentBalance ?? c.balance ?? c.totalOverdueAndDue ?? c.overdueBalance ?? 0) || 0;
+  const customerDebt = (c: Customer): number => {
+    const fin = calculateCustomerFinancials(c);
+    return fin.balance;
+  };
 
   // Today's visit state per customer, so the routing board can show who is already
   // covered today and who still needs a visit without scanning the visit log.
@@ -1727,106 +1733,6 @@ export const VisitsDashboard: React.FC = () => {
             </select>
           </div>
 
-          {/* Weekly efficiency board — supervisors, branch managers and admin */}
-          {(isSupervisor || isBranchManager || isAdmin || isDeveloper) && (
-            <div className="lg:col-span-4 bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-emerald-600" />
-                  <h3 className="text-xs font-black text-slate-800">كفاءة الزيارات للفترة المحددة</h3>
-                </div>
-                <span className="text-[10.5px] font-bold text-slate-400 font-mono">
-                  {exportRange.from} → {exportRange.to}
-                </span>
-              </div>
-
-              {weeklyByRep.length === 0 ? (
-                <p className="text-[11px] font-bold text-slate-400">لا توجد زيارات مسجلة خلال الفترة المحددة.</p>
-              ) : (
-                <>
-                  {/* Team totals */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                      <div className="text-[10px] font-bold text-slate-500">المجدول</div>
-                      <div className="text-base font-black font-mono text-slate-800">{weeklyTotals.scheduled}</div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
-                      <div className="text-[10px] font-bold text-emerald-700">المنفذة</div>
-                      <div className="text-base font-black font-mono text-emerald-800">{weeklyTotals.completed}</div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200">
-                      <div className="text-[10px] font-bold text-blue-700">لم تُنفَّذ بعد</div>
-                      <div className="text-base font-black font-mono text-blue-800">{weeklyTotals.pending}</div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200">
-                      <div className="text-[10px] font-bold text-rose-700">لم تتم / ملغاة</div>
-                      <div className="text-base font-black font-mono text-rose-800">{weeklyTotals.missed + weeklyTotals.cancelled}</div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200">
-                      <div className="text-[10px] font-bold text-purple-700">زيارات بطلبية</div>
-                      <div className="text-base font-black font-mono text-purple-800">
-                        {weeklyTotals.orders}
-                        <span className="text-[10px] font-bold mr-1">({formatCurrency(weeklyTotals.orderValue)})</span>
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-teal-50 border border-teal-200">
-                      <div className="text-[10px] font-bold text-teal-700">إجمالي المحصل</div>
-                      <div className="text-base font-black font-mono text-teal-800">{formatCurrency(weeklyTotals.amountCollected)}</div>
-                    </div>
-                  </div>
-
-                  {/* Per-rep breakdown */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-right text-[11px]">
-                      <thead className="bg-slate-900 text-slate-200 font-bold">
-                        <tr>
-                          <th className="p-2">المندوب</th>
-                          <th className="p-2">الفرع</th>
-                          <th className="p-2 text-center">مجدول</th>
-                          <th className="p-2 text-center">منفذة</th>
-                          <th className="p-2 text-center">متبقية</th>
-                          <th className="p-2 text-center">لم تتم</th>
-                          <th className="p-2 text-center">طلبيات</th>
-                          <th className="p-2 text-left">قيمة الطلبية</th>
-                          <th className="p-2 text-left">المحصل</th>
-                          <th className="p-2 text-center">نسبة الإنجاز</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {weeklyByRep.map((r) => (
-                          <tr key={r.repId || r.repName} className="hover:bg-slate-50 transition">
-                            <td className="p-2 font-black text-slate-900">{r.repName}</td>
-                            <td className="p-2 text-slate-500">{r.branchName}</td>
-                            <td className="p-2 text-center font-mono">{r.scheduled}</td>
-                            <td className="p-2 text-center font-mono text-emerald-700 font-black">{r.completed}</td>
-                            <td className="p-2 text-center font-mono text-blue-700">{r.pending}</td>
-                            <td className="p-2 text-center font-mono text-rose-700">{r.missed + r.cancelled}</td>
-                            <td className="p-2 text-center font-mono text-purple-700 font-black">{r.orders}</td>
-                            <td className="p-2 text-left font-mono">{formatCurrency(r.orderValue)}</td>
-                            <td className="p-2 text-left font-mono text-teal-700 font-black">{formatCurrency(r.amountCollected)}</td>
-                            <td className="p-2">
-                              <div className="flex items-center justify-center gap-1.5">
-                                <span className={`font-black ${r.coverageRate >= 65 ? 'text-emerald-700' : r.coverageRate >= 40 ? 'text-amber-700' : 'text-rose-700'}`}>
-                                  {r.coverageRate}%
-                                </span>
-                                <div className="w-14 h-1.5 rounded-full bg-slate-100 overflow-hidden shrink-0">
-                                  <div
-                                    className={`h-full rounded-full ${r.coverageRate >= 65 ? 'bg-emerald-500' : r.coverageRate >= 40 ? 'bg-amber-500' : 'bg-rose-500'}`}
-                                    style={{ width: `${Math.min(100, r.coverageRate)}%` }}
-                                  />
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
           {/* Return Filter (فلتر المرتجعات وتحويل المخزن) */}
           <div>
             <select
@@ -1849,7 +1755,7 @@ export const VisitsDashboard: React.FC = () => {
 
         {/* Reset Filter Button */}
         {(searchQuery || statusFilter !== 'الكل' || returnFilter !== 'all' || branch !== 'الكل' || rep !== 'الكل' || timePreset !== 'month') && (
-          <div className="flex justify-end pt-1">
+          <div className="flex justify-end pt-1 border-t border-slate-100">
             <button
               type="button"
               onClick={() => {
@@ -1869,6 +1775,106 @@ export const VisitsDashboard: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Weekly efficiency board — supervisors, branch managers and admin */}
+      {(isSupervisor || isBranchManager || isAdmin || isDeveloper) && (
+        <div className="w-full bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-2.5">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-emerald-600" />
+              <h3 className="text-sm font-black text-slate-800">تقرير كفاءة زيارات المناديب للفترة المحددة</h3>
+            </div>
+            <span className="text-[11px] font-bold text-slate-500 font-mono bg-slate-100 px-2 py-0.5 rounded-lg">
+              {exportRange.from} → {exportRange.to}
+            </span>
+          </div>
+
+          {weeklyByRep.length === 0 ? (
+            <p className="text-[11px] font-bold text-slate-400 py-2">لا توجد زيارات مسجلة خلال الفترة المحددة.</p>
+          ) : (
+            <>
+              {/* Team totals */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <div className="text-[10px] font-bold text-slate-500">المجدول</div>
+                  <div className="text-base font-black font-mono text-slate-800">{weeklyTotals.scheduled}</div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                  <div className="text-[10px] font-bold text-emerald-700">المنفذة</div>
+                  <div className="text-base font-black font-mono text-emerald-800">{weeklyTotals.completed}</div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200">
+                  <div className="text-[10px] font-bold text-blue-700">لم تُنفَّذ بعد</div>
+                  <div className="text-base font-black font-mono text-blue-800">{weeklyTotals.pending}</div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200">
+                  <div className="text-[10px] font-bold text-rose-700">لم تتم / ملغاة</div>
+                  <div className="text-base font-black font-mono text-rose-800">{weeklyTotals.missed + weeklyTotals.cancelled}</div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200">
+                  <div className="text-[10px] font-bold text-purple-700">زيارات بطلبية</div>
+                  <div className="text-base font-black font-mono text-purple-800">
+                    {weeklyTotals.orders}
+                    <span className="text-[10px] font-bold mr-1">({formatCurrency(weeklyTotals.orderValue)})</span>
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-teal-50 border border-teal-200">
+                  <div className="text-[10px] font-bold text-teal-700">إجمالي المحصل</div>
+                  <div className="text-base font-black font-mono text-teal-800">{formatCurrency(weeklyTotals.amountCollected)}</div>
+                </div>
+              </div>
+
+              {/* Per-rep breakdown */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-[11px]">
+                  <thead className="bg-slate-900 text-slate-200 font-bold">
+                    <tr>
+                      <th className="p-2">المندوب</th>
+                      <th className="p-2">الفرع</th>
+                      <th className="p-2 text-center">مجدول</th>
+                      <th className="p-2 text-center">منفذة</th>
+                      <th className="p-2 text-center">متبقية</th>
+                      <th className="p-2 text-center">لم تتم</th>
+                      <th className="p-2 text-center">طلبيات</th>
+                      <th className="p-2 text-left">قيمة الطلبية</th>
+                      <th className="p-2 text-left">المحصل</th>
+                      <th className="p-2 text-center">نسبة الإنجاز</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {weeklyByRep.map((r) => (
+                      <tr key={r.repId || r.repName} className="hover:bg-slate-50 transition">
+                        <td className="p-2 font-black text-slate-900">{r.repName}</td>
+                        <td className="p-2 text-slate-500">{r.branchName}</td>
+                        <td className="p-2 text-center font-mono">{r.scheduled}</td>
+                        <td className="p-2 text-center font-mono text-emerald-700 font-black">{r.completed}</td>
+                        <td className="p-2 text-center font-mono text-blue-700">{r.pending}</td>
+                        <td className="p-2 text-center font-mono text-rose-700">{r.missed + r.cancelled}</td>
+                        <td className="p-2 text-center font-mono text-purple-700 font-black">{r.orders}</td>
+                        <td className="p-2 text-left font-mono">{formatCurrency(r.orderValue)}</td>
+                        <td className="p-2 text-left font-mono text-teal-700 font-black">{formatCurrency(r.amountCollected)}</td>
+                        <td className="p-2">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <span className={`font-black ${r.coverageRate >= 65 ? 'text-emerald-700' : r.coverageRate >= 40 ? 'text-amber-700' : 'text-rose-700'}`}>
+                              {r.coverageRate}%
+                            </span>
+                            <div className="w-14 h-1.5 rounded-full bg-slate-100 overflow-hidden shrink-0">
+                              <div
+                                className={`h-full rounded-full ${r.coverageRate >= 65 ? 'bg-emerald-500' : r.coverageRate >= 40 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                                style={{ width: `${Math.min(100, r.coverageRate)}%` }}
+                              />
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* Customer routing board — every customer this role may see, ranked by    */}

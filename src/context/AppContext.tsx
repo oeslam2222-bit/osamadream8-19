@@ -58,6 +58,7 @@ import {
   fetchTargetsFromGoogleSheetUrl,
 } from '../services/targetService';
 import { deduplicateAndMergeCustomers } from '../services/customerDeduplicationService';
+import { calculateCustomerFinancials, isSummaryOrTotalRow } from '../services/customerFinancialService';
 import { saveSingleSourceUrl, getPublishedDataSources, getSavedSourceUrl } from '../services/dataSourceService';
 import {
   fetchRemoteDataVersion,
@@ -861,20 +862,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const sanitizeCustomers = (list: Customer[]): Customer[] => {
     if (!Array.isArray(list)) return [];
-    // Strictly preserve all customer records 1:1 without merging (exact match with the 3,427 sheet records)
-  const normalizedList = list.map((c, idx) => {
-  let resolvedBranch = c.branchName || '';
+    // Strictly filter out any Excel summary / total rows ("الإجمالي", "المجموع", etc.)
+    // so they never inflate company collections by 10 million!
+    const cleanRows = list.filter((c) => {
+      if (!c) return false;
+      return !isSummaryOrTotalRow(c.name, c.code, c.branchName, c.salesRepName || c.repName);
+    });
+
+    const normalizedList = cleanRows.map((c, idx) => {
+      let resolvedBranch = c.branchName || '';
       if (!resolvedBranch || resolvedBranch === 'الفرع الرئيسي') {
         const locInferred = inferBranchFromText(
           `${c.address || ''} ${c.governorate || ''} ${c.notes || ''}`
         );
         if (locInferred) resolvedBranch = locInferred;
       }
-      const monthlySalesSum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-      const s26 = Math.max(Number(c.sales2026 || 0), Number(c.totalMonthlySales || 0), Number(c.totalOverallSales || 0), monthlySalesSum);
-
-      const monthlyColsSum = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + Math.abs(Number(v) || 0), 0) : 0;
-      const col26 = Math.max(Math.abs(Number(c.collections2026 || 0)), Math.abs(Number(c.totalMonthlyCollections || 0)), Math.abs(Number(c.totalOverallCollections || 0)), monthlyColsSum);
+      const fin = calculateCustomerFinancials(c);
+      const s26 = fin.sales2026;
+      const col26 = fin.collections2026;
 
       // Guarantee docs logic:
       // لو كبر من صفر يبقي ماضي علي ورق ضم������ن بالمبلغ ده
@@ -932,19 +937,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: c.id || `cust_row_${idx + 1}_${(c.code || '').replace(/[^a-zA-Z0-9_-]/g, '_')}`,
         name: c.name || `عميل ${c.code || idx + 1}`,
         branchName: resolvedBranch || c.branchName || '',
-        currentBalance: Number(c.currentBalance ?? c.balance ?? 0),
-        balance: Number(c.currentBalance ?? c.balance ?? 0),
-        totalOverdueAndDue: resolveDues(c),
-        overdueBalance: c.overdueBalance !== undefined ? Number(c.overdueBalance) : resolveDues(c),
-        dueBalance: c.dueBalance !== undefined ? Number(c.dueBalance) : undefined,
-        creditLimit: Math.max(0, Number(c.creditLimit || 0)),
+        currentBalance: fin.balance,
+        balance: fin.balance,
+        totalOverdueAndDue: fin.overdue,
+        overdueBalance: c.overdueBalance !== undefined ? Number(c.overdueBalance) : fin.overdue,
+        dueBalance: fin.dueBalance,
+        creditLimit: fin.creditLimit,
         totalMonthlySales: s26,
         sales2026: s26,
         totalOverallSales: Number(c.totalOverallSales || s26),
         totalMonthlyCollections: col26,
         collections2026: col26,
         totalOverallCollections: Number(c.totalOverallCollections || col26),
-        hasDealtIn2026: s26 > 0 || col26 > 0 || Boolean(c.hasDealtIn2026),
+        hasDealtIn2026: fin.isDealtCustomer,
+        dealt2026: fin.dealtStatusLabel,
+        dealEligibility: c.dealEligibility || (fin.isEligible ? 'قابل' : (fin.ineligibilityReason || 'غير قابل')),
         guaranteeDocs: finalGDocs,
         guaranteeAmount: gAmount > 0 ? gAmount : undefined,
         hasGuarantee: finalHasG,

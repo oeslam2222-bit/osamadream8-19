@@ -719,7 +719,11 @@ export const InventoryStockView: React.FC = () => {
                         <div className="flex items-center justify-between font-bold mb-1">
                           <span className="flex items-center gap-1">
                             <Building className="w-3.5 h-3.5" />
-                            <span>مخزون الفرع الحالي ({currentActiveBranch || 'الفرع'}):</span>
+                            <span>
+                              {selectedBranchFilter === 'الكل'
+                                ? 'إجمالي المخزون المتاح (كافة الفروع):'
+                                : `مخزون الفرع الحالي (${currentActiveBranch || 'الفرع'}):`}
+                            </span>
                           </span>
                           <span className="text-sm font-black">
                             {branchActual} كرتونة
@@ -842,7 +846,11 @@ export const InventoryStockView: React.FC = () => {
                       <th className="p-3">الكود</th>
                       <th className="p-3">اسم الصنف والبيان</th>
                       <th className="p-3 text-center">شدة الكرتونة</th>
-                      <th className="p-3 text-center">المخزون بالفرع (المتاح)</th>
+                      <th className="p-3 text-center">
+                        {selectedBranchFilter === 'الكل'
+                          ? 'إجمالي المخزون (كافة الفروع)'
+                          : `المخزون بالفرع (${currentActiveBranch})`}
+                      </th>
                       <th className="p-3 text-center">حالة التوافر والإجراء</th>
                       <th className="p-3 text-center">المخزن الرئيسي (أكتوبر)</th>
                       <th className="p-3 text-left">سعر الكرتونة</th>

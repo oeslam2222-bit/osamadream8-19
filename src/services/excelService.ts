@@ -4,6 +4,7 @@ import { Customer, CustomerTier, Invoice, ItemStatus, Product, SalesPriority, Us
 import { inferBranchFromText, resolveCustomerFinancials, getBranchStockForProduct, resolveBranchName, BRANCH_CODE_MAP } from './arabicMatchingService';
 import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
 import { deduplicateAndMergeCustomers } from './customerDeduplicationService';
+import { isSummaryOrTotalRow } from './customerFinancialService';
 
 /**
  * Preserves the product code exactly as supplied by the sheet, including prefixes
@@ -683,6 +684,9 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const fallbackName = getVal(colMap.familyName) || getVal(colMap.itemGroup) || `صنف دريم ${code}`;
     const name = rawName || fallbackName;
 
+    // Skip summary / total rows in product sheets (e.g. "الإجمالي", "المجموع", "Total")
+    if (isSummaryOrTotalRow(name, rawCode || rawUnifiedCode)) continue;
+
     const rawPriority = getVal(colMap.salesPriority);
     let salesPriority: SalesPriority = 'عادي';
     if (rawPriority.includes('مرتفع') || rawPriority.includes('عالي') || rawPriority.toLowerCase().includes('high')) salesPriority = 'مرتفع';
@@ -700,7 +704,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const factorVal = getNum(colMap.factor > -1 ? colMap.factor : colMap.cartonQuantity, 0);
     const cartonQuantity = factorVal > 0 ? factorVal : 1;
 
-    // Sales Price (سعر القطعة)
+    // Sales Price & Carton Price (مرآة دقيقة لأعمدة الشيت)
     const rawSalesPrice = getNum(colMap.salesPrice > -1 ? colMap.salesPrice : colMap.piecePrice, 0);
     const rawCartonPrice = getNum(colMap.cartonPrice, 0);
     const promoPriceCartonRaw = getNum(colMap.promoPrice, 0);
@@ -709,12 +713,13 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     let piecePrice = 0;
     let cartonPrice = 0;
 
-    if (rawSalesPrice > 0) {
+    // Prefer explicit carton price from the sheet if present, then calculate piece price
+    if (rawCartonPrice > 0) {
+      cartonPrice = rawCartonPrice;
+      piecePrice = rawSalesPrice > 0 ? rawSalesPrice : (cartonQuantity > 0 ? Math.round((cartonPrice / cartonQuantity) * 100) / 100 : cartonPrice);
+    } else if (rawSalesPrice > 0) {
       piecePrice = rawSalesPrice;
       cartonPrice = Math.round(piecePrice * cartonQuantity * 100) / 100;
-    } else if (rawCartonPrice > 0) {
-      cartonPrice = rawCartonPrice;
-      piecePrice = cartonQuantity > 0 ? Math.round((cartonPrice / cartonQuantity) * 100) / 100 : cartonPrice;
     }
 
     // Offer / Promo prices for carton and piece
@@ -775,8 +780,11 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       'منيا القمح': stockMeq,
     };
 
-    // Calculate default branch stock if specific branch column was present
-    const rawBranchStock = colMap.branchStockActual > -1 ? getNum(colMap.branchStockActual, stockCairo || stockBeheira || 0) : (stockCairo || stockBeheira || 0);
+    // Calculate total stock across all branches and central warehouse
+    const totalAllBranchesStock = stockBeheira + stockFayoum + stockCairo + stockMinya + stockDimeshalt + stockOctober + stockMenouf + stockMeq;
+    const rawBranchStock = colMap.branchStockActual > -1
+      ? getNum(colMap.branchStockActual, totalAllBranchesStock)
+      : (totalAllBranchesStock > 0 ? totalAllBranchesStock : (stockCairo || stockBeheira || 0));
 
     const rawImg = cleanGoogleSheetImageUrl(getVal(colMap.imageUrl));
     const sizeVal = getVal(colMap.size) || '';
@@ -2280,6 +2288,9 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     // Skip empty dummy rows where no data exists
     if (!rawName && !rawCode && !rawPhone && !rawBranch && !rawRep && !rawAddress) continue;
 
+    // Skip summary / total rows in customer sheets (e.g., "الإجمالي", "المجموع", "Total") so they never inflate company collections by 10 million!
+    if (isSummaryOrTotalRow(rawName, rawCode, rawBranch, rawRep)) continue;
+
     const rawTier = getVal(row, colMap.tier);
     let tier: CustomerTier = 'متوسط';
     if (rawTier.includes('مميز') || rawTier.toLowerCase().includes('vip') || rawTier.toLowerCase().includes('a')) {
@@ -2391,27 +2402,23 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       }
     });
 
-    // Sum totals: take max of explicit 2026 column, generic total column, and dynamic sum of months (حاسب للسنة كله)
-    const finalTotalMonthlySales = parsedSales2026Col !== undefined
-      ? Math.max(parsedSales2026Col, dynamicMonthlySalesSum)
+    // Sales: Mirrors the sheet accurately with strict priority (NO Math.max guessing)
+    const resolvedSales2026 = parsedSales2026Col !== undefined
+      ? parsedSales2026Col
       : (parsedTotalMonthlySalesCol !== undefined
-          ? Math.max(parsedTotalMonthlySalesCol, dynamicMonthlySalesSum)
-          : (dynamicMonthlySalesSum > 0 ? dynamicMonthlySalesSum : (parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : undefined)));
+          ? parsedTotalMonthlySalesCol
+          : (dynamicMonthlySalesSum > 0 ? dynamicMonthlySalesSum : (parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : 0)));
+    const finalTotalMonthlySales = resolvedSales2026;
 
-    // Collections: prefer the explicit 2026 column, then the generic total
-    // column, then the net of the 12 months. Compare by magnitude, because a
-    // valid net is negative.
-    const byMagnitude = (...vals: (number | undefined)[]): number | undefined => {
-      const defined = vals.filter((v): v is number => v !== undefined);
-      if (defined.length === 0) return undefined;
-      return defined.reduce((best, v) => (Math.abs(v) > Math.abs(best) ? v : best));
-    };
-    const finalTotalMonthlyCollections = byMagnitude(
-      parsedCollections2026Col,
-      parsedTotalMonthlyCollectionsCol,
-      dynamicMonthlyCollectionsSum !== 0 ? dynamicMonthlyCollectionsSum : undefined,
-      parsedTotalOverallCollections
-    );
+    // Collections: Mirrors the sheet accurately with strict priority (NO Math.max guessing)
+    const resolvedCollections2026 = parsedCollections2026Col !== undefined && parsedCollections2026Col !== 0
+      ? Math.abs(parsedCollections2026Col)
+      : (parsedTotalMonthlyCollectionsCol !== undefined && parsedTotalMonthlyCollectionsCol !== 0
+          ? Math.abs(parsedTotalMonthlyCollectionsCol)
+          : (dynamicMonthlyCollectionsSum !== 0
+              ? Math.abs(dynamicMonthlyCollectionsSum)
+              : (parsedTotalOverallCollections !== undefined ? Math.abs(parsedTotalOverallCollections) : 0)));
+    const finalTotalMonthlyCollections = resolvedCollections2026;
 
     const finalCreditLimit = parsedCredit !== undefined ? parsedCredit : 0;
 
@@ -2433,44 +2440,17 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
           : finalTotalOverdue);
 
     const resolvedAddress = rawAddress || [rawDistrict, rawGov].filter(Boolean).join(' - ') || '';
-    const resolvedSales2026 = Math.max(
-      parsedSales2026Col !== undefined ? parsedSales2026Col : 0,
-      parsedTotalMonthlySalesCol !== undefined ? parsedTotalMonthlySalesCol : 0,
-      parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : 0,
-      dynamicMonthlySalesSum
-    );
-    // Prefer the explicit sheet total when available, and fall back to the
-    // computed monthly sum only when no explicit column has a value.
-    // The guard must test "has a value" (not "!== 0" on a max) and never
-    // "is positive": the sheet stores collections NEGATIVE, so a positive test
-    // threw away every real collection and fell back to the monthly sum, which
-    // is 0 when the monthly columns are not part of the sheet. The candidates
-    // are compared as signed figures, so a positive (return) cannot win over a
-    // negative (collection) on magnitude alone.
-    const explicitCollectionsCandidates = [
-      parsedCollections2026Col,
-      parsedTotalMonthlyCollectionsCol,
-      parsedTotalOverallCollections,
-    ].filter((v): v is number => v !== undefined && isFinite(v));
-    // `Math.max` is kept for equal-magnitude ties between two negative values,
-    // which is harmless; the sign itself is preserved.
-    const explicitCollectionsSum = explicitCollectionsCandidates.length
-      ? Math.max(...explicitCollectionsCandidates)
-      : undefined;
-    const resolvedCollections2026 = explicitCollectionsSum !== undefined
-      ? explicitCollectionsSum
-      : dynamicMonthlyCollectionsSum;
 
     // Guarantee docs logic:
-    // لو كبر من صفر يبقي ماضي علي ورق ضمان بالمبلغ ده
-    // لو 0 او مافيش يبق لا يوجد ورق ضمان
+    // لو الرقم أكبر من 0 يبقى ماضي على أوراق ضمان بالمبلغ
+    // لو 0 أو مفيش يبقى مش ماضي
     let finalGuaranteeAmount = 0;
-    let finalGuaranteeDocs = 'لا يوجد ورق ضمان';
+    let finalGuaranteeDocs = 'مش ماضي';
     let finalHasGuarantee = false;
     const parsedGuaranteeNum = parseNumberValue(colMap.guaranteeDocs);
     if (parsedGuaranteeNum !== undefined && parsedGuaranteeNum > 0) {
       finalGuaranteeAmount = parsedGuaranteeNum;
-      finalGuaranteeDocs = `ماضي على ورق ضمان (${finalGuaranteeAmount.toLocaleString('en-US')} ج.م)`;
+      finalGuaranteeDocs = `ماضي على أوراق ضمان (${finalGuaranteeAmount.toLocaleString('en-US')} ج.م)`;
       finalHasGuarantee = true;
     } else if (rawGuaranteeDocs && rawGuaranteeDocs !== '0') {
       let numG = 0;
@@ -2487,7 +2467,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
 
       if (numG > 0) {
         finalGuaranteeAmount = numG;
-        finalGuaranteeDocs = `ماضي على ورق ضمان (${finalGuaranteeAmount.toLocaleString('en-US')} ج.م)`;
+        finalGuaranteeDocs = `ماضي على أوراق ضمان (${finalGuaranteeAmount.toLocaleString('en-US')} ج.م)`;
         finalHasGuarantee = true;
       } else if (
         !rawGuaranteeDocs.includes('بدون') &&
@@ -2501,8 +2481,12 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
           rawGuaranteeDocs.includes('إيصال') ||
           rawGuaranteeDocs.includes('رهن'))
       ) {
-        finalGuaranteeDocs = rawGuaranteeDocs.includes('ماضي') ? rawGuaranteeDocs : `ماضي على ورق ضمان (${rawGuaranteeDocs})`;
+        finalGuaranteeDocs = 'ماضي على أوراق ضمان';
         finalHasGuarantee = true;
+      } else {
+        finalGuaranteeAmount = 0;
+        finalGuaranteeDocs = 'مش ماضي';
+        finalHasGuarantee = false;
       }
     }
 

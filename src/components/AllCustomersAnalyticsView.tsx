@@ -89,17 +89,18 @@ import {
 } from '../services/customerAnalyticsService';
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
 import { getSavedSourceUrl, saveSingleSourceUrl, getSavedSheetHistory } from '../services/dataSourceService';
+import { calculateCustomerFinancials, isSummaryOrTotalRow } from '../services/customerFinancialService';
 
-// Sheet sign convention for collections: NEGATIVE = a real collection,
-// POSITIVE = a مردود (return). Summing the raw signs would let a return cancel
-// a real collection, and taking Math.abs of everything would instead add the two
-// together and inflate the figure. So each value keeps its direction and the net
-// effect is the collection total minus the returns total.
-const collectionMagnitude = (v: unknown): number => {
-  const n = Number(v);
-  if (!isFinite(n) || n === 0) return 0;
-  return n < 0 ? Math.abs(n) : -n;
+// Sheet numbers parser (مرآة دقيقة لأرقام ومبالغ الشيت الأصلية بدون أي اجتهاد أو قلب إشارات)
+const parseCleanNumber = (v: unknown): number => {
+  if (v === undefined || v === null || v === '') return 0;
+  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, '').replace(/[^\d.-]/g, ''));
+  if (!isFinite(n) || isNaN(n)) return 0;
+  return Math.abs(n);
 };
+
+// Backward-compatible alias
+const collectionMagnitude = parseCleanNumber;
 
 interface AllCustomersAnalyticsViewProps {
   onOpenNewOrderForCustomer?: (customer: Customer) => void;
@@ -337,7 +338,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     return { text: `منذ ${Math.round(diffDays / 30)} شهر`, color: 'text-slate-600 bg-slate-100' };
   };
 
-  // Helper: Guarantee badge styling (supports explicit amount, signed status, and types)
+  // Helper: Guarantee badge styling (صنفين فقط كما طلب المستخدم: ماضي / مش ماضي)
   const getGuaranteeBadge = (docStr?: string, guaranteeAmount?: number, creditLimit?: number) => {
     let amt = guaranteeAmount || 0;
     const g = (docStr || '').trim();
@@ -349,25 +350,19 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       }
     }
 
-    if (amt > 0) {
-      return {
-        label: `ماضي على ورق ضمان (${formatMoney(amt)})`,
-        color: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold',
-        isSigned: true,
-      };
-    }
+    const isSigned = amt > 0 || (g && g !== '0' && !g.includes('مش ماضي') && !g.includes('لا يوجد') && !g.includes('بدون') && (g.includes('ماضي') || g.includes('شيك') || g.includes('كمبيال') || g.includes('أمانة') || g.includes('امانة') || g.includes('رهن')));
 
-    if (g && g !== '0' && !g.includes('لا يوجد') && !g.includes('بدون') && (g.includes('ماضي') || g.includes('شيك') || g.includes('كمبيال') || g.includes('أمانة') || g.includes('امانة') || g.includes('رهن'))) {
+    if (isSigned) {
       return {
-        label: g.includes('ماضي') ? g : `ماضي (${g})`,
-        color: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold',
+        label: amt > 0 ? `ماضي على أوراق ضمان (${formatMoney(amt)})` : 'ماضي على أوراق ضمان',
+        color: 'bg-emerald-50 text-emerald-800 border-emerald-200 font-bold',
         isSigned: true,
       };
     }
 
     return {
-      label: 'لا يوجد ورق ضمان',
-      color: 'bg-slate-100 text-slate-500 border-slate-200',
+      label: 'مش ماضي',
+      color: 'bg-slate-100 text-slate-500 border-slate-200 font-bold',
       isSigned: false,
     };
   };
@@ -396,9 +391,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // 1. RBAC Base Filtered List (Strictly isolated by user permissions)
+  // 1. RBAC Base Filtered List (Strictly isolated by user permissions and excludes sheet total rows)
   const userVisibleCustomers = useMemo(() => {
-    return filterCustomersByRBAC(customers, currentUser, users);
+    const rbacList = filterCustomersByRBAC(customers, currentUser, users);
+    return rbacList.filter((c) => !isSummaryOrTotalRow(c.name, c.code, c.branchName, c.salesRepName || c.repName));
   }, [customers, currentUser, users]);
 
   // Distinct branches & reps for dropdowns
@@ -498,75 +494,73 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     return !e.includes('غير') && !e.includes('موقوف') && !e.includes('ممتنع') && !e.includes('مستبعد');
   };
 
-  // The guarantee column in the sheet is an AMOUNT, not free text. Older stored
-  // rows still carry the old text form ("ماضي على ورق ضمان (5,000 ج.م)"), which
-  // produced one slicer entry per customer. Normalise every variant to a small
-  // set of real categories, and keep the amount in guaranteeAmount.
-  const normalizeGuaranteeCategory = (c: Customer): string => {
-    const raw = (c.guaranteeDocs || '').trim();
+  // The guarantee column in the sheet is an AMOUNT: > 0 means signed (ماضي), 0 or blank means unsigned (مش ماضي)
+  const hasGuaranteePapers = (c: Customer): boolean => {
     const amt = Number(c.guaranteeAmount || 0);
-    if (!raw || raw === '-' || raw === '0') return amt > 0 ? 'أوراق ضمان' : 'لا يوجد ورق ضمان';
-    if (raw.includes('لا يوجد') || raw.includes('بدون') || raw.includes('غير محدد')) return 'لا يوجد ورق ضمان';
-    if (raw.includes('كمبيال')) return 'أوراق ضمان (كمبيالة)';
-    if (raw.includes('شيك')) return 'أوراق ضمان (شيك)';
-    if (raw.includes('امان') || raw.includes('أمان')) return 'أوراق ضمان (إيصال أمانة)';
-    if (raw.includes('رهن')) return 'أوراق ضمان (رهن)';
-    // Any remaining text is a document name: keep it, but strip the amount so
-    // identical documents with different values collapse into one entry.
-    const stripped = raw.replace(/[\d.,\s]+/g, '').replace(/[()]/g, '').trim();
-    return stripped || 'أوراق ضمان';
+    if (amt > 0) return true;
+    if (c.hasGuarantee === true) return true;
+    const raw = (c.guaranteeDocs || '').trim();
+    if (!raw || raw === '0' || raw.includes('مش ماضي') || raw.includes('لا يوجد') || raw.includes('بدون')) return false;
+    const num = parseFloat(raw.replace(/,/g, '').replace(/[^\d.]/g, ''));
+    if (!isNaN(num) && num > 0) return true;
+    if (raw.includes('ماضي') || raw.includes('شيك') || raw.includes('كمبيالة') || raw.includes('إيصال') || raw.includes('ايصال') || raw.includes('رهن')) return true;
+    return false;
   };
 
-  // Sheet sign convention for collections: NEGATIVE = a real collection,
-  // POSITIVE = a مردود (return). Summing the raw signs would let a return
-  // cancel a real collection, and taking Math.abs of everything would instead
-  // add the two together and inflate the figure. So each value is split into
-  // the two sides and kept apart.
-  const splitCollection = (v: unknown): { collections: number; returns: number } => {
-    const n = Number(v);
-    if (!isFinite(n) || n === 0) return { collections: 0, returns: 0 };
-    if (n < 0) return { collections: Math.abs(n), returns: 0 };
-    return { collections: 0, returns: n };
+  const normalizeGuaranteeCategory = (c: Customer): 'ماضي على أوراق ضمان' | 'مش ماضي' => {
+    return hasGuaranteePapers(c) ? 'ماضي على أوراق ضمان' : 'مش ماضي';
   };
 
-  const hasGuaranteePapers = (c: Customer): boolean =>
-    Number(c.guaranteeAmount || 0) > 0 || c.hasGuarantee === true || normalizeGuaranteeCategory(c) !== 'لا يوجد ورق ضمان';
+  // Active scope customers: reflects active branch and rep so dropdown options and counts react interactively
+  const scopeCustomersForDropdowns = useMemo(() => {
+    let list = userVisibleCustomers;
+    if (selectedBranch !== 'ALL') {
+      list = list.filter((c) => Boolean(c.branchName) && isBranchMatch(c.branchName, selectedBranch, { allowUnassigned: false }));
+    }
+    if (selectedRep !== 'ALL') {
+      list = list.filter((c) => {
+        const r = c.salesRepName || c.repName || '';
+        return isArabicNameMatch(r, selectedRep);
+      });
+    }
+    return list;
+  }, [userVisibleCustomers, selectedBranch, selectedRep]);
 
   // Distinct Sheet Activity Types with counts (طبيعة النشاط)
   const availableActivityTypes = useMemo(() => {
     const map = new Map<string, number>();
-    userVisibleCustomers.forEach((c) => {
+    scopeCustomersForDropdowns.forEach((c) => {
       const a = (c.activityType || '').trim();
       if (a && a !== '-' && a !== 'غير محدد') {
         map.set(a, (map.get(a) || 0) + 1);
       }
     });
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
-  }, [userVisibleCustomers]);
+  }, [scopeCustomersForDropdowns]);
 
   // Distinct Sheet Client Types with counts (خ/ك)
   const availableClientTypes = useMemo(() => {
     const map = new Map<string, number>();
-    userVisibleCustomers.forEach((c) => {
+    scopeCustomersForDropdowns.forEach((c) => {
       const ct = (c.clientType || '').trim();
       if (ct && ct !== '-' && ct !== 'غير محدد') {
         map.set(ct, (map.get(ct) || 0) + 1);
       }
     });
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
-  }, [userVisibleCustomers]);
+  }, [scopeCustomersForDropdowns]);
 
   // Distinct Sheet Deal Eligibility with counts (قابل / غير)
   const availableDealEligibilities = useMemo(() => {
     const map = new Map<string, number>();
-    userVisibleCustomers.forEach((c) => {
+    scopeCustomersForDropdowns.forEach((c) => {
       const e = (c.dealEligibility || '').trim();
       if (e && e !== '-' && e !== 'غير محدد') {
         map.set(e, (map.get(e) || 0) + 1);
       }
     });
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
-  }, [userVisibleCustomers]);
+  }, [scopeCustomersForDropdowns]);
 
   // Distinct Sheet Dealt in 2026 status with counts (متعامل 2026)
   const availableDealt2026 = useMemo(() => {
@@ -628,107 +622,15 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       collectionRate: number;
       isExplicitIneligible: boolean;
       isDealtCustomer: boolean;
+      isEligible: boolean;
+      dealtStatusLabel: 'متعامل' | 'غير متعامل';
+      eligibilityStatusLabel: 'قابل للتعامل' | 'غير قابل للتعامل';
+      ineligibilityReason?: string;
       orderSummary: ReturnType<typeof getCustomerOrderSummary>;
     }>();
 
     userVisibleCustomers.forEach((c) => {
-      const bal = c.currentBalance ?? c.balance ?? 0;
-      const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? c.totalOverdue ?? c.dueUntilPeriod ?? 0;
-      const limit = c.creditLimit || 0;
-      const isOverLimit = limit > 0 && bal > limit;
-
-      // 2026 Sales & Collections
-      let monthlySalesSum = 0;
-      if (c.monthlySales2026) {
-        for (let m = 1; m <= 12; m++) {
-          monthlySalesSum += Number(c.monthlySales2026[m]) || 0;
-        }
-      }
-      const sales2026 = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, monthlySalesSum);
-
-      let monthlyColsSum = 0;
-      let monthlyReturnsSum = 0;
-      if (c.monthlyCollections2026) {
-        for (let m = 1; m <= 12; m++) {
-          const s = splitCollection(c.monthlyCollections2026[m]);
-          monthlyColsSum += s.collections;
-          monthlyReturnsSum += s.returns;
-        }
-      }
-      // "إجمالي التحصيلات" is the authoritative sheet column for collections.
-      // These used to be resolved by picking whichever of the three collection
-      // fields had the largest absolute value, which picked up the negative
-      // balance figure whenever it outweighed the total — that is what made the
-      // collection totals come out wrong. Pick the source by name instead, and
-      // only fall back to the month sum when the column is genuinely missing.
-      const explicitSplit = (() => {
-        const total = c.totalMonthlyCollections;
-        if (total !== undefined && total !== null && !isNaN(Number(total))) return splitCollection(total);
-        const overall = c.totalOverallCollections;
-        if (overall !== undefined && overall !== null && !isNaN(Number(overall))) return splitCollection(overall);
-        return splitCollection(c.collections2026 || 0);
-      })();
-      // "إجمالي التحصيلات الفعلي" counts real collections only (the negative
-      // figures), so it is never inflated by a مردود. The month sum is the
-      // fallback for rows whose إجمالي التحصيلات column is empty. The net
-      // figure — collections minus returns — is kept alongside it.
-      const hasExplicitCollections = explicitSplit.collections !== 0 || explicitSplit.returns !== 0;
-      const collections2026 = hasExplicitCollections ? explicitSplit.collections : monthlyColsSum;
-      const returns2026 = hasExplicitCollections ? explicitSplit.returns : monthlyReturnsSum;
-      const explicitCollections = collections2026 - returns2026;
-      // Collections are stored negative and a positive value means a مردود, so
-      // the rate always divides the magnitude.
-      const collectionRate = sales2026 > 0
-        ? Math.round((collections2026 / sales2026) * 100)
-        : 0;
-
-      // Period-specific sales and collections (based on selectedMonth or quarter)
-      // Collection months use the magnitude too, so a مردود month does not
-      // subtract from the real collections of the same period.
-      const monthCollections = (m: number) => splitCollection(c.monthlyCollections2026?.[m]).collections;
-      let periodSales = sales2026;
-      let periodCollections = collections2026;
-      if (selectedMonth === 'Q1') {
-        periodSales = (Number(c.monthlySales2026?.[1]) || 0) + (Number(c.monthlySales2026?.[2]) || 0) + (Number(c.monthlySales2026?.[3]) || 0);
-        periodCollections = monthCollections(1) + monthCollections(2) + monthCollections(3);
-      } else if (selectedMonth === 'Q2') {
-        periodSales = (Number(c.monthlySales2026?.[4]) || 0) + (Number(c.monthlySales2026?.[5]) || 0) + (Number(c.monthlySales2026?.[6]) || 0);
-        periodCollections = monthCollections(4) + monthCollections(5) + monthCollections(6);
-      } else if (selectedMonth === 'Q3') {
-        periodSales = (Number(c.monthlySales2026?.[7]) || 0) + (Number(c.monthlySales2026?.[8]) || 0) + (Number(c.monthlySales2026?.[9]) || 0);
-        periodCollections = monthCollections(7) + monthCollections(8) + monthCollections(9);
-      } else if (selectedMonth === 'Q4') {
-        periodSales = (Number(c.monthlySales2026?.[10]) || 0) + (Number(c.monthlySales2026?.[11]) || 0) + (Number(c.monthlySales2026?.[12]) || 0);
-        periodCollections = monthCollections(10) + monthCollections(11) + monthCollections(12);
-      } else if (typeof selectedMonth === 'number') {
-        periodSales = Number(c.monthlySales2026?.[selectedMonth]) || 0;
-        periodCollections = monthCollections(selectedMonth);
-      }
-
-      // Ineligibility flags from the sheet (موقوف / ممتنع / مستبعد / متعثر)
-      const elig = normalizeArabicText(c.dealEligibility || '');
-      const st = normalizeArabicText(c.status2026 || '');
-      const debtSt = normalizeArabicText(c.debtStatus || '');
-      const isExplicitIneligible = (
-        elig.includes('غير') ||
-        elig.includes('موقوف') ||
-        elig.includes('ممتنع') ||
-        elig.includes('مستبعد') ||
-        st === 'blocked' ||
-        debtSt.includes('متعثر')
-      );
-
-      // "متعامل" is intentionally a per-period figure: it answers "who traded in
-      // the period I am looking at", so it must move with the month slicer.
-      // The authoritative yearly classification is قابل / غير قابل below.
-      const isDealtCustomer =
-        selectedMonth === 'ALL'
-          ? Boolean(
-              c.hasDealtIn2026 ||
-              (c.monthlySales2026 && Object.values(c.monthlySales2026).some((v) => Number(v) > 0)) ||
-              (c.monthlyCollections2026 && Object.values(c.monthlyCollections2026).some((v) => Math.abs(Number(v)) > 0))
-            )
-          : periodSales > 0 || Math.abs(periodCollections) > 0;
+      const fin = calculateCustomerFinancials(c, selectedMonth);
 
       map.set(c.id, {
         id: c.id,
@@ -741,19 +643,23 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         normalizedBranch: normalizeArabicText(c.branchName || ''),
         branchName: c.branchName || 'غير محدد',
         repName: c.salesRepName || c.repName || 'غير محدد',
-        balance: bal,
-        overdue,
-        creditLimit: limit,
-        isOverLimit,
-        sales2026,
-        collections2026,
-        returns2026,
-        netCollections2026: explicitCollections,
-        periodSales,
-        periodCollections,
-        collectionRate,
-        isExplicitIneligible,
-        isDealtCustomer,
+        balance: fin.balance,
+        overdue: fin.overdue,
+        creditLimit: fin.creditLimit,
+        isOverLimit: fin.isOverLimit,
+        sales2026: fin.sales2026,
+        collections2026: fin.collections2026,
+        returns2026: fin.returns2026,
+        netCollections2026: fin.collections2026,
+        periodSales: fin.periodSales,
+        periodCollections: fin.periodCollections,
+        collectionRate: fin.collectionRate,
+        isExplicitIneligible: fin.isExplicitIneligible,
+        isDealtCustomer: fin.isDealtCustomer,
+        isEligible: fin.isEligible,
+        dealtStatusLabel: fin.dealtStatusLabel,
+        eligibilityStatusLabel: fin.eligibilityStatusLabel,
+        ineligibilityReason: fin.ineligibilityReason,
         orderSummary: getCustomerOrderSummary(c),
       });
     });
@@ -787,27 +693,32 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     // showing the count of the side that is currently filtered out.
     const preDealList = [...list];
 
-    // Deal Status Slicer — the sheet's own حالة التعامل column, so the rows shown
-    // always match the counts printed on the slicer card. Selecting one side
-    // still shows how many customers sit on the other side.
+    // Deal Status & Eligibility Slicer (متعامل / غير متعامل / قابل / غير قابل)
     if (dealEligibilityFilter !== 'ALL') {
       list = list.filter((c) => {
-        if (dealEligibilityFilter === 'dealt') return sheetDealStatus(c);
-        if (dealEligibilityFilter === 'eligible') return !sheetDealStatus(c);
-        if (dealEligibilityFilter === 'qualified') return !sheetDealStatus(c) && isSheetQualified(c);
+        const m = customerMetricsMap.get(c.id);
+        const isDealt = m ? m.isDealtCustomer : (c.dealt2026 === 'متعامل' || Boolean(c.hasDealtIn2026));
+        const isEligible = m ? m.isEligible : !c.dealEligibility?.includes('غير');
+
+        if (dealEligibilityFilter === 'dealt') return isDealt;
+        if (dealEligibilityFilter === 'non_dealt' || dealEligibilityFilter === 'not_dealt') return !isDealt;
+        if (dealEligibilityFilter === 'eligible') return isEligible;
+        if (dealEligibilityFilter === 'ineligible') return !isEligible;
         return true;
       });
     }
 
     // Dealt 2026 Activity Slicer (متعامل 2026 من الشيت)
-    // Uses the same stable yearly flag as the badge, so the slicer and the label
-    // can never disagree and neither moves with the month.
     if (dealtFilter !== 'ALL') {
       list = list.filter((c) => {
         const m = customerMetricsMap.get(c.id);
-        const hasDealt = m ? m.isDealtCustomer : Boolean(c.hasDealtIn2026);
-        if (dealtFilter === 'dealt') return hasDealt;
-        if (dealtFilter === 'not_dealt') return !hasDealt;
+        const isDealt = m ? m.isDealtCustomer : Boolean(c.hasDealtIn2026);
+        const isEligible = m ? m.isEligible : !c.dealEligibility?.includes('غير');
+
+        if (dealtFilter === 'dealt') return isDealt;
+        if (dealtFilter === 'not_dealt') return !isDealt;
+        if ((dealtFilter as any) === 'eligible') return isEligible;
+        if ((dealtFilter as any) === 'ineligible') return !isEligible;
         return true;
       });
     }
@@ -1037,8 +948,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     selectedRep,
     selectedCustomerId,
     dealEligibilityFilter,
+    dealtFilter,
     selectedRegion,
     activityFilter,
+    activityTypeFilter,
+    clientTypeFilter,
     debtFilter,
     orderFilter,
     guaranteeFilter,
@@ -1056,24 +970,30 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const preDealFilteredCustomers = filterResult.preDealList;
   const preGuaranteeFilteredCustomers = filterResult.preGuaranteeList;
 
-  // Counts for the deal-status slicer cards. These deliberately come from the
-  // list BEFORE the deal filter runs, so picking "متعامل" still shows how many
-  // customers sit on the "غير متعامل" side — Power BI slicer behaviour.
+  // Counts for the deal-status and eligibility slicer cards (الكل، متعامل، غير متعامل، قابل، غير قابل)
   const dealStatusCounts = useMemo(() => {
     let dealt = 0;
-    let qualified = 0;
+    let eligible = 0;
+    let ineligible = 0;
     preDealFilteredCustomers.forEach((c) => {
-      if (sheetDealStatus(c)) dealt++;
-      else if (isSheetQualified(c)) qualified++;
+      const m = customerMetricsMap.get(c.id);
+      const isDealt = m ? m.isDealtCustomer : (c.dealt2026 === 'متعامل' || Boolean(c.hasDealtIn2026));
+      const isElig = m ? m.isEligible : !c.dealEligibility?.includes('غير');
+      if (isDealt) dealt++;
+      if (isElig) eligible++;
+      else ineligible++;
     });
     const total = preDealFilteredCustomers.length;
-    return { total, dealt, qualified, notDealt: total - dealt };
-  }, [preDealFilteredCustomers]);
+    return {
+      total,
+      dealt,
+      notDealt: Math.max(0, total - dealt),
+      eligible,
+      ineligible,
+    };
+  }, [preDealFilteredCustomers, customerMetricsMap]);
 
-  // Guarantee counts. Same Power BI behaviour as the deal slicer, and derived
-  // from the list before the guarantee filter, so they react to every other
-  // active slicer (rep / branch / activity / deal status) instead of always
-  // reporting the whole customer base.
+  // Guarantee counts (صنفين فقط: ماضي على أوراق ضمان / مش ماضي)
   const guaranteeCounts = useMemo(() => {
     const signed = preGuaranteeFilteredCustomers.filter(hasGuaranteePapers).length;
     const total = preGuaranteeFilteredCustomers.length;
@@ -1083,7 +1003,28 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   // Reset pagination on filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedBranch, selectedRep, selectedCustomerId, selectedMonth, dealEligibilityFilter, sortMode, selectedRegion, activityFilter, debtFilter, orderFilter, guaranteeFilter, visitFilter, paymentTermsFilter, salesTierFilter, collectionRateFilter, searchQuery, pageSize]);
+  }, [
+    selectedBranch,
+    selectedRep,
+    selectedCustomerId,
+    selectedMonth,
+    dealEligibilityFilter,
+    dealtFilter,
+    sortMode,
+    selectedRegion,
+    activityFilter,
+    activityTypeFilter,
+    clientTypeFilter,
+    debtFilter,
+    orderFilter,
+    guaranteeFilter,
+    visitFilter,
+    paymentTermsFilter,
+    salesTierFilter,
+    collectionRateFilter,
+    searchQuery,
+    pageSize,
+  ]);
 
   // Paginated Items
   const paginatedCustomers = useMemo(() => {
@@ -4754,7 +4695,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
             {guaranteeFilter !== 'ALL' && (
               <span className="inline-flex items-center gap-1 bg-white border border-amber-200 text-amber-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
-                <span>الضمان: {guaranteeFilter}</span>
+                <span>الضمان: {guaranteeFilter === 'has_guarantee' ? 'ماضي على أوراق الضمان' : 'مش ماضي'}</span>
                 <button type="button" onClick={() => setGuaranteeFilter('ALL')} className="text-amber-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
               </span>
             )}
@@ -4775,7 +4716,19 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
             {dealEligibilityFilter !== 'ALL' && (
               <span className="inline-flex items-center gap-1 bg-white border border-sky-200 text-sky-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
-                <span>حالة التعامل: {dealEligibilityFilter === 'dealt' ? 'متعامل' : dealEligibilityFilter === 'eligible' ? 'غير متعامل' : dealEligibilityFilter === 'qualified' ? 'قابل للتجارة' : 'الكل'}</span>
+                <span>
+                  حالة وقابلية التعامل: {
+                    dealEligibilityFilter === 'dealt'
+                      ? 'متعامل ✅'
+                      : dealEligibilityFilter === 'non_dealt'
+                      ? 'غير متعامل ❌'
+                      : dealEligibilityFilter === 'eligible'
+                      ? 'قابل للتعامل 🟢'
+                      : dealEligibilityFilter === 'ineligible'
+                      ? 'غير قابل للتعامل ⛔'
+                      : dealEligibilityFilter
+                  }
+                </span>
                 <button type="button" onClick={() => setDealEligibilityFilter('ALL')} className="text-sky-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
               </span>
             )}
@@ -5110,10 +5063,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   onChange={(e) => setDealEligibilityFilter(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 transition shadow-2xs cursor-pointer"
                 >
-                  <option value="ALL">جميع حالات التعامل ({dealStatusCounts.total})</option>
-                  <option value="dealt">متعامل ✅ ({dealStatusCounts.dealt} عميل)</option>
-                  <option value="eligible">غير متعامل ⏳ ({dealStatusCounts.notDealt} عميل)</option>
-                  <option value="qualified">قابل للتجارة 💠 ({dealStatusCounts.qualified} عميل)</option>
+                  <option value="ALL">جميع العملاء ({dealStatusCounts.total.toLocaleString()})</option>
+                  <option value="dealt">العملاء المتعاملين فقط ✅ ({dealStatusCounts.dealt.toLocaleString()})</option>
+                  <option value="non_dealt">العملاء غير المتعاملين ❌ ({dealStatusCounts.notDealt.toLocaleString()})</option>
+                  <option value="eligible">العملاء القابلين للتعامل فقط 🟢 ({dealStatusCounts.eligible.toLocaleString()})</option>
+                  <option value="ineligible">العملاء غير القابلين (موقوف/ممتنع/متعثر) ⛔ ({dealStatusCounts.ineligible.toLocaleString()})</option>
                 </select>
               </div>
 
@@ -5541,52 +5495,102 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </div>
             </div>
 
-            {/* Box 3: Customers Breakdown (Dealt / Non-Dealt) — clickable slicer */}
-            <div className="bg-slate-900/90 rounded-xl p-3.5 border border-emerald-500/30 shadow-inner">
+            {/* Box 3: Customers Breakdown (Dealt / Non-Dealt & Eligibility) — clickable slicer */}
+            <div className="bg-slate-900/90 rounded-xl p-3 border border-emerald-500/30 shadow-inner">
               <div className="text-xs font-bold text-emerald-300 flex items-center justify-between">
-                <span>👥 حالة التعامل (من الشيت)</span>
+                <span>👥 حالة وقابلية التعامل (مرآة الشيت)</span>
                 <Users className="w-4 h-4 text-emerald-400" />
               </div>
 
-              {/* The sheet carries two independent columns: حالة التعامل
-                  (متعامل / غير متعامل) and قابل. Both are listed so the counts
-                  can be read off the slicer instead of guessed from the month. */}
-              <div className="mt-2.5 space-y-1.5">
-                {(
-                  [
-                    { key: 'dealt', label: 'متعامل ✅', n: dealStatusCounts.dealt, active: 'bg-emerald-500 text-white', idle: 'bg-emerald-900/40 text-emerald-200 hover:bg-emerald-900/70' },
-                    { key: 'eligible', label: 'غير متعامل ⏳', n: dealStatusCounts.notDealt, active: 'bg-sky-500 text-white', idle: 'bg-sky-900/40 text-sky-200 hover:bg-sky-900/70' },
-                    { key: 'qualified', label: 'قابل للتجارة 💠', n: dealStatusCounts.qualified, active: 'bg-amber-500 text-white', idle: 'bg-amber-900/40 text-amber-200 hover:bg-amber-900/70' },
-                  ] as const
-                ).map(({ key, label, n, active, idle }) => {
-                  const isActive = dealEligibilityFilter === key;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setDealEligibilityFilter(isActive ? 'ALL' : key)}
-                      className={`w-full flex items-center justify-between rounded-xl px-3 py-2 border transition cursor-pointer ${
-                        isActive
-                          ? `${active} border-transparent shadow-lg`
-                          : `${idle} border-slate-700/60`
-                      }`}
-                    >
-                      <span className="text-[11.5px] font-black">{label}</span>
-                      <span className={`text-sm font-black font-mono ${isActive ? 'opacity-90' : 'opacity-80'}`}>
-                        {n.toLocaleString()}
-                      </span>
-                    </button>
-                  );
-                })}
+              {/* أزرار تصفية سريعة تفاعلية بالكامل: الكل، متعامل، غير متعامل، قابل، غير قابل */}
+              <div className="mt-2 grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setDealEligibilityFilter('ALL')}
+                  className={`col-span-2 flex items-center justify-between rounded-lg px-2.5 py-1.5 border transition cursor-pointer ${
+                    dealEligibilityFilter === 'ALL'
+                      ? 'bg-slate-800 text-white border-emerald-500/50 shadow-md ring-1 ring-emerald-400'
+                      : 'bg-slate-800/40 text-slate-300 border-slate-700/60 hover:bg-slate-800/70'
+                  }`}
+                >
+                  <span className="text-[11px] font-black">الكل 👥</span>
+                  <span className="text-xs font-black font-mono">
+                    {dealStatusCounts.total.toLocaleString()}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDealEligibilityFilter(dealEligibilityFilter === 'dealt' ? 'ALL' : 'dealt')}
+                  className={`flex items-center justify-between rounded-lg px-2 py-1.5 border transition cursor-pointer ${
+                    dealEligibilityFilter === 'dealt'
+                      ? 'bg-emerald-600 text-white border-transparent shadow-md ring-2 ring-emerald-400'
+                      : 'bg-emerald-950/40 text-emerald-300 border-emerald-800/60 hover:bg-emerald-900/50'
+                  }`}
+                  title="العملاء المتعاملين فقط في 2026"
+                >
+                  <span className="text-[10.5px] font-black">متعامل ✅</span>
+                  <span className="text-xs font-black font-mono">
+                    {dealStatusCounts.dealt.toLocaleString()}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDealEligibilityFilter(dealEligibilityFilter === 'non_dealt' ? 'ALL' : 'non_dealt')}
+                  className={`flex items-center justify-between rounded-lg px-2 py-1.5 border transition cursor-pointer ${
+                    dealEligibilityFilter === 'non_dealt'
+                      ? 'bg-slate-700 text-white border-transparent shadow-md ring-2 ring-slate-400'
+                      : 'bg-slate-800/40 text-slate-400 border-slate-700/60 hover:bg-slate-800/70'
+                  }`}
+                  title="العملاء غير المتعاملين في 2026"
+                >
+                  <span className="text-[10.5px] font-black">غير متعامل ❌</span>
+                  <span className="text-xs font-black font-mono">
+                    {dealStatusCounts.notDealt.toLocaleString()}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDealEligibilityFilter(dealEligibilityFilter === 'eligible' ? 'ALL' : 'eligible')}
+                  className={`flex items-center justify-between rounded-lg px-2 py-1.5 border transition cursor-pointer ${
+                    dealEligibilityFilter === 'eligible'
+                      ? 'bg-teal-600 text-white border-transparent shadow-md ring-2 ring-teal-400'
+                      : 'bg-teal-950/40 text-teal-300 border-teal-800/60 hover:bg-teal-900/50'
+                  }`}
+                  title="العملاء القابلين للتعامل"
+                >
+                  <span className="text-[10.5px] font-black">قابل 🟢</span>
+                  <span className="text-xs font-black font-mono">
+                    {dealStatusCounts.eligible.toLocaleString()}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDealEligibilityFilter(dealEligibilityFilter === 'ineligible' ? 'ALL' : 'ineligible')}
+                  className={`flex items-center justify-between rounded-lg px-2 py-1.5 border transition cursor-pointer ${
+                    dealEligibilityFilter === 'ineligible'
+                      ? 'bg-rose-700 text-white border-transparent shadow-md ring-2 ring-rose-400'
+                      : 'bg-rose-950/40 text-rose-300 border-rose-800/60 hover:bg-rose-900/50'
+                  }`}
+                  title="العملاء غير القابلين للتعامل (موقوف/ممتنع/مستبعد/متعثر)"
+                >
+                  <span className="text-[10.5px] font-black">غير قابل ⛔</span>
+                  <span className="text-xs font-black font-mono">
+                    {dealStatusCounts.ineligible.toLocaleString()}
+                  </span>
+                </button>
               </div>
 
               {dealEligibilityFilter !== 'ALL' && (
                 <button
                   type="button"
                   onClick={() => setDealEligibilityFilter('ALL')}
-                  className="mt-2 w-full text-[10.5px] font-black text-slate-400 hover:text-white transition cursor-pointer"
+                  className="mt-2 w-full text-[10.5px] font-black text-slate-400 hover:text-white transition cursor-pointer text-center"
                 >
-                  ← إلغاء الفلتر وعرض الكل
+                  ← إلغاء التصفية وعرض الكل
                 </button>
               )}
             </div>
@@ -5665,20 +5669,20 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             <div className="md:hidden divide-y divide-slate-100 bg-slate-50/50">
               {paginatedCustomers.map((c, index) => {
                 const globalIdx = (currentPage - 1) * pageSize + index + 1;
-                const bal = c.currentBalance ?? c.balance ?? 0;
-                const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
-                const monthlySalesSum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-                const s26 = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, monthlySalesSum);
-                const monthlyColsSum = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-                const col26 = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, c.totalOverallCollections || 0, monthlyColsSum);
                 const metrics = customerMetricsMap.get(c.id);
+                const bal = metrics ? metrics.balance : (c.currentBalance ?? c.balance ?? 0);
+                const overdue = metrics ? metrics.overdue : (c.totalOverdueAndDue ?? c.overdueBalance ?? 0);
+                const s26 = metrics ? metrics.sales2026 : (c.sales2026 || 0);
+                const col26 = metrics ? metrics.collections2026 : (c.collections2026 || 0);
+                const isDealt = metrics ? metrics.isDealtCustomer : sheetDealStatus(c);
+                const isElig = metrics ? metrics.isEligible : !c.dealEligibility?.includes('غير');
 
                 return (
                   <div
                     key={c.id || c.code}
                     className="p-3.5 bg-white space-y-2.5 transition active:bg-amber-50/30"
                   >
-                    {/* Card Header: Code, Name, Deal Badge */}
+                    {/* Card Header: Code, Name, Deal & Eligibility Badges */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -5699,15 +5703,24 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         </div>
                       </div>
 
-                      {/* Deal badge — value comes from the base sheet */}
-                      <div className="shrink-0">
-                        {sheetDealStatus(c) ? (
+                      {/* Deal & Eligibility Badges — مرآة الشيت */}
+                      <div className="shrink-0 flex flex-col items-end gap-1">
+                        {isDealt ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
                             متعامل ✅
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
-                            قابل ⏳
+                            غير متعامل ❌
+                          </span>
+                        )}
+                        {isElig ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9.5px] font-black bg-teal-50 text-teal-800 border border-teal-200">
+                            قابل 🟢
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9.5px] font-black bg-rose-50 text-rose-800 border border-rose-200">
+                            {metrics?.ineligibilityReason ? `⛔ ${metrics.ineligibilityReason}` : 'غير قابل ⛔'}
                           </span>
                         )}
                       </div>
@@ -5789,7 +5802,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </div>
 
               <div className="mt-2 text-[10.5px] font-bold text-slate-500 leading-relaxed">
-إجمالي العملاء في النطاق: {dealStatusCounts.total.toLocaleString()} — متعامل ({dealStatusCounts.dealt.toLocaleString()})، غير متعامل ({dealStatusCounts.notDealt.toLocaleString()})، قابل للتجارة ({dealStatusCounts.qualified.toLocaleString()}).
+إجمالي العملاء في النطاق: {dealStatusCounts.total.toLocaleString()} عميل — متعامل ({dealStatusCounts.dealt.toLocaleString()}).
               </div>
 
 
@@ -5916,19 +5929,19 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               <tbody className="divide-y divide-slate-100">
                 {paginatedCustomers.map((c, index) => {
                   const globalIdx = (currentPage - 1) * pageSize + index + 1;
-                  const bal = c.currentBalance ?? c.balance ?? 0;
-                  const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
-                  const limit = c.creditLimit || 0;
-                  const isOverLimit = limit > 0 && bal > limit;
-                  const monthlySalesSum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-                  const s26 = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, monthlySalesSum);
-                  const monthlyColsSum = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-                  const col26 = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, c.totalOverallCollections || 0, monthlyColsSum);
-                  const colRate = s26 > 0 ? Math.round((col26 / s26) * 100) : (col26 > 0 ? 100 : 0);
+                  const metrics = customerMetricsMap.get(c.id);
+                  const bal = metrics ? metrics.balance : (c.currentBalance ?? c.balance ?? 0);
+                  const overdue = metrics ? metrics.overdue : (c.totalOverdueAndDue ?? c.overdueBalance ?? 0);
+                  const limit = metrics ? metrics.creditLimit : (c.creditLimit || 0);
+                  const isOverLimit = metrics ? metrics.isOverLimit : (limit > 0 && bal > limit);
+                  const s26 = metrics ? metrics.sales2026 : (c.sales2026 || 0);
+                  const col26 = metrics ? metrics.collections2026 : (c.collections2026 || 0);
+                  const colRate = metrics ? metrics.collectionRate : (s26 > 0 ? Math.round((col26 / s26) * 100) : 0);
                   const guaranteeInfo = getGuaranteeBadge(c.guaranteeDocs, c.guaranteeAmount, limit);
                   const visitTime = getRelativeTimeArabic(c.lastVisitDate);
-                  const orderSummary = getCustomerOrderSummary(c);
-                  const metrics = customerMetricsMap.get(c.id);
+                  const orderSummary = metrics ? metrics.orderSummary : getCustomerOrderSummary(c);
+                  const isDealt = metrics ? metrics.isDealtCustomer : sheetDealStatus(c);
+                  const isElig = metrics ? metrics.isEligible : !c.dealEligibility?.includes('غير');
 
                   return (
                     <tr
@@ -5963,19 +5976,30 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         </div>
                       </td>
 
-                      {/* قابل / غير — value comes from the base sheet */}
+                      {/* حالة وقابلية التعامل — مرآة مطابقة للشيت */}
                       <td className="p-3 text-center whitespace-nowrap">
-                        {sheetDealStatus(c) ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            متعامل ✅
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
-                            <Clock className="w-3 h-3 text-sky-600" />
-                            غير متعامل ⏳
-                          </span>
-                        )}
+                        <div className="flex flex-col items-center gap-1">
+                          {isDealt ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              متعامل ✅
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
+                              <Clock className="w-3 h-3 text-sky-600" />
+                              غير متعامل ❌
+                            </span>
+                          )}
+                          {isElig ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded text-[10px] font-black bg-teal-50 text-teal-800 border border-teal-200">
+                              قابل 🟢
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded text-[10px] font-black bg-rose-50 text-rose-800 border border-rose-200" title={metrics?.ineligibilityReason}>
+                              {metrics?.ineligibilityReason ? `⛔ ${metrics.ineligibilityReason}` : 'غير قابل ⛔'}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td className="p-3 whitespace-nowrap">

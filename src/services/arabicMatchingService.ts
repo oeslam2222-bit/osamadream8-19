@@ -793,23 +793,46 @@ export function doesCustomerBelongToBranch(
 
 /**
  * Robustly resolve product branch stock in cartons for a target branch using normalized matching
+ * When targetBranch is 'الكل', accurately sums stocks across all branches and central warehouse
  */
 export function getBranchStockForProduct(product: Product, targetBranch?: string): number {
   if (!product) return 0;
+
+  // 1. When querying ALL branches (الكل): aggregate total inventory across all 8 branches
   if (!targetBranch || targetBranch === 'الكل') {
-    return product.branchStockActual || 0;
+    if (product.branchStocks && typeof product.branchStocks === 'object' && Object.keys(product.branchStocks).length > 0) {
+      // 8 company branches + central warehouse
+      const canonicalBranches = ['البحيرة', 'الفيوم', 'القاهرة', 'المنيا', 'ديمشلت', 'أكتوبر', 'منوف', 'منيا القمح'];
+      let totalStock = 0;
+      let countedAny = false;
+      for (const b of canonicalBranches) {
+        const val = product.branchStocks[`فرع ${b}`] ?? product.branchStocks[b];
+        if (typeof val === 'number' && !isNaN(val)) {
+          totalStock += val;
+          countedAny = true;
+        }
+      }
+      if (countedAny) return totalStock;
+    }
+    const branchActual = typeof product.branchStockActual === 'number' ? product.branchStockActual : 0;
+    const warehouseActual = typeof product.mainWarehouseActual === 'number' ? product.mainWarehouseActual : 0;
+    return branchActual + warehouseActual;
   }
 
   const targetKey = normalizeBranchKey(targetBranch);
 
-  // 1. If querying October Central Warehouse
+  // 2. If querying October Central Warehouse
   if (targetKey === 'main') {
-    if (typeof product.mainWarehouseActual === 'number') {
+    if (typeof product.mainWarehouseActual === 'number' && !isNaN(product.mainWarehouseActual)) {
       return product.mainWarehouseActual;
+    }
+    if (product.branchStocks) {
+      const octStock = product.branchStocks['الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)'] ?? product.branchStocks['مخزون اكتوبر'] ?? product.branchStocks['أكتوبر'];
+      if (typeof octStock === 'number' && !isNaN(octStock)) return octStock;
     }
   }
 
-  // 2. Direct branchStocks map lookup by normalized keys
+  // 3. Direct branchStocks map lookup by normalized keys
   if (product.branchStocks && typeof product.branchStocks === 'object' && Object.keys(product.branchStocks).length > 0) {
     let hasBranchKey = false;
     for (const [key, stock] of Object.entries(product.branchStocks)) {
@@ -826,7 +849,7 @@ export function getBranchStockForProduct(product: Product, targetBranch?: string
     }
   }
 
-  // 3. If product has a single branchName assigned, verify branch match
+  // 4. If product has a single branchName assigned, verify branch match
   if (product.branchName) {
     if (normalizeBranchKey(product.branchName) === targetKey) {
       return product.branchStockActual || 0;
@@ -834,7 +857,7 @@ export function getBranchStockForProduct(product: Product, targetBranch?: string
     return 0;
   }
 
-  // 4. Fallback to product.branchStockActual if unassigned
+  // 5. Fallback to product.branchStockActual if unassigned
   return product.branchStockActual || 0;
 }
 
