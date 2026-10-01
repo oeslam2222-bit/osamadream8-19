@@ -579,20 +579,14 @@ export const TargetPerformanceDashboard: React.FC = () => {
           // name. The old Math.max() compared a signed month sum against raw
           // magnitudes, so it returned whichever number was largest rather than
           // the correct one.
-          const readTotal = (): number => {
-            const total = customer.totalMonthlyCollections;
-            if (total !== undefined && total !== null && !isNaN(Number(total))) return Number(total);
-            const overall = customer.totalOverallCollections;
-            if (overall !== undefined && overall !== null && !isNaN(Number(overall))) return Number(overall);
-            return Number(customer.collections2026 || 0);
-          };
-          const annual = readTotal();
           const monthSum = Object.values(customer.monthlyCollections2026 || {})
             .reduce((total, value) => total + (Number(value) || 0), 0);
+          // عند اختيار كل الشهور، إجمالي التحصيلات هو جمع قيم عمود الشهور
+          // نفسها، وليس قيمة عمود إجمالي قد تكون من فترة مختلفة.
           const value = selectedMonth === 'ALL'
-            ? (annual !== 0 ? annual : monthSum)
+            ? monthSum
             : (Number(customer.monthlyCollections2026?.[selectedMonth]) || 0);
-          return sum + Math.abs(value);
+          return sum + value;
         }, 0),
       };
       map.set(repName, summary);
