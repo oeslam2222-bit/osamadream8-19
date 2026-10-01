@@ -387,7 +387,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     let totalDebt = 0;
     let totalOverdueAndDue = 0;
     let totalSales = 0;
-    let totalCollections = 0;
+    let signedTotalCollections = 0;
     let totalLimit = 0;
     let customersWithDebt = 0;
     let customersWithOverdue = 0;
@@ -400,9 +400,11 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       const overdueDue = Number(c.totalOverdueAndDue !== undefined ? c.totalOverdueAndDue : debt);
       const mSalesSum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
       const sales = Math.max(Number(c.sales2026 || 0), Number(c.totalMonthlySales || 0), Number(c.totalOverallSales || 0), mSalesSum);
-      const mColsSum = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + Math.abs(Number(v) || 0), 0) : 0;
-      const explicitCollections = Math.max(Math.abs(Number(c.collections2026 || 0)), Math.abs(Number(c.totalMonthlyCollections || 0)), Math.abs(Number(c.totalOverallCollections || 0)));
-      const collections = explicitCollections > 0 ? explicitCollections : mColsSum;
+      const monthlyCollections = c.monthlyCollections2026
+        ? Object.values(c.monthlyCollections2026).reduce((sum, value) => sum + (Number(value) || 0), 0)
+        : 0;
+      const annualCollections = Number(c.collections2026 || c.totalMonthlyCollections || 0);
+      const signedCollections = annualCollections !== 0 ? annualCollections : monthlyCollections;
       const limit = Number(c.creditLimit || 0);
 
       if (debt > 0) {
@@ -417,8 +419,8 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         totalSales += sales;
         customersWithSales++;
       }
-      if (collections > 0) {
-        totalCollections += collections;
+      if (signedCollections !== 0) {
+        signedTotalCollections += signedCollections;
         customersWithCollections++;
       }
       totalLimit += limit;
@@ -438,7 +440,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       totalDebt,
       totalOverdueAndDue,
       totalSales,
-      totalCollections,
+      totalCollections: Math.abs(signedTotalCollections),
       customersWithSales,
       customersWithCollections,
       customersWithOverdue,
