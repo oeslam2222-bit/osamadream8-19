@@ -1,6 +1,52 @@
 import type { Customer } from '../types';
 import { normalizeArabicText } from './arabicMatchingService';
 
+// The three classifications the sheet's "قابل /غير" column carries, in one
+// place so the counters can never disagree with each other.
+export type SheetClassification =
+  | 'dealt_eligible'   // متعامل قابل للتعامل
+  | 'idle_eligible'    // غير متعامل قابل للتعامل
+  | 'ineligible';      // غير قابل
+
+export interface SheetClassificationInfo {
+  eligible: boolean;
+  /** true / false when the column names the deal status, undefined when it only says قابل. */
+  dealt?: boolean;
+  bucket: SheetClassification;
+  label: string;
+  /** The cell's own text, verbatim — this is what the screen shows. */
+  raw: string;
+}
+
+/**
+ * Reads the three classifications out of one "قابل /غير" cell.
+ *
+ * The order matters: "غير قابل" is checked first so it is never mistaken for
+ * "قابل", and "غير متعامل" is checked before "متعامل" so a non-buyer is not
+ * counted as a buyer. Returns undefined for a blank cell so the caller can fall
+ * back to the other sheet columns.
+ */
+export function classifyEligibilityColumn(value: string | undefined): SheetClassificationInfo | undefined {
+  const raw = (value || '').trim();
+  const t = normalizeArabicText(raw);
+  if (!t) return undefined;
+
+  if (t.includes('موقوف') || t.includes('ممتنع') || t.includes('مستبعد') || t.includes('غير قابل')) {
+    // "غير قابل" only blocks dealing; it says nothing about whether the customer
+    // ever bought. Leaving dealt undefined lets the متعامل 2026 column answer,
+    // so a blocked customer is not silently dropped from the dealt count.
+    return { eligible: false, dealt: undefined, bucket: 'ineligible', label: 'غير قابل', raw };
+  }
+  if (t.includes('غير متعامل')) {
+    return { eligible: true, dealt: false, bucket: 'idle_eligible', label: 'غير متعامل قابل للتعامل', raw };
+  }
+  if (t.includes('متعامل')) {
+    return { eligible: true, dealt: true, bucket: 'dealt_eligible', label: 'متعامل قابل للتعامل', raw };
+  }
+  // A bare "قابل" carries no deal information — only eligibility.
+  return { eligible: true, dealt: undefined, bucket: 'idle_eligible', label: 'قابل', raw };
+}
+
 export interface CustomerFinancials {
   sales2026: number;
   collections2026: number;
@@ -21,6 +67,9 @@ export interface CustomerFinancials {
   dealtStatusLabel: 'متعامل' | 'غير متعامل';
   eligibilityStatusLabel: 'قابل للتعامل' | 'غير قابل للتعامل';
   ineligibilityReason?: string;
+  /** The sheet's own classification from the "قابل /غير" column — one of three. */
+  sheetClassification: SheetClassification;
+  sheetClassificationLabel: string;
 }
 
 /**
@@ -241,46 +290,51 @@ export function calculateCustomerFinancials(
     periodCollections = monthlyCollections[selectedMonth] || 0;
   }
 
-  // 7. Deal Eligibility (قابل / غير قابل للتعامل)
+
+const reasonFrom = (text: string): string | undefined => {
+  if (text.includes('موقوف')) return 'موقوف';
+  if (text.includes('ممتنع')) return 'ممتنع';
+  if (text.includes('مستبعد')) return 'مستبعد';
+  // "غير قابل" only — a bare "غير متعامل" means the customer simply did not
+  // buy, which is a dealt flag, not an eligibility block.
+  if (text.includes('غير') && text.includes('قابل')) return 'غير قابل للتعامل';
+  return undefined;
+};
+
+// 7. Deal Classification (متعامل قابل / غير متعامل قابل / غير قابل)
   //
-  // The sheet's "قابل /غير" column is the source of truth. Some sheets put all
-  // three classifications in the one متعامل/غير column instead, so when that
-  // column is blank we read "غير قابل" from there before falling back to the
-  // app's own status and debt rules. A value the user typed always wins.
-  const eligNorm = normalizeArabicText(c.dealEligibility || '');
-  const dealtNorm = normalizeArabicText(c.dealt2026 || '');
+  // The two halves come from two different places and must never be mixed:
+  //   • eligibility  → the "قابل /غير" column, which is the whole point of it
+  //   • dealt flag   → whichever column actually names متعامل / غير متعامل
+  // Reading eligibility from the متعامل column is what previously made a
+  // "غير قابل" customer come out as eligible again.
+  const sheetClass = classifyEligibilityColumn(c.dealEligibility);
+  const dealtClass = classifyEligibilityColumn(c.dealt2026);
   const stNorm = normalizeArabicText(c.status2026 || '');
   const debtNorm = normalizeArabicText(c.debtStatus || '');
 
-  let isExplicitIneligible = false;
-  let ineligibilityReason: string | undefined = undefined;
+  const eligibleFromSheet = sheetClass?.eligible ?? dealtClass?.eligible;
+  const isEligible =
+    eligibleFromSheet !== undefined
+      ? eligibleFromSheet
+      : !(debtNorm.includes('متعثر') || stNorm === 'blocked' || stNorm.includes('موقوف'));
 
-  const reasonFrom = (text: string): string | undefined => {
-    if (text.includes('موقوف')) return 'موقوف';
-    if (text.includes('ممتنع')) return 'ممتنع';
-    if (text.includes('مستبعد')) return 'مستبعد';
-    // "غير قابل" only — a bare "غير متعامل" means the customer simply did not
-    // buy, which is a dealt flag, not an eligibility block.
-    if (text.includes('غير') && text.includes('قابل')) return 'غير قابل للتعامل';
-    return undefined;
-  };
+  // The bucket is whichever column carried a real classification value.
+  const sheetClassification: SheetClassification =
+    sheetClass?.bucket ?? dealtClass?.bucket ?? 'idle_eligible';
+  // Show the sheet's own wording — never a reworded version of it.
+  const sheetClassificationLabel: string =
+    sheetClass?.raw || dealtClass?.raw || (isEligible ? 'قابل' : 'غير قابل');
 
-  if (eligNorm) {
-    ineligibilityReason = reasonFrom(eligNorm);
-    isExplicitIneligible = ineligibilityReason !== undefined;
-  } else if (dealtNorm) {
-    // Single combined column: متعامل / غير متعامل / غير قابل
-    ineligibilityReason = reasonFrom(dealtNorm);
-    isExplicitIneligible = ineligibilityReason !== undefined;
-  } else if (stNorm === 'blocked' || stNorm.includes('موقوف')) {
-    isExplicitIneligible = true;
-    ineligibilityReason = 'موقوف';
-  } else if (debtNorm.includes('متعثر')) {
-    isExplicitIneligible = true;
-    ineligibilityReason = 'متعثر';
-  }
+  // The deal status is independent: "غير قابل" does not mean the customer never
+  // bought, so this falls through to the other column when the first is silent.
+  const dealtFromSheet: boolean | undefined = sheetClass?.dealt ?? dealtClass?.dealt;
 
-  const isEligible = !isExplicitIneligible;
+  const isExplicitIneligible = !isEligible;
+  const ineligibilityReason: string | undefined = isExplicitIneligible
+    ? (sheetClass?.raw || dealtClass?.raw || 'غير قابل')
+    : undefined;
+
   const eligibilityStatusLabel: 'قابل للتعامل' | 'غير قابل للتعامل' = isEligible ? 'قابل للتعامل' : 'غير قابل للتعامل';
 
   // 8. Deal Status (متعامل / غير متعامل)
@@ -289,13 +343,14 @@ export function calculateCustomerFinancials(
   // Collections and returns must never create a dealt customer, otherwise the
   // monthly count changes meaning depending on who paid and who returned.
   //
-  // For the whole year the sheet's own columns decide it (متعامل 2026 /
-  // قابل /غير), because those are the accounting's record. For a selected month
-  // or quarter the count is recomputed from that period's sales, so it is a
+  // For the whole year the sheet's own columns decide it. For a selected month or
+  // quarter the count is recomputed from that period's sales, so it is a
   // variable number per month, per rep and per branch.
   let isDealtCustomer = false;
   if (selectedMonth === 'ALL') {
-    if (c.dealt2026 === 'متعامل') {
+    if (dealtFromSheet !== undefined) {
+      isDealtCustomer = dealtFromSheet;
+    } else if (c.dealt2026 === 'متعامل') {
       isDealtCustomer = true;
     } else if (c.dealt2026 === 'غير متعامل') {
       isDealtCustomer = false;
@@ -331,5 +386,7 @@ export function calculateCustomerFinancials(
     dealtStatusLabel,
     eligibilityStatusLabel,
     ineligibilityReason,
+    sheetClassification,
+    sheetClassificationLabel,
   };
 }

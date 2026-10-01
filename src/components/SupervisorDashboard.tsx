@@ -69,6 +69,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     rejectOrder,
     deleteInvoice,
   } = useApp();
+  const canFilterBranches = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
   const [activeStatusTab, setActiveStatusTab] = useState<string>('الكل');
   const [searchTerm, setSearchTerm] = useState('');
@@ -775,15 +776,19 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           {/* Branch Interactive Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {branchSalesSummary.map((b) => {
-              const isSelected = selectedBranchFilter === b.name;
+              const isSelected = canFilterBranches ? selectedBranchFilter === b.name : true;
               return (
                 <button
                   key={b.name}
-                  onClick={() => setSelectedBranchFilter(isSelected ? 'الكل' : b.name)}
-                  className={`text-right p-3.5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+                  type="button"
+                  disabled={!canFilterBranches}
+                  onClick={() => {
+                    if (canFilterBranches) setSelectedBranchFilter(isSelected ? 'الكل' : b.name);
+                  }}
+                  className={`text-right p-3.5 rounded-2xl border transition-all ${canFilterBranches ? 'cursor-pointer' : 'cursor-default'} relative overflow-hidden flex flex-col justify-between ${
                     isSelected
                       ? 'bg-slate-900 text-white border-slate-900 ring-2 ring-amber-400 shadow-md transform scale-[1.01]'
-                      : 'bg-slate-50 hover:bg-slate-100 text-slate-900 border-slate-200'
+                      : `bg-slate-50 ${canFilterBranches ? 'hover:bg-slate-100' : ''} text-slate-900 border-slate-200`
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2 w-full">
@@ -837,7 +842,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               <span className="bg-amber-100 text-amber-900 text-xs px-2.5 py-0.5 rounded-full font-bold">
                 {accessibleInvoices.length} طلبية
               </span>
-              {selectedBranchFilter !== 'الكل' && (
+              {canFilterBranches && selectedBranchFilter !== 'الكل' && (
                 <span className="bg-slate-900 text-amber-300 text-xs px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
                   <span>فرع: {selectedBranchFilter}</span>
                   <button
@@ -874,23 +879,13 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                     ))}
                   </select>
                 </div>
-              ) : (
+              ) : currentUser?.role === 'branch_manager' ? null : (
                 <div className="flex items-center gap-2 bg-amber-50/80 px-3 py-2 rounded-xl border border-amber-300">
                   <Building className="w-3.5 h-3.5 text-amber-700 shrink-0" />
                   <span className="text-amber-800 font-bold whitespace-nowrap">فرعك:</span>
                   <span className="font-black text-amber-950 text-xs">
                     {currentUser?.branchName || 'الفرع المحدد'}
                   </span>
-                  {currentUser?.role === 'branch_manager' && (
-                    <div className="flex items-center gap-1.5 mr-2">
-                      <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded-md font-mono">
-                        مبيعات: {formatCurrency(metrics.totalRevenue)}
-                      </span>
-                      <span className="bg-emerald-600 text-white font-black text-[10px] px-2 py-0.5 rounded-md font-mono">
-                        تحصيلات: {formatCurrency(metrics.totalCollections)}
-                      </span>
-                    </div>
-                  )}
                 </div>
               )}
 

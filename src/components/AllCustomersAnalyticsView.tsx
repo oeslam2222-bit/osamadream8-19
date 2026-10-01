@@ -37,6 +37,7 @@ import {
   X,
   FileSpreadsheet,
   Clock,
+  Ban,
   ArrowUpRight,
   ArrowDownRight,
   ShieldCheck,
@@ -90,6 +91,8 @@ import {
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
 import { getSavedSourceUrl, saveSingleSourceUrl, getSavedSheetHistory } from '../services/dataSourceService';
 import { calculateCustomerFinancials, isSummaryOrTotalRow, parseCleanNumber, resolveNetCollections } from '../services/customerFinancialService';
+import { classifyEligibilityColumn } from '../services/customerFinancialService';
+import type { SheetClassification } from '../services/customerFinancialService';
 
 /**
  * Signed NET collections for one customer. Totals must sum these nets and only
@@ -111,6 +114,35 @@ const signedCustomerCollections = (
   }
 
   return resolveNetCollections(customer);
+};
+
+/**
+ * One badge per customer, showing the sheet's own classification text verbatim.
+ * The sheet carries a single value in "قابل /غير", so showing a dealt badge and a
+ * separate eligibility badge made one customer look like it had two states.
+ */
+const ClassificationBadge: React.FC<{ bucket: SheetClassification; label: string; compact?: boolean }> = ({
+  bucket,
+  label,
+  compact,
+}) => {
+  const styles: Record<SheetClassification, string> = {
+    dealt_eligible: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+    idle_eligible: 'bg-sky-50 text-sky-800 border-sky-200',
+    ineligible: 'bg-rose-50 text-rose-800 border-rose-200',
+  };
+  const Icon = bucket === 'dealt_eligible' ? CheckCircle2 : bucket === 'idle_eligible' ? Clock : Ban;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-md border font-black shadow-2xs ${styles[bucket]} ${
+        compact ? 'px-2 py-0.5 text-[10.5px]' : 'px-2.5 py-0.5 text-[11px]'
+      }`}
+      title={label}
+    >
+      <Icon className={compact ? 'w-2.5 h-2.5' : 'w-3 h-3'} />
+      {label}
+    </span>
+  );
 };
 
 interface AllCustomersAnalyticsViewProps {
@@ -633,6 +665,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       collectionRate: number;
       isExplicitIneligible: boolean;
       isDealtCustomer: boolean;
+      sheetClassification: SheetClassification;
+      sheetClassificationLabel: string;
       isEligible: boolean;
       dealtStatusLabel: 'متعامل' | 'غير متعامل';
       eligibilityStatusLabel: 'قابل للتعامل' | 'غير قابل للتعامل';
@@ -667,6 +701,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         collectionRate: fin.collectionRate,
         isExplicitIneligible: fin.isExplicitIneligible,
         isDealtCustomer: fin.isDealtCustomer,
+        sheetClassification: fin.sheetClassification,
+        sheetClassificationLabel: fin.sheetClassificationLabel,
         isEligible: fin.isEligible,
         dealtStatusLabel: fin.dealtStatusLabel,
         eligibilityStatusLabel: fin.eligibilityStatusLabel,
@@ -1066,7 +1102,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
     // Monthly Target & Active Customer counts
     let ineligibleCount = 0;
-    let eligibleCount = 0;
+    let dealtEligibleCount = 0;
+    let idleEligibleCount = 0;
     let dealtCount = 0;
     let activeFilteredCount = 0;
     let nonDealtFilteredCount = 0;
@@ -1129,12 +1166,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         nonDealtFilteredCount++;
       }
 
-      // قابل / غير قابل من عمود "قابل /غير" في الشيت.
-      if (m ? m.isEligible : !normalizeArabicText(c.dealEligibility || '').includes('غير')) {
-        eligibleCount++;
-      } else {
-        ineligibleCount++;
-      }
+      // التصنيفات التلاتة كما هي في عمود "قابل /غير" — من العمود نفسه، مش
+      // استنتاج: متعامل قابل / غير متعامل قابل / غير قابل.
+      const bucket = m ? m.sheetClassification : 'idle_eligible';
+      if (bucket === 'dealt_eligible') dealtEligibleCount++;
+      else if (bucket === 'ineligible') ineligibleCount++;
+      else idleEligibleCount++;
       if (isDealt) dealtCount++;
 
       if (c.monthlySales2026) {
@@ -1193,7 +1230,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       totalVisits2026,
       monthlyChartData,
       ineligibleCount,
-      eligibleCount,
+      dealtEligibleCount,
+      idleEligibleCount,
       dealtCount,
       activeFilteredCount,
       nonDealtFilteredCount,
@@ -2629,19 +2667,15 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               نسبة التغطية (من الإجمالي): {kpiStats.coverageRate}%
             </span>
           </div>
-          {/* التصنيفات التلاتة كما هي في عمود متعامل/غير وعمود قابل /غير */}
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-2.5 pt-2.5 border-t border-violet-400/20">
+          {/* التصنيفات التلاتة كما هي في عمود "قابل /غير" — نفس الأسماء والعدد */}
+          <div className="mt-2.5 pt-2.5 border-t border-violet-400/20 space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-emerald-300">متعامل</span>
-              <span className="text-sm font-black text-emerald-300 font-mono">{kpiStats.activeFilteredCount.toLocaleString()}</span>
+              <span className="text-[11px] font-bold text-emerald-300">متعامل قابل للتعامل</span>
+              <span className="text-sm font-black text-emerald-300 font-mono">{kpiStats.dealtEligibleCount.toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-300">غير متعامل</span>
-              <span className="text-sm font-black text-slate-300 font-mono">{kpiStats.nonDealtFilteredCount.toLocaleString()}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-sky-300">قابل</span>
-              <span className="text-sm font-black text-sky-300 font-mono">{kpiStats.eligibleCount.toLocaleString()}</span>
+              <span className="text-[11px] font-bold text-sky-300">غير متعامل قابل للتعامل</span>
+              <span className="text-sm font-black text-sky-300 font-mono">{kpiStats.idleEligibleCount.toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-rose-300">غير قابل</span>
@@ -4786,9 +4820,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       : dealEligibilityFilter === 'non_dealt'
                       ? 'غير متعامل ❌'
                       : dealEligibilityFilter === 'eligible'
-                      ? 'قابل للتعامل 🟢'
+                      ? 'قابل 🟢'
                       : dealEligibilityFilter === 'ineligible'
-                      ? 'غير قابل للتعامل ⛔'
+                      ? 'غير قابل ⛔'
                       : dealEligibilityFilter
                   }
                 </span>
@@ -5129,8 +5163,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   <option value="ALL">جميع العملاء ({dealStatusCounts.total.toLocaleString()})</option>
                   <option value="dealt">العملاء المتعاملين فقط ✅ ({dealStatusCounts.dealt.toLocaleString()})</option>
                   <option value="non_dealt">العملاء غير المتعاملين ❌ ({dealStatusCounts.notDealt.toLocaleString()})</option>
-                  <option value="eligible">العملاء القابلين للتعامل فقط 🟢 ({dealStatusCounts.eligible.toLocaleString()})</option>
-                  <option value="ineligible">العملاء غير القابلين (موقوف/ممتنع/متعثر) ⛔ ({dealStatusCounts.ineligible.toLocaleString()})</option>
+                  <option value="eligible">قابل 🟢 ({dealStatusCounts.eligible.toLocaleString()})</option>
+                  <option value="ineligible">غير قابل ⛔ ({dealStatusCounts.ineligible.toLocaleString()})</option>
                 </select>
               </div>
 
@@ -5739,6 +5773,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 const col26 = metrics ? metrics.collections2026 : (c.collections2026 || 0);
                 const isDealt = metrics ? metrics.isDealtCustomer : sheetDealStatus(c);
                 const isElig = metrics ? metrics.isEligible : !c.dealEligibility?.includes('غير');
+                const classificationBucket: SheetClassification = metrics
+                  ? metrics.sheetClassification
+                  : (classifyEligibilityColumn(c.dealEligibility)?.bucket ?? 'idle_eligible');
+                const classificationLabel: string = metrics
+                  ? metrics.sheetClassificationLabel
+                  : (classifyEligibilityColumn(c.dealEligibility)?.raw || (isElig ? 'قابل' : 'غير قابل'));
 
                 return (
                   <div
@@ -5768,24 +5808,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
                       {/* Deal & Eligibility Badges — مرآة الشيت */}
                       <div className="shrink-0 flex flex-col items-end gap-1">
-                        {isDealt ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
-                            متعامل ✅
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
-                            غير متعامل ❌
-                          </span>
-                        )}
-                        {isElig ? (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9.5px] font-black bg-teal-50 text-teal-800 border border-teal-200">
-                            قابل 🟢
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9.5px] font-black bg-rose-50 text-rose-800 border border-rose-200">
-                            {metrics?.ineligibilityReason ? `⛔ ${metrics.ineligibilityReason}` : 'غير قابل ⛔'}
-                          </span>
-                        )}
+                        <ClassificationBadge bucket={classificationBucket} label={classificationLabel} compact />
                       </div>
                     </div>
 
@@ -6005,6 +6028,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   const orderSummary = metrics ? metrics.orderSummary : getCustomerOrderSummary(c);
                   const isDealt = metrics ? metrics.isDealtCustomer : sheetDealStatus(c);
                   const isElig = metrics ? metrics.isEligible : !c.dealEligibility?.includes('غير');
+                  const classificationBucket: SheetClassification = metrics
+                    ? metrics.sheetClassification
+                    : (classifyEligibilityColumn(c.dealEligibility)?.bucket ?? 'idle_eligible');
+                  const classificationLabel: string = metrics
+                    ? metrics.sheetClassificationLabel
+                    : (classifyEligibilityColumn(c.dealEligibility)?.raw || (isElig ? 'قابل' : 'غير قابل'));
 
                   return (
                     <tr
@@ -6042,26 +6071,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       {/* حالة وقابلية التعامل — مرآة مطابقة للشيت */}
                       <td className="p-3 text-center whitespace-nowrap">
                         <div className="flex flex-col items-center gap-1">
-                          {isDealt ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                              متعامل ✅
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
-                              <Clock className="w-3 h-3 text-sky-600" />
-                              غير متعامل ❌
-                            </span>
-                          )}
-                          {isElig ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded text-[10px] font-black bg-teal-50 text-teal-800 border border-teal-200">
-                              قابل 🟢
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded text-[10px] font-black bg-rose-50 text-rose-800 border border-rose-200" title={metrics?.ineligibilityReason}>
-                              {metrics?.ineligibilityReason ? `⛔ ${metrics.ineligibilityReason}` : 'غير قابل ⛔'}
-                            </span>
-                          )}
+                          <ClassificationBadge bucket={classificationBucket} label={classificationLabel} />
                         </div>
                       </td>
 
