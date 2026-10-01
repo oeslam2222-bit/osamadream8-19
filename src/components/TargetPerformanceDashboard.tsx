@@ -361,11 +361,17 @@ export const TargetPerformanceDashboard: React.FC = () => {
     let totalCollectionTarget = 0;
     let totalCollectionAchieved = 0;
 
-    filteredRecords.forEach((r) => {
-      totalSalesTarget += r.salesTarget || 0;
-      totalSalesAchieved += r.salesAchieved || 0;
-      totalCollectionTarget += r.collectionTarget || 0;
-      totalCollectionAchieved += r.collectionAchieved || 0;
+    // Each target row is one source-column value. Guard against the same
+    // persisted row appearing more than once so the KPI matches the table sum.
+    const uniqueRecords = Array.from(
+      new Map(filteredRecords.map((record) => [record.id, record])).values()
+    );
+
+    uniqueRecords.forEach((r) => {
+      totalSalesTarget += Number(r.salesTarget) || 0;
+      totalSalesAchieved += Number(r.salesAchieved) || 0;
+      totalCollectionTarget += Number(r.collectionTarget) || 0;
+      totalCollectionAchieved += Number(r.collectionAchieved) || 0;
     });
 
     const salesPercentage = totalSalesTarget > 0 ? (totalSalesAchieved / totalSalesTarget) * 100 : 0;
