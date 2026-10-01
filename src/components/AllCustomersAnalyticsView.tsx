@@ -118,7 +118,7 @@ const signedCustomerCollections = (
   return parseCleanNumber(customer.totalOverallCollections);
 };
 
-const netCollectionAmount = (signedTotal: number): number => Math.max(0, -signedTotal);
+const netCollectionAmount = (signedTotal: number): number => Math.abs(signedTotal);
 
 interface AllCustomersAnalyticsViewProps {
   onOpenNewOrderForCustomer?: (customer: Customer) => void;
