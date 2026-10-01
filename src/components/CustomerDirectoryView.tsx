@@ -252,10 +252,6 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     return visibleCustomers;
   }, [getVisibleCustomers, currentUser, isRep, scopeTab]);
 
-  const sheetCollectionTotalRow = scopedCustomerRecords.find((customer) =>
-    isSummaryOrTotalRow(customer.name, customer.code, customer.branchName, customer.salesRepName || customer.repName) &&
-    customer.collections2026 !== undefined && customer.collections2026 !== null
-  );
   const scopedCustomers = useMemo(
     () => scopedCustomerRecords.filter((customer) =>
       !isSummaryOrTotalRow(customer.name, customer.code, customer.branchName, customer.salesRepName || customer.repName)
@@ -399,6 +395,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     let totalDebt = 0;
     let totalOverdueAndDue = 0;
     let totalSales = 0;
+    let signedTotalCollections = 0;
     let totalLimit = 0;
     let customersWithDebt = 0;
     let customersWithOverdue = 0;
@@ -427,6 +424,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         customersWithSales++;
       }
       if (signedCollections !== 0) {
+        signedTotalCollections += signedCollections;
         customersWithCollections++;
       }
       totalLimit += limit;
@@ -446,8 +444,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       totalDebt,
       totalOverdueAndDue,
       totalSales,
-      totalCollections: Math.abs(Number(sheetCollectionTotalRow?.collections2026) || 0),
-      hasSheetCollectionTotal: Boolean(sheetCollectionTotalRow),
+      totalCollections: signedTotalCollections,
       customersWithSales,
       customersWithCollections,
       customersWithOverdue,
@@ -456,7 +453,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       customersWithDebt,
       customersExceededLimit,
     };
-  }, [scopedCustomers, sheetCollectionTotalRow, getVisibleCustomers, currentUser]);
+  }, [scopedCustomers, getVisibleCustomers, currentUser]);
 
   // Handle Sort Click
   const handleSort = (field: 'name' | 'code' | 'overdue' | 'debt' | 'sales' | 'collections' | 'limit' | 'branch') => {
@@ -985,8 +982,8 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-xl font-black text-emerald-700 truncate" title={stats.hasSheetCollectionTotal ? formatCurrency(stats.totalCollections) : 'صف إجمالي التحصيل غير موجود بالشيت'}>
-              {stats.hasSheetCollectionTotal ? formatCurrency(stats.totalCollections) : '—'}
+            <div className="text-xl font-black text-emerald-700 truncate" title={formatCurrency(stats.totalCollections)}>
+              {formatCurrency(stats.totalCollections)}
             </div>
             <div className="text-[10px] text-emerald-700/80 font-bold mt-0.5">
               تحصيلات 2026 ({stats.customersWithCollections} عميل)
@@ -1690,7 +1687,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
             </div>
             <div className="text-slate-300">|</div>
             <div>
-              التحصيلات: <span className="font-black text-emerald-700">{stats.hasSheetCollectionTotal ? formatCurrency(stats.totalCollections) : '—'}</span>
+              التحصيلات: <span className="font-black text-emerald-700">{formatCurrency(stats.totalCollections)}</span>
             </div>
             <div className="text-slate-300">|</div>
             <div>

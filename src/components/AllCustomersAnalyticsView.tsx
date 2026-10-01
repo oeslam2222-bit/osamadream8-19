@@ -406,14 +406,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     return rbacList.filter((c) => !isSummaryOrTotalRow(c.name, c.code, c.branchName, c.salesRepName || c.repName));
   }, [customers, currentUser, users]);
 
-  const sheetCollectionTotalRow = useMemo(() => {
-    if (!isAdminOrDev) return undefined;
-    return filterCustomersByRBAC(customers, currentUser, users).find((customer) =>
-      isSummaryOrTotalRow(customer.name, customer.code, customer.branchName, customer.salesRepName || customer.repName) &&
-      customer.collections2026 !== undefined && customer.collections2026 !== null
-    );
-  }, [customers, currentUser, users, isAdminOrDev]);
-
   // Distinct branches & reps for dropdowns
   const availableBranches = useMemo(() => {
     const s = new Set<string>();
@@ -1146,28 +1138,18 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     });
 
     const salesGrowth = totalSales2025 > 0 ? Math.round(((totalSales2026 - totalSales2025) / totalSales2025) * 100) : (totalSales2026 > 0 ? 100 : 0);
-    const isUnfilteredCustomerView =
-      filteredCustomers.length === userVisibleCustomers.length &&
-      filteredCustomers.every((customer, index) => customer.id === userVisibleCustomers[index]?.id);
-    const hasSheetPeriodTotal = Boolean(
-      sheetCollectionTotalRow &&
-      (selectedMonth === 'ALL' || Object.keys(sheetCollectionTotalRow.monthlyCollections2026 || {}).length > 0)
-    );
-    const sheetTotalCollections = hasSheetPeriodTotal && sheetCollectionTotalRow && isUnfilteredCustomerView
-      ? Math.abs(signedCustomerCollections(sheetCollectionTotalRow, selectedMonth))
-      : undefined;
     const collectionRate = totalSales2026 > 0 ? Math.round((Math.abs(totalCollections2026) / totalSales2026) * 100) : 0;
     const periodCollectionRate = totalPeriodSales > 0 ? Math.round((Math.abs(totalPeriodCollections) / totalPeriodSales) * 100) : 0;
     const activeRate = filteredCustomers.length > 0 ? Math.round((active2026Count / filteredCustomers.length) * 100) : 0;
     const coverageRate = filteredCustomers.length > 0 ? Math.round((activeFilteredCount / filteredCustomers.length) * 100) : 0;
 
-    // Net each month's signed adjustments before showing collection magnitudes.
+    // Keep the original sheet signs in monthly totals and charts.
     const monthlyChartData = MONTH_NAMES_AR.map((monthName, idx) => {
       const monthNum = idx + 1;
       return {
         month: monthName,
         'مبيعات 2026': monthlySalesTotals[monthNum] || 0,
-        'تحصيلات 2026': Math.abs(monthlyCollectionTotals[monthNum] || 0),
+        'تحصيلات 2026': monthlyCollectionTotals[monthNum] || 0,
       };
     });
 
@@ -1180,10 +1162,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       totalSales2026,
       totalPeriodSales,
       salesGrowth,
-      totalCollections2025: Math.abs(totalCollections2025),
-      totalCollections2026: Math.abs(totalCollections2026),
-      totalPeriodCollections: Math.abs(totalPeriodCollections),
-      sheetTotalCollections,
+      totalCollections2025,
+      totalCollections2026,
+      totalPeriodCollections,
       collectionRate,
       periodCollectionRate,
       totalDebt,
@@ -1202,7 +1183,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       nonDealtFilteredCount,
       coverageRate,
     };
-  }, [filteredCustomers, customerMetricsMap, userVisibleCustomers, sheetCollectionTotalRow, selectedMonth]);
+  }, [filteredCustomers, customerMetricsMap, selectedMonth]);
 
   // 3.4b. Branch Deficits (نواقص أكتوبر) — split every invoice line by where the
   // stock has to come from, then group by rep so the branch manager can export
@@ -1496,8 +1477,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const periodCollections = row.periodCollections;
       return {
         ...row,
-        totalCollections: Math.abs(totalCollections),
-        periodCollections: Math.abs(periodCollections),
+        totalCollections,
+        periodCollections,
         coverageRate: row.eligibleCustomers > 0 ? Math.round((row.dealtCustomers / row.eligibleCustomers) * 100) : 0,
         collectionRate: row.totalSales > 0 ? Math.round((Math.abs(totalCollections) / row.totalSales) * 100) : 0,
         periodCollectionRate: row.periodSales > 0 ? Math.round((Math.abs(periodCollections) / row.periodSales) * 100) : 0,
@@ -1569,7 +1550,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const totalCollections = row.totalCollections;
       return {
         ...row,
-        totalCollections: Math.abs(totalCollections),
+        totalCollections,
         coverageRate: row.eligibleCustomers > 0 ? Math.round((row.dealtCustomers / row.eligibleCustomers) * 100) : 0,
         collectionRate: row.totalSales > 0 ? Math.round((Math.abs(totalCollections) / row.totalSales) * 100) : 0,
       };
@@ -1582,7 +1563,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       eligibleCustomers: rows.reduce((acc, r) => acc + r.eligibleCustomers, 0),
       ineligibleCustomers: rows.reduce((acc, r) => acc + r.ineligibleCustomers, 0),
       totalSales: rows.reduce((acc, r) => acc + r.totalSales, 0),
-      totalCollections: Math.abs(filteredCustomers.reduce((sum, customer) => sum + signedCustomerCollections(customer), 0)),
+      totalCollections: filteredCustomers.reduce((sum, customer) => sum + signedCustomerCollections(customer), 0),
       totalDebt: rows.reduce((acc, r) => acc + r.totalDebt, 0),
       totalOverdue: rows.reduce((acc, r) => acc + r.totalOverdue, 0),
       overallCoverageRate: 0,
@@ -1617,7 +1598,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         const collections = item.collections;
         return {
           ...item,
-          collections: Math.abs(collections),
+          collections,
           collectionRate: item.sales > 0 ? Math.min(100, Math.round((Math.abs(collections) / item.sales) * 100)) : 0,
         };
       })
@@ -1639,7 +1620,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       map.set(r, cur);
     });
     return Array.from(map.values())
-      .map((item) => ({ ...item, collections: Math.abs(item.collections) }))
       .sort((a, b) => b.sales - a.sales)
       .slice(0, 8);
   }, [filteredCustomers, customerMetricsMap]);
@@ -1694,12 +1674,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     const colors = ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#64748b'];
 
     return {
-      activities: Array.from(actMap.values())
-        .map((item) => ({ ...item, collections: Math.abs(item.collections) }))
-        .sort((a, b) => b.sales - a.sales),
+      activities: Array.from(actMap.values()).sort((a, b) => b.sales - a.sales),
       clientTypes: Array.from(clientMap.values()).sort((a, b) => b.sales - a.sales).map((item, idx) => ({
         ...item,
-        collections: Math.abs(item.collections),
         name: item.clientType,
         value: item.count,
         color: colors[idx % colors.length]
@@ -1831,7 +1808,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const transactingCollections = row.transactingCollections;
       return {
         ...row,
-        transactingCollections: Math.abs(transactingCollections),
+        transactingCollections,
         transactingRate: row.total > 0 ? Math.round((row.transactingCount / row.total) * 100) : 0,
         nonTransactingRate: row.total > 0 ? Math.round((row.nonTransactingCount / row.total) * 100) : 0,
         collectionRate: row.transactingSales > 0 ? Math.round((Math.abs(transactingCollections) / row.transactingSales) * 100) : 0,
@@ -1846,7 +1823,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         totalTransacting,
         totalTransactingRate: totalAll > 0 ? Math.round((totalTransacting / totalAll) * 100) : 0,
         totalTransactingSales,
-        totalTransactingCollections: Math.abs(totalTransactingCollections),
+        totalTransactingCollections,
         totalNonTransacting,
         totalNonTransactingRate: totalAll > 0 ? Math.round((totalNonTransacting / totalAll) * 100) : 0,
         totalNonTransactingDebt,
@@ -2585,7 +2562,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </span>
           </div>
           <div className="text-2xl sm:text-3xl font-black text-emerald-400 mt-2 tracking-tight font-mono" title={isPrivacyMode ? 'مخفي' : undefined}>
-            {kpiStats.sheetTotalCollections !== undefined ? formatMoney(kpiStats.sheetTotalCollections) : '—'}
+            {formatMoney(selectedMonth === 'ALL' ? kpiStats.totalCollections2026 : kpiStats.totalPeriodCollections)}
           </div>
           <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between flex-wrap gap-1">
             <span>
@@ -2786,7 +2763,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             <DollarSign className="w-3.5 h-3.5 text-[#107c41]" />
           </div>
           <div className="text-base sm:text-lg font-black text-slate-900 mt-1 truncate" title={isPrivacyMode ? 'مخفي' : undefined}>
-            {kpiStats.sheetTotalCollections !== undefined ? formatMoney(kpiStats.sheetTotalCollections) : '—'}
+            {formatMoney(selectedMonth === 'ALL' ? kpiStats.totalCollections2026 : kpiStats.totalPeriodCollections)}
           </div>
           <div className="text-[10px] text-[#107c41] font-extrabold mt-0.5 flex items-center justify-between flex-wrap gap-1">
             <span>{selectedMonth === 'ALL' ? kpiStats.collectionRate : kpiStats.periodCollectionRate}% نسبة التحصيل</span>
@@ -3021,7 +2998,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       tickLine={false}
                     />
                     <Tooltip
-                      formatter={(val: any) => formatMoney(Math.abs(Number(val) || 0))}
+                      formatter={(val: any) => formatMoney(Number(val) || 0)}
                       cursor={{ fill: 'rgba(15, 23, 42, 0.04)' }}
                       contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '12px', border: 'none', fontSize: 12 }}
                       labelStyle={{ color: '#94A3B8', fontWeight: 700, marginBottom: 4 }}
