@@ -406,6 +406,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     return rbacList.filter((c) => !isSummaryOrTotalRow(c.name, c.code, c.branchName, c.salesRepName || c.repName));
   }, [customers, currentUser, users]);
 
+  const sheetCollectionTotalRow = useMemo(() => {
+    if (!isAdminOrDev) return undefined;
+    return filterCustomersByRBAC(customers, currentUser, users).find((customer) =>
+      isSummaryOrTotalRow(customer.name, customer.code, customer.branchName, customer.salesRepName || customer.repName) &&
+      customer.collections2026 !== undefined && customer.collections2026 !== null
+    );
+  }, [customers, currentUser, users, isAdminOrDev]);
+
   // Distinct branches & reps for dropdowns
   const availableBranches = useMemo(() => {
     const s = new Set<string>();
@@ -1138,6 +1146,16 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     });
 
     const salesGrowth = totalSales2025 > 0 ? Math.round(((totalSales2026 - totalSales2025) / totalSales2025) * 100) : (totalSales2026 > 0 ? 100 : 0);
+    const isUnfilteredCustomerView =
+      filteredCustomers.length === userVisibleCustomers.length &&
+      filteredCustomers.every((customer, index) => customer.id === userVisibleCustomers[index]?.id);
+    const hasSheetPeriodTotal = Boolean(
+      sheetCollectionTotalRow &&
+      (selectedMonth === 'ALL' || Object.keys(sheetCollectionTotalRow.monthlyCollections2026 || {}).length > 0)
+    );
+    const sheetTotalCollections = hasSheetPeriodTotal && sheetCollectionTotalRow && isUnfilteredCustomerView
+      ? Math.abs(signedCustomerCollections(sheetCollectionTotalRow, selectedMonth))
+      : undefined;
     const collectionRate = totalSales2026 > 0 ? Math.round((Math.abs(totalCollections2026) / totalSales2026) * 100) : 0;
     const periodCollectionRate = totalPeriodSales > 0 ? Math.round((Math.abs(totalPeriodCollections) / totalPeriodSales) * 100) : 0;
     const activeRate = filteredCustomers.length > 0 ? Math.round((active2026Count / filteredCustomers.length) * 100) : 0;
@@ -1165,6 +1183,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       totalCollections2025: Math.abs(totalCollections2025),
       totalCollections2026: Math.abs(totalCollections2026),
       totalPeriodCollections: Math.abs(totalPeriodCollections),
+      sheetTotalCollections,
       collectionRate,
       periodCollectionRate,
       totalDebt,
@@ -1183,7 +1202,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       nonDealtFilteredCount,
       coverageRate,
     };
-  }, [filteredCustomers, customerMetricsMap]);
+  }, [filteredCustomers, customerMetricsMap, userVisibleCustomers, sheetCollectionTotalRow, selectedMonth]);
 
   // 3.4b. Branch Deficits (نواقص أكتوبر) — split every invoice line by where the
   // stock has to come from, then group by rep so the branch manager can export
@@ -2566,7 +2585,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </span>
           </div>
           <div className="text-2xl sm:text-3xl font-black text-emerald-400 mt-2 tracking-tight font-mono" title={isPrivacyMode ? 'مخفي' : undefined}>
-            {formatMoney(selectedMonth === 'ALL' ? kpiStats.totalCollections2026 : kpiStats.totalPeriodCollections)}
+            {kpiStats.sheetTotalCollections !== undefined ? formatMoney(kpiStats.sheetTotalCollections) : '—'}
           </div>
           <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between flex-wrap gap-1">
             <span>
@@ -2767,7 +2786,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             <DollarSign className="w-3.5 h-3.5 text-[#107c41]" />
           </div>
           <div className="text-base sm:text-lg font-black text-slate-900 mt-1 truncate" title={isPrivacyMode ? 'مخفي' : undefined}>
-            {formatMoney(selectedMonth === 'ALL' ? kpiStats.totalCollections2026 : kpiStats.totalPeriodCollections)}
+            {kpiStats.sheetTotalCollections !== undefined ? formatMoney(kpiStats.sheetTotalCollections) : '—'}
           </div>
           <div className="text-[10px] text-[#107c41] font-extrabold mt-0.5 flex items-center justify-between flex-wrap gap-1">
             <span>{selectedMonth === 'ALL' ? kpiStats.collectionRate : kpiStats.periodCollectionRate}% نسبة التحصيل</span>
