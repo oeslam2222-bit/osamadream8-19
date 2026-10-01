@@ -105,18 +105,14 @@ const signedCustomerCollections = (
     return months.reduce((sum, month) => sum + parseCleanNumber(customer.monthlyCollections2026?.[month]), 0);
   }
 
-  const monthlySum = Object.values(customer.monthlyCollections2026 || {})
+  if (customer.collections2026 !== undefined && customer.collections2026 !== null) {
+    return parseCleanNumber(customer.collections2026);
+  }
+  if (customer.totalMonthlyCollections !== undefined && customer.totalMonthlyCollections !== null) {
+    return parseCleanNumber(customer.totalMonthlyCollections);
+  }
+  return Object.values(customer.monthlyCollections2026 || {})
     .reduce((sum, amount) => sum + parseCleanNumber(amount), 0);
-  const candidates = [
-    parseCleanNumber(customer.collections2026),
-    parseCleanNumber(customer.totalMonthlyCollections),
-    parseCleanNumber(customer.totalOverallCollections),
-    monthlySum,
-  ];
-  return candidates.reduce(
-    (selected, amount) => Math.abs(amount) > Math.abs(selected) ? amount : selected,
-    0
-  );
 };
 
 interface AllCustomersAnalyticsViewProps {
@@ -1170,9 +1166,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       totalSales2026,
       totalPeriodSales,
       salesGrowth,
-      totalCollections2025,
-      totalCollections2026,
-      totalPeriodCollections,
+      totalCollections2025: Math.abs(totalCollections2025),
+      totalCollections2026: Math.abs(totalCollections2026),
+      totalPeriodCollections: Math.abs(totalPeriodCollections),
       collectionRate,
       periodCollectionRate,
       totalDebt,
@@ -1485,8 +1481,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const periodCollections = row.periodCollections;
       return {
         ...row,
-        totalCollections,
-        periodCollections,
+        totalCollections: Math.abs(totalCollections),
+        periodCollections: Math.abs(periodCollections),
         coverageRate: row.eligibleCustomers > 0 ? Math.round((row.dealtCustomers / row.eligibleCustomers) * 100) : 0,
         collectionRate: row.totalSales > 0 ? Math.round((Math.abs(totalCollections) / row.totalSales) * 100) : 0,
         periodCollectionRate: row.periodSales > 0 ? Math.round((Math.abs(periodCollections) / row.periodSales) * 100) : 0,
@@ -1558,7 +1554,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const totalCollections = row.totalCollections;
       return {
         ...row,
-        totalCollections,
+        totalCollections: Math.abs(totalCollections),
         coverageRate: row.eligibleCustomers > 0 ? Math.round((row.dealtCustomers / row.eligibleCustomers) * 100) : 0,
         collectionRate: row.totalSales > 0 ? Math.round((Math.abs(totalCollections) / row.totalSales) * 100) : 0,
       };
@@ -1571,7 +1567,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       eligibleCustomers: rows.reduce((acc, r) => acc + r.eligibleCustomers, 0),
       ineligibleCustomers: rows.reduce((acc, r) => acc + r.ineligibleCustomers, 0),
       totalSales: rows.reduce((acc, r) => acc + r.totalSales, 0),
-      totalCollections: filteredCustomers.reduce((sum, customer) => sum + signedCustomerCollections(customer), 0),
+      totalCollections: Math.abs(filteredCustomers.reduce((sum, customer) => sum + signedCustomerCollections(customer), 0)),
       totalDebt: rows.reduce((acc, r) => acc + r.totalDebt, 0),
       totalOverdue: rows.reduce((acc, r) => acc + r.totalOverdue, 0),
       overallCoverageRate: 0,
@@ -1606,7 +1602,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         const collections = item.collections;
         return {
           ...item,
-          collections,
+          collections: Math.abs(collections),
           collectionRate: item.sales > 0 ? Math.min(100, Math.round((Math.abs(collections) / item.sales) * 100)) : 0,
         };
       })
@@ -1628,6 +1624,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       map.set(r, cur);
     });
     return Array.from(map.values())
+      .map((item) => ({ ...item, collections: Math.abs(item.collections) }))
       .sort((a, b) => b.sales - a.sales)
       .slice(0, 8);
   }, [filteredCustomers, customerMetricsMap]);
@@ -1682,9 +1679,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     const colors = ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#64748b'];
 
     return {
-      activities: Array.from(actMap.values()).sort((a, b) => b.sales - a.sales),
+      activities: Array.from(actMap.values())
+        .map((item) => ({ ...item, collections: Math.abs(item.collections) }))
+        .sort((a, b) => b.sales - a.sales),
       clientTypes: Array.from(clientMap.values()).sort((a, b) => b.sales - a.sales).map((item, idx) => ({
         ...item,
+        collections: Math.abs(item.collections),
         name: item.clientType,
         value: item.count,
         color: colors[idx % colors.length]
@@ -1816,7 +1816,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const transactingCollections = row.transactingCollections;
       return {
         ...row,
-        transactingCollections,
+        transactingCollections: Math.abs(transactingCollections),
         transactingRate: row.total > 0 ? Math.round((row.transactingCount / row.total) * 100) : 0,
         nonTransactingRate: row.total > 0 ? Math.round((row.nonTransactingCount / row.total) * 100) : 0,
         collectionRate: row.transactingSales > 0 ? Math.round((Math.abs(transactingCollections) / row.transactingSales) * 100) : 0,
@@ -1831,7 +1831,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         totalTransacting,
         totalTransactingRate: totalAll > 0 ? Math.round((totalTransacting / totalAll) * 100) : 0,
         totalTransactingSales,
-        totalTransactingCollections,
+        totalTransactingCollections: Math.abs(totalTransactingCollections),
         totalNonTransacting,
         totalNonTransactingRate: totalAll > 0 ? Math.round((totalNonTransacting / totalAll) * 100) : 0,
         totalNonTransactingDebt,

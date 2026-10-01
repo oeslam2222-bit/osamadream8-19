@@ -403,12 +403,11 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       const monthlyCollections = c.monthlyCollections2026
         ? Object.values(c.monthlyCollections2026).reduce((sum, value) => sum + (Number(value) || 0), 0)
         : 0;
-      const signedCollections = [
-        Number(c.collections2026) || 0,
-        Number(c.totalMonthlyCollections) || 0,
-        Number(c.totalOverallCollections) || 0,
-        monthlyCollections,
-      ].reduce((selected, amount) => Math.abs(amount) > Math.abs(selected) ? amount : selected, 0);
+      const signedCollections = c.collections2026 !== undefined && c.collections2026 !== null
+        ? Number(c.collections2026) || 0
+        : c.totalMonthlyCollections !== undefined && c.totalMonthlyCollections !== null
+          ? Number(c.totalMonthlyCollections) || 0
+          : monthlyCollections;
       const limit = Number(c.creditLimit || 0);
 
       if (debt > 0) {
@@ -444,7 +443,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       totalDebt,
       totalOverdueAndDue,
       totalSales,
-      totalCollections: signedTotalCollections,
+      totalCollections: Math.abs(signedTotalCollections),
       customersWithSales,
       customersWithCollections,
       customersWithOverdue,
