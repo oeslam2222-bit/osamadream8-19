@@ -64,6 +64,7 @@ import {
   QUARTER_LABELS
 } from '../services/targetService';
 import { formatCurrency } from '../services/invoiceService';
+import { resolveCollectionsMagnitude } from '../services/customerFinancialService';
 import { Customer, Product, TargetRecord } from '../types';
 
 export const ExcelImportExport: React.FC = () => {
@@ -1249,7 +1250,7 @@ export const ExcelImportExport: React.FC = () => {
                                 {formatCurrency(c.sales2026 || c.totalMonthlySales || c.totalOverallSales || 0)}
                               </td>
                               <td className="p-3 text-left font-black text-blue-700">
-                                {formatCurrency(c.collections2026 || c.totalMonthlyCollections || c.totalOverallCollections || 0)}
+                                {formatCurrency(resolveCollectionsMagnitude(c))}
                               </td>
                               <td className="p-3 text-center">
                                 {c.hasDealtIn2026 || (c.sales2026 && c.sales2026 > 0) ? (

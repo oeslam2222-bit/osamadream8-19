@@ -44,7 +44,7 @@ import {
 import * as XLSX from 'xlsx';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
-import { doesCustomerBelongToRep, doesCustomerBelongToBranch, doesCustomerBelongToSupervisor, isArabicNameMatch } from '../services/arabicMatchingService';
+import { doesCustomerBelongToRep, doesCustomerBelongToBranch, doesCustomerBelongToSupervisor, isArabicNameMatch, normalizeArabicText } from '../services/arabicMatchingService';
 import { calculateCustomerFinancials, isSummaryOrTotalRow } from '../services/customerFinancialService';
 import type { CustomerVisit, Customer } from '../types';
 
@@ -52,6 +52,7 @@ export const VisitsDashboard: React.FC = () => {
   const {
     currentUser,
     customers,
+    products,
     users,
     getVisibleVisits,
     addVisit,
@@ -145,6 +146,22 @@ export const VisitsDashboard: React.FC = () => {
 
   // Customer search state inside the scheduling modal
   const [modalCustomerSearch, setModalCustomerSearch] = useState('');
+  const [returnProductQuery, setReturnProductQuery] = useState('');
+  const [selectedReturnProductId, setSelectedReturnProductId] = useState('');
+  const [returnQuantity, setReturnQuantity] = useState(1);
+  const [returnDetails, setReturnDetails] = useState('');
+  const [isReturnProductListOpen, setIsReturnProductListOpen] = useState(false);
+
+  const returnProductOptions = useMemo(() => {
+    const query = normalizeArabicText(returnProductQuery);
+    if (!query) return [];
+    return products
+      .filter((product) =>
+        normalizeArabicText(product.name).includes(query) ||
+        normalizeArabicText(product.code).includes(query)
+      )
+      .slice(0, 8);
+  }, [products, returnProductQuery]);
 
   // Execution modal state (تسجيل وتوثيق ما تم في الزيارة الميدانية)
   const [executingVisit, setExecutingVisit] = useState<CustomerVisit | null>(null);
@@ -963,6 +980,15 @@ export const VisitsDashboard: React.FC = () => {
     const c = customers.find((x) => x.id === form.customerId);
 
     const isReturnOutcome = form.outcome === 'مرتجع لدي العميل';
+    const selectedReturnProduct = products.find((product) => product.id === selectedReturnProductId);
+    if (isReturnOutcome && !selectedReturnProduct) {
+      showToast('error', 'يرجى البحث عن الصنف واختياره من مخزون التطبيق.');
+      return;
+    }
+    if (isReturnOutcome && (!Number.isInteger(returnQuantity) || returnQuantity < 1)) {
+      showToast('error', 'يرجى إدخال كمية مرتجع صحيحة.');
+      return;
+    }
 
     const result = addVisit({
       ...form,
@@ -978,9 +1004,11 @@ export const VisitsDashboard: React.FC = () => {
       collectedAmount: form.outcome === 'تم التحصيل' ? Number(form.collectedAmount) || 0 : Number(form.collectedAmount) || 0,
       nextVisitDate: form.nextVisitDate || undefined,
       isReturn: isReturnOutcome,
-      returnValue: isReturnOutcome ? Number(form.returnValue) || 0 : undefined,
-      returnReason: isReturnOutcome ? (form.returnReason || '').trim() : undefined,
-      returnItems: isReturnOutcome ? (form.returnItems || '').trim() : undefined,
+      returnValue: isReturnOutcome ? 0 : undefined,
+      returnReason: isReturnOutcome ? returnDetails.trim() || undefined : undefined,
+      returnItems: isReturnOutcome && selectedReturnProduct
+        ? `${selectedReturnProduct.code} - ${selectedReturnProduct.name} × ${returnQuantity} قطعة`
+        : undefined,
       returnStatus: isReturnOutcome ? 'بانتظار المشرف' : undefined,
     });
 
@@ -1010,6 +1038,11 @@ export const VisitsDashboard: React.FC = () => {
         location: undefined,
       });
       setModalCustomerSearch('');
+      setReturnProductQuery('');
+      setSelectedReturnProductId('');
+      setReturnQuantity(1);
+      setReturnDetails('');
+      setIsReturnProductListOpen(false);
       showToast('success', `${result.message} (تم الحفظ والتأكيد في قاعدة البيانات)`);
     } else {
       showToast('error', result.message);
@@ -2755,7 +2788,16 @@ export const VisitsDashboard: React.FC = () => {
                   <label className="block text-xs font-bold text-slate-700 mb-1">نتيجة الزيارة الميدانية</label>
                   <select
                     value={form.outcome}
-                    onChange={(e) => setForm({ ...form, outcome: e.target.value as CustomerVisit['outcome'] })}
+                    onChange={(e) => {
+                      const outcome = e.target.value as CustomerVisit['outcome'];
+                      setForm({ ...form, outcome });
+                      if (outcome !== 'مرتجع لدي العميل') {
+                        setReturnProductQuery('');
+                        setSelectedReturnProductId('');
+                        setReturnQuantity(1);
+                        setReturnDetails('');
+                      }
+                    }}
                     className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:border-emerald-500"
                   >
                     <option value="تم التحصيل">تم التحصيل المالي ✅</option>
@@ -2774,37 +2816,65 @@ export const VisitsDashboard: React.FC = () => {
                       تفاصيل المرتجع — سيتم إبلاغ المشرف ومدير الفرع وأمين المخزن فوراً
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="sm:col-span-2 relative">
+                        <label className="block text-[11px] font-bold text-rose-700 mb-1">بحث عن الصنف بالاسم أو الكود *</label>
+                        <input
+                          type="search"
+                          value={returnProductQuery}
+                          onFocus={() => setIsReturnProductListOpen(true)}
+                          onChange={(e) => {
+                            setReturnProductQuery(e.target.value);
+                            setSelectedReturnProductId('');
+                            setIsReturnProductListOpen(true);
+                          }}
+                          placeholder="اكتب اسم الصنف مثل طقم حلل"
+                          autoComplete="off"
+                          className="w-full border border-rose-300 rounded-xl p-2.5 text-xs font-bold text-rose-900 bg-white focus:bg-white focus:outline-none"
+                        />
+                        {isReturnProductListOpen && returnProductQuery.trim() && (
+                          <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-rose-200 bg-white shadow-lg">
+                            {returnProductOptions.length > 0 ? returnProductOptions.map((product) => (
+                              <button
+                                key={product.id}
+                                type="button"
+                                onClick={() => {
+                                  setReturnProductQuery(product.name);
+                                  setSelectedReturnProductId(product.id);
+                                  setIsReturnProductListOpen(false);
+                                }}
+                                className="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-3 py-2 text-right last:border-b-0 hover:bg-rose-50"
+                              >
+                                <span className="min-w-0 truncate text-xs font-bold text-slate-800">{product.name}</span>
+                                <span className="shrink-0 text-[10px] font-mono text-slate-500">{product.code}</span>
+                              </button>
+                            )) : (
+                              <p className="px-3 py-2 text-xs text-slate-500">لا توجد أصناف مطابقة في المخزون.</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       <div>
-                        <label className="block text-[11px] font-bold text-rose-700 mb-1">قيمة المرتجع (ج.م) *</label>
+                        <label className="block text-[11px] font-bold text-rose-700 mb-1">الكمية المرتجعة (قطعة) *</label>
                         <input
                           type="number"
-                          min="0"
-                          value={form.returnValue || ''}
-                          onChange={(e) => setForm({ ...form, returnValue: parseFloat(e.target.value) || 0 })}
-                          placeholder="0.00"
+                          min="1"
+                          step="1"
+                          value={returnQuantity}
+                          onChange={(e) => setReturnQuantity(Number(e.target.value))}
+                          required
                           className="w-full border border-rose-300 rounded-xl p-2.5 text-xs font-bold text-rose-900 bg-white focus:bg-white focus:outline-none"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold text-rose-700 mb-1">سبب المرتجع *</label>
-                        <input
-                          type="text"
-                          value={form.returnReason || ''}
-                          onChange={(e) => setForm({ ...form, returnReason: e.target.value })}
-                          placeholder="مثال: تالف، Near Expiry، خطأ في الكمية"
-                          className="w-full border border-rose-300 rounded-xl p-2.5 text-xs font-bold text-rose-900 bg-white focus:bg-white focus:outline-none"
+                        <label className="block text-[11px] font-bold text-rose-700 mb-1">تفاصيل المرتجع</label>
+                        <textarea
+                          rows={2}
+                          value={returnDetails}
+                          onChange={(e) => setReturnDetails(e.target.value)}
+                          placeholder="اكتب حالة الصنف أو سبب إرجاعه"
+                          className="w-full border border-rose-300 rounded-xl p-2.5 text-xs font-bold text-rose-900 bg-white focus:bg-white focus:outline-none resize-none font-mono"
                         />
                       </div>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-rose-700 mb-1">أصناف المرتجع (صنف × الكمية في كل سطر) *</label>
-                      <textarea
-                        rows={3}
-                        value={form.returnItems || ''}
-                        onChange={(e) => setForm({ ...form, returnItems: e.target.value })}
-                        placeholder={'DRM-101 أطقم كاسات × 3\nDRM-220 برطمانات × 5'}
-                        className="w-full border border-rose-300 rounded-xl p-2.5 text-xs font-bold text-rose-900 bg-white focus:bg-white focus:outline-none resize-none font-mono"
-                      />
                     </div>
                   </div>
                 ) : form.outcome === 'تم التحصيل' ? (

@@ -1267,12 +1267,15 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
     const payload = uniqueProducts.map((p) => {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p.id);
       const safeId = isUuid ? p.id : stringToUuid(p.id);
+      const cartonQuantity = Math.max(1, Number(p.cartonQuantity || p.factor) || 1);
+      const piecePrice = Number(p.piecePrice || p.salesPrice || 0) ||
+        (Number(p.cartonPrice || 0) > 0 ? Math.round((Number(p.cartonPrice) / cartonQuantity) * 100) / 100 : 0);
       return {
         id: safeId,
         code: p.code || null,
         name: p.name,
         category: p.itemGroup || p.department || p.category || 'عام',
-        price: p.cartonPrice || p.piecePrice || 0,
+        price: piecePrice,
         stock: p.branchStockActual || 0,
         image_url: p.imageUrl || null,
       };
@@ -1375,32 +1378,36 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
     }
 
     if (allProdData.length > 0) {
-      const mapped: Product[] = allProdData.map((p: any) => ({
-        id: p.id,
-        code: p.code || p.name?.slice(0, 8) || 'PRD',
-        name: p.name || 'صنف دريم',
-        salesPriority: p.sales_priority || p.salesPriority || 'عادي',
-        status: p.status || 'متاح',
-        cartonQuantity: p.carton_quantity || p.cartonQuantity || 1,
-        factor: p.factor || p.cartonQuantity || 1,
-        size: p.size || '',
-        color: p.color || '',
-        branchStockActual: Number(p.stock ?? p.branch_stock_actual ?? 50),
-        branchStockReserved: Number(p.branch_stock_reserved ?? p.stock ?? p.branch_stock_actual ?? 50),
-        mainWarehouseActual: Number(p.main_warehouse_actual ?? 500),
-        mainWarehouseReserved: Number(p.main_warehouse_reserved ?? p.main_warehouse_actual ?? 500),
-        department: p.item_group || p.itemGroup || p.category || p.department || 'عام',
-        category: p.item_group || p.itemGroup || p.category || 'عام',
-        itemGroup: p.item_group || p.itemGroup || p.category || p.department || 'عام',
-        familyName: p.family_name || p.familyName || p.classification || 'أصناف عامة',
-        classification: p.classification || 'أصناف عامة',
-        piecePrice: Number(p.price ?? 0),
-        cartonPrice: Number(p.price ?? 0),
-        branchName: p.branch_name || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
-        imageUrl: p.image_url || undefined,
-        cloudinaryPublicId: p.cloudinary_public_id || undefined,
-        barcode: p.barcode || undefined,
-      }));
+      const mapped: Product[] = allProdData.map((p: any) => {
+        const cartonQuantity = Math.max(1, Number(p.carton_quantity ?? p.cartonQuantity ?? p.factor) || 1);
+        const piecePrice = Number(p.piece_price ?? p.price ?? 0);
+        return {
+          id: p.id,
+          code: p.code || p.name?.slice(0, 8) || 'PRD',
+          name: p.name || 'صنف دريم',
+          salesPriority: p.sales_priority || p.salesPriority || 'عادي',
+          status: p.status || 'متاح',
+          cartonQuantity,
+          factor: cartonQuantity,
+          size: p.size || '',
+          color: p.color || '',
+          branchStockActual: Number(p.stock ?? p.branch_stock_actual ?? 50),
+          branchStockReserved: Number(p.branch_stock_reserved ?? p.stock ?? p.branch_stock_actual ?? 50),
+          mainWarehouseActual: Number(p.main_warehouse_actual ?? 500),
+          mainWarehouseReserved: Number(p.main_warehouse_reserved ?? p.main_warehouse_actual ?? 500),
+          department: p.item_group || p.itemGroup || p.category || p.department || 'عام',
+          category: p.item_group || p.itemGroup || p.category || 'عام',
+          itemGroup: p.item_group || p.itemGroup || p.category || p.department || 'عام',
+          familyName: p.family_name || p.familyName || p.classification || 'أصناف عامة',
+          classification: p.classification || 'أصناف عامة',
+          piecePrice,
+          cartonPrice: Math.round(piecePrice * cartonQuantity * 100) / 100,
+          branchName: p.branch_name || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
+          imageUrl: p.image_url || undefined,
+          cloudinaryPublicId: p.cloudinary_public_id || undefined,
+          barcode: p.barcode || undefined,
+        };
+      });
       return { success: true, products: mapped };
     }
 

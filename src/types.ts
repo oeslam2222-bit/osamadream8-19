@@ -376,6 +376,7 @@ export interface InvoiceItem {
   productId: string;
   productCode: string;
   unifiedCode?: string;              // الكود الموحد (#)
+  color?: string;                    // لون الصنف من كتالوج المخزون
   productName: string;
   product?: Product;                 // Reference to full product if available
   itemGroup?: string;

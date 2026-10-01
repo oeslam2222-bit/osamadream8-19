@@ -117,6 +117,53 @@ export function parseCleanNumber(val: any): number {
 }
 
 /**
+ * SIGN RULE FOR COLLECTIONS — read this before touching any collections code.
+ *
+ * The sheet records a collection as a NEGATIVE entry (money coming in reduces the
+ * customer's debt) and a return/مردودة as a POSITIVE entry. So a collections figure
+ * is always a NET: net = collections - returns.
+ *
+ * Two rules follow, and every screen depends on them:
+ *   1. NEVER take Math.abs() of a single cell. That turns a return into extra
+ *      "collected" money, so the 12 months stop adding up to the year.
+ *   2. Only the FINAL net may be shown as a magnitude, at the display layer.
+ *
+ * Totals are the sum of the per-customer nets, then the magnitude of that sum.
+ * Summing nets lets returns offset collections; summing per-customer absolute
+ * values does not, and that is what produced the ~500k error.
+ */
+export function sumNetCollections(monthly?: Record<number, number> | undefined): number {
+  if (!monthly) return 0;
+  let sum = 0;
+  for (let m = 1; m <= 12; m++) {
+    sum += parseCleanNumber(monthly[m]);
+  }
+  return sum;
+}
+
+/**
+ * Canonical signed net collections for one customer, in strict priority order:
+ * the sheet's own total column first, then the sum of the monthly columns.
+ * Returns the NET with the sheet's sign. No Math.abs, no Math.max.
+ */
+export function resolveNetCollections(c: Partial<Customer> | undefined | null): number {
+  if (!c) return 0;
+  const explicit = [c.collections2026, c.totalMonthlyCollections, c.totalOverallCollections]
+    .map((v) => (v === undefined || v === null ? undefined : parseCleanNumber(v)))
+    .find((v): v is number => v !== undefined && v !== 0 && isFinite(v));
+  if (explicit !== undefined) return explicit;
+  return sumNetCollections(c.monthlyCollections2026);
+}
+
+/**
+ * Display magnitude of a customer's net collections. Use this only where a single
+ * customer's amount is displayed; company totals must sum nets first.
+ */
+export function resolveCollectionsMagnitude(c: Partial<Customer> | undefined | null): number {
+  return Math.abs(resolveNetCollections(c));
+}
+
+/**
  * Universal Single Source of Truth for Customer Financial Calculations.
  * Replaces arbitrary Math.max guessing with strict priority and exact sheet mirroring.
  */
@@ -124,19 +171,20 @@ export function calculateCustomerFinancials(
   c: Customer,
   selectedMonth: number | 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'ALL' = 'ALL'
 ): CustomerFinancials {
-  // 1. Monthly Maps (1 to 12)
+  // 1. Monthly Maps (1 to 12) — signed, so 12 months sum to the year figure.
   const monthlySales: Record<number, number> = {};
   const monthlyCollections: Record<number, number> = {};
   let monthlySalesSum = 0;
-  let monthlyColsSum = 0;
 
   for (let m = 1; m <= 12; m++) {
     const sVal = parseCleanNumber(c.monthlySales2026?.[m]);
-    const cVal = Math.abs(parseCleanNumber(c.monthlyCollections2026?.[m]));
+    // Keep the sheet's sign on each month: a return is positive and must offset
+    // the collection next to it. Taking Math.abs() here inflated every month
+    // that contains a مردودة and broke the year total.
+    const cVal = parseCleanNumber(c.monthlyCollections2026?.[m]);
     monthlySales[m] = sVal;
     monthlyCollections[m] = cVal;
     monthlySalesSum += sVal;
-    monthlyColsSum += cVal;
   }
 
   // 2. Sales 2026: Single Source of Truth with strict priority order (NO Math.max)
@@ -151,22 +199,8 @@ export function calculateCustomerFinancials(
     sales2026 = Number(c.totalOverallSales);
   }
 
-  // 3. Collections 2026: Direct Mirror of Sheet Collections with strict priority (NO Math.max)
-  // In Excel sheets, collections are recorded as positive amounts (or signed netting). We mirror the exact magnitude.
-  let collections2026 = 0;
-  const rawColl = c.collections2026 !== undefined && c.collections2026 !== null ? parseCleanNumber(c.collections2026) : undefined;
-  const rawMonthlyColl = c.totalMonthlyCollections !== undefined && c.totalMonthlyCollections !== null ? parseCleanNumber(c.totalMonthlyCollections) : undefined;
-  const rawOverallColl = c.totalOverallCollections !== undefined && c.totalOverallCollections !== null ? parseCleanNumber(c.totalOverallCollections) : undefined;
-
-  if (rawColl !== undefined && rawColl !== 0) {
-    collections2026 = Math.abs(rawColl);
-  } else if (rawMonthlyColl !== undefined && rawMonthlyColl !== 0) {
-    collections2026 = Math.abs(rawMonthlyColl);
-  } else if (monthlyColsSum > 0) {
-    collections2026 = monthlyColsSum;
-  } else if (rawOverallColl !== undefined && rawOverallColl !== 0) {
-    collections2026 = Math.abs(rawOverallColl);
-  }
+  // 3. Collections 2026: the NET the sheet reports, kept signed.
+  const collections2026 = resolveNetCollections(c);
 
   const returns2026 = 0;
 
@@ -179,10 +213,12 @@ export function calculateCustomerFinancials(
   const creditLimit = Math.max(0, parseCleanNumber(c.creditLimit || 0));
   const isOverLimit = creditLimit > 0 && balance > creditLimit;
 
-  // 5. Collection Rate %
+  // 5. Collection Rate % — the rate is a ratio, so it uses the magnitude of the
+  // net. A negative net means returns exceeded collections in that period.
+  const collectionsMagnitude = Math.abs(collections2026);
   const collectionRate = sales2026 > 0
-    ? Math.min(100, Math.round((collections2026 / sales2026) * 100))
-    : (collections2026 > 0 ? 100 : 0);
+    ? Math.min(100, Math.round((collectionsMagnitude / sales2026) * 100))
+    : (collectionsMagnitude > 0 ? 100 : 0);
 
   // 6. Period-specific sales and collections (driven by the month / quarter slicer)
   let periodSales = sales2026;
@@ -206,19 +242,36 @@ export function calculateCustomerFinancials(
   }
 
   // 7. Deal Eligibility (قابل / غير قابل للتعامل)
+  //
+  // The sheet's "قابل /غير" column is the source of truth. Some sheets put all
+  // three classifications in the one متعامل/غير column instead, so when that
+  // column is blank we read "غير قابل" from there before falling back to the
+  // app's own status and debt rules. A value the user typed always wins.
   const eligNorm = normalizeArabicText(c.dealEligibility || '');
+  const dealtNorm = normalizeArabicText(c.dealt2026 || '');
   const stNorm = normalizeArabicText(c.status2026 || '');
   const debtNorm = normalizeArabicText(c.debtStatus || '');
 
   let isExplicitIneligible = false;
   let ineligibilityReason: string | undefined = undefined;
 
-  if (eligNorm.includes('غير') || eligNorm.includes('موقوف') || eligNorm.includes('ممتنع') || eligNorm.includes('مستبعد')) {
-    isExplicitIneligible = true;
-    if (eligNorm.includes('موقوف')) ineligibilityReason = 'موقوف';
-    else if (eligNorm.includes('ممتنع')) ineligibilityReason = 'ممتنع';
-    else if (eligNorm.includes('مستبعد')) ineligibilityReason = 'مستبعد';
-    else ineligibilityReason = 'غير قابل للتعامل';
+  const reasonFrom = (text: string): string | undefined => {
+    if (text.includes('موقوف')) return 'موقوف';
+    if (text.includes('ممتنع')) return 'ممتنع';
+    if (text.includes('مستبعد')) return 'مستبعد';
+    // "غير قابل" only — a bare "غير متعامل" means the customer simply did not
+    // buy, which is a dealt flag, not an eligibility block.
+    if (text.includes('غير') && text.includes('قابل')) return 'غير قابل للتعامل';
+    return undefined;
+  };
+
+  if (eligNorm) {
+    ineligibilityReason = reasonFrom(eligNorm);
+    isExplicitIneligible = ineligibilityReason !== undefined;
+  } else if (dealtNorm) {
+    // Single combined column: متعامل / غير متعامل / غير قابل
+    ineligibilityReason = reasonFrom(dealtNorm);
+    isExplicitIneligible = ineligibilityReason !== undefined;
   } else if (stNorm === 'blocked' || stNorm.includes('موقوف')) {
     isExplicitIneligible = true;
     ineligibilityReason = 'موقوف';
@@ -231,7 +284,15 @@ export function calculateCustomerFinancials(
   const eligibilityStatusLabel: 'قابل للتعامل' | 'غير قابل للتعامل' = isEligible ? 'قابل للتعامل' : 'غير قابل للتعامل';
 
   // 8. Deal Status (متعامل / غير متعامل)
-  // Authoritative status from the sheet: c.dealt2026 or c.hasDealtIn2026
+  //
+  // Business rule: "متعامل" means the customer BOUGHT from us — sales only.
+  // Collections and returns must never create a dealt customer, otherwise the
+  // monthly count changes meaning depending on who paid and who returned.
+  //
+  // For the whole year the sheet's own columns decide it (متعامل 2026 /
+  // قابل /غير), because those are the accounting's record. For a selected month
+  // or quarter the count is recomputed from that period's sales, so it is a
+  // variable number per month, per rep and per branch.
   let isDealtCustomer = false;
   if (selectedMonth === 'ALL') {
     if (c.dealt2026 === 'متعامل') {
@@ -241,11 +302,11 @@ export function calculateCustomerFinancials(
     } else if (c.hasDealtIn2026 !== undefined) {
       isDealtCustomer = Boolean(c.hasDealtIn2026);
     } else {
-      isDealtCustomer = sales2026 > 0 || collections2026 > 0;
+      isDealtCustomer = sales2026 > 0;
     }
   } else {
-    // For period filters (selected month/quarter), reflects activity in that period
-    isDealtCustomer = periodSales > 0 || periodCollections > 0;
+    // Sales in that period only — a collection or a return is not a purchase.
+    isDealtCustomer = periodSales > 0;
   }
 
   const dealtStatusLabel: 'متعامل' | 'غير متعامل' = isDealtCustomer ? 'متعامل' : 'غير متعامل';

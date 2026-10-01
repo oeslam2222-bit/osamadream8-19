@@ -587,6 +587,13 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     else if (
       norm === 'سعرالقطعة' ||
       norm === 'سعرالقطعه' ||
+      norm === 'سعر' ||
+      norm === 'السعر' ||
+      norm === 'price' ||
+      norm === 'unitprice' ||
+      norm === 'priceperpiece' ||
+      norm === 'سعرالوحدة' ||
+      norm === 'سعرالوحده' ||
       norm === 'سعرالبيع' ||
       norm === 'salesprice' ||
       norm.includes('salesprice') ||
@@ -625,7 +632,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     if (colMap.name === -1 && headers.length > 2) colMap.name = 2;
     if (colMap.size === -1 && headers.length > 3) colMap.size = 3;
     if (colMap.factor === -1 && headers.length > 4) { colMap.factor = 4; colMap.cartonQuantity = 4; }
-    if (colMap.cartonPrice === -1 && headers.length > 5) colMap.cartonPrice = 5;
+    if (colMap.cartonPrice === -1 && colMap.salesPrice === -1 && headers.length > 5) colMap.cartonPrice = 5;
     if (colMap.itemGroup === -1 && headers.length > 6) { colMap.itemGroup = 6; colMap.department = 6; }
     if (colMap.familyName === -1 && headers.length > 7) { colMap.familyName = 7; colMap.classification = 7; }
     if (colMap.color === -1 && headers.length > 8) colMap.color = 8;
@@ -710,17 +717,10 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const promoPriceCartonRaw = getNum(colMap.promoPrice, 0);
     const promoPricePieceRaw = getNum(colMap.promoPiecePrice, 0);
 
-    let piecePrice = 0;
-    let cartonPrice = 0;
-
-    // Prefer explicit carton price from the sheet if present, then calculate piece price
-    if (rawCartonPrice > 0) {
-      cartonPrice = rawCartonPrice;
-      piecePrice = rawSalesPrice > 0 ? rawSalesPrice : (cartonQuantity > 0 ? Math.round((cartonPrice / cartonQuantity) * 100) / 100 : cartonPrice);
-    } else if (rawSalesPrice > 0) {
-      piecePrice = rawSalesPrice;
-      cartonPrice = Math.round(piecePrice * cartonQuantity * 100) / 100;
-    }
+    const piecePrice = rawSalesPrice > 0
+      ? rawSalesPrice
+      : (rawCartonPrice > 0 ? Math.round((rawCartonPrice / cartonQuantity) * 100) / 100 : 0);
+    const cartonPrice = Math.round(piecePrice * cartonQuantity * 100) / 100;
 
     // Offer / Promo prices for carton and piece
     let finalPromoCartonPrice: number | undefined = undefined;
@@ -1001,11 +1001,12 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
     []
   ];
 
-  // Exactly matching the 14 columns of the in-app Excel Invoice Preview Modal
+  // Keep the export aligned with the in-app Excel Invoice Preview Modal.
   const tableHeaders = [
     'م',
     'كود الصنف',
     'الكود الموحد',
+    'اللون',
     'اسم الصنف والبيان التفصيلي',
     'شدة',
     'كرتون',
@@ -1027,18 +1028,20 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
     const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round(((item.pricePerCarton || item.appliedPrice) / cartonQty) * 100) / 100 : 0);
     const unified = item.unifiedCode || (item.product as any)?.unifiedCode || '---';
     const cleanPCode = cleanProductCode(item.productCode);
+    const color = item.color || item.product?.color || '---';
     const fulfillmentSource = item.fulfilledFrom === 'main_warehouse' ? 'مخزن 6 أكتوبر المركزي (نواقص)' : (invoice.branchName || 'مخزن الفرع');
 
     return [
       index + 1,
       cleanPCode,
       unified,
+      color,
       item.productName,
       cartonQty,
       cCount,
       pCount,
       totalPcs,
-      item.pricePerCarton || item.appliedPrice,
+      item.appliedPrice,
       pieceP,
       item.totalBeforeTax,
       item.discountAmount > 0 ? -item.discountAmount : 0,
@@ -1067,7 +1070,8 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
 
   const fullSheetData = [...titleRows, tableHeaders, ...itemRows, ...summaryRows];
   const ws = XLSX.utils.aoa_to_sheet(fullSheetData);
-  const lastColumn = tableHeaders.length - 1; // index 13 (N)
+  const lastColumn = tableHeaders.length - 1;
+  const lastColumnLabel = XLSX.utils.encode_col(lastColumn);
   const lastRow = fullSheetData.length - 1;
 
   // Merged headers and executive layout
@@ -1084,7 +1088,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
     { s: { r: 10, c: 1 }, e: { r: 10, c: lastColumn } },
   ];
   ws['!freeze'] = { xSplit: 0, ySplit: titleRows.length + 1 };
-  ws['!autofilter'] = { ref: `A${titleRows.length + 1}:N${titleRows.length + 1 + itemRows.length}` };
+  ws['!autofilter'] = { ref: `A${titleRows.length + 1}:${lastColumnLabel}${titleRows.length + 1 + itemRows.length}` };
   ws['!sheetView'] = [{ rightToLeft: true }];
   ws['!views'] = [{ RTL: true }];
   ws['!rows'] = fullSheetData.map((_, rowIndex) => ({
@@ -1120,48 +1124,48 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
     },
   };
 
-  applyRangeStyle(`A1:N${lastRow + 1}`, baseCellStyle);
+  applyRangeStyle(`A1:${lastColumnLabel}${lastRow + 1}`, baseCellStyle);
 
   // Row 1 & 2: Header Banners
-  applyRangeStyle('A1:N1', {
+  applyRangeStyle(`A1:${lastColumnLabel}1`, {
     font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 16 },
     fill: { fgColor: { rgb: navy } },
     alignment: { horizontal: 'center', vertical: 'center' },
     border: { bottom: { style: 'medium', color: { rgb: gold } } }
   });
-  applyRangeStyle('A2:N2', {
+  applyRangeStyle(`A2:${lastColumnLabel}2`, {
     font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
     fill: { fgColor: { rgb: slateBlue } },
     alignment: { horizontal: 'center', vertical: 'center' }
   });
 
   // Rows 4-7: Metadata Cards
-  applyRangeStyle('A4:N7', {
+  applyRangeStyle(`A4:${lastColumnLabel}7`, {
     fill: { fgColor: { rgb: 'F8FAFC' } },
     font: { name: 'Segoe UI', sz: 10, color: { rgb: '1E293B' } }
   });
 
   // Row 9: Financial Section Title
-  applyRangeStyle('A9:N9', {
+  applyRangeStyle(`A9:${lastColumnLabel}9`, {
     font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
     fill: { fgColor: { rgb: navy } },
     alignment: { horizontal: 'right', vertical: 'center' }
   });
 
   // Row 10: Financial Values Row
-  applyRangeStyle('A10:N10', {
+  applyRangeStyle(`A10:${lastColumnLabel}10`, {
     fill: { fgColor: { rgb: 'F1F5F9' } },
     font: { name: 'Segoe UI', bold: true, color: { rgb: '0F172A' }, sz: 10.5 }
   });
 
   // Row 11: Credit Status Banner
-  applyRangeStyle('A11:N11', {
+  applyRangeStyle(`A11:${lastColumnLabel}11`, {
     fill: { fgColor: { rgb: isExceeded ? paleGold : softGreen } },
     font: { name: 'Segoe UI', bold: true, color: { rgb: isExceeded ? '92400E' : '166534' }, sz: 10.5 }
   });
 
   // Table Headers Row
-  applyRangeStyle(`A${titleRows.length + 1}:N${titleRows.length + 1}`, {
+  applyRangeStyle(`A${titleRows.length + 1}:${lastColumnLabel}${titleRows.length + 1}`, {
     font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 10.5 },
     fill: { fgColor: { rgb: navy } },
     alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
@@ -1171,7 +1175,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
   // Zebra striping for item rows
   for (let itemIndex = 0; itemIndex < itemRows.length; itemIndex += 1) {
     if (itemIndex % 2 === 0) {
-      applyRangeStyle(`A${titleRows.length + 2 + itemIndex}:N${titleRows.length + 2 + itemIndex}`, {
+      applyRangeStyle(`A${titleRows.length + 2 + itemIndex}:${lastColumnLabel}${titleRows.length + 2 + itemIndex}`, {
         fill: { fgColor: { rgb: paleBlue } }
       });
     }
@@ -1201,6 +1205,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
     { wch: 6 },   // م
     { wch: 15 },  // كود الصنف
     { wch: 15 },  // الكود الموحد
+    { wch: 14 },  // اللون
     { wch: 38 },  // اسم الصنف والبيان التفصيلي
     { wch: 10 },  // شدة
     { wch: 10 },  // كرتون
@@ -1230,6 +1235,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
       'كود الصنف',
       'الكود الموحد (#)',
       'اسم الصنف',
+      'اللون',
       'شدة الكرتونة',
       'عدد الكراتين',
       'قطع فردية',
@@ -1252,6 +1258,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
       const totalPcs = item.totalUnits || (cCount * cartonQty + pCount);
       const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round(((item.pricePerCarton || item.appliedPrice) / cartonQty) * 100) / 100 : 0);
       const unified = item.unifiedCode || (item.product as any)?.unifiedCode || '---';
+      const color = item.color || item.product?.color || '---';
 
       return [
         invoice.invoiceNumber,
@@ -1265,11 +1272,12 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
         cleanProductCode(item.productCode),
         unified,
         item.productName,
+        color,
         cartonQty,
         cCount,
         pCount,
         totalPcs,
-        item.pricePerCarton || item.appliedPrice,
+        item.appliedPrice,
         pieceP,
         item.totalBeforeTax,
         invoice.discountPercentage || 0,
@@ -1287,7 +1295,7 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
     wsErp['!cols'] = [
       { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 18 }, { wch: 22 },
       { wch: 14 }, { wch: 25 }, { wch: 16 }, { wch: 14 }, { wch: 16 },
-      { wch: 32 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 },
+      { wch: 32 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 },
       { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
       { wch: 16 }, { wch: 24 }, { wch: 16 }, { wch: 18 }
     ];
@@ -1443,6 +1451,7 @@ export function exportInvoiceForERP(invoice: Invoice): void {
     'كود الصنف',
     'الكود الموحد (#)',
     'اسم الصنف',
+    'اللون',
     'القسم',
     'شدة الكرتونة',
     'عدد الكراتين',
@@ -1466,6 +1475,7 @@ export function exportInvoiceForERP(invoice: Invoice): void {
     const totalPcs = item.totalUnits || (cCount * cartonQty + pCount);
     const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round(((item.pricePerCarton || item.appliedPrice) / cartonQty) * 100) / 100 : 0);
     const unified = item.unifiedCode || (item.product as any)?.unifiedCode || '---';
+    const color = item.color || item.product?.color || '---';
 
     return [
       invoice.invoiceNumber,
@@ -1479,12 +1489,13 @@ export function exportInvoiceForERP(invoice: Invoice): void {
       item.productCode,
       unified,
       item.productName,
+      color,
       item.fulfilledFrom === 'main_warehouse' ? 'مخزن مركزي (أكتوبر)' : 'فرع',
       cartonQty,
       cCount,
       pCount,
       totalPcs,
-      item.pricePerCarton || item.appliedPrice,
+      item.appliedPrice,
       pieceP,
       item.totalBeforeTax,
       invoice.discountPercentage || 0,
@@ -1508,6 +1519,7 @@ export function exportInvoiceForERP(invoice: Invoice): void {
     { wch: 16 }, // هاتف العميل
     { wch: 14 }, // كود الصنف
     { wch: 32 }, // اسم الصنف
+    { wch: 14 }, // اللون
     { wch: 16 }, // القسم
     { wch: 12 }, // شدة الكرتونة
     { wch: 12 }, // عدد الكراتين
@@ -2316,11 +2328,17 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       for (let i = 0; i < 10; i++) {
         valStr = valStr.split(arabicNumerals[i]).join(String(i));
       }
+      // Accounting negatives: (1234) and 1234- must read as -1234, and a plain
+      // leading minus must survive too. Without this, a collection stored as
+      // "(150,000)" arrived as +150000 and the company's collections total was off
+      // by twice the amount of every such cell.
+      const isNegative = /^\s*\(.*\)\s*$/.test(valStr) || /-\s*$/.test(valStr) || /^\s*-/.test(valStr);
       valStr = valStr.replace(/,/g, '').replace(/٬/g, '').replace(/٫/g, '.');
-      const clean = valStr.replace(/[^\d.-]/g, '');
+      const clean = valStr.replace(/[^\d.-]/g, '').replace(/-/g, '');
       if (!clean) return undefined;
       const parsed = parseFloat(clean);
-      return isNaN(parsed) ? undefined : parsed;
+      if (isNaN(parsed)) return undefined;
+      return isNegative ? -parsed : parsed;
     };
 
     const parsedCredit = parseNumberValue(colMap.creditLimit);
@@ -2410,14 +2428,19 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
           : (dynamicMonthlySalesSum > 0 ? dynamicMonthlySalesSum : (parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : 0)));
     const finalTotalMonthlySales = resolvedSales2026;
 
-    // Collections: Mirrors the sheet accurately with strict priority (NO Math.max guessing)
+    // Collections: keep the sheet's NET sign. A collection is a negative entry and
+    // a return (مردودة) is a positive one, so only the net is meaningful. Taking
+    // Math.abs() of the total made returns add to collections instead of offsetting
+    // them, which is what threw إجمالي التحصيلات off by hundreds of thousands.
+    // No Math.max here either: the largest of several conflicting figures is not
+    // the right answer, the sheet's own column is.
     const resolvedCollections2026 = parsedCollections2026Col !== undefined && parsedCollections2026Col !== 0
-      ? Math.abs(parsedCollections2026Col)
+      ? parsedCollections2026Col
       : (parsedTotalMonthlyCollectionsCol !== undefined && parsedTotalMonthlyCollectionsCol !== 0
-          ? Math.abs(parsedTotalMonthlyCollectionsCol)
+          ? parsedTotalMonthlyCollectionsCol
           : (dynamicMonthlyCollectionsSum !== 0
-              ? Math.abs(dynamicMonthlyCollectionsSum)
-              : (parsedTotalOverallCollections !== undefined ? Math.abs(parsedTotalOverallCollections) : 0)));
+              ? dynamicMonthlyCollectionsSum
+              : (parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : 0)));
     const finalTotalMonthlyCollections = resolvedCollections2026;
 
     const finalCreditLimit = parsedCredit !== undefined ? parsedCredit : 0;
@@ -2544,7 +2567,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       annualTarget: parsedAnnualTarget,
       openingBalance2026: parsedOpeningBalance2026,
       dealt2026: sheetDealtFlag === undefined
-        ? ((resolvedSales2026 > 0 || resolvedCollections2026 > 0) ? 'متعامل' : 'غير متعامل')
+        ? ((resolvedSales2026 > 0 || resolvedCollections2026 !== 0) ? 'متعامل' : 'غير متعامل')
         : (sheetDealtFlag ? 'متعامل' : 'غير متعامل'),
       dealEligibility: rawDealEligibility,
       debtStatus: rawDebtStatus,
@@ -2557,7 +2580,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       // Yearly, sheet-backed flag. Never month-dependent.
       hasDealtIn2026: sheetDealtFlag !== undefined
         ? sheetDealtFlag
-        : ((resolvedSales2026 > 0) || (resolvedCollections2026 > 0)),
+        : ((resolvedSales2026 > 0) || (resolvedCollections2026 !== 0)),
       monthlySales2026: Object.keys(rowMonthlySales).length > 0 ? rowMonthlySales : undefined,
       monthlyCollections2026: Object.keys(rowMonthlyCollections).length > 0 ? rowMonthlyCollections : undefined,
       sales2025: parsedSales2025,

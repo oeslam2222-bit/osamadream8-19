@@ -89,8 +89,13 @@ import {
 } from '../services/customerAnalyticsService';
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
 import { getSavedSourceUrl, saveSingleSourceUrl, getSavedSheetHistory } from '../services/dataSourceService';
-import { calculateCustomerFinancials, isSummaryOrTotalRow, parseCleanNumber } from '../services/customerFinancialService';
+import { calculateCustomerFinancials, isSummaryOrTotalRow, parseCleanNumber, resolveNetCollections } from '../services/customerFinancialService';
 
+/**
+ * Signed NET collections for one customer. Totals must sum these nets and only
+ * take a magnitude at the very end, so a return (positive) offsets the collection
+ * (negative) it belongs to instead of adding to it.
+ */
 const signedCustomerCollections = (
   customer: Customer,
   period: number | 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'ALL' = 'ALL'
@@ -105,10 +110,7 @@ const signedCustomerCollections = (
     return months.reduce((sum, month) => sum + parseCleanNumber(customer.monthlyCollections2026?.[month]), 0);
   }
 
-  if (customer.collections2026 !== undefined && customer.collections2026 !== null) {
-    return parseCleanNumber(customer.collections2026);
-  }
-  return 0;
+  return resolveNetCollections(customer);
 };
 
 interface AllCustomersAnalyticsViewProps {
@@ -1117,13 +1119,23 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         churnRiskCount++;
       }
 
-      // متعامل = مسجل في الشيت أو حقق مبيعات/تحصيلات في الفترة المحددة
-      const isDealt = m ? m.isDealtCustomer : (pSales > 0 || Math.abs(pCols) > 0 || Boolean(c.hasDealtIn2026));
+      // متعامل = اشترى مننا. في فلتر الشهر/الربع بيتحسب من مبيعات الفترة بس،
+      // ومن غير فلتر بناخد قيمة الشيت. التحصيلات والمردودات ما بتخليش
+      // حد متعامل.
+      const isDealt = m ? m.isDealtCustomer : (pSales > 0 || (selectedMonth === 'ALL' && Boolean(c.hasDealtIn2026)));
       if (isDealt) {
         activeFilteredCount++;
       } else {
         nonDealtFilteredCount++;
       }
+
+      // قابل / غير قابل من عمود "قابل /غير" في الشيت.
+      if (m ? m.isEligible : !normalizeArabicText(c.dealEligibility || '').includes('غير')) {
+        eligibleCount++;
+      } else {
+        ineligibleCount++;
+      }
+      if (isDealt) dealtCount++;
 
       if (c.monthlySales2026) {
         for (let mon = 1; mon <= 12; mon++) {
@@ -1143,13 +1155,17 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     const activeRate = filteredCustomers.length > 0 ? Math.round((active2026Count / filteredCustomers.length) * 100) : 0;
     const coverageRate = filteredCustomers.length > 0 ? Math.round((activeFilteredCount / filteredCustomers.length) * 100) : 0;
 
-    // Keep the original sheet signs in monthly totals and charts.
+    // The chart compares magnitudes, so the two series must sit on the same
+    // positive scale. Collections are negative in the sheet (a payment reduces the
+    // customer's debt), which used to draw those bars below the axis and made the
+    // comparison unreadable. Every other number on the page still uses the net.
     const monthlyChartData = MONTH_NAMES_AR.map((monthName, idx) => {
       const monthNum = idx + 1;
       return {
         month: monthName,
         'مبيعات 2026': monthlySalesTotals[monthNum] || 0,
-        'تحصيلات 2026': monthlyCollectionTotals[monthNum] || 0,
+        'تحصيلات 2026': Math.abs(monthlyCollectionTotals[monthNum] || 0),
+        'صافي التحصيلات': monthlyCollectionTotals[monthNum] || 0,
       };
     });
 
@@ -1444,22 +1460,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       item.totalSales += m.sales2026;
       item.totalCollections += signedCustomerCollections(c);
 
-      // Period Sales & Collections (Month or Quarter)
-      let pSales = m.sales2026;
-      const pCols = signedCustomerCollections(c, selectedMonth);
-      if (selectedMonth === 'Q1') {
-        pSales = (Number(c.monthlySales2026?.[1]) || 0) + (Number(c.monthlySales2026?.[2]) || 0) + (Number(c.monthlySales2026?.[3]) || 0);
-      } else if (selectedMonth === 'Q2') {
-        pSales = (Number(c.monthlySales2026?.[4]) || 0) + (Number(c.monthlySales2026?.[5]) || 0) + (Number(c.monthlySales2026?.[6]) || 0);
-      } else if (selectedMonth === 'Q3') {
-        pSales = (Number(c.monthlySales2026?.[7]) || 0) + (Number(c.monthlySales2026?.[8]) || 0) + (Number(c.monthlySales2026?.[9]) || 0);
-      } else if (selectedMonth === 'Q4') {
-        pSales = (Number(c.monthlySales2026?.[10]) || 0) + (Number(c.monthlySales2026?.[11]) || 0) + (Number(c.monthlySales2026?.[12]) || 0);
-      } else if (typeof selectedMonth === 'number') {
-        pSales = Number(c.monthlySales2026?.[selectedMonth]) || 0;
-      }
-      item.periodSales += pSales;
-      item.periodCollections += pCols;
+      // Period Sales & Collections come from the metrics map — the same source
+      // the KPI cards use. Re-deriving the month range here meant the table could
+      // disagree with the card, and it read raw cells instead of parsed numbers.
+      item.periodSales += m.periodSales;
+      item.periodCollections += m.periodCollections;
 
       // Every customer lands in exactly one bucket so the columns add up to
       // إجمالي العملاء. "غير قابل" is no longer a visible category, so those
@@ -1563,7 +1568,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       eligibleCustomers: rows.reduce((acc, r) => acc + r.eligibleCustomers, 0),
       ineligibleCustomers: rows.reduce((acc, r) => acc + r.ineligibleCustomers, 0),
       totalSales: rows.reduce((acc, r) => acc + r.totalSales, 0),
-      totalCollections: filteredCustomers.reduce((sum, customer) => sum + signedCustomerCollections(customer), 0),
+      // Summed from the same rows as every other figure above, so the footer can
+      // never disagree with the table it belongs to.
+      totalCollections: rows.reduce((acc, r) => acc + r.totalCollections, 0),
       totalDebt: rows.reduce((acc, r) => acc + r.totalDebt, 0),
       totalOverdue: rows.reduce((acc, r) => acc + r.totalOverdue, 0),
       overallCoverageRate: 0,
@@ -2621,9 +2628,25 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             <span className="text-violet-300 font-black">
               نسبة التغطية (من الإجمالي): {kpiStats.coverageRate}%
             </span>
-            <span className="text-slate-500 text-[10px]">
-              (غير متعامل {kpiStats.nonDealtFilteredCount.toLocaleString()})
-            </span>
+          </div>
+          {/* التصنيفات التلاتة كما هي في عمود متعامل/غير وعمود قابل /غير */}
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-2.5 pt-2.5 border-t border-violet-400/20">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-emerald-300">متعامل</span>
+              <span className="text-sm font-black text-emerald-300 font-mono">{kpiStats.activeFilteredCount.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-300">غير متعامل</span>
+              <span className="text-sm font-black text-slate-300 font-mono">{kpiStats.nonDealtFilteredCount.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-sky-300">قابل</span>
+              <span className="text-sm font-black text-sky-300 font-mono">{kpiStats.eligibleCount.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-rose-300">غير قابل</span>
+              <span className="text-sm font-black text-rose-300 font-mono">{kpiStats.ineligibleCount.toLocaleString()}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -2984,9 +3007,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </div>
               <div className="h-80 sm:h-96 w-full" dir="ltr">
                 <ResponsiveContainer width="100%" height="100%">
+                  {/* barCategoryGap separates the 12 month groups; barGap keeps the
+                      sales and collections columns touching inside each group. */}
                   <BarChart
                     data={kpiStats.monthlyChartData}
                     margin={{ top: 10, right: 10, left: 10, bottom: 5 }}
+                    barCategoryGap="22%"
                     barGap={2}
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
@@ -3002,10 +3028,32 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       cursor={{ fill: 'rgba(15, 23, 42, 0.04)' }}
                       contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '12px', border: 'none', fontSize: 12 }}
                       labelStyle={{ color: '#94A3B8', fontWeight: 700, marginBottom: 4 }}
+                      content={({ active, payload, label }: any) => {
+                        if (!active || !payload || !payload.length) return null;
+                        const row = payload[0]?.payload || {};
+                        const net = Number(row['صافي التحصيلات']) || 0;
+                        return (
+                          <div className="bg-slate-900 text-white rounded-xl px-3 py-2 text-xs shadow-xl" dir="rtl">
+                            <div className="text-slate-400 font-bold mb-1">{label}</div>
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-sky-500 inline-block" />مبيعات</span>
+                              <span className="font-black font-mono">{formatMoney(Number(row['مبيعات 2026']) || 0)}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-emerald-500 inline-block" />تحصيلات</span>
+                              <span className="font-black font-mono">{formatMoney(Number(row['تحصيلات 2026']) || 0)}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-4 border-t border-white/10 mt-1 pt-1">
+                              <span className="text-slate-400">الصافي بالإشارة</span>
+                              <span className={`font-black font-mono ${net < 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatMoney(net)}</span>
+                            </div>
+                          </div>
+                        );
+                      }}
                     />
                     <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
-                    <Bar dataKey="مبيعات 2026" name="مبيعات 2026" fill="#0284c7" radius={[4, 4, 0, 0]} maxBarSize={22} />
-                    <Bar dataKey="تحصيلات 2026" name="تحصيلات 2026" fill="#10B981" radius={[4, 4, 0, 0]} maxBarSize={22} />
+                    <Bar dataKey="مبيعات 2026" name="مبيعات 2026" fill="#0284c7" radius={[4, 4, 0, 0]} maxBarSize={26} />
+                    <Bar dataKey="تحصيلات 2026" name="تحصيلات 2026" fill="#10B981" radius={[4, 4, 0, 0]} maxBarSize={26} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

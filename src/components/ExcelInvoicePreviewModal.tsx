@@ -122,6 +122,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
       'م',
       'كود الصنف',
       'الكود الموحد',
+      'اللون',
       'اسم الصنف',
       'شدة الكرتونة',
       'عدد الكراتين',
@@ -142,18 +143,20 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
       const totalUnits = it.totalUnits || (cCount * cartonQty + pCount);
       const pieceP = it.pricePerPiece || (cartonQty > 0 ? Math.round((it.pricePerCarton || it.appliedPrice) / cartonQty) : 0);
       const unified = it.unifiedCode || (it.product as any)?.unifiedCode || '---';
+      const color = it.color || it.product?.color || '---';
       const fulfillment = it.fulfilledFrom === 'main_warehouse' ? 'مخزن 6 أكتوبر' : invoice.branchName;
 
       return [
         idx + 1,
         it.productCode,
         unified,
+        color,
         it.productName,
         cartonQty,
         cCount,
         pCount,
         totalUnits,
-        it.pricePerCarton || it.appliedPrice,
+        it.appliedPrice,
         pieceP,
         it.totalBeforeTax,
         it.discountAmount,
@@ -433,6 +436,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                           <div className="font-black text-slate-900 mt-1 leading-snug">
                             {item.productName}
                           </div>
+                          {item.color && <div className="text-[10px] text-slate-500 mt-0.5">اللون: {item.color}</div>}
                         </div>
 
                         <div className="text-left shrink-0">
@@ -461,7 +465,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
 
                       {/* Pricing & Source */}
                       <div className="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
-                        <span>سعر الكرتونة: <strong className="text-slate-700">{formatCurrency(item.pricePerCarton || item.appliedPrice)}</strong></span>
+                        <span>سعر الكرتونة: <strong className="text-slate-700">{formatCurrency(item.appliedPrice)}</strong></span>
                         <span>سعر القطعة: <strong className="text-slate-700">{formatCurrency(pieceP)}</strong></span>
                         <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-bold">{fulfillment}</span>
                       </div>
@@ -478,6 +482,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                       <th className="p-2.5 text-center border-l border-slate-700 w-10">م</th>
                       <th className="p-2.5 border-l border-slate-700">كود الصنف</th>
                       <th className="p-2.5 border-l border-slate-700">الكود الموحد</th>
+                      <th className="p-2.5 border-l border-slate-700">اللون</th>
                       <th className="p-2.5 border-l border-slate-700 min-w-[180px]">اسم الصنف والبيان التفصيلي</th>
                       <th className="p-2.5 text-center border-l border-slate-700">شدة</th>
                       <th className="p-2.5 text-center border-l border-slate-700">كرتون</th>
@@ -509,12 +514,13 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                           <td className="p-2 text-center border-l border-slate-200 font-bold text-slate-500">{idx + 1}</td>
                           <td className="p-2 border-l border-slate-200 font-mono font-bold text-slate-800">{cleanProductCode(item.productCode)}</td>
                           <td className="p-2 border-l border-slate-200 font-mono text-blue-700">{unified}</td>
+                          <td className="p-2 border-l border-slate-200 text-slate-600">{item.color || item.product?.color || '---'}</td>
                           <td className="p-2 border-l border-slate-200 font-bold text-slate-900">{item.productName}</td>
                           <td className="p-2 text-center border-l border-slate-200 text-slate-600">{cartonQty}</td>
                           <td className="p-2 text-center border-l border-slate-200 font-black text-slate-900">{cCount}</td>
                           <td className="p-2 text-center border-l border-slate-200 font-black text-slate-900">{pCount}</td>
                           <td className="p-2 text-center border-l border-slate-200 font-black text-amber-900 bg-amber-50/60">{totalUnits}</td>
-                          <td className="p-2 text-center border-l border-slate-200 text-slate-700">{formatCurrency(item.pricePerCarton || item.appliedPrice)}</td>
+                          <td className="p-2 text-center border-l border-slate-200 text-slate-700">{formatCurrency(item.appliedPrice)}</td>
                           <td className="p-2 text-center border-l border-slate-200 text-slate-700">{formatCurrency(pieceP)}</td>
                           <td className="p-2 text-center border-l border-slate-200 text-slate-800">{formatCurrency(item.totalBeforeTax)}</td>
                           <td className="p-2 text-center border-l border-slate-200 text-emerald-700 font-bold">{item.discountAmount > 0 ? `-${formatCurrency(item.discountAmount)}` : '0'}</td>
@@ -617,7 +623,9 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                       <th className="p-2 border-l border-slate-700">اسم العميل</th>
                       <th className="p-2 border-l border-slate-700">كود الصنف</th>
                       <th className="p-2 border-l border-slate-700">الكود الموحد</th>
+                      <th className="p-2 border-l border-slate-700">اللون</th>
                       <th className="p-2 border-l border-slate-700">اسم الصنف</th>
+                      <th className="p-2 text-center border-l border-slate-700">الشدة</th>
                       <th className="p-2 text-center border-l border-slate-700">كراتين</th>
                       <th className="p-2 text-center border-l border-slate-700">قطع</th>
                       <th className="p-2 text-center border-l border-slate-700">إجمالي</th>
@@ -637,12 +645,14 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                         <td className="p-2 border-l border-slate-200">{resolvedCustomerCode}</td>
                         <td className="p-2 border-l border-slate-200 font-sans">{invoice.customerName}</td>
                         <td className="p-2 border-l border-slate-200 font-bold">{cleanProductCode(item.productCode)}</td>
-                        <td className="p-2 border-l border-slate-200 text-blue-700">{item.unifiedCode || '---'}</td>
+                        <td className="p-2 border-l border-slate-200 text-blue-700">{item.unifiedCode || item.product?.unifiedCode || '---'}</td>
+                        <td className="p-2 border-l border-slate-200 text-slate-600">{item.color || item.product?.color || '---'}</td>
                         <td className="p-2 border-l border-slate-200 font-sans">{item.productName}</td>
+                        <td className="p-2 text-center border-l border-slate-200">{item.cartonQuantity || 1}</td>
                         <td className="p-2 text-center border-l border-slate-200">{item.cartonCount}</td>
                         <td className="p-2 text-center border-l border-slate-200">{item.pieceCount}</td>
                         <td className="p-2 text-center border-l border-slate-200 font-bold">{item.totalUnits}</td>
-                        <td className="p-2 text-center border-l border-slate-200">{item.pricePerCarton || item.appliedPrice}</td>
+                        <td className="p-2 text-center border-l border-slate-200">{item.appliedPrice}</td>
                         <td className="p-2 text-center border-l border-slate-200 font-black text-emerald-800">{item.netTotal}</td>
                         <td className="p-2 border-l border-slate-200 font-sans">{item.fulfilledFrom === 'main_warehouse' ? 'مخزن أكتوبر' : invoice.branchName}</td>
                         <td className="p-2 font-sans">{invoice.paymentMethod}</td>

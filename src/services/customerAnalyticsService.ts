@@ -507,6 +507,7 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     creditLimit: -1,
     currentBalance: -1,
     totalOverdueAndDue: -1,
+    dueUntilPeriod: -1,
     annualTarget: -1,
     openingBalance2026: -1,
     sales2025: -1,
@@ -634,7 +635,22 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     ) {
       colMap.openingBalance2026 = idx;
     }
-    // 11. Overdue & Due Total (المستحقات والمتأخرات)
+    // 11a. Period Due (مستحق حتي نهاية اغسطس) — its OWN column.
+    // This used to share one slot with إجمالي المستحقات, and because
+    // "مستحق حتي نهاية اغسطس" appears first in the sheet it always won, so
+    // إجمالي المستحقات displayed the period figure instead of the total.
+    else if (
+      colMap.dueUntilPeriod === -1 &&
+      (h.includes('مستحق حتي') ||
+        h.includes('مستحق حتى') ||
+        h.includes('المستحق حتي') ||
+        h.includes('المستحق حتى') ||
+        h.includes('مستحق لغاية') ||
+        h.includes('مستحق لغاية'))
+    ) {
+      colMap.dueUntilPeriod = idx;
+    }
+    // 11b. Total Overdue & Due (اجمالي المستحقات / اجمالي المتأخرات)
     else if (
       colMap.totalOverdueAndDue === -1 &&
       (h.includes('مستحق') ||
@@ -643,8 +659,6 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
         h.includes('مستحقات') ||
         h.includes('اجمالي المستحقات') ||
         h.includes('إجمالي المستحقات') ||
-        h.includes('مستحق حتي') ||
-        h.includes('مستحق حتى') ||
         h.includes('مستحق السداد') ||
         h.includes('اجمالي المتأخرات') ||
         h.includes('إجمالي المتأخرات') ||
@@ -823,7 +837,12 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     const s2025 = colMap.sales2025 !== -1 ? cleanNumber(row[colMap.sales2025]) : 0;
     // Keep signed collections from sheet (can be negative or positive as in source)
     const c2025 = colMap.collections2025 !== -1 ? cleanNumber(row[colMap.collections2025]) : 0;
-    const overdueAndDue = colMap.totalOverdueAndDue !== -1 ? cleanNumber(row[colMap.totalOverdueAndDue]) : (colMap.currentBalance !== -1 ? balance : 0);
+    // إجمالي المستحقات is its own column. Only fall back to the period figure
+    // ("مستحق حتي نهاية اغسطس") when the sheet has no إجمالي column at all.
+    const dueUntilPeriod = colMap.dueUntilPeriod !== -1 ? cleanNumber(row[colMap.dueUntilPeriod]) : undefined;
+    const overdueAndDue = colMap.totalOverdueAndDue !== -1
+      ? cleanNumber(row[colMap.totalOverdueAndDue])
+      : (dueUntilPeriod !== undefined ? dueUntilPeriod : (colMap.currentBalance !== -1 ? balance : 0));
     const annualTarget = colMap.annualTarget !== -1 ? cleanNumber(row[colMap.annualTarget]) : 0;
     const openingBalance = colMap.openingBalance2026 !== -1 ? cleanNumber(row[colMap.openingBalance2026]) : balance;
 
@@ -969,6 +988,8 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
       currentBalance: balance,
       totalOverdueAndDue: overdueAndDue,
       overdueBalance: overdueAndDue,
+      dueUntilPeriod: dueUntilPeriod,
+      duePeriodLabel: colMap.dueUntilPeriod !== -1 ? headers[colMap.dueUntilPeriod] : undefined,
       creditLimit: creditLimit,
       annualTarget: annualTarget > 0 ? annualTarget : undefined,
       openingBalance2026: openingBalance,

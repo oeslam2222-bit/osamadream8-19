@@ -778,13 +778,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { ...p, id: rowId };
     }).map((p) => {
       const cartonQty = p.cartonQuantity && p.cartonQuantity > 0 ? p.cartonQuantity : 1;
-      const cartonPrice = typeof p.cartonPrice === 'number' ? p.cartonPrice : 0;
+      const savedCartonPrice = typeof p.cartonPrice === 'number' ? p.cartonPrice : 0;
+      const savedPiecePrice = Number(p.piecePrice || p.salesPrice || 0);
+      const piecePrice = savedPiecePrice > 0
+        ? savedPiecePrice
+        : (savedCartonPrice > 0 ? Math.round((savedCartonPrice / cartonQty) * 100) / 100 : 0);
 
       return {
         ...p,
         cartonQuantity: cartonQty,
-        cartonPrice: cartonPrice,
-        piecePrice: cartonPrice > 0 && cartonQty > 0 ? Math.round((cartonPrice / cartonQty) * 100) / 100 : (p.piecePrice || cartonPrice),
+        cartonPrice: Math.round(piecePrice * cartonQty * 100) / 100,
+        piecePrice,
       };
     });
   };
@@ -3372,6 +3376,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return {
           productId: item.product.id,
           productCode: item.product.code,
+          unifiedCode: item.unifiedCode || item.product.unifiedCode,
+          color: item.product.color,
           productName: item.product.name,
           cartonCount: cCount,
           pieceCount: pCount,

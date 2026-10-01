@@ -184,7 +184,13 @@ export function mergeTwoCustomers(target: Customer, source: Customer): Customer 
   const monthlyColsSum = Object.values(mergedMonthlyCollections).reduce((acc, v) => acc + (Number(v) || 0), 0);
   const targetCols = Number(target.collections2026 || target.totalMonthlyCollections || target.totalOverallCollections || 0);
   const sourceCols = Number(source.collections2026 || source.totalMonthlyCollections || source.totalOverallCollections || 0);
-  const finalCollections2026 = pickByMagnitude(targetCols, sourceCols, monthlyColsSum);
+  // Collections are signed nets, so "keep the biggest" is meaningless: a customer
+  // whose returns exceed their collections has a small negative net that must not
+  // be replaced by a stale larger figure. Prefer the record that actually has a
+  // collections figure, and only fall back to the sum of the months.
+  const finalCollections2026 = targetCols !== 0
+    ? targetCols
+    : (sourceCols !== 0 ? sourceCols : monthlyColsSum);
 
   const finalSales2025 = pickByMagnitude(Number(target.sales2025 || 0), Number(source.sales2025 || 0));
   const finalCollections2025 = pickByMagnitude(Number(target.collections2025 || 0), Number(source.collections2025 || 0));
@@ -238,11 +244,13 @@ export function mergeTwoCustomers(target: Customer, source: Customer): Customer 
     totalOverallSales: finalSales2026 > 0 ? finalSales2026 : (source.totalOverallSales || target.totalOverallSales),
     collections2026: finalCollections2026,
     totalMonthlyCollections: finalCollections2026,
-    totalOverallCollections: finalCollections2026 > 0 ? finalCollections2026 : (source.totalOverallCollections || target.totalOverallCollections),
+    totalOverallCollections: finalCollections2026 !== 0
+      ? finalCollections2026
+      : (Number(source.totalOverallCollections ?? target.totalOverallCollections ?? 0)),
     sales2025: finalSales2025 > 0 ? finalSales2025 : undefined,
-    collections2025: finalCollections2025 > 0 ? finalCollections2025 : undefined,
+    collections2025: finalCollections2025 !== 0 ? finalCollections2025 : undefined,
     sales2024: finalSales2024 > 0 ? finalSales2024 : undefined,
-    collections2024: finalCollections2024 > 0 ? finalCollections2024 : undefined,
+    collections2024: finalCollections2024 !== 0 ? finalCollections2024 : undefined,
     hasDealtIn2026: finalHasDealtIn2026,
     dealt2026: finalHasDealtIn2026 ? 'متعامل' : (source.dealt2026 || target.dealt2026 || 'غير متعامل'),
     guaranteeDocs: source.guaranteeDocs || target.guaranteeDocs,
