@@ -11,6 +11,7 @@ import {
   Download,
   Edit2,
   FileSpreadsheet,
+  CalendarCheck,
   Filter,
   Flame,
   Layers,
@@ -34,7 +35,7 @@ import {
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { exportProductsToExcel } from '../services/excelService';
+import { exportEndOfDayBranchReport, exportProductsToExcel } from '../services/excelService';
 import { formatCurrency } from '../services/invoiceService';
 import { getBranchStockForProduct } from '../services/arabicMatchingService';
 import { ItemStatus, Product, SalesPriority } from '../types';
@@ -79,6 +80,8 @@ export const InventoryStockView: React.FC = () => {
 
   // Success Notification Toast
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+  // End-of-day report: the day the branch reconciles against. Empty = all days.
+  const [reportDate, setReportDate] = useState<string>(new Date().toISOString().slice(0, 10));
 
   // Form State for Adding / Editing Product
   const [formData, setFormData] = useState<Partial<Product>>({
@@ -461,6 +464,34 @@ export const InventoryStockView: React.FC = () => {
                   >
                     <List className="w-3.5 h-3.5" />
                     <span>جدول تفصيلي</span>
+                  </button>
+                </div>
+
+                {/* End-of-day report: branch managers and supervisors reconcile on it */}
+                <div className="flex items-center gap-1.5 bg-teal-50 border border-teal-200 rounded-xl px-2 py-1">
+                  <CalendarCheck className="w-4 h-4 text-teal-700" />
+                  <input
+                    type="date"
+                    value={reportDate}
+                    onChange={(e) => setReportDate(e.target.value)}
+                    className="bg-transparent text-[11px] font-bold text-teal-900 outline-none cursor-pointer"
+                    title="يوم الاستخراج — بيأثر على الفواتير المعتمدة فقط"
+                  />
+                  <button
+                    onClick={() =>
+                      exportEndOfDayBranchReport({
+                        products,
+                        invoices: invoices || [],
+                        branchName: currentActiveBranch || selectedBranchFilter,
+                        currentUser,
+                        date: reportDate,
+                      })
+                    }
+                    className="flex items-center gap-1.5 bg-teal-700 hover:bg-teal-800 text-white font-bold px-2.5 py-1.5 rounded-lg text-[11px] shadow-xs transition cursor-pointer whitespace-nowrap"
+                    title="كشف نهاية اليوم: الفواتير المعتمدة + المتوفر بالفرع + غير المتوفر — كلهم في شيت واحد"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span className="hidden md:inline">كشف نهاية اليوم</span>
                   </button>
                 </div>
 

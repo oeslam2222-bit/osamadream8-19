@@ -3300,6 +3300,259 @@ export const DREAM_INVENTORY_EXCEL_COLUMNS = [
  * If user is branch-scoped (Sales Rep, Supervisor, Branch Manager) or a specific branch is selected,
  * only exports that specific branch's stock and details.
  */
+/**
+ * Daily end-of-day report for a branch manager or supervisor.
+ *
+ * One workbook, four tabs:
+ *   1. الملخص        — branch, date, counts, totals
+ *   2. المتوفر بالفرع — products whose BRANCH stock is above zero
+ *   3. غير المتوفر    — the rest (need a transfer from the October warehouse)
+ *   4. الفواتير المعتمدة — invoices approved and executed on the chosen day,
+ *                        one row per invoice line so the branch can reconcile
+ *                        what it gave out against what it had.
+ *
+ * "المتوفر" means the branch's own balance only. The October main warehouse is
+ * deliberately not added in: stock sitting in the central warehouse is not stock
+ * the branch can hand to a customer today.
+ */
+export const APPROVED_AND_EXECUTED_INVOICE_STATUSES: string[] = [
+  'معتمدة',
+  'معتمدة ومصروفة من المخزن',
+  'جاري التجهيز',
+  'تم وصول المنتجات',
+  'قيد التوصيل',
+  'تم التسليم',
+  'إغلاق الطلبية',
+];
+
+const REPORT_PRODUCT_HEADERS = [
+  'كود المنتج',
+  'الكود الموحد',
+  'اسم المنتج',
+  'الحجم',
+  'الكمية بالكرتونة',
+  'شدة الكرتونة (ق/ك)',
+  'إجمالي القطع',
+  // The sheet stores the price of ONE piece. The carton price is that figure
+  // multiplied by the carton factor — the same rule the importer and AppContext
+  // already apply, so the report can never disagree with the rest of the app.
+  'سعر القطعة',
+  'سعر الكرتونة',
+  'القيمة الإجمالية',
+  'حالة الصنف',
+  'فئة الصنف',
+  'العائلة',
+];
+
+const REPORT_INVOICE_HEADERS = [
+  'رقم الفاتورة',
+  'التاريخ',
+  'العميل',
+  'كود العميل',
+  'المندوب',
+  'حالة الفاتورة',
+  'كود المنتج',
+  'الكود الموحد',
+  'اسم المنتج',
+  'عدد الكراتين',
+  'شدة الكرتونة (ق/ك)',
+  'إجمالي القطع',
+  'مصروف من',
+  'سعر الكرتونة',
+  'إجمالي الفاتورة',
+  'إجمالي الفروع',
+];
+
+const styleHeader = (ws: XLSX.WorkSheet, rowCount: number, colCount: number) => {
+  for (let c = 0; c < colCount; c++) {
+    const cell = ws[XLSX.utils.encode_cell({ r: 0, c })] as any;
+    if (!cell) continue;
+    cell.s = {
+      font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+      fill: { fgColor: { rgb: '0F766E' } },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true, readingOrder: 2 },
+      border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } },
+    };
+  }
+  ws['!views'] = [{ rightToLeft: true, ySplit: rowCount > 0 ? 1 : 0 }];
+  ws['!autofilter'] = rowCount > 1 ? { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rowCount - 1, c: colCount - 1 } }) } : undefined;
+};
+
+const appendStyledSheet = (
+  wb: XLSX.WorkBook,
+  name: string,
+  data: (string | number)[][],
+  widths: number[],
+  headerRowIndex = 0
+) => {
+  const ws = XLSX.utils.aoa_to_sheet(data.length ? data : [[]]);
+  ws['!cols'] = widths.map((wch) => ({ wch }));
+  styleHeader(ws, data.length, data[0]?.length || 1);
+  if (headerRowIndex > 0) ws['!autofilter'] = undefined;
+  XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+  return ws;
+};
+
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+
+/** Stock the branch itself holds, in cartons. Never includes the October warehouse. */
+export function getBranchCartonStock(product: Product, branchName: string): number {
+  const raw = getBranchStockForProduct(product, branchName);
+  const n = Number(raw);
+  return isFinite(n) ? n : 0;
+}
+
+export interface EndOfDayReportInput {
+  products: Product[];
+  invoices: Invoice[];
+  branchName: string;
+  currentUser?: User | null;
+  /** yyyy-mm-dd. Empty string means "no date filter" — every approved invoice. */
+  date?: string;
+}
+
+export function buildEndOfDayBranchWorkbook(input: EndOfDayReportInput): XLSX.WorkBook {
+  const { products = [], invoices = [], branchName, currentUser, date = '' } = input;
+  const wb = XLSX.utils.book_new();
+
+  const toProductRow = (p: Product, stock: number): (string | number)[] => {
+    const perCarton = Number(p.cartonQuantity || p.factor || 1) || 1;
+    // Piece price first; fall back to the carton price divided by the factor for
+    // older records that only stored the carton price.
+    const savedPiece = Number(p.piecePrice || p.salesPrice || 0);
+    const savedCarton = Number(p.cartonPrice || 0);
+    // Keep the quotient at full precision: rounding it to 2 decimals first turned
+    // 100 ÷ 24 into 4.17, and 4.17 × 24 gave 100.08 instead of 100.
+    const exactPiece = savedPiece > 0 ? savedPiece : (savedCarton > 0 ? savedCarton / perCarton : 0);
+    const piecePrice = Math.round(exactPiece * 10000) / 10000;
+    const cartonPrice = round2(exactPiece * perCarton);
+    return [
+      cleanProductCode(p.code),
+      p.unifiedCode || '',
+      p.name || '',
+      p.size || '',
+      stock,
+      perCarton,
+      stock * perCarton,
+      piecePrice,
+      cartonPrice,
+      stock * cartonPrice,
+      p.status || '',
+      p.itemGroup || p.department || p.category || '',
+      p.familyName || p.classification || '',
+    ];
+  };
+
+  const sorted = [...products].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+
+  const available: (string | number)[][] = [REPORT_PRODUCT_HEADERS];
+  const unavailable: (string | number)[][] = [REPORT_PRODUCT_HEADERS];
+
+  sorted.forEach((p) => {
+    const stock = getBranchCartonStock(p, branchName);
+    (stock > 0 ? available : unavailable).push(toProductRow(p, stock));
+  });
+
+  const sumCartons = (rows: (string | number)[][]) =>
+    rows.slice(1).reduce((s, r) => s + (Number(r[4]) || 0), 0);
+  const sumValue = (rows: (string | number)[][]) =>
+    rows.slice(1).reduce((s, r) => s + (Number(r[9]) || 0), 0);
+
+  // ---- Invoices: approved + executed, scoped to the branch and the chosen day ----
+  const branchKey = resolveBranchName(branchName) || branchName;
+  const approved = invoices.filter((inv) => {
+    if (!APPROVED_AND_EXECUTED_INVOICE_STATUSES.includes(inv.status)) return false;
+    const invBranch = resolveBranchName(inv.branchName) || inv.branchName;
+    if (branchKey && branchKey !== 'الكل' && invBranch !== branchKey) return false;
+    if (!date) return true;
+    return String(inv.date || '').slice(0, 10) === date;
+  });
+
+  const invoiceRows: (string | number)[][] = [REPORT_INVOICE_HEADERS];
+  approved.forEach((inv) => {
+    const items = inv.items || [];
+    if (items.length === 0) {
+      invoiceRows.push([
+        inv.invoiceNumber, inv.date, inv.customerName, inv.customerCode || '',
+        inv.repName || '', inv.status, '', '', '', 0, 0, 0, '',
+        inv.totalCartons || 0, inv.estimatedGrandTotal || 0, '',
+      ]);
+      return;
+    }
+    items.forEach((it) => {
+      const perCarton = Number(it.cartonQuantity || 1) || 1;
+      const cartons = Number(it.cartonCount || 0) || 0;
+      const pieces = Number(it.totalUnits ?? it.totalPieces ?? cartons * perCarton) || 0;
+      invoiceRows.push([
+        inv.invoiceNumber, inv.date, inv.customerName, inv.customerCode || '',
+        inv.repName || '', inv.status,
+        cleanProductCode(it.productCode), it.unifiedCode || '', it.productName || '',
+        cartons, perCarton, pieces,
+        it.fulfilledFrom === 'main_warehouse' ? 'المخزن الرئيسي' : it.fulfilledFrom === 'mixed' ? 'مختلط' : 'الفرع',
+        Number(it.appliedPrice || it.pricePerCarton || 0) || 0,
+        Number(it.netTotal || it.totalBeforeTax || 0) || 0,
+        Number(inv.estimatedGrandTotal || 0) || 0,
+      ]);
+    });
+  });
+
+  const summaryRows: (string | number)[][] = [
+    ['كشف نهاية اليوم —Branch & Stock Summary'],
+    [],
+    ['الفرع', branchName || 'الكل'],
+    ['التاريخ', date || 'كل الفترات'],
+    ['المستخدم', currentUser?.name || '—'],
+    ['وقت الاستخراج', new Date().toLocaleString('ar-EG')],
+    [],
+    ['عدد الفواتير المعتمدة', approved.length],
+    ['إجمالي قيمة الفواتير المعتمدة', approved.reduce((s, i) => s + (Number(i.estimatedGrandTotal) || 0), 0)],
+    ['عدد سطور الفواتير', Math.max(0, invoiceRows.length - 1)],
+    [],
+    ['عدد الأصناف المتوفرة بالفرع', Math.max(0, available.length - 1)],
+    ['إجمالي كراتين المتوفر', sumCartons(available)],
+    ['قيمة المتوفر', sumValue(available)],
+    [],
+    ['عدد الأصناف غير المتوفرة', Math.max(0, unavailable.length - 1)],
+    ['إجمالي كراتين غير المتوفر', sumCartons(unavailable)],
+    ['قيمة غير المتوفر', sumValue(unavailable)],
+  ];
+
+  const summaryWs = XLSX.utils.aoa_to_sheet(summaryRows);
+  summaryWs['!cols'] = [{ wch: 40 }, { wch: 34 }];
+  summaryWs['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+  const titleCell = summaryWs['A1'] as any;
+  if (titleCell) {
+    titleCell.s = {
+      font: { bold: true, sz: 14, color: { rgb: 'FFFFFF' } },
+      fill: { fgColor: { rgb: '0F766E' } },
+      alignment: { horizontal: 'center', vertical: 'center', readingOrder: 2 },
+    };
+  }
+  summaryRows.forEach((row, r) => {
+    if (r < 2 || row.length < 2) return;
+    const a = summaryWs[XLSX.utils.encode_cell({ r, c: 0 })] as any;
+    const b = summaryWs[XLSX.utils.encode_cell({ r, c: 1 })] as any;
+    if (a) a.s = { font: { bold: true, sz: 11 }, alignment: { horizontal: 'right', readingOrder: 2 } };
+    if (b) b.s = { alignment: { horizontal: 'right', readingOrder: 2 } };
+  });
+  summaryWs['!views'] = [{ rightToLeft: true }];
+  XLSX.utils.book_append_sheet(wb, summaryWs, 'الملخص');
+
+  const productWidths = [16, 16, 42, 12, 16, 16, 16, 14, 14, 16, 16, 18, 18];
+  appendStyledSheet(wb, 'المتوفر بالفرع', available, productWidths);
+  appendStyledSheet(wb, 'غير المتوفر', unavailable, productWidths);
+  appendStyledSheet(wb, 'الفواتير المعتمدة', invoiceRows, [20, 14, 28, 16, 18, 24, 16, 16, 38, 14, 16, 14, 16, 14, 16, 16]);
+
+  return wb;
+}
+
+export function exportEndOfDayBranchReport(input: EndOfDayReportInput): void {
+  const wb = buildEndOfDayBranchWorkbook(input);
+  const branch = (input.branchName || 'الكل').replace(/\s+/g, '_');
+  const day = input.date || new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `كشف_نهاية_اليوم_${branch}_${day}.xlsx`);
+}
+
 export function exportProductsToExcel(
   products: Product[],
   branchName = 'الكل',

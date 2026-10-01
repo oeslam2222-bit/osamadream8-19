@@ -211,6 +211,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [selectedRep, setSelectedRep] = useState<string>('ALL');
   const [selectedMonth, setSelectedMonth] = useState<number | 'ALL' | 'Q1' | 'Q2' | 'Q3' | 'Q4'>('ALL');
   const [dealEligibilityFilter, setDealEligibilityFilter] = useState<string>('ALL');
+  const [sheetStatusFilter, setSheetStatusFilter] = useState<SheetClassification | 'ALL'>('ALL');
   const [dealtFilter, setDealtFilter] = useState<'ALL' | 'dealt' | 'not_dealt'>('ALL');
   const [sortMode, setSortMode] = useState<'highest_debt' | 'lowest_debt' | 'highest_overdue' | 'highest_sales' | 'highest_collections' | 'name_asc' | 'code_asc' | 'route_asc'>('highest_debt');
   const [showRepMatrix, setShowRepMatrix] = useState<boolean>(true);
@@ -770,6 +771,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       });
     }
 
+    if (sheetStatusFilter !== 'ALL') {
+      list = list.filter((c) => customerMetricsMap.get(c.id)?.sheetClassification === sheetStatusFilter);
+    }
+
     // Region / Route / District filter (الخط / المركز / المنطقة من الشيت)
     if (selectedRegion !== 'ALL') {
       const q = selectedRegion.toLowerCase();
@@ -995,6 +1000,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     selectedRep,
     selectedCustomerId,
     dealEligibilityFilter,
+    sheetStatusFilter,
     dealtFilter,
     selectedRegion,
     activityFilter,
@@ -1040,6 +1046,19 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     };
   }, [preDealFilteredCustomers, customerMetricsMap]);
 
+  const sheetStatusCounts = useMemo(() => {
+    const counts: Record<SheetClassification, number> = {
+      dealt_eligible: 0,
+      ineligible: 0,
+      idle_eligible: 0,
+    };
+    preDealFilteredCustomers.forEach((customer) => {
+      const classification = customerMetricsMap.get(customer.id)?.sheetClassification;
+      if (classification) counts[classification]++;
+    });
+    return counts;
+  }, [preDealFilteredCustomers, customerMetricsMap]);
+
   // Guarantee counts (صنفين فقط: ماضي على أوراق ضمان / مش ماضي)
   const guaranteeCounts = useMemo(() => {
     const signed = preGuaranteeFilteredCustomers.filter(hasGuaranteePapers).length;
@@ -1056,6 +1075,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     selectedCustomerId,
     selectedMonth,
     dealEligibilityFilter,
+    sheetStatusFilter,
     dealtFilter,
     sortMode,
     selectedRegion,
@@ -2244,6 +2264,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     if (selectedRegion !== 'ALL') count++;
     if (selectedMonth !== 'ALL') count++;
     if (dealEligibilityFilter !== 'ALL') count++;
+    if (sheetStatusFilter !== 'ALL') count++;
     if (dealtFilter !== 'ALL') count++;
     if (paymentTermsFilter !== 'ALL') count++;
     if (guaranteeFilter !== 'ALL') count++;
@@ -2259,7 +2280,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     return count;
   }, [
     selectedBranch, selectedRep, selectedCustomerId, selectedRegion,
-    selectedMonth, dealEligibilityFilter, dealtFilter, paymentTermsFilter,
+    selectedMonth, dealEligibilityFilter, sheetStatusFilter, dealtFilter, paymentTermsFilter,
     guaranteeFilter, activityTypeFilter, clientTypeFilter, debtFilter,
     activityFilter, salesTierFilter, collectionRateFilter, orderFilter,
     visitFilter, searchQuery
@@ -2273,6 +2294,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     setSelectedRegion('ALL');
     setSelectedMonth('ALL');
     setDealEligibilityFilter('ALL');
+    setSheetStatusFilter('ALL');
     setDealtFilter('ALL');
     setPaymentTermsFilter('ALL');
     setGuaranteeFilter('ALL');
@@ -4813,20 +4835,15 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
             {dealEligibilityFilter !== 'ALL' && (
               <span className="inline-flex items-center gap-1 bg-white border border-sky-200 text-sky-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
-                <span>
-                  حالة وقابلية التعامل: {
-                    dealEligibilityFilter === 'dealt'
-                      ? 'متعامل ✅'
-                      : dealEligibilityFilter === 'non_dealt'
-                      ? 'غير متعامل ❌'
-                      : dealEligibilityFilter === 'eligible'
-                      ? 'قابل 🟢'
-                      : dealEligibilityFilter === 'ineligible'
-                      ? 'غير قابل ⛔'
-                      : dealEligibilityFilter
-                  }
-                </span>
+                <span>متعامل في الفترة المحددة ✅</span>
                 <button type="button" onClick={() => setDealEligibilityFilter('ALL')} className="text-sky-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+
+            {sheetStatusFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1 bg-white border border-emerald-200 text-emerald-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
+                <span>حالة التعامل (الشيت): {sheetStatusFilter === 'dealt_eligible' ? 'متعامل' : sheetStatusFilter === 'ineligible' ? 'غير قابل' : 'قابل للتعامل'}</span>
+                <button type="button" onClick={() => setSheetStatusFilter('ALL')} className="text-emerald-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
               </span>
             )}
 
@@ -5150,21 +5167,20 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                     <span>حالة التعامل (الشيت)</span>
                   </span>
-                  {dealEligibilityFilter !== 'ALL' && (
-                    <button type="button" onClick={() => setDealEligibilityFilter('ALL')} className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer">إلغاء</button>
+                  {sheetStatusFilter !== 'ALL' && (
+                    <button type="button" onClick={() => setSheetStatusFilter('ALL')} className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer">إلغاء</button>
                   )}
                 </label>
                 <select
                   id="analytics-deal-status-select"
-                  value={dealEligibilityFilter}
-                  onChange={(e) => setDealEligibilityFilter(e.target.value)}
+                  value={sheetStatusFilter}
+                  onChange={(e) => setSheetStatusFilter(e.target.value as SheetClassification | 'ALL')}
                   className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 transition shadow-2xs cursor-pointer"
                 >
-                  <option value="ALL">جميع العملاء ({dealStatusCounts.total.toLocaleString()})</option>
-                  <option value="dealt">العملاء المتعاملين فقط ✅ ({dealStatusCounts.dealt.toLocaleString()})</option>
-                  <option value="non_dealt">العملاء غير المتعاملين ❌ ({dealStatusCounts.notDealt.toLocaleString()})</option>
-                  <option value="eligible">قابل 🟢 ({dealStatusCounts.eligible.toLocaleString()})</option>
-                  <option value="ineligible">غير قابل ⛔ ({dealStatusCounts.ineligible.toLocaleString()})</option>
+                  <option value="ALL">جميع الحالات ({dealStatusCounts.total.toLocaleString()})</option>
+                  <option value="dealt_eligible">متعامل ✅ ({sheetStatusCounts.dealt_eligible.toLocaleString()})</option>
+                  <option value="ineligible">غير قابل ⛔ ({sheetStatusCounts.ineligible.toLocaleString()})</option>
+                  <option value="idle_eligible">قابل للتعامل 🟢 ({sheetStatusCounts.idle_eligible.toLocaleString()})</option>
                 </select>
               </div>
 
@@ -5592,104 +5608,31 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </div>
             </div>
 
-            {/* Box 3: Customers Breakdown (Dealt / Non-Dealt & Eligibility) — clickable slicer */}
+            {/* Box 3: Dynamic dealt-customer count — clickable slicer */}
             <div className="bg-slate-900/90 rounded-xl p-3 border border-emerald-500/30 shadow-inner">
               <div className="text-xs font-bold text-emerald-300 flex items-center justify-between">
-                <span>👥 حالة وقابلية التعامل (مرآة الشيت)</span>
+                <span>👥 المتعاملون في الفترة</span>
                 <Users className="w-4 h-4 text-emerald-400" />
               </div>
 
-              {/* أزرار تصفية سريعة تفاعلية بالكامل: الكل، متعامل، غير متعامل، قابل، غير قابل */}
-              <div className="mt-2 grid grid-cols-2 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setDealEligibilityFilter('ALL')}
-                  className={`col-span-2 flex items-center justify-between rounded-lg px-2.5 py-1.5 border transition cursor-pointer ${
-                    dealEligibilityFilter === 'ALL'
-                      ? 'bg-slate-800 text-white border-emerald-500/50 shadow-md ring-1 ring-emerald-400'
-                      : 'bg-slate-800/40 text-slate-300 border-slate-700/60 hover:bg-slate-800/70'
-                  }`}
-                >
-                  <span className="text-[11px] font-black">الكل 👥</span>
-                  <span className="text-xs font-black font-mono">
-                    {dealStatusCounts.total.toLocaleString()}
-                  </span>
-                </button>
-
+              <div className="mt-2">
                 <button
                   type="button"
                   onClick={() => setDealEligibilityFilter(dealEligibilityFilter === 'dealt' ? 'ALL' : 'dealt')}
-                  className={`flex items-center justify-between rounded-lg px-2 py-1.5 border transition cursor-pointer ${
+                  className={`w-full flex items-center justify-between rounded-lg px-3 py-2 border transition cursor-pointer ${
                     dealEligibilityFilter === 'dealt'
                       ? 'bg-emerald-600 text-white border-transparent shadow-md ring-2 ring-emerald-400'
                       : 'bg-emerald-950/40 text-emerald-300 border-emerald-800/60 hover:bg-emerald-900/50'
                   }`}
-                  title="العملاء المتعاملين فقط في 2026"
+                  title="عرض العملاء المتعاملين في الفترة المحددة فقط"
+                  aria-pressed={dealEligibilityFilter === 'dealt'}
                 >
-                  <span className="text-[10.5px] font-black">متعامل ✅</span>
-                  <span className="text-xs font-black font-mono">
+                  <span className="text-sm font-black">متعامل ✅</span>
+                  <span className="text-base font-black font-mono">
                     {dealStatusCounts.dealt.toLocaleString()}
                   </span>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => setDealEligibilityFilter(dealEligibilityFilter === 'non_dealt' ? 'ALL' : 'non_dealt')}
-                  className={`flex items-center justify-between rounded-lg px-2 py-1.5 border transition cursor-pointer ${
-                    dealEligibilityFilter === 'non_dealt'
-                      ? 'bg-slate-700 text-white border-transparent shadow-md ring-2 ring-slate-400'
-                      : 'bg-slate-800/40 text-slate-400 border-slate-700/60 hover:bg-slate-800/70'
-                  }`}
-                  title="العملاء غير المتعاملين في 2026"
-                >
-                  <span className="text-[10.5px] font-black">غير متعامل ❌</span>
-                  <span className="text-xs font-black font-mono">
-                    {dealStatusCounts.notDealt.toLocaleString()}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setDealEligibilityFilter(dealEligibilityFilter === 'eligible' ? 'ALL' : 'eligible')}
-                  className={`flex items-center justify-between rounded-lg px-2 py-1.5 border transition cursor-pointer ${
-                    dealEligibilityFilter === 'eligible'
-                      ? 'bg-teal-600 text-white border-transparent shadow-md ring-2 ring-teal-400'
-                      : 'bg-teal-950/40 text-teal-300 border-teal-800/60 hover:bg-teal-900/50'
-                  }`}
-                  title="العملاء القابلين للتعامل"
-                >
-                  <span className="text-[10.5px] font-black">قابل 🟢</span>
-                  <span className="text-xs font-black font-mono">
-                    {dealStatusCounts.eligible.toLocaleString()}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setDealEligibilityFilter(dealEligibilityFilter === 'ineligible' ? 'ALL' : 'ineligible')}
-                  className={`flex items-center justify-between rounded-lg px-2 py-1.5 border transition cursor-pointer ${
-                    dealEligibilityFilter === 'ineligible'
-                      ? 'bg-rose-700 text-white border-transparent shadow-md ring-2 ring-rose-400'
-                      : 'bg-rose-950/40 text-rose-300 border-rose-800/60 hover:bg-rose-900/50'
-                  }`}
-                  title="العملاء غير القابلين للتعامل (موقوف/ممتنع/مستبعد/متعثر)"
-                >
-                  <span className="text-[10.5px] font-black">غير قابل ⛔</span>
-                  <span className="text-xs font-black font-mono">
-                    {dealStatusCounts.ineligible.toLocaleString()}
-                  </span>
-                </button>
               </div>
-
-              {dealEligibilityFilter !== 'ALL' && (
-                <button
-                  type="button"
-                  onClick={() => setDealEligibilityFilter('ALL')}
-                  className="mt-2 w-full text-[10.5px] font-black text-slate-400 hover:text-white transition cursor-pointer text-center"
-                >
-                  ← إلغاء التصفية وعرض الكل
-                </button>
-              )}
             </div>
 
             {/* Box 4: Coverage & Efficiency Rates */}
