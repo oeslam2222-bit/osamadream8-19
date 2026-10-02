@@ -90,6 +90,7 @@ import {
   User,
   UserApprovalStatus,
   UserRole,
+  VisitReviewStatus,
 } from '../types';
 
 interface AppContextType {
@@ -251,6 +252,7 @@ interface AppContextType {
   getVisibleVisits: () => CustomerVisit[];
   addVisit: (visit: Omit<CustomerVisit, 'id' | 'createdAt' | 'createdBy'>) => { success: boolean; message: string; visit?: CustomerVisit };
   updateVisit: (visit: CustomerVisit) => { success: boolean; message: string };
+  reviewVisit: (visitId: string, status: Extract<VisitReviewStatus, 'approved' | 'needs_fix'>, note?: string) => { success: boolean; message: string };
   deleteVisit: (visitId: string) => Promise<{ success: boolean; message: string }>;
   syncVisitsWithDatabase: () => Promise<{ success: boolean; message: string; count: number }>;
   getCustomerVisitSummary: (customerId: string, month?: string) => { total: number; completed: number; scheduled: number; lastVisit?: string; nextVisit?: string };
@@ -4907,6 +4909,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: effectiveBranch,
       supervisorId: visit.supervisorId || assignedRep?.supervisorId,
       status: visit.status || 'مجدولة',
+      reviewStatus: visit.status === 'منفذة' || visit.status === 'لم تتم' ? 'pending' : undefined,
+      reviewedByName: undefined,
+      reviewNote: undefined,
+      reviewedAt: undefined,
       createdBy: currentUser.id,
       createdAt: new Date().toISOString(),
       syncStatus: 'synced',
@@ -4954,8 +4960,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateVisit = (visit: CustomerVisit) => {
     if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً' };
     if (!canManageVisit(visit)) return { success: false, message: 'لا تملك صلاحية تعديل هذه الزيارة' };
+    const existingVisit = visits.find((item) => item.id === visit.id);
+    if (currentUser.role === 'sales_rep' && existingVisit?.reviewStatus === 'approved') {
+      return { success: false, message: 'لا يمكن تعديل زيارة تم اعتمادها من المشرف' };
+    }
+    const isExecutionComplete = visit.status === 'منفذة' || visit.status === 'لم تتم';
+    const shouldResubmit = isExecutionComplete && (
+      existingVisit?.status === 'مجدولة' ||
+      (currentUser.role === 'sales_rep' && existingVisit?.reviewStatus === 'needs_fix')
+    );
     const updatedVisit: CustomerVisit = {
       ...visit,
+      reviewStatus: shouldResubmit ? 'pending' : existingVisit?.reviewStatus,
+      reviewedByName: shouldResubmit ? undefined : existingVisit?.reviewedByName,
+      reviewNote: shouldResubmit ? undefined : existingVisit?.reviewNote,
+      reviewedAt: shouldResubmit ? undefined : existingVisit?.reviewedAt,
       updatedAt: new Date().toISOString(),
       syncStatus: 'synced',
     };
@@ -4986,7 +5005,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         })
       );
     }
-    return { success: true, message: 'تم تحديث الزيارة وحفظها بقاعدة البيانات بنجاح ✅' };
+    return { success: true, message: shouldResubmit ? 'تم تحديث التقرير وإرساله للمشرف للمراجعة' : 'تم تحديث الزيارة وحفظها بقاعدة البيانات بنجاح ✅' };
+  };
+
+  const reviewVisit = (
+    visitId: string,
+    status: Extract<VisitReviewStatus, 'approved' | 'needs_fix'>,
+    note = ''
+  ) => {
+    if (!currentUser || currentUser.role !== 'supervisor') {
+      return { success: false, message: 'اعتماد الزيارات متاح لمشرف الفريق فقط' };
+    }
+    const visit = visits.find((item) => item.id === visitId);
+    if (!visit) return { success: false, message: 'الزيارة غير موجودة' };
+    const rep = (visit.repId ? users.find((user) => user.id === visit.repId) : undefined) ||
+      users.find((user) => user.role === 'sales_rep' && isArabicNameMatch(user.name, visit.repName || ''));
+    if (rep?.role !== 'sales_rep') {
+      return { success: false, message: 'لا يمكن تحديد المندوب المسؤول عن الزيارة' };
+    }
+    if (!rep || rep.supervisorId !== currentUser.id) {
+      return { success: false, message: 'لا تملك صلاحية مراجعة زيارة هذا المندوب' };
+    }
+    if (visit.reviewStatus !== 'pending' || (visit.status !== 'منفذة' && visit.status !== 'لم تتم')) {
+      return { success: false, message: 'هذه الزيارة ليست بانتظار المراجعة' };
+    }
+    if (status === 'needs_fix' && !note.trim()) {
+      return { success: false, message: 'اكتب ملاحظة توضح المطلوب تعديله' };
+    }
+
+    const now = new Date().toISOString();
+    const updatedVisit: CustomerVisit = {
+      ...visit,
+      reviewStatus: status,
+      reviewedByName: currentUser.name,
+      reviewNote: status === 'needs_fix' ? note.trim() : undefined,
+      reviewedAt: now,
+      updatedAt: now,
+      syncStatus: 'synced',
+    };
+    setVisits((prev) => {
+      const next = prev.map((item) => item.id === visitId ? updatedVisit : item);
+      idbSet(STORAGE_KEYS.VISITS, next).catch(() => {});
+      safeLocalStorageSet(STORAGE_KEYS.VISITS, JSON.stringify(next));
+      return next;
+    });
+    saveVisitsToSupabase([updatedVisit]).then((result) => {
+      if (!result.success) console.warn('Supabase visit review save error:', result.error);
+    }).catch((error) => console.warn('Supabase visit review save error:', error));
+    if (visit.customerId) {
+      setCustomers((prev) => prev.map((customer) => customer.id === visit.customerId
+        ? { ...customer, visitHistory: (customer.visitHistory || []).map((item) => item.id === visitId ? updatedVisit : item) }
+        : customer));
+    }
+    return { success: true, message: status === 'approved' ? 'تم اعتماد الزيارة' : 'تم إرجاع التقرير للمندوب للتعديل' };
   };
 
   const deleteVisit = async (visitId: string): Promise<{ success: boolean; message: string }> => {

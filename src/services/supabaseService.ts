@@ -1465,6 +1465,10 @@ export async function fetchVisitsFromSupabase(): Promise<{ success: boolean; vis
       createdBy: v.created_by || v.createdBy || '',
       createdAt: v.created_at || v.createdAt || new Date().toISOString(),
       updatedAt: v.updated_at || v.updatedAt,
+      reviewStatus: v.review_status || v.reviewStatus || undefined,
+      reviewedByName: v.reviewed_by_name || v.reviewedByName || undefined,
+      reviewNote: v.review_note || v.reviewNote || undefined,
+      reviewedAt: v.reviewed_at || v.reviewedAt || undefined,
     }));
 
     return { success: true, visits: mapped };
@@ -1528,6 +1532,10 @@ export async function saveVisitsToSupabase(visits: CustomerVisit[]): Promise<{ s
         return_handled_by: v.returnHandledBy || null,
         return_handled_at: v.returnHandledAt || null,
         return_note: v.returnNote || null,
+        review_status: v.reviewStatus || null,
+        reviewed_by_name: v.reviewedByName || null,
+        review_note: v.reviewNote || null,
+        reviewed_at: v.reviewedAt || null,
         created_by: v.createdBy || '',
         created_at: v.createdAt || new Date().toISOString(),
         updated_at: v.updatedAt || new Date().toISOString(),
@@ -1536,6 +1544,10 @@ export async function saveVisitsToSupabase(visits: CustomerVisit[]): Promise<{ s
 
     const { data, error } = await supabase.from('visits').upsert(payload, { onConflict: 'id' }).select();
     if (error) {
+      if (/review_status|reviewed_by_name|review_note|reviewed_at/i.test(error.message)) {
+        console.warn('Supabase visit review columns are missing:', error.message);
+        return { success: false, savedCount: 0, error: 'شغّل migration مراجعة الزيارات على Supabase أولاً' };
+      }
       // The return columns require add_visit_return_columns.sql. Retry without
       // them so a missing migration never blocks saving a visit.
       if (/column .*(is_return|return_value|return_reason|return_difficulty|return_status|return_handled_by|return_handled_at|return_note)|schema cache/i.test(error.message)) {

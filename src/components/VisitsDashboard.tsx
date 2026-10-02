@@ -57,6 +57,7 @@ export const VisitsDashboard: React.FC = () => {
     getVisibleVisits,
     addVisit,
     updateVisit,
+    reviewVisit,
     deleteVisit,
     syncVisitsWithDatabase,
     getCustomerVisitSummary
@@ -80,6 +81,7 @@ export const VisitsDashboard: React.FC = () => {
   const [branch, setBranch] = useState('الكل');
   const [rep, setRep] = useState('الكل');
   const [statusFilter, setStatusFilter] = useState<'الكل' | CustomerVisit['status']>('الكل');
+  const [reviewFilter, setReviewFilter] = useState<'all' | 'pending' | 'approved' | 'needs_fix'>('all');
   const [returnFilter, setReturnFilter] = useState<'all' | 'returns_only' | 'pending_transfer' | 'transferred_to_store' | 'received'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -112,6 +114,8 @@ export const VisitsDashboard: React.FC = () => {
   // Modals & Active Items
   const [showForm, setShowForm] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState<CustomerVisit | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<CustomerVisit | null>(null);
+  const [reviewNoteDraft, setReviewNoteDraft] = useState('');
   // Quick customer dossier opened straight from the visits table, so the rep can
   // read the credit limit, debt and guarantee status before negotiating.
   const [dossierCustomer, setDossierCustomer] = useState<Customer | null>(null);
@@ -188,6 +192,26 @@ export const VisitsDashboard: React.FC = () => {
   const showToast = (type: 'success' | 'error', text: string) => {
     setToastMessage({ type, text });
     setTimeout(() => setToastMessage(null), 5000);
+  };
+
+  const canReviewVisit = (visit: CustomerVisit) => {
+    if (!isSupervisor || visit.reviewStatus !== 'pending' || !currentUser) return false;
+    const repUser = (visit.repId ? users.find((user) => user.id === visit.repId) : undefined) ||
+      users.find((user) => user.role === 'sales_rep' && isArabicNameMatch(user.name, visit.repName || ''));
+    return repUser?.role === 'sales_rep' && repUser.supervisorId === currentUser.id;
+  };
+
+  const getReviewStatusInfo = (visit: CustomerVisit) => {
+    if (visit.reviewStatus === 'approved') {
+      return { text: `تم الاعتماد بواسطة ${visit.reviewedByName || 'المشرف'}`, className: 'text-emerald-800 bg-emerald-50 border-emerald-200' };
+    }
+    if (visit.reviewStatus === 'needs_fix') {
+      return { text: `مطلوب تعديل: ${visit.reviewNote || 'راجع ملاحظة المشرف'}`, className: 'text-amber-900 bg-amber-50 border-amber-200' };
+    }
+    if (visit.reviewStatus === 'pending') {
+      return { text: 'بانتظار اعتماد المشرف', className: 'text-sky-800 bg-sky-50 border-sky-200' };
+    }
+    return null;
   };
 
   // Branches available
@@ -433,6 +457,7 @@ export const VisitsDashboard: React.FC = () => {
 
       // 4. Status match
       if (statusFilter !== 'الكل' && v.status !== statusFilter) return false;
+      if (reviewFilter !== 'all' && v.reviewStatus !== reviewFilter) return false;
 
       // 4.5. Return Outcome and Handover Status Match
       if (returnFilter === 'returns_only' && !v.isReturn) return false;
@@ -462,7 +487,7 @@ export const VisitsDashboard: React.FC = () => {
         returnHandledBy.includes(q)
       );
     });
-  }, [visible, timePreset, month, exactDate, branch, rep, statusFilter, returnFilter, searchQuery, customers, todayStr, weekAgoStr, currentUser?.role, users]);
+  }, [visible, timePreset, month, exactDate, branch, rep, statusFilter, reviewFilter, returnFilter, searchQuery, customers, todayStr, weekAgoStr, currentUser?.role, users]);
 
   // Return alerts and handover tracking (إشعارات المرتجعات وتحويلها لأمين/مدير المخزن)
   const returnAlerts = useMemo(() => {
@@ -1059,6 +1084,27 @@ export const VisitsDashboard: React.FC = () => {
       }
     } else {
       showToast('error', res.message);
+    }
+  };
+
+  const handleSubmitReview = (status: 'approved' | 'needs_fix') => {
+    if (!reviewTarget) return;
+    const result = reviewVisit(reviewTarget.id, status, reviewNoteDraft);
+    if (result.success) {
+      showToast('success', result.message);
+      setReviewTarget(null);
+      setReviewNoteDraft('');
+      if (selectedVisit?.id === reviewTarget.id) {
+        setSelectedVisit({
+          ...selectedVisit,
+          reviewStatus: status,
+          reviewedByName: currentUser?.name,
+          reviewNote: status === 'needs_fix' ? reviewNoteDraft.trim() : undefined,
+          reviewedAt: new Date().toISOString(),
+        });
+      }
+    } else {
+      showToast('error', result.message);
     }
   };
 
@@ -2354,7 +2400,14 @@ export const VisitsDashboard: React.FC = () => {
                       )}
                     </td>
                     <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                      {getStatusBadge(v.status)}
+                      <div className="space-y-1.5">
+                        {getStatusBadge(v.status)}
+                        {getReviewStatusInfo(v) && (
+                          <div className={`max-w-52 border rounded-md px-1.5 py-1 text-[10px] font-bold ${getReviewStatusInfo(v)?.className}`}>
+                            {getReviewStatusInfo(v)?.text}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3 font-mono">
                       {v.collectedAmount ? (
@@ -2401,6 +2454,28 @@ export const VisitsDashboard: React.FC = () => {
                     <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-1.5">
                         {/* Quick action buttons */}
+                        {canReviewVisit(v) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReviewTarget(v);
+                              setReviewNoteDraft('');
+                            }}
+                            className="bg-sky-700 hover:bg-sky-800 text-white font-bold px-2 py-1 rounded-lg text-[11px] transition cursor-pointer"
+                            title="مراجعة تقرير المندوب"
+                          >
+                            مراجعة
+                          </button>
+                        )}
+                        {isRep && v.reviewStatus === 'needs_fix' && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenExecutionModal(v)}
+                            className="bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold px-2 py-1 rounded-lg text-[11px] border border-amber-300 transition cursor-pointer"
+                          >
+                            تعديل التقرير
+                          </button>
+                        )}
                         {v.status !== 'منفذة' && (
                           <button
                             type="button"
@@ -2477,6 +2552,12 @@ export const VisitsDashboard: React.FC = () => {
                   {getStatusBadge(v.status)}
                 </div>
 
+                {getReviewStatusInfo(v) && (
+                  <div className={`border rounded-lg px-2 py-1 text-[10.5px] font-bold ${getReviewStatusInfo(v)?.className}`}>
+                    {getReviewStatusInfo(v)?.text}
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between text-xs text-slate-600 pt-1">
                   <div>
                     المندوب: <span className="font-bold text-slate-800">{v.repName}</span>
@@ -2510,6 +2591,27 @@ export const VisitsDashboard: React.FC = () => {
 
                 {/* Quick actions for mobile */}
                 <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-50" onClick={(e) => e.stopPropagation()}>
+                  {canReviewVisit(v) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReviewTarget(v);
+                        setReviewNoteDraft('');
+                      }}
+                      className="bg-sky-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs"
+                    >
+                      مراجعة
+                    </button>
+                  )}
+                  {isRep && v.reviewStatus === 'needs_fix' && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenExecutionModal(v)}
+                      className="bg-amber-50 text-amber-900 font-bold px-2.5 py-1 rounded-lg text-xs border border-amber-300"
+                    >
+                      تعديل التقرير
+                    </button>
+                  )}
                   {v.status !== 'منفذة' && (
                     <button
                       type="button"
@@ -3353,6 +3455,124 @@ export const VisitsDashboard: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {reviewTarget && (
+        <div
+          className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              setReviewTarget(null);
+              setReviewNoteDraft('');
+            }
+          }}
+        >
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <div className="px-4 py-3 bg-slate-900 text-white flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-black">مراجعة تقرير الزيارة</h3>
+                <p className="text-xs text-slate-300 mt-1">{reviewTarget.repName} · {reviewTarget.customerName}</p>
+              </div>
+              <button type="button" onClick={() => setReviewTarget(null)} className="p-1 text-slate-300 hover:text-white" title="إغلاق">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <label className="block text-xs font-bold text-slate-700">
+                ملاحظة للمندوب عند طلب التعديل
+                <textarea
+                  value={reviewNoteDraft}
+                  onChange={(e) => setReviewNoteDraft(e.target.value)}
+                  rows={3}
+                  className="mt-1.5 w-full rounded-xl border border-slate-300 p-3 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                  placeholder="وضح المطلوب تعديله..."
+                />
+              </label>
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleSubmitReview('needs_fix')}
+                  disabled={!reviewNoteDraft.trim()}
+                  className="px-3 py-2 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 text-xs font-black disabled:opacity-50"
+                >
+                  طلب تعديل
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSubmitReview('approved')}
+                  className="px-3 py-2 rounded-lg bg-emerald-700 text-white text-xs font-black"
+                >
+                  اعتماد الزيارة
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {executingVisit && (
+        <div className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3">
+          <form onSubmit={handleSaveExecution} className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl">
+            <div className="sticky top-0 px-4 py-3 bg-slate-900 text-white flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-black">تعديل تقرير الزيارة</h3>
+                <p className="text-xs text-slate-300 mt-1">{executingVisit.customerName} · {executingVisit.date}</p>
+              </div>
+              <button type="button" onClick={() => setExecutingVisit(null)} className="p-1 text-slate-300 hover:text-white" title="إغلاق">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              {executingVisit.reviewNote && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950">
+                  <strong>ملاحظة المشرف:</strong> {executingVisit.reviewNote}
+                </div>
+              )}
+              <label className="block text-xs font-bold text-slate-700">
+                نتيجة الزيارة
+                <select value={executionForm.outcome} onChange={(e) => setExecutionForm({ ...executionForm, outcome: e.target.value as CustomerVisit['outcome'] })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
+                  <option value="تم عمل طلبية">تم عمل طلبية</option>
+                  <option value="تم التحصيل">تم التحصيل</option>
+                  <option value="تأجيل سداد">تأجيل سداد</option>
+                  <option value="المحل مغلق">المحل مغلق</option>
+                  <option value="متابعة فقط">متابعة فقط</option>
+                  <option value="مرتجع لدي العميل">مرتجع لدي العميل</option>
+                  <option value="أخرى">أخرى</option>
+                </select>
+              </label>
+              <label className="block text-xs font-bold text-slate-700">
+                ملاحظات الزيارة
+                <textarea value={executionForm.notes} onChange={(e) => setExecutionForm({ ...executionForm, notes: e.target.value })} rows={3} className="mt-1 w-full rounded-lg border border-slate-300 p-3" />
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block text-xs font-bold text-slate-700">المبلغ المحصل
+                  <input type="number" min="0" step="0.01" value={executionForm.collectedAmount} onChange={(e) => setExecutionForm({ ...executionForm, collectedAmount: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+                </label>
+                <label className="block text-xs font-bold text-slate-700">قيمة الطلبية
+                  <input type="number" min="0" step="0.01" value={executionForm.orderAmount} onChange={(e) => setExecutionForm({ ...executionForm, orderAmount: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+                </label>
+                <label className="block text-xs font-bold text-slate-700">حالة الزيارة
+                  <select value={executionForm.status} onChange={(e) => setExecutionForm({ ...executionForm, status: e.target.value as CustomerVisit['status'] })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
+                    <option value="منفذة">منفذة</option>
+                    <option value="لم تتم">لم تتم</option>
+                  </select>
+                </label>
+                <label className="block text-xs font-bold text-slate-700">حالة مخزون العميل
+                  <select value={executionForm.storeStockStatus} onChange={(e) => setExecutionForm({ ...executionForm, storeStockStatus: e.target.value as NonNullable<CustomerVisit['storeStockStatus']> })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
+                    <option value="متوفر بكثرة">متوفر بكثرة</option>
+                    <option value="متوسط">متوسط</option>
+                    <option value="منخفض">منخفض</option>
+                    <option value="منعدم (نفاد مخزون)">منعدم (نفاد مخزون)</option>
+                  </select>
+                </label>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setExecutingVisit(null)} className="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold">إلغاء</button>
+                <button type="submit" className="px-3 py-2 rounded-lg bg-sky-700 text-white text-xs font-black">إعادة الإرسال للمراجعة</button>
+              </div>
+            </div>
+          </form>
         </div>
       )}
 

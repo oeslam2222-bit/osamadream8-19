@@ -148,6 +148,7 @@ export interface ParentProduct {
 export type CustomerTier = 'مميز' | 'راقي' | 'متوسط' | 'عادي';
 
 export type CustomerVisitStatus = 'مجدولة' | 'منفذة' | 'ملغاة' | 'لم تتم';
+export type VisitReviewStatus = 'pending' | 'approved' | 'needs_fix';
 
 export interface CustomerVisit {
   id: string;
@@ -169,6 +170,10 @@ export interface CustomerVisit {
   createdBy?: string;
   createdAt?: string;
   updatedAt?: string;
+  reviewStatus?: VisitReviewStatus;
+  reviewedByName?: string;
+  reviewNote?: string;
+  reviewedAt?: string;
 
   // Developed Visit Capabilities (تطوير الزيارات الميدانية)
   location?: {
