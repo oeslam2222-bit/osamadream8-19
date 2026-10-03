@@ -398,6 +398,14 @@ export const VisitsDashboard: React.FC = () => {
     };
   }, [timePreset, todayStr, weekAgoStr, exactDate, month, rangeFrom, rangeTo]);
 
+  const periodVisits = useMemo(
+    () => visible.filter((visit) =>
+      (!selectedPeriod.from || visit.date >= selectedPeriod.from) &&
+      (!selectedPeriod.to || visit.date <= selectedPeriod.to)
+    ),
+    [visible, selectedPeriod]
+  );
+
   // Which rep owns a customer, matched by id first and by name second so legacy
   // rows that only carry a name still land on the right rep.
   const repMatchesCustomer = (c: Customer, repId: string): boolean => {
@@ -578,11 +586,7 @@ export const VisitsDashboard: React.FC = () => {
   // Filter visits, minus the scheduled split (that one is applied separately so the
   // pills can show both sides no matter which side is currently selected).
   const filteredBase = useMemo(() => {
-    return visible.filter((v) => {
-      // The same selected period drives the list, efficiency board and exports.
-      if (selectedPeriod.from && v.date < selectedPeriod.from) return false;
-      if (selectedPeriod.to && v.date > selectedPeriod.to) return false;
-
+    return periodVisits.filter((v) => {
       // 2. Branch match (Only for admin/supervisors/managers; reps should not have their visits hidden)
       if (currentUser?.role !== 'sales_rep') {
         if (branch !== 'الكل' && v.branchName && v.branchName !== branch) return false;
@@ -630,7 +634,7 @@ export const VisitsDashboard: React.FC = () => {
         returnHandledBy.includes(q)
       );
     });
-  }, [visible, selectedPeriod, branch, rep, statusFilter, reviewFilter, returnFilter, deferredSearchQuery, customerById, currentUser?.role, userById]);
+  }, [periodVisits, branch, rep, statusFilter, reviewFilter, returnFilter, deferredSearchQuery, customerById, currentUser?.role, userById]);
 
   /**
    * The scheduled split, applied after every other filter so the two pills always show
@@ -662,8 +666,8 @@ export const VisitsDashboard: React.FC = () => {
 
   // Return alerts and handover tracking (إشعارات المرتجعات وتحويلها لأمين/مدير المخزن)
   const returnAlerts = useMemo(() => {
-    return visible.filter((v) => Boolean(v.isReturn));
-  }, [visible]);
+    return periodVisits.filter((v) => Boolean(v.isReturn));
+  }, [periodVisits]);
 
   const pendingReturns = useMemo(() => {
     return returnAlerts.filter((v) => !v.returnStatus || v.returnStatus === 'بانتظار المشرف');
@@ -746,7 +750,7 @@ export const VisitsDashboard: React.FC = () => {
   // Specialized Returns & Warehouse Report Export (تصدير تقرير المرتجعات والمخزن)
   const handleExportReturnsReport = async () => {
     if (returnAlerts.length === 0) {
-      showToast('error', 'لا توجد مرتجعات في سجل الزيارات لتصديرها.');
+      showToast('error', `لا توجد مرتجعات في الفترة المختارة (${selectedPeriod.label}) لتصديرها.`);
       return;
     }
     const XLSX = await loadXlsx();
@@ -870,11 +874,6 @@ export const VisitsDashboard: React.FC = () => {
   // Orders and collections are taken from the recorded invoice/amount rather
   // than the rep's own outcome checkbox, so the report cannot be self-reported.
   const weeklyByRep = useMemo(() => {
-    const inRange = visible.filter((v) =>
-      (!selectedPeriod.from || v.date >= selectedPeriod.from) &&
-      (!selectedPeriod.to || v.date <= selectedPeriod.to)
-    );
-
     const map = new Map<string, {
       repId: string;
       repName: string;
@@ -890,7 +889,7 @@ export const VisitsDashboard: React.FC = () => {
       amountCollected: number;
     }>();
 
-    inRange.forEach((v) => {
+    periodVisits.forEach((v) => {
       const key = v.repId || v.repName || 'غير محدد';
       let row = map.get(key);
       if (!row) {
@@ -934,7 +933,7 @@ export const VisitsDashboard: React.FC = () => {
         orderValue: r.orderValue,
       }))
       .sort((a, b) => b.completed - a.completed || b.scheduled - a.scheduled);
-  }, [visible, selectedPeriod]);
+  }, [periodVisits]);
 
   const weeklyTotals = useMemo(() => {
     return weeklyByRep.reduce(
@@ -963,10 +962,7 @@ export const VisitsDashboard: React.FC = () => {
     const XLSX = await loadXlsx();
     if (!XLSX) return;
     const repKey = rep !== 'الكل' ? rep : '';
-    const inRange = visible.filter((v) =>
-      (!selectedPeriod.from || v.date >= selectedPeriod.from) &&
-      (!selectedPeriod.to || v.date <= selectedPeriod.to)
-    );
+    const inRange = periodVisits;
 
     const summaryRows = weeklyByRep
       .filter((r) => {
@@ -1642,7 +1638,7 @@ export const VisitsDashboard: React.FC = () => {
               type="button"
               onClick={handleExportReturnsReport}
               className="bg-rose-50 hover:bg-rose-100 text-rose-800 font-black px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 text-xs border border-rose-300 transition cursor-pointer shadow-2xs"
-              title="تصدير تقرير شامل لكافة المرتجعات وحالة تحويلها لمدير المخزن"
+              title="تصدير تقرير المرتجعات في الفترة المختارة وحالة تحويلها لمدير المخزن"
             >
               <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
               <span>تقرير المرتجعات والمخزن ({returnAlerts.length}) 📊</span>
