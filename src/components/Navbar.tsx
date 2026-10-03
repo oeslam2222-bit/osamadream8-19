@@ -72,6 +72,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     lastVersionSyncNotice,
     clearVersionSyncNotice,
     checkAndSyncDataVersion,
+    offlineQueueCount,
+    flushOfflineQueue,
   } = useApp();
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -313,16 +315,19 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
               )}
             </div>
 
-            {/* Pending Invoices Sync Button for Offline/Queued Orders */}
-            {pendingInvoicesCount > 0 && (
+            {/* Anything done offline (invoices, visits, customers, products, users, targets) */}
+            {(pendingInvoicesCount > 0 || offlineQueueCount > 0) && (
               <button
                 type="button"
-                onClick={() => flushPendingInvoices()}
+                onClick={() => {
+                  flushPendingInvoices();
+                  flushOfflineQueue();
+                }}
                 className="flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 px-2.5 h-9 sm:h-10 rounded-xl text-xs font-black transition cursor-pointer shadow-sm animate-pulse border border-amber-300"
-                title="فواتير مسجلة أوفلاين بانتظار المزامنة مع السيرفر"
+                title="تغييرات مسجلة بدون إنترنت بانتظار المزامنة مع السيرفر"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                <span>مزامنة ({pendingInvoicesCount})</span>
+                <span>مزامنة ({pendingInvoicesCount + offlineQueueCount})</span>
               </button>
             )}
 

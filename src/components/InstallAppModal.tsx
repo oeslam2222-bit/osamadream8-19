@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import type { InstallPromptEvent } from '../types';
 import {
   Download,
   Smartphone,
@@ -21,7 +22,7 @@ import {
 interface InstallAppModalProps {
   isOpen: boolean;
   onClose: () => void;
-  installPromptEvent: any;
+  installPromptEvent: InstallPromptEvent | null;
 }
 
 export const InstallAppModal: React.FC<InstallAppModalProps> = ({

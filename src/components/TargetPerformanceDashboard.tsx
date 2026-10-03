@@ -566,18 +566,16 @@ export const TargetPerformanceDashboard: React.FC = () => {
             customer.overdueBalance ??
             customer.dueUntilPeriod ??
             customer.dueBalance ??
-            (customer as any).totalDues ??
-            (customer as any).dues ??
             0
           );
           return sum + (isNaN(val) ? 0 : val);
         }, 0),
         debts: repCustomers.reduce((sum, customer) => {
-          const val = Number(customer.currentBalance ?? customer.balance ?? (customer as any).totalDebt ?? 0);
+          const val = Number(customer.currentBalance ?? customer.balance ?? 0);
           return sum + (isNaN(val) ? 0 : val);
         }, 0),
         netBalance: repCustomers.reduce((sum, customer) => {
-          const val = Number(customer.currentBalance ?? customer.balance ?? (customer as any).totalDebt ?? 0);
+          const val = Number(customer.currentBalance ?? customer.balance ?? 0);
           return sum + (isNaN(val) ? 0 : val);
         }, 0),
         collections: repCustomers.reduce((sum, customer) => {

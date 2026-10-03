@@ -1,6 +1,7 @@
 import { Invoice, Branch } from '../types';
-import { generateInvoiceExcelBase64, resolveSafeCustomerCode } from './excelService';
-import { generateInvoicePDFBase64 } from './pdfService';
+// Excel and PDF engines are loaded on demand: this module is imported by the app
+// shell, and eagerly pulling them in would ship the whole xlsx + jsPDF stack to
+// every rep on first paint.
 import { resolveCustomerFinancials, isBranchMatch, normalizeBranchName } from './arabicMatchingService';
 
 /**
@@ -279,6 +280,7 @@ export async function sendOrderToMicrosoft365(
     const approver = safeStr(submittedBy || invoice.supervisorName, 'الإدارة');
 
     // Resolve true customer code & financials
+    const { resolveSafeCustomerCode, generateInvoiceExcelBase64 } = await import('./excelService');
     const financials = resolveCustomerFinancials(invoice);
     const resolvedCustomerCode = resolveSafeCustomerCode(invoice, financials.matchedCustomer);
 
@@ -308,6 +310,7 @@ export async function sendOrderToMicrosoft365(
     // 2. Generate Base64 for PDF
     let pdfContent = '';
     try {
+      const { generateInvoicePDFBase64 } = await import('./pdfService');
       pdfContent = await generateInvoicePDFBase64(invoice);
     } catch (pdfErr) {
       console.warn('PDF base64 generation warning, proceeding with fallback:', pdfErr);

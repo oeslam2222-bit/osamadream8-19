@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Branch, Customer, Invoice, Product, User, UserRole, CustomerVisit } from '../types';
+import { withHashedCredential } from './passwordService';
 
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://rxthpgmlcsfckstpqhqf.supabase.co';
 export const SUPABASE_ANON_KEY =
@@ -393,6 +394,32 @@ export async function saveCustomerToSupabase(customer: Customer): Promise<{ succ
 }
 
 /**
+ * Delete a single customer from Supabase. Used by the offline outbox so a
+ * deletion made without a network is replayed once the device reconnects.
+ */
+export async function deleteCustomerFromSupabase(
+  customerId: string
+): Promise<{ success: boolean; removed: number; error?: string }> {
+  try {
+    const safeId = (customerId || '').trim();
+    if (!safeId) return { success: false, removed: 0, error: 'معرّف العميل غير صالح' };
+
+    const { data, error } = await supabase.from('customers').delete().eq('id', safeId).select('id');
+    if (error) {
+      return { success: false, removed: 0, error: error.message };
+    }
+    const removed = Array.isArray(data) ? data.length : 0;
+    if (removed === 0) {
+      // Already absent remotely: treat as done so the queue does not retry forever.
+      return { success: true, removed: 0 };
+    }
+    return { success: true, removed };
+  } catch (e: any) {
+    return { success: false, removed: 0, error: e?.message || 'تعذر حذف العميل من قاعدة البيانات' };
+  }
+}
+
+/**
  * Authoritative full replacement of the customers table.
  *
  * Plain upserts keep old rows alive forever: a customer whose id/code changed
@@ -687,7 +714,8 @@ export async function saveUsersToSupabase(users: User[]): Promise<{ success: boo
   try {
     invalidateUsersCache();
     let firstError = '';
-    const usersPayload = users.map((u) => ({
+    const securedUsers = await Promise.all(users.map((u) => withHashedCredential(u)));
+    const usersPayload = securedUsers.map((u) => ({
       id: u.id,
       name: u.name,
       username: u.username,
@@ -751,14 +779,15 @@ export async function saveUsersToSupabase(users: User[]): Promise<{ success: boo
 export async function saveUserToSupabase(user: User, currentUsersList?: User[]): Promise<{ success: boolean; error?: string }> {
   try {
     invalidateUsersCache();
+    const securedUser = await withHashedCredential(user);
     const userPayload = {
-      id: user.id,
-      name: user.name,
-      username: user.username,
-      email: user.email,
-      password: user.password || '',
-      role: user.role,
-      branch_name: user.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+      id: securedUser.id,
+      name: securedUser.name,
+      username: securedUser.username,
+      email: securedUser.email,
+      password: securedUser.password || '',
+      role: securedUser.role,
+      branch_name: securedUser.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
       supervisor_id: user.supervisorId || null,
       phone: user.phone || '',
       commission_rate: user.commissionRate || 2.5,

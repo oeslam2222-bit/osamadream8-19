@@ -17,7 +17,6 @@ import {
   resolveBranchName,
   normalizeBranchKey,
   findCustomerMatch,
-  resolveCustomerFinancials,
   setActiveCustomersCache,
 } from '../services/arabicMatchingService';
 import {
@@ -40,6 +39,8 @@ import {
   replaceCustomersInSupabase,
   saveInvoiceToSupabase,
   saveInvoicesToSupabase,
+  saveCustomerToSupabase,
+  deleteCustomerFromSupabase,
   saveProductsToSupabase,
   saveUsersToSupabase,
   saveUserToSupabase,
@@ -57,8 +58,6 @@ import {
   parseTargetExcel,
   fetchTargetsFromGoogleSheetUrl,
 } from '../services/targetService';
-import { deduplicateAndMergeCustomers } from '../services/customerDeduplicationService';
-import { calculateCustomerFinancials, isSummaryOrTotalRow } from '../services/customerFinancialService';
 import { saveSingleSourceUrl, getPublishedDataSources, getSavedSourceUrl } from '../services/dataSourceService';
 import {
   fetchRemoteDataVersion,
@@ -92,340 +91,40 @@ import {
   UserRole,
   VisitReviewStatus,
 } from '../types';
-
-interface AppContextType {
-  currentUser: User | null;
-  isAuthenticated: boolean;
-  users: User[];
-  branches: Branch[];
-  products: Product[];
-  customers: Customer[];
-  visits: CustomerVisit[];
-  invoices: Invoice[];
-  cart: CartItem[];
-  cloudinaryConfig: CloudinaryConfig;
-  accountingLogs: AccountingSyncLog[];
-  auditLogs: AuditLog[];
-  recordAuditLog: (logData: Omit<AuditLog, 'id' | 'timestamp' | 'formattedTime'>) => void;
-  clearAuditLogs: () => void;
-  isOffline: boolean;
-  pendingInvoicesCount: number;
-  flushPendingInvoices: () => Promise<{ success: boolean; syncedCount: number }>;
-  selectedBranchFilter: string;
-  setSelectedBranchFilter: (branch: string) => void;
-  refreshInvoicesNow: (force?: boolean) => Promise<{ success: boolean; count: number; message: string }>;
-  
-  // Supabase Sync
-  supabaseStatus: SupabaseSyncStatus;
-  isSupabaseSyncing: boolean;
-  syncWithSupabase: (direction?: 'fetch' | 'push' | 'both') => Promise<{ success: boolean; message: string }>;
-
-  // Privacy & Confidentiality Mode (سرية البيانات)
-  isPrivacyMode: boolean;
-  togglePrivacyMode: () => void;
-  setPrivacyMode: (val: boolean) => void;
-  formatConfidentialCurrency: (amount: number | undefined | null) => string;
-
-  // Customer Management Actions
-  addCustomer: (customer: Customer) => void;
-  updateCustomer: (customer: Customer) => void;
-  deleteCustomer: (customerId: string) => void;
-  importCustomersList: (newCustomers: Customer[], mode?: 'merge' | 'replace' | 'upsert') => Promise<{ success: boolean; count: number; removed: number; message: string }>;
-  cleanAndDeduplicateCustomers: () => { originalCount: number; deduplicatedCount: number; duplicatesRemoved: number };
-  clearCustomersCacheAndReset: () => void;
-  refreshCustomerRepLinks: () => {
-    updatedCount: number;
-    totalCustomers: number;
-    linkedCustomersCount: number;
-    unassignedCount: number;
-    repBreakdown: { repName: string; branchName: string; customerCount: number; hasUserAccount: boolean; user?: User }[];
-    unmatchedReps: string[];
-  };
-  autoCreateMissingRepsFromCustomers: () => { createdUsers: User[]; count: number; message: string };
-  mergeDuplicateUsers: () => Promise<{
-    success: boolean;
-    message: string;
-    mergedCount: number;
-    details: string[];
-  }>;
-
-  // Auth actions
-  login: (identifier: string, password: string) => Promise<{ success: boolean; message: string; user?: User }>;
-  register: (userData: {
-    name: string;
-    username: string;
-    email: string;
-    password?: string;
-    phone: string;
-    branchName: string;
-    role: UserRole;
-    supervisorId?: string;
-  }) => { success: boolean; message: string };
-  logout: () => void;
-
-  // Cart Actions (Smart Carton & Piece Logic)
-  addToCart: (product: Product, orderType?: 'carton' | 'piece' | 'mixed', count?: number, piecesCount?: number) => { success: boolean; message?: string };
-  updateCartItem: (productId: string, updates: Partial<CartItem>) => void;
-  removeFromCart: (productId: string) => void;
-  clearCart: () => void;
-  getCartSummary: (customDiscountPercent?: number) => {
-    totalCartons: number;
-    totalPieces: number;
-    subtotal: number;
-    discountPercentage: number;
-    discountAmount: number;
-    taxAmount: number;
-    grandTotal: number;
-    itemCount: number;
-  };
-
-  // Product & Inventory Actions
-  inventoryLogs: InventoryTransaction[];
-  addProduct: (product: Product) => void;
-  updateProduct: (product: Product) => void;
-  deleteProduct: (productId: string) => void;
-  importProductsList: (newProducts: Product[], mode: 'merge' | 'replace') => void;
-  adjustStock: (productId: string, branchChange: number, mainWarehouseChange: number, reason?: string) => void;
-  recordInventoryTransaction: (tx: Omit<InventoryTransaction, 'id' | 'timestamp' | 'date'>) => void;
-  checkProductAvailability: (productId: string, requestedPieces: number) => { available: boolean; remainingPieces: number; message?: string };
-
-  // Invoice / Order Actions & Approval Workflow
-  createOrder: (orderData: Partial<Invoice> & { splitShortagesToBackorder?: boolean }) => {
-    success: boolean;
-    invoice?: Invoice;
-    shortageInvoice?: Invoice;
-    message?: string;
-  };
-  approveOrder: (invoiceId: string, notes?: string) => { success: boolean; message: string };
-  resendInvoiceEmail: (invoiceId: string) => Promise<{ success: boolean; message: string }>;
-  forwardOrderToManager: (invoiceId: string, notes?: string) => { success: boolean; message: string };
-  rejectOrder: (invoiceId: string, reason: string) => { success: boolean; message: string };
-  editPendingOrder: (invoice: Invoice) => { success: boolean; message: string; customer?: Customer | null };
-  cancelPendingOrderByRep: (invoiceId: string, reason?: string) => { success: boolean; message: string };
-  updateOrderStatus: (invoiceId: string, status: OrderStatus, reason?: string) => { success: boolean; message: string };
-  processOrderReturn: (
-    invoiceId: string,
-    returnedItems: ReturnedItem[],
-    reason: string,
-    restockToInventory?: boolean
-  ) => { success: boolean; message: string; returnRecord?: ReturnRecord };
-  deleteInvoice: (invoiceId: string) => Promise<void>;
-  syncToAccounting: (invoiceId: string) => Promise<boolean>;
-  dispatchOrderToMicrosoft: (invoiceId: string) => Promise<{ success: boolean; message: string }>;
-  updateBranchEmails: (branchId: string, email: string, notificationEmails: string[]) => void;
-
-  // User Management & Approval Actions
-  addUser: (user: User) => void;
-  updateUser: (user: User) => void;
-  deleteUser: (userId: string) => void;
-  approveUser: (userId: string, supervisorId?: string, branchName?: string, role?: UserRole) => void;
-  rejectUser: (userId: string) => void;
-  assignSupervisor: (repId: string, supervisorId: string) => void;
-  authTerminationNotice: string | null;
-  clearAuthTerminationNotice: () => void;
-
-  // Settings & App Extras
-  companyInfo: CompanyInfo;
-  branchCompanyInfo: Record<string, Partial<CompanyInfo>>;
-  updateCompanyInfo: (newInfo: Partial<CompanyInfo>) => void;
-  resetCompanyInfo: () => void;
-  updateBranchCompanyInfo: (branchName: string, newInfo: Partial<CompanyInfo>) => void;
-  resetBranchCompanyInfo: (branchName: string) => void;
-  getCompanyInfoForBranch: (branchName?: string) => CompanyInfo;
-  updateCloudinarySettings: (config: CloudinaryConfig) => void;
-  saveMatchedProductImages: (updates: { id: string; imageUrl: string }[]) => void;
-  clearAllAppData: (mode?: 'cache_only' | 'full_reset') => void;
-  wipeAllProductsAndData: (options?: { wipeInvoices?: boolean }) => Promise<void>;
-  dataSaverMode: boolean;
-  setDataSaverMode: (enabled: boolean) => void;
-  toggleDataSaverMode: () => void;
-  installPromptEvent: any;
-  canInstallPwa: boolean;
-  triggerInstallPrompt: () => Promise<boolean>;
-  isInstallModalOpen: boolean;
-  setIsInstallModalOpen: (open: boolean) => void;
-  
-  // Helpers for RBAC
-  getVisibleInvoices: () => Invoice[];
-  getVisibleProducts: () => Product[];
-  getVisibleCustomers: () => Customer[];
-  getVisibleVisits: () => CustomerVisit[];
-  addVisit: (visit: Omit<CustomerVisit, 'id' | 'createdAt' | 'createdBy'>) => { success: boolean; message: string; visit?: CustomerVisit };
-  updateVisit: (visit: CustomerVisit) => { success: boolean; message: string };
-  reviewVisit: (visitId: string, status: Extract<VisitReviewStatus, 'approved' | 'needs_fix'>, note?: string) => { success: boolean; message: string };
-  deleteVisit: (visitId: string) => Promise<{ success: boolean; message: string }>;
-  syncVisitsWithDatabase: () => Promise<{ success: boolean; message: string; count: number }>;
-  getCustomerVisitSummary: (customerId: string, month?: string) => { total: number; completed: number; scheduled: number; lastVisit?: string; nextVisit?: string };
-  getSupervisorsInBranch: (branchName?: string) => User[];
-  getSalesRepsForSupervisor: (supervisorId: string) => User[];
-  loginAs: (userId: string) => void;
-
-  // Targets & KPIs Dashboard
-  targets: TargetRecord[];
-  getVisibleTargets: () => TargetRecord[];
-  importTargetsFromExcel: (file: File) => Promise<{ success: boolean; count: number; message: string }>;
-  importTargetsFromGoogleSheet: (url: string) => Promise<{ success: boolean; count: number; message: string }>;
-  exportTargetsReport: () => void;
-  resetTargetsToDefault: () => void;
-  addOrUpdateTargetRecord: (record: TargetRecord) => void;
-  deleteTargetRecord: (id: string) => void;
-
-  // Data Version Sync (إصدار التحديثات ومسح الكاش التلقائي لضمان عدم التدبيل)
-  globalDataVersion: GlobalDataVersionMeta | null;
-  isVersionSyncing: boolean;
-  lastVersionSyncNotice: string | null;
-  clearVersionSyncNotice: () => void;
-  checkAndSyncDataVersion: (force?: boolean) => Promise<{ updated: boolean; version?: number; message: string }>;
-  publishDataVersionUpdate: (params: {
-    scope?: SyncScope;
-    notes?: string;
-    forcePurge?: boolean;
-  }) => Promise<{ success: boolean; version: number; message: string }>;
-  forcePurgeCacheAndReload: (scope?: SyncScope) => Promise<void>;
-}
+import { AppContextType } from './appContextTypes';
+import {
+  STORAGE_KEYS,
+  getDeletedInvoiceIds,
+  markInvoiceAsDeletedInStorage,
+  getDeletedVisitIds,
+  markVisitAsDeletedInStorage,
+  firstNumber,
+  resolveDues,
+  buildCustomersFingerprint,
+  saveLocalCustomersFingerprint,
+  getLocalCustomersFingerprint,
+  normalizeBranchName,
+  hasDuplicateUserIdentity,
+  sanitizeProducts,
+  deduplicateCustomersArray,
+  deduplicateTargetRecords,
+  deduplicateProductArray,
+  sanitizeCustomers,
+} from './appContextHelpers';
+import { useUiPreferences } from './useUiPreferences';
+import { hashPassword, verifyPassword, withHashedCredential } from '../services/passwordService';
+import {
+  QueuedMutation,
+  enqueueMutation,
+  countQueuedMutations,
+  getQueuedMutations,
+  markQueuedMutationFailure,
+  removeQueuedMutations,
+} from '../services/offlineQueueService';
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const STORAGE_KEYS = {
-  PRODUCTS: 'dream_dist_products_v9',
-  INVOICES: 'dream_dist_invoices_v9',
-  USERS: 'dream_dist_users_v10',
-  BRANCHES: 'dream_dist_branches_v9',
-  CUSTOMERS: 'dream_dist_customers_v9',
-  VISITS: 'dream_dist_customer_visits_v1',
-  CLOUDINARY: 'dream_dist_cloudinary_v9',
-  CURRENT_USER_ID: 'dream_dist_current_user_v9',
-  CURRENT_USER_DATA: 'dream_dist_current_user_session_v10',
-  IS_AUTH: 'dream_dist_is_auth_v9',
-  ACCOUNTING_LOGS: 'dream_dist_acc_logs_v9',
-  CART: 'dream_dist_cart_v9',
-  DELETED_INVOICE_IDS: 'dream_dist_deleted_invoices_v1',
-  DELETED_VISIT_IDS: 'dream_dist_deleted_visits_v1',
-  PENDING_INVOICES: 'dream_dist_pending_invoices_v1',
-  TARGETS: 'dream_dist_targets_v1',
-  PRIVACY_MODE: 'dream_privacy_mode_v1',
-};
-
-const getDeletedInvoiceIds = (): Set<string> => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.DELETED_INVOICE_IDS);
-    if (!raw) return new Set<string>();
-    const parsed = JSON.parse(raw);
-    return new Set<string>(Array.isArray(parsed) ? parsed : []);
-  } catch {
-    return new Set<string>();
-  }
-};
-
-const markInvoiceAsDeletedInStorage = (id: string, invoiceNumber?: string) => {
-  try {
-    const current = getDeletedInvoiceIds();
-    if (id) current.add(id);
-    if (invoiceNumber) current.add(invoiceNumber);
-    localStorage.setItem(STORAGE_KEYS.DELETED_INVOICE_IDS, JSON.stringify(Array.from(current)));
-  } catch {}
-};
-
-const getDeletedVisitIds = (): Set<string> => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.DELETED_VISIT_IDS);
-    if (!raw) return new Set<string>();
-    const parsed = JSON.parse(raw);
-    return new Set<string>(Array.isArray(parsed) ? parsed : []);
-  } catch {
-    return new Set<string>();
-  }
-};
-
-const markVisitAsDeletedInStorage = (visitId: string) => {
-  try {
-    const current = getDeletedVisitIds();
-    if (visitId) current.add(visitId);
-    localStorage.setItem(STORAGE_KEYS.DELETED_VISIT_IDS, JSON.stringify(Array.from(current)));
-  } catch {}
-};
-
-const firstNumber = (...values: (number | undefined | null)[]): number | undefined => {
-  for (const v of values) {
-    const n = Number(v);
-    if (v !== undefined && v !== null && !isNaN(n)) return n;
-  }
-  return undefined;
-};
-
-/**
- * Resolve إجمالي المستحقات (dues) for a customer.
- * Dues are a separate figure from المديونية and must never be silently
- * replaced by the debt balance; the balance fallback only applies when the
- * source has no dues figure at all.
- */
-const resolveDues = (c: Customer): number => {
-  const explicit = firstNumber(c.totalOverdueAndDue, c.overdueBalance, c.totalOverdue, c.dueBalance);
-  if (explicit !== undefined) return explicit;
-  const derived = firstNumber(c.overdue2026, c.dueUntilPeriod, c.overdue2025);
-  if (derived !== undefined) return derived;
-  return Number(c.currentBalance ?? c.balance ?? 0);
-};
-
-/**
- * Lightweight fingerprint of the customer data a client is currently showing.
- * Lets the heartbeat detect that an admin changed the data and pull the fresh
- * copy, instead of waiting for a manual "publish version" press.
- */
-const CUSTOMERS_FINGERPRINT_KEY = 'dream_customers_fingerprint_v1';
-
-const buildCustomersFingerprint = (list: Customer[]): string => {
-  let debt = 0;
-  let dues = 0;
-  list.forEach((c) => {
-    debt += Number(c.currentBalance ?? c.balance ?? 0);
-    dues += Number(c.totalOverdueAndDue ?? 0);
-  });
-  return `${list.length}:${Math.round(debt)}:${Math.round(dues)}`;
-};
-
-const saveLocalCustomersFingerprint = (list: Customer[]) => {
-  try {
-    window.localStorage.setItem(CUSTOMERS_FINGERPRINT_KEY, buildCustomersFingerprint(list));
-  } catch {}
-};
-
-const getLocalCustomersFingerprint = (): string => {
-  try {
-    return window.localStorage.getItem(CUSTOMERS_FINGERPRINT_KEY) || '';
-  } catch {
-    return '';
-  }
-};
-
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Helper to normalize branch names across legacy stored data
-  const normalizeBranchName = (name?: string): string => {
-    if (!name || !name.trim()) return 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
-    const clean = name.trim();
-    const inferred = inferBranchFromText(clean);
-    if (inferred) return inferred;
-    if (!clean.startsWith('فرع') && !clean.includes('المخزن')) {
-      return `فرع ${clean}`;
-    }
-    return clean;
-  };
-
-  const normalizeIdentity = (value?: string) => normalizeArabicText(String(value || '')).replace(/\s+/g, '');
-  const hasDuplicateUserIdentity = (candidate: Partial<User>, list: User[], excludeId?: string) => {
-    const username = normalizeIdentity(candidate.username);
-    const email = normalizeIdentity(candidate.email);
-    const phone = normalizeIdentity(candidate.phone);
-    const name = normalizeIdentity(candidate.name);
-    return list.some((u) => {
-      if (u.id === excludeId) return false;
-      return (username && normalizeIdentity(u.username) === username) ||
-        (email && normalizeIdentity(u.email) === email) ||
-        (phone && normalizeIdentity(u.phone) === phone) ||
-        (name && normalizeIdentity(u.name) === name);
-    });
-  };
-
   // Auth and Session Notice
   const [authTerminationNotice, setAuthTerminationNotice] = useState<string | null>(null);
   const clearAuthTerminationNotice = () => setAuthTerminationNotice(null);
@@ -639,12 +338,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const exportTargetsReport = () => {
+  const exportTargetsReport = async () => {
     const visible = getVisibleTargets();
     const branchPart = currentUser?.branchName ? `${currentUser.branchName.replace(/\s+/g, '_')}_` : '';
     const userPart = currentUser?.name ? `${currentUser.name.replace(/\s+/g, '_')}_` : '';
     const dateStr = new Date().toISOString().slice(0, 10);
-    exportTargetsToExcel(visible, `أهداف_${branchPart}${userPart}${dateStr}.xlsx`);
+    await exportTargetsToExcel(visible, `أهداف_${branchPart}${userPart}${dateStr}.xlsx`);
   };
 
   const resetTargetsToDefault = () => {
@@ -665,10 +364,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return [record, ...prev];
     });
+    scheduleTargetSync();
   };
 
   const deleteTargetRecord = (id: string) => {
     setTargets((prev) => prev.filter((r) => r.id !== id));
+    scheduleTargetSync();
   };
 
   const updateBranchCompanyInfo = (branchName: string, newInfo: Partial<CompanyInfo>) => {
@@ -762,211 +463,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     supabase.auth.getSession().catch(() => null);
   }, []);
 
-  const sanitizeProducts = (list: Product[]): Product[] => {
-    if (!Array.isArray(list)) return [];
-    const usedIds = new Set<string>();
-
-  // Product code is the stable business key. Repeated imports must update the
-  // existing row instead of creating another catalog item.
-  const uniqueList = deduplicateProductArray(list.filter(Boolean));
-  return uniqueList.map((rawProduct, index) => {
-      const p = { ...rawProduct };
-      const originalId = String(p.id || '').trim();
-      let rowId = originalId || `product-row-${index + 1}`;
-      if (usedIds.has(rowId)) {
-        rowId = `${rowId}-${index + 1}`;
-      }
-      usedIds.add(rowId);
-      return { ...p, id: rowId };
-    }).map((p) => {
-      const cartonQty = p.cartonQuantity && p.cartonQuantity > 0 ? p.cartonQuantity : 1;
-      const savedCartonPrice = typeof p.cartonPrice === 'number' ? p.cartonPrice : 0;
-      const savedPiecePrice = Number(p.piecePrice || p.salesPrice || 0);
-      const piecePrice = savedPiecePrice > 0
-        ? savedPiecePrice
-        : (savedCartonPrice > 0 ? Math.round((savedCartonPrice / cartonQty) * 100) / 100 : 0);
-
-      return {
-        ...p,
-        cartonQuantity: cartonQty,
-        cartonPrice: Math.round(piecePrice * cartonQty * 100) / 100,
-        piecePrice,
-      };
-    });
-  };
-
-  // Deduplicate customers by code / phone / name to prevent 3,000 becoming 6,000 on daily updates
-  const deduplicateCustomersArray = (list: Customer[]): Customer[] => {
-    if (!Array.isArray(list) || list.length === 0) return [];
-    return deduplicateAndMergeCustomers(list).customers;
-  };
-
-  // Deduplicate target records by branch + rep + date
-  const deduplicateTargetRecords = (records: TargetRecord[]): TargetRecord[] => {
-    const map = new Map<string, TargetRecord>();
-    records.forEach((r) => {
-      const branchKey = (r.branch || '').trim().toLowerCase();
-      const repKey = (r.repName || '').trim().toLowerCase();
-      const dateKey = (r.date || '').trim();
-      const key = `${branchKey}__${repKey}__${dateKey}`;
-      if (map.has(key)) {
-        map.set(key, { ...map.get(key)!, ...r, id: map.get(key)!.id });
-      } else {
-        map.set(key, r);
-      }
-    });
-    return Array.from(map.values());
-  };
-
-  // Deduplicate product catalog using a strong composite identity so that
-  // distinct variants that merely share a code (different size/color/barcode)
-  // are preserved. Only true duplicates (same id, or same code+name+unifiedCode
-  // +barcode+size+color) collapse into one row.
-  const productIdentityKey = (p: Product): string => {
-    if (p.id && !String(p.id).startsWith('product-row')) {
-      return `id:${String(p.id).toLowerCase()}`;
-    }
-    const code = (p.code || '').toString().trim().toLowerCase();
-    const name = (p.name || '').toString().trim().toLowerCase();
-    const unified = (p.unifiedCode || '').toString().trim().toLowerCase();
-    const barcode = (p.barcode || '').toString().trim().toLowerCase();
-    const size = (p.size || '').toString().trim().toLowerCase();
-    const color = (p.color || '').toString().trim().toLowerCase();
-    if (code || name || unified) {
-      return `composite:${code}|${name}|${unified}|${barcode}|${size}|${color}`;
-    }
-    // No usable business key: keep every row distinct by name alone to avoid data loss
-    return `name:${name}|${barcode}`;
-  };
-
-  const deduplicateProductArray = (list: Product[]): Product[] => {
-    const map = new Map<string, number>();
-    const distinct: Product[] = [];
-    list.forEach((p) => {
-      if (!p) return;
-      const key = productIdentityKey(p);
-      const existingIdx = map.get(key);
-      if (existingIdx === undefined) {
-        map.set(key, distinct.length);
-        distinct.push(p);
-      } else {
-        const existing = distinct[existingIdx];
-        distinct[existingIdx] = {
-          ...existing,
-          ...p,
-          id: existing.id || p.id,
-          branchStockReserved: existing.branchStockReserved,
-          mainWarehouseReserved: existing.mainWarehouseReserved,
-          branchStocks: existing.branchStocks,
-          branchStockActual: existing.branchStockActual,
-          mainWarehouseActual: existing.mainWarehouseActual,
-        };
-      }
-    });
-    return distinct;
-  };
-
-  const sanitizeCustomers = (list: Customer[]): Customer[] => {
-    if (!Array.isArray(list)) return [];
-    // Strictly filter out any Excel summary / total rows ("الإجمالي", "المجموع", etc.)
-    // so they never inflate company collections by 10 million!
-    const cleanRows = list.filter((c) => {
-      if (!c) return false;
-      return !isSummaryOrTotalRow(c.name, c.code, c.branchName, c.salesRepName || c.repName);
-    });
-
-    const normalizedList = cleanRows.map((c, idx) => {
-      let resolvedBranch = c.branchName || '';
-      if (!resolvedBranch || resolvedBranch === 'الفرع الرئيسي') {
-        const locInferred = inferBranchFromText(
-          `${c.address || ''} ${c.governorate || ''} ${c.notes || ''}`
-        );
-        if (locInferred) resolvedBranch = locInferred;
-      }
-      const fin = calculateCustomerFinancials(c);
-      const s26 = fin.sales2026;
-      const col26 = fin.collections2026;
-
-      // Guarantee docs logic:
-      // لو كبر من صفر يبقي ماضي علي ورق ضم������ن بالمبلغ ده
-      // لو 0 او مافيش يبق لا يوجد ورق ضمان
-      let gAmount = Math.abs(Number(c.guaranteeAmount || 0));
-      const rawG = String(c.guaranteeDocs || '').trim();
-      if (gAmount <= 0 && rawG) {
-        const cleanDigits = rawG.replace(/[^\d]/g, '');
-        if (cleanDigits) {
-          const parsed = parseFloat(cleanDigits);
-          if (!isNaN(parsed) && parsed > 0) gAmount = parsed;
-        }
-      }
-      let finalGDocs = 'لا يوجد ورق ضمان';
-      let finalHasG = false;
-      if (gAmount > 0) {
-        finalGDocs = `ماضي على ورق ضمان (${gAmount.toLocaleString('en-US')} ج.م)`;
-        finalHasG = true;
-      } else if (
-        rawG &&
-        rawG !== '0' &&
-        !rawG.includes('بدون') &&
-        !rawG.includes('لا') &&
-        !rawG.includes('مش') &&
-        !rawG.includes('غير') &&
-        (rawG.includes('ماضي') || rawG.includes('شيك') || rawG.includes('كمبيالة') || rawG.includes('امانة') || rawG.includes('أمانة') || rawG.includes('رهن'))
-      ) {
-        finalGDocs = rawG.includes('ماضي') ? rawG : `ماضي على ورق ضمان (${rawG})`;
-        finalHasG = true;
-      }
-
-      // Payment terms logic: كاش او علي دفعات او شيكات
-      let finalPaymentTerms = 'كاش';
-      const rawPT = String(c.paymentTerms || '').trim().toLowerCase();
-      if (rawPT.includes('شيك') || rawPT.includes('check') || rawPT.includes('cheque')) {
-        finalPaymentTerms = 'شيكات';
-      } else if (
-        rawPT.includes('دفع') ||
-        rawPT.includes('قسط') ||
-        rawPT.includes('أقساط') ||
-        rawPT.includes('اقساط') ||
-        rawPT.includes('اجل') ||
-        rawPT.includes('آجل') ||
-        rawPT.includes('installment')
-      ) {
-        finalPaymentTerms = 'على دفعات';
-      } else if (rawPT.includes('كاش') || rawPT.includes('نقد') || rawPT.includes('cash')) {
-        finalPaymentTerms = 'كاش';
-      } else if (c.paymentTerms) {
-        finalPaymentTerms = c.paymentTerms;
-      }
-
-      return {
-        ...c,
-        id: c.id || `cust_row_${idx + 1}_${(c.code || '').replace(/[^a-zA-Z0-9_-]/g, '_')}`,
-        name: c.name || `عميل ${c.code || idx + 1}`,
-        branchName: resolvedBranch || c.branchName || '',
-        currentBalance: fin.balance,
-        balance: fin.balance,
-        totalOverdueAndDue: fin.overdue,
-        overdueBalance: c.overdueBalance !== undefined ? Number(c.overdueBalance) : fin.overdue,
-        dueBalance: fin.dueBalance,
-        creditLimit: fin.creditLimit,
-        totalMonthlySales: s26,
-        sales2026: s26,
-        totalOverallSales: Number(c.totalOverallSales || s26),
-        totalMonthlyCollections: col26,
-        collections2026: col26,
-        totalOverallCollections: Number(c.totalOverallCollections || col26),
-        hasDealtIn2026: fin.isDealtCustomer,
-        dealt2026: fin.dealtStatusLabel,
-        dealEligibility: c.dealEligibility || (fin.isEligible ? 'قابل' : (fin.ineligibilityReason || 'غير قابل')),
-        guaranteeDocs: finalGDocs,
-        guaranteeAmount: gAmount > 0 ? gAmount : undefined,
-        hasGuarantee: finalHasG,
-        paymentTerms: finalPaymentTerms,
-      };
-    });
-
-    return deduplicateAndMergeCustomers(normalizedList).customers;
-  };
 
   const [products, setProducts] = useState<Product[]>(() => {
     return [];
@@ -1097,45 +593,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('الكل');
 
-  // PWA Install Prompt State & Data Saver Mode
-  const [installPromptEvent, setInstallPromptEvent] = useState<any>(null);
-  const [canInstallPwa, setCanInstallPwa] = useState<boolean>(false);
-  const [isInstallModalOpen, setIsInstallModalOpen] = useState<boolean>(false);
-  const [dataSaverMode, setDataSaverMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem('dream_dist_data_saver');
-    return saved === 'true';
-  });
-
-  // Privacy & Confidentiality Mode (سرية البيانات)
-  const [isPrivacyMode, setIsPrivacyMode] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(STORAGE_KEYS.PRIVACY_MODE) === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  const togglePrivacyMode = () => {
-    setIsPrivacyMode((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(STORAGE_KEYS.PRIVACY_MODE, String(next));
-      } catch {}
-      return next;
-    });
-  };
-
-  const setPrivacyMode = (val: boolean) => {
-    setIsPrivacyMode(val);
-    try {
-      localStorage.setItem(STORAGE_KEYS.PRIVACY_MODE, String(val));
-    } catch {}
-  };
-
-  const formatConfidentialCurrency = (amount: number | undefined | null): string => {
-    if (isPrivacyMode) return '•••••• ج.م';
-    return `${(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ج.م`;
-  };
+  const {
+    installPromptEvent,
+    canInstallPwa,
+    isInstallModalOpen,
+    setIsInstallModalOpen,
+    dataSaverMode,
+    setDataSaverMode,
+    toggleDataSaverMode,
+    isPrivacyMode,
+    togglePrivacyMode,
+    setPrivacyMode,
+    formatConfidentialCurrency,
+    triggerInstallPrompt,
+  } = useUiPreferences();
 
   // Hydrate high-capacity collections from IndexedDB seamlessly on startup
   useEffect(() => {
@@ -1228,48 +699,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  const toggleDataSaverMode = () => {
-    setDataSaverMode((prev) => {
-      const next = !prev;
-      safeLocalStorageSet('dream_dist_data_saver', String(next));
-      return next;
-    });
-  };
-
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault();
-      setInstallPromptEvent(e);
-      setCanInstallPwa(true);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
-  }, []);
-
-  const triggerInstallPrompt = async (): Promise<boolean> => {
-    if (installPromptEvent && typeof installPromptEvent.prompt === 'function') {
-      try {
-        await installPromptEvent.prompt();
-        const choice = await installPromptEvent.userChoice;
-        if (choice?.outcome === 'accepted') {
-          setCanInstallPwa(false);
-          setInstallPromptEvent(null);
-          return true;
-        }
-      } catch (err) {
-        console.warn('PWA install prompt notice:', err);
-        setIsInstallModalOpen(true);
-      }
-      return false;
-    } else {
-      setIsInstallModalOpen(true);
-      return false;
-    }
-  };
-
   // Supabase State & Sync
   const [supabaseStatus, setSupabaseStatus] = useState<SupabaseSyncStatus>({
     connected: false,
@@ -1277,6 +706,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [isSupabaseSyncing, setIsSupabaseSyncing] = useState<boolean>(false);
   const [pendingInvoicesCount, setPendingInvoicesCount] = useState<number>(0);
+  const [offlineQueueCount, setOfflineQueueCount] = useState<number>(0);
 
   const refreshPendingInvoicesCount = async () => {
     try {
@@ -1331,6 +761,198 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const result = await saveInvoiceToSupabase(invoice);
     if (!result.success) await queueInvoiceForSync(invoice);
     return result;
+  };
+
+  // Latest-value refs so the debounced sync helpers below never push a stale
+  // snapshot taken when the timer was scheduled.
+  const productsRef = useRef<Product[]>(products);
+  const targetsRef = useRef<TargetRecord[]>(targets);
+  useEffect(() => { productsRef.current = products; }, [products]);
+  useEffect(() => { targetsRef.current = targets; }, [targets]);
+
+  const refreshOfflineQueueCount = async () => {
+    const queued = await countQueuedMutations();
+    setOfflineQueueCount(queued);
+    return queued;
+  };
+
+  /**
+   * Send a mutation now, or park it in the offline outbox when that is not
+   * possible. Every write path that can run without a network goes through here,
+   * so nothing a rep or an admin does offline is silently dropped.
+   */
+  const syncOrQueue = async (
+    entity: QueuedMutation['entity'],
+    op: QueuedMutation['op'],
+    entityId: string,
+    payload: QueuedMutation['payload'],
+    send: () => Promise<{ success: boolean; error?: string }>
+  ): Promise<boolean> => {
+    if (!navigator.onLine) {
+      await enqueueMutation({ entity, op, entityId, payload });
+      await refreshOfflineQueueCount();
+      return false;
+    }
+    try {
+      const result = await send();
+      if (result.success) return true;
+    } catch {
+      // fall through to the queue below
+    }
+    await enqueueMutation({ entity, op, entityId, payload });
+    await refreshOfflineQueueCount();
+    return false;
+  };
+
+  /**
+   * Drain the offline outbox, grouped per table so a device that spent a whole
+   * shift offline costs a handful of requests instead of one per tap.
+   */
+  const flushOfflineQueue = async (): Promise<{ success: boolean; syncedCount: number }> => {
+    const queued = await getQueuedMutations();
+    if (queued.length === 0) {
+      setOfflineQueueCount(0);
+      return { success: true, syncedCount: 0 };
+    }
+    if (!navigator.onLine) {
+      setOfflineQueueCount(queued.length);
+      return { success: false, syncedCount: 0 };
+    }
+
+    const done: string[] = [];
+    const failed: string[] = [];
+    const group = (entity: QueuedMutation['entity'], op: QueuedMutation['op']) =>
+      queued.filter((item) => item.entity === entity && item.op === op);
+
+    // Deletes first, so a row that was recreated later is not wiped by an older delete.
+    const invoiceDeletes = group('invoices', 'delete');
+    if (invoiceDeletes.length > 0) {
+      const results = await Promise.all(
+        invoiceDeletes.map((item) => deleteInvoiceFromSupabase(item.entityId))
+      );
+      (results.every((r) => r.success) ? done : failed).push(...invoiceDeletes.map((i) => i.id));
+    }
+
+    const invoiceUpserts = group('invoices', 'upsert');
+    if (invoiceUpserts.length > 0) {
+      const res = await saveInvoicesToSupabase(invoiceUpserts.map((i) => i.payload as Invoice));
+      (res.success ? done : failed).push(...invoiceUpserts.map((i) => i.id));
+    }
+
+    const visitDeletes = group('visits', 'delete');
+    if (visitDeletes.length > 0) {
+      const results = await Promise.all(
+        visitDeletes.map((item) => deleteVisitFromSupabase(item.entityId))
+      );
+      (results.every((r) => r.success) ? done : failed).push(...visitDeletes.map((i) => i.id));
+    }
+
+    const visitUpserts = group('visits', 'upsert');
+    if (visitUpserts.length > 0) {
+      const res = await saveVisitsToSupabase(visitUpserts.map((i) => i.payload as CustomerVisit));
+      (res.success ? done : failed).push(...visitUpserts.map((i) => i.id));
+    }
+
+    const customerDeletes = group('customers', 'delete');
+    if (customerDeletes.length > 0) {
+      const results = await Promise.all(
+        customerDeletes.map((item) => deleteCustomerFromSupabase(item.entityId))
+      );
+      (results.every((r) => r.success) ? done : failed).push(...customerDeletes.map((i) => i.id));
+    }
+
+    const customerUpserts = group('customers', 'upsert');
+    for (const item of customerUpserts) {
+      const res = await saveCustomerToSupabase(item.payload as Customer);
+      (res.success ? done : failed).push(item.id);
+    }
+
+    const userDeletes = group('users', 'delete');
+    if (userDeletes.length > 0) {
+      const results = await Promise.all(
+        userDeletes.map((item) => deleteUserFromSupabase(item.entityId))
+      );
+      (results.every((r) => r.success) ? done : failed).push(...userDeletes.map((i) => i.id));
+    }
+
+    const userUpserts = group('users', 'upsert');
+    for (const item of userUpserts) {
+      const res = await saveUserToSupabase(item.payload as User);
+      (res.success ? done : failed).push(item.id);
+    }
+
+    // Products and targets are authoritative full-table writes, so they are sent
+    // from the live local state rather than from a snapshot taken while offline.
+    // Read through the refs: this flush also runs from timers that captured an
+    // early render, where the state variables would still be empty.
+    const productReplaces = group('products', 'replace');
+    if (productReplaces.length > 0 && productsRef.current.length > 0) {
+      const res = await saveProductsToSupabase(productsRef.current);
+      (res.success ? done : failed).push(...productReplaces.map((i) => i.id));
+    }
+
+    const targetReplaces = group('targets', 'replace');
+    if (targetReplaces.length > 0 && targetsRef.current.length > 0) {
+      const res = await saveTargetsToSupabase(targetsRef.current);
+      (res.success ? done : failed).push(...targetReplaces.map((i) => i.id));
+    }
+
+    if (done.length > 0) await removeQueuedMutations(done);
+    if (failed.length > 0) {
+      await markQueuedMutationFailure(failed, 'تعذر الإرسال إلى قاعدة البيانات');
+    }
+    await refreshOfflineQueueCount();
+
+    if (done.length > 0) {
+      // Tell every other device that the shared data moved, so admins and reps
+      // repaint instead of showing a stale local cache.
+      publishDataVersionUpdate({
+        scope: 'all',
+        notes: `مزامنة تلقائية بعد العمل بدون إنترنت (${done.length} تغيير)`,
+      }).catch(() => {});
+    }
+
+    return { success: failed.length === 0, syncedCount: done.length };
+  };
+
+  const productSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const targetSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Products and targets are written to Supabase as authoritative full tables,
+   * so a burst of catalog or stock edits is coalesced into a single push instead
+   * of one request per tap.
+   */
+  const scheduleProductSync = () => {
+    if (productSyncTimer.current) clearTimeout(productSyncTimer.current);
+    productSyncTimer.current = setTimeout(() => {
+      syncOrQueue('products', 'replace', 'catalog', undefined, () =>
+        saveProductsToSupabase(productsRef.current)
+      ).then((delivered) => {
+        if (delivered) {
+          publishDataVersionUpdate({
+            scope: 'products',
+            notes: `تحديث كتالوج الأصناف (${productsRef.current.length} صنف)`,
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+    }, 1200);
+  };
+
+  const scheduleTargetSync = () => {
+    if (targetSyncTimer.current) clearTimeout(targetSyncTimer.current);
+    targetSyncTimer.current = setTimeout(() => {
+      syncOrQueue('targets', 'replace', 'targets', undefined, () =>
+        saveTargetsToSupabase(targetsRef.current)
+      ).then((delivered) => {
+        if (delivered) {
+          publishDataVersionUpdate({
+            scope: 'targets',
+            notes: `تحديث شيت الأهداف (${targetsRef.current.length} هدف)`,
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+    }, 1200);
   };
 
   // Sync with Supabase (Direction: fetch, push, or both)
@@ -2006,10 +1628,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const handleOnlineSync = () => {
       flushPendingInvoices().catch((error) => console.warn('Pending invoice sync notice:', error));
+      // Everything else done offline (visits, customers, products, users, targets)
+      // leaves through the outbox the moment the connection is usable again.
+      flushOfflineQueue()
+        .then((res) => {
+          if (res.syncedCount > 0) {
+            setLastVersionSyncNotice(
+              `تمت مزامنة ${res.syncedCount} تغيير تم عمله بدون إنترنت إلى قاعدة البيانات`
+            );
+            setTimeout(() => setLastVersionSyncNotice(null), 8000);
+          }
+        })
+        .catch((error) => console.warn('Offline queue flush notice:', error));
+      refreshOfflineQueueCount().catch(() => {});
     };
     window.addEventListener('online', handleOnlineSync);
     if (navigator.onLine) handleOnlineSync();
     return () => window.removeEventListener('online', handleOnlineSync);
+  }, []);
+
+  // Safety net: a device that reconnects without firing the online event (or that
+  // was closed while work sat in the queue) still drains the outbox shortly after boot.
+  useEffect(() => {
+    let cancelled = false;
+    const kick = async () => {
+      if (cancelled || !navigator.onLine) return;
+      const pending = await refreshOfflineQueueCount().catch(() => 0);
+      if (pending === 0) return;
+      await flushOfflineQueue().catch(() => {});
+    };
+    const timer = setTimeout(kick, 4000);
+    const interval = setInterval(kick, 60000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
   }, []);
 
   // Supabase Egress Protection:
@@ -2119,15 +1773,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateCustomer = (updatedCust: Customer) => {
     setCustomers((prev) => prev.map((c) => (c.id === updatedCust.id ? updatedCust : c)));
-    saveCustomersToSupabase([updatedCust]).catch((e) => console.warn('Supabase customer update error:', e));
+    idbSet(STORAGE_KEYS.CUSTOMERS, customers.map((c) => (c.id === updatedCust.id ? updatedCust : c)))
+      .catch(() => {});
+    syncOrQueue('customers', 'upsert', updatedCust.id, updatedCust, () =>
+      saveCustomersToSupabase([updatedCust])
+    ).catch((e) => console.warn('Supabase customer update error:', e));
+    publishDataVersionUpdate({
+      scope: 'customers',
+      notes: `تعديل بيانات العميل ${updatedCust.name || updatedCust.code}`,
+    }).catch(() => {});
   };
 
   const deleteCustomer = (customerId: string) => {
     setCustomers((prev) => prev.filter((c) => c.id !== customerId));
-    // Delete from Supabase
-    Promise.resolve(supabase.from('customers').delete().eq('id', customerId)).then((res) => {
-      if (res.error) console.warn('Supabase customer delete error:', res.error);
-    }).catch((e) => console.warn('Supabase customer delete error:', e));
+    idbSet(STORAGE_KEYS.CUSTOMERS, customers.filter((c) => c.id !== customerId)).catch(() => {});
+    // Delete from Supabase, or park it in the offline outbox until the network returns.
+    syncOrQueue('customers', 'delete', customerId, undefined, () =>
+      deleteCustomerFromSupabase(customerId)
+    ).catch((e) => console.warn('Supabase customer delete error:', e));
+    publishDataVersionUpdate({ scope: 'customers', notes: 'حذف عميل من قاعدة العملاء' }).catch(() => {});
   };
 
   const cleanAndDeduplicateCustomers = () => {
@@ -2670,13 +2334,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: '��ذا الحساب موقوف أو تم رفض تفعيله من قبل الإدارة.' };
     }
 
-    // Check password strictly against database
-    if (found.password && found.password.trim().length > 0) {
-      const dbPass = found.password.trim();
-      if (dbPass !== cleanPass) {
+    // Verify against the stored credential. Legacy plaintext rows still work, and
+    // the first successful login rewrites them as a salted digest so the readable
+    // password disappears from the device and from Supabase.
+    const storedCredential = (found.password || '').trim();
+    if (storedCredential.length > 0) {
+      const check = await verifyPassword(cleanPass, storedCredential);
+      if (!check.valid) {
         return { success: false, message: 'كلمة المرور غير صحيحة. يرجى التأكد من كتابة كلمة المرور بدقة.' };
       }
-  } else {
+      if (check.legacy) {
+        const upgraded = await withHashedCredential(found);
+        found = { ...found, password: upgraded.password };
+        setUsers((prev) => prev.map((u) => (u.id === found!.id ? { ...u, password: upgraded.password } : u)));
+        if (users.find((u) => u.id === found!.id)) {
+          safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(
+            users.map((u) => (u.id === found!.id ? { ...u, password: upgraded.password } : u))
+          ));
+        }
+        saveUserToSupabase(found).catch((e) => console.warn('Password upgrade sync notice:', e));
+      }
+    } else {
     return {
       success: false,
       message: 'لا توجد كلمة مرور مسجلة لهذا الحساب. يرجى مراجعة إدارة النظام لتعيين كلمة المرور قبل تسجيل الدخول.',
@@ -2703,7 +2381,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: `مرحباً بك ${found.name}`, user: found };
   };
 
-  const register = (userData: {
+  const register = async (userData: {
     name: string;
     username: string;
     email: string;
@@ -2712,7 +2390,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     branchName: string;
     role: UserRole;
     supervisorId?: string;
-  }): { success: boolean; message: string } => {
+  }): Promise<{ success: boolean; message: string }> => {
     const existing = users.find(
       (u) =>
         u.email.toLowerCase() === userData.email.trim().toLowerCase() ||
@@ -2728,7 +2406,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       name: userData.name.trim(),
       username: userData.username.trim().toLowerCase(),
       email: userData.email.trim().toLowerCase(),
-      password: (userData.password || '').trim(),
+      password: await hashPassword(userData.password || ''),
       phone: userData.phone.trim(),
       branchName: userData.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
       role: userData.role || 'sales_rep',
@@ -2812,7 +2490,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteUser = (userId: string) => {
     setUsers((prev) => prev.filter((u) => u.id !== userId));
-    deleteUserFromSupabase(userId).catch((e) => console.warn('Supabase delete user failed:', e));
+    syncOrQueue('users', 'delete', userId, undefined, () => deleteUserFromSupabase(userId))
+      .then(() => publishDataVersionUpdate({ scope: 'all', notes: 'حذف مستخدم من النظام' }))
+      .catch((e) => console.warn('Supabase delete user failed:', e));
     if (currentUser?.id === userId) {
       logout();
       setAuthTerminationNotice('تم حذف هذا الحساب من قبل إدارة شركة دريم. تم إنهاء الجلسة فوراً.');
@@ -3117,15 +2797,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       userRole: currentUser?.role || 'admin',
       notes: 'إضافة صنف جديد للكتالوج مع رصيد افتتاحي'
     });
+    scheduleProductSync();
   };
 
   const updateProduct = (updated: Product) => {
     const sanitized = sanitizeProducts([updated])[0];
     setProducts((prev) => prev.map((p) => (p.id === sanitized.id ? sanitized : p)));
+    scheduleProductSync();
   };
 
   const deleteProduct = (productId: string) => {
     setProducts((prev) => prev.filter((p) => p.id !== productId));
+    scheduleProductSync();
   };
 
   const importProductsList = (newProducts: Product[], mode: 'merge' | 'replace' = 'replace') => {
@@ -3303,6 +2986,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         details: `تعديل الفرع: ${branchChange > 0 ? `+${branchChange}` : branchChange} قطعة • تعديل أكتوبر: ${mainWarehouseChange > 0 ? `+${mainWarehouseChange}` : mainWarehouseChange} قطعة • السبب: ${reason || 'تسوية جردية'}`,
         badgeType: 'warning',
       });
+      scheduleProductSync();
     }
   };
 
@@ -3839,7 +3523,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       prev.map((i) => (i.id === invoiceId ? updatedInv : i))
     );
 
-    saveInvoiceToSupabase(updatedInv).catch((e) => console.warn('Supabase invoice update failed:', e));
+    saveInvoiceWithQueue(updatedInv).catch((e) => console.warn('Supabase invoice update failed:', e));
     // Direct non-blocking dispatch to Microsoft 365 Power Automate (Outside React state updater to prevent duplicate dispatches)
     sendInvoiceToPowerAutomate(updatedInv, currentUser?.name, branches, companyInfo.email).catch((e) =>
       console.warn('[Power Automate] Approved invoice email notification failed:', e)
@@ -3923,7 +3607,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           status: 'معلقة بانتظار اعتماد الفرع' as OrderStatus,
           notes: notes ? `${i.notes ? i.notes + ' | ' : ''}تم التحويل لمدير الفرع: ${notes}` : i.notes,
         };
-        saveInvoiceToSupabase(updated).catch((e) => console.warn('Supabase forward update failed:', e));
+        saveInvoiceWithQueue(updated).catch((e) => console.warn('Supabase forward update failed:', e));
         return updated;
       })
     );
@@ -4042,7 +3726,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           restoredStockDetails: `تم استرجاع ${inv.totalCartons} كرتونة إلى مخزن الفرع`,
           notes: `${i.notes ? i.notes + ' | ' : ''}سبب الرفض: ${reason}`,
         };
-        saveInvoiceToSupabase(updated).catch((e) => console.warn('Supabase reject update failed:', e));
+        saveInvoiceWithQueue(updated).catch((e) => console.warn('Supabase reject update failed:', e));
         return updated;
       })
     );
@@ -4344,7 +4028,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ? `${i.notes ? i.notes + ' | ' : ''}تحديث الحالة إلى (${status}): ${reason}`
             : i.notes,
         };
-        saveInvoiceToSupabase(updated).catch((e) => console.warn('Supabase status update failed:', e));
+        saveInvoiceWithQueue(updated).catch((e) => console.warn('Supabase status update failed:', e));
         return updated;
       })
     );
@@ -4502,7 +4186,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           restoredStockDetails: `تم استرجاع ${totalReturnedCartons} كرتونة بقيمة ${totalRefundAmount.toLocaleString()} ج.م (إذن #${returnVoucherNumber})`,
           notes: `${i.notes ? i.notes + ' | ' : ''}مرتجع ${isFullReturn ? 'كلي' : 'جزئي'} إذن #${returnVoucherNumber} بقيمة ${totalRefundAmount.toLocaleString()} ج.م (${reason})`,
         };
-        saveInvoiceToSupabase(updated).catch((e) => console.warn('Supabase return sync failed:', e));
+        saveInvoiceWithQueue(updated).catch((e) => console.warn('Supabase return sync failed:', e));
         return updated;
       })
     );
@@ -4558,12 +4242,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       badgeType: 'danger',
     });
 
-    // 5. Delete permanently from Supabase
+    // 5. Delete permanently from Supabase, or park it in the offline outbox
     try {
-      const remoteDelete = await deleteInvoiceFromSupabase(targetId, targetNumber);
-      if (!remoteDelete.success) {
-        throw new Error(remoteDelete.error || 'تعذر حذف الفاتورة من قاعدة البيانات');
-      }
+      await syncOrQueue('invoices', 'delete', targetId, undefined, async () => {
+        const remoteDelete = await deleteInvoiceFromSupabase(targetId, targetNumber);
+        if (!remoteDelete.success) {
+          throw new Error(remoteDelete.error || 'تعذر حذف الفاتورة من قاعدة البيانات');
+        }
+        return { success: true };
+      });
     } catch (e) {
       console.warn('Supabase invoice deletion failed:', e);
       throw e;
@@ -4622,23 +4309,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const addUser = (user: User) => {
+  const addUser = async (user: User) => {
   if (currentUser?.role !== 'admin' && currentUser?.role !== 'developer') return;
   if (hasDuplicateUserIdentity(user, users, user.id)) return;
-    const nextUsers = [...users.filter((u) => u.id !== user.id), user];
+    // Never let a readable password reach local storage or Supabase.
+    const secured = await withHashedCredential(user);
+    const nextUsers = [...users.filter((u) => u.id !== secured.id), secured];
     setUsers(nextUsers);
     safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(nextUsers));
     idbSet(STORAGE_KEYS.USERS, nextUsers);
-    saveUsersToSupabase(nextUsers).catch((e) => console.warn('Supabase save user failed:', e));
+    syncOrQueue('users', 'upsert', secured.id, secured, () => saveUserToSupabase(secured))
+      .then(() => publishDataVersionUpdate({ scope: 'all', notes: `إضافة مستخدم ${secured.name || secured.username}` }))
+      .catch((e) => console.warn('Supabase save user failed:', e));
     setTimeout(() => {
       refreshCustomerRepLinks();
     }, 50);
   };
 
-  const updateUser = (updatedUser: User) => {
+  const updateUser = async (updatedUser: User) => {
   if (currentUser?.role !== 'admin' && currentUser?.role !== 'developer') return;
   if (hasDuplicateUserIdentity(updatedUser, users, updatedUser.id)) return;
-    const nextUsers = users.map((u) => (u.id === updatedUser.id ? updatedUser : u));
+    // An empty password field in the admin form means "leave the credential
+    // alone", never "clear it" - otherwise editing a role would lock the user out.
+    const existingCredential = users.find((u) => u.id === updatedUser.id)?.password || '';
+    const submitted = updatedUser.password || '';
+    const secured = submitted.trim()
+      ? await withHashedCredential(updatedUser)
+      : { ...updatedUser, password: existingCredential };
+    const nextUsers = users.map((u) => (u.id === secured.id ? secured : u));
     setUsers(nextUsers);
     safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(nextUsers));
     idbSet(STORAGE_KEYS.USERS, nextUsers);
@@ -4648,9 +4346,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setAuthTerminationNotice('تم إيقاف هذا الحساب من قبل إدارة شركة دريم. تم إنهاء الجلسة فوراً.');
         return;
       }
-      setCurrentUser(updatedUser);
+      setCurrentUser(secured);
     }
-    saveUsersToSupabase(nextUsers).catch((e) => console.warn('Supabase update user failed:', e));
+    syncOrQueue('users', 'upsert', secured.id, secured, () => saveUserToSupabase(secured))
+      .then(() => publishDataVersionUpdate({ scope: 'all', notes: `تعديل مستخدم ${secured.name || secured.username}` }))
+      .catch((e) => console.warn('Supabase update user failed:', e));
     setTimeout(() => {
       refreshCustomerRepLinks();
     }, 50);
@@ -4926,8 +4626,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return next;
     });
 
-    // 2. Direct Cloud Database Sync (Supabase PostgreSQL / Cloud DB)
-    saveVisitsToSupabase([newVisitObj]).catch((e) => {
+    // 2. Direct Cloud Database Sync (Supabase PostgreSQL / Cloud DB),
+    // with the offline outbox as the fallback so a visit logged in the field
+    // without a signal is delivered as soon as the device reconnects.
+    syncOrQueue('visits', 'upsert', newVisitId, newVisitObj, () =>
+      saveVisitsToSupabase([newVisitObj])
+    ).catch((e) => {
       console.warn('Supabase visit background save note:', e);
     });
 
@@ -4987,8 +4691,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return next;
     });
 
-    // Direct Cloud Database Sync
-    saveVisitsToSupabase([updatedVisit]).catch((e) => console.warn('Supabase visit update error:', e));
+    // Direct Cloud Database Sync (queued when offline)
+    syncOrQueue('visits', 'upsert', updatedVisit.id, updatedVisit, () =>
+      saveVisitsToSupabase([updatedVisit])
+    ).catch((e) => console.warn('Supabase visit update error:', e));
 
     if (visit.customerId) {
       setCustomers((prev) =>
@@ -5049,8 +4755,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       safeLocalStorageSet(STORAGE_KEYS.VISITS, JSON.stringify(next));
       return next;
     });
-    saveVisitsToSupabase([updatedVisit]).then((result) => {
-      if (!result.success) console.warn('Supabase visit review save error:', result.error);
+    syncOrQueue('visits', 'upsert', updatedVisit.id, updatedVisit, () =>
+      saveVisitsToSupabase([updatedVisit])
+    ).then((delivered) => {
+      if (!delivered) console.warn('Supabase visit review parked in the offline queue');
     }).catch((error) => console.warn('Supabase visit review save error:', error));
     if (visit.customerId) {
       setCustomers((prev) => prev.map((customer) => customer.id === visit.customerId
@@ -5089,7 +4797,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
-      await deleteVisitFromSupabase(visitId);
+      await syncOrQueue('visits', 'delete', visitId, undefined, () =>
+        deleteVisitFromSupabase(visitId)
+      );
     } catch (e) {
       console.warn('Supabase visit deletion note:', e);
     }
@@ -5253,6 +4963,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearAuditLogs,
         isOffline,
         pendingInvoicesCount,
+        offlineQueueCount,
+        flushOfflineQueue,
         flushPendingInvoices,
         selectedBranchFilter,
         setSelectedBranchFilter,

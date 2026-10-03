@@ -287,6 +287,11 @@ export interface Customer {
   createdAt?: string;
 }
 
+export interface InstallPromptEvent {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
+
 export interface CartItem {
   product: Product;
   unifiedCode?: string;              // الكود الموحد (#)

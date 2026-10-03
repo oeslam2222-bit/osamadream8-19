@@ -84,7 +84,7 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
     const phone = src.phone || '';
     const address = src.address || '';
     const branchName = src.branchName || '';
-    const salesRepName = src.salesRepName || (src as any).repName || '';
+    const salesRepName = src.salesRepName || src.repName || '';
     const taxNumber = src.taxNumber || '';
 
     // Authoritative financial figures strictly derived from master customer data

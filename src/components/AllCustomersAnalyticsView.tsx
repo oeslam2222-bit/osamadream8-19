@@ -766,8 +766,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
         if (dealtFilter === 'dealt') return isDealt;
         if (dealtFilter === 'not_dealt') return !isDealt;
-        if ((dealtFilter as any) === 'eligible') return isEligible;
-        if ((dealtFilter as any) === 'ineligible') return !isEligible;
         return true;
       });
     }
@@ -1802,7 +1800,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
       const hasOrder = customerOrdersLookup.getOrdersForCustomer(c).length > 0;
       const isTrans = sales > 0 || cols !== 0 || hasOrder || Boolean(c.hasDealtIn2026);
-      const isNonTrans = !isTrans && (debt > 0 || overdue > 0 || (m && m.isExplicitIneligible) || (c as any).dealtStatus === 'غير متعامل');
+      const isNonTrans = !isTrans && (debt > 0 || overdue > 0 || (m && m.isExplicitIneligible));
 
       // فقط فئتان: متعامل وغير متعامل. أي عميل ليس متعاملاً يُحسب غير متعامل.
       let category: 'transacting' | 'non_transacting' = 'non_transacting';
@@ -2428,12 +2426,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         setSyncStatus({ type: 'error', message: 'لم يتم العثور على أي عملاء في الرابط.' });
       } else {
         const saved = await importCustomersList(result.customers, 'replace');
-        const dupesMsg = (result as any).duplicatesCount
-          ? ` (تم دمج وتوحيد ${(result as any).duplicatesCount} سجل مكرر)`
-          : '';
         setSyncStatus(
           saved.success
-            ? { type: 'success', message: `${saved.message}${dupesMsg}` }
+            ? { type: 'success', message: saved.message }
             : { type: 'error', message: saved.message }
         );
       }
@@ -2456,12 +2451,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         setSyncStatus({ type: 'error', message: 'الملف فارغ أو غير متوافق.' });
       } else {
         const saved = await importCustomersList(result.customers, 'replace');
-        const dupesMsg = (result as any).duplicatesCount
-          ? ` (تم دمج وتوحيد ${(result as any).duplicatesCount} سجل مكرر)`
-          : '';
         setSyncStatus(
           saved.success
-            ? { type: 'success', message: `${saved.message}${dupesMsg}` }
+            ? { type: 'success', message: saved.message }
             : { type: 'error', message: saved.message }
         );
       }
@@ -5248,7 +5240,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 <select
                   id="analytics-debt-select"
                   value={debtFilter}
-                  onChange={(e) => setDebtFilter(e.target.value as any)}
+                  onChange={(e) => setDebtFilter(e.target.value as typeof debtFilter)}
                   className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-rose-500 transition shadow-2xs cursor-pointer"
                 >
                   <option value="ALL">جميع المديونيات ({userVisibleCustomers.length})</option>
@@ -5322,7 +5314,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 <select
                   id="analytics-sales-tier-select"
                   value={salesTierFilter}
-                  onChange={(e) => setSalesTierFilter(e.target.value as any)}
+                  onChange={(e) => setSalesTierFilter(e.target.value as typeof salesTierFilter)}
                   className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500 transition shadow-2xs cursor-pointer"
                 >
                   <option value="ALL">جميع شرائح المبيعات ({userVisibleCustomers.length})</option>
@@ -5347,7 +5339,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 <select
                   id="analytics-collection-rate-select"
                   value={collectionRateFilter}
-                  onChange={(e) => setCollectionRateFilter(e.target.value as any)}
+                  onChange={(e) => setCollectionRateFilter(e.target.value as typeof collectionRateFilter)}
                   className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 transition shadow-2xs cursor-pointer"
                 >
                   <option value="ALL">جميع معدلات التحصيل ({userVisibleCustomers.length})</option>
@@ -5371,7 +5363,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 <select
                   id="analytics-sort-select"
                   value={sortMode}
-                  onChange={(e) => setSortMode(e.target.value as any)}
+                  onChange={(e) => setSortMode(e.target.value as typeof sortMode)}
                   className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-purple-500 transition shadow-2xs cursor-pointer"
                 >
                   <option value="highest_debt">🔴 الأكثر مديونية أولاً</option>

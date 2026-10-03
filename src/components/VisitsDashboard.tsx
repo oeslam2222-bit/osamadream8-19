@@ -270,7 +270,7 @@ export const VisitsDashboard: React.FC = () => {
   // rows that only carry a name still land on the right rep.
   const repMatchesCustomer = (c: Customer, repId: string): boolean => {
     const repUser = users.find((u) => u.id === repId);
-    const ownerId = (c as any).repId || c.repId;
+    const ownerId = c.repId;
     const ownerName = c.salesRepName || c.repName || '';
     if (repUser) {
       return ownerId === repUser.id || isArabicNameMatch(ownerName, repUser.name);
@@ -373,7 +373,7 @@ export const VisitsDashboard: React.FC = () => {
     setForm((prev) => ({
       ...prev,
       customerId: c.id,
-      repId: (c as any).repId || c.repId || (currentUser?.role === 'sales_rep' ? currentUser.id : ''),
+      repId: c.repId || (currentUser?.role === 'sales_rep' ? currentUser.id : ''),
       date: todayStr,
       status: 'مجدولة',
     }));
@@ -1766,7 +1766,7 @@ export const VisitsDashboard: React.FC = () => {
           <div>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
+              onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-emerald-500 transition cursor-pointer"
             >
               <option value="الكل">كل حالات الزيارة</option>
@@ -1781,7 +1781,7 @@ export const VisitsDashboard: React.FC = () => {
           <div>
             <select
               value={returnFilter}
-              onChange={(e) => setReturnFilter(e.target.value as any)}
+              onChange={(e) => setReturnFilter(e.target.value as typeof returnFilter)}
               className={`w-full px-3 py-2 border rounded-xl text-xs font-black focus:outline-none transition cursor-pointer ${
                 returnFilter !== 'all'
                   ? 'bg-rose-50 border-rose-400 text-rose-900 ring-1 ring-rose-300'

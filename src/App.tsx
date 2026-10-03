@@ -15,24 +15,27 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
-import React, { Component, ErrorInfo, Suspense, useState, useEffect } from 'react';
+import React, { Component, ErrorInfo, lazy, Suspense, useState, useEffect } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
-import { ProductCatalog } from './components/ProductCatalog';
-import { CustomerDirectoryView } from './components/CustomerDirectoryView';
-import { AllCustomersAnalyticsView } from './components/AllCustomersAnalyticsView';
-import { SupervisorDashboard } from './components/SupervisorDashboard';
-import { InvoicesManager } from './components/InvoicesManager';
-import { InventoryStockView } from './components/InventoryStockView';
-import { ExcelImportExport } from './components/ExcelImportExport';
-import { UserManager } from './components/UserManager';
-import { SystemWorkflowGuide } from './components/SystemWorkflowGuide';
-import { TargetPerformanceDashboard } from './components/TargetPerformanceDashboard';
-import { VisitsDashboard } from './components/VisitsDashboard';
-import { OrderBuilderModal } from './components/OrderBuilderModal';
-import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
 import { AppProvider, useApp } from './context/AppContext';
 import { Customer, Invoice } from './types';
+
+// Only the shell (login, navbar, app context) ships in the first chunk. Every
+// section below is loaded on demand so reps on mobile don't download the
+// analytics and Excel engines before they open them.
+const ProductCatalog = lazy(() => import('./components/ProductCatalog').then((m) => ({ default: m.ProductCatalog })));
+const AllCustomersAnalyticsView = lazy(() => import('./components/AllCustomersAnalyticsView').then((m) => ({ default: m.AllCustomersAnalyticsView })));
+const SupervisorDashboard = lazy(() => import('./components/SupervisorDashboard').then((m) => ({ default: m.SupervisorDashboard })));
+const TargetPerformanceDashboard = lazy(() => import('./components/TargetPerformanceDashboard').then((m) => ({ default: m.TargetPerformanceDashboard })));
+const VisitsDashboard = lazy(() => import('./components/VisitsDashboard').then((m) => ({ default: m.VisitsDashboard })));
+const InvoicesManager = lazy(() => import('./components/InvoicesManager').then((m) => ({ default: m.InvoicesManager })));
+const InventoryStockView = lazy(() => import('./components/InventoryStockView').then((m) => ({ default: m.InventoryStockView })));
+const ExcelImportExport = lazy(() => import('./components/ExcelImportExport').then((m) => ({ default: m.ExcelImportExport })));
+const UserManager = lazy(() => import('./components/UserManager').then((m) => ({ default: m.UserManager })));
+const SystemWorkflowGuide = lazy(() => import('./components/SystemWorkflowGuide').then((m) => ({ default: m.SystemWorkflowGuide })));
+const OrderBuilderModal = lazy(() => import('./components/OrderBuilderModal').then((m) => ({ default: m.OrderBuilderModal })));
+const ElectronicInvoiceModal = lazy(() => import('./components/ElectronicInvoiceModal').then((m) => ({ default: m.ElectronicInvoiceModal })));
 
 // Lightweight Skeleton for tab transitions
 const TabLoadingSkeleton = () => (

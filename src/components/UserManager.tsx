@@ -529,7 +529,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     setShowPassword(false);
     setFormData({
       ...user,
-      password: user.password || '',
+      // Left blank on purpose: an empty field keeps the stored credential, and a
+      // digest must never be shown in the form.
+      password: '',
       commissionRate: user.commissionRate || 2.5,
     });
     setUserFormError(null);
@@ -610,7 +612,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
 الصفة: ${roleConfigs[user.role]?.label || user.role}
 الفرع: ${user.branchName}
 البريد الإلكتروني لتسجيل الدخول: ${user.email}
-كلمة المرور: ${user.password || '(كلمة المرور الخاصة بالمستخدم)'}
+كلمة المرور: (تُحدَّد عند التفعيل — غير معروضة هنا)
 رابط المنظومة: ${window.location.origin}`;
 
     navigator.clipboard.writeText(credText);

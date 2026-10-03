@@ -1,8 +1,11 @@
-import * as XLSX from 'xlsx-js-style';
 import { TargetQuarter, TargetRecord, User } from '../types';
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText, resolveBranchName, BRANCH_CODE_MAP } from './arabicMatchingService';
-import { decodeBufferSmart } from './encodingService';
 import { getPublishedCsvUrl } from './dataSourceService';
+
+// The Excel engines (xlsx-js-style + the Arabic encoding helpers) are heavy and
+// only needed when a target sheet is imported or exported. They are imported
+// inside the functions that use them so the app shell stays small, and so the
+// browser caches one copy shared with excelService instead of duplicating it.
 
 /**
  * Maps a month number (1-12) to its respective quarter:
@@ -159,6 +162,9 @@ export async function fetchTargetsFromGoogleSheetUrl(urlOrId: string): Promise<T
 
   let lastError: any = null;
 
+  const XLSX = await import('xlsx-js-style');
+  const { decodeBufferSmart } = await import('./encodingService');
+
   for (const candidateUrl of candidates) {
     try {
       const response = await fetch(candidateUrl);
@@ -192,6 +198,7 @@ export async function fetchTargetsFromGoogleSheetUrl(urlOrId: string): Promise<T
 }
 
 export async function parseTargetExcel(fileOrBuffer: File | ArrayBuffer): Promise<TargetRecord[]> {
+  const XLSX = await import('xlsx-js-style');
   let data: ArrayBuffer;
   if (fileOrBuffer instanceof File) {
     data = await fileOrBuffer.arrayBuffer();
@@ -565,7 +572,8 @@ export function generateSampleTargets(): TargetRecord[] {
 /**
  * Export targets to Excel with Tantawy Group branding & professional styling
  */
-export function exportTargetsToExcel(records: TargetRecord[], filename = 'تارجت_المبيعات_والتحصيل_الطنطاوي.xlsx') {
+export async function exportTargetsToExcel(records: TargetRecord[], filename = 'تارجت_المبيعات_والتحصيل_الطنطاوي.xlsx') {
+  const XLSX = await import('xlsx-js-style');
   const wb = XLSX.utils.book_new();
 
   const headers = [
@@ -649,7 +657,8 @@ export function exportTargetsToExcel(records: TargetRecord[], filename = 'تار
 /**
  * Download standard empty / sample Excel template for upload
  */
-export function downloadTargetTemplateExcel() {
+export async function downloadTargetTemplateExcel() {
+  const XLSX = await import('xlsx-js-style');
   const wb = XLSX.utils.book_new();
 
   const headers = [
