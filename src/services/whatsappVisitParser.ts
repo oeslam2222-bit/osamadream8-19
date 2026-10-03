@@ -30,7 +30,8 @@ export type ParsedLineStatus =
   | 'no_date'
   | 'unreadable'
   | 'ambiguous_date'
-  | 'duplicate_in_paste';
+  | 'duplicate_in_paste'
+  | 'duplicate_existing';
 
 export interface ParsedVisitLine {
   /** 1-based position in the pasted text, for pointing the user at a row. */

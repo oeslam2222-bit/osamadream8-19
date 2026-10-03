@@ -184,6 +184,10 @@ export interface AppContextType {
   /** Memoized result of getVisibleVisits, for pages that want a stable array to depend on. */
   visibleVisits: CustomerVisit[];
   addVisit: (visit: Omit<CustomerVisit, 'id' | 'createdAt' | 'createdBy'>) => { success: boolean; message: string; visit?: CustomerVisit };
+  addImportedVisits: (
+    visits: Array<Omit<CustomerVisit, 'id' | 'createdAt' | 'createdBy' | 'customerName' | 'customerCode' | 'syncStatus'>>,
+    onProgress?: (processed: number, total: number) => void
+  ) => Promise<{ success: boolean; added: number; duplicates: number; queued: boolean; failed: string[] }>;
   updateVisit: (visit: CustomerVisit) => { success: boolean; message: string };
   reviewVisit: (visitId: string, status: Extract<VisitReviewStatus, 'approved' | 'needs_fix'>, note?: string) => { success: boolean; message: string };
   deleteVisit: (visitId: string) => Promise<{ success: boolean; message: string }>;

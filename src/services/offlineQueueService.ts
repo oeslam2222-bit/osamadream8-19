@@ -50,20 +50,33 @@ async function writeQueue(items: QueuedMutation[]): Promise<void> {
 export async function enqueueMutation(
   mutation: Omit<QueuedMutation, 'id' | 'queuedAt' | 'attempts'>
 ): Promise<number> {
+  return enqueueMutations([mutation]);
+}
+
+export async function enqueueMutations(
+  mutations: Array<Omit<QueuedMutation, 'id' | 'queuedAt' | 'attempts'>>
+): Promise<number> {
+  if (mutations.length === 0) return (await getQueuedMutations()).length;
   const items = await getQueuedMutations();
-  const sameTarget = items.filter(
-    (item) => item.entity === mutation.entity && item.entityId === mutation.entityId
-  );
-  const entry: QueuedMutation = {
-    ...mutation,
-    id: sameTarget.length > 0 ? sameTarget[sameTarget.length - 1].id : makeId(),
-    queuedAt: Date.now(),
-    attempts: 0,
-  };
-  const kept = items.filter(
-    (item) => !(item.entity === mutation.entity && item.entityId === mutation.entityId)
-  );
-  const next = [...kept, entry];
+  const next = [...items];
+  for (const mutation of mutations) {
+    const sameTarget = next.filter(
+      (item) => item.entity === mutation.entity && item.entityId === mutation.entityId
+    );
+    const id = sameTarget[sameTarget.length - 1]?.id || makeId();
+    const entry: QueuedMutation = {
+      ...mutation,
+      id,
+      queuedAt: Date.now(),
+      attempts: 0,
+    };
+    for (let i = next.length - 1; i >= 0; i--) {
+      if (next[i].entity === mutation.entity && next[i].entityId === mutation.entityId) {
+        next.splice(i, 1);
+      }
+    }
+    next.push(entry);
+  }
   await writeQueue(next);
   return next.length;
 }

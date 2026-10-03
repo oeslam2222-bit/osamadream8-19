@@ -116,6 +116,7 @@ import { hashPassword, verifyPassword, withHashedCredential } from '../services/
 import {
   QueuedMutation,
   enqueueMutation,
+  enqueueMutations,
   countQueuedMutations,
   getQueuedMutations,
   markQueuedMutationFailure,
@@ -4750,6 +4751,157 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       visit: newVisitObj,
     };
   };
+
+  const addImportedVisits = async (
+    imported: Array<Omit<CustomerVisit, 'id' | 'createdAt' | 'createdBy' | 'customerName' | 'customerCode' | 'syncStatus'>>,
+    onProgress?: (processed: number, total: number) => void
+  ): Promise<{ success: boolean; added: number; duplicates: number; queued: boolean; failed: string[] }> => {
+    if (currentUser?.role !== 'admin' && currentUser?.role !== 'developer') {
+      return { success: false, added: 0, duplicates: 0, queued: false, failed: ['لا تملك صلاحية استيراد الزيارات'] };
+    }
+
+    const dayKey = (customerId: string, date: string) => `${customerId}|${date.slice(0, 10)}`;
+    const seen = new Set<string>();
+    visits.forEach((visit) => {
+      if (visit.customerId && visit.date) seen.add(dayKey(visit.customerId, visit.date));
+    });
+    customers.forEach((customer) => {
+      (customer.visitHistory || []).forEach((visit) => {
+        if (visit.customerId && visit.date) seen.add(dayKey(visit.customerId, visit.date));
+        else if (visit.date) seen.add(dayKey(customer.id, visit.date));
+      });
+    });
+
+    const accepted: CustomerVisit[] = [];
+    const failed: string[] = [];
+    let duplicates = 0;
+
+    imported.forEach((visit, index) => {
+      const customer = customers.find((item) => item.id === visit.customerId);
+      if (!customer) {
+        failed.push(`زيارة ${index + 1}: العميل غير موجود`);
+        return;
+      }
+      if (!visit.date) {
+        failed.push(`زيارة ${index + 1}: تاريخ الزيارة غير صالح`);
+        return;
+      }
+
+      const key = dayKey(customer.id, visit.date);
+      if (seen.has(key)) {
+        duplicates++;
+        return;
+      }
+      seen.add(key);
+
+      accepted.push({
+        ...visit,
+        id: `visit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        customerId: customer.id,
+        customerName: customer.name,
+        customerCode: customer.code,
+        createdBy: currentUser.id,
+        createdAt: new Date().toISOString(),
+        syncStatus: 'pending_sync',
+      });
+    });
+
+    if (accepted.length === 0) {
+      return { success: failed.length === 0, added: 0, duplicates, queued: false, failed };
+    }
+
+    const nextVisits = [...accepted, ...visits];
+    setVisits(nextVisits);
+    persistVisits(nextVisits);
+
+    const byCustomer = new Map<string, CustomerVisit[]>();
+    accepted.forEach((visit) => {
+      const list = byCustomer.get(visit.customerId || '') || [];
+      list.push(visit);
+      byCustomer.set(visit.customerId || '', list);
+    });
+    const nextCustomers = customers.map((customer) => {
+      const additions = byCustomer.get(customer.id);
+      if (!additions) return customer;
+      const latestImportedDate = additions.reduce(
+        (latest, visit) => visit.date > latest ? visit.date : latest,
+        customer.lastVisitDate || ''
+      );
+      const countFor2026 = additions.filter((visit) => visit.date.startsWith('2026-')).length;
+      return {
+        ...customer,
+        lastVisitDate: latestImportedDate || customer.lastVisitDate,
+        visitCount2026: (customer.visitCount2026 || 0) + countFor2026,
+        visitHistory: [...additions, ...(customer.visitHistory || [])],
+      };
+    });
+    setCustomers(nextCustomers);
+    idbSet(STORAGE_KEYS.CUSTOMERS, nextCustomers).catch((error) =>
+      console.warn('Imported visit customer history persistence notice:', error)
+    );
+
+    const syncedIds = new Set<string>();
+    const toQueue: CustomerVisit[] = [];
+    let queued = false;
+    if (navigator.onLine) {
+      for (let start = 0; start < accepted.length; start += 100) {
+        const chunk = accepted.slice(start, start + 100);
+        const result = await saveVisitsToSupabase(chunk);
+        if (result.success) {
+          chunk.forEach((visit) => syncedIds.add(visit.id));
+        } else {
+          console.warn('Imported visit cloud save deferred to offline queue:', result.error);
+          toQueue.push(...chunk);
+        }
+        onProgress?.(Math.min(start + chunk.length, accepted.length), accepted.length);
+        if (start + chunk.length < accepted.length) {
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+        }
+      }
+    } else {
+      toQueue.push(...accepted);
+    }
+
+    if (syncedIds.size > 0) {
+      const syncedById = new Map(
+        accepted
+          .filter((visit) => syncedIds.has(visit.id))
+          .map((visit) => [visit.id, { ...visit, syncStatus: 'synced' as const }])
+      );
+      const updatedVisits = nextVisits.map((visit) => syncedById.get(visit.id) || visit);
+      setVisits(updatedVisits);
+      persistVisits(updatedVisits);
+      const updatedCustomers = nextCustomers.map((customer) => {
+        if (!byCustomer.has(customer.id)) return customer;
+        return {
+          ...customer,
+          visitHistory: (customer.visitHistory || []).map((visit) => syncedById.get(visit.id) || visit),
+        };
+      });
+      setCustomers(updatedCustomers);
+      idbSet(STORAGE_KEYS.CUSTOMERS, updatedCustomers).catch((error) =>
+        console.warn('Imported visit sync-state persistence notice:', error)
+      );
+    }
+
+    if (toQueue.length > 0) {
+      try {
+        await enqueueMutations(toQueue.map((visit) => ({
+          entity: 'visits',
+          op: 'upsert',
+          entityId: visit.id,
+          payload: visit,
+        })));
+        await refreshOfflineQueueCount();
+        queued = true;
+      } catch (error) {
+        console.error('Imported visits could not be added to the offline queue:', error);
+        failed.push('تم حفظ الزيارات محليًا لكن تعذر تجهيز مزامنتها؛ أعد المزامنة عند توفر الإنترنت');
+      }
+    }
+
+    return { success: failed.length === 0, added: accepted.length, duplicates, queued, failed };
+  };
   
   const updateVisit = (visit: CustomerVisit) => {
     if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً' };
@@ -5131,6 +5283,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getVisibleVisits,
         visibleVisits,
         addVisit,
+        addImportedVisits,
         updateVisit,
         reviewVisit,
         deleteVisit,

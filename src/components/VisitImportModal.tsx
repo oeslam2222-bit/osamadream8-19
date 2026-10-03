@@ -11,7 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { isArabicNameMatch, normalizeArabicText } from '../services/arabicMatchingService';
+import { getArabicTokens, isArabicNameMatch, normalizeArabicText } from '../services/arabicMatchingService';
 import {
   parseVisitsFromText,
   suggestedYearFor,
@@ -32,6 +32,9 @@ import type { Customer } from '../types';
  */
 
 const MANUAL_MAP_KEY = 'visit_import_manual_customer_map_v1';
+
+/** Preview rows mounted at a time, and rows resolved per animation frame. */
+const PREVIEW_CHUNK = 100;
 
 /** Customer codes are inconsistent in the database (CUST016826 / CUST-1001 / 016826),
  *  so matching compares the digits only. */
@@ -62,6 +65,7 @@ const STATUS_STYLE: Record<ParsedLineStatus, { label: string; className: string 
   ambiguous_date: { label: 'راجع التاريخ', className: 'bg-amber-100 text-amber-900 border-amber-200' },
   no_date: { label: 'ينقصه تاريخ', className: 'bg-amber-100 text-amber-900 border-amber-200' },
   duplicate_in_paste: { label: 'مكرر في اللصق', className: 'bg-slate-100 text-slate-600 border-slate-200' },
+  duplicate_existing: { label: 'زيارة مسجلة بنفس التاريخ', className: 'bg-rose-100 text-rose-800 border-rose-200' },
   travel_marker: { label: 'سطر تنقل', className: 'bg-sky-100 text-sky-800 border-sky-200' },
   new_customer: { label: 'عميل جديد', className: 'bg-violet-100 text-violet-800 border-violet-200' },
   unreadable: { label: 'غير مفهوم', className: 'bg-rose-100 text-rose-800 border-rose-200' },
@@ -72,14 +76,23 @@ interface VisitImportModalProps {
 }
 
 export const VisitImportModal: React.FC<VisitImportModalProps> = ({ onClose }) => {
-  const { currentUser, customers, users, addVisit } = useApp();
+  const { currentUser, customers, users, visits, addImportedVisits } = useApp();
 
   const [pastedText, setPastedText] = useState('');
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const analysisRunRef = useRef<(() => void) | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveResult, setSaveResult] = useState<{ added: number; failed: string[] } | null>(null);
+  const [saveProgress, setSaveProgress] = useState(0);
+  const [saveResult, setSaveResult] = useState<{
+    added: number;
+    duplicates: number;
+    queued: boolean;
+    failed: string[];
+  } | null>(null);
   const [pickerFor, setPickerFor] = useState<number | null>(null);
+  const [previewCount, setPreviewCount] = useState(100);
   const [pickerSearch, setPickerSearch] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -130,11 +143,48 @@ export const VisitImportModal: React.FC<VisitImportModalProps> = ({ onClose }) =
     return map;
   }, [customers]);
 
+  const existingVisitDays = useMemo(() => {
+    const keys = new Set<string>();
+    const add = (customerId: string | undefined, date: string | undefined) => {
+      if (customerId && date) keys.add(`${customerId}|${date.slice(0, 10)}`);
+    };
+    visits.forEach((visit) => add(visit.customerId, visit.date));
+    customers.forEach((customer) => {
+      (customer.visitHistory || []).forEach((visit) => add(visit.customerId || customer.id, visit.date));
+    });
+    return keys;
+  }, [visits, customers]);
+
   /**
-   * Resolves one pasted line to a customer, cheapest strategy first:
-   * remembered correction, then exact customer code, then exact normalised name, and
-   * only then a fuzzy scan over the whole base. The fuzzy scan is the slow path, so it
-   * only runs for lines the fast paths could not place.
+   * Token -> customer ids, built once per customer base.
+   *
+   * This is what makes pasting a whole year feasible. Scanning every customer for every
+   * pasted name costs ~65 ms per line (measured), so 5,800 lines that do not match
+   * would take about six minutes and lock the tab. Indexing by Arabic name token means
+   * a pasted name is only ever compared against customers that actually share a word
+   * with it - usually a handful.
+   */
+  const tokenIndex = useMemo(() => {
+    const index = new Map<string, string[]>();
+    customers.forEach((customer) => {
+      if (!customer.name) return;
+      const tokens = getArabicTokens(customer.name);
+      const seen = new Set(tokens);
+      seen.forEach((token) => {
+        const bucket = index.get(token);
+        if (bucket) bucket.push(customer.id);
+        else index.set(token, [customer.id]);
+      });
+    });
+    return index;
+  }, [customers]);
+
+  /**
+   * Resolves one pasted line to a customer, cheapest strategy first: remembered
+   * correction, exact customer code, exact normalised name, then a token-narrowed fuzzy
+   * match. The fuzzy step narrows twice - first to customers holding every token of the
+   * pasted name, and only if that finds nothing to the customers holding its rarest
+   * token - so a miss costs a bounded amount of work instead of a full scan.
    */
   const resolveCustomer = (
     pastedCode: string | undefined,
@@ -158,33 +208,104 @@ export const VisitImportModal: React.FC<VisitImportModalProps> = ({ onClose }) =
       if (exact) return { customerId: exact.id, matchKind: 'name_exact' };
     }
 
-    if (nameKey) {
-      for (const customer of customers) {
-        if (!customer.name) continue;
-        if (isArabicNameMatch(customer.name, pastedName!)) {
-          return { customerId: customer.id, matchKind: 'name_fuzzy' };
+    if (!nameKey) return { matchKind: 'none' };
+
+    const tokens = Array.from(new Set(getArabicTokens(pastedName)));
+    if (tokens.length === 0) return { matchKind: 'none' };
+
+    const buckets = tokens
+      .map((token) => tokenIndex.get(token))
+      .filter((bucket): bucket is string[] => Boolean(bucket));
+
+    if (buckets.length === 0) return { matchKind: 'none' };
+
+    // Stage 1: customers carrying every token of the pasted name. The buckets are walked
+    // smallest-first and intersected through a Set - filtering one bucket with another's
+    // includes() would be O(n^2) and slower than the full scan this index replaces.
+    const ordered = [...buckets].sort((a, b) => a.length - b.length);
+    let intersection: string[] = ordered[0];
+    for (let i = 1; i < ordered.length && intersection.length > 0; i++) {
+      const bucketSet = new Set(ordered[i]);
+      intersection = intersection.filter((id) => bucketSet.has(id));
+    }
+
+    if (intersection.length > 0) {
+      for (const id of intersection) {
+        const candidate = customerById.get(id);
+        if (candidate && isArabicNameMatch(candidate.name, pastedName)) {
+          return { customerId: candidate.id, matchKind: 'name_fuzzy' };
         }
+      }
+    }
+
+    // Stage 2: a partial or misspelt name still lands on its rarest shared token,
+    // bounded to 120 comparisons. Past that the row is handed to the user to pick,
+    // which is cheaper and more honest than guessing from 500 near-identical names.
+    let rarest = buckets[0];
+    for (const bucket of buckets) if (bucket.length < rarest.length) rarest = bucket;
+    for (const id of rarest.slice(0, 120)) {
+      const candidate = customerById.get(id);
+      if (candidate && isArabicNameMatch(candidate.name, pastedName)) {
+        return { customerId: candidate.id, matchKind: 'name_fuzzy' };
       }
     }
 
     return { matchKind: 'none' };
   };
 
+  /**
+   * Resolving a pasted line is cheap now that the token index exists, but a full year of
+   * sheets is still thousands of lines. Running them in one blocking pass froze the tab,
+   * so the work is sliced into chunks that yield between batches: the page stays
+   * responsive, the progress bar moves, and cancelling mid-paste actually works.
+   */
+  const ANALYZE_CHUNK = 250;
+
   const handleAnalyze = () => {
     if (!pastedText.trim()) return;
     setIsAnalyzing(true);
     setSaveResult(null);
+    setSaveProgress(0);
+    setProgress(0);
+    setRows([]);
 
-    // Yield once so the button can paint its working state before the fuzzy scan.
-    window.setTimeout(() => {
-      const parsed = parseVisitsFromText(pastedText, { defaultYear: suggestedYearFor(pastedText) });
-      const next: ImportRow[] = parsed.map((line) => {
+    const parsed = parseVisitsFromText(pastedText, { defaultYear: suggestedYearFor(pastedText) });
+    const total = parsed.length;
+    if (total === 0) {
+      setIsAnalyzing(false);
+      return;
+    }
+
+    let cursor = 0;
+    let collected: ImportRow[] = [];
+    let cancelled = false;
+    const seenCustomerDays = new Set<string>();
+
+    const step = () => {
+      if (cancelled) return;
+      const end = Math.min(cursor + ANALYZE_CHUNK, total);
+      for (let i = cursor; i < end; i++) {
+        const line = parsed[i];
         const resolved = resolveCustomer(line.customerCode, line.customerName);
         const structuralOnly =
           line.status === 'travel_marker' || line.status === 'unreadable' || line.status === 'new_customer';
+        let status = line.status;
+        let note = line.note;
+        if (line.date && resolved.customerId && !structuralOnly && status !== 'duplicate_in_paste') {
+          const dayKey = `${resolved.customerId}|${line.date}`;
+          if (existingVisitDays.has(dayKey)) {
+            status = 'duplicate_existing';
+            note = 'العميل له زيارة مسجلة بالفعل في نفس التاريخ';
+          } else if (seenCustomerDays.has(dayKey)) {
+            status = 'duplicate_in_paste';
+            note = 'مكرر في نفس اللصق - اتسجل قبله';
+          } else {
+            seenCustomerDays.add(dayKey);
+          }
+        }
         const usable =
           Boolean(line.date) && Boolean(resolved.customerId) &&
-          line.status !== 'duplicate_in_paste' && !structuralOnly;
+          status !== 'duplicate_in_paste' && status !== 'duplicate_existing' && !structuralOnly;
 
         const row: ImportRow = {
           lineNumber: line.lineNumber,
@@ -195,20 +316,30 @@ export const VisitImportModal: React.FC<VisitImportModalProps> = ({ onClose }) =
           pastedCode: line.customerCode,
           pastedName: line.customerName,
           customerId: resolved.customerId,
-          status: line.status,
-          note: line.note,
+          status,
+          note,
           matchKind: resolved.matchKind,
         };
 
-        if (usable && !line.date) row.note = 'بدون تاريخ';
-        else if (resolved.matchKind === 'none' && !structuralOnly) {
+        if (resolved.matchKind === 'none' && !structuralOnly) {
           row.note = 'العميل مش متطابق - اختاره يدوي';
         }
-        return row;
-      });
-      setRows(next);
-      setIsAnalyzing(false);
-    }, 20);
+        collected.push(row);
+      }
+      cursor = end;
+      setProgress(Math.round((cursor / total) * 100));
+      setRows([...collected]);
+
+      if (cursor < total) {
+        window.setTimeout(step, 0);
+      } else {
+        setIsAnalyzing(false);
+        setProgress(100);
+      }
+    };
+
+    analysisRunRef.current = () => { cancelled = true; };
+    window.setTimeout(step, 0);
   };
 
   const updateRow = (lineNumber: number, patch: Partial<ImportRow>) => {
@@ -217,11 +348,25 @@ export const VisitImportModal: React.FC<VisitImportModalProps> = ({ onClose }) =
 
   const assignCustomer = (lineNumber: number, customer: Customer) => {
     const row = rows.find((r) => r.lineNumber === lineNumber);
+    const key = row?.date ? `${customer.id}|${row.date}` : '';
+    const alreadyRegistered = Boolean(key && existingVisitDays.has(key));
+    const repeatedEarlier = Boolean(key && rows.some(
+      (candidate) => candidate.lineNumber < lineNumber &&
+        candidate.customerId === customer.id && candidate.date === row?.date &&
+        candidate.status !== 'travel_marker' && candidate.status !== 'unreadable' &&
+        candidate.status !== 'new_customer'
+    ));
+    const isDuplicate = alreadyRegistered || repeatedEarlier;
     updateRow(lineNumber, {
       customerId: customer.id,
       matchKind: 'manual',
-      note: undefined,
-      include: Boolean(row?.date),
+      status: alreadyRegistered ? 'duplicate_existing' : repeatedEarlier ? 'duplicate_in_paste' : row?.status,
+      note: alreadyRegistered
+        ? 'العميل له زيارة مسجلة بالفعل في نفس التاريخ'
+        : repeatedEarlier
+          ? 'مكرر في نفس اللصق - اتسجل قبله'
+          : undefined,
+      include: Boolean(row?.date) && !isDuplicate,
     });
     // Remember the correction so the same name resolves itself next time.
     if (row?.pastedName) {
@@ -237,52 +382,81 @@ export const VisitImportModal: React.FC<VisitImportModalProps> = ({ onClose }) =
   };
 
   const reset = () => {
+    analysisRunRef.current?.();
     setRows([]);
     setSaveResult(null);
     setPickerFor(null);
+    setPreviewCount(PREVIEW_CHUNK);
+    setProgress(0);
     setPastedText('');
     textareaRef.current?.focus();
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const batch = rows.filter((r) => r.include && r.date && r.customerId);
     if (batch.length === 0) return;
     setIsSaving(true);
+    setSaveProgress(0);
+    setSaveResult(null);
 
     const failed: string[] = [];
-    let added = 0;
-
-    batch.forEach((row, index) => {
+    const imported = [];
+    batch.forEach((row) => {
       const customer = customerById.get(row.customerId!);
       if (!customer) {
         failed.push(`سطر ${row.lineNumber}: العميل مش موجود`);
-        return;
-      }
-      const assignedRep = users.find((u) => u.id === customer.repId);
-      const result = addVisit({
-        customerId: customer.id,
-        date: row.date,
-        time: row.time,
-        repId: customer.repId || '',
-        repName: assignedRep?.name || customer.salesRepName || customer.repName || 'غير محدد',
-        branchName: customer.branchName || assignedRep?.branchName || '',
-        status: 'منفذة',
-        type: 'زيارة دورية',
-        notes: `استيراد من الواتساب — سطر ${row.lineNumber}`,
-      });
-      if (result?.success) added++;
-      else failed.push(`سطر ${row.lineNumber}: ${result?.message || 'فشل الحفظ'}`);
-      if (index === batch.length - 1) {
-        setIsSaving(false);
-        setSaveResult({ added, failed });
+      } else {
+        const assignedRep = users.find((u) => u.id === customer.repId);
+        imported.push({
+          customerId: customer.id,
+          date: row.date,
+          time: row.time,
+          repId: customer.repId || '',
+          repName: assignedRep?.name || customer.salesRepName || customer.repName || 'غير محدد',
+          branchName: customer.branchName || assignedRep?.branchName || '',
+          status: 'منفذة' as const,
+          type: 'زيارة دورية' as const,
+          notes: `استيراد من الواتساب — سطر ${row.lineNumber}`,
+        });
       }
     });
+
+    try {
+      const result = await addImportedVisits(imported, (processed, total) => {
+        setSaveProgress(total === 0 ? 100 : Math.round((processed / total) * 100));
+      });
+      setSaveResult({
+        added: result.added,
+        duplicates: result.duplicates,
+        queued: result.queued,
+        failed: [...failed, ...result.failed],
+      });
+    } catch (error) {
+      console.error('WhatsApp visit import failed:', error);
+      setSaveResult({
+        added: 0,
+        duplicates: 0,
+        queued: false,
+        failed: [...failed, 'حصل خطأ أثناء حفظ الزيارات؛ راجع الاتصال وحاول مرة أخرى'],
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  // A pasted year can be thousands of rows. Mounting them all would rebuild exactly the
+  // DOM problem the visit list was fixed for, so the preview is windowed too - the
+  // counters below still describe the whole batch, not just what is on screen.
+  const previewRows = rows.slice(0, previewCount);
+  const previewRemaining = Math.max(0, rows.length - previewRows.length);
 
   const included = rows.filter((r) => r.include).length;
   const readyCount = rows.filter((r) => r.include && r.date && r.customerId).length;
   const needsCustomer = rows.filter((r) => !r.customerId && r.status !== 'travel_marker' && r.status !== 'unreadable' && r.status !== 'new_customer').length;
-  const skipped = rows.filter((r) => r.status === 'travel_marker' || r.status === 'unreadable' || r.status === 'new_customer' || r.status === 'duplicate_in_paste').length;
+  const skipped = rows.filter((r) =>
+    r.status === 'travel_marker' || r.status === 'unreadable' || r.status === 'new_customer' ||
+    r.status === 'duplicate_in_paste' || r.status === 'duplicate_existing'
+  ).length;
 
   const pickerCandidates = useMemo(() => {
     if (pickerFor === null) return [];
@@ -331,6 +505,48 @@ export const VisitImportModal: React.FC<VisitImportModalProps> = ({ onClose }) =
             </span>
           </div>
 
+          {isAnalyzing && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
+              <div className="flex items-center justify-between text-[11px] font-bold text-amber-900">
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  جاري مطابقة السطور مع قائمة العملاء...
+                </span>
+                <span>{progress}%</span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-amber-200 overflow-hidden">
+                <div
+                  className="h-full bg-amber-500 rounded-full transition-[width] duration-150"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <button
+                onClick={() => {
+                  analysisRunRef.current?.();
+                  setIsAnalyzing(false);
+                }}
+                className="text-[11px] font-bold text-amber-800 underline"
+              >
+                إيقاف
+              </button>
+            </div>
+          )}
+
+          {isSaving && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2">
+              <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900">
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  جاري حفظ الزيارات على دفعات...
+                </span>
+                <span>{saveProgress}%</span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-emerald-200 overflow-hidden">
+                <div className="h-full bg-emerald-500 rounded-full transition-[width] duration-150" style={{ width: `${saveProgress}%` }} />
+              </div>
+            </div>
+          )}
+
           <textarea
             ref={textareaRef}
             value={pastedText}
@@ -374,6 +590,8 @@ export const VisitImportModal: React.FC<VisitImportModalProps> = ({ onClose }) =
               }`}
             >
               تم تسجيل {saveResult.added} زيارة.
+              {saveResult.duplicates > 0 && ` وتم تخطي ${saveResult.duplicates} زيارة مكررة.`}
+              {saveResult.queued && ' الزيارات المحفوظة محليًا ستتم مزامنتها عند عودة الإنترنت.'}
               {saveResult.failed.length > 0 && (
                 <ul className="mt-1.5 space-y-0.5 font-normal">
                   {saveResult.failed.slice(0, 6).map((f, i) => (
@@ -387,13 +605,14 @@ export const VisitImportModal: React.FC<VisitImportModalProps> = ({ onClose }) =
 
           {rows.length > 0 && (
             <div className="space-y-2 max-h-[46vh] overflow-y-auto">
-              {rows.map((row) => {
+              {previewRows.map((row) => {
                 const customer = row.customerId ? customerById.get(row.customerId) : undefined;
                 const assignedRep = customer ? users.find((u) => u.id === customer.repId) : undefined;
                 const style = STATUS_STYLE[row.status];
                 const isSkipped =
                   row.status === 'travel_marker' || row.status === 'unreadable' ||
-                  row.status === 'new_customer' || row.status === 'duplicate_in_paste';
+                  row.status === 'new_customer' || row.status === 'duplicate_in_paste' ||
+                  row.status === 'duplicate_existing';
 
                 return (
                   <div
@@ -535,6 +754,15 @@ export const VisitImportModal: React.FC<VisitImportModalProps> = ({ onClose }) =
                   </div>
                 );
               })}
+
+              {previewRemaining > 0 && (
+                <button
+                  onClick={() => setPreviewCount((c) => c + PREVIEW_CHUNK)}
+                  className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-200 transition active:scale-[0.99]"
+                >
+                  عرض {Math.min(PREVIEW_CHUNK, previewRemaining)} سطر كمان ({previewRows.length} من {rows.length})
+                </button>
+              )}
             </div>
           )}
         </div>

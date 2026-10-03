@@ -35,7 +35,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { exportElectronicInvoiceToExcel, exportInvoiceForERP, downloadInvoiceBoth } from '../services/excelService';
 import { downloadInvoicePDF } from '../services/pdfService';
-import { buildShortageReport, downloadShortageReport } from '../services/shortageReportService';
+import {
+  buildDispatchReport,
+  downloadDispatchReport,
+  type DispatchScope,
+} from '../services/dispatchReportService';
 import { formatArabicDate, formatCurrency } from '../services/invoiceService';
 import { Invoice, OrderStatus } from '../types';
 import { CreditAuditModal } from './CreditAuditModal';
@@ -86,6 +90,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExportingShortage, setIsExportingShortage] = useState(false);
+  // The dispatch pack is a daily document, so the period defaults to today and the
+  // scope defaults to both halves: the warehouse request plus the approved orders.
+  const [dispatchDay, setDispatchDay] = useState(new Date().toISOString().slice(0, 10));
+  const [dispatchScope, setDispatchScope] = useState<DispatchScope>('both');
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
   // Auto-refresh invoices on component mount (uses cached data if refreshed recently)
@@ -111,33 +119,50 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     }
   };
 
+  /** Renders the `YYYY-MM-DD` picker value in Arabic, parsed as local time so the day
+   *  never shifts back a day on timezones behind UTC. */
+  const formatArabicDay = (isoDay: string) => {
+    const [year, month, day] = isoDay.split('-').map(Number);
+    if (!year || !month || !day) return isoDay;
+    return new Date(year, month - 1, day).toLocaleDateString('ar-EG', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  };
+
   /**
-   * The shortage ("-NQ") invoices are the warehouse's actual purchase list, so this
-   * exports what the central warehouse still has to cover across the whole visible
-   * scope - not just the current tab, and not just today. The ~900 KB Excel engine
-   * is imported inside the download call, so the button costs nothing until used.
+   * Exports the dispatch pack: the shortage request for the October warehouse and the
+   * approved orders for the local store, both for one chosen day and both in the ERP
+   * column layout their system already accepts.
+   *
+   * `userVisibleInvoices` is already role-scoped, so a supervisor's file holds his own
+   * reps and a branch manager's holds only their branch without extra rules here.
    */
   const handleExportShortage = async () => {
     setIsExportingShortage(true);
     try {
-      const report = buildShortageReport(userVisibleInvoices, products, {
-        branchName: selectedBranchFilter,
+      const report = buildDispatchReport(userVisibleInvoices, products, {
+        from: dispatchDay,
+        to: dispatchDay,
+        scope: dispatchScope,
+        scopeLabel: selectedBranchFilter === 'الكل' ? 'الكل' : selectedBranchFilter,
       });
-      if (report.invoiceCount === 0) {
-        setSuccessToast('لا توجد فواتير نواقص مفتوحة في النطاق الحالي.');
-        setTimeout(() => setSuccessToast(null), 3500);
+
+      if (report.shortageLines.length === 0 && report.approvedLines.length === 0) {
+        setSuccessToast(`لا توجد فواتير نواقص أو طلبيات معتمدة بتاريخ ${formatArabicDay(dispatchDay)}.`);
+        setTimeout(() => setSuccessToast(null), 4000);
         return;
       }
-      await downloadShortageReport(
-        report,
-        selectedBranchFilter === 'الكل' ? 'الكل' : selectedBranchFilter
-      );
+
+      await downloadDispatchReport(report);
       setSuccessToast(
-        `تم تصدير طلب النواقص: ${report.invoiceCount} فاتورة / ${report.productCount} صنف / ${report.totalCartons} كرتونة`
+        `تم التصدير: ${report.shortageInvoiceCount} فاتورة نواقص (${report.totalCartons} كرتونة) و ${report.approvedInvoiceCount} طلبية معتمدة`
       );
-      setTimeout(() => setSuccessToast(null), 4500);
+      setTimeout(() => setSuccessToast(null), 5000);
     } catch (err: any) {
-      setSuccessToast(`تعذر تصدير طلب النواقص: ${err?.message || 'خطأ غير معروف'}`);
+      setSuccessToast(`تعذر التصدير: ${err?.message || 'خطأ غير معروف'}`);
       setTimeout(() => setSuccessToast(null), 4000);
     } finally {
       setIsExportingShortage(false);
@@ -374,11 +399,31 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={dispatchDay}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setDispatchDay(e.target.value)}
+              className="bg-white border border-slate-200 rounded-xl px-2.5 py-2.5 text-xs font-bold text-slate-700 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-none"
+              title="يوم التصدير: يحدد الفواتير المعتمدة لهذا اليوم فقط"
+            />
+
+            <select
+              value={dispatchScope}
+              onChange={(e) => setDispatchScope(e.target.value as DispatchScope)}
+              className="bg-white border border-slate-200 rounded-xl px-2.5 py-2.5 text-xs font-bold text-slate-700 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-none cursor-pointer"
+              title="نطاق التصدير: النواقص المرسلة للمخزن، أو الطلبيات المعتمدة، أو كليهما"
+            >
+              <option value="both">النواقص + الطلبيات</option>
+              <option value="shortage">النواقص فقط</option>
+              <option value="approved">الطلبيات المعتمدة فقط</option>
+            </select>
+
             <button
               onClick={handleExportShortage}
               disabled={isExportingShortage}
               className="flex items-center justify-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold px-3 py-2.5 rounded-xl text-xs border border-amber-200 transition active:scale-95 cursor-pointer disabled:opacity-50"
-              title="تصدير طلب النواقص المرسل للمخزن الرئيسي (ملخص + تفاصيل + ملخص المناديب)"
+              title="تصدير حزمة الإرسال اليومية للمخزن الرئيسي (ملخص + تفاصيل + ملخص المناديب)"
             >
               <FileSpreadsheet className={`w-3.5 h-3.5 ${isExportingShortage ? 'animate-pulse text-amber-600' : 'text-amber-600'}`} />
               <span>{isExportingShortage ? 'جاري التصدير...' : 'طلب النواقص Excel'}</span>

@@ -27,13 +27,37 @@
 @media print {
   @page { size: A4 portrait; margin: 8mm; }
   html, body { background: #fff !important; }
-  body > *:not(#invoice-print-root) { display: none !important; }
+  body > *:not(#invoice-print-root):not(#visits-print-root) { display: none !important; }
   #invoice-print-root {
     display: block !important;
     width: 100% !important;
     color: #0f172a !important;
     background: #fff !important;
   }
+  /* Visits report. Same isolated-root approach as the invoice, so printing a filtered
+     visit list never disturbs invoice printing and never needs the on-screen chrome. */
+  #visits-print-root {
+    display: block !important;
+    width: 100% !important;
+    color: #0f172a !important;
+    background: #fff !important;
+    direction: rtl;
+    font-size: 10pt;
+  }
+  #visits-print-root table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  #visits-print-root th,
+  #visits-print-root td {
+    border: 1px solid #cbd5e1 !important;
+    padding: 4px 6px !important;
+    text-align: right !important;
+    font-size: 9pt;
+  }
+  #visits-print-root thead { display: table-header-group; }
+  #visits-print-root tr { page-break-inside: avoid; }
+
   #invoice-print-root .invoice-print-copy {
     display: block !important;
     width: 100% !important;
@@ -63,5 +87,6 @@
 }
 
 @media screen {
-  #invoice-print-root { display: none; }
+  #invoice-print-root,
+  #visits-print-root { display: none; }
 }

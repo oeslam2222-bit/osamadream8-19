@@ -11,6 +11,7 @@ import {
   Phone,
   Calendar,
   ClipboardPaste,
+  Printer,
   Building2,
   UserCheck,
   Filter,
@@ -150,7 +151,15 @@ export const VisitsDashboard: React.FC = () => {
   }, []);
 
   // Date filters: Quick presets or Month / Exact Date
-  const [timePreset, setTimePreset] = useState<'today' | 'week' | 'month' | 'all'>('month');
+  // Today is the default view: the page opens on the working day, not on a month of
+  // history, because that is what a manager checks first thing in the morning.
+  const [timePreset, setTimePreset] = useState<'today' | 'week' | 'month' | 'all' | 'range'>('today');
+  const [rangeFrom, setRangeFrom] = useState(todayStr);
+  const [rangeTo, setRangeTo] = useState(todayStr);
+  // "المجدولة اللي اتنفذت" is not a status of its own: a visit stays 'مجدولة' even after
+  // check-out when the rep never re-stated it. That is exactly the gap this catches, so
+  // it gets its own axis instead of being hidden inside the status list.
+  const [executionFilter, setExecutionFilter] = useState<'all' | 'scheduled_pending' | 'scheduled_done'>('all');
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [exactDate, setExactDate] = useState('');
   const [branch, setBranch] = useState('الكل');
@@ -509,7 +518,7 @@ export const VisitsDashboard: React.FC = () => {
   // Same idea for the visit list window: a new result set starts at the top.
   useEffect(() => {
     setRenderedVisitCount(VISIT_CHUNK_SIZE);
-  }, [timePreset, month, exactDate, branch, rep, statusFilter, reviewFilter, returnFilter, deferredSearchQuery]);
+  }, [timePreset, month, exactDate, rangeFrom, rangeTo, branch, rep, statusFilter, reviewFilter, executionFilter, returnFilter, deferredSearchQuery]);
 
   // Open the schedule form already aimed at one customer, for one rep, today.
   const scheduleVisitForCustomer = (c: Customer) => {
@@ -565,8 +574,9 @@ export const VisitsDashboard: React.FC = () => {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [selectedVisit?.customerId, selectedVisit?.id, executingVisit?.customerId, executingVisit?.id, visible]);
 
-  // Filter visits
-  const filtered = useMemo(() => {
+  // Filter visits, minus the scheduled split (that one is applied separately so the
+  // pills can show both sides no matter which side is currently selected).
+  const filteredBase = useMemo(() => {
     return visible.filter((v) => {
       // 1. Time preset match
       if (timePreset === 'today') {
@@ -579,6 +589,9 @@ export const VisitsDashboard: React.FC = () => {
         } else if (month && !v.date.startsWith(month)) {
           return false;
         }
+      } else if (timePreset === 'range') {
+        if (rangeFrom && v.date < rangeFrom) return false;
+        if (rangeTo && v.date > rangeTo) return false;
       }
 
       // 2. Branch match (Only for admin/supervisors/managers; reps should not have their visits hidden)
@@ -628,7 +641,35 @@ export const VisitsDashboard: React.FC = () => {
         returnHandledBy.includes(q)
       );
     });
-  }, [visible, timePreset, month, exactDate, branch, rep, statusFilter, reviewFilter, returnFilter, deferredSearchQuery, customerById, todayStr, weekAgoStr, currentUser?.role, userById]);
+  }, [visible, timePreset, month, exactDate, rangeFrom, rangeTo, branch, rep, statusFilter, reviewFilter, returnFilter, deferredSearchQuery, customerById, todayStr, weekAgoStr, currentUser?.role, userById]);
+
+  /**
+   * The scheduled split, applied after every other filter so the two pills always show
+   * both counts. A 'مجدولة' visit that already has a check-out time was executed but
+   * never re-stated by the rep; surfacing it is the point of the second pill.
+   */
+  const scheduledSplit = useMemo(() => {
+    let pending = 0;
+    let done = 0;
+    filteredBase.forEach((v) => {
+      if (v.status !== 'مجدولة') return;
+      if (v.checkOutTime) done++;
+      else pending++;
+    });
+    return { pending, done };
+  }, [filteredBase]);
+  const scheduledPendingCount = scheduledSplit.pending;
+  const scheduledDoneCount = scheduledSplit.done;
+
+  const filtered = useMemo(() => {
+    if (executionFilter === 'all') return filteredBase;
+    return filteredBase.filter((v) =>
+      executionFilter === 'scheduled_pending'
+        ? v.status === 'مجدولة' && !v.checkOutTime
+        : v.status === 'مجدولة' && Boolean(v.checkOutTime)
+    );
+  }, [filteredBase, executionFilter]);
+
 
   // Return alerts and handover tracking (إشعارات المرتجعات وتحويلها لأمين/مدير المخزن)
   const returnAlerts = useMemo(() => {
@@ -1257,6 +1298,77 @@ export const VisitsDashboard: React.FC = () => {
   }, [filtered, exportRange, rep, users]);
 
   // Export visits to Excel for the chosen period (weekly / this month / custom)
+  /**
+   * Prints exactly what the page is currently showing, filters included.
+   *
+   * A dedicated print root is built off-screen and printed on its own, because the global
+   * print stylesheet hides the whole app except that root - reusing it here would print a
+   * blank page. It renders every filtered row, not just the 40 the screen shows, so paper
+   * is complete while the on-screen list stays light.
+   */
+  const handlePrintFiltered = () => {
+    if (filtered.length === 0) {
+      showToast('error', 'لا توجد زيارات مطابقة للفلترة الحالية لطباعتها.');
+      return;
+    }
+
+    const scopeParts = activeFilterChips.map((c) => `${c.label} ${c.value}`);
+    const esc = (value: unknown) =>
+      String(value ?? '---').replace(/[&<>"]/g, (ch) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] as string)
+      );
+
+    const head =
+      '<thead><tr>' +
+      ['#', 'التاريخ', 'الوقت', 'كود العميل', 'العميل', 'الفرع', 'المندوب', 'الحالة', 'المحصل', 'ملاحظات']
+        .map((h) => `<th>${esc(h)}</th>`)
+      .join('') +
+      '</tr></thead>';
+
+    const body =
+      '<tbody>' +
+      filtered
+        .map(
+          (v, i) =>
+            '<tr>' +
+            [
+              i + 1,
+              v.date,
+              v.time || '---',
+              v.customerCode || customerById.get(v.customerId || '')?.code || '---',
+              v.customerName || customerById.get(v.customerId || '')?.name || '---',
+              v.branchName || '---',
+              v.repName || '---',
+              v.status || '---',
+              v.collectedAmount ? formatCurrency(v.collectedAmount) : '---',
+              v.notes || '',
+            ]
+              .map((cell) => `<td>${esc(cell)}</td>`)
+              .join('') +
+            '</tr>'
+        )
+        .join('') +
+      '</tbody>';
+
+    const root = document.createElement('div');
+    root.id = 'visits-print-root';
+    root.innerHTML =
+      `<h1 style="margin:0 0 4px;font-size:15pt">تقرير زيارات العملاء</h1>` +
+      `<p style="margin:0 0 2px;font-size:9pt">${esc(scopeParts.join(' | ') || 'كل الزيارات')}</p>` +
+      `<p style="margin:0 0 8px;font-size:9pt">عدد الزيارات: ${filtered.length} — تاريخ الطباعة: ${new Date().toLocaleString('ar-EG')}</p>` +
+      `<table>${head}${body}</table>`;
+
+    document.body.appendChild(root);
+    const cleanup = () => {
+      root.remove();
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    window.print();
+    // Safari and some Android webviews do not always fire afterprint.
+    window.setTimeout(cleanup, 1500);
+  };
+
   const handleExportVisitsExcel = async () => {
     const XLSX = await loadXlsx();
     if (!XLSX) return;
@@ -1358,6 +1470,82 @@ export const VisitsDashboard: React.FC = () => {
    * nothing is removed and the header still reports the true total, the user simply
    * asks for more rows.
    */
+
+  /** Every filter currently narrowing the list, as a click-to-remove chip. */
+  const activeFilterChips = useMemo(() => {
+    const chips: { key: string; label: string; value: string; clear: () => void }[] = [];
+
+    const dateLabel =
+      timePreset === 'today' ? 'اليوم' :
+      timePreset === 'week' ? 'آخر 7 أيام' :
+      timePreset === 'month' ? 'الشهر' :
+      timePreset === 'range' ? 'من/إلى' : 'كل الزيارات';
+    chips.push({
+      key: 'dates',
+      label: 'التاريخ:',
+      value: timePreset === 'range' ? `${rangeFrom} ← ${rangeTo}` : dateLabel,
+      clear: () => {
+        setTimePreset('today');
+        setExactDate('');
+      },
+    });
+
+    if (exactDate) {
+      chips.push({ key: 'day', label: 'يوم محدد:', value: exactDate, clear: () => setExactDate('') });
+    }
+    if (branch !== 'الكل') {
+      chips.push({ key: 'branch', label: 'الفرع:', value: branch, clear: () => setBranch('الكل') });
+    }
+    if (rep !== 'الكل') {
+      const repName = userById.get(rep)?.name || rep;
+      chips.push({ key: 'rep', label: 'المندوب:', value: repName, clear: () => setRep('الكل') });
+    }
+    if (statusFilter !== 'الكل') {
+      chips.push({ key: 'status', label: 'الحالة:', value: statusFilter, clear: () => setStatusFilter('الكل') });
+    }
+    if (executionFilter !== 'all') {
+      chips.push({
+        key: 'execution',
+        label: 'المجدولة:',
+        value: executionFilter === 'scheduled_pending' ? 'لسه ما اتنفذتش' : 'اتنفذت من غير تحديث',
+        clear: () => setExecutionFilter('all'),
+      });
+    }
+    if (reviewFilter !== 'all') {
+      chips.push({
+        key: 'review',
+        label: 'المراجعة:',
+        value: reviewFilter,
+        clear: () => setReviewFilter('all'),
+      });
+    }
+    if (returnFilter !== 'all') {
+      chips.push({ key: 'return', label: 'المرتجع:', value: returnFilter, clear: () => setReturnFilter('all') });
+    }
+    if (searchQuery.trim()) {
+      chips.push({
+        key: 'search',
+        label: 'بحث:',
+        value: searchQuery.trim(),
+        clear: () => setSearchQuery(''),
+      });
+    }
+    return chips;
+  }, [timePreset, rangeFrom, rangeTo, exactDate, branch, rep, statusFilter, executionFilter, reviewFilter, returnFilter, searchQuery, userById]);
+
+  /** Back to the default view: today, nothing narrowed. */
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('الكل');
+    setReviewFilter('all');
+    setReturnFilter('all');
+    setBranch('الكل');
+    setRep('الكل');
+    setExecutionFilter('all');
+    setExactDate('');
+    setTimePreset('today');
+  };
+
   const renderedVisits = useMemo(
     () => filtered.slice(0, renderedVisitCount),
     [filtered, renderedVisitCount]
@@ -1430,6 +1618,16 @@ export const VisitsDashboard: React.FC = () => {
             <Database className="w-4 h-4 text-emerald-600" />
             <RefreshCw className={`w-3.5 h-3.5 text-emerald-700 ${isSyncingDB ? 'animate-spin' : ''}`} />
             <span>{isSyncingDB ? 'جاري الفحص...' : 'تأكيد قاعدة البيانات ✅'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handlePrintFiltered}
+            className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3.5 py-2.5 rounded-xl flex items-center gap-2 text-xs border border-slate-300 transition cursor-pointer"
+            title="طباعة الزيارات حسب الفلترة الحالية"
+          >
+            <Printer className="w-4 h-4 text-slate-600" />
+            <span>طباعة</span>
           </button>
 
           <button
@@ -1606,7 +1804,14 @@ export const VisitsDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="md:col-span-2 bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setStatusFilter((current) => (current === 'منفذة' ? 'الكل' : 'منفذة'))}
+          title="اضغط لعرض الزيارات المنفذة فقط"
+          className={`md:col-span-2 bg-white border rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between text-right transition cursor-pointer active:scale-[0.99] ${
+            statusFilter === 'منفذة' ? 'border-emerald-400 ring-2 ring-emerald-200' : 'border-slate-200 hover:border-emerald-300'
+          }`}
+        >
           <div>
             <span className="text-[11px] font-bold text-emerald-700 block">زيارات منفذة</span>
             <span className="text-xl sm:text-2xl font-black text-emerald-700">{stats.completed}</span>
@@ -1617,20 +1822,36 @@ export const VisitsDashboard: React.FC = () => {
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
             <CheckCircle2 className="w-5 h-5" />
           </div>
-        </div>
+        </button>
 
-        <div className="md:col-span-2 bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setExecutionFilter((current) => (current === 'scheduled_pending' ? 'all' : 'scheduled_pending'))}
+          title="اضغط لعرض المجدولة التي لم تنفذ"
+          className={`md:col-span-2 bg-white border rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between text-right transition cursor-pointer active:scale-[0.99] ${
+            executionFilter === 'scheduled_pending' ? 'border-blue-400 ring-2 ring-blue-200' : 'border-slate-200 hover:border-blue-300'
+          }`}
+        >
           <div>
             <span className="text-[11px] font-bold text-blue-700 block">مجدولة وقادمة</span>
             <span className="text-xl sm:text-2xl font-black text-blue-700">{stats.scheduled}</span>
-            <span className="text-[10px] text-blue-600 font-bold block">بانتظار التنفيذ</span>
+            <span className="text-[10px] text-blue-600 font-bold block">
+              {scheduledPendingCount} لسه ما اتنفذتش
+            </span>
           </div>
           <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
             <Clock3 className="w-5 h-5" />
           </div>
-        </div>
+        </button>
 
-        <div className="md:col-span-2 bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setStatusFilter((current) => (current === 'لم تتم' ? 'الكل' : 'لم تتم'))}
+          title="اضغط لعرض الزيارات التي لم تتم"
+          className={`md:col-span-2 bg-white border rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between text-right transition cursor-pointer active:scale-[0.99] ${
+            statusFilter === 'لم تتم' ? 'border-amber-400 ring-2 ring-amber-200' : 'border-slate-200 hover:border-amber-300'
+          }`}
+        >
           <div>
             <span className="text-[11px] font-bold text-amber-700 block">لم تتم / ملغاة</span>
             <span className="text-xl sm:text-2xl font-black text-amber-700">{stats.missed + stats.cancelled}</span>
@@ -1639,7 +1860,7 @@ export const VisitsDashboard: React.FC = () => {
           <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
             <AlertCircle className="w-5 h-5" />
           </div>
-        </div>
+        </button>
 
         <div className="col-span-2 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center justify-between">
           <div>
@@ -1898,20 +2119,90 @@ export const VisitsDashboard: React.FC = () => {
             </button>
           </div>
 
-          {timePreset === 'month' && (
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-500 font-bold">اختر الشهر:</span>
-              <input
-                type="month"
-                value={month}
-                onChange={(e) => {
-                  setMonth(e.target.value);
-                  setExactDate('');
+          <div className="flex items-center gap-2 flex-wrap">
+            {timePreset === 'month' && (
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-slate-500 font-bold">اختر الشهر:</span>
+                <input
+                  type="month"
+                  value={month}
+                  onChange={(e) => {
+                    setMonth(e.target.value);
+                    setExactDate('');
+                  }}
+                  className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            )}
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => {
+                  setTimePreset('range');
+                  setRangeFrom(todayStr);
+                  setRangeTo(todayStr);
                 }}
-                className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
-              />
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  timePreset === 'range'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                من - إلى
+              </button>
             </div>
-          )}
+
+            {timePreset === 'range' && (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={rangeFrom}
+                  max={rangeTo || undefined}
+                  onChange={(e) => {
+                    setRangeFrom(e.target.value);
+                    if (rangeTo && e.target.value > rangeTo) setRangeTo(e.target.value);
+                  }}
+                  className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                />
+                <span className="text-[11px] text-slate-400 font-bold">←</span>
+                <input
+                  type="date"
+                  value={rangeTo}
+                  min={rangeFrom || undefined}
+                  onChange={(e) => setRangeTo(e.target.value)}
+                  className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Scheduled split. A visit can sit on 'مجدولة' after it already happened, so
+            the two questions a manager actually asks are separated here. */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-xs font-bold text-slate-500 ml-1">المجدولة:</span>
+          {([
+            ['all', 'الكل'],
+            ['scheduled_pending', 'لسه ما اتنفذتش'],
+            ['scheduled_done', 'اتنفذت من غير تحديث'],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setExecutionFilter(value)}
+              className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
+                executionFilter === value
+                  ? 'bg-amber-500 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              {label}
+              {value !== 'all' && (
+                <span className="mr-1.5 font-black">
+                  {value === 'scheduled_pending' ? scheduledPendingCount : scheduledDoneCount}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
 
         {/* Coordinated Filters: Search, Branch, Rep, Status */}
@@ -2004,24 +2295,33 @@ export const VisitsDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Reset Filter Button */}
-        {(searchQuery || statusFilter !== 'الكل' || returnFilter !== 'all' || branch !== 'الكل' || rep !== 'الكل' || timePreset !== 'month') && (
-          <div className="flex justify-end pt-1 border-t border-slate-100">
+        {/* Active filters, as removable chips.
+            This is the Power BI part: whatever narrowed the list - a date, a rep, a
+            status, the scheduled split, a search - is stated as a chip you can click
+            off, so there is never a hidden filter and never a need to hunt for a reset. */}
+        {activeFilterChips.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap pt-2.5 border-t border-slate-100">
+            <span className="text-[11px] font-bold text-slate-400 ml-1">مُرشَّح بـ:</span>
+            {activeFilterChips.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={chip.clear}
+                title="اضغط للإزالة"
+                className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-lg text-[11px] border border-emerald-200 transition active:scale-95 cursor-pointer"
+              >
+                <span className="text-emerald-600">{chip.label}</span>
+                {chip.value}
+                <X className="w-3 h-3 text-emerald-500" />
+              </button>
+            ))}
             <button
               type="button"
-              onClick={() => {
-                setSearchQuery('');
-                setStatusFilter('الكل');
-                setReturnFilter('all');
-                setBranch('الكل');
-                setRep('الكل');
-                setTimePreset('month');
-                setExactDate('');
-              }}
-              className="text-xs font-bold text-rose-600 hover:underline flex items-center gap-1 cursor-pointer"
+              onClick={clearAllFilters}
+              className="text-[11px] font-bold text-rose-600 hover:underline flex items-center gap-1 cursor-pointer mr-1"
             >
-              <X className="w-3.5 h-3.5" />
-              <span>إلغاء جميع الفلاتر</span>
+              <X className="w-3 h-3" />
+              إلغاء الكل
             </button>
           </div>
         )}
@@ -2094,7 +2394,27 @@ export const VisitsDashboard: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {weeklyByRep.map((r) => (
-                      <tr key={r.repId || r.repName} className="hover:bg-slate-50 transition">
+                      <tr
+                        key={r.repId || r.repName}
+                        className={`transition cursor-pointer ${
+                          rep !== 'الكل' && (r.repId === rep || isArabicNameMatch(r.repName, rep))
+                            ? 'bg-emerald-50'
+                            : 'hover:bg-slate-50'
+                        }`}
+                        onClick={() => {
+                          // Click a rep to see only their visits. Clicking them again clears it.
+                          const isSame = rep !== 'الكل' && (r.repId === rep || isArabicNameMatch(r.repName, rep));
+                          if (isSame) {
+                            setRep('الكل');
+                          } else if (r.repId && userById.has(r.repId)) {
+                            setRep(r.repId);
+                          } else {
+                            const match = users.find((u) => u.role === 'sales_rep' && isArabicNameMatch(u.name, r.repName));
+                            setRep(match?.id || 'الكل');
+                          }
+                        }}
+                        title="اضغط لعرض زيارات هذا المندوب فقط"
+                      >
                         <td className="p-2 font-black text-slate-900">{r.repName}</td>
                         <td className="p-2 text-slate-500">{r.branchName}</td>
                         <td className="p-2 text-center font-mono">{r.scheduled}</td>
