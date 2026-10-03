@@ -2411,12 +2411,12 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
 
     monthlyCollectionCols.forEach(({ month, colIdx }) => {
       const val = parseNumberValue(colIdx);
-      if (val !== undefined) {
-        // Keep the sign: the monthly value is the net of that month's
-        // collections and returns, so summing 12 months reproduces the year.
-        rowMonthlyCollections[month] = val;
-        dynamicMonthlyCollectionsSum += val;
-        if (val > 0) activeCollectionMonthsList.push(month);
+      if (val !== undefined && isFinite(val)) {
+        // Real money collected: capture both positive and negative entries as real collected magnitude
+        const absVal = Math.abs(val);
+        rowMonthlyCollections[month] = absVal;
+        dynamicMonthlyCollectionsSum += absVal;
+        if (absVal > 0) activeCollectionMonthsList.push(month);
       }
     });
 
@@ -2428,19 +2428,15 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
           : (dynamicMonthlySalesSum > 0 ? dynamicMonthlySalesSum : (parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : 0)));
     const finalTotalMonthlySales = resolvedSales2026;
 
-    // Collections: keep the sheet's NET sign. A collection is a negative entry and
-    // a return (مردودة) is a positive one, so only the net is meaningful. Taking
-    // Math.abs() of the total made returns add to collections instead of offsetting
-    // them, which is what threw إجمالي التحصيلات off by hundreds of thousands.
-    // No Math.max here either: the largest of several conflicting figures is not
-    // the right answer, the sheet's own column is.
-    const resolvedCollections2026 = parsedCollections2026Col !== undefined && parsedCollections2026Col !== 0
+    // Collections: Mirrors the sheet accurately, capturing both positive and negative entries as real collected amounts
+    const rawResolvedCollections = parsedCollections2026Col !== undefined && parsedCollections2026Col !== 0
       ? parsedCollections2026Col
       : (parsedTotalMonthlyCollectionsCol !== undefined && parsedTotalMonthlyCollectionsCol !== 0
           ? parsedTotalMonthlyCollectionsCol
           : (dynamicMonthlyCollectionsSum !== 0
               ? dynamicMonthlyCollectionsSum
               : (parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : 0)));
+    const resolvedCollections2026 = Math.abs(rawResolvedCollections);
     const finalTotalMonthlyCollections = resolvedCollections2026;
 
     const finalCreditLimit = parsedCredit !== undefined ? parsedCredit : 0;

@@ -861,11 +861,10 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
         }
       }
       if (colMap.monthlyCollections[m] !== undefined && colMap.monthlyCollections[m] > -1) {
-        // Keep signed value from sheet as requested by user (negative if negative in sheet)
         const val = cleanNumber(row[colMap.monthlyCollections[m]]);
         if (val !== 0) {
-          monthlyCollections[m] = val;
-          computedCollections2026 += val;
+          monthlyCollections[m] = Math.abs(val);
+          computedCollections2026 += Math.abs(val);
         }
       }
     }
@@ -873,8 +872,8 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     const explicitSales2026 = colMap.sales2026 !== -1 ? cleanNumber(row[colMap.sales2026]) : 0;
     const finalSales2026 = explicitSales2026 !== 0 ? explicitSales2026 : computedSales2026;
 
-    // Explicit collections 2026: preserves exact sheet sign (negative if entered negative in accounting)
-    const explicitCollections2026 = colMap.collections2026 !== -1 ? cleanNumber(row[colMap.collections2026]) : 0;
+    // Explicit collections 2026: preserves full collection magnitude so all positive and negative numbers are counted
+    const explicitCollections2026 = colMap.collections2026 !== -1 ? Math.abs(cleanNumber(row[colMap.collections2026])) : 0;
     const finalCollections2026 = explicitCollections2026 !== 0 ? explicitCollections2026 : computedCollections2026;
 
     // Guarantee docs logic:
@@ -997,7 +996,7 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
       sales2026: finalSales2026,
       totalMonthlySales: finalSales2026,
       totalOverallSales: finalSales2026,
-      collections2025: c2025 > 0 ? c2025 : undefined,
+      collections2025: c2025 !== 0 ? Math.abs(c2025) : undefined,
       collections2026: finalCollections2026,
       totalMonthlyCollections: finalCollections2026,
       totalOverallCollections: finalCollections2026,

@@ -60,7 +60,7 @@ import {
   getSavedSourceUrl,
   saveSingleSourceUrl,
 } from '../services/dataSourceService';
-import { resolveNetCollections, sumNetCollections } from '../services/customerFinancialService';
+import { resolveNetCollections, sumNetCollections, parseCleanNumber } from '../services/customerFinancialService';
 
 // Helper to normalize and match branch names with tolerance for prefixes
 const isBranchMatch = (b1?: string | null, b2?: string | null): boolean => {
@@ -500,6 +500,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
       dues: number;
       debts: number;
       collections: number;
+      netBalance: number;
     }>();
 
     const matchesRep = (customerRep: string | undefined, repName: string) =>
@@ -575,21 +576,17 @@ export const TargetPerformanceDashboard: React.FC = () => {
           const val = Number(customer.currentBalance ?? customer.balance ?? (customer as any).totalDebt ?? 0);
           return sum + (isNaN(val) ? 0 : val);
         }, 0),
+        netBalance: repCustomers.reduce((sum, customer) => {
+          const val = Number(customer.currentBalance ?? customer.balance ?? (customer as any).totalDebt ?? 0);
+          return sum + (isNaN(val) ? 0 : val);
+        }, 0),
         collections: repCustomers.reduce((sum, customer) => {
-          // Same source rule as the analytics view: the sheet's own total column
-          // wins by name, and its sign is preserved. The old Math.max() compared a
-          // signed month sum against raw magnitudes, so it returned whichever
-          // number was largest rather than the correct one.
-          const readTotal = (): number => resolveNetCollections(customer);
-          const annual = readTotal();
+          const annual = resolveNetCollections(customer);
           const monthSum = sumNetCollections(customer.monthlyCollections2026);
           const value = selectedMonth === 'ALL'
             ? (annual !== 0 ? annual : monthSum)
-            : (Number(customer.monthlyCollections2026?.[selectedMonth]) || 0);
-          // Sum the nets so returns offset collections across the whole rep, then
-          // show the magnitude once. Math.abs() per customer would double-count
-          // every مردودة instead of netting it out.
-          return sum + value;
+            : Math.abs(parseCleanNumber(customer.monthlyCollections2026?.[selectedMonth]));
+          return sum + (isNaN(value) ? 0 : value);
         }, 0),
       };
       map.set(repName, summary);
@@ -609,6 +606,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
         acc.dues += s.dues;
         acc.debts += s.debts;
         acc.collections += s.collections;
+        acc.netBalance += s.netBalance;
         return acc;
       },
       {
@@ -619,6 +617,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
         dues: 0,
         debts: 0,
         collections: 0,
+        netBalance: 0,
       }
     );
   }, [repCustomerSummary]);
@@ -2727,10 +2726,20 @@ export const TargetPerformanceDashboard: React.FC = () => {
                   <div className="bg-sky-50/80 p-2.5 rounded-2xl border border-sky-200">
                     <div className="text-[10px] font-bold text-sky-800 flex items-center gap-1">
                       <TrendingUp className="w-3.5 h-3.5 text-sky-600" />
-                      <span>التحصيلات</span>
+                      <span>إجمالي التحصيلات</span>
                     </div>
-                    <div className="text-sm font-black text-sky-700 mt-1 truncate" title={formatEGP(Math.abs(repCustomerTotals.collections))}>
-                      {formatEGP(Math.abs(repCustomerTotals.collections))}
+                    <div className="text-sm font-black text-sky-700 mt-1 truncate" title={formatEGP(repCustomerTotals.collections)}>
+                      {formatEGP(repCustomerTotals.collections)}
+                    </div>
+                  </div>
+
+                  <div className="bg-indigo-50/80 p-2.5 rounded-2xl border border-indigo-200">
+                    <div className="text-[10px] font-bold text-indigo-800 flex items-center gap-1">
+                      <Wallet className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>الرصيد الصافي المتبقي</span>
+                    </div>
+                    <div className="text-sm font-black text-indigo-900 mt-1 truncate" title={formatEGP(repCustomerTotals.netBalance)}>
+                      {formatEGP(repCustomerTotals.netBalance)}
                     </div>
                   </div>
                 </div>
@@ -2747,8 +2756,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
                         <th className="p-3 text-center text-blue-700">قابل</th>
                         <th className="p-3 text-center text-amber-800">تغطية المتعاملين %</th>
                         <th className="p-3 text-left text-orange-700">إجمالي المستحقات</th>
-                        <th className="p-3 text-left text-rose-700">المديونيات</th>
-                        <th className="p-3 text-left text-blue-700">التحصيلات</th>
+                        <th className="p-3 text-left text-blue-700">إجمالي التحصيلات</th>
+                        <th className="p-3 text-left text-indigo-700">الرصيد الصافي المتبقي</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-bold text-slate-800">
@@ -2767,8 +2776,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
                             </span>
                           </td>
                           <td className="p-3 text-left text-orange-700 font-mono font-black">{formatEGP(summary.dues)}</td>
-                          <td className="p-3 text-left text-rose-700 font-mono">{formatEGP(summary.debts)}</td>
-                          <td className="p-3 text-left text-blue-700 font-mono font-black">{formatEGP(Math.abs(summary.collections))}</td>
+                          <td className="p-3 text-left text-blue-700 font-mono font-black">{formatEGP(summary.collections)}</td>
+                          <td className="p-3 text-left text-indigo-700 font-mono font-black">{formatEGP(summary.netBalance)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2786,8 +2795,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
                           </span>
                         </td>
                         <td className="p-3 text-left text-orange-300 font-mono">{formatEGP(repCustomerTotals.dues)}</td>
-                        <td className="p-3 text-left text-rose-300 font-mono">{formatEGP(repCustomerTotals.debts)}</td>
-                        <td className="p-3 text-left text-sky-300 font-mono">{formatEGP(Math.abs(repCustomerTotals.collections))}</td>
+                        <td className="p-3 text-left text-sky-300 font-mono">{formatEGP(repCustomerTotals.collections)}</td>
+                        <td className="p-3 text-left text-indigo-300 font-mono">{formatEGP(repCustomerTotals.netBalance)}</td>
                       </tr>
                     </tfoot>
                   </table>

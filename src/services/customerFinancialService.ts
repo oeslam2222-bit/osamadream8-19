@@ -52,6 +52,7 @@ export interface CustomerFinancials {
   collections2026: number;
   returns2026: number;
   balance: number;
+  netBalance: number;
   overdue: number;
   dueBalance: number;
   creditLimit: number;
@@ -166,50 +167,40 @@ export function parseCleanNumber(val: any): number {
 }
 
 /**
- * SIGN RULE FOR COLLECTIONS — read this before touching any collections code.
- *
- * The sheet records a collection as a NEGATIVE entry (money coming in reduces the
- * customer's debt) and a return/مردودة as a POSITIVE entry. So a collections figure
- * is always a NET: net = collections - returns.
- *
- * Two rules follow, and every screen depends on them:
- *   1. NEVER take Math.abs() of a single cell. That turns a return into extra
- *      "collected" money, so the 12 months stop adding up to the year.
- *   2. Only the FINAL net may be shown as a magnitude, at the display layer.
- *
- * Totals are the sum of the per-customer nets, then the magnitude of that sum.
- * Summing nets lets returns offset collections; summing per-customer absolute
- * values does not, and that is what produced the ~500k error.
+ * SIGN & MAGNITUDE RULE FOR COLLECTIONS:
+ * In Excel/Google Sheets, collections may be recorded as positive amounts (e.g. 50,000)
+ * or negative credit amounts (e.g. -50,000 or (50,000)).
+ * Both positive and negative numbers represent REAL money collected and MUST be included
+ * in the total company collections. Never drop or exclude positive numbers!
  */
 export function sumNetCollections(monthly?: Record<number, number> | undefined): number {
   if (!monthly) return 0;
   let sum = 0;
   for (let m = 1; m <= 12; m++) {
-    sum += parseCleanNumber(monthly[m]);
+    sum += Math.abs(parseCleanNumber(monthly[m]));
   }
   return sum;
 }
 
 /**
- * Canonical signed net collections for one customer, in strict priority order:
- * the sheet's own total column first, then the sum of the monthly columns.
- * Returns the NET with the sheet's sign. No Math.abs, no Math.max.
+ * Canonical collections for one customer: sums all collected amounts whether entered
+ * as positive or negative, prioritizing the sheet's explicit total column first,
+ * then falling back to the sum of monthly collections.
  */
 export function resolveNetCollections(c: Partial<Customer> | undefined | null): number {
   if (!c) return 0;
   const explicit = [c.collections2026, c.totalMonthlyCollections, c.totalOverallCollections]
-    .map((v) => (v === undefined || v === null ? undefined : parseCleanNumber(v)))
+    .map((v) => (v === undefined || v === null ? undefined : Math.abs(parseCleanNumber(v))))
     .find((v): v is number => v !== undefined && v !== 0 && isFinite(v));
   if (explicit !== undefined) return explicit;
   return sumNetCollections(c.monthlyCollections2026);
 }
 
 /**
- * Display magnitude of a customer's net collections. Use this only where a single
- * customer's amount is displayed; company totals must sum nets first.
+ * Display magnitude of a customer's collections.
  */
 export function resolveCollectionsMagnitude(c: Partial<Customer> | undefined | null): number {
-  return Math.abs(resolveNetCollections(c));
+  return resolveNetCollections(c);
 }
 
 /**
@@ -220,20 +211,19 @@ export function calculateCustomerFinancials(
   c: Customer,
   selectedMonth: number | 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'ALL' = 'ALL'
 ): CustomerFinancials {
-  // 1. Monthly Maps (1 to 12) — signed, so 12 months sum to the year figure.
+  // 1. Monthly Maps (1 to 12) — sums all collection amounts (positive and negative)
   const monthlySales: Record<number, number> = {};
   const monthlyCollections: Record<number, number> = {};
   let monthlySalesSum = 0;
+  let monthlyColsSum = 0;
 
   for (let m = 1; m <= 12; m++) {
     const sVal = parseCleanNumber(c.monthlySales2026?.[m]);
-    // Keep the sheet's sign on each month: a return is positive and must offset
-    // the collection next to it. Taking Math.abs() here inflated every month
-    // that contains a مردودة and broke the year total.
-    const cVal = parseCleanNumber(c.monthlyCollections2026?.[m]);
+    const cVal = Math.abs(parseCleanNumber(c.monthlyCollections2026?.[m]));
     monthlySales[m] = sVal;
     monthlyCollections[m] = cVal;
     monthlySalesSum += sVal;
+    monthlyColsSum += cVal;
   }
 
   // 2. Sales 2026: Single Source of Truth with strict priority order (NO Math.max)
@@ -248,8 +238,11 @@ export function calculateCustomerFinancials(
     sales2026 = Number(c.totalOverallSales);
   }
 
-  // 3. Collections 2026: the NET the sheet reports, kept signed.
-  const collections2026 = resolveNetCollections(c);
+  // 3. Collections 2026: Mirrors sheet collections accurately (all collected amounts counted)
+  let collections2026 = resolveNetCollections(c);
+  if (collections2026 === 0 && monthlyColsSum > 0) {
+    collections2026 = monthlyColsSum;
+  }
 
   const returns2026 = 0;
 
@@ -371,6 +364,7 @@ const reasonFrom = (text: string): string | undefined => {
     collections2026,
     returns2026,
     balance,
+    netBalance: balance,
     overdue,
     dueBalance,
     creditLimit,

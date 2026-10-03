@@ -5333,6 +5333,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getVisibleVisits,
         addVisit,
         updateVisit,
+        reviewVisit,
         deleteVisit,
         syncVisitsWithDatabase,
         getCustomerVisitSummary,

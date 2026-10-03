@@ -90,14 +90,13 @@ import {
 } from '../services/customerAnalyticsService';
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
 import { getSavedSourceUrl, saveSingleSourceUrl, getSavedSheetHistory } from '../services/dataSourceService';
-import { calculateCustomerFinancials, isSummaryOrTotalRow, parseCleanNumber, resolveNetCollections } from '../services/customerFinancialService';
+import { calculateCustomerFinancials, isSummaryOrTotalRow, parseCleanNumber, resolveNetCollections, resolveCollectionsMagnitude } from '../services/customerFinancialService';
 import { classifyEligibilityColumn } from '../services/customerFinancialService';
 import type { SheetClassification } from '../services/customerFinancialService';
 
 /**
- * Signed NET collections for one customer. Totals must sum these nets and only
- * take a magnitude at the very end, so a return (positive) offsets the collection
- * (negative) it belongs to instead of adding to it.
+ * Collections for one customer: sums all collected amounts (both positive and negative entries)
+ * so positive numbers are never dropped or subtracted from collections.
  */
 const signedCustomerCollections = (
   customer: Customer,
@@ -110,10 +109,10 @@ const signedCustomerCollections = (
         : period === 'Q2' ? [4, 5, 6]
           : period === 'Q3' ? [7, 8, 9]
             : [10, 11, 12];
-    return months.reduce((sum, month) => sum + parseCleanNumber(customer.monthlyCollections2026?.[month]), 0);
+    return months.reduce((sum, month) => sum + Math.abs(parseCleanNumber(customer.monthlyCollections2026?.[month])), 0);
   }
 
-  return resolveNetCollections(customer);
+  return resolveCollectionsMagnitude(customer);
 };
 
 /**
@@ -654,6 +653,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       branchName: string;
       repName: string;
       balance: number;
+      netBalance: number;
       overdue: number;
       creditLimit: number;
       isOverLimit: boolean;
@@ -690,6 +690,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         branchName: c.branchName || 'غير محدد',
         repName: c.salesRepName || c.repName || 'غير محدد',
         balance: fin.balance,
+        netBalance: fin.netBalance,
         overdue: fin.overdue,
         creditLimit: fin.creditLimit,
         isOverLimit: fin.isOverLimit,
@@ -1201,7 +1202,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       }
       if (c.monthlyCollections2026) {
         for (let mon = 1; mon <= 12; mon++) {
-          monthlyCollectionTotals[mon] += parseCleanNumber(c.monthlyCollections2026[mon]);
+          monthlyCollectionTotals[mon] += Math.abs(parseCleanNumber(c.monthlyCollections2026[mon]));
         }
       }
     });
@@ -1212,16 +1213,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     const activeRate = filteredCustomers.length > 0 ? Math.round((active2026Count / filteredCustomers.length) * 100) : 0;
     const coverageRate = filteredCustomers.length > 0 ? Math.round((activeFilteredCount / filteredCustomers.length) * 100) : 0;
 
-    // The chart compares magnitudes, so the two series must sit on the same
-    // positive scale. Collections are negative in the sheet (a payment reduces the
-    // customer's debt), which used to draw those bars below the axis and made the
-    // comparison unreadable. Every other number on the page still uses the net.
+    // Monthly Chart Data (Jan - Dec 2026)
     const monthlyChartData = MONTH_NAMES_AR.map((monthName, idx) => {
       const monthNum = idx + 1;
       return {
         month: monthName,
         'مبيعات 2026': monthlySalesTotals[monthNum] || 0,
-        'تحصيلات 2026': Math.abs(monthlyCollectionTotals[monthNum] || 0),
+        'تحصيلات 2026': monthlyCollectionTotals[monthNum] || 0,
         'صافي التحصيلات': monthlyCollectionTotals[monthNum] || 0,
       };
     });
@@ -1538,10 +1536,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     return Array.from(map.values()).map((row) => {
       const totalCollections = row.totalCollections;
       const periodCollections = row.periodCollections;
+      const netBalance = row.totalSales - totalCollections;
+      const periodNetBalance = row.periodSales - periodCollections;
       return {
         ...row,
         totalCollections,
         periodCollections,
+        netBalance,
+        periodNetBalance,
         coverageRate: row.eligibleCustomers > 0 ? Math.round((row.dealtCustomers / row.eligibleCustomers) * 100) : 0,
         collectionRate: row.totalSales > 0 ? Math.round((Math.abs(totalCollections) / row.totalSales) * 100) : 0,
         periodCollectionRate: row.periodSales > 0 ? Math.round((Math.abs(periodCollections) / row.periodSales) * 100) : 0,
@@ -1758,6 +1760,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       transactingCount: number;
       transactingSales: number;
       transactingCollections: number;
+      totalDebt: number;
+      totalOverdue: number;
       nonTransactingCount: number;
       nonTransactingDebt: number;
       nonTransactingOverdue: number;
@@ -1831,6 +1835,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           transactingCount: 0,
           transactingSales: 0,
           transactingCollections: 0,
+          totalDebt: 0,
+          totalOverdue: 0,
           nonTransactingCount: 0,
           nonTransactingDebt: 0,
           nonTransactingOverdue: 0,
@@ -1843,14 +1849,16 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
       item.total++;
       totalAll++;
+      item.totalDebt += debt;
+      item.totalOverdue += overdue;
 
       if (isTrans) {
         item.transactingCount++;
         item.transactingSales += sales;
-        item.transactingCollections += signedCols;
+        item.transactingCollections += cols;
         totalTransacting++;
         totalTransactingSales += sales;
-        totalTransactingCollections += signedCols;
+        totalTransactingCollections += cols;
       } else if (isNonTrans) {
         item.nonTransactingCount++;
         item.nonTransactingDebt += debt;
@@ -1869,14 +1877,18 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       }
     });
 
+    let totalNetBalanceAll = 0;
     const matrixRows = Array.from(map.values()).map((row) => {
       const transactingCollections = row.transactingCollections;
+      const netBalance = row.transactingSales - transactingCollections;
+      totalNetBalanceAll += netBalance;
       return {
         ...row,
         transactingCollections,
+        netBalance,
         transactingRate: row.total > 0 ? Math.round((row.transactingCount / row.total) * 100) : 0,
         nonTransactingRate: row.total > 0 ? Math.round((row.nonTransactingCount / row.total) * 100) : 0,
-        collectionRate: row.transactingSales > 0 ? Math.round((Math.abs(transactingCollections) / row.transactingSales) * 100) : 0,
+        collectionRate: row.transactingSales > 0 ? Math.min(100, Math.round((Math.abs(transactingCollections) / row.transactingSales) * 100)) : 0,
       };
     }).sort((a, b) => b.transactingCount - a.transactingCount || b.transactingSales - a.transactingSales);
 
@@ -1893,6 +1905,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         totalNonTransactingRate: totalAll > 0 ? Math.round((totalNonTransacting / totalAll) * 100) : 0,
         totalNonTransactingDebt,
         totalNonTransactingOverdue,
+        totalNetBalance: totalNetBalanceAll,
       }
     };
   }, [filteredCustomers, customerMetricsMap, customerOrdersLookup]);
@@ -2636,7 +2649,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               {selectedMonth === 'ALL' ? 'إجمالي المحصل الفعلي' : `تحصيلات فترة ${selectedMonth}`}
             </span>
             <span className="text-emerald-300/90 text-[10px] font-bold">
-              (سالب = تحصيل، موجب = مردود في الشيت)
+              (إجمالي المحصل الفعلي لجميع العملاء)
             </span>
           </div>
         </div>
@@ -2847,7 +2860,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           <div className="text-[10px] text-[#107c41] font-extrabold mt-0.5 flex items-center justify-between flex-wrap gap-1">
             <span>{selectedMonth === 'ALL' ? kpiStats.collectionRate : kpiStats.periodCollectionRate}% نسبة التحصيل</span>
             <span className="text-slate-400 font-normal text-[9px] font-mono">
-              (سالب = تحصيل، موجب = مردود)
+              (إجمالي المحصل الفعلي)
             </span>
           </div>
         </div>
@@ -3364,6 +3377,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       <th className="p-2.5 text-left text-rose-300">إجمالي المستحقات</th>
                       <th className="p-2.5 text-left text-sky-300">مبيعات 2026</th>
                       <th className="p-2.5 text-left text-emerald-300">تحصيلات 2026</th>
+                      <th className="p-2.5 text-left text-cyan-300">الرصيد الصافي</th>
                       <th className="p-2.5 text-center">نسبة التحصيل</th>
                     </tr>
                   </thead>
@@ -3424,12 +3438,43 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         <td className="p-2.5 text-left font-mono font-bold text-emerald-700 whitespace-nowrap" title={isPrivacyMode ? 'مخفي' : undefined}>
                           {formatMoney(row.totalCollections)}
                         </td>
+                        <td className="p-2.5 text-left font-mono font-black text-cyan-800 whitespace-nowrap" title={isPrivacyMode ? 'مخفي' : undefined}>
+                          {formatMoney(row.netBalance)}
+                        </td>
                         <td className="p-2.5 text-center font-bold text-slate-700">
                           {row.collectionRate}%
                         </td>
                       </tr>
                     ))}
                   </tbody>
+                  <tfoot className="bg-slate-100 font-black border-t-2 border-slate-300">
+                    <tr>
+                      <td className="p-2.5">الإجمالي الشامل</td>
+                      <td className="p-2.5 text-indigo-950 font-black">جميع المناديب ({repAndBranchSummary.length})</td>
+                      <td className="p-2.5 text-center font-mono font-black">{repAndBranchSummary.reduce((acc, r) => acc + r.totalCustomers, 0).toLocaleString()}</td>
+                      <td className="p-2.5 text-center font-mono font-bold text-sky-700">{repAndBranchSummary.reduce((acc, r) => acc + r.nonDealtCustomers, 0).toLocaleString()}</td>
+                      <td className="p-2.5 text-center font-mono font-black text-emerald-700">{repAndBranchSummary.reduce((acc, r) => acc + r.dealtCustomers, 0).toLocaleString()}</td>
+                      <td className="p-2.5 text-center font-mono font-black text-amber-700">
+                        {(() => {
+                          const totCust = repAndBranchSummary.reduce((acc, r) => acc + r.totalCustomers, 0);
+                          const totDealt = repAndBranchSummary.reduce((acc, r) => acc + r.dealtCustomers, 0);
+                          return totCust > 0 ? Math.round((totDealt / totCust) * 100) : 0;
+                        })()}%
+                      </td>
+                      <td className="p-2.5 text-left font-mono font-black text-purple-900">{formatMoney(repAndBranchSummary.reduce((acc, r) => acc + r.totalDebt, 0))}</td>
+                      <td className="p-2.5 text-left font-mono font-black text-rose-700">{formatMoney(repAndBranchSummary.reduce((acc, r) => acc + r.totalOverdue, 0))}</td>
+                      <td className="p-2.5 text-left font-mono font-black text-slate-900">{formatMoney(repAndBranchSummary.reduce((acc, r) => acc + r.totalSales, 0))}</td>
+                      <td className="p-2.5 text-left font-mono font-black text-emerald-700">{formatMoney(repAndBranchSummary.reduce((acc, r) => acc + r.totalCollections, 0))}</td>
+                      <td className="p-2.5 text-left font-mono font-black text-cyan-800">{formatMoney(repAndBranchSummary.reduce((acc, r) => acc + r.netBalance, 0))}</td>
+                      <td className="p-2.5 text-center font-mono font-black text-slate-800">
+                        {(() => {
+                          const totSales = repAndBranchSummary.reduce((acc, r) => acc + r.totalSales, 0);
+                          const totCols = repAndBranchSummary.reduce((acc, r) => acc + r.totalCollections, 0);
+                          return totSales > 0 ? Math.round((Math.abs(totCols) / totSales) * 100) : 0;
+                        })()}%
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
@@ -3584,6 +3629,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         <th className="p-2.5 text-center text-emerald-300">% التفعيل</th>
                         <th className="p-2.5 text-left text-emerald-300">مبيعات 2026</th>
                         <th className="p-2.5 text-left text-emerald-300">تحصيلات 2026</th>
+                        <th className="p-2.5 text-left text-cyan-300">الرصيد الصافي</th>
                         <th className="p-2.5 text-center text-rose-300">🔴 غير متعاملين</th>
                         <th className="p-2.5 text-center text-rose-300">% الركود</th>
                         <th className="p-2.5 text-left text-rose-300">مديونية راكدة</th>
@@ -3634,6 +3680,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                             </td>
                             <td className="p-2.5 text-left font-mono font-bold text-emerald-700 whitespace-nowrap" title={isPrivacyMode ? 'مخفي' : undefined}>
                               {formatMoney(row.transactingCollections)}
+                            </td>
+                            <td className="p-2.5 text-left font-mono font-black text-cyan-800 whitespace-nowrap" title={isPrivacyMode ? 'مخفي' : undefined}>
+                              {formatMoney(row.netBalance)}
                             </td>
 
                             {/* Non-Transacting */}
@@ -3691,6 +3740,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         <td className="p-2.5 text-center text-emerald-800 font-mono font-black">{customerDealingAnalytics.kpi.totalTransactingRate}%</td>
                         <td className="p-2.5 text-left font-mono font-black text-slate-900">{formatMoney(customerDealingAnalytics.kpi.totalTransactingSales)}</td>
                         <td className="p-2.5 text-left font-mono font-black text-emerald-800">{formatMoney(customerDealingAnalytics.kpi.totalTransactingCollections)}</td>
+                        <td className="p-2.5 text-left font-mono font-black text-cyan-800">{formatMoney(customerDealingAnalytics.kpi.totalTransactingSales - customerDealingAnalytics.kpi.totalTransactingCollections)}</td>
                         <td className="p-2.5 text-center text-rose-800 font-mono font-black">{customerDealingAnalytics.kpi.totalNonTransacting.toLocaleString()}</td>
                         <td className="p-2.5 text-center text-rose-800 font-mono font-black">{customerDealingAnalytics.kpi.totalNonTransactingRate}%</td>
                         <td className="p-2.5 text-left font-mono font-black text-rose-800">{formatMoney(customerDealingAnalytics.kpi.totalNonTransactingDebt)}</td>

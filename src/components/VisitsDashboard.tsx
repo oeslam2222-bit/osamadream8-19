@@ -31,7 +31,6 @@ import {
   RefreshCw,
   Star,
   Trash2,
-  Navigation,
   ShieldCheck,
   Zap,
   ArrowUpDown,
@@ -121,7 +120,6 @@ export const VisitsDashboard: React.FC = () => {
   const [dossierCustomer, setDossierCustomer] = useState<Customer | null>(null);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isSyncingDB, setIsSyncingDB] = useState(false);
-  const [isCapturingGPS, setIsCapturingGPS] = useState(false);
 
   // Form State with Advanced Developed Field Tracking
   const [form, setForm] = useState({
@@ -838,39 +836,6 @@ export const VisitsDashboard: React.FC = () => {
       `تقرير_زيارات_${exportRange.from}_${exportRange.to}.xlsx`
     );
     showToast('success', `تم تصدير تقرير الفترة (${summaryRows.length} مندوب / ${detailRows.length} زيارة) للإدارة 📊`);
-  };
-
-  // Capture GPS Geolocation for Visit Verification
-  const handleCaptureGPS = () => {
-    if (!navigator.geolocation) {
-      showToast('error', 'المتصفح لا يدعم تحديد الموقع الجغرافي GPS.');
-      return;
-    }
-    setIsCapturingGPS(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        const acc = Math.round(pos.coords.accuracy);
-        setForm((prev) => ({
-          ...prev,
-          location: {
-            latitude: lat,
-            longitude: lng,
-            accuracy: acc,
-            mapUrl: `https://www.google.com/maps?q=${lat},${lng}`,
-            timestamp: new Date().toISOString(),
-          },
-        }));
-        setIsCapturingGPS(false);
-        showToast('success', `تم تثبيت إحداثيات الموقع بنجاح (دقة: ${acc} متر) 📍`);
-      },
-      (err) => {
-        setIsCapturingGPS(false);
-        showToast('error', `تعذر التقاط الموقع: ${err.message || 'يرجى السماح بصلاحية الموقع'}`);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
   };
 
   // Sync and Verify All Visits with Cloud Database (Supabase)
@@ -2429,20 +2394,6 @@ export const VisitsDashboard: React.FC = () => {
                           <Database className="w-3 h-3 text-emerald-600" />
                           <span>قاعدة البيانات ✅</span>
                         </span>
-                        {v.location?.mapUrl && (
-                          <div>
-                            <a
-                              href={v.location.mapUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-[10px] text-blue-700 hover:underline font-bold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200"
-                              title="فتح موقع العميل الفعلي على خرائط جوجل"
-                            >
-                              <MapPin className="w-3 h-3 text-blue-600" />
-                              <span>موقع GPS محقق 🗺️</span>
-                            </a>
-                          </div>
-                        )}
                         {v.customerRating && (
                           <div className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
                             <Star className="w-3 h-3 fill-amber-400 text-amber-500" />
@@ -2570,18 +2521,6 @@ export const VisitsDashboard: React.FC = () => {
                     <Database className="w-3 h-3 text-emerald-600" />
                     <span>قاعدة البيانات ✅</span>
                   </span>
-                  {v.location?.mapUrl && (
-                    <a
-                      href={v.location.mapUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[10px] text-blue-700 hover:underline font-bold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <MapPin className="w-3 h-3 text-blue-600" />
-                      <span>GPS محقق 🗺️</span>
-                    </a>
-                  )}
                   {v.collectedAmount ? (
                     <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
                       تحصيل: {formatCurrency(v.collectedAmount)}
@@ -2814,50 +2753,6 @@ export const VisitsDashboard: React.FC = () => {
                     <option value="فتح حساب جديد">فتح حساب عميل جديد</option>
                   </select>
                 </div>
-              </div>
-
-              {/* GPS Geolocation Verification Section */}
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                    <MapPin className="w-4 h-4 text-blue-600" />
-                    <span>التحقق من الموقع الميداني عبر الـ GPS:</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCaptureGPS}
-                    disabled={isCapturingGPS}
-                    className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl text-xs font-black shadow-xs transition cursor-pointer disabled:opacity-50"
-                  >
-                    <Navigation className={`w-3.5 h-3.5 ${isCapturingGPS ? 'animate-spin' : ''}`} />
-                    <span>{isCapturingGPS ? 'جاري الالتقاط...' : 'تثبيت موقعي الحالي 📍'}</span>
-                  </button>
-                </div>
-
-                {form.location ? (
-                  <div className="p-2.5 bg-blue-50/70 border border-blue-200 rounded-xl flex items-center justify-between text-xs font-mono">
-                    <div className="text-blue-900">
-                      <span className="font-bold">الإحداثيات: </span>
-                      {form.location.latitude.toFixed(5)}, {form.location.longitude.toFixed(5)}
-                      <span className="text-[10px] text-blue-600 font-sans mr-2">(دقة {form.location.accuracy}م)</span>
-                    </div>
-                    {form.location.mapUrl && (
-                      <a
-                        href={form.location.mapUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-700 hover:underline font-bold font-sans flex items-center gap-1"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        <span>معاينة الخريطة</span>
-                      </a>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-[11px] text-slate-500">
-                    اضغط على الزر لتسجيل إحداثيات تواجد المندوب في المتجر وتوثيقها بقاعدة البيانات.
-                  </p>
-                )}
               </div>
 
               {/* Date & Time */}
@@ -3197,33 +3092,6 @@ export const VisitsDashboard: React.FC = () => {
                       </div>
                     ) : null}
                   </div>
-
-                  {/* GPS Field Geolocation Verification */}
-                  {selectedVisit.location && (
-                    <div className="p-3.5 bg-blue-50/70 rounded-2xl border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div>
-                        <span className="text-xs font-black text-blue-950 flex items-center gap-1.5">
-                          <MapPin className="w-4 h-4 text-blue-600" />
-                          <span>الموقع الجغرافي الميداني الموثق (GPS Check-In):</span>
-                        </span>
-                        <p className="text-[11px] text-blue-700 font-mono mt-0.5">
-                          خط عرض: {selectedVisit.location.latitude.toFixed(6)} | خط طول: {selectedVisit.location.longitude.toFixed(6)}
-                          {selectedVisit.location.accuracy ? ` (دقة ${selectedVisit.location.accuracy}م)` : ''}
-                        </p>
-                      </div>
-                      {selectedVisit.location.mapUrl && (
-                        <a
-                          href={selectedVisit.location.mapUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black flex items-center gap-1.5 shadow-xs transition self-start sm:self-auto"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                          <span>فتح الموقع على Google Maps 🗺️</span>
-                        </a>
-                      )}
-                    </div>
-                  )}
 
                   {/* Status Update Control */}
                   <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl flex items-center justify-between gap-3">
@@ -3586,11 +3454,11 @@ export const VisitsDashboard: React.FC = () => {
         // blank or zero cell reads as "no papers" instead of a false pass.
         const guaranteeAmount = Number(dc.guaranteeAmount || 0);
         const hasPapers = guaranteeAmount > 0 || dc.hasGuarantee === true;
-        // Collections are negative in the sheet, so display the magnitude.
+        // Collections are signed or positive in the sheet, so display the absolute collected magnitude.
         const cols2026 = (() => {
           const raw = Number(dc.totalMonthlyCollections ?? dc.collections2026 ?? 0);
           if (!isFinite(raw) || raw === 0) return 0;
-          return raw < 0 ? Math.abs(raw) : -raw;
+          return Math.abs(raw);
         })();
         return (
           <div
