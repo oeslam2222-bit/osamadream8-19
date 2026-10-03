@@ -24,6 +24,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { COMPANY_INFO } from '../data/mockData';
 import { CompanyInfo } from '../types';
+import { getMicrosoftWebhookUrl, setMicrosoftWebhookUrl } from '../services/microsoftSyncService';
 
 interface CompanySettingsModalProps {
   isOpen: boolean;
@@ -49,6 +50,9 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
   } = useApp();
 
   const isMasterAdmin = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+
+  const [powerAutomateUrl, setPowerAutomateUrl] = useState<string>(() => getMicrosoftWebhookUrl());
+  const [powerAutomateSaved, setPowerAutomateSaved] = useState(false);
 
   // Selected Scope: '__GLOBAL__' for Master Company, or branch name
   const [selectedScope, setSelectedScope] = useState<string>(() => {
@@ -595,6 +599,54 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
             </div>
 
           </div>
+
+{/*
+            Integrations. The Power Automate trigger URL carries a live signature
+            token, so a master admin configures it per device instead of it being
+            compiled into the public bundle.
+          */}
+          {isMasterAdmin && (
+            <div className="mt-4 border border-slate-200 rounded-2xl p-4 bg-slate-50">
+              <div className="flex items-start gap-2 mb-3">
+                <ShieldCheck className="w-4 h-4 text-slate-500 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-black text-slate-800">إعدادات الربط والتكاملات</h3>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    رابط إشعارات مايكروسوفت يُحفظ على هذا الجهاز فقط ولا يتم تضمينه مع التطبيق.
+                  </p>
+                </div>
+              </div>
+
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                رابط Power Automate لإرسال الفواتير
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="password"
+                  value={powerAutomateUrl}
+                  onChange={(e) => setPowerAutomateUrl(e.target.value)}
+                  placeholder="https://...powerplatform.com/...&sig=..."
+                  dir="ltr"
+                  className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-mono focus:outline-none focus:border-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMicrosoftWebhookUrl(powerAutomateUrl);
+                    setPowerAutomateSaved(true);
+                    setTimeout(() => setPowerAutomateSaved(false), 3000);
+                  }}
+                  className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  {powerAutomateSaved ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Save className="w-3.5 h-3.5" />}
+                  <span>{powerAutomateSaved ? 'تم الحفظ على هذا الجهاز' : 'حفظ الرابط'}</span>
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-2">
+                بدون هذا الرابط لا تُرسل إشعارات الطلبيات لمايكروسوفت، لكن حفظ الطلبيات والفواتير يعمل بشكل طبيعي.
+              </p>
+            </div>
+          )}
 
           {/* Form Actions */}
           <div className="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">

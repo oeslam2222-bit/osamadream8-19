@@ -5,11 +5,14 @@ import { Invoice, Branch } from '../types';
 import { resolveCustomerFinancials, isBranchMatch, normalizeBranchName } from './arabicMatchingService';
 
 /**
- * Microsoft 365 Power Automate Official Direct Invoke Webhook URL
- * Provided for Dream Distribution Order Approval & Dispatch Flow
+ * Microsoft 365 Power Automate direct-invoke webhook.
+ *
+ * The URL carries a live `sig=` token, so it is NOT shipped in the bundle: a
+ * public build would hand every visitor a working automation trigger. It is
+ * configured once per device by an admin through the company settings screen,
+ * stored in this browser only.
  */
-export const DEFAULT_MICROSOFT_WEBHOOK_URL =
-  'https://default18403f5514a341be950585562989bf.28.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/31/workflows/dde3e3cd8b464d71a367abfc307d0734/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=7puuyQmL-0PiJ06T_ecIyppAtA0T-k4pI5vDVQ5s7Sg';
+export const POWER_AUTOMATE_URL_STORAGE_KEY = 'ms_power_automate_webhook_url';
 
 /**
  * How long to wait for the Power Automate webhook before giving up. The payload
@@ -20,22 +23,22 @@ const SYNC_TIMEOUT_MS = 30000;
 
 export function getMicrosoftWebhookUrl(): string {
   try {
-    const saved = localStorage.getItem('ms_power_automate_webhook_url');
+    const saved = localStorage.getItem(POWER_AUTOMATE_URL_STORAGE_KEY);
     if (saved && saved.trim().startsWith('http') && saved.includes('sig=')) return saved.trim();
   } catch {
     // ignore localStorage error
   }
-  const envUrl = (import.meta.env.VITE_POWER_AUTOMATE_WEBHOOK_URL || '').trim();
-  if (envUrl && envUrl.includes('sig=')) return envUrl;
-  if (envUrl && !envUrl.includes('sig=')) {
-    console.error('Power Automate URL missing sig= signature parameter');
-  }
-  return DEFAULT_MICROSOFT_WEBHOOK_URL.trim();
+  return '';
 }
 
 export function setMicrosoftWebhookUrl(url: string): void {
   try {
-    localStorage.setItem('ms_power_automate_webhook_url', url.trim());
+    const clean = (url || '').trim();
+    if (!clean) {
+      localStorage.removeItem(POWER_AUTOMATE_URL_STORAGE_KEY);
+      return;
+    }
+    localStorage.setItem(POWER_AUTOMATE_URL_STORAGE_KEY, clean);
   } catch (e) {
     console.warn('Could not save Microsoft webhook URL to localStorage:', e);
   }
@@ -252,7 +255,7 @@ export async function sendOrderToMicrosoft365(
   if (!webhookUrl) {
     return {
       success: false,
-      message: 'رابط مايكروسوفت Webhook غير مهيأ',
+      message: 'رابط إشعارات مايكروسوفت غير مهيأ على هذا الجهاز. اطلب من مدير النظام إضافته من إعدادات الشركة.',
       error: 'Missing webhook URL',
     };
   }

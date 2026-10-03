@@ -2,6 +2,27 @@
 <html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
+    <!--
+      Content Security Policy: the app ships no inline scripts, so anything trying
+      to inject code through the DOM or a stored value has nowhere to run.
+      'unsafe-inline' stays for styles only, because React and Tailwind set
+      element styles at runtime.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               script-src 'self';
+               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+               font-src 'self' data: https://fonts.gstatic.com;
+               img-src 'self' data: blob: https:;
+               connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.googleapis.com https://docs.google.com https://drive.google.com https://*.cloudinary.com https://res.cloudinary.com https://*.powerplatform.com;
+               worker-src 'self' blob:;
+               object-src 'none';
+               base-uri 'self';
+               form-action 'self';
+               frame-ancestors 'none'"
+    />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>مجموعة الطنطاوي للتجارة والتوزيع | TANTAWY GROUP</title>
     <meta name="description" content="منظومة متكاملة لمجموعة الطنطاوي للتجارة والتوزيع: عرض الكتالوج مع ضغط صور جوجل درايف وتوفير الباقة، إدارة المخزون ومنع الحجز المزدوج للمناديب، دورة اعتماد وصرف الطلبيات من المشرف ومدير الفرع، إنشاء فواتير إلكترونية، وتصدير إكسل وتثبيت التطبيق على الموبايل." />
