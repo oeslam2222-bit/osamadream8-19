@@ -181,12 +181,6 @@ export const VisitsDashboard: React.FC = () => {
   const [routePage, setRoutePage] = useState(1);
   const ROUTE_PAGE_SIZE = 25;
 
-  // Export period. Kept separate from the on-screen `timePreset` so the board can
-  // stay on "today" while a manager exports last month, or a custom from/to range.
-  const [exportPreset, setExportPreset] = useState<'week' | 'month' | 'custom'>('week');
-  const [exportFrom, setExportFrom] = useState(weekAgoStr);
-  const [exportTo, setExportTo] = useState(todayStr);
-
   const [returnHandoverDraft, setReturnHandoverDraft] = useState<Record<string, string>>({});
   const [isReturnsRibbonExpanded, setIsReturnsRibbonExpanded] = useState(true);
 
@@ -382,20 +376,27 @@ export const VisitsDashboard: React.FC = () => {
     return cleanCustomers;
   }, [currentUser, customers, users]);
 
-  // Resolved export window, derived from the preset so the date inputs and the
-  // filename can never disagree about which period was actually exported.
-  const exportRange = useMemo(() => {
-    if (exportPreset === 'week') return { from: weekAgoStr, to: todayStr };
-    if (exportPreset === 'month') {
-      const d = new Date();
-      const to = new Date().toISOString().slice(0, 10);
-      const from = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
-      return { from, to };
+  const selectedPeriod = useMemo(() => {
+    if (timePreset === 'all') return { from: '', to: '', label: 'كل الزيارات' };
+    if (timePreset === 'today') return { from: todayStr, to: todayStr, label: `اليوم ${todayStr}` };
+    if (timePreset === 'week') return { from: weekAgoStr, to: todayStr, label: 'آخر 7 أيام' };
+    if (timePreset === 'month') {
+      if (exactDate) return { from: exactDate, to: exactDate, label: `يوم ${exactDate}` };
+      const [year, monthNumber] = month.split('-').map(Number);
+      if (!year || !monthNumber) return { from: '', to: '', label: 'كل الزيارات' };
+      const pad2 = (value: number) => String(value).padStart(2, '0');
+      const from = `${year}-${pad2(monthNumber)}-01`;
+      const to = `${year}-${pad2(monthNumber)}-${pad2(new Date(year, monthNumber, 0).getDate())}`;
+      return { from, to, label: `الشهر ${month}` };
     }
-    const from = exportFrom || weekAgoStr;
-    const to = exportTo || todayStr;
-    return from <= to ? { from, to } : { from: to, to: from };
-  }, [exportPreset, exportFrom, exportTo, weekAgoStr, todayStr]);
+    const from = rangeFrom && rangeTo && rangeFrom > rangeTo ? rangeTo : rangeFrom;
+    const to = rangeFrom && rangeTo && rangeFrom > rangeTo ? rangeFrom : rangeTo;
+    return {
+      from,
+      to,
+      label: `من ${from || 'البداية'} إلى ${to || 'النهاية'}`,
+    };
+  }, [timePreset, todayStr, weekAgoStr, exactDate, month, rangeFrom, rangeTo]);
 
   // Which rep owns a customer, matched by id first and by name second so legacy
   // rows that only carry a name still land on the right rep.
@@ -578,21 +579,9 @@ export const VisitsDashboard: React.FC = () => {
   // pills can show both sides no matter which side is currently selected).
   const filteredBase = useMemo(() => {
     return visible.filter((v) => {
-      // 1. Time preset match
-      if (timePreset === 'today') {
-        if (v.date !== todayStr) return false;
-      } else if (timePreset === 'week') {
-        if (v.date < weekAgoStr || v.date > todayStr) return false;
-      } else if (timePreset === 'month') {
-        if (exactDate) {
-          if (v.date !== exactDate) return false;
-        } else if (month && !v.date.startsWith(month)) {
-          return false;
-        }
-      } else if (timePreset === 'range') {
-        if (rangeFrom && v.date < rangeFrom) return false;
-        if (rangeTo && v.date > rangeTo) return false;
-      }
+      // The same selected period drives the list, efficiency board and exports.
+      if (selectedPeriod.from && v.date < selectedPeriod.from) return false;
+      if (selectedPeriod.to && v.date > selectedPeriod.to) return false;
 
       // 2. Branch match (Only for admin/supervisors/managers; reps should not have their visits hidden)
       if (currentUser?.role !== 'sales_rep') {
@@ -641,7 +630,7 @@ export const VisitsDashboard: React.FC = () => {
         returnHandledBy.includes(q)
       );
     });
-  }, [visible, timePreset, month, exactDate, rangeFrom, rangeTo, branch, rep, statusFilter, reviewFilter, returnFilter, deferredSearchQuery, customerById, todayStr, weekAgoStr, currentUser?.role, userById]);
+  }, [visible, selectedPeriod, branch, rep, statusFilter, reviewFilter, returnFilter, deferredSearchQuery, customerById, currentUser?.role, userById]);
 
   /**
    * The scheduled split, applied after every other filter so the two pills always show
@@ -881,9 +870,10 @@ export const VisitsDashboard: React.FC = () => {
   // Orders and collections are taken from the recorded invoice/amount rather
   // than the rep's own outcome checkbox, so the report cannot be self-reported.
   const weeklyByRep = useMemo(() => {
-    const from = exportRange.from;
-    const to = exportRange.to;
-    const inRange = visible.filter((v) => v.date >= from && v.date <= to);
+    const inRange = visible.filter((v) =>
+      (!selectedPeriod.from || v.date >= selectedPeriod.from) &&
+      (!selectedPeriod.to || v.date <= selectedPeriod.to)
+    );
 
     const map = new Map<string, {
       repId: string;
@@ -944,7 +934,7 @@ export const VisitsDashboard: React.FC = () => {
         orderValue: r.orderValue,
       }))
       .sort((a, b) => b.completed - a.completed || b.scheduled - a.scheduled);
-  }, [visible, exportRange]);
+  }, [visible, selectedPeriod]);
 
   const weeklyTotals = useMemo(() => {
     return weeklyByRep.reduce(
@@ -967,13 +957,16 @@ export const VisitsDashboard: React.FC = () => {
   // filtered sources as the on-screen board so the two can never disagree.
   const handleExportWeeklyReport = async () => {
     if (weeklyByRep.length === 0) {
-      showToast('error', `لا توجد زيارات بين ${exportRange.from} و ${exportRange.to} لتصديرها.`);
+      showToast('error', `لا توجد زيارات في الفترة المحددة (${selectedPeriod.label}) لتصديرها.`);
       return;
     }
     const XLSX = await loadXlsx();
     if (!XLSX) return;
     const repKey = rep !== 'الكل' ? rep : '';
-    const inRange = visible.filter((v) => v.date >= exportRange.from && v.date <= exportRange.to);
+    const inRange = visible.filter((v) =>
+      (!selectedPeriod.from || v.date >= selectedPeriod.from) &&
+      (!selectedPeriod.to || v.date <= selectedPeriod.to)
+    );
 
     const summaryRows = weeklyByRep
       .filter((r) => {
@@ -1043,7 +1036,7 @@ export const VisitsDashboard: React.FC = () => {
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(detailRows), 'تفاصيل الزيارات');
     XLSX.writeFile(
       workbook,
-      `تقرير_زيارات_${exportRange.from}_${exportRange.to}.xlsx`
+      `تقرير_زيارات_${selectedPeriod.from || 'كل'}_${selectedPeriod.to || 'الفترات'}.xlsx`
     );
     showToast('success', `تم تصدير تقرير الفترة (${summaryRows.length} مندوب / ${detailRows.length} زيارة) للإدارة 📊`);
   };
@@ -1286,16 +1279,8 @@ export const VisitsDashboard: React.FC = () => {
   // Visits inside the export window, honouring the same role/branch/rep scope the
   // board is showing so an export can never leak rows the user cannot see.
   const exportRows = useMemo(() => {
-    return filtered.filter((v) => {
-      if (v.date < exportRange.from || v.date > exportRange.to) return false;
-      if (rep !== 'الكل') {
-        const repUser = userById.get(rep);
-        if (!repUser) return false;
-        if (v.repId !== rep && !isArabicNameMatch(v.repName || '', repUser.name)) return false;
-      }
-      return true;
-    });
-  }, [filtered, exportRange, rep, users]);
+    return filtered;
+  }, [filtered]);
 
   // Export visits to Excel for the chosen period (weekly / this month / custom)
   /**
@@ -1373,7 +1358,7 @@ export const VisitsDashboard: React.FC = () => {
     const XLSX = await loadXlsx();
     if (!XLSX) return;
     if (exportRows.length === 0) {
-      showToast('error', `لا توجد زيارات بين ${exportRange.from} و ${exportRange.to} وفق الفلترة المحددة.`);
+      showToast('error', `لا توجد زيارات في الفترة المحددة (${selectedPeriod.label}) وفق الفلترة المحددة.`);
       return;
     }
 
@@ -1415,10 +1400,10 @@ export const VisitsDashboard: React.FC = () => {
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'سجل الزيارات');
-    XLSX.writeFile(workbook, `تقرير_زيارات_العملاء_${exportRange.from}_${exportRange.to}.xlsx`);
+    XLSX.writeFile(workbook, `تقرير_زيارات_العملاء_${selectedPeriod.from || 'كل'}_${selectedPeriod.to || 'الفترات'}.xlsx`);
     showToast(
       'success',
-      `تم تصدير ${exportRows.length} زيارة للفترة من ${exportRange.from} إلى ${exportRange.to} بنجاح!`
+      `تم تصدير ${exportRows.length} زيارة للفترة المحددة (${selectedPeriod.label}) بنجاح!`
     );
   };
 
@@ -1678,9 +1663,7 @@ export const VisitsDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Export period bar — the window both Excel exports and the per-rep
-          efficiency board read from, so a manager can pull last week, this month,
-          or any custom from/to range without touching the on-screen log filter. */}
+      {/* Export and efficiency reports use the same period selected above the visit list. */}
       <div className="xl:col-span-5 bg-slate-900 text-white rounded-2xl border border-slate-700 p-3.5 sm:p-4 shadow-sm">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -1688,53 +1671,14 @@ export const VisitsDashboard: React.FC = () => {
               <Calendar className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <div className="text-xs font-black text-emerald-400">فترة تصدير تقرير الزيارات (إكسل)</div>
+              <div className="text-xs font-black text-emerald-400">الفترة المختارة للتقارير والتصدير</div>
               <div className="text-[10.5px] text-slate-300 font-mono">
-                {exportRange.from} ← {exportRange.to} · {exportRows.length} زيارة مشمولة
+                {selectedPeriod.label} · {exportRows.length} زيارة مشمولة
               </div>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {([
-              { v: 'week' as const, label: 'أسبوعي (آخر 7 أيام)' },
-              { v: 'month' as const, label: 'شهري (هذا الشهر)' },
-              { v: 'custom' as const, label: 'فترة مخصصة' },
-            ]).map(({ v, label }) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setExportPreset(v)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
-                  exportPreset === v
-                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-
-            {exportPreset === 'custom' && (
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="date"
-                  value={exportFrom}
-                  max={exportTo}
-                  onChange={(e) => setExportFrom(e.target.value)}
-                  className="px-2 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[11px] font-bold text-slate-100 focus:outline-none focus:border-emerald-400"
-                />
-                <span className="text-[11px] text-slate-400 font-bold">إلى</span>
-                <input
-                  type="date"
-                  value={exportTo}
-                  min={exportFrom}
-                  onChange={(e) => setExportTo(e.target.value)}
-                  className="px-2 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[11px] font-bold text-slate-100 focus:outline-none focus:border-emerald-400"
-                />
-              </div>
-            )}
-
             <button
               type="button"
               onClick={handleExportVisitsExcel}
@@ -2336,7 +2280,7 @@ export const VisitsDashboard: React.FC = () => {
               <h3 className="text-sm font-black text-slate-800">تقرير كفاءة زيارات المناديب للفترة المحددة</h3>
             </div>
             <span className="text-[11px] font-bold text-slate-500 font-mono bg-slate-100 px-2 py-0.5 rounded-lg">
-              {exportRange.from} → {exportRange.to}
+              {selectedPeriod.label}
             </span>
           </div>
 
