@@ -46,7 +46,7 @@ import {
   Clock,
   Maximize2
 } from 'lucide-react';
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useDeferredValue } from 'react';
 import { useApp } from '../context/AppContext';
 import { ProductImage } from './ProductImage';
 import {
@@ -62,7 +62,7 @@ import { parseExcelProducts, fetchAndParseGoogleSheet, generateSampleExcelTempla
 import { Customer, ItemStatus, Product, SalesPriority, ParentProduct, ProductVariant } from '../types';
 import { DepartmentCategorySlicer } from './DepartmentCategorySlicer';
 import { getDepartmentMeta } from '../data/departmentMeta';
-import { getBranchStockForProduct, CANONICAL_BRANCHES, MAIN_BRANCH_NAME } from '../services/arabicMatchingService';
+import { getBranchStockForProduct, normalizeArabicText, CANONICAL_BRANCHES, MAIN_BRANCH_NAME } from '../services/arabicMatchingService';
 import { groupProductsIntoParents } from '../services/productVariantService';
 import { ProductVariantModal } from './ProductVariantModal';
 import { PosCashierSidebar } from './PosCashierSidebar';
@@ -372,6 +372,65 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     return getBranchStockForProduct(p, currentActiveBranch);
   };
 
+  /**
+   * Branch stock resolved once per product per branch selection.
+   *
+   * getBranchStockForProduct walks the eight canonical branches and builds an
+   * Object.keys() lookup on every call. The filter ran it per product and the
+   * sort comparators ran it O(n log n) times, so a single sort over the catalog
+   * meant tens of thousands of identical walks. One Map per pass removes all of it.
+   */
+  const branchStockMap = useMemo(() => {
+    const map = new Map<string, number>();
+    visibleProducts.forEach((p) => {
+      map.set(p.id, getBranchStockForProduct(p, currentActiveBranch));
+    });
+    return map;
+  }, [visibleProducts, currentActiveBranch]);
+
+  const stockOf = (p: Product): number => {
+    const cached = branchStockMap.get(p.id);
+    return cached === undefined ? getBranchStockForProduct(p, currentActiveBranch) : cached;
+  };
+
+/**
+   * Normalized search haystack per product, built once per catalog instead of
+   * re-normalizing a dozen fields on every keystroke. Arabic-insensitive search
+   * (أحمد / احمد, ألبان / البان, فايه / فاي) comes from the same normalizer the
+   * rest of the app already uses for matching.
+   *
+   * The compact form (all spaces removed) is indexed alongside the plain one so
+   * "عبدالفتاح" still finds "عبد الفتاح": the shared normalizer's compound-name
+   * rules rely on \b, which never matches inside Arabic text, so they are inert.
+   * Fixing that belongs in the matcher itself, not in a catalog search box.
+   */
+  const productSearchIndex = useMemo(() => {
+    const map = new Map<string, string>();
+    visibleProducts.forEach((p) => {
+      const normalized = normalizeArabicText(
+        [
+          p.code,
+          p.unifiedCode,
+          p.name,
+          p.category,
+          p.department,
+          p.color,
+          p.barcode,
+          p.itemGroup,
+          p.familyName,
+          p.classification,
+        ]
+          .filter(Boolean)
+          .join(' ')
+      );
+      map.set(p.id, `${normalized} ${normalized.replace(/\s+/g, '')}`);
+    });
+    return map;
+  }, [visibleProducts]);
+
+  // Typing stays responsive: the heavy filter runs against the settled value.
+  const deferredSearchTerm = useDeferredValue(searchTerm);
+
   // Stock Counts for Filtering
   const stockCounts = useMemo(() => {
     let outOfStock = 0;
@@ -383,7 +442,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     let offers = 0;
 
     visibleProducts.forEach((p) => {
-      const branchStock = getProductBranchStock(p);
+      const branchStock = stockOf(p);
       const octoberStock = p.mainWarehouseActual || 0;
       const isCompletelyOut = branchStock <= 0 && octoberStock <= 0;
       
@@ -476,25 +535,28 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   // Filtered & Sorted Products
   const filteredProducts = useMemo(() => {
     let result = getVisibleProducts().filter((p) => {
-      // Search match
-      if (searchTerm.trim()) {
-        const query = searchTerm.toLowerCase().trim();
-        const cleanQuery = query.replace('#', '').trim();
-        const codeMatch = p.code.toLowerCase().includes(query) || p.code.toLowerCase().includes(cleanQuery);
-        const unifiedMatch = Boolean(
-          p.unifiedCode && (
-            p.unifiedCode.toLowerCase().includes(cleanQuery) ||
-            p.unifiedCode.toLowerCase().includes(query)
-          )
-        );
-        const nameMatch = p.name.toLowerCase().includes(query);
-        const catMatch = p.category?.toLowerCase().includes(query);
-        const deptMatch = p.department?.toLowerCase().includes(query);
-        const colorMatch = p.color?.toLowerCase().includes(query);
-        const barcodeMatch = p.barcode?.includes(query);
+      // Search match (Arabic-normalized, so أ/ا ة/ه ى/ي and tashkeel do not matter)
+      if (deferredSearchTerm.trim()) {
+        const query = normalizeArabicText(deferredSearchTerm);
+        const cleanQuery = query.replace(/\s+/g, ' ').trim();
+        if (query) {
+          const haystack = productSearchIndex.get(p.id) || '';
+          const compactQuery = query.replace(/\s+/g, '');
+          const codeNeedle = p.code ? normalizeArabicText(p.code) : '';
+          const codeMatch = codeNeedle.includes(query) || codeNeedle.includes(compactQuery);
+          const unifiedNeedle = p.unifiedCode ? normalizeArabicText(p.unifiedCode) : '';
+          const unifiedMatch = Boolean(unifiedNeedle && (unifiedNeedle.includes(query) || unifiedNeedle.includes(compactQuery)));
+          const barcodeMatch = Boolean(p.barcode && p.barcode.includes(deferredSearchTerm.trim()));
 
-        if (!codeMatch && !unifiedMatch && !nameMatch && !catMatch && !deptMatch && !colorMatch && !barcodeMatch) {
-          return false;
+          if (
+            !codeMatch &&
+            !unifiedMatch &&
+            !barcodeMatch &&
+            !haystack.includes(query) &&
+            !haystack.includes(compactQuery)
+          ) {
+            return false;
+          }
         }
       }
 
@@ -536,7 +598,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       }
 
       // Stock Filters (المنتهية، قاربت على النفاذ، المتوفرة بكثرة، متاح بأكتوبر، إلخ)
-      const bStock = getProductBranchStock(p);
+      const bStock = stockOf(p);
       const oStock = p.mainWarehouseActual || 0;
 
       if (stockAvailabilityFilter === 'offers') {
@@ -570,17 +632,17 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
     // Sorting by branch stock, October warehouse stock, total stock, priority, price, name
     if (sortBy === 'branch_stock_desc') {
-      result.sort((a, b) => getProductBranchStock(b) - getProductBranchStock(a));
+      result.sort((a, b) => stockOf(b) - stockOf(a));
     } else if (sortBy === 'branch_stock_asc') {
-      result.sort((a, b) => getProductBranchStock(a) - getProductBranchStock(b));
+      result.sort((a, b) => stockOf(a) - stockOf(b));
     } else if (sortBy === 'october_stock_desc') {
       result.sort((a, b) => (b.mainWarehouseActual || 0) - (a.mainWarehouseActual || 0));
     } else if (sortBy === 'october_stock_asc') {
       result.sort((a, b) => (a.mainWarehouseActual || 0) - (b.mainWarehouseActual || 0));
     } else if (sortBy === 'total_stock_desc') {
       result.sort((a, b) => {
-        const totalB = getProductBranchStock(b) + (b.mainWarehouseActual || 0);
-        const totalA = getProductBranchStock(a) + (a.mainWarehouseActual || 0);
+        const totalB = stockOf(b) + (b.mainWarehouseActual || 0);
+        const totalA = stockOf(a) + (a.mainWarehouseActual || 0);
         return totalB - totalA;
       });
     } else if (sortBy === 'price_asc') {
@@ -741,25 +803,32 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
   const activeTotalItems = isParentGroupingEnabled ? filteredParentProducts.length : filteredProducts.length;
 
+  /**
+   * Rendering cap. "عرض الكل" used to mount one card per catalog row, which
+   * froze low-end phones on a 3,000+ item catalog. Paging stays the default and
+   * the "all" option is now a generous window instead of the entire table, so
+   * the DOM stays bounded while the user can still scan a long flat list.
+   */
+  const MAX_RENDERED_ITEMS = 240;
+
   // Total pages and chunked display computation
+  const effectiveItemsPerPage = itemsPerPage === 'all' ? MAX_RENDERED_ITEMS : itemsPerPage;
+
   const totalPages = useMemo(() => {
-    if (itemsPerPage === 'all') return 1;
-    return Math.max(1, Math.ceil(activeTotalItems / itemsPerPage));
-  }, [activeTotalItems, itemsPerPage]);
+    return Math.max(1, Math.ceil(activeTotalItems / effectiveItemsPerPage));
+  }, [activeTotalItems, effectiveItemsPerPage]);
 
   const displayedProducts = useMemo(() => {
     if (isParentGroupingEnabled) return [];
-    if (itemsPerPage === 'all') return filteredProducts;
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredProducts.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredProducts, currentPage, itemsPerPage, isParentGroupingEnabled]);
+    const startIndex = (currentPage - 1) * effectiveItemsPerPage;
+    return filteredProducts.slice(startIndex, startIndex + effectiveItemsPerPage);
+  }, [filteredProducts, currentPage, effectiveItemsPerPage, isParentGroupingEnabled]);
 
   const displayedParentProducts = useMemo(() => {
     if (!isParentGroupingEnabled) return [];
-    if (itemsPerPage === 'all') return filteredParentProducts;
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredParentProducts.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredParentProducts, currentPage, itemsPerPage, isParentGroupingEnabled]);
+    const startIndex = (currentPage - 1) * effectiveItemsPerPage;
+    return filteredParentProducts.slice(startIndex, startIndex + effectiveItemsPerPage);
+  }, [filteredParentProducts, currentPage, effectiveItemsPerPage, isParentGroupingEnabled]);
 
   // Filter-First Condition: hide products unless explicitly searched/filtered or user requests to view all
   const isFiltered = Boolean(
@@ -2356,16 +2425,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             <div className="text-slate-600 font-bold flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
               <span className="text-slate-400 font-normal">عرض الأصناف:</span>
               <strong className="text-slate-900">
-                {itemsPerPage === 'all'
-                  ? `كافة الأصناف (${activeTotalItems})`
-                  : `${Math.min((currentPage - 1) * itemsPerPage + 1, activeTotalItems)} - ${Math.min(currentPage * itemsPerPage, activeTotalItems)} من أصل ${activeTotalItems}`}
+                {itemsPerPage === 'all' && activeTotalItems > MAX_RENDERED_ITEMS
+                  ? `أول ${MAX_RENDERED_ITEMS} صنف من ${activeTotalItems} — استخدم البحث أو الفلاتر لعرض الباقي`
+                  : `${Math.min((currentPage - 1) * effectiveItemsPerPage + 1, activeTotalItems)} - ${Math.min(currentPage * effectiveItemsPerPage, activeTotalItems)} من أصل ${activeTotalItems}`}
               </strong>
             </div>
 
             <div className="flex items-center gap-1.5 text-slate-500 font-bold">
               <span>لكل صفحة:</span>
               <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
-                {[24, 48, 100, 250, 500, 'all'].map((size) => (
+                {[24, 48, 100, 250, 'all'].map((size) => (
                   <button
                     key={size}
                     onClick={() => {

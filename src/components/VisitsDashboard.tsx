@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useDeferredValue } from 'react';
 import {
   CalendarCheck,
   CheckCircle2,
@@ -10,6 +10,7 @@ import {
   Search,
   Phone,
   Calendar,
+  ClipboardPaste,
   Building2,
   UserCheck,
   Filter,
@@ -40,12 +41,45 @@ import {
   PackageCheck,
   Target
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import { doesCustomerBelongToRep, doesCustomerBelongToBranch, doesCustomerBelongToSupervisor, isArabicNameMatch, normalizeArabicText } from '../services/arabicMatchingService';
-import { calculateCustomerFinancials, isSummaryOrTotalRow } from '../services/customerFinancialService';
+import { isSummaryOrTotalRow, parseCleanNumber } from '../services/customerFinancialService';
 import type { CustomerVisit, Customer } from '../types';
+import { VisitImportModal } from './VisitImportModal';
+
+/**
+ * Mounted rows per step in the visit list. 40 keeps a full screen of content while
+ * bounding the DOM; the user extends the window with "عرض المزيد" as needed.
+ */
+const VISIT_CHUNK_SIZE = 40;
+
+/**
+ * True / false once the viewport width is known, and null before that (or when
+ * matchMedia is unavailable). Callers treat null as "build both lists", so the first
+ * paint is identical to the old always-render-everything behaviour.
+ */
+function useIsWideViewport(): boolean | null {
+  const [isWide, setIsWide] = useState<boolean | null>(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return null;
+    return window.matchMedia('(min-width: 768px)').matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const query = window.matchMedia('(min-width: 768px)');
+    const onChange = (event: MediaQueryListEvent) => setIsWide(event.matches);
+    setIsWide(query.matches);
+    if (typeof query.addEventListener === 'function') {
+      query.addEventListener('change', onChange);
+      return () => query.removeEventListener('change', onChange);
+    }
+    query.addListener(onChange);
+    return () => query.removeListener(onChange);
+  }, []);
+
+  return isWide;
+}
 
 export const VisitsDashboard: React.FC = () => {
   const {
@@ -53,16 +87,58 @@ export const VisitsDashboard: React.FC = () => {
     customers,
     products,
     users,
-    getVisibleVisits,
+    visibleVisits,
     addVisit,
     updateVisit,
     reviewVisit,
     deleteVisit,
-    syncVisitsWithDatabase,
-    getCustomerVisitSummary
+    syncVisitsWithDatabase
   } = useApp();
 
-  const visible = getVisibleVisits();
+  /**
+   * The visible visit set. The provider memoizes it and only rebuilds it when the
+   * scoping inputs actually change, so this is a stable array and every useMemo below
+   * finally gets to do its job instead of re-running on each keystroke.
+   */
+  const visible = visibleVisits;
+
+  /**
+   * Customer and rep lookup tables.
+   *
+   * The page used `customers.find(...)` / `users.find(...)` inside filter callbacks,
+   * sort comparators and the render loops, which is O(visits x customers) per
+   * keystroke and again on every render. One Map per data change turns each of
+   * those scans into a single hash lookup.
+   */
+  const customerById = useMemo(() => {
+    const map = new Map<string, Customer>();
+    customers.forEach((c) => map.set(c.id, c));
+    return map;
+  }, [customers]);
+
+  const userById = useMemo(() => {
+    const map = new Map<string, (typeof users)[number]>();
+    users.forEach((u) => map.set(u.id, u));
+    return map;
+  }, [users]);
+
+  // Loose rep-name key -> rep, used as the fast path for the "find the rep by name"
+  // fallback that legacy rows need (they carry a name and sometimes a stale id).
+  // The key drops spaces as well as normalizing, so "محمد عبدالفتاح" still lands on
+  // "محمد عبد الفتاح" - isArabicNameMatch's compound-name rules rely on \b, which
+  // never matches inside Arabic, so they are inert there. This is only a fast path:
+  // a miss still falls back to the real fuzzy scan in canReviewVisit, so review
+  // rights stay exactly what they were.
+  const salesRepByLooseName = useMemo(() => {
+    const map = new Map<string, (typeof users)[number]>();
+    users
+      .filter((u) => u.role === 'sales_rep')
+      .forEach((u) => {
+        const key = normalizeArabicText(u.name || '').replace(/\s+/g, '');
+        if (key && !map.has(key)) map.set(key, u);
+      });
+    return map;
+  }, [users]);
 
   // Helper date boundaries. Declared before the filter/export state because the
   // export range initialises from them.
@@ -83,6 +159,9 @@ export const VisitsDashboard: React.FC = () => {
   const [reviewFilter, setReviewFilter] = useState<'all' | 'pending' | 'approved' | 'needs_fix'>('all');
   const [returnFilter, setReturnFilter] = useState<'all' | 'returns_only' | 'pending_transfer' | 'transferred_to_store' | 'received'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  // Rows actually mounted in the visit list. Grown on demand, reset whenever the
+  // filters change so a narrow search never opens on page 40 of a previous month.
+  const [renderedVisitCount, setRenderedVisitCount] = useState(VISIT_CHUNK_SIZE);
 
   // Customer routing board: the visit log only shows customers that already have
   // a visit record, which makes it useless for planning tomorrow's round. These
@@ -102,6 +181,15 @@ export const VisitsDashboard: React.FC = () => {
   const [returnHandoverDraft, setReturnHandoverDraft] = useState<Record<string, string>>({});
   const [isReturnsRibbonExpanded, setIsReturnsRibbonExpanded] = useState(true);
 
+  /**
+   * Typing stays responsive because the inputs keep the immediate value (so the
+   * field and its caret behave normally) while the expensive filter → sort →
+   * aggregate chain downstream runs against the settled value instead of against
+   * every intermediate keystroke.
+   */
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const deferredCustomerSearch = useDeferredValue(customerSearch);
+
   // User role permissions for return handover to warehouse manager
   const isRep = currentUser?.role === 'sales_rep';
   const isSupervisor = currentUser?.role === 'supervisor';
@@ -120,6 +208,7 @@ export const VisitsDashboard: React.FC = () => {
   const [dossierCustomer, setDossierCustomer] = useState<Customer | null>(null);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isSyncingDB, setIsSyncingDB] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Form State with Advanced Developed Field Tracking
   const [form, setForm] = useState({
@@ -192,9 +281,42 @@ export const VisitsDashboard: React.FC = () => {
     setTimeout(() => setToastMessage(null), 5000);
   };
 
+  /**
+   * The Excel engine is ~860 KB. It used to be a static import, so every rep paid for
+   * downloading and parsing it just to open the visits page, even though only three
+   * export buttons ever touch it. It is now fetched on first export and warmed during
+   * idle time after mount, which keeps the page light without breaking offline use:
+   * once the page has been open a moment the chunk is cached and exports work with no
+   * network. A failed load is reported instead of failing silently.
+   */
+  const loadXlsx = async () => {
+    try {
+      return await import('xlsx');
+    } catch {
+      showToast('error', 'تعذر تحميل محرك الإكسل. تأكد من الاتصال بالإنترنت ثم أعد المحاولة.');
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    const warm = () => {
+      import('xlsx').catch(() => {});
+    };
+    if (typeof window === 'undefined') return;
+    const idle = (window as any).requestIdleCallback;
+    if (typeof idle === 'function') {
+      const handle = idle(warm, { timeout: 5000 });
+      return () => (window as any).cancelIdleCallback?.(handle);
+    }
+    const timer = setTimeout(warm, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
   const canReviewVisit = (visit: CustomerVisit) => {
     if (!isSupervisor || visit.reviewStatus !== 'pending' || !currentUser) return false;
-    const repUser = (visit.repId ? users.find((user) => user.id === visit.repId) : undefined) ||
+    const repUser =
+      (visit.repId ? userById.get(visit.repId) : undefined) ||
+      salesRepByLooseName.get(normalizeArabicText(visit.repName || '').replace(/\s+/g, '')) ||
       users.find((user) => user.role === 'sales_rep' && isArabicNameMatch(user.name, visit.repName || ''));
     return repUser?.role === 'sales_rep' && repUser.supervisorId === currentUser.id;
   };
@@ -269,7 +391,7 @@ export const VisitsDashboard: React.FC = () => {
   // Which rep owns a customer, matched by id first and by name second so legacy
   // rows that only carry a name still land on the right rep.
   const repMatchesCustomer = (c: Customer, repId: string): boolean => {
-    const repUser = users.find((u) => u.id === repId);
+    const repUser = userById.get(repId);
     const ownerId = c.repId;
     const ownerName = c.salesRepName || c.repName || '';
     if (repUser) {
@@ -278,10 +400,26 @@ export const VisitsDashboard: React.FC = () => {
     return false;
   };
 
-  const customerDebt = (c: Customer): number => {
-    const fin = calculateCustomerFinancials(c);
-    return fin.balance;
-  };
+  /**
+   * Debt per customer, resolved once.
+   *
+   * customerDebt used to call calculateCustomerFinancials on demand, and it was
+   * called from the sort comparator (twice per comparison, so ~70,000 times for a
+   * 3,000-customer board), from the totals pass and again from both render lists.
+   * Each of those calls walks twelve months, allocates two 12-key objects and runs
+   * four Arabic normalizations - roughly 3.6M regex replaces per sort, on every
+   * keystroke. The board only ever reads `balance`, which the service resolves as
+   * parseCleanNumber(currentBalance ?? balance ?? 0), so that exact expression is
+   * hoisted into a Map here. Same number, computed once.
+   */
+  const debtById = useMemo(() => {
+    const map = new Map<string, number>();
+    myCustomers.forEach((c) => map.set(c.id, parseCleanNumber(c.currentBalance ?? c.balance ?? 0)));
+    return map;
+  }, [myCustomers]);
+
+  const debtOf = (c: Customer): number =>
+    debtById.get(c.id) ?? parseCleanNumber(c.currentBalance ?? c.balance ?? 0);
 
   // Today's visit state per customer, so the routing board can show who is already
   // covered today and who still needs a visit without scanning the visit log.
@@ -300,7 +438,7 @@ export const VisitsDashboard: React.FC = () => {
   // branch/rep slicers and the name search, ranked by debt. Customers with no visit
   // record at all are included on purpose — they are the ones that need scheduling.
   const routeCustomers = useMemo(() => {
-    const q = customerSearch.trim();
+    const q = deferredCustomerSearch.trim();
     const qDigits = q.replace(/[^0-9]/g, '');
 
     const list = myCustomers.filter((c) => {
@@ -330,31 +468,31 @@ export const VisitsDashboard: React.FC = () => {
       (todayVisitsByCustomer.get(c.id) || []).some((v) => v.status === 'منفذة' || Boolean(v.checkOutTime));
 
     return [...list].sort((a, b) => {
-      if (routeSort === 'debt_desc') return customerDebt(b) - customerDebt(a);
-      if (routeSort === 'debt_asc') return customerDebt(a) - customerDebt(b);
+      if (routeSort === 'debt_desc') return debtOf(b) - debtOf(a);
+      if (routeSort === 'debt_asc') return debtOf(a) - debtOf(b);
       if (routeSort === 'name') return (a.name || '').localeCompare(b.name || '', 'ar');
       // today: customers with a scheduled visit today first, then the rest, and
       // within each group the biggest debt decides the running order.
       const aPending = todayCount(a) - (todayDone(a) ? 1 : 0);
       const bPending = todayCount(b) - (todayDone(b) ? 1 : 0);
       if (aPending !== bPending) return bPending - aPending;
-      return customerDebt(b) - customerDebt(a);
+      return debtOf(b) - debtOf(a);
     });
-  }, [myCustomers, branch, rep, customerSearch, routeSort, todayVisitsByCustomer, users]);
+  }, [myCustomers, branch, rep, deferredCustomerSearch, routeSort, todayVisitsByCustomer, debtById]);
 
   const routeTotals = useMemo(() => {
     let debt = 0;
     let overdue = 0;
     let visitedToday = 0;
     routeCustomers.forEach((c) => {
-      debt += customerDebt(c);
+      debt += debtOf(c);
       overdue += Number(c.totalOverdueAndDue ?? c.overdueBalance ?? 0) || 0;
       if ((todayVisitsByCustomer.get(c.id) || []).some((v) => v.status === 'منفذة' || Boolean(v.checkOutTime))) {
         visitedToday++;
       }
     });
     return { debt, overdue, visitedToday, total: routeCustomers.length };
-  }, [routeCustomers, todayVisitsByCustomer]);
+  }, [routeCustomers, todayVisitsByCustomer, debtById]);
 
   const routeTotalPages = Math.max(1, Math.ceil(routeCustomers.length / ROUTE_PAGE_SIZE));
   const routePageRows = useMemo(
@@ -367,6 +505,11 @@ export const VisitsDashboard: React.FC = () => {
   useEffect(() => {
     setRoutePage(1);
   }, [rep, branch, customerSearch, routeSort]);
+
+  // Same idea for the visit list window: a new result set starts at the top.
+  useEffect(() => {
+    setRenderedVisitCount(VISIT_CHUNK_SIZE);
+  }, [timePreset, month, exactDate, branch, rep, statusFilter, reviewFilter, returnFilter, deferredSearchQuery]);
 
   // Open the schedule form already aimed at one customer, for one rep, today.
   const scheduleVisitForCustomer = (c: Customer) => {
@@ -401,7 +544,7 @@ export const VisitsDashboard: React.FC = () => {
   }, [myCustomers, modalCustomerSearch]);
 
   const selectedCustomerInForm = useMemo(() => {
-    return customers.find((c) => c.id === form.customerId);
+    return customerById.get(form.customerId);
   }, [customers, form.customerId]);
 
   // Customer past visits for the schedule form
@@ -446,7 +589,7 @@ export const VisitsDashboard: React.FC = () => {
       // 3. Rep match (Only for admin/supervisors/managers; reps only have their own visits)
       if (currentUser?.role !== 'sales_rep') {
         if (rep !== 'الكل') {
-          const repUser = users.find((u) => u.id === rep);
+          const repUser = userById.get(rep);
           const isDirectId = v.repId === rep;
           const isName = repUser && isArabicNameMatch(v.repName || '', repUser.name);
           if (!isDirectId && !isName) return false;
@@ -466,7 +609,7 @@ export const VisitsDashboard: React.FC = () => {
       // 5. Search query
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase().trim();
-      const c = customers.find((x) => x.id === v.customerId);
+      const c = customerById.get(v.customerId);
       const customerName = (v.customerName || c?.name || '').toLowerCase();
       const customerCode = (v.customerCode || c?.code || '').toLowerCase();
       const repName = (v.repName || '').toLowerCase();
@@ -485,7 +628,7 @@ export const VisitsDashboard: React.FC = () => {
         returnHandledBy.includes(q)
       );
     });
-  }, [visible, timePreset, month, exactDate, branch, rep, statusFilter, reviewFilter, returnFilter, searchQuery, customers, todayStr, weekAgoStr, currentUser?.role, users]);
+  }, [visible, timePreset, month, exactDate, branch, rep, statusFilter, reviewFilter, returnFilter, deferredSearchQuery, customerById, todayStr, weekAgoStr, currentUser?.role, userById]);
 
   // Return alerts and handover tracking (إشعارات المرتجعات وتحويلها لأمين/مدير المخزن)
   const returnAlerts = useMemo(() => {
@@ -571,14 +714,16 @@ export const VisitsDashboard: React.FC = () => {
   };
 
   // Specialized Returns & Warehouse Report Export (تصدير تقرير المرتجعات والمخزن)
-  const handleExportReturnsReport = () => {
+  const handleExportReturnsReport = async () => {
     if (returnAlerts.length === 0) {
       showToast('error', 'لا توجد مرتجعات في سجل الزيارات لتصديرها.');
       return;
     }
+    const XLSX = await loadXlsx();
+    if (!XLSX) return;
 
     const rows = returnAlerts.map((v) => {
-      const c = customers.find((x) => x.id === v.customerId);
+      const c = customerById.get(v.customerId);
       return {
         'كود العميل': c?.code || v.customerCode || '---',
         'اسم العميل': v.customerName || c?.name || '---',
@@ -621,20 +766,31 @@ export const VisitsDashboard: React.FC = () => {
     showToast('success', `تم تصدير تقرير المرتجعات (${rows.length} مرتجع) بنجاح للإدارة والمشرفين 📊`);
   };
 
-  // Key KPI stats
+  // Key KPI stats. One pass instead of five filters plus a Set allocation: the counts
+  // all read the same array, so walking it once is a fifth of the work for large logs.
   const stats = useMemo(() => {
     let totalCollected = 0;
+    let completed = 0;
+    let scheduled = 0;
+    let missed = 0;
+    let cancelled = 0;
+    const customersSeen = new Set<string>();
     filtered.forEach((v) => {
       if (v.collectedAmount) totalCollected += v.collectedAmount;
+      if (v.status === 'منفذة') completed++;
+      else if (v.status === 'مجدولة') scheduled++;
+      else if (v.status === 'لم تتم') missed++;
+      else if (v.status === 'ملغاة') cancelled++;
+      customersSeen.add(v.customerId);
     });
 
     return {
       total: filtered.length,
-      completed: filtered.filter((v) => v.status === 'منفذة').length,
-      scheduled: filtered.filter((v) => v.status === 'مجدولة').length,
-      missed: filtered.filter((v) => v.status === 'لم تتم').length,
-      cancelled: filtered.filter((v) => v.status === 'ملغاة').length,
-      uniqueCustomers: new Set(filtered.map((v) => v.customerId)).size,
+      completed,
+      scheduled,
+      missed,
+      cancelled,
+      uniqueCustomers: customersSeen.size,
       totalCollected
     };
   }, [filtered]);
@@ -646,22 +802,33 @@ export const VisitsDashboard: React.FC = () => {
   // when the rep actually executed it (status 'منفذة' or a check-out time),
   // not merely when it was ticked off.
   const todayProgress = useMemo(() => {
-    const mine = visible.filter(
-      (v) => v.date === todayStr && (currentUser?.role !== 'sales_rep' || v.repId === currentUser.id || v.repName === currentUser.name)
-    );
-    const completed = mine.filter((v) => v.status === 'منفذة' || Boolean(v.checkOutTime)).length;
-    const scheduledOnly = mine.filter((v) => v.status === 'مجدولة').length;
-    const missed = mine.filter((v) => v.status === 'لم تتم' || v.status === 'ملغاة').length;
-    const collected = mine.reduce((sum, v) => sum + (Number(v.collectedAmount) || 0), 0);
-    const orders = mine.filter((v) => Boolean(v.orderCreatedId) || v.outcome === 'تم عمل طلبية').length;
+    let completed = 0;
+    let scheduledOnly = 0;
+    let missed = 0;
+    let collected = 0;
+    let orders = 0;
+    let total = 0;
+    visible.forEach((v) => {
+      if (v.date !== todayStr) return;
+      if (currentUser?.role === 'sales_rep' && v.repId !== currentUser?.id && v.repName !== currentUser?.name) return;
+      total++;
+      if (v.status === 'منفذة' || v.checkOutTime) completed++;
+      // Deliberately NOT an else-if: a visit still marked "مجدولة" that already has a
+      // check-out time is exactly the forgotten re-status this counter exists to
+      // surface, so it must stay in "remaining" while also counting as completed.
+      if (v.status === 'مجدولة') scheduledOnly++;
+      if (v.status === 'لم تتم' || v.status === 'ملغاة') missed++;
+      collected += Number(v.collectedAmount) || 0;
+      if (v.orderCreatedId || v.outcome === 'تم عمل طلبية') orders++;
+    });
     return {
-      total: mine.length,
+      total,
       completed,
-      remaining: Math.max(0, scheduledOnly),
+      remaining: scheduledOnly,
       missed,
       collected,
       orders,
-      rate: mine.length > 0 ? Math.round((completed / mine.length) * 100) : 0,
+      rate: total > 0 ? Math.round((completed / total) * 100) : 0,
     };
   }, [visible, todayStr, currentUser?.role, currentUser?.id, currentUser?.name]);
 
@@ -757,11 +924,13 @@ export const VisitsDashboard: React.FC = () => {
   // Period report export for management: one summary sheet per rep plus a
   // detailed sheet listing every visit, built from the same weeklyByRep /
   // filtered sources as the on-screen board so the two can never disagree.
-  const handleExportWeeklyReport = () => {
+  const handleExportWeeklyReport = async () => {
     if (weeklyByRep.length === 0) {
       showToast('error', `لا توجد زيارات بين ${exportRange.from} و ${exportRange.to} لتصديرها.`);
       return;
     }
+    const XLSX = await loadXlsx();
+    if (!XLSX) return;
     const repKey = rep !== 'الكل' ? rep : '';
     const inRange = visible.filter((v) => v.date >= exportRange.from && v.date <= exportRange.to);
 
@@ -770,7 +939,7 @@ export const VisitsDashboard: React.FC = () => {
         if (currentUser?.role === 'sales_rep') return r.repId === currentUser.id || r.repName === currentUser.name;
         if (currentUser?.role === 'branch_manager' && currentUser.branchName) return r.branchName === currentUser.branchName;
         if (repKey) {
-          const repUser = users.find((u) => u.id === repKey);
+          const repUser = userById.get(repKey);
           return r.repId === repKey || (repUser ? isArabicNameMatch(r.repName, repUser.name) : false);
         }
         return true;
@@ -800,13 +969,13 @@ export const VisitsDashboard: React.FC = () => {
         if (currentUser?.role === 'sales_rep') return v.repId === currentUser.id || v.repName === currentUser.name;
         if (currentUser?.role === 'branch_manager' && currentUser.branchName) return v.branchName === currentUser.branchName;
         if (repKey) {
-          const repUser = users.find((u) => u.id === repKey);
+          const repUser = userById.get(repKey);
           return v.repId === repKey || (repUser ? isArabicNameMatch(v.repName || '', repUser.name) : false);
         }
         return true;
       })
       .map((v) => {
-        const c = customers.find((x) => x.id === v.customerId);
+        const c = customerById.get(v.customerId);
         return {
           'تاريخ الزيارة': v.date,
           'وقت الزيارة': v.time || '-',
@@ -875,7 +1044,7 @@ export const VisitsDashboard: React.FC = () => {
 
   // Duplicate Visit (وارد نسخ الزيارات مع الاحتفاظ ببيانات العميل لتكرارها أو جدولتها بسرعة)
   const handleDuplicateVisit = (v: CustomerVisit) => {
-    const c = customers.find((x) => x.id === v.customerId);
+    const c = customerById.get(v.customerId);
     setForm({
       customerId: v.customerId || '',
       repId: currentUser?.role === 'sales_rep' ? currentUser.id : (v.repId || currentUser?.id || ''),
@@ -966,8 +1135,8 @@ export const VisitsDashboard: React.FC = () => {
       showToast('error', 'يرجى اختيار العميل المستهدف أولاً.');
       return;
     }
-    const r = reps.find((u) => u.id === form.repId) || users.find((u) => u.id === form.repId) || (currentUser?.role === 'sales_rep' ? currentUser : undefined);
-    const c = customers.find((x) => x.id === form.customerId);
+    const r = reps.find((u) => u.id === form.repId) || userById.get(form.repId) || (currentUser?.role === 'sales_rep' ? currentUser : undefined);
+    const c = customerById.get(form.customerId);
 
     const isReturnOutcome = form.outcome === 'مرتجع لدي العميل';
     const selectedReturnProduct = products.find((product) => product.id === selectedReturnProductId);
@@ -1079,7 +1248,7 @@ export const VisitsDashboard: React.FC = () => {
     return filtered.filter((v) => {
       if (v.date < exportRange.from || v.date > exportRange.to) return false;
       if (rep !== 'الكل') {
-        const repUser = users.find((u) => u.id === rep);
+        const repUser = userById.get(rep);
         if (!repUser) return false;
         if (v.repId !== rep && !isArabicNameMatch(v.repName || '', repUser.name)) return false;
       }
@@ -1088,14 +1257,16 @@ export const VisitsDashboard: React.FC = () => {
   }, [filtered, exportRange, rep, users]);
 
   // Export visits to Excel for the chosen period (weekly / this month / custom)
-  const handleExportVisitsExcel = () => {
+  const handleExportVisitsExcel = async () => {
+    const XLSX = await loadXlsx();
+    if (!XLSX) return;
     if (exportRows.length === 0) {
       showToast('error', `لا توجد زيارات بين ${exportRange.from} و ${exportRange.to} وفق الفلترة المحددة.`);
       return;
     }
 
     const rows = exportRows.map((v) => {
-      const c = customers.find((x) => x.id === v.customerId);
+      const c = customerById.get(v.customerId);
       return {
         'كود العميل': c?.code || '---',
         'اسم العميل': c?.name || '---',
@@ -1178,6 +1349,30 @@ export const VisitsDashboard: React.FC = () => {
     }
   };
 
+  /**
+   * Rendered window over the filtered visit log.
+   *
+   * The log had no paging, so a busy month could mount every matching visit at once -
+   * roughly 45-70 DOM nodes per row, and twice over because both the table and the
+   * card list were built before CSS hid one of them. This grows a window instead:
+   * nothing is removed and the header still reports the true total, the user simply
+   * asks for more rows.
+   */
+  const renderedVisits = useMemo(
+    () => filtered.slice(0, renderedVisitCount),
+    [filtered, renderedVisitCount]
+  );
+  const remainingVisitCount = Math.max(0, filtered.length - renderedVisits.length);
+
+  /**
+   * Which visit list to build. The table and the cards are both still in the markup
+   * and still carry the same `hidden md:block` / `block md:hidden` classes, so CSS
+   * keeps the final say on layout; this only avoids building the one the current
+   * viewport is about to hide. `null` means the breakpoint is not known yet (or
+   * matchMedia is unavailable), and both lists render exactly as before.
+   */
+  const isWideViewport = useIsWideViewport();
+
   return (
     <main className="w-full p-3.5 sm:p-6 space-y-3 sm:space-y-4 pb-20" dir="rtl">
       {/* Toast Notification */}
@@ -1213,6 +1408,18 @@ export const VisitsDashboard: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap self-start sm:self-auto">
+          {(isAdmin || isDeveloper) && (
+            <button
+              type="button"
+              onClick={() => setIsImportModalOpen(true)}
+              className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-3.5 py-2.5 rounded-xl flex items-center gap-2 text-xs transition cursor-pointer shadow-2xs"
+              title="لصق زيارات من الواتساب أو الإكسل وتسجيلها بعد المراجعة"
+            >
+              <ClipboardPaste className="w-4 h-4" />
+              <span>استيراد من واتساب</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handleSyncDatabase}
@@ -1507,7 +1714,7 @@ export const VisitsDashboard: React.FC = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {pendingReturns.map((v) => {
-                      const c = customers.find((x) => x.id === v.customerId);
+                      const c = customerById.get(v.customerId);
                       return (
                         <div key={v.id} className="p-3.5 bg-white rounded-2xl border-2 border-rose-200/90 shadow-xs space-y-2.5">
                           <div className="flex items-start justify-between gap-2">
@@ -1933,7 +2140,7 @@ export const VisitsDashboard: React.FC = () => {
               </div>
               <div className="min-w-0">
                 <div className="text-sm font-black flex items-center gap-2">
-                  <span>جدول عملاء {rep !== 'الكل' ? (users.find((u) => u.id === rep)?.name || 'المندوب') : 'النطاق'}</span>
+                  <span>جدول عملاء {rep !== 'الكل' ? (userById.get(rep)?.name || 'المندوب') : 'النطاق'}</span>
                   <span className="px-2 py-0.5 rounded-full bg-white/15 text-[10.5px] font-black">
                     {routeTotals.total.toLocaleString()} عميل
                   </span>
@@ -2032,7 +2239,7 @@ export const VisitsDashboard: React.FC = () => {
               {routePageRows.map((c, i) => {
                 const todayList = todayVisitsByCustomer.get(c.id) || [];
                 const doneToday = todayList.some((v) => v.status === 'منفذة' || Boolean(v.checkOutTime));
-                const debt = customerDebt(c);
+                const debt = debtOf(c);
                 const overdue = Number(c.totalOverdueAndDue ?? c.overdueBalance ?? 0) || 0;
                 const limit = Number(c.creditLimit || 0) || 0;
                 const ownerName = c.salesRepName || c.repName || 'غير محدد';
@@ -2151,7 +2358,7 @@ export const VisitsDashboard: React.FC = () => {
           {routePageRows.map((c) => {
             const todayList = todayVisitsByCustomer.get(c.id) || [];
             const doneToday = todayList.some((v) => v.status === 'منفذة' || Boolean(v.checkOutTime));
-            const debt = customerDebt(c);
+            const debt = debtOf(c);
             return (
               <div key={c.id} className="p-3.5 space-y-2">
                 <div className="flex items-start justify-between gap-2">
@@ -2257,7 +2464,9 @@ export const VisitsDashboard: React.FC = () => {
           </span>
         </div>
 
-        {/* Desktop Table */}
+        {/* Desktop Table. Still hidden by CSS on small screens; the JSX guard just
+            avoids building a table the phone is about to hide. */}
+        {isWideViewport !== false && (
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-right text-xs">
             <thead className="bg-slate-100/70 text-slate-700 font-black border-b border-slate-200">
@@ -2274,8 +2483,8 @@ export const VisitsDashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filtered.map((v) => {
-                const c = customers.find((x) => x.id === v.customerId);
+              {renderedVisits.map((v) => {
+                const c = customerById.get(v.customerId);
 
                 return (
                   <tr
@@ -2481,11 +2690,13 @@ export const VisitsDashboard: React.FC = () => {
             </tbody>
           </table>
         </div>
+        )}
 
-        {/* Mobile View */}
+        {/* Mobile View. Same reasoning as the table above. */}
+        {isWideViewport !== true && (
         <div className="block md:hidden divide-y divide-slate-100">
-          {filtered.map((v) => {
-            const c = customers.find((x) => x.id === v.customerId);
+          {renderedVisits.map((v) => {
+            const c = customerById.get(v.customerId);
 
             return (
               <div
@@ -2592,6 +2803,7 @@ export const VisitsDashboard: React.FC = () => {
             );
           })}
         </div>
+        )}
 
         {filtered.length === 0 && (
           <div className="py-12 px-4 text-center space-y-2">
@@ -2600,7 +2812,26 @@ export const VisitsDashboard: React.FC = () => {
             <p className="text-xs text-slate-400">يمكنك جدولة زيارة جديدة أو تغيير خيارات البحث والتاريخ</p>
           </div>
         )}
+
+        {/* Load more. The window only ever grows, so every visit stays reachable. */}
+        {remainingVisitCount > 0 && (
+          <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <span className="text-[11px] text-slate-500 font-bold">
+              معروض {renderedVisits.length} من {filtered.length} زيارة
+            </span>
+            <button
+              type="button"
+              onClick={() => setRenderedVisitCount((count) => count + VISIT_CHUNK_SIZE)}
+              className="w-full sm:w-auto flex items-center justify-center gap-1.5 bg-white hover:bg-slate-100 text-slate-700 font-bold px-4 py-2 rounded-xl text-xs border border-slate-200 transition active:scale-95 cursor-pointer"
+            >
+              عرض المزيد ({Math.min(VISIT_CHUNK_SIZE, remainingVisitCount)} متبقٍ)
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Admin/developer only: paste visits from WhatsApp / Excel and review before saving */}
+      {isImportModalOpen && <VisitImportModal onClose={() => setIsImportModalOpen(false)} />}
 
       {/* ========================================================================= */}
       {/* Schedule Visit Modal (with Searchable Fast Customer Picker)              */}
@@ -3029,7 +3260,7 @@ export const VisitsDashboard: React.FC = () => {
             </div>
 
             {(() => {
-              const c = customers.find((x) => x.id === selectedVisit.customerId);
+              const c = customerById.get(selectedVisit.customerId);
               return (
                 <div className="space-y-4">
                   {/* Customer Banner */}

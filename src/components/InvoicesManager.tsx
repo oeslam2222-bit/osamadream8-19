@@ -35,6 +35,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { exportElectronicInvoiceToExcel, exportInvoiceForERP, downloadInvoiceBoth } from '../services/excelService';
 import { downloadInvoicePDF } from '../services/pdfService';
+import { buildShortageReport, downloadShortageReport } from '../services/shortageReportService';
 import { formatArabicDate, formatCurrency } from '../services/invoiceService';
 import { Invoice, OrderStatus } from '../types';
 import { CreditAuditModal } from './CreditAuditModal';
@@ -55,6 +56,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 }) => {
   const {
     invoices,
+    products,
     currentUser,
     users,
     getVisibleInvoices,
@@ -83,6 +85,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   const [downloadingBothId, setDownloadingBothId] = useState<string | null>(null);
   const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isExportingShortage, setIsExportingShortage] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
   // Auto-refresh invoices on component mount (uses cached data if refreshed recently)
@@ -105,6 +108,39 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       setTimeout(() => setSuccessToast(null), 4000);
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  /**
+   * The shortage ("-NQ") invoices are the warehouse's actual purchase list, so this
+   * exports what the central warehouse still has to cover across the whole visible
+   * scope - not just the current tab, and not just today. The ~900 KB Excel engine
+   * is imported inside the download call, so the button costs nothing until used.
+   */
+  const handleExportShortage = async () => {
+    setIsExportingShortage(true);
+    try {
+      const report = buildShortageReport(userVisibleInvoices, products, {
+        branchName: selectedBranchFilter,
+      });
+      if (report.invoiceCount === 0) {
+        setSuccessToast('لا توجد فواتير نواقص مفتوحة في النطاق الحالي.');
+        setTimeout(() => setSuccessToast(null), 3500);
+        return;
+      }
+      await downloadShortageReport(
+        report,
+        selectedBranchFilter === 'الكل' ? 'الكل' : selectedBranchFilter
+      );
+      setSuccessToast(
+        `تم تصدير طلب النواقص: ${report.invoiceCount} فاتورة / ${report.productCount} صنف / ${report.totalCartons} كرتونة`
+      );
+      setTimeout(() => setSuccessToast(null), 4500);
+    } catch (err: any) {
+      setSuccessToast(`تعذر تصدير طلب النواقص: ${err?.message || 'خطأ غير معروف'}`);
+      setTimeout(() => setSuccessToast(null), 4000);
+    } finally {
+      setIsExportingShortage(false);
     }
   };
 
@@ -338,6 +374,16 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportShortage}
+              disabled={isExportingShortage}
+              className="flex items-center justify-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold px-3 py-2.5 rounded-xl text-xs border border-amber-200 transition active:scale-95 cursor-pointer disabled:opacity-50"
+              title="تصدير طلب النواقص المرسل للمخزن الرئيسي (ملخص + تفاصيل + ملخص المناديب)"
+            >
+              <FileSpreadsheet className={`w-3.5 h-3.5 ${isExportingShortage ? 'animate-pulse text-amber-600' : 'text-amber-600'}`} />
+              <span>{isExportingShortage ? 'جاري التصدير...' : 'طلب النواقص Excel'}</span>
+            </button>
+
             <button
               onClick={handleManualRefresh}
               disabled={isRefreshing}

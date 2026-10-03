@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { COMPANY_INFO, INITIAL_AUDIT_LOGS, INITIAL_BRANCHES, INITIAL_USERS } from '../data/mockData';
 import { DEFAULT_CLOUDINARY_CONFIG } from '../services/cloudinaryService';
 import { clearCachedImages } from '../services/imageCacheService';
@@ -526,10 +526,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [customers]);
 
+  /**
+   * Visit persistence, split by cost.
+   *
+   * IndexedDB is written immediately: it is async and off the main thread, so the data
+   * is safe at once and the boot path merges it back in. The localStorage mirror is the
+   * expensive half - it needs the whole log stringified and then written
+   * synchronously. Measured at 4,000 visits that is a ~1 MB stringify plus a blocking
+   * write, which stalls the main thread long enough to be felt as a hitch on a phone
+   * every single time a status is tapped, and it grows with the log.
+   *
+   * So the mirror is coalesced onto a short delay and flushed on pagehide /
+   * visibilitychange: backgrounding or closing the app still writes it, so nothing is
+   * lost, but tapping through visits no longer pays for a full serialisation each time.
+   */
+  const visitsMirrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingVisitsMirrorRef = useRef<CustomerVisit[] | null>(null);
+
+  const flushVisitsMirror = useCallback(() => {
+    const pending = pendingVisitsMirrorRef.current;
+    if (!pending) return;
+    pendingVisitsMirrorRef.current = null;
+    if (visitsMirrorTimerRef.current !== null) {
+      clearTimeout(visitsMirrorTimerRef.current);
+      visitsMirrorTimerRef.current = null;
+    }
+    safeLocalStorageSet(STORAGE_KEYS.VISITS, JSON.stringify(pending));
+  }, []);
+
+  const persistVisits = useCallback(
+    (next: CustomerVisit[]) => {
+      idbSet(STORAGE_KEYS.VISITS, next).catch(() => {});
+      pendingVisitsMirrorRef.current = next;
+      if (visitsMirrorTimerRef.current !== null) clearTimeout(visitsMirrorTimerRef.current);
+      visitsMirrorTimerRef.current = setTimeout(flushVisitsMirror, 1200);
+    },
+    [flushVisitsMirror]
+  );
+
   useEffect(() => {
-    safeLocalStorageSet(STORAGE_KEYS.VISITS, JSON.stringify(visits));
-    idbSet(STORAGE_KEYS.VISITS, visits).catch(() => {});
-  }, [visits]);
+    persistVisits(visits);
+  }, [visits, persistVisits]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flushVisitsMirror();
+    };
+    window.addEventListener('pagehide', flushVisitsMirror);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', flushVisitsMirror);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [flushVisitsMirror]);
 
   // Persist users to IndexedDB and localStorage so offline sessions and registered reps are immediately available
   useEffect(() => {
@@ -955,6 +1004,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 1200);
   };
 
+  /**
+   * Which customers this device is allowed to download.
+   *
+   * The customer table is the heaviest payload in the app (3,400+ rows, every
+   * column used by the financial reports), and a rep only ever works one branch.
+   * Pulling the full base onto 70 phones costs megabytes of everyone's data for
+   * rows the UI would hide anyway, so the read is narrowed server-side for
+   * everyone except admins and developers.
+   *
+   * Both spellings are sent because branch names are free-text Arabic in the
+   * database, and fetchCustomersFromSupabase falls back to the full base if a
+   * narrow read matches nothing.
+   */
+  const customerFetchScope = useMemo(() => {
+    const role = currentUser?.role;
+    if (!currentUser || role === 'admin' || role === 'developer') return undefined;
+    const raw = (currentUser.branchName || '').trim();
+    if (!raw) return undefined;
+    const canonical = resolveBranchName(raw);
+    const names = new Set<string>();
+    if (raw) names.add(raw);
+    if (canonical && canonical !== raw) names.add(canonical);
+    if (canonical && !canonical.startsWith('فرع')) names.add(`فرع ${canonical}`);
+    return { branchNames: Array.from(names) };
+  }, [currentUser?.id, currentUser?.branchName, currentUser?.role]);
+
   // Sync with Supabase (Direction: fetch, push, or both)
   const syncWithSupabase = async (
     direction: 'fetch' | 'push' | 'both' = 'both'
@@ -1004,7 +1079,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // 2b. Fetch customers from Supabase
       if (direction === 'fetch' || direction === 'both') {
-        const custRes = await fetchCustomersFromSupabase();
+        const custRes = await fetchCustomersFromSupabase(customerFetchScope);
         if (custRes.success) {
           const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers || []), users);
           const validCustomers = deduplicateCustomersArray(linked);
@@ -1073,7 +1148,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // No version stamp has been published yet. Instead of giving up (which
         // left every rep frozen on stale data), pull the authoritative customer
         // list directly and swap state for it.
-        const custRes = await fetchCustomersFromSupabase();
+        const custRes = await fetchCustomersFromSupabase(customerFetchScope);
         if (custRes.success && custRes.customers && custRes.customers.length > 0) {
           const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers), users);
           const valid = deduplicateCustomersArray(linked);
@@ -1125,7 +1200,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // 3. Refresh customers if in scope
       if (scope === 'all' || scope === 'customers') {
-        const custRes = await fetchCustomersFromSupabase();
+        const custRes = await fetchCustomersFromSupabase(customerFetchScope);
         if (custRes.success) {
           const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers || []), users);
           const validCust = deduplicateCustomersArray(linked);
@@ -1256,7 +1331,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (Date.now() - authoritativeWriteAtRef.current < 120000) return;
       checkInFlight = true;
       try {
-        const res = await fetchCustomersFromSupabase();
+        const res = await fetchCustomersFromSupabase(customerFetchScope);
         if (!res.success || !res.customers || res.customers.length === 0) return;
         const linked = linkCustomersToUsers(sanitizeCustomers(res.customers), usersRef.current);
         const fresh = deduplicateCustomersArray(linked);
@@ -1383,7 +1458,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 });
               }
             });
-            fetchCustomersFromSupabase().then((cRes) => {
+            fetchCustomersFromSupabase(customerFetchScope).then((cRes) => {
               if (cRes.success && cRes.customers && cRes.customers.length > 0) {
                 setCustomers((curr) => {
                   if (curr.length === 0) {
@@ -4505,56 +4580,72 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return [];
   };
 
-  const getVisibleVisits = (): CustomerVisit[] => {
+  /**
+   * The visit set this role is allowed to see, resolved once per real change.
+   *
+   * Every heavy page used to call getVisibleVisits() during its own render. The
+   * function is recreated on each provider render, so that produced a brand-new array
+   * every time and defeated the dependency check of the ~14 useMemos built on top of
+   * it, making each keystroke re-run the whole filter/sort/aggregate chain. Memoising
+   * it here gives consumers a stable array to depend on - and a stable identity, so a
+   * page no longer has to guess which provider values the scoping rules read.
+   */
+  const visibleVisits = useMemo((): CustomerVisit[] => {
     if (!currentUser) return [];
 
-    // Admin & Developer: Full oversight across branches, filtered by selected branch if set
-    if (currentUser.role === 'admin' || currentUser.role === 'developer') {
-      return selectedBranchFilter === 'الكل'
-        ? visits
-        : visits.filter((v) => isBranchMatch(v.branchName || '', selectedBranchFilter, { allowUnassigned: false }));
-    }
-
-    // Branch Manager: STRICTLY sees visits belonging to his own branch only
-    if (currentUser.role === 'branch_manager') {
-      if (!currentUser.branchName) return [];
-      return visits.filter((v) => {
-        if (v.branchName && isBranchMatch(v.branchName, currentUser.branchName, { allowUnassigned: false })) return true;
-        const c = customers.find((cust) => cust.id === v.customerId);
-        return Boolean(c && doesCustomerBelongToBranch(c, currentUser.branchName, users));
-      });
-    }
-
-    // Supervisor: STRICTLY sees visits belonging to his branch and his supervised reps
-    if (currentUser.role === 'supervisor') {
-      return visits.filter((v) => {
-        if (v.supervisorId === currentUser.id) return true;
-        if (v.createdBy === currentUser.id) return true;
-        if (v.repId && users.some((u) => u.id === v.repId && u.supervisorId === currentUser.id)) return true;
-        const rep = users.find((u) => u.id === v.repId || isArabicNameMatch(u.name, v.repName || ''));
-        if (rep && (rep.supervisorId === currentUser.id || rep.id === currentUser.id)) return true;
-        const c = customers.find((cust) => cust.id === v.customerId);
-        return Boolean(c && doesCustomerBelongToSupervisor(c, currentUser, users));
-      });
-    }
-
-    // Sales Rep: STRICT PRIVACY - ONLY his own visits!
-    return visits.filter((v) => {
-      // 1. Direct rep ID match
-      if (v.repId === currentUser.id) return true;
-      if (currentUser.username && v.repId && v.repId.toLowerCase() === currentUser.username.toLowerCase()) return true;
-
-      // 2. Arabic Name match
-      if (v.repName && (isArabicNameMatch(v.repName, currentUser.name) || normalizeArabicText(v.repName) === normalizeArabicText(currentUser.name))) {
-        return true;
+      // Admin & Developer: Full oversight across branches, filtered by selected branch if set
+      if (currentUser.role === 'admin' || currentUser.role === 'developer') {
+        return selectedBranchFilter === 'الكل'
+          ? visits
+          : visits.filter((v) => isBranchMatch(v.branchName || '', selectedBranchFilter, { allowUnassigned: false }));
       }
 
-      // 3. Created by this rep for himself
-      if (v.createdBy === currentUser.id && (!v.repId || v.repId === currentUser.id)) return true;
+      // Branch Manager: STRICTLY sees visits belonging to his own branch only
+      if (currentUser.role === 'branch_manager') {
+        if (!currentUser.branchName) return [];
+        return visits.filter((v) => {
+          if (v.branchName && isBranchMatch(v.branchName, currentUser.branchName, { allowUnassigned: false })) return true;
+          const c = customers.find((cust) => cust.id === v.customerId);
+          return Boolean(c && doesCustomerBelongToBranch(c, currentUser.branchName, users));
+        });
+      }
+
+      // Supervisor: STRICTLY sees visits belonging to his branch and his supervised reps
+      if (currentUser.role === 'supervisor') {
+        return visits.filter((v) => {
+          if (v.supervisorId === currentUser.id) return true;
+          if (v.createdBy === currentUser.id) return true;
+          if (v.repId && users.some((u) => u.id === v.repId && u.supervisorId === currentUser.id)) return true;
+          const rep = users.find((u) => u.id === v.repId || isArabicNameMatch(u.name, v.repName || ''));
+          if (rep && (rep.supervisorId === currentUser.id || rep.id === currentUser.id)) return true;
+          const c = customers.find((cust) => cust.id === v.customerId);
+          return Boolean(c && doesCustomerBelongToSupervisor(c, currentUser, users));
+        });
+      }
+
+      // Sales Rep: STRICT PRIVACY - ONLY his own visits!
+      return visits.filter((v) => {
+        // 1. Direct rep ID match
+        if (v.repId === currentUser.id) return true;
+        if (currentUser.username && v.repId && v.repId.toLowerCase() === currentUser.username.toLowerCase()) return true;
+
+        // 2. Arabic Name match
+        if (v.repName && (isArabicNameMatch(v.repName, currentUser.name) || normalizeArabicText(v.repName) === normalizeArabicText(currentUser.name))) {
+          return true;
+        }
+
+        // 3. Created by this rep for himself
+        if (v.createdBy === currentUser.id && (!v.repId || v.repId === currentUser.id)) return true;
 
       return false;
     });
-  };
+  // The scoping rules below read only currentUser, selectedBranchFilter, visits,
+  // customers and users (everything else is a module-level helper), so those are the
+  // real dependencies.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visits, customers, users, currentUser, selectedBranchFilter]);
+
+  const getVisibleVisits = useCallback(() => visibleVisits, [visibleVisits]);
 
   const canManageVisit = (visit: CustomerVisit) => {
     if (!currentUser) return false;
@@ -4621,8 +4712,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 1. Double Immediate Local Persistence (State + IndexedDB + localStorage)
     setVisits((prev) => {
       const next = [newVisitObj, ...prev.filter((v) => v.id !== newVisitId)];
-      idbSet(STORAGE_KEYS.VISITS, next).catch(() => {});
-      safeLocalStorageSet(STORAGE_KEYS.VISITS, JSON.stringify(next));
+      persistVisits(next);
       return next;
     });
 
@@ -4686,8 +4776,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Immediate Local Persistence (State + IndexedDB + localStorage)
     setVisits((prev) => {
       const next = prev.map((item) => (item.id === visit.id ? updatedVisit : item));
-      idbSet(STORAGE_KEYS.VISITS, next).catch(() => {});
-      safeLocalStorageSet(STORAGE_KEYS.VISITS, JSON.stringify(next));
+      persistVisits(next);
       return next;
     });
 
@@ -4751,8 +4840,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setVisits((prev) => {
       const next = prev.map((item) => item.id === visitId ? updatedVisit : item);
-      idbSet(STORAGE_KEYS.VISITS, next).catch(() => {});
-      safeLocalStorageSet(STORAGE_KEYS.VISITS, JSON.stringify(next));
+      persistVisits(next);
       return next;
     });
     syncOrQueue('visits', 'upsert', updatedVisit.id, updatedVisit, () =>
@@ -4777,8 +4865,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     markVisitAsDeletedInStorage(visitId);
     setVisits((prev) => {
       const next = prev.filter((v) => v.id !== visitId);
-      idbSet(STORAGE_KEYS.VISITS, next).catch(() => {});
-      safeLocalStorageSet(STORAGE_KEYS.VISITS, JSON.stringify(next));
+      persistVisits(next);
       return next;
     });
 
@@ -4837,8 +4924,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       setVisits(mergedVisits);
-      await idbSet(STORAGE_KEYS.VISITS, mergedVisits);
-      safeLocalStorageSet(STORAGE_KEYS.VISITS, JSON.stringify(mergedVisits));
+      persistVisits(mergedVisits);
 
       return {
         success: true,
@@ -5043,6 +5129,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getVisibleInvoices,
         getVisibleCustomers,
         getVisibleVisits,
+        visibleVisits,
         addVisit,
         updateVisit,
         reviewVisit,

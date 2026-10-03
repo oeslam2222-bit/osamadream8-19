@@ -181,6 +181,8 @@ export interface AppContextType {
   getVisibleProducts: () => Product[];
   getVisibleCustomers: () => Customer[];
   getVisibleVisits: () => CustomerVisit[];
+  /** Memoized result of getVisibleVisits, for pages that want a stable array to depend on. */
+  visibleVisits: CustomerVisit[];
   addVisit: (visit: Omit<CustomerVisit, 'id' | 'createdAt' | 'createdBy'>) => { success: boolean; message: string; visit?: CustomerVisit };
   updateVisit: (visit: CustomerVisit) => { success: boolean; message: string };
   reviewVisit: (visitId: string, status: Extract<VisitReviewStatus, 'approved' | 'needs_fix'>, note?: string) => { success: boolean; message: string };

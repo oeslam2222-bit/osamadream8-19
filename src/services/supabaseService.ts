@@ -125,18 +125,35 @@ export async function testSupabaseConnection(): Promise<SupabaseSyncStatus> {
 }
 
 /**
+ * Which slice of the customer base a device is allowed to download.
+ *
+ * The table holds 3,400+ rows and every column is genuinely used by the financial
+ * reports, so the only meaningful reduction is fewer rows. Admins and developers
+ * keep the full base; everyone else pulls the branches they actually work in,
+ * which is exactly what the UI already lets them see.
+ */
+export interface CustomerFetchScope {
+  branchNames?: string[];
+}
+
+/**
  * Supabase REST returns at most 1,000 rows per request by default.
  * Read the table in pages so imports and role-specific counts include the full dataset.
  */
-async function fetchAllRows(table: 'customers' | 'clients'): Promise<{ data: any[]; error: any }> {
+async function fetchAllRows(
+  table: 'customers' | 'clients',
+  scope?: CustomerFetchScope
+): Promise<{ data: any[]; error: any }> {
   const pageSize = 1000;
   const rows: any[] = [];
+  const branchFilter = scope?.branchNames?.filter((b) => b && b.trim().length > 0) || [];
 
   for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabase
-      .from(table)
-      .select('*')
-      .range(from, from + pageSize - 1);
+    let query = supabase.from(table).select('*');
+    if (branchFilter.length > 0) {
+      query = query.in('branch_name', branchFilter);
+    }
+    const { data, error } = await query.range(from, from + pageSize - 1);
 
     if (error) return { data: rows, error };
     rows.push(...(data || []));
@@ -149,10 +166,25 @@ async function fetchAllRows(table: 'customers' | 'clients'): Promise<{ data: any
 /**
  * Fetch all customers from Supabase (checking 'customers' or 'clients')
  */
-export async function fetchCustomersFromSupabase(): Promise<{ success: boolean; customers?: Customer[]; error?: string }> {
+export async function fetchCustomersFromSupabase(
+  scope?: CustomerFetchScope
+): Promise<{ success: boolean; customers?: Customer[]; error?: string; scoped?: boolean }> {
   try {
     let rawCustomers: any[] | null = null;
-    const { data: custData, error: cErr } = await fetchAllRows('customers');
+    let scopedUsed = Boolean(scope?.branchNames?.length);
+    let { data: custData, error: cErr } = await fetchAllRows('customers', scope);
+    if (!cErr && scopedUsed && custData.length === 0) {
+      // Branch names are free-text Arabic, so a narrow read that matches nothing
+      // must degrade to the full base - never to an empty customer list on a
+      // rep's phone. Worst case here is "downloads more than needed".
+      console.warn('Scoped customer fetch matched no rows; falling back to the full base.');
+      scopedUsed = false;
+      const fallback = await fetchAllRows('customers');
+      if (!fallback.error && fallback.data.length > 0) {
+        custData = fallback.data;
+        cErr = null;
+      }
+    }
     if (!cErr && custData.length > 0) {
       rawCustomers = custData;
     } else {
@@ -238,7 +270,7 @@ export async function fetchCustomersFromSupabase(): Promise<{ success: boolean; 
             : (c.lastCollectionAmount !== undefined ? Number(c.lastCollectionAmount) : undefined),
         };
       });
-      return { success: true, customers: mapped };
+      return { success: true, customers: mapped, scoped: scopedUsed };
     }
 
     return { success: true, customers: [] };
