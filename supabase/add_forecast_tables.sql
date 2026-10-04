@@ -64,12 +64,19 @@ END $$;
 
 -- -------------------------------------------- guard on week_index semantics ----
 -- القيد ده بيمنع كتابة سطر توقع بـ week_index سالب أو أكبر من 5، بس بيسمح بـ 0
--- لأنه معنى التوقع الشهري المستقل. لو_week_index وصل لقيمة بره 0..5 فالمشكلة في
--- الكود مش في البيانات.
+-- لأنه معنى التوقع الشهري المستقل. لو الـweek_index وصل لقيمة بره 0..5 فالمشكلة
+-- في الكود مش في البيانات.
+--
+-- لازم فحص الوجود يكون مربوط بالجدول نفسه: أسماء القيود في Postgres متكررة
+-- على مستوى الجداول المختلفة، فلو لقينا نفس الاسم على جدول تاني اتنين ما
+-- نضيفش القيد أصلاً والتقسيم يفضل من غير حماية.
 
 DO $$ BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'collection_forecasts_week_index_range'
+    SELECT 1 FROM pg_constraint c
+    JOIN pg_class t ON t.oid = c.conrelid
+    WHERE c.conname = 'collection_forecasts_week_index_range'
+      AND t.relname = 'collection_forecasts'
   ) THEN
     ALTER TABLE collection_forecasts
       ADD CONSTRAINT collection_forecasts_week_index_range CHECK (week_index >= 0 AND week_index <= 5);

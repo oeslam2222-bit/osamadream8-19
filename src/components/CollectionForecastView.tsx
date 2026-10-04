@@ -240,6 +240,44 @@ export default function CollectionForecastView() {
     return map;
   }, [customerComments]);
 
+  /**
+   * إحصائيات الزيارات لكل عميل: العدد وآخر تاريخ وآخر تحصيل.
+   *
+   * المصدر هو سجل الزيارات نفسه مش `customers.visit_count_2026`، لأن العدّاد
+   * المخزّن على صف العميل بيتحدّث مع الحفظ وأحياناً يفضل قديم، فبيبقى الرقم
+   * اللي في الجدول مخالف للواقع. هنا بنحسب من السجلات مباشرة.
+   *
+   * الزيارات المؤرشفة (isReturn / isArchived) مش بتتحسب كزيارة منفّذة، لأنها
+   * بتتكرر في الإحصائيات كمان غير منفّذة.
+   */
+  const visitStatsByCustomer = useMemo(() => {
+    const map = new Map<string, { count: number; completed: number; lastDate: string; lastCollected: number }>();
+    (visits || []).forEach((v) => {
+      const key = v.customerId || v.customerCode || '';
+      if (!key) return;
+      const prev = map.get(key) || { count: 0, completed: 0, lastDate: '', lastCollected: 0 };
+      const isArchived = !!(v as any).isArchived;
+      if (!isArchived) prev.count += 1;
+      if (!isArchived && (v.status === 'منفذة' || !!(v as any).checkOutTime)) prev.completed += 1;
+      const d = String(v.date || '');
+      if (d && d > prev.lastDate) prev.lastDate = d;
+      const amount = Number(v.collectedAmount || 0);
+      if (d === prev.lastDate) prev.lastCollected += amount;
+      map.set(key, prev);
+    });
+    return map;
+  }, [visits]);
+
+  /** آخر تاريخ زيارة — من السجلات، ويرجع لصف العميل لو مفيش سجلات. */
+  const lastVisitFor = useCallback(
+    (c: Customer): string => {
+      const fromRecords = visitStatsByCustomer.get(c.id)?.lastDate
+        || visitStatsByCustomer.get(c.code || '')?.lastDate;
+      return fromRecords || c.lastVisitDate || '';
+    },
+    [visitStatsByCustomer]
+  );
+
   const lastVisitMap = useMemo(() => {
     const map = new Map<string, string>();
     (visits || []).forEach((v) => {
@@ -542,14 +580,16 @@ export default function CollectionForecastView() {
       customers: scopedCustomers,
       returnsByCustomerCode: returnsByCode,
       lastVisitByCustomerId: lastVisitMap,
+      visitStatsByCustomer,
     });
     if (!data.length) return;
     const ws = XLSX.utils.json_to_sheet(data);
     ws['!cols'] = [
-      { wch: 12 }, { wch: 24 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 18 }, { wch: 14 },
-      { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
-      { wch: 22 }, { wch: 22 }, { wch: 20 }, { wch: 20 }, { wch: 14 }, { wch: 14 },
-      { wch: 40 }, { wch: 16 }, { wch: 16 },
+      { wch: 12 }, { wch: 24 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 18 },
+      { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 16 },
+      { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 22 }, { wch: 22 },
+      { wch: 20 }, { wch: 20 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+      { wch: 16 }, { wch: 40 }, { wch: 16 }, { wch: 16 },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'توقع التحصيلات');
@@ -784,7 +824,7 @@ export default function CollectionForecastView() {
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-black flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                <span>توقع الزيارات والتحصيلات</span>
+                <span>توقعات التحصيل</span>
               </span>
               <span className="px-2 py-0.5 rounded-md bg-white/10 text-slate-300 text-xs font-bold">
                 نسخة خفيفة وسريعة ⚡
@@ -1106,13 +1146,19 @@ export default function CollectionForecastView() {
           <table className="w-full text-right text-xs border-collapse">
             <thead className="bg-slate-900 text-slate-100 font-black">
               <tr>
-                <th className="p-3 text-center w-12">#</th>
+                {/* مفيش عمود رقم عن قصد: الكود هو أول عمود وعنوانه فوق خانة
+                    الكود على طول، فمفيش أي سبب يخلي الصف ينزلق تحت عنوان غلط. */}
                 <th className="p-3">كود العميل</th>
                 <th className="p-3 min-w-[200px]">اسم العميل</th>
                 <th className="p-3">المندوب والفرع</th>
                 <th className="p-3 text-rose-300">المديونية</th>
                 <th className="p-3 text-amber-300">إجمالي المستحقات</th>
                 <th className="p-3 text-center whitespace-nowrap">التصنيف</th>
+                <th className="p-3 text-center whitespace-nowrap min-w-[110px]">
+                  <div>عدد الزيارات</div>
+                  <span className="text-[9.5px] font-normal text-slate-400 block">منفّذة / الإجمالي</span>
+                </th>
+                <th className="p-3 text-center whitespace-nowrap">آخر زيارة</th>
                 {shownWeeks.map((w) => (
                   <th key={w.index} className="p-3 text-center whitespace-nowrap min-w-[105px]">
                     <div>متوقع أ{w.index}</div>
@@ -1135,8 +1181,7 @@ export default function CollectionForecastView() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {pageCustomers.map((c, index) => {
-                const rowNum = (safePage - 1) * pageSize + index + 1;
+              {pageCustomers.map((c) => {
                 const balance = resolveCustomerBalanceValue(c);
                 const dues = resolveCustomerDuesValue(c);
                 const weekSum = forecastTotalsByCustomer.get(c.id) || 0;
@@ -1146,15 +1191,19 @@ export default function CollectionForecastView() {
                 const commentRecord = commentByCode.get(c.code || '');
                 const fin = calculateCustomerFinancials(c, 'ALL');
 
+                // نص تصنيف الشيت كما هو. لو الخانة فاضية في الشيت بنبقى عند
+                // قابل/غير بس — وده برضه زي ما الشيت بيقوله، مش تخمين.
+                const sheetClassificationText =
+                  fin.sheetClassificationLabel?.trim() ||
+                  (fin.isEligible ? 'قابل' : 'غير');
+
+                const visitStats = visitStatsByCustomer.get(c.id);
+
                 return (
                   <tr
                     key={c.id}
                     className="hover:bg-slate-50/80 transition-colors group"
                   >
-                    <td className="p-3 text-center font-mono text-slate-400 text-xs">
-                      {rowNum}
-                    </td>
-
                     {/* Customer Code */}
                     <td className="p-3 font-mono font-bold text-slate-700 whitespace-nowrap">
                       {c.code || '—'}
@@ -1201,7 +1250,10 @@ export default function CollectionForecastView() {
                       {dues > 0 ? formatCurrency(dues) : '0 ج.م'}
                     </td>
 
-                    {/* التصنيف — قراءة فقط من جدول العملاء */}
+                    {/* التصنيف — نص الشيت نفسه كما هو، مش صياغة من عندنا.
+                        إعادة صياغة العمود هنا هي بالظبط اللي بتخلي الشاشة تقول حاجات
+                        الشيت ما قالهاش (cell مكتوب فيه «قابل» بيتعرض «قابل للتعامل»)،
+                        فبنعرض خام الأعمدة ونكتفي باللون للتمييز. */}
                     <td className="p-3 text-center whitespace-nowrap">
                       <div className="flex flex-col items-center gap-1">
                         <span
@@ -1210,9 +1262,9 @@ export default function CollectionForecastView() {
                               ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                               : 'bg-rose-100 text-rose-800 border-rose-300'
                           }`}
-                          title={fin.sheetClassificationLabel || fin.eligibilityStatusLabel}
+                          title={`تصنيف الشيت: ${sheetClassificationText}`}
                         >
-                          {fin.isEligible ? 'قابل للتعامل' : 'غير قابل'}
+                          {sheetClassificationText}
                         </span>
                         <span
                           className={`px-2 py-0.5 rounded-lg font-black text-[10px] border inline-block ${
@@ -1225,6 +1277,37 @@ export default function CollectionForecastView() {
                           {fin.isDealtCustomer ? 'متعامل' : 'غير متعامل'}
                         </span>
                       </div>
+                    </td>
+
+                    {/* عدد الزيارات — منفّذة من الإجمالي */}
+                    <td className="p-3 text-center whitespace-nowrap">
+                      {visitStats && visitStats.count > 0 ? (
+                        <span
+                          className={`px-2 py-0.5 rounded-lg font-black text-[11px] font-mono border inline-block ${
+                            visitStats.completed > 0
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : 'bg-slate-100 text-slate-600 border-slate-300'
+                          }`}
+                          title={`${visitStats.completed} زيارة منفّذة من إجمالي ${visitStats.count}`}
+                        >
+                          {visitStats.completed} / {visitStats.count}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300" title="لا توجد زيارات مسجلة">—</span>
+                      )}
+                    </td>
+
+                    {/* آخر زيارة */}
+                    <td className="p-3 text-center whitespace-nowrap">
+                      {(() => {
+                        const last = lastVisitFor(c);
+                        if (!last) return <span className="text-slate-300">—</span>;
+                        return (
+                          <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
+                            {last}
+                          </span>
+                        );
+                      })()}
                     </td>
 
                     {/* Week Input Cells */}
@@ -1348,7 +1431,7 @@ export default function CollectionForecastView() {
 
               {pageCustomers.length === 0 && (
                 <tr>
-                  <td colSpan={10 + shownWeeks.length} className="p-8 text-center">
+                  <td colSpan={11 + shownWeeks.length} className="p-8 text-center">
                     <div className="space-y-2">
                       <p className="text-slate-400 font-bold text-xs">لا يوجد عملاء مطابقين للبحث والفلاتر المحددة حالياً.</p>
                       {/* الرسالة بتقول السبب الحقيقي للمشكلة بدل ما تسيب المستخدم يفكر

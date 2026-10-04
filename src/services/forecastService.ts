@@ -936,8 +936,9 @@ export function buildForecastExportRows(input: {
   customers: Customer[];
   returnsByCustomerCode?: Map<string, { count: number; amount: number; lastDate: string }>;
   lastVisitByCustomerId?: Map<string, string>;
+  visitStatsByCustomer?: Map<string, { count: number; completed: number; lastDate: string }>;
 }) {
-  const { forecasts, comments, customers, returnsByCustomerCode, lastVisitByCustomerId } = input;
+  const { forecasts, comments, customers, returnsByCustomerCode, lastVisitByCustomerId, visitStatsByCustomer } = input;
   const commentByCode = new Map(comments.map((c) => [c.customerCode, c]));
 
   return customers.map((c) => {
@@ -952,6 +953,9 @@ export function buildForecastExportRows(input: {
     const weeklySales = weeks.reduce((s, f) => s + (Number(f.salesForecast) || 0), 0);
     const comment = commentByCode.get(c.code || '');
     const ret = returnsByCustomerCode?.get(c.code || '');
+    const vStats = visitStatsByCustomer?.get(c.id);
+    // آخر زيارة من سجل الزيارات، ويرجع لصف العميل لو السجلات فاضية.
+    const lastVisit = vStats?.lastDate || lastVisitByCustomerId?.get(c.id) || c.lastVisitDate || '';
 
     return {
       'كود العميل': c.code || '---',
@@ -959,6 +963,7 @@ export function buildForecastExportRows(input: {
       'الفرع': c.branchName || '',
       'المندوب': c.salesRepName || c.repName || '',
       'متعامل': badge.isDealt ? 'نعم' : 'لا',
+      'التصنيف من الشيت': fin.sheetClassificationLabel || (fin.isEligible ? 'قابل' : 'غير'),
       'تصنيف القابلية': badge.eligibilityLabel,
       'قابل للتعامل': fin.isEligible ? 'نعم' : 'لا',
       'طريقة الدفع': badge.paymentLabel,
@@ -975,7 +980,9 @@ export function buildForecastExportRows(input: {
       'فرق الشهر على الأسابيع (ج.م)': monthForecast - weeklyCollection,
       'متوقع البيع الأسبوعي (ج.م)': weeklySales,
       'عدد أسابيع متوقع فيها': weeks.filter((f) => Number(f.collectionForecast) > 0).length,
-      'آخر زيارة': badge.lastVisitDate || '---',
+      'عدد الزيارات المنفّذة': vStats?.completed ?? 0,
+      'إجمالي الزيارات': vStats?.count ?? 0,
+      'آخر زيارة': lastVisit || '---',
       'الكومنت': comment?.body || '',
       'نوع الكومنت': comment ? COMMENT_KIND_LABELS[comment.kind] : '---',
       'كاتب الكومنت': comment?.authorName || '---',
