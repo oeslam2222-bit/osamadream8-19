@@ -1898,6 +1898,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       repName: string;
       total: number;
       transactingCount: number;
+      eligibleCount: number;
       transactingSales: number;
       transactingCollections: number;
       totalDebt: number;
@@ -1917,11 +1918,17 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     let totalNonTransacting = 0;
     let totalNonTransactingDebt = 0;
     let totalNonTransactingOverdue = 0;
+    let totalEligible = 0;
+    let eligibleTransacting = 0;
+    let eligibleNonTransacting = 0;
 
     const classifiedList: Array<{
       customer: Customer;
       category: 'transacting' | 'non_transacting';
       categoryLabel: string;
+      isEligible: boolean;
+      // The sheet's own wording, so the export never rewords the classification.
+      eligibleLabel: string;
       sales: number;
       collections: number;
       debt: number;
@@ -1944,6 +1951,16 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const isTrans = sales > 0 || cols !== 0 || hasOrder || Boolean(c.hasDealtIn2026);
       const isNonTrans = !isTrans && (debt > 0 || overdue > 0 || (m && m.isExplicitIneligible));
 
+      // القابل للتعامل comes from the sheet's قابل / غير column, read through the
+      // shared classifier. It is a separate axis from متعامل / غير متعامل: a
+      // customer can be قابل للتعامل without having traded yet.
+      const isEligible = m
+        ? m.isEligible
+        : classifyEligibilityColumn(c.dealEligibility)?.eligible ?? true;
+      if (isEligible) totalEligible++;
+      if (isTrans && isEligible) eligibleTransacting++;
+      if (!isTrans && isEligible) eligibleNonTransacting++;
+
       // فقط فئتان: متعامل وغير متعامل. أي عميل ليس متعاملاً يُحسب غير متعامل.
       let category: 'transacting' | 'non_transacting' = 'non_transacting';
       let categoryLabel = 'غير متعامل (راكد) ⚠️';
@@ -1957,6 +1974,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         customer: c,
         category,
         categoryLabel,
+        isEligible,
+        eligibleLabel: (m?.sheetClassificationLabel || '').trim() || (isEligible ? 'قابل للتعامل' : 'غير قابل'),
         sales,
         collections: cols,
         debt,
@@ -1973,6 +1992,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           repName: rName,
           total: 0,
           transactingCount: 0,
+          eligibleCount: 0,
           transactingSales: 0,
           transactingCollections: 0,
           totalDebt: 0,
@@ -1991,6 +2011,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       totalAll++;
       item.totalDebt += debt;
       item.totalOverdue += overdue;
+      if (isEligible) item.eligibleCount++;
 
       if (isTrans) {
         item.transactingCount++;
@@ -2045,6 +2066,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         totalNonTransactingRate: totalAll > 0 ? Math.round((totalNonTransacting / totalAll) * 100) : 0,
         totalNonTransactingDebt,
         totalNonTransactingOverdue,
+        totalEligible,
+        totalEligibleRate: totalAll > 0 ? Math.round((totalEligible / totalAll) * 100) : 0,
+        eligibleTransacting,
+        eligibleNonTransacting,
         totalNetBalance: totalNetBalanceAll,
       }
     };
@@ -2075,6 +2100,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       'الفرع': item.branchName,
       'المندوب': item.repName,
       'تصنيف التعامل': item.categoryLabel,
+      'قابل للتعامل': item.eligibleLabel,
       'مبيعات 2026 (ج.م)': item.sales,
       'تحصيلات 2026 (ج.م)': item.collections,
       'الرصيد الحالي (ج.م)': item.debt,
@@ -2091,6 +2117,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       { wch: 15 },
       { wch: 20 },
       { wch: 22 },
+      { wch: 18 },
       { wch: 16 },
       { wch: 16 },
       { wch: 16 },
@@ -3669,7 +3696,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </div>
 
               {/* Power BI Interactive KPI Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
                 {/* Total Customers */}
                 <div
                   onClick={() => setDealingSegmentFilter('ALL')}
@@ -3743,6 +3770,59 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <span>مديونية معلقة: {formatMoney(customerDealingAnalytics.kpi.totalNonTransactingDebt)}</span>
                   </div>
                 </div>
+
+                {/* Eligible for Dealing (القابلون للتعامل) — the third axis, taken
+                    from the sheet's قابل / غير column. A customer can be eligible
+                    without having traded yet, so this is not the same as either
+                    card next to it. */}
+                <div
+                  onClick={() => setDealingSegmentFilter('ALL')}
+                  className="p-3.5 rounded-2xl border bg-sky-50/70 text-sky-950 border-sky-200 hover:border-sky-300 shadow-2xs transition cursor-pointer"
+                  title="العملاء القابلون للتعامل حسب عمود قابل / غير في الشيت"
+                >
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="font-bold text-sky-800">🔵 القابلون للتعامل</span>
+                    <ShieldCheck className="w-4 h-4 text-sky-600" />
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-black font-mono text-sky-900">
+                      {customerDealingAnalytics.kpi.totalEligible.toLocaleString()}
+                    </span>
+                    <span className="text-xs font-black px-1.5 py-0.5 rounded-md bg-sky-200 text-sky-900">
+                      {customerDealingAnalytics.kpi.totalEligibleRate}% من القاعدة
+                    </span>
+                  </div>
+                  <div className="text-[11px] font-mono font-bold mt-1 text-sky-700 flex items-center justify-between gap-2">
+                    <span>🟢 منهم متعامل: {customerDealingAnalytics.kpi.eligibleTransacting.toLocaleString()}</span>
+                    <span>⚪ غير متعامل: {customerDealingAnalytics.kpi.eligibleNonTransacting.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Non-eligible (غير القابلين للتعامل) — completes the picture */}
+                <div
+                  onClick={() => setDealingSegmentFilter('ALL')}
+                  className="p-3.5 rounded-2xl border bg-slate-100/80 text-slate-900 border-slate-300 hover:border-slate-400 shadow-2xs transition cursor-pointer"
+                  title="العملاء غير القابلين للتعامل حسب عمود قابل / غير في الشيت"
+                >
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="font-bold text-slate-700">⛔ غير القابلين للتعامل</span>
+                    <Ban className="w-4 h-4 text-slate-600" />
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-black font-mono text-slate-800">
+                      {(customerDealingAnalytics.kpi.totalAll - customerDealingAnalytics.kpi.totalEligible).toLocaleString()}
+                    </span>
+                    <span className="text-xs font-black px-1.5 py-0.5 rounded-md bg-slate-300 text-slate-900">
+                      {customerDealingAnalytics.kpi.totalAll > 0
+                        ? Math.round(((customerDealingAnalytics.kpi.totalAll - customerDealingAnalytics.kpi.totalEligible) / customerDealingAnalytics.kpi.totalAll) * 100)
+                        : 0}
+                      % من القاعدة
+                    </span>
+                  </div>
+                  <div className="text-[11px] font-mono font-bold mt-1 text-slate-600 flex items-center justify-between gap-2">
+                    <span>غير قابل للتعامل غير متعامل: {(customerDealingAnalytics.kpi.totalNonTransacting - customerDealingAnalytics.kpi.eligibleNonTransacting).toLocaleString()}</span>
+                  </div>
+                </div>
               </div>
 
               {/* Power BI Breakdown Matrix Table (بالمندوب والفرع) */}
@@ -3771,6 +3851,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         <th className="p-2.5 text-left text-emerald-300">مبيعات 2026</th>
                         <th className="p-2.5 text-left text-emerald-300">تحصيلات 2026</th>
                         <th className="p-2.5 text-left text-cyan-300">الرصيد الصافي</th>
+                        <th className="p-2.5 text-center text-sky-300">🔵 قابل للتعامل</th>
+                        <th className="p-2.5 text-center text-slate-300">⛔ غير قابل</th>
                         <th className="p-2.5 text-center text-rose-300">🔴 غير متعاملين</th>
                         <th className="p-2.5 text-center text-rose-300">% الركود</th>
                         <th className="p-2.5 text-left text-rose-300">مديونية راكدة</th>
@@ -3824,6 +3906,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                             </td>
                             <td className="p-2.5 text-left font-mono font-black text-cyan-800 whitespace-nowrap" title={isPrivacyMode ? 'مخفي' : undefined}>
                               {formatMoney(row.netBalance)}
+                            </td>
+
+                            {/* Eligible / Non-eligible (from the sheet's قابل / غير column) */}
+                            <td className="p-2.5 text-center font-black text-sky-700">
+                              {row.eligibleCount.toLocaleString()}
+                            </td>
+                            <td className="p-2.5 text-center font-black text-slate-600">
+                              {(row.total - row.eligibleCount).toLocaleString()}
                             </td>
 
                             {/* Non-Transacting */}
@@ -3882,6 +3972,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         <td className="p-2.5 text-left font-mono font-black text-slate-900">{formatMoney(customerDealingAnalytics.kpi.totalTransactingSales)}</td>
                         <td className="p-2.5 text-left font-mono font-black text-emerald-800">{formatMoney(customerDealingAnalytics.kpi.totalTransactingCollections)}</td>
                         <td className="p-2.5 text-left font-mono font-black text-cyan-800">{formatMoney(customerDealingAnalytics.kpi.totalTransactingSales - customerDealingAnalytics.kpi.totalTransactingCollections)}</td>
+                        <td className="p-2.5 text-center text-sky-800 font-mono font-black">{customerDealingAnalytics.kpi.totalEligible.toLocaleString()}</td>
+                        <td className="p-2.5 text-center text-slate-600 font-mono font-black">{(customerDealingAnalytics.kpi.totalAll - customerDealingAnalytics.kpi.totalEligible).toLocaleString()}</td>
                         <td className="p-2.5 text-center text-rose-800 font-mono font-black">{customerDealingAnalytics.kpi.totalNonTransacting.toLocaleString()}</td>
                         <td className="p-2.5 text-center text-rose-800 font-mono font-black">{customerDealingAnalytics.kpi.totalNonTransactingRate}%</td>
                         <td className="p-2.5 text-left font-mono font-black text-rose-800">{formatMoney(customerDealingAnalytics.kpi.totalNonTransactingDebt)}</td>
@@ -6041,7 +6133,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </div>
 
               <div className="mt-2 text-[10.5px] font-bold text-slate-500 leading-relaxed">
-إجمالي العملاء في النطاق: {dealStatusCounts.total.toLocaleString()} عميل — متعامل ({dealStatusCounts.dealt.toLocaleString()}).
+إجمالي العملاء في النطاق: {dealStatusCounts.total.toLocaleString()} عميل — متعامل ({dealStatusCounts.dealt.toLocaleString()}) · قابل للتعامل ({customerDealingAnalytics.kpi.totalEligible.toLocaleString()}) · غير قابل ({customerDealingAnalytics.kpi.totalAll - customerDealingAnalytics.kpi.totalEligible}).
               </div>
 
 
