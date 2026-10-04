@@ -52,9 +52,8 @@ ${itemsText}
 ━━━━━━━━━━━━━━━━━━━
 📊 *الملخص المالي للفاتورة:*
 📦 إجمالي الكراتين: *${invoice.totalCartons}* كرتونة
-💵 المجموع قبل الخصم: ${formatCurrency(invoice.subtotal)}
-🏷️ الخصم التجاري الممنوح (${invoice.discountPercentage}%): -${formatCurrency(invoice.discountAmount)}
-━━━━━━━━━━━━━━━━━━━
+💵 ${invoice.discountAmount > 0 ? `المجموع قبل الخصم: ${formatCurrency(invoice.subtotal)}` : `إجمالي الفاتورة: ${formatCurrency(invoice.subtotal)}`}
+${invoice.discountAmount > 0 ? `🏷️ الخصم التجاري الممنوح (${invoice.discountPercentage}%): -${formatCurrency(invoice.discountAmount)}\n` : ''}━━━━━━━━━━━━━━━━━━━
 ✨ *إجمالي الفاتورة الصافي النهائي:* 
 👉 *${formatCurrency(invoice.estimatedGrandTotal)}*
 💳 طريقة الدفع: *${invoice.paymentMethod}*

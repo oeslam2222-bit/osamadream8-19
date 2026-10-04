@@ -828,7 +828,9 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                         <div className="font-black text-amber-900 text-sm">
                           {formatCurrency(invoice.estimatedGrandTotal)}
                         </div>
-                        <div className="text-[10px] text-emerald-700">خصم: {formatCurrency(invoice.discountAmount)}</div>
+                        {invoice.discountAmount > 0 && (
+                          <div className="text-[10px] text-emerald-700">خصم: {formatCurrency(invoice.discountAmount)}</div>
+                        )}
                       </td>
 
                       {/* Payment Method */}

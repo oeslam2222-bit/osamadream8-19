@@ -33,6 +33,7 @@ const InvoicesManager = lazy(() => import('./components/InvoicesManager').then((
 const InventoryStockView = lazy(() => import('./components/InventoryStockView').then((m) => ({ default: m.InventoryStockView })));
 const ExcelImportExport = lazy(() => import('./components/ExcelImportExport').then((m) => ({ default: m.ExcelImportExport })));
 const UserManager = lazy(() => import('./components/UserManager').then((m) => ({ default: m.UserManager })));
+const ManagementDashboard = lazy(() => import('./components/ManagementDashboard').then((m) => ({ default: m.ManagementDashboard })));
 const SystemWorkflowGuide = lazy(() => import('./components/SystemWorkflowGuide').then((m) => ({ default: m.SystemWorkflowGuide })));
 const OrderBuilderModal = lazy(() => import('./components/OrderBuilderModal').then((m) => ({ default: m.OrderBuilderModal })));
 const ElectronicInvoiceModal = lazy(() => import('./components/ElectronicInvoiceModal').then((m) => ({ default: m.ElectronicInvoiceModal })));
@@ -60,7 +61,7 @@ const MainLayout: React.FC = () => {
       const saved = localStorage.getItem('dream8_landing_tab');
       if (saved === 'visits' || saved === 'all_customers' || saved === 'catalog') return saved;
     } catch { /* ignore */ }
-    return 'all_customers';
+    return currentUser?.role === 'admin' ? 'management' : 'all_customers';
   });
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
@@ -74,10 +75,10 @@ const MainLayout: React.FC = () => {
   useEffect(() => {
     try {
       const saved = localStorage.getItem('dream8_landing_tab');
-      const desired = saved === 'catalog' ? 'catalog' : (isRep ? 'visits' : 'all_customers');
+      const desired = saved === 'catalog' ? 'catalog' : (isRep ? 'visits' : currentUser?.role === 'admin' ? 'management' : 'all_customers');
       setActiveTab((cur) => (cur === 'catalog' ? desired : cur));
     } catch { /* ignore */ }
-  }, [isRep]);
+  }, [isRep, currentUser?.role]);
 
   // If user is not logged in, show dedicated Login / Registration Page.
   // This must stay after the useEffect above: returning early before a hook
@@ -158,6 +159,10 @@ const MainLayout: React.FC = () => {
               onOpenNewOrder={() => setIsOrderModalOpen(true)}
               onViewInvoice={(inv) => setViewingInvoice(inv)}
             />
+          )}
+
+          {activeTab === 'management' && currentUser.role === 'admin' && (
+            <ManagementDashboard onNavigateToTab={setActiveTab} />
           )}
 
           {activeTab === 'targets' && <TargetPerformanceDashboard />}

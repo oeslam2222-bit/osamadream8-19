@@ -4,7 +4,6 @@ import {
   ArrowDownUp,
   Boxes,
   Building,
-  Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -273,11 +272,10 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     return accessibleInvoices.slice(start, start + itemsPerPage);
   }, [accessibleInvoices, currentPage, itemsPerPage]);
 
-  // High-Level Dashboard Metrics (Sales, Collections, and Workflow Status)
+  // High-Level Dashboard Metrics (Sales and Workflow Status)
   const metrics = useMemo(() => {
     let totalRevenue = 0;
     let totalAllSales = 0;
-    let totalCollections = 0;
     let totalCartons = 0;
     let pendingApprovals = 0;
     let outForDelivery = 0;
@@ -287,7 +285,6 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     let returnedRevenue = 0;
     let returnedCartons = 0;
 
-    let approvedCount = 0;
     let preparingCount = 0;
 
     accessibleInvoices.forEach((inv) => {
@@ -313,9 +310,6 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
       if (inv.status === 'تم التسليم' || inv.status === 'إغلاق الطلبية') {
         deliveredCount += 1;
         deliveredRevenue += inv.estimatedGrandTotal || 0;
-        totalCollections += inv.estimatedGrandTotal || 0;
-      } else if (inv.status === 'معتمدة ومصروفة من المخزن' || inv.status === 'معتمدة') {
-        approvedCount += 1;
       } else if (inv.status === 'جاري التجهيز') {
         preparingCount += 1;
       }
@@ -336,30 +330,21 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     });
 
     const effectiveTotalSales = totalRevenue > 0 ? totalRevenue : totalAllSales;
-    const completedInvoices = deliveredCount + approvedCount;
     const inProgressInvoices = preparingCount + outForDelivery + pendingApprovals;
-    const totalProcessed = deliveredCount + returnedCount + outForDelivery;
-    const deliveryRate = totalProcessed > 0 ? Math.round((deliveredCount / totalProcessed) * 100) : 100;
-    const collectionRate = effectiveTotalSales > 0 ? Math.min(100, Math.round((totalCollections / effectiveTotalSales) * 100)) : 100;
 
     return {
       totalRevenue: effectiveTotalSales,
       totalAllSales,
-      totalCollections,
-      collectionRate,
       totalCartons,
       pendingApprovals,
       outForDelivery,
       preparingCount,
-      approvedCount,
-      completedInvoices,
       inProgressInvoices,
       deliveredCount,
       deliveredRevenue,
       returnedCount,
       returnedRevenue,
       returnedCartons,
-      deliveryRate,
       shortageInvoicesCount: accessibleInvoices.filter((i) => i.isShortageInvoice || (i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))).length,
     };
   }, [accessibleInvoices]);
@@ -556,8 +541,8 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           </div>
         </div>
 
-        {/* Aggregate KPI Stats Grid - Top Row: Sales, Collections & Orders Workflow */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
+        {/* Aggregate KPI Stats Grid - Top Row: Sales & Orders Workflow */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-2">
           
           {/* Card 1: Total Sales */}
           <div className="bg-slate-800/90 p-3.5 rounded-2xl border border-slate-700/80 space-y-1 relative overflow-hidden group">
@@ -581,46 +566,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             </div>
           </div>
 
-          {/* Card 2: Total Collections (التحصيلات) */}
-          <div className="bg-emerald-500/10 p-3.5 rounded-2xl border border-emerald-500/30 space-y-1 relative overflow-hidden group">
-            <div className="text-[11px] text-emerald-300 font-bold flex items-center justify-between">
-              <span className="flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>
-                  {currentUser?.role === 'sales_rep'
-                    ? 'تحصيلاتي'
-                    : currentUser?.role === 'branch_manager'
-                    ? `تحصيلات ${currentUser.branchName || 'الفرع'}`
-                    : 'إجمالي التحصيلات'}
-                </span>
-              </span>
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-black">
-                {metrics.collectionRate}%
-              </span>
-            </div>
-            <div className="text-base sm:text-lg font-black text-emerald-400 font-mono">
-              {formatCurrency(metrics.totalCollections)}
-            </div>
-            <div className="text-[10px] text-emerald-300/80 font-medium">
-              محصل من الفواتير والتسليم
-            </div>
-          </div>
-
-          {/* Card 3: Completed Invoices */}
-          <div className="bg-slate-800/70 p-3.5 rounded-2xl border border-slate-700/70 space-y-1">
-            <div className="text-[11px] text-slate-300 font-bold flex items-center gap-1">
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{currentUser?.role === 'sales_rep' ? 'طلبياتي المسلّمة' : 'الفواتير المكتملة'}</span>
-            </div>
-            <div className="text-base sm:text-lg font-black text-white">
-              {metrics.completedInvoices} فاتورة
-            </div>
-            <div className="text-[10px] text-slate-400 font-medium">
-              {metrics.deliveredCount} مسلّمة • {metrics.approvedCount} معتمدة
-            </div>
-          </div>
-
-          {/* Card 4: In-Progress / Under Prep Invoices */}
+          {/* Card 2: In-Progress / Under Prep Invoices */}
           <div className="bg-cyan-500/10 p-3.5 rounded-2xl border border-cyan-500/30 space-y-1">
             <div className="text-[11px] text-cyan-300 font-bold flex items-center gap-1">
               <Truck className="w-3.5 h-3.5 text-cyan-400" />
@@ -634,7 +580,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             </div>
           </div>
 
-          {/* Card 5: Pending Approvals */}
+          {/* Card 3: Pending Approvals */}
           <div className="bg-amber-500/10 p-3.5 rounded-2xl border border-amber-500/30 space-y-1">
             <div className="text-[11px] text-amber-300 font-bold flex items-center gap-1">
               <Clock className="w-3.5 h-3.5 text-amber-400" />
@@ -648,7 +594,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             </div>
           </div>
 
-          {/* Card 6: Shortages & Backorders */}
+          {/* Card 4: Shortages & Backorders */}
           <button
             type="button"
             onClick={() => setActiveStatusTab(activeStatusTab === 'فواتير النواقص' ? 'الكل' : 'فواتير النواقص')}

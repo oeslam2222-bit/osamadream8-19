@@ -63,8 +63,7 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
     customers,
   } = useApp();
 
-  const [discountPercent, setDiscountPercent] = useState<number>(0);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('نقدي (كاش)');
+  const paymentMethod: PaymentMethod = 'نقدي (كاش)';
   const [customerSearch, setCustomerSearch] = useState('');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [localCustomer, setLocalCustomer] = useState<Customer | null>(selectedCustomer || null);
@@ -82,8 +81,8 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
   }, [selectedCustomer]);
 
   const cartSummary = useMemo(() => {
-    return getCartSummary(discountPercent);
-  }, [getCartSummary, discountPercent]);
+    return getCartSummary(0);
+  }, [getCartSummary]);
 
   const activeCustomer = localCustomer || selectedCustomer;
 
@@ -159,7 +158,6 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
         repName: currentUser?.name || 'مندوب المبيعات',
         branchName: effectiveCustomer.branchName || currentUser?.branchName,
         paymentMethod: paymentMethod,
-        discountPercentage: discountPercent,
         notes: finalNotes,
         customerBalanceBefore: balBefore,
         customerCreditLimit: credLimit,
@@ -560,44 +558,14 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
         </div>
       )}
 
-      {/* Discount & Payment Controls */}
+      {/* Payment Method (Cash Only) */}
       {cart.length > 0 && (
         <div className="p-3 bg-slate-50 border-t border-slate-200 space-y-2 text-xs">
-          {/* Quick Discount Buttons */}
           <div className="flex items-center justify-between gap-1.5">
-            <span className="text-xs text-slate-500 font-bold">الخصم التجاري:</span>
-            <div className="flex items-center gap-1">
-              {[0, 1, 2, 3, 5].map((pct) => (
-                <button
-                  key={pct}
-                  onClick={() => setDiscountPercent(pct)}
-                  className={`px-2 py-0.5 rounded-md text-xs font-black transition cursor-pointer ${
-                    discountPercent === pct
-                      ? 'bg-emerald-500 text-white shadow-sm'
-                      : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
-                  }`}
-                >
-                  {pct}%
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Payment Method Toggle */}
-          <div className="flex items-center justify-between gap-1">
-            {(['نقدي (كاش)', 'آجل (30 يوم)', 'تحويل بنكي'] as PaymentMethod[]).map((method) => (
-              <button
-                key={method}
-                onClick={() => setPaymentMethod(method)}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-bold text-center transition cursor-pointer truncate ${
-                  paymentMethod === method
-                    ? 'bg-amber-400 text-slate-950 font-black shadow-sm'
-                    : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
-                }`}
-              >
-                {method === 'نقدي (كاش)' ? 'نقدي' : method === 'آجل (30 يوم)' ? 'آجل 30 يوم' : 'تحويل بنكي'}
-              </button>
-            ))}
+            <span className="text-xs text-slate-500 font-bold">طريقة السداد:</span>
+            <span className="px-3 py-1.5 rounded-lg bg-amber-400 text-slate-950 text-xs font-black shadow-sm">
+              نقدي (كاش)
+            </span>
           </div>
 
           {/* Sales Rep Order Notes */}
@@ -627,20 +595,8 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
             </strong>
           </div>
 
-          <div className="flex items-center justify-between text-slate-500 text-xs">
-            <span>المجموع قبل الخصم:</span>
-            <span className="text-slate-900 font-bold">{formatCurrency(cartSummary.subtotal)}</span>
-          </div>
-
-          {discountPercent > 0 && (
-            <div className="flex items-center justify-between text-emerald-600 text-xs">
-              <span>قيمة الخصم ({discountPercent}%):</span>
-              <span className="font-bold">-{formatCurrency(cartSummary.discountAmount)}</span>
-            </div>
-          )}
-
           <div className="flex items-center justify-between pt-1 border-t border-slate-200">
-            <span className="text-sm font-bold text-slate-700">صافي الفاتورة:</span>
+            <span className="text-sm font-bold text-slate-700">إجمالي الفاتورة:</span>
             <strong className="text-lg font-black text-amber-600">
               {formatCurrency(cartSummary.grandTotal)}
             </strong>

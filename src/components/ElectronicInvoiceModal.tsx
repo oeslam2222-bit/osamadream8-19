@@ -651,7 +651,9 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                       )}
                     </td>
                     <td className="p-2.5 text-left font-medium text-slate-700">{formatCurrency(item.totalBeforeTax)}</td>
-                    <td className="p-2.5 text-left text-emerald-700 font-medium">-{formatCurrency(item.discountAmount)}</td>
+                    <td className="p-2.5 text-left text-emerald-700 font-medium">
+                      {item.discountAmount > 0 ? `-${formatCurrency(item.discountAmount)}` : '—'}
+                    </td>
                     <td className="p-2.5 text-left font-black text-slate-950">{formatCurrency(item.netTotal)}</td>
                   </tr>
                 ))}
@@ -770,10 +772,12 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                 <span className="font-bold">{formatCurrency(invoice.subtotal)}</span>
               </div>
 
-              <div className="flex justify-between items-center text-emerald-400">
-                <span>الخصم الممنوح ({invoice.discountPercentage}%):</span>
-                <span className="font-bold">-{formatCurrency(invoice.discountAmount)}</span>
-              </div>
+              {invoice.discountAmount > 0 && (
+                <div className="flex justify-between items-center text-emerald-400">
+                  <span>الخصم الممنوح ({invoice.discountPercentage}%):</span>
+                  <span className="font-bold">-{formatCurrency(invoice.discountAmount)}</span>
+                </div>
+              )}
 
               <div className="pt-2 border-t border-slate-700 flex justify-between items-center">
                 <span className="font-bold text-slate-200 text-xs">إجمالي الفاتورة الصافي:</span>

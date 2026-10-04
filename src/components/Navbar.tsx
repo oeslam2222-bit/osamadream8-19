@@ -1,5 +1,6 @@
 import {
   Bell,
+  BarChart3,
   BookOpen,
   Boxes,
   Building,
@@ -101,7 +102,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
   if (!currentUser) return null;
 
   const roleNames: Record<UserRole, { label: string; bg: string; text: string }> = {
-    admin: { label: 'الآدمن (الإدارة العامة)', bg: 'bg-rose-500/20 border-rose-500/40', text: 'text-rose-300' },
+    admin: { label: 'مدير النظام (الإدارة)', bg: 'bg-rose-500/20 border-rose-500/40', text: 'text-rose-300' },
     developer: { label: 'المطور (الدعم التقني)', bg: 'bg-amber-500/20 border-amber-500/40', text: 'text-amber-300' },
     branch_manager: { label: 'مدير الفرع', bg: 'bg-purple-500/20 border-purple-500/40', text: 'text-purple-300' },
     supervisor: { label: 'مشرف المناديب', bg: 'bg-blue-500/20 border-blue-500/40', text: 'text-blue-300' },
@@ -133,9 +134,10 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     : 0;
 
   const navItems = [
+    { id: 'management', label: 'لوحة الإدارة', icon: BarChart3, roles: ['admin'] },
     { id: 'catalog', label: 'كتالوج الأصناف والبيع', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'all_customers', label: currentUser.role === 'sales_rep' ? 'كافة العملاء والتحليل 👥' : 'كافة العملاء والتحليل 👥', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'dashboard', label: currentUser.role === 'sales_rep' ? 'متابعة طلبياتي 📊' : 'لوحة المشرف والمتابعة 📊', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'dashboard', label: currentUser.role === 'sales_rep' ? 'متابعة طلبياتي 📊' : currentUser.role === 'admin' ? 'متابعة الطلبات' : 'لوحة المشرف والمتابعة 📊', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'targets', label: currentUser.role === 'sales_rep' ? 'هدفي والتارجت' : 'تارجت المبيعات والتحصيل', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'visits', label: 'زيارات العملاء', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'invoices', label: currentUser.role === 'sales_rep' ? 'طلبياتي وفواتيري 📑' : 'الفواتير والطلبيات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },

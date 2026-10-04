@@ -2450,7 +2450,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       branchName: found.branchName,
       action: 'user_login',
       actionTitle: `تسجيل دخول (${found.name})`,
-      details: `تم تسجيل الدخول بصلاحية (${found.role === 'admin' ? 'مدير عام' : found.role === 'branch_manager' ? 'مدير فرع' : found.role === 'supervisor' ? 'مشرف مبيعات' : found.role === 'developer' ? 'مطور تقني' : 'مندوب مبيعات'}) لـ ${found.branchName}.`,
+      details: `تم تسجيل الدخول بصلاحية (${found.role === 'admin' ? 'مدير النظام (الإدارة)' : found.role === 'branch_manager' ? 'مدير فرع' : found.role === 'supervisor' ? 'مشرف مبيعات' : found.role === 'developer' ? 'مطور تقني' : 'مندوب مبيعات'}) لـ ${found.branchName}.`,
       badgeType: 'info',
     });
 

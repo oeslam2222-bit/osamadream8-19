@@ -99,8 +99,8 @@ export const UserManager: React.FC = () => {
     desc: string;
   }> = {
     admin: {
-      label: 'الآدمن (الإدارة العامة)',
-      shortLabel: 'الآدمن',
+      label: 'مدير النظام (الإدارة)',
+      shortLabel: 'مدير النظام',
       bg: 'bg-rose-50',
       border: 'border-rose-200',
       text: 'text-rose-800',

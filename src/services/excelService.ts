@@ -1052,8 +1052,10 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
 
   const summaryRows = [
     [],
-    ['', '', '', '', '', '', '', '', '', '', 'إجمالي البضاعة قبل الخصم:', '', invoice.subtotal, ''],
-    ['', '', '', '', '', '', '', '', '', '', `إجمالي الخصم التجاري (${invoice.discountPercentage}%):`, '', invoice.discountAmount > 0 ? -invoice.discountAmount : 0, ''],
+    ['', '', '', '', '', '', '', '', '', '', invoice.discountAmount > 0 ? 'إجمالي البضاعة قبل الخصم:' : 'إجمالي البضاعة:', '', invoice.subtotal, ''],
+    ...(invoice.discountAmount > 0
+      ? [['', '', '', '', '', '', '', '', '', '', `إجمالي الخصم التجاري (${invoice.discountPercentage}%):`, '', -invoice.discountAmount, '']]
+      : []),
     ['', '', '', '', '', '', '', '', '', '', 'الإجمالي النهائي المطلوب سداده (الصافي):', '', invoice.estimatedGrandTotal, ''],
     ['', '', '', '', '', '', '', '', '', '', 'المديونية السابقة للعميل:', '', debtBefore, ''],
     ['', '', '', '', '', '', '', '', '', '', 'إجمالي مديونية العميل بعد الفاتورة:', '', debtAfter, ''],
@@ -1564,8 +1566,9 @@ export function exportInvoiceForERP(invoice: Invoice): void {
     ['إجمالي عدد الكراتين', invoice.totalCartons],
     ['إجمالي عدد القطع', invoice.totalPieces],
     ['إجمالي القيمة قبل الخصم', invoice.subtotal],
-    ['نسبة الخصم %', invoice.discountPercentage],
-    ['قيمة الخصم الإجمالي', invoice.discountAmount],
+    ...(invoice.discountAmount > 0
+      ? [['نسبة الخصم %', invoice.discountPercentage], ['قيمة الخصم الإجمالي', invoice.discountAmount]]
+      : []),
     ['الصافي النهائي المستحق', invoice.estimatedGrandTotal],
     ['طريقة السداد', invoice.paymentMethod],
     ['حالة الفاتورة', invoice.status],

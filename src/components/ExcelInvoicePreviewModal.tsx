@@ -546,7 +546,8 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
 
                 <div className="text-left sm:text-right space-y-1 shrink-0">
                   <div className="text-xs text-slate-300">
-                    المجموع قبل الخصم: <span className="font-bold">{formatCurrency(invoice.subtotal)}</span>
+                    {invoice.discountAmount > 0 ? 'المجموع قبل الخصم: ' : 'إجمالي الفاتورة: '}
+                    <span className="font-bold">{formatCurrency(invoice.subtotal)}</span>
                   </div>
                   {invoice.discountAmount > 0 && (
                     <div className="text-xs text-emerald-400">

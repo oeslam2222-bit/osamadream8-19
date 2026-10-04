@@ -97,8 +97,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const [unregisteredCustomerAddress, setUnregisteredCustomerAddress] = useState('');
 
   // Financial & Order Options
-  const [discountPercent, setDiscountPercent] = useState<number>(0);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('نقدي (كاش)');
+  const paymentMethod: PaymentMethod = 'نقدي (كاش)';
   const [invoiceNotes, setInvoiceNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
@@ -182,8 +181,8 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
   // Cart summary calculation
   const summary = useMemo(() => {
-    return getCartSummary(discountPercent);
-  }, [getCartSummary, discountPercent]);
+    return getCartSummary(0);
+  }, [getCartSummary]);
 
   if (!isOpen) return null;
 
@@ -306,7 +305,6 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         repId: activeRepUser?.id || currentUser?.id,
         branchName: effectiveCustomer.branchName || activeBranch,
         paymentMethod: paymentMethod,
-        discountPercentage: discountPercent,
         notes: invoiceNotes || `فاتورة مبيعات كاشير دريم - تسجيل بواسطة ${currentUser?.name || 'المندوب'}`,
         customerBalanceBefore: balBefore,
         customerCreditLimit: credLimit,
@@ -1100,65 +1098,15 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                 </div>
               </div>
 
-              {/* Payment Method, Discount & Notes */}
+              {/* Payment Method & Notes */}
               <div className="bg-slate-950 p-4 rounded-3xl border border-slate-800 space-y-4">
-                {/* Payment Method */}
+                {/* Payment Method (Cash Only) */}
                 <div>
                   <label className="text-xs font-bold text-slate-300 block mb-1.5">
                     طريقة السداد:
                   </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {(['نقدي (كاش)', 'آجل', 'على دفعات', 'شيكات'] as PaymentMethod[]).map((method) => (
-                      <button
-                        key={method}
-                        type="button"
-                        onClick={() => setPaymentMethod(method)}
-                        className={`p-2 rounded-xl text-xs font-bold transition cursor-pointer text-center ${
-                          paymentMethod === method
-                            ? 'bg-amber-400 text-slate-950 font-black shadow-md'
-                            : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-850'
-                        }`}
-                      >
-                        {method}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Additional Discount */}
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1.5">
-                    <span className="font-bold text-slate-300">نسبة الخصم التجاري الإضافي (%):</span>
-                    {discountPercent > 0 && (
-                      <span className="text-emerald-400 font-mono font-bold">
-                        خصم: {formatCurrency(summary.discountAmount)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {[0, 2, 5, 10].map((pct) => (
-                      <button
-                        key={pct}
-                        type="button"
-                        onClick={() => setDiscountPercent(pct)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition ${
-                          discountPercent === pct
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-slate-900 text-slate-300 border border-slate-800'
-                        }`}
-                      >
-                        {pct}%
-                      </button>
-                    ))}
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={discountPercent}
-                      onChange={(e) => setDiscountPercent(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
-                      className="w-20 bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-white text-center font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
-                      placeholder="خصم %"
-                    />
+                  <div className="p-2 rounded-xl text-xs font-black text-center bg-amber-400 text-slate-950 shadow-md">
+                    نقدي (كاش)
                   </div>
                 </div>
 
@@ -1179,16 +1127,6 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
               {/* Final Financial Totals Box */}
               <div className="bg-slate-950 p-4 rounded-3xl border border-slate-800 space-y-2 text-xs">
-                <div className="flex items-center justify-between text-slate-300">
-                  <span>المجموع قبل الخصم:</span>
-                  <span className="font-mono text-sm font-bold text-white">{formatCurrency(summary.subtotal)}</span>
-                </div>
-                {discountPercent > 0 && (
-                  <div className="flex items-center justify-between text-emerald-400">
-                    <span>الخصم ({discountPercent}%):</span>
-                    <span className="font-mono font-bold">-{formatCurrency(summary.discountAmount)}</span>
-                  </div>
-                )}
                 <div className="flex items-center justify-between pt-2 border-t border-slate-800">
                   <span className="text-sm font-black text-white">الصافي المطلوب سداده:</span>
                   <span className="text-xl font-black text-amber-400 font-mono">{formatCurrency(summary.grandTotal)}</span>
