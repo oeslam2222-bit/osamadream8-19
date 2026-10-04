@@ -17,6 +17,9 @@ import type {
   ReturnedItem,
   ReturnRecord,
   TargetRecord,
+  CollectionForecastRecord,
+  ForecastMonthPlan,
+  CustomerCommentRecord,
   User,
   UserRole,
   VisitReviewStatus,
@@ -199,6 +202,16 @@ export interface AppContextType {
 
   // Targets & KPIs Dashboard
   targets: TargetRecord[];
+  forecasts: CollectionForecastRecord[];
+  forecastPlans: ForecastMonthPlan[];
+  customerComments: CustomerCommentRecord[];
+  saveForecast: (record: CollectionForecastRecord) => Promise<void>;
+  submitForecastWeek: (monthKey: string, weekIndex: number, repId: string) => Promise<number>;
+  approveForecastWeek: (monthKey: string, weekIndex: number, repId: string) => Promise<number>;
+  requestForecastChange: (monthKey: string, weekIndex: number, repId: string, note: string) => Promise<number>;
+  saveForecastPlan: (plan: ForecastMonthPlan) => Promise<void>;
+  saveCustomerComment: (comment: CustomerCommentRecord) => Promise<void>;
+  deleteCustomerComment: (id: string) => Promise<void>;
   getVisibleTargets: () => TargetRecord[];
   importTargetsFromExcel: (file: File) => Promise<{ success: boolean; count: number; message: string }>;
   importTargetsFromGoogleSheet: (url: string) => Promise<{ success: boolean; count: number; message: string }>;

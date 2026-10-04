@@ -1,5 +1,13 @@
 import { idbGet, idbSet } from './storageService';
-import type { Customer, CustomerVisit, Invoice, User } from '../types';
+import type {
+  CollectionForecastRecord,
+  Customer,
+  CustomerCommentRecord,
+  CustomerVisit,
+  ForecastMonthPlan,
+  Invoice,
+  User,
+} from '../types';
 
 /**
  * Offline outbox.
@@ -14,7 +22,7 @@ import type { Customer, CustomerVisit, Invoice, User } from '../types';
  * replacements, so the flush sends whatever the local state holds at flush time
  * rather than a stale snapshot.
  */
-export type QueueEntity = 'invoices' | 'visits' | 'customers' | 'users' | 'products' | 'targets';
+export type QueueEntity = 'invoices' | 'visits' | 'customers' | 'users' | 'products' | 'targets' | 'forecasts' | 'forecast_plans' | 'customer_comments';
 export type QueueOp = 'upsert' | 'delete' | 'replace';
 
 export interface QueuedMutation {
@@ -22,7 +30,7 @@ export interface QueuedMutation {
   entity: QueueEntity;
   op: QueueOp;
   entityId: string;
-  payload?: Invoice | CustomerVisit | Customer | User;
+  payload?: Invoice | CustomerVisit | Customer | User | CollectionForecastRecord | ForecastMonthPlan | CustomerCommentRecord;
   queuedAt: number;
   attempts: number;
   lastError?: string;

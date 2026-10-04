@@ -31,6 +31,13 @@ import {
   fetchVisitsFromSupabase,
   saveTargetsToSupabase,
   saveVisitsToSupabase,
+  fetchForecastsFromSupabase,
+  saveForecastsToSupabase,
+  fetchForecastMonthPlansFromSupabase,
+  saveForecastMonthPlanToSupabase,
+  fetchCustomerCommentsFromSupabase,
+  saveCustomerCommentsToSupabase,
+  deleteCustomerCommentFromSupabase,
   fetchUsersFromSupabase,
   findUserInSupabase,
   sanitizeEmail,
@@ -74,6 +81,9 @@ import {
   AccountingSyncLog,
   AuditLog,
   Branch,
+  CollectionForecastRecord,
+  ForecastMonthPlan,
+  CustomerCommentRecord,
   CartItem,
   CloudinaryConfig,
   CompanyInfo,
@@ -249,6 +259,140 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error('Error saving targets to localStorage', e);
     }
   }, [targets]);
+
+  /* ============================================================
+     توقع التحصيلات — state
+     localStorage أولاً (أوفلاين يشتغل)، بعدين Supabase للمشاركة.
+     ============================================================ */
+
+  const [forecasts, setForecasts] = useState<CollectionForecastRecord[]>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.FORECASTS);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [forecastPlans, setForecastPlans] = useState<ForecastMonthPlan[]>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.FORECAST_PLANS);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [customerComments, setCustomerComments] = useState<CustomerCommentRecord[]>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.CUSTOMER_COMMENTS);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.FORECASTS, JSON.stringify(forecasts));
+    } catch (e) {
+      console.error('Error saving forecasts to localStorage', e);
+    }
+  }, [forecasts]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.FORECAST_PLANS, JSON.stringify(forecastPlans));
+    } catch (e) {
+      console.error('Error saving forecast plans to localStorage', e);
+    }
+  }, [forecastPlans]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.CUSTOMER_COMMENTS, JSON.stringify(customerComments));
+    } catch (e) {
+      console.error('Error saving customer comments to localStorage', e);
+    }
+  }, [customerComments]);
+
+  // Load the shared copy so every device and every role sees the same numbers.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [fRes, pRes, cRes] = await Promise.all([
+        fetchForecastsFromSupabase(),
+        fetchForecastMonthPlansFromSupabase(),
+        fetchCustomerCommentsFromSupabase(),
+      ]);
+      if (cancelled) return;
+      if (fRes.success && fRes.forecasts) {
+        const mapped: CollectionForecastRecord[] = fRes.forecasts.map((r: any) => ({
+          id: r.id,
+          monthKey: r.month_key ?? r.monthKey,
+          weekIndex: Number(r.week_index ?? r.weekIndex ?? 1),
+          repId: r.rep_id ?? r.repId ?? '',
+          repName: r.rep_name ?? r.repName ?? '',
+          branchName: r.branch_name ?? r.branchName ?? '',
+          customerId: r.customer_id ?? r.customerId ?? '',
+          customerCode: r.customer_code ?? r.customerCode ?? '',
+          customerName: r.customer_name ?? r.customerName ?? '',
+          collectionForecast: Number(r.collection_forecast ?? r.collectionForecast ?? 0),
+          salesForecast: Number(r.sales_forecast ?? r.salesForecast ?? 0),
+          status: (r.status ?? 'draft') as CollectionForecastRecord['status'],
+          submittedAt: r.submitted_at ?? r.submittedAt ?? undefined,
+          approvedBy: r.approved_by ?? r.approvedBy ?? undefined,
+          approvedAt: r.approved_at ?? r.approvedAt ?? undefined,
+          changeRequestNote: r.change_request_note ?? r.changeRequestNote ?? undefined,
+          changeRequestedBy: r.change_requested_by ?? r.changeRequestedBy ?? undefined,
+          changeRequestedAt: r.change_requested_at ?? r.changeRequestedAt ?? undefined,
+          updatedBy: r.updated_by ?? r.updatedBy ?? undefined,
+          updatedAt: r.updated_at ?? r.updatedAt ?? undefined,
+        }));
+        setForecasts(mapped);
+      }
+      if (pRes.success && pRes.plans) {
+        const mappedPlans: ForecastMonthPlan[] = pRes.plans.map((r: any) => ({
+          id: r.id,
+          year: Number(r.year),
+          month: Number(r.month),
+          monthStart: r.month_start ?? r.monthStart,
+          monthEnd: r.month_end ?? r.monthEnd,
+          weeks: Array.isArray(r.weeks) ? r.weeks : [],
+          isClosed: !!(r.is_closed ?? r.isClosed),
+          createdBy: r.created_by ?? r.createdBy ?? undefined,
+          createdAt: r.created_at ?? r.createdAt ?? undefined,
+          updatedBy: r.updated_by ?? r.updatedBy ?? undefined,
+          updatedAt: r.updated_at ?? r.updatedAt ?? undefined,
+        }));
+        setForecastPlans(mappedPlans);
+      }
+      if (cRes.success && cRes.comments) {
+        setCustomerComments(
+          cRes.comments.map((r: any) => ({
+            id: r.id,
+            customerId: r.customer_id ?? r.customerId ?? '',
+            customerCode: r.customer_code ?? r.customerCode ?? '',
+            customerName: r.customer_name ?? r.customerName ?? '',
+            branchName: r.branch_name ?? r.branchName ?? '',
+            repName: r.rep_name ?? r.repName ?? '',
+            kind: (r.kind ?? 'note') as CustomerCommentRecord['kind'],
+            body: r.body ?? '',
+            authorName: r.author_name ?? r.authorName ?? '',
+            createdAt: r.created_at ?? r.createdAt ?? new Date().toISOString(),
+            updatedAt: r.updated_at ?? r.updatedAt ?? undefined,
+          }))
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
 
   // Load targets from the shared database so every device and role sees the same sheet update.
   useEffect(() => {
@@ -855,6 +999,129 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return false;
   };
 
+  // Local save always happens first, so nothing is lost when the device is offline.
+  // Only the rows that actually changed are pushed, and any row Supabase refuses
+  // is parked in the outbox instead of being dropped.
+  const persistForecasts = useCallback(
+    async (next: CollectionForecastRecord[], changed: CollectionForecastRecord[]) => {
+      setForecasts(next);
+      for (const row of changed) {
+        await syncOrQueue('forecasts', 'upsert', row.id, row, () =>
+          saveForecastsToSupabase([row])
+        );
+      }
+    },
+    [syncOrQueue]
+  );
+
+  const saveForecast = useCallback(
+    async (record: CollectionForecastRecord) => {
+      const stamped = { ...record, updatedAt: new Date().toISOString(), updatedBy: currentUser?.name };
+      const next = [...forecasts];
+      const idx = next.findIndex((f) => f.id === record.id);
+      if (idx >= 0) next[idx] = stamped;
+      else next.push(stamped);
+      await persistForecasts(next, [stamped]);
+    },
+    [forecasts, persistForecasts, currentUser]
+  );
+
+  const submitForecastWeek = useCallback(
+    async (monthKey: string, weekIndex: number, repId: string) => {
+      const now = new Date().toISOString();
+      const changedRows: CollectionForecastRecord[] = [];
+      const next = forecasts.map((f) => {
+        if (f.monthKey !== monthKey || f.weekIndex !== weekIndex || f.repId !== repId) return f;
+        if (f.status === 'approved') return f;
+        const updated = { ...f, status: 'submitted' as const, submittedAt: now, changeRequestNote: undefined, updatedAt: now, updatedBy: currentUser?.name };
+        changedRows.push(updated);
+        return updated;
+      });
+      if (changedRows.length) await persistForecasts(next, changedRows);
+      return changedRows.length;
+    },
+    [forecasts, persistForecasts, currentUser]
+  );
+
+  const approveForecastWeek = useCallback(
+    async (monthKey: string, weekIndex: number, repId: string) => {
+      const now = new Date().toISOString();
+      const changedRows: CollectionForecastRecord[] = [];
+      const next = forecasts.map((f) => {
+        if (f.monthKey !== monthKey || f.weekIndex !== weekIndex || f.repId !== repId) return f;
+        const updated = {
+          ...f,
+          status: 'approved' as const,
+          approvedBy: currentUser?.name || '',
+          approvedAt: now,
+          changeRequestNote: undefined,
+          updatedAt: now,
+          updatedBy: currentUser?.name,
+        };
+        changedRows.push(updated);
+        return updated;
+      });
+      if (changedRows.length) await persistForecasts(next, changedRows);
+      return changedRows.length;
+    },
+    [forecasts, persistForecasts, currentUser]
+  );
+
+  const requestForecastChange = useCallback(
+    async (monthKey: string, weekIndex: number, repId: string, note: string) => {
+      const now = new Date().toISOString();
+      const changedRows: CollectionForecastRecord[] = [];
+      const next = forecasts.map((f) => {
+        if (f.monthKey !== monthKey || f.weekIndex !== weekIndex || f.repId !== repId) return f;
+        const updated = {
+          ...f,
+          status: 'change_requested' as const,
+          changeRequestNote: note,
+          changeRequestedBy: currentUser?.name || '',
+          changeRequestedAt: now,
+          updatedAt: now,
+          updatedBy: currentUser?.name,
+        };
+        changedRows.push(updated);
+        return updated;
+      });
+      if (changedRows.length) await persistForecasts(next, changedRows);
+      return changedRows.length;
+    },
+    [forecasts, persistForecasts, currentUser]
+  );
+
+const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
+    const stamped: ForecastMonthPlan = { ...plan, updatedAt: new Date().toISOString(), updatedBy: currentUser?.name };
+    const next = [...forecastPlans.filter((p) => p.id !== plan.id), stamped];
+    setForecastPlans(next);
+    await syncOrQueue('forecast_plans', 'upsert', stamped.id, stamped, () =>
+      saveForecastMonthPlanToSupabase(stamped)
+    );
+  }, [forecastPlans, currentUser, syncOrQueue]);
+
+  const saveCustomerComment = useCallback(
+    async (comment: CustomerCommentRecord) => {
+      const stamped = { ...comment, updatedAt: new Date().toISOString() };
+      const next = [...customerComments.filter((c) => c.id !== comment.id), stamped];
+      setCustomerComments(next);
+      await syncOrQueue('customer_comments', 'upsert', stamped.id, stamped, () =>
+        saveCustomerCommentsToSupabase([stamped])
+      );
+    },
+    [customerComments, syncOrQueue]
+  );
+
+  const deleteCustomerComment = useCallback(async (id: string) => {
+    const next = customerComments.filter((c) => c.id !== id);
+    setCustomerComments(next);
+    // The delete has to reach the server too, otherwise the comment comes back
+    // on the next fetch for every other user.
+    await syncOrQueue('customer_comments', 'delete', id, undefined, () =>
+      deleteCustomerCommentFromSupabase(id)
+    );
+  }, [customerComments, syncOrQueue]);
+
   /**
    * Drain the offline outbox, grouped per table so a device that spent a whole
    * shift offline costs a handful of requests instead of one per tap.
@@ -946,6 +1213,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (targetReplaces.length > 0 && targetsRef.current.length > 0) {
       const res = await saveTargetsToSupabase(targetsRef.current);
       (res.success ? done : failed).push(...targetReplaces.map((i) => i.id));
+    }
+
+    // Forecast rows are keyed per (month, week, customer), so each one is an
+    // independent upsert and the queued payload can be sent as-is.
+    const forecastUpserts = group('forecasts', 'upsert');
+    if (forecastUpserts.length > 0) {
+      const res = await saveForecastsToSupabase(
+        forecastUpserts.map((i) => i.payload as CollectionForecastRecord)
+      );
+      (res.success ? done : failed).push(...forecastUpserts.map((i) => i.id));
+    }
+
+    // The month plan is one row per month, so only the newest queued copy matters.
+    const planUpserts = group('forecast_plans', 'upsert');
+    if (planUpserts.length > 0) {
+      const last = planUpserts[planUpserts.length - 1];
+      const res = await saveForecastMonthPlanToSupabase(last.payload);
+      (res.success ? done : failed).push(...planUpserts.map((i) => i.id));
+    }
+
+    const commentUpserts = group('customer_comments', 'upsert');
+    if (commentUpserts.length > 0) {
+      const res = await saveCustomerCommentsToSupabase(
+        commentUpserts.map((i) => i.payload as CustomerCommentRecord)
+      );
+      (res.success ? done : failed).push(...commentUpserts.map((i) => i.id));
+    }
+
+    // Comment deletes run after the upserts so an edit-then-delete queued in the
+    // same offline stretch does not leave the row behind.
+    const commentDeletes = group('customer_comments', 'delete');
+    if (commentDeletes.length > 0) {
+      const results = await Promise.all(
+        commentDeletes.map((item) => deleteCustomerCommentFromSupabase(item.entityId))
+      );
+      (results.every((r) => r.success) ? done : failed).push(...commentDeletes.map((i) => i.id));
     }
 
     if (done.length > 0) await removeQueuedMutations(done);
@@ -5295,6 +5598,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getSalesRepsForSupervisor,
         loginAs,
         targets,
+        forecasts,
+        forecastPlans,
+        customerComments,
+        saveForecast,
+        submitForecastWeek,
+        approveForecastWeek,
+        requestForecastChange,
+        saveForecastPlan,
+        saveCustomerComment,
+        deleteCustomerComment,
         getVisibleTargets,
         importTargetsFromExcel,
         importTargetsFromGoogleSheet,

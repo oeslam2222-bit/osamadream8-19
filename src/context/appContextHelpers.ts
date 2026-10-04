@@ -21,6 +21,9 @@ export const STORAGE_KEYS = {
   DELETED_VISIT_IDS: 'dream_dist_deleted_visits_v1',
   PENDING_INVOICES: 'dream_dist_pending_invoices_v1',
   TARGETS: 'dream_dist_targets_v1',
+  FORECASTS: 'dream_dist_forecasts_v1',
+  FORECAST_PLANS: 'dream_dist_forecast_plans_v1',
+  CUSTOMER_COMMENTS: 'dream_dist_customer_comments_v1',
   PRIVACY_MODE: 'dream_privacy_mode_v1',
 };
 

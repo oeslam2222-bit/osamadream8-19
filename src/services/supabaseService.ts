@@ -1629,3 +1629,169 @@ export async function saveVisitsToSupabase(visits: CustomerVisit[]): Promise<{ s
     return { success: false, savedCount: 0, error: err?.message };
   }
 }
+
+/* ============================================================
+   توقع التحصيلات — مزامنة مشتركة لكل الأدوار
+   ----------------------------------------------------------------
+   لازم الجداول دي تكون موجودة في Supabase. الـ SQL في أول تعليق.
+   لو الجدول مش موجود، الكود بيرجع بـ success:false والبنية
+   بتفضل شغالة من localStorage — يعني مفيش lost data.
+   ============================================================ */
+
+/*
+CREATE TABLE collection_forecasts (
+  id text PRIMARY KEY,
+  month_key text NOT NULL,
+  week_index int NOT NULL,
+  rep_id text, rep_name text, branch_name text,
+  customer_id text, customer_code text, customer_name text,
+  collection_forecast numeric DEFAULT 0,
+  sales_forecast numeric DEFAULT 0,
+  status text DEFAULT 'draft',
+  submitted_at text, approved_by text, approved_at text,
+  change_request_note text, change_requested_by text, change_requested_at text,
+  updated_by text, updated_at text
+);
+
+CREATE TABLE forecast_month_plans (
+  id text PRIMARY KEY,             -- 'YYYY-MM'
+  year int, month int,
+  month_start text, month_end text,
+  weeks jsonb,
+  is_closed boolean DEFAULT false,
+  created_by text, created_at text,
+  updated_by text, updated_at text
+);
+
+CREATE TABLE customer_comments (
+  id text PRIMARY KEY,
+  customer_id text, customer_code text, customer_name text,
+  branch_name text, rep_name text,
+  kind text, body text,
+  author_name text, created_at text, updated_at text
+);
+*/
+
+export async function fetchForecastsFromSupabase(): Promise<{ success: boolean; forecasts?: any[]; error?: string }> {
+  try {
+    const { data, error } = await supabase.from('collection_forecasts').select('*');
+    if (error) return { success: false, error: error.message };
+    return { success: true, forecasts: data || [] };
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'فشل تحميل التوقعات المشتركة' };
+  }
+}
+
+export async function saveForecastsToSupabase(forecasts: any[]): Promise<{ success: boolean; error?: string }> {
+  try {
+    const payload = forecasts.map((f) => ({
+      id: f.id,
+      month_key: f.monthKey,
+      week_index: Number(f.weekIndex || 0),
+      rep_id: f.repId,
+      rep_name: f.repName,
+      branch_name: f.branchName,
+      customer_id: f.customerId,
+      customer_code: f.customerCode,
+      customer_name: f.customerName,
+      collection_forecast: Number(f.collectionForecast || 0),
+      sales_forecast: Number(f.salesForecast || 0),
+      status: f.status,
+      submitted_at: f.submittedAt || null,
+      approved_by: f.approvedBy || null,
+      approved_at: f.approvedAt || null,
+      change_request_note: f.changeRequestNote || null,
+      change_requested_by: f.changeRequestedBy || null,
+      change_requested_at: f.changeRequestedAt || null,
+      updated_by: f.updatedBy || null,
+      updated_at: f.updatedAt || new Date().toISOString(),
+    }));
+    for (let i = 0; i < payload.length; i += 500) {
+      const { error } = await supabase.from('collection_forecasts').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+      if (error) return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'فشل حفظ التوقعات المشتركة' };
+  }
+}
+
+export async function fetchForecastMonthPlansFromSupabase(): Promise<{ success: boolean; plans?: any[]; error?: string }> {
+  try {
+    const { data, error } = await supabase.from('forecast_month_plans').select('*');
+    if (error) return { success: false, error: error.message };
+    return { success: true, plans: data || [] };
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'فشل تحميل خطط الأسابيع المشتركة' };
+  }
+}
+
+export async function saveForecastMonthPlanToSupabase(plan: any): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.from('forecast_month_plans').upsert(
+      {
+        id: plan.id,
+        year: Number(plan.year),
+        month: Number(plan.month),
+        month_start: plan.monthStart,
+        month_end: plan.monthEnd,
+        weeks: plan.weeks,
+        is_closed: !!plan.isClosed,
+        created_by: plan.createdBy || null,
+        created_at: plan.createdAt || new Date().toISOString(),
+        updated_by: plan.updatedBy || null,
+        updated_at: plan.updatedAt || new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'فشل حفظ خطة الأسابيع' };
+  }
+}
+
+export async function fetchCustomerCommentsFromSupabase(): Promise<{ success: boolean; comments?: any[]; error?: string }> {
+  try {
+    const { data, error } = await supabase.from('customer_comments').select('*');
+    if (error) return { success: false, error: error.message };
+    return { success: true, comments: data || [] };
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'فشل تحميل كومنتات العملاء' };
+  }
+}
+
+export async function saveCustomerCommentsToSupabase(comments: any[]): Promise<{ success: boolean; error?: string }> {
+  try {
+    const payload = comments.map((c) => ({
+      id: c.id,
+      customer_id: c.customerId,
+      customer_code: c.customerCode,
+      customer_name: c.customerName,
+      branch_name: c.branchName,
+      rep_name: c.repName,
+      kind: c.kind,
+      body: c.body,
+      author_name: c.authorName,
+      created_at: c.createdAt,
+      updated_at: c.updatedAt || c.createdAt,
+    }));
+    for (let i = 0; i < payload.length; i += 500) {
+      const { error } = await supabase.from('customer_comments').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+      if (error) return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'فشل حفظ كومنتات العملاء' };
+  }
+}
+
+export async function deleteCustomerCommentFromSupabase(commentId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.from('customer_comments').delete().eq('id', commentId);
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'فشل حذف كومنت العميل' };
+  }
+}

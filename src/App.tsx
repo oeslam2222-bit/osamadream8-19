@@ -28,6 +28,7 @@ const ProductCatalog = lazy(() => import('./components/ProductCatalog').then((m)
 const AllCustomersAnalyticsView = lazy(() => import('./components/AllCustomersAnalyticsView').then((m) => ({ default: m.AllCustomersAnalyticsView })));
 const SupervisorDashboard = lazy(() => import('./components/SupervisorDashboard').then((m) => ({ default: m.SupervisorDashboard })));
 const TargetPerformanceDashboard = lazy(() => import('./components/TargetPerformanceDashboard').then((m) => ({ default: m.TargetPerformanceDashboard })));
+const CollectionForecastView = lazy(() => import('./components/CollectionForecastView'));
 const VisitsDashboard = lazy(() => import('./components/VisitsDashboard').then((m) => ({ default: m.VisitsDashboard })));
 const InvoicesManager = lazy(() => import('./components/InvoicesManager').then((m) => ({ default: m.InvoicesManager })));
 const InventoryStockView = lazy(() => import('./components/InventoryStockView').then((m) => ({ default: m.InventoryStockView })));
@@ -166,6 +167,8 @@ const MainLayout: React.FC = () => {
           )}
 
           {activeTab === 'targets' && <TargetPerformanceDashboard />}
+
+          {activeTab === 'forecast' && <CollectionForecastView />}
 
           {activeTab === 'visits' && <VisitsDashboard />}
 

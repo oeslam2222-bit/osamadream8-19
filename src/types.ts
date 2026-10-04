@@ -565,3 +565,83 @@ export interface TargetRecord {
   updatedAt?: string;
   notes?: string;
 }
+
+/* ============================================================
+   توقع التحصيلات — Collection & Sales Forecast
+   ----------------------------------------------------------------
+   صفحة متابعة: بتقول هل الأرقام اللي في التارجت هتحقق ولا لأ.
+   التارجت نفسه (TargetRecord) بيفضل مصدر verdad تاني.
+   ============================================================ */
+
+/** أسبوع واحد داخل الشهر. تواريخه الإدارة بتحددها يدوياً (أو مقترحة أوتوماتيكاً). */
+export interface ForecastWeek {
+  index: number;                // 1..5
+  start: string;                // YYYY-MM-DD
+  end: string;                  // YYYY-MM-DD (شامل)
+}
+
+/** خطة الشهر: تقسيم الأسابيع + حالة الإغلاق. */
+export interface ForecastMonthPlan {
+  id: string;                   // `${year}-${month}` مثل '2026-09'
+  year: number;
+  month: number;                // 1 - 12
+  monthStart: string;           // YYYY-MM-DD
+  monthEnd: string;             // YYYY-MM-DD
+  weeks: ForecastWeek[];
+  /** الأرقام تتقفل بعد اعتماد المشرف؛ لا يمكن تعديلها إلا بطلب تعديل. */
+  isClosed: boolean;
+  createdBy?: string;
+  createdAt?: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+/**
+ * حالة التوقع الأسبوعي:
+ * draft            → المندوب بيكتب
+ * submitted        → بعث للمشرف
+ * approved         → المشرف اعتمد (الأرقام مقفولة)
+ * change_requested → المشرف رجعه للمندوب تعديله
+ */
+export type ForecastStatus = 'draft' | 'submitted' | 'approved' | 'change_requested';
+
+/** توقع أسبوعي لعميل واحد مندوب واحد. */
+export interface CollectionForecastRecord {
+  id: string;
+  monthKey: string;             // '2026-09'
+  weekIndex: number;            // 1..5
+  repId: string;
+  repName: string;
+  branchName: string;
+  customerId: string;
+  customerCode: string;
+  customerName: string;
+  collectionForecast: number;   // المتوقع تحصيله من العميل في الأسبوع
+  salesForecast: number;        // المتوقع بيعه للعميل في الأسبوع
+  status: ForecastStatus;
+  submittedAt?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  changeRequestNote?: string;
+  changeRequestedBy?: string;
+  changeRequestedAt?: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+export type CustomerCommentKind = 'defaulted' | 'return' | 'note';
+
+/** كومنت على عميل مربوط بكوده — للمتعثرين والمرتجعات والملاحظات. */
+export interface CustomerCommentRecord {
+  id: string;
+  customerId: string;
+  customerCode: string;
+  customerName: string;
+  branchName: string;
+  repName: string;
+  kind: CustomerCommentKind;
+  body: string;
+  authorName: string;
+  createdAt: string;
+  updatedAt?: string;
+}
