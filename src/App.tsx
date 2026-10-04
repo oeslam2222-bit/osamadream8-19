@@ -81,6 +81,16 @@ const MainLayout: React.FC = () => {
     } catch { /* ignore */ }
   }, [isRep, currentUser?.role]);
 
+  useEffect(() => {
+    if (
+      activeTab === 'users' &&
+      currentUser?.role !== 'admin' &&
+      currentUser?.role !== 'developer'
+    ) {
+      setActiveTab('all_customers');
+    }
+  }, [activeTab, currentUser?.role]);
+
   // If user is not logged in, show dedicated Login / Registration Page.
   // This must stay after the useEffect above: returning early before a hook
   // makes React render a different number of hooks once the session restores,
@@ -184,7 +194,8 @@ const MainLayout: React.FC = () => {
 
           {activeTab === 'excel' && <ExcelImportExport />}
 
-          {activeTab === 'users' && <UserManager />}
+          {activeTab === 'users' &&
+            (currentUser.role === 'admin' || currentUser.role === 'developer') && <UserManager />}
 
           {activeTab === 'guide' && (
             <SystemWorkflowGuide onNavigateToTab={(tab) => setActiveTab(tab)} />

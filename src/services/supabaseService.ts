@@ -58,54 +58,46 @@ export async function testSupabaseConnection(): Promise<SupabaseSyncStatus> {
     let invoicesCount = 0;
     let customersCount = 0;
 
-    // 1. Try 'users' or 'profiles' table (using head: true to minimize bandwidth / egress)
-    try {
-      const { count: uCount, error: userErr } = await supabase.from('users').select('id', { count: 'exact', head: true });
-      if (!userErr && typeof uCount === 'number') {
-        foundTable += 'users ';
-        usersCount = uCount;
-      } else {
-        const { count: pCount, error: profErr } = await supabase.from('profiles').select('id', { count: 'exact', head: true });
-        if (!profErr && typeof pCount === 'number') {
-          foundTable += 'profiles ';
-          usersCount = pCount;
-        }
+    const countTable = async (table: string): Promise<number | null> => {
+      try {
+        const { count, error } = await supabase.from(table).select('id', { count: 'exact', head: true });
+        return error || typeof count !== 'number' ? null : count;
+      } catch (error) {
+        console.warn(`Could not query ${table} table in Supabase:`, error);
+        return null;
       }
-    } catch (e) {
-      console.warn('Could not query users table in Supabase:', e);
-    }
+    };
 
-    // 2. Try 'products' or 'items' table (using head: true to minimize egress)
-    try {
-      const { count: prCount, error: prodErr } = await supabase.from('products').select('id', { count: 'exact', head: true });
-      if (!prodErr && typeof prCount === 'number') {
-        foundTable += 'products ';
-        productsCount = prCount;
-      }
-    } catch (e) {
-      console.warn('Could not query products table in Supabase:', e);
-    }
+    // These independent head-only count requests can run together instead of
+    // making app startup wait for each network round trip in sequence.
+    const [usersResult, productsResult, invoicesResult, customersResult] = await Promise.all([
+      countTable('users'),
+      countTable('products'),
+      countTable('invoices'),
+      countTable('customers'),
+    ]);
 
-    // 3. Try 'invoices' or 'orders' table (using head: true to minimize egress)
-    try {
-      const { count: inCount, error: invErr } = await supabase.from('invoices').select('id', { count: 'exact', head: true });
-      if (!invErr && typeof inCount === 'number') {
-        foundTable += 'invoices ';
-        invoicesCount = inCount;
+    if (usersResult !== null) {
+      foundTable += 'users ';
+      usersCount = usersResult;
+    } else {
+      const profilesResult = await countTable('profiles');
+      if (profilesResult !== null) {
+        foundTable += 'profiles ';
+        usersCount = profilesResult;
       }
-    } catch (e) {
-      console.warn('Could not query invoices table in Supabase:', e);
     }
-
-    // 4. Try 'customers' or 'clients' table (using head: true to minimize egress)
-    try {
-      const { count: cCount, error: custErr } = await supabase.from('customers').select('id', { count: 'exact', head: true });
-      if (!custErr && typeof cCount === 'number') {
-        foundTable += 'customers ';
-        customersCount = cCount;
-      }
-    } catch (e) {
-      console.warn('Could not query customers table in Supabase:', e);
+    if (productsResult !== null) {
+      foundTable += 'products ';
+      productsCount = productsResult;
+    }
+    if (invoicesResult !== null) {
+      foundTable += 'invoices ';
+      invoicesCount = invoicesResult;
+    }
+    if (customersResult !== null) {
+      foundTable += 'customers ';
+      customersCount = customersResult;
     }
 
     return {

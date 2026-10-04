@@ -41,6 +41,7 @@ import { useApp } from '../context/AppContext';
 import {
   doesCustomerBelongToRep,
   isArabicNameMatch,
+  isBranchMatch,
   normalizeArabicText,
   normalizeBranchKey,
   sanitizeAndDeduplicateUsers,
@@ -86,6 +87,13 @@ export const UserManager: React.FC = () => {
   const USERS_PER_PAGE = 25;
 
   const isSuperAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+  const branchScopedUsers = useMemo(() => {
+    if (isSuperAdminOrDev) return users;
+    if (!currentUser?.branchName) return [];
+    return users.filter((user) =>
+      isBranchMatch(user.branchName, currentUser.branchName, { allowUnassigned: false })
+    );
+  }, [users, isSuperAdminOrDev, currentUser?.branchName]);
 
   // Role metadata with updated clean titles requested by the user
   const roleConfigs: Record<UserRole, {
@@ -291,28 +299,20 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
   const [approvalRole, setApprovalRole] = useState<UserRole>('sales_rep');
 
   // Pending users waiting for approval (Memoized)
-  const pendingUsers = useMemo(() => users.filter((u) => {
+  const pendingUsers = useMemo(() => branchScopedUsers.filter((u) => {
     if (u.approvalStatus !== 'pending_approval') return false;
     if (isSuperAdminOrDev) return true;
-    if (currentUser?.role === 'branch_manager') {
-      return u.branchName === currentUser.branchName;
-    }
-    return currentUser?.role === 'supervisor' &&
-      u.role === 'sales_rep' &&
-      u.branchName === currentUser.branchName;
-  }), [users, isSuperAdminOrDev, currentUser?.role, currentUser?.branchName]);
+    return currentUser?.role !== 'supervisor' || u.role === 'sales_rep';
+  }), [branchScopedUsers, isSuperAdminOrDev, currentUser?.role]);
 
   // Active users are filtered once, then rendered in small pages to keep the table responsive.
-  const activeUsers = useMemo(() => users.filter((u) => {
+  const activeUsers = useMemo(() => branchScopedUsers.filter((u) => {
     if (u.approvalStatus === 'pending_approval') return false;
 
     // User accounts are managed centrally; branch managers and supervisors only handle approvals,
     // so the full active team list is not exposed in their user-management view.
-    if (!isSuperAdminOrDev) {
-      return false;
-    } else {
-      if (selectedBranchFilter !== 'الكل' && u.branchName !== selectedBranchFilter) return false;
-    }
+    if (!isSuperAdminOrDev) return false;
+    if (selectedBranchFilter !== 'الكل' && u.branchName !== selectedBranchFilter) return false;
 
     if (selectedRoleFilter !== 'الكل' && u.role !== selectedRoleFilter) return false;
     if (searchQuery.trim()) {
@@ -324,7 +324,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       if (!matchName && !matchUser && !matchPhone && !matchEmail) return false;
     }
     return true;
-  }), [users, isSuperAdminOrDev, currentUser?.branchName, selectedBranchFilter, selectedRoleFilter, searchQuery]);
+  }), [branchScopedUsers, isSuperAdminOrDev, selectedBranchFilter, selectedRoleFilter, searchQuery]);
 
   const totalUsersPages = Math.max(1, Math.ceil(activeUsers.length / USERS_PER_PAGE));
   const visibleUsers = useMemo(() => {
@@ -434,13 +434,13 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
   // Fast memoized active count per role
   const roleCountsMap = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const u of users) {
+    for (const u of branchScopedUsers) {
       if (u.approvalStatus === 'active') {
         counts[u.role] = (counts[u.role] || 0) + 1;
       }
     }
     return counts;
-  }, [users]);
+  }, [branchScopedUsers]);
 
   // Memoized breakdown of sales reps and customer debts for the sync report modal
   const syncRepBreakdown = useMemo(() => {
@@ -636,7 +636,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   إدارة الموظفين والصلاحيات والهيكل الإداري
                 </h2>
                 <span className="bg-slate-100 text-slate-700 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-slate-200">
-                  {users.length} موظف مسجل
+                  {branchScopedUsers.length} {isSuperAdminOrDev ? 'موظف مسجل' : 'موظف في فرعك'}
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
@@ -795,6 +795,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
         </div>
       )}
 
+      {isSuperAdminOrDev && (
+        <>
       {/* 5 Official Roles Matrix Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         {(Object.keys(roleConfigs) as UserRole[]).map((roleKey) => {
@@ -1196,6 +1198,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
           </table>
         </div>
       </div>
+        </>
+      )}
 
       {/* ========================================================================= */}
       {/* MODERN RESPONSIVE ADD / EDIT EMPLOYEE MODAL (متناسق مع كافة الشاشات) */}

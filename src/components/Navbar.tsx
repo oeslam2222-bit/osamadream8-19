@@ -146,7 +146,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     { id: 'inventory', label: 'إدارة المخزون والاعتمادات', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'excel', label: 'شيتات Google Sheets والإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },
     { id: 'guide', label: 'دليل دورة العمل 📖', icon: BookOpen, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'users', label: 'فريق الفرع والموظفين', icon: UserCheck, roles: ['admin', 'developer', 'branch_manager', 'supervisor'], badge: pendingApprovalsCount },
+    { id: 'users', label: 'فريق الفرع والموظفين', icon: UserCheck, roles: ['admin', 'developer'], badge: pendingApprovalsCount },
   ];
 
   const filteredNavItems = navItems.filter((item) => item.roles.includes(currentUser.role));
@@ -775,4 +775,3 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     </>
   );
 };
-
