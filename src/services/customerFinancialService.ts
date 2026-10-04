@@ -40,14 +40,17 @@ export function classifyEligibilityColumn(value: string | undefined): SheetClass
     // so a blocked customer is not silently dropped from the dealt count.
     return { eligible: false, dealt: undefined, bucket: 'ineligible', label: 'غير قابل', raw };
   }
+  // `label` is the cell's own text, never a reworded version of it. Composing a
+  // phrase here ("غير متعامل قابل للتعامل") is what made the UI claim things the
+  // sheet never said — a cell reading "قابل للتعامل" was shown as a non-buyer.
   if (t.includes('غير متعامل')) {
-    return { eligible: true, dealt: false, bucket: 'idle_eligible', label: 'غير متعامل قابل للتعامل', raw };
+    return { eligible: true, dealt: false, bucket: 'idle_eligible', label: raw, raw };
   }
   if (t.includes('متعامل')) {
-    return { eligible: true, dealt: true, bucket: 'dealt_eligible', label: 'متعامل قابل للتعامل', raw };
+    return { eligible: true, dealt: true, bucket: 'dealt_eligible', label: raw, raw };
   }
   // A bare "قابل" carries no deal information — only eligibility.
-  return { eligible: true, dealt: undefined, bucket: 'idle_eligible', label: 'قابل', raw };
+  return { eligible: true, dealt: undefined, bucket: 'idle_eligible', label: raw, raw };
 }
 
 export interface CustomerFinancials {

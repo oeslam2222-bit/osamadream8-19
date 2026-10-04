@@ -332,7 +332,11 @@ export const sanitizeCustomers = (list: Customer[]): Customer[] => {
       totalOverallCollections: Number(c.totalOverallCollections || col26),
       hasDealtIn2026: fin.isDealtCustomer,
       dealt2026: fin.dealtStatusLabel,
-      dealEligibility: c.dealEligibility || (fin.isEligible ? 'قابل' : (fin.ineligibilityReason || 'غير قابل')),
+      // Keep the sheet's own wording, and keep it ABSENT when the source never
+      // provided one. Inventing "قابل" here used to shadow the real "متعامل /
+      // غير متعامل" column during classification, so every customer came out as
+      // "قابل للتعامل" and the three buckets lost their real labels.
+      dealEligibility: c.dealEligibility,
       guaranteeDocs: finalGDocs,
       guaranteeAmount: gAmount > 0 ? gAmount : undefined,
       hasGuarantee: finalHasG,
