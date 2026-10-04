@@ -47,6 +47,17 @@ export function toISODate(year: number, month: number, day: number): string {
   return `${year}-${pad2(month)}-${pad2(day)}`;
 }
 
+/**
+ * تاريخ من millisecond بتوقيت UTC.
+ *
+ * لحظة الوقت (Date.now) بيبدأ اليوم بيها، فلو حوّلناها بنفس طريقة Date
+ * (getFullYear/getDate) timezone المتصفح يزيح النتيجة يوم كامل. عشان كده
+ * التقسيماتCalc بتناكل الصفر UTC على YYYY-MM-DD مباشرة.
+ */
+function toISODateFromMs(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
 export function addDays(iso: string, days: number): string {
   const [y, m, d] = iso.split('-').map(Number);
   const dt = new Date(y, (m || 1) - 1, d || 1);
@@ -105,6 +116,67 @@ export function buildDefaultMonthPlan(year: number, month: number, createdBy?: s
   };
 }
 
+/** يحسب عدد الأيام في مدى تاريخي شامل الطرفين. */
+export function spanDays(start: string, end: string): number {
+  const a = new Date(`${start}T00:00:00`).getTime();
+  const b = new Date(`${end}T00:00:00`).getTime();
+  if (isNaN(a) || isNaN(b)) return 0;
+  return Math.round((b - a) / 86400000) + 1;
+}
+
+/**
+ * يوزّع مدى تاريخي على عدد أسابيع معيّن بالتساوي، من غير ما يمسّ حدود المدى.
+ *
+ * بنحسب من المدى اللي الأدمن حدده فعلاً مش من تقويم الشهر الطبيعي، لأن ممكن
+ * يكون عمل الشهر من يوم 25 للشهر اللي بعده — ولو رجعنا للأيام التقويمية هنا
+ * هنمحي المدة اللي هو حددها. باقي القسمة بيتوزّع على أول الأسابيع.
+ */
+export function buildEvenWeeks(start: string, end: string, count: number): ForecastWeek[] {
+  const total = spanDays(start, end);
+  if (!count || total < count) return [];
+
+  const base = Math.floor(total / count);
+  const extra = total % count;
+  const weeks: ForecastWeek[] = [];
+  let cursorMs = new Date(`${start}T00:00:00`).getTime();
+
+  for (let i = 1; i <= count; i++) {
+    const len = base + (i <= extra ? 1 : 0);
+    const endMs = cursorMs + (len - 1) * 86400000;
+    weeks.push({
+      index: i,
+      start: toISODateFromMs(cursorMs),
+      end: toISODateFromMs(endMs),
+    });
+    cursorMs = endMs + 86400000;
+  }
+  return weeks;
+}
+
+/**
+ * تقسيم كتل 7 أيام داخل مدى محدد — نفس فكرة buildSuggestedWeeks بس على المدى
+ * اللي الأدمن حدده بدل الشهر التقويمي.
+ */
+export function buildBlockWeeks(start: string, end: string, blockDays = 7): ForecastWeek[] {
+  const total = spanDays(start, end);
+  if (total <= 0) return [];
+
+  const weeks: ForecastWeek[] = [];
+  let cursor = 0;
+  let index = 1;
+  while (cursor < total) {
+    const len = Math.min(blockDays, total - cursor);
+    weeks.push({
+      index,
+      start: addDays(start, cursor),
+      end: addDays(start, cursor + len - 1),
+    });
+    cursor += len;
+    index++;
+  }
+  return weeks;
+}
+
 /** يوم reopen يقع في أنهي أسبوع (1..n)، أو null لو خارج الشهر. */
 export function weekIndexForDate(plan: ForecastMonthPlan, isoDate: string): number | null {
   if (!plan) return null;
@@ -116,6 +188,69 @@ export function weekIndexForDate(plan: ForecastMonthPlan, isoDate: string): numb
     if (target >= a && target <= b) return w.index;
   }
   return null;
+}
+
+/* ============================================================
+   1b) التوقع الشهري المستقل
+   ----------------------------------------------------------------
+   المندوب بيكتب رقم السداد للشهر كله لوحده، مش محسوب من الأسابيع.
+   الرقم ده بيتخزن في نفس جدول التوقعات الأسبوعية، لكن بـ week_index = 0.
+
+   ليه 0 بالذات؟ لأن الشهر بيقسم على 4 أو 5 أسابيع بس، فمفيش أسبوع رقمه 0
+   أصلاً — يعني الفاصل بين السطر الشهري والأسابيع بيبقى مضمون بالبيانات نفسها،
+   مش محتاج عمود جديد ولا migration. وأهم حاجة: كل تجميع لازم يتجاهل السطر
+   الشهري لما بيجمع الأسابيع، وإلا الرقم هيتحسب مرتين.
+   ============================================================ */
+
+export const MONTH_FORECAST_INDEX = 0;
+
+export function isMonthForecast(record: { weekIndex: number }): boolean {
+  return Math.floor(Number(record.weekIndex)) === MONTH_FORECAST_INDEX;
+}
+
+export function isWeekForecast(record: { weekIndex: number }): boolean {
+  return !isMonthForecast(record);
+}
+
+/** يفصل سطور الشهر عن سطور الأسابيع مرة واحدة، عشان التجميعات ما تتلغبطش. */
+export function splitForecastRows<T extends { weekIndex: number }>(records: T[]): { weeks: T[]; months: T[] } {
+  const weeks: T[] = [];
+  const months: T[] = [];
+  records.forEach((r) => {
+    if (isMonthForecast(r)) months.push(r);
+    else weeks.push(r);
+  });
+  return { weeks, months };
+}
+
+/**
+ * يقصر سطور التوقع على التقسيم الحالي للشهر.
+ *
+ * المشكلة اللي بتحلها: لما الأدمن يصغّر الشهر من 5 أسابيع لـ 4، سطور الأسبوع
+ * الخامس بتفضل موجودة في قاعدة البيانات. لو تجاهلناها هنا كانت هتعدّي في كل
+ * تجميع — الخانة الأسبوعية مش ظاهرة أصلاً، بس الرقم بيفضل داخل في مجموع
+ * الأسابيع وفي التوقع الشهري المحسوب وفي نسبة التغطية. يعني رقم بيظهر من
+ * مكان مش موجود للعين.
+ *
+ * السطر الشهري (0) ما بيتأثرش أبداً لأنه مستقل عن التقسيم.
+ * السطور اليتيمة بترجع للواجهة عشان الأدمن يعرف إن فيه أرقام معلقة.
+ */
+export function scopeForecastsToPlan<T extends { weekIndex: number }>(
+  records: T[],
+  weekCount: number
+): { scoped: T[]; orphans: T[] } {
+  const scoped: T[] = [];
+  const orphans: T[] = [];
+  records.forEach((r) => {
+    if (isMonthForecast(r)) {
+      scoped.push(r);
+      return;
+    }
+    const w = Math.floor(Number(r.weekIndex));
+    if (w >= 1 && w <= weekCount) scoped.push(r);
+    else orphans.push(r);
+  });
+  return { scoped, orphans };
 }
 
 export function todayISO(): string {
@@ -303,17 +438,21 @@ export function emptyForecastId(monthKey: string, weekIndex: number, customerId:
   return `fc_${monthKey}_w${weekIndex}_${customerId}`;
 }
 
-export function makeForecastRecord(
+/** سطر التوقع الشهري المستقل — نفس النمط بس بـ w0 عشان ما يتعارضش مع أي أسبوع. */
+export function emptyMonthForecastId(monthKey: string, customerId: string): string {
+  return `fc_${monthKey}_w${MONTH_FORECAST_INDEX}_${customerId}`;
+}
+
+function baseForecastRecord(
+  id: string,
   monthKey: string,
   weekIndex: number,
   customer: Customer,
   repId: string,
-  repName: string,
-  existing?: CollectionForecastRecord
+  repName: string
 ): CollectionForecastRecord {
-  if (existing) return existing;
   return {
-    id: emptyForecastId(monthKey, weekIndex, customer.id),
+    id,
     monthKey,
     weekIndex,
     repId,
@@ -328,6 +467,55 @@ export function makeForecastRecord(
   };
 }
 
+export function makeForecastRecord(
+  monthKey: string,
+  weekIndex: number,
+  customer: Customer,
+  repId: string,
+  repName: string,
+  existing?: CollectionForecastRecord
+): CollectionForecastRecord {
+  if (existing) return existing;
+  return baseForecastRecord(
+    emptyForecastId(monthKey, weekIndex, customer.id),
+    monthKey,
+    weekIndex,
+    customer,
+    repId,
+    repName
+  );
+}
+
+/**
+ * سطر التوقع الشهري المستقل لنفس العميل.
+ *
+ * مهم: لما العميل يكون لسه ماكتبش رقم شهري، بنرجع مجموع الأسابيع في
+ * collectionForecast عشان الخانة تبان مقروءة. المستخدم بيكتب فوقها من غير ما
+ * يعرف إن الرقم ده متحسب — وده بالظبط المطلوب، لأن التوقع الشهري المفروض
+ * يكون رقم مستقل مش مجمع.
+ */
+export function makeMonthForecastRecord(
+  monthKey: string,
+  customer: Customer,
+  repId: string,
+  repName: string,
+  weekSum: number,
+  existing?: CollectionForecastRecord
+): CollectionForecastRecord {
+  if (existing) return existing;
+  return {
+    ...baseForecastRecord(
+      emptyMonthForecastId(monthKey, customer.id),
+      monthKey,
+      MONTH_FORECAST_INDEX,
+      customer,
+      repId,
+      repName
+    ),
+    collectionForecast: weekSum,
+  };
+}
+
 /* ============================================================
    4) تجميع الأرقام
    ============================================================ */
@@ -338,6 +526,9 @@ export interface RepForecastRow {
   branchName: string;
   weekCollection: Record<number, number>;
   weekSales: Record<number, number>;
+  /** التوقع الشهري المستقل اللي كتبه المندوب (مش محسوب من الأسابيع). */
+  monthCollection: number;
+  /** مجموع الأسابيع فقط — السطر الشهري مستقل ومش داخل في الرقم ده. */
   totalCollection: number;
   totalSales: number;
   submittedWeeks: number;
@@ -352,7 +543,11 @@ export function aggregateByRep(
 ): RepForecastRow[] {
   const map = new Map<string, RepForecastRow>();
 
-  records.forEach((r) => {
+  // السطر الشهري بيتخزن بنفس الجدول، فلازم يتشال من التجميع الأسبوعي الأول —
+  // غير كده التوقع بيتحسب مرتين في كل رقم أسبوعي وفي إجمالي الشهر.
+  const { weeks, months } = splitForecastRows(records);
+
+  weeks.forEach((r) => {
     const week = Math.floor(r.weekIndex);
     let row = map.get(r.repId);
     if (!row) {
@@ -362,6 +557,7 @@ export function aggregateByRep(
         branchName: r.branchName,
         weekCollection: {},
         weekSales: {},
+        monthCollection: 0,
         totalCollection: 0,
         totalSales: 0,
         submittedWeeks: 0,
@@ -377,10 +573,33 @@ export function aggregateByRep(
     row.totalSales += Number(r.salesForecast || 0);
   });
 
+  // التوقع الشهري بيتجمع لوحده، وده اللي بيتقارن بهدف الشهر.
+  months.forEach((r) => {
+    let row = map.get(r.repId);
+    if (!row) {
+      row = {
+        repId: r.repId,
+        repName: r.repName,
+        branchName: r.branchName,
+        weekCollection: {},
+        weekSales: {},
+        monthCollection: 0,
+        totalCollection: 0,
+        totalSales: 0,
+        submittedWeeks: 0,
+        approvedWeeks: 0,
+        changeRequestedWeeks: 0,
+        customerCount: 0,
+      };
+      map.set(r.repId, row);
+    }
+    row.monthCollection += Number(r.collectionForecast || 0);
+  });
+
   // A week's status is the weakest status any of its customers is in, so one
   // unapproved line keeps the whole week open for the supervisor.
   const weekStatus = new Map<string, Set<ForecastStatus>>();
-  records.forEach((r) => {
+  weeks.forEach((r) => {
     const key = `${r.repId}::${Math.floor(r.weekIndex)}`;
     const set = weekStatus.get(key) || new Set<ForecastStatus>();
     set.add(r.status);
@@ -388,7 +607,7 @@ export function aggregateByRep(
   });
 
   const rows = Array.from(map.values());
-  const customerKeys = new Set(records.map((r) => `${r.repId}::${r.customerId}`));
+  const customerKeys = new Set(weeks.map((r) => `${r.repId}::${r.customerId}`));
   rows.forEach((row) => {
     row.customerCount = Array.from(customerKeys).filter((k) => k.startsWith(`${row.repId}::`)).length;
     for (let w = 1; w <= weekCount; w++) {
@@ -402,7 +621,18 @@ export function aggregateByRep(
     }
   });
 
-  return rows.sort((a, b) => b.totalCollection - a.totalCollection);
+  return rows.sort((a, b) => plannedCollection(b) - plannedCollection(a));
+}
+
+/**
+ * الرقم اللي يتقارن بهدف الشهر.
+ *
+ * لو المندوب كتب رقم شهري مستقل بنستخدمه، ولو ما كتبش بنرجع لمجموع الأسابيع.
+ * من غير الشرط ده المندوبين اللي مالهمش رقم شهري هيفضلوا خارج حساب التغطية
+ * خالص، والصفحة هتبين أن مفيش توقعات لو الأرقام الأسبوعية موجودة.
+ */
+export function plannedCollection(row: RepForecastRow): number {
+  return row.monthCollection > 0 ? row.monthCollection : row.totalCollection;
 }
 
 export interface ForecastProgressRow {
@@ -411,6 +641,10 @@ export interface ForecastProgressRow {
   branchName: string;
   forecastCollection: number;
   forecastSales: number;
+  /** مجموع الأسابيع — بيتعرض جنب الرقم الشهري عشان تشوف الفرق. */
+  weeklyCollection: number;
+  /** التوقع الشهري المستقل اللي كتبه المندوب (0 لو ما كتبش). */
+  monthCollection: number;
   targetCollection: number;
   targetSales: number;
   actualCollection: number;
@@ -418,6 +652,12 @@ export interface ForecastProgressRow {
   collectionCoverage: number;   // المتوقع ÷ الهدف  %
   collectionVsTarget: number;   // فائض / عجز
   status: 'ahead' | 'on_track' | 'behind' | 'no_target';
+  /** عدّاد أسابيع كل حالة — شريط الاعتماد بيعرضها للمشرف. */
+  submittedWeeks: number;
+  approvedWeeks: number;
+  changeRequestedWeeks: number;
+  weekCollection: Record<number, number>;
+  customerCount: number;
 }
 
 export function buildProgress(
@@ -437,16 +677,20 @@ export function buildProgress(
     const t = targetByRep.get(r.repName);
     const targetCollection = Number(t?.collectionTarget || 0);
     const targetSales = Number(t?.salesTarget || 0);
-    const coverage = targetCollection > 0 ? Math.round((r.totalCollection / targetCollection) * 100) : 0;
-    const diff = r.totalCollection - targetCollection;
+    // المقارنة بهدف الشهر لازم تتم على الرقم الشهري، مش على مجموع الأسابيع.
+    const planned = plannedCollection(r);
+    const coverage = targetCollection > 0 ? Math.round((planned / targetCollection) * 100) : 0;
+    const diff = planned - targetCollection;
     const status: ForecastProgressRow['status'] =
       targetCollection <= 0 ? 'no_target' : coverage >= 100 ? 'ahead' : coverage >= 80 ? 'on_track' : 'behind';
     return {
       repId: r.repId,
       repName: r.repName,
       branchName: r.branchName,
-      forecastCollection: r.totalCollection,
+      forecastCollection: planned,
       forecastSales: r.totalSales,
+      weeklyCollection: r.totalCollection,
+      monthCollection: r.monthCollection,
       targetCollection,
       targetSales,
       actualCollection: Number(t?.collectionAchieved || 0),
@@ -454,6 +698,11 @@ export function buildProgress(
       collectionCoverage: coverage,
       collectionVsTarget: diff,
       status,
+      submittedWeeks: r.submittedWeeks,
+      approvedWeeks: r.approvedWeeks,
+      changeRequestedWeeks: r.changeRequestedWeeks,
+      weekCollection: r.weekCollection,
+      customerCount: r.customerCount,
     };
   });
 }
@@ -504,8 +753,10 @@ export function buildAlerts(input: {
     }
   });
 
+  // خريطة حالات الأسابيع — سطور التوقع الشهري (week_index = 0) مش أسابيع،
+  // فلازم ما تدخلش الخريطة دي أو هيبقى في حالة معلقة على أسبوع مش موجود.
   const weekStatuses = new Map<string, Set<ForecastStatus>>();
-  forecasts.forEach((f) => {
+  splitForecastRows(forecasts).weeks.forEach((f) => {
     const key = `${f.repId}::${f.weekIndex}`;
     const set = weekStatuses.get(key) || new Set<ForecastStatus>();
     set.add(f.status);
@@ -693,6 +944,12 @@ export function buildForecastExportRows(input: {
     const fin = calculateCustomerFinancials(c, 'ALL');
     const badge = buildCustomerBadge(c, !!returnsByCustomerCode?.get(c.code || '')?.count, lastVisitByCustomerId?.get(c.id));
     const mine = forecasts.filter((f) => f.customerId === c.id);
+    // السطر الشهري منفصل عن الأسابيع، فالتقرير لازم يوري الرقم المستقل
+    // ومجموع الأسابيع في خانتين منفصلين — دمجهم بيبوظ المقارنة.
+    const { weeks, months } = splitForecastRows(mine);
+    const monthForecast = months.reduce((s, f) => s + (Number(f.collectionForecast) || 0), 0);
+    const weeklyCollection = weeks.reduce((s, f) => s + (Number(f.collectionForecast) || 0), 0);
+    const weeklySales = weeks.reduce((s, f) => s + (Number(f.salesForecast) || 0), 0);
     const comment = commentByCode.get(c.code || '');
     const ret = returnsByCustomerCode?.get(c.code || '');
 
@@ -713,9 +970,11 @@ export function buildForecastExportRows(input: {
       'إجمالي المستحقات (ج.م)': fin.overdue,
       'الحد الائتماني (ج.م)': fin.creditLimit,
       'تجاوز الحد': fin.isOverLimit ? 'نعم' : 'لا',
-      'متوقع التحصيل الشهري (ج.م)': mine.reduce((s, f) => s + (Number(f.collectionForecast) || 0), 0),
-      'متوقع البيع الشهري (ج.م)': mine.reduce((s, f) => s + (Number(f.salesForecast) || 0), 0),
-      'عدد أسابيع متوقع فيها': mine.filter((f) => Number(f.collectionForecast) > 0).length,
+      'التوقع الشهري المستقل (ج.م)': monthForecast,
+      'مجموع التوقع الأسبوعي (ج.م)': weeklyCollection,
+      'فرق الشهر على الأسابيع (ج.م)': monthForecast - weeklyCollection,
+      'متوقع البيع الأسبوعي (ج.م)': weeklySales,
+      'عدد أسابيع متوقع فيها': weeks.filter((f) => Number(f.collectionForecast) > 0).length,
       'آخر زيارة': badge.lastVisitDate || '---',
       'الكومنت': comment?.body || '',
       'نوع الكومنت': comment ? COMMENT_KIND_LABELS[comment.kind] : '---',

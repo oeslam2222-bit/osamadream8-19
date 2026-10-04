@@ -19,6 +19,7 @@ import {
   Info,
   Layers,
   Lock,
+  LockOpen,
   MapPin,
   MessageSquare,
   Package,
@@ -34,7 +35,6 @@ import {
   TrendingUp,
   UserCheck,
   Users,
-  Wallet,
   X,
   Zap,
 } from 'lucide-react';
@@ -47,29 +47,37 @@ import type {
   CustomerCommentRecord,
   CustomerVisit,
   ForecastMonthPlan,
+  ForecastStatus,
 } from '../types';
 import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from '../services/customerDues';
 import { calculateCustomerFinancials } from '../services/customerFinancialService';
 import {
-  AR_MONTH_NAMES,
   COMMENT_KIND_COLORS,
-  buildAlerts,
   buildDefaultMonthPlan,
   buildForecastExportRows,
+  buildBlockWeeks,
+  buildEvenWeeks,
   buildProgress,
-  buildSuggestedWeeks,
   canApproveForecasts,
   canManageForecasts,
   canSeeRepForecasts,
   canWriteOwnForecast,
   isLockedForEditing,
+  addDays,
   commentId,
   currentMonthKey,
+  daysInMonth,
   emptyForecastId,
+  emptyMonthForecastId,
   filterForecastsForUser,
   formatMonthLabel,
   formatWeekRange,
+  isWeekForecast,
   monthKeyOf,
+  MONTH_FORECAST_INDEX,
+  scopeForecastsToPlan,
+  spanDays,
+  toISODate,
   validateMonthPlan,
   weekIndexForDate,
   type ForecastProgressRow,
@@ -113,7 +121,7 @@ export default function CollectionForecastView() {
     requestForecastChange,
     saveForecastPlan,
     saveCustomerComment,
-    toggleArchiveVisit,
+
   } = useApp();
 
   const [monthKey, setMonthKey] = useState<string>(currentMonthKey());
@@ -123,6 +131,12 @@ export default function CollectionForecastView() {
   const [weekFilter, setWeekFilter] = useState<string>('ALL');
   const [pageSize, setPageSize] = useState<number>(25);
   const [page, setPage] = useState<number>(1);
+
+  // الصفحة دي بتعرض عملاء المديونية بس — اللي عندهم مستحقات فعلاً. الفلتر ده
+  // مفعّل افتراضياً لأن قصد القسم متابعة التحصيل، بس يفضل مفتاح عشان المندوب
+  // يفتح شبكة عميله كلها لما يحب.
+  const [debtOnly, setDebtOnly] = useState<boolean>(true);
+  const [classFilter, setClassFilter] = useState<string>('ALL');
 
   // Draft inputs state for week forecasts
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -155,6 +169,15 @@ export default function CollectionForecastView() {
     return buildDefaultMonthPlan(Number(parsed[1]), Number(parsed[2]), currentUser?.name);
   }, [forecastPlans, monthKey, currentUser]);
 
+  /**
+   * الشهر المقفول بيقفل الكتابة عن كل الأدوار غير الأدمن.
+   *
+   * القرار مقصود إن الأدمن يفضل يقدر يعدّل ويقدر يفتح تاني: لو قفلنا كل حاجة
+   * بدون مخرج، أي ضغطة غلط هتقفل الشهر على كل المندوبين ومفيش حد يقدر يفتح.
+   * يعني القفل بيحمي الأرقام المحسوبة بس مش بيعمل قفل لا رجعة فيه.
+   */
+  const planLocked = !!plan.isClosed && !isAdmin;
+
   const weeks = plan.weeks;
   const weeksCount = weeks.length;
   const shownWeeks = useMemo(
@@ -164,23 +187,48 @@ export default function CollectionForecastView() {
   const currentWeek = weekIndexForDate(plan, new Date().toISOString().slice(0, 10));
 
   /* ---------- التوقعات الظاهرة للمستخدم الحالي ---------- */
-  const visibleForecasts = useMemo(
-    () => filterForecastsForUser(forecasts.filter((f) => f.monthKey === monthKey), currentUser, users),
-    [forecasts, monthKey, currentUser, users]
+  /* بنقصّ السطور على التقسيم الحالي للشهر. السبب إن سطور أسبوع مقفول بتفضل
+     موجودة في البيانات بعد ما الأدمن يصغّر الشهر، ولو دخلت هنا كانت بتعدّي في
+     المجموع من غير ما تكون ظاهرة في الجدول. السطور اليتيمة بتروحلنا للاشعار. */
+  const { visibleForecasts, orphanForecasts } = useMemo(() => {
+    const mine = filterForecastsForUser(
+      forecasts.filter((f) => f.monthKey === monthKey),
+      currentUser,
+      users
+    );
+    const { scoped, orphans } = scopeForecastsToPlan(mine, weeksCount);
+    return { visibleForecasts: scoped, orphanForecasts: orphans };
+  }, [forecasts, monthKey, currentUser, users, weeksCount]);
+
+  const orphanTotal = useMemo(
+    () => orphanForecasts.reduce((s, f) => s + (Number(f.collectionForecast) || 0), 0),
+    [orphanForecasts]
   );
 
   /* ---------- O(1) Pre-Indexed Forecast Maps (سرعة فائقة) ---------- */
-  const { forecastByCustomerAndWeek, forecastTotalsByCustomer } = useMemo(() => {
+  /* السطر الشهري المستقل بيتخزن بنفس الجدول بـ week_index = 0، فبنخزّنه في
+     map لوحده. لو خلطناه مع خريطة الأسابيع، الخانة الشهرية هتعرض آخر أسبوع
+     اتكتب فيها. */
+  const { forecastByCustomerAndWeek, forecastTotalsByCustomer, monthForecastByCustomer } = useMemo(() => {
     const byCustWeek = new Map<string, CollectionForecastRecord>();
     const byCustTotal = new Map<string, number>();
+    const monthByCustomer = new Map<string, CollectionForecastRecord>();
 
     visibleForecasts.forEach((f) => {
-      byCustWeek.set(`${f.customerId}::${f.weekIndex}`, f);
-      const prev = byCustTotal.get(f.customerId) || 0;
-      byCustTotal.set(f.customerId, prev + (Number(f.collectionForecast) || 0));
+      if (isWeekForecast(f)) {
+        byCustWeek.set(`${f.customerId}::${f.weekIndex}`, f);
+        const prev = byCustTotal.get(f.customerId) || 0;
+        byCustTotal.set(f.customerId, prev + (Number(f.collectionForecast) || 0));
+      } else {
+        monthByCustomer.set(f.customerId, f);
+      }
     });
 
-    return { forecastByCustomerAndWeek: byCustWeek, forecastTotalsByCustomer: byCustTotal };
+    return {
+      forecastByCustomerAndWeek: byCustWeek,
+      forecastTotalsByCustomer: byCustTotal,
+      monthForecastByCustomer: monthByCustomer,
+    };
   }, [visibleForecasts]);
 
   /* ---------- O(1) Pre-Indexed Comments & Returns & Visits ---------- */
@@ -227,6 +275,19 @@ export default function CollectionForecastView() {
     });
   }, [customers, currentUser, users]);
 
+  /**
+   * مين يدخل جدول التوقع أصلاً.
+   *
+   * العميل يدخل بس لو مديونيته أكبر من صفر وعليه مستحقات أكبر من صفر — يعني
+   * عنده فلوس فعلاً لازم تتحصل. الشرطين مع بعض مقصود: مديونية من غير مستحقات
+   * معناها رصيد ملغى، ومستحقات من غير مديونية معناها حد صفّر المستحق من غير
+   * ما يكون مدين. والأرقام بتتقري من canonical readers في customerDues عشان
+   * كل شاشات النظام تتفق على نفس الرقم للعميل الواحد.
+   */
+  const isCollectibleCustomer = useCallback((c: Customer) => {
+    return resolveCustomerBalanceValue(c) > 0 && resolveCustomerDuesValue(c) > 0;
+  }, []);
+
   /* ---------- خيارات المناديب المتاحة للفلترة ---------- */
   const repOptions = useMemo(() => {
     const seen = new Map<string, string>();
@@ -250,6 +311,16 @@ export default function CollectionForecastView() {
         return false;
       }
 
+      if (debtOnly && !isCollectibleCustomer(c)) return false;
+
+      if (classFilter !== 'ALL') {
+        const fin = calculateCustomerFinancials(c, 'ALL');
+        if (classFilter === 'eligible' && !fin.isEligible) return false;
+        if (classFilter === 'blocked' && fin.isEligible) return false;
+        if (classFilter === 'dealt' && !fin.isDealtCustomer) return false;
+        if (classFilter === 'not_dealt' && fin.isDealtCustomer) return false;
+      }
+
       if (!q) return true;
 
       const name = (c.name || '').toLowerCase();
@@ -259,17 +330,24 @@ export default function CollectionForecastView() {
 
       return name.includes(q) || code.includes(q) || rName.includes(q) || branch.includes(q);
     });
-  }, [scopedCustomers, deferredSearch, repFilter]);
+  }, [scopedCustomers, deferredSearch, repFilter, debtOnly, classFilter, isCollectibleCustomer]);
 
-  // Sort matched customers by expected collection desc, then by name
+  // Sort matched customers by their planned collection desc, then by name
   const sortedCustomers = useMemo(() => {
+    // الترتيب بالأولوية: رقم العميل الشهري المستقل، ومجموع الأسابيع fallback.
+    const plannedFor = (c: Customer) => {
+      const monthRec = monthForecastByCustomer.get(c.id);
+      const monthVal = monthRec ? Number(monthRec.collectionForecast) || 0 : 0;
+      return monthVal > 0 ? monthVal : forecastTotalsByCustomer.get(c.id) || 0;
+    };
+
     return [...filteredCustomers].sort((a, b) => {
-      const valA = forecastTotalsByCustomer.get(a.id) || 0;
-      const valB = forecastTotalsByCustomer.get(b.id) || 0;
+      const valA = plannedFor(a);
+      const valB = plannedFor(b);
       if (valB !== valA) return valB - valA;
       return (a.name || '').localeCompare(b.name || '', 'ar');
     });
-  }, [filteredCustomers, forecastTotalsByCustomer]);
+  }, [filteredCustomers, forecastTotalsByCustomer, monthForecastByCustomer]);
 
   /* ---------- ترقيم الصفحات (Pagination) ---------- */
   const totalPages = Math.max(1, Math.ceil(sortedCustomers.length / pageSize));
@@ -280,24 +358,38 @@ export default function CollectionForecastView() {
     return sortedCustomers.slice(start, start + pageSize);
   }, [sortedCustomers, safePage, pageSize]);
 
+  // أي تغيير في الفلاتر يرجّعنا لصفحة 1. لازم كل فلتر يكون في القائمة هنا،
+  // وإلا المستخدم يبقى واقف على صفحة 5 وفلتره سايبه صفحة فاضية.
   useEffect(() => {
     setPage(1);
-  }, [deferredSearch, repFilter, weekFilter, monthKey, pageSize]);
+  }, [deferredSearch, repFilter, weekFilter, monthKey, pageSize, debtOnly, classFilter]);
 
   /* ---------- إجماليات سريعة للبطاقات القيادية ---------- */
   const kpiTotals = useMemo(() => {
-    let totalForecast = 0;
+    let weeklyTotal = 0;
+    let monthTotal = 0;
+
     visibleForecasts.forEach((f) => {
-      totalForecast += Number(f.collectionForecast) || 0;
+      if (isWeekForecast(f)) weeklyTotal += Number(f.collectionForecast) || 0;
+      else monthTotal += Number(f.collectionForecast) || 0;
     });
+
+    // الرقم اللي بيتقارن بهدف الشهر هو التوقع الشهري المستقل. لو محدش كتب رقم
+    // شهري (لأننا لسه في أول استخدام) بنرجع لمجموع الأسابيع بدل ما نحسب صفر
+    // ونقول إن التغطية صفر والمطالبة غلط.
+    const hasExplicitMonth = monthTotal > 0;
+    const plannedTotal = hasExplicitMonth ? monthTotal : weeklyTotal;
 
     const monthTargets = targets.filter((t) => monthKeyOf(t.year, t.month) === monthKey);
     const targetCollection = monthTargets.reduce((sum, t) => sum + (Number(t.collectionTarget) || 0), 0);
     const actualCollection = monthTargets.reduce((sum, t) => sum + (Number(t.collectionAchieved) || 0), 0);
-    const coverage = targetCollection > 0 ? Math.round((totalForecast / targetCollection) * 100) : 0;
+    const coverage = targetCollection > 0 ? Math.round((plannedTotal / targetCollection) * 100) : 0;
 
     return {
-      totalForecast,
+      weeklyTotal,
+      monthTotal,
+      hasExplicitMonth,
+      plannedTotal,
       targetCollection,
       actualCollection,
       coverage,
@@ -338,6 +430,36 @@ export default function CollectionForecastView() {
     [monthKey, forecastByCustomerAndWeek]
   );
 
+  /**
+   * سطر التوقع الشهري المستقل لنفس العميل.
+   *
+   * لو العميل لسه ماكتبش رقم شهري بنرجّع له مجموع الأسابيع، عشان الخانة تبان
+   * فيها قيمة مفهومة بدل صفر مضلّل — والمندوب لو غيّر الرقم بيبقى صريح إنه
+   * كاتب رقم مستقل.
+   */
+  const monthRecordFor = useCallback(
+    (customer: Customer): CollectionForecastRecord => {
+      const existing = monthForecastByCustomer.get(customer.id);
+      if (existing) return existing;
+
+      return {
+        id: emptyMonthForecastId(monthKey, customer.id),
+        monthKey,
+        weekIndex: MONTH_FORECAST_INDEX,
+        repId: customer.repId || '',
+        repName: customer.salesRepName || customer.repName || '',
+        branchName: customer.branchName || '',
+        customerId: customer.id,
+        customerCode: customer.code || '',
+        customerName: customer.name || '',
+        collectionForecast: forecastTotalsByCustomer.get(customer.id) || 0,
+        salesForecast: 0,
+        status: 'draft',
+      };
+    },
+    [monthKey, monthForecastByCustomer, forecastTotalsByCustomer]
+  );
+
   const commitCell = useCallback(
     async (customer: Customer, week: number, raw: string) => {
       const base = recordFor(customer, week);
@@ -373,7 +495,46 @@ export default function CollectionForecastView() {
     [recordFor, currentUser, users, canApprove, saveForecast]
   );
 
+  /** حفظ التوقع الشهري المستقل — نفس مسار الحفظ الأسبوعي بس على week_index = 0. */
+  const commitMonthCell = useCallback(
+    async (customer: Customer, raw: string) => {
+      const base = monthRecordFor(customer);
+      const value = raw === '' ? 0 : Math.max(0, Number(raw) || 0);
+
+      if (isLockedForEditing(base, currentUser)) {
+        setSavedFlash('التوقع الشهري معتمد ومقفول — يتطلب طلب تعديل من المشرف');
+        setTimeout(() => setSavedFlash(''), 4000);
+        return;
+      }
+      if (!canWriteOwnForecast(currentUser, base, users)) {
+        setSavedFlash('غير مصرح لك بتعديل توقعات مندوب آخر');
+        setTimeout(() => setSavedFlash(''), 4000);
+        return;
+      }
+
+      await saveForecast({
+        ...base,
+        collectionForecast: value,
+        status: base.status === 'approved' && canApprove ? 'approved' : base.status,
+        changeRequestNote: undefined,
+      });
+
+      setDraft((d) => {
+        const next = { ...d };
+        delete next[`${customer.id}::${MONTH_FORECAST_INDEX}`];
+        return next;
+      });
+      setSavedFlash(`تم حفظ التوقع الشهري لـ ${customer.name} ✅`);
+      setTimeout(() => setSavedFlash(''), 3000);
+    },
+    [monthRecordFor, currentUser, users, canApprove, saveForecast]
+  );
+
   /* ---------- تصدير التقرير إلى Excel ---------- */
+  /* التقرير بيطلع على كل عملاء النطاق مش بس المعروضين في الشاشة، عشان اللي
+     بيقفل الشهر يلاقي الشبكة كاملة في ملف واحد. الأعمدة الجديدة (التوقع الشهري
+     المستقل وفرقه عن الأسابيع) ليها عرض أكبر لأنها أرقام كبيرة وبتتقرا جنب
+     بعض للمقارنة. */
   const handleExport = () => {
     const data = buildForecastExportRows({
       forecasts: visibleForecasts,
@@ -387,7 +548,8 @@ export default function CollectionForecastView() {
     ws['!cols'] = [
       { wch: 12 }, { wch: 24 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 18 }, { wch: 14 },
       { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
-      { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 40 }, { wch: 16 }, { wch: 16 },
+      { wch: 22 }, { wch: 22 }, { wch: 20 }, { wch: 20 }, { wch: 14 }, { wch: 14 },
+      { wch: 40 }, { wch: 16 }, { wch: 16 },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'توقع التحصيلات');
@@ -411,6 +573,173 @@ export default function CollectionForecastView() {
     }
     return out;
   }, []);
+
+  /* ---------- خطة الشهر: تقسيم 4 أو 5 أسابيع (الأدمن والمطوّر فقط) ---------- */
+  const openPlanEditor = () => {
+    setPlanDraft({
+      ...plan,
+      monthStart: plan.monthStart || toISODate(plan.year, plan.month, 1),
+      monthEnd: plan.monthEnd || toISODate(plan.year, plan.month, daysInMonth(plan.year, plan.month)),
+      weeks: plan.weeks.map((w) => ({ ...w })),
+    });
+    setPlanErrors([]);
+    setShowPlanEditor(true);
+  };
+
+  /** تقسيم افتراضي: كتل 7 أيام داخل مدى الشهر اللي الأدمن حدده. */
+  const applySuggestedSplit = () => {
+    if (!planDraft) return;
+    // بنقسّم المدى اللي الأدمن حدده (مش الشهر التقويمي) عشان لو عمل الشهر
+    // من يوم 25، التقسيم يفضل جواه ومحدش يفقد يوم.
+    const suggested = buildBlockWeeks(planDraft.monthStart, planDraft.monthEnd, 7);
+    if (!suggested.length) {
+      setPlanErrors(['مدى الشهر غير صحيح — راجع بداية ونهاية الشهر']);
+      return;
+    }
+    setPlanDraft((p) => (p ? { ...p, weeks: suggested } : p));
+    setPlanErrors([]);
+  };
+
+  /** التحويل لـ 4 أو 5 أسابيع مع الحفاظ على بداية ونهاية الشهر. */
+  const applyWeekCount = (count: number) => {
+    if (!planDraft) return;
+    const weeks = buildEvenWeeks(planDraft.monthStart, planDraft.monthEnd, count);
+    if (!weeks.length) {
+      setPlanErrors(['مدى الشهر غير صحيح — راجع بداية ونهاية الشهر']);
+      return;
+    }
+    setPlanDraft((p) => (p ? { ...p, weeks } : p));
+    setPlanErrors([]);
+  };
+
+  const updatePlanWeek = (index: number, field: 'start' | 'end', value: string) => {
+    setPlanDraft((p) => {
+      if (!p) return p;
+      return {
+        ...p,
+        weeks: p.weeks.map((w) => (w.index === index ? { ...w, [field]: value } : w)),
+      };
+    });
+    setPlanErrors([]);
+  };
+
+  const addPlanWeek = () => {
+    setPlanDraft((p) => {
+      if (!p || p.weeks.length >= 5) return p;
+      const last = p.weeks[p.weeks.length - 1];
+      const nextIndex = p.weeks.length + 1;
+      const start = last ? addDays(last.end, 1) : p.monthStart;
+      return {
+        ...p,
+        weeks: [...p.weeks, { index: nextIndex, start, end: last ? last.end : p.monthEnd }],
+      };
+    });
+    setPlanErrors([]);
+  };
+
+  const removePlanWeek = (index: number) => {
+    setPlanDraft((p) => {
+      if (!p || p.weeks.length <= 1) return p;
+      const removed = p.weeks.find((w) => w.index === index);
+      const weeks = p.weeks
+        .filter((w) => w.index !== index)
+        .map((w, i) => ({ ...w, index: i + 1 }));
+      // حذف أسبوع بيخلي الشهر مش مكتمل، فنقفل الفجوة اللي سببه الحذف: نمدّد
+      // الأسبوع اللي قبله لحد نهاية الأسبوع المحذوف، أو نمدّد الأول لبداية
+      // الشهر لو كان المحذوف هو الأول. من غير كده يبقى يوم أو أكتر من غير تغطية.
+      const prevIdx = weeks.findIndex((w) => w.index === index - 1);
+      if (removed && prevIdx >= 0) {
+        weeks[prevIdx] = { ...weeks[prevIdx], end: removed.end };
+      } else if (removed && weeks.length > 0 && weeks[0].start > p.monthStart) {
+        weeks[0] = { ...weeks[0], start: p.monthStart };
+      }
+      return { ...p, weeks };
+    });
+    setPlanErrors([]);
+  };
+
+  const handleSavePlan = async () => {
+    if (!planDraft) return;
+    const check = validateMonthPlan(planDraft);
+    if (!check.valid) {
+      setPlanErrors(check.errors);
+      return;
+    }
+    await saveForecastPlan({ ...planDraft, weeks: planDraft.weeks.map((w) => ({ ...w })) });
+    setShowPlanEditor(false);
+    setPlanDraft(null);
+    setPlanErrors([]);
+    setSavedFlash(`تم حفظ تقسيم الشهر على ${planDraft.weeks.length} أسابيع ✅`);
+    setTimeout(() => setSavedFlash(''), 3500);
+  };
+
+    /** قفل/فتح الشهر — للأدمن والمطوّر بس، والرسالة بوضوح عشان مفيش مفاجآت. */
+  const togglePlanClosed = async () => {
+    const nextClosed = !plan.isClosed;
+    const ok = window.confirm(
+      nextClosed
+        ? `قفل شهر ${formatMonthLabel(monthKey)}؟\n\nكل المندوبين والمشرفين هيبقوا ما يقدروش يعدّلوا في التوقعات لحد ما تفتح الشهر تاني.`
+        : `فتح شهر ${formatMonthLabel(monthKey)} تاني؟\n\nهيقدر أي حد يعدّل في التوقعات من جديد.`
+    );
+    if (!ok) return;
+    await saveForecastPlan({ ...plan, isClosed: nextClosed });
+    setSavedFlash(nextClosed ? 'تم قفل الشهر 🔒' : 'تم فتح الشهر من جديد 🔓');
+    setTimeout(() => setSavedFlash(''), 3500);
+  };
+
+  /* ---------- حالة كل أسبوع لكل مندوب (أضعف حالة في الأسبوع تغلب) ---------- */
+  /* أسبوع واحد فيه سطر واحد لسه مسودة = الأسبوع كله لسه مفتوح عند المشرف.
+     عشان كده بنجمع كل الحالات وناخد الأضعف، مش حالة أول صف في الجدول.
+     السطر الشهري (0) داخل في الخريطة عن قصد — ليه نفس دورة الاعتماد. */
+  const weekStatusByRep = useMemo(() => {
+    const map = new Map<string, ForecastStatus[]>();
+    visibleForecasts.forEach((f) => {
+      const key = `${f.repId}::${f.weekIndex}`;
+      const list = map.get(key) || [];
+      list.push(f.status);
+      map.set(key, list);
+    });
+    return map;
+  }, [visibleForecasts]);
+
+  const weakestStatusFor = (repId: string, weekIndex: number): ForecastStatus | '' => {
+    const list = weekStatusByRep.get(`${repId}::${weekIndex}`);
+    if (!list || list.length === 0) return '';
+    if (list.includes('change_requested')) return 'change_requested';
+    if (list.includes('draft')) return 'draft';
+    if (list.includes('submitted')) return 'submitted';
+    return 'approved';
+  };
+
+/* ---------- اعتماد التوقعات: المندوب بيبعت، والمشرف يعتمد أو يرجّع ---------- */
+  const handleSubmitWeek = async (repId: string, weekIndex: number) => {
+    const changed = await submitForecastWeek(monthKey, weekIndex, repId);
+    const label = weekIndex === MONTH_FORECAST_INDEX ? 'التوقع الشهري' : `الأسبوع ${weekIndex}`;
+    setSavedFlash(
+      changed > 0 ? `تم إرسال ${label} للمشرف ✅` : `مفيش صفوف ${label} مبعوتة بعد`
+    );
+    setTimeout(() => setSavedFlash(''), 3000);
+  };
+
+  const handleApproveWeek = async (repId: string, weekIndex: number) => {
+    const changed = await approveForecastWeek(monthKey, weekIndex, repId);
+    const label = weekIndex === MONTH_FORECAST_INDEX ? 'التوقع الشهري' : `الأسبوع ${weekIndex}`;
+    setSavedFlash(
+      changed > 0 ? `تم اعتماد ${label} وقفل الأرقام 🔒` : `مفيش صفوف ${label} تختص`
+    );
+    setTimeout(() => setSavedFlash(''), 3000);
+  };
+
+  const handleRequestChange = async () => {
+    if (!changeNoteTarget || !changeNote.trim()) return;
+    const { repId, weekIndex } = changeNoteTarget;
+    await requestForecastChange(monthKey, weekIndex, repId, changeNote.trim());
+    setChangeNoteTarget(null);
+    setChangeNote('');
+    const label = weekIndex === MONTH_FORECAST_INDEX ? 'التوقع الشهري' : `الأسبوع ${weekIndex}`;
+    setSavedFlash(`تم رجوع ${label} للمندوب للتعديل ✅`);
+    setTimeout(() => setSavedFlash(''), 3000);
+  };
 
   const openCommentModal = (c: Customer) => {
     setCommentTarget(c);
@@ -441,6 +770,9 @@ export default function CollectionForecastView() {
 
   if (!currentUser) return null;
 
+  // المقترح بيتحسب من المدة الفعلية اللي الأدمن كتبها في المودال.
+  const suggestedCount = spanDays(planDraft?.monthStart || '', planDraft?.monthEnd || '') > 28 ? 5 : 4;
+
   return (
     <div className="space-y-4" dir="rtl">
       {/* ========================================================================= */}
@@ -452,18 +784,18 @@ export default function CollectionForecastView() {
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-black flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                <span>إدارة التدفق النقدي والتحصيلات</span>
+                <span>توقع الزيارات والتحصيلات</span>
               </span>
               <span className="px-2 py-0.5 rounded-md bg-white/10 text-slate-300 text-xs font-bold">
                 نسخة خفيفة وسريعة ⚡
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
-              <span>توقع التحصيلات الأسبوعية (W1 - W5)</span>
+              <span>جدول التوقع الأسبوعي والشهري</span>
               <span className="text-emerald-400 font-mono text-base">({formatMonthLabel(monthKey)})</span>
             </h1>
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-              عرض مباشر لبيانات العملاء (الكود، الاسم، المديونية، إجمالي المستحقات) مع فتح تفاصيل العميل والزيارات عند النقر.
+              من جدول العملاء: الاسم والكود والمديونية وإجمالي المستحقات، مع التوقع الأسبوعي والتقسيم الشهري المستقل للأدمن.
             </p>
           </div>
 
@@ -502,12 +834,23 @@ export default function CollectionForecastView() {
             {isAdmin && (
               <button
                 type="button"
-                onClick={() => {
-                  setPlanDraft({ ...plan, weeks: plan.weeks.map((w) => ({ ...w })) });
-                  setPlanErrors([]);
-                  setShowPlanEditor(true);
-                }}
+                onClick={togglePlanClosed}
+                title={plan.isClosed ? 'فتح الشهر من جديد للكل' : 'قفل الشهر ومنع التعديل على كل الأدوار'}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-white text-xs font-black shadow-sm transition cursor-pointer ${
+                  plan.isClosed ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-slate-600 hover:bg-slate-500'
+                }`}
+              >
+                {plan.isClosed ? <LockOpen className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                <span>{plan.isClosed ? 'الشهر مقفول' : 'قفل الشهر'}</span>
+              </button>
+            )}
+
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={openPlanEditor}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-black shadow-sm transition cursor-pointer"
+                title="تحديد بداية ونهاية الشهر ونهاية كل أسبوع (الأدمن والمطوّر فقط)"
               >
                 <CalendarDays className="w-4 h-4" />
                 <span>تقسيم الأسابيع</span>
@@ -554,20 +897,57 @@ export default function CollectionForecastView() {
         </div>
       )}
 
+      {/* شهر مقفول — العرض بيفضل موجود والكتابة مقفولة */}
+      {plan.isClosed && (
+        <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-2xl bg-slate-900 text-slate-100 border border-slate-700 text-xs font-bold shadow-sm">
+          <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <span className="font-black">
+              شهر {formatMonthLabel(monthKey)} مقفول {isAdmin ? '' : '— التعديل متوقف'}
+            </span>
+            <p className="text-[10.5px] text-slate-300 leading-relaxed">
+              {isAdmin
+                ? 'أنت أدمن، فتقدر تعدّل عادي وتفتح الشهر من جديد من زرار «الشهر مقفول» فوق.'
+                : 'الأرقام اتقفلت بعد اعتماد المشرف. لو محتاج تعديل، كلّم المشرف أو الأدمن يفتح الشهر.'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* سطور معلّقة: أرقام كتبت في أسبوع بقى خارج التقسيم الحالي */}
+      {orphanForecasts.length > 0 && (
+        <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-2xl bg-amber-50 text-amber-950 border border-amber-300 text-xs font-bold shadow-sm">
+          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <span className="font-black">
+              في {orphanForecasts.length} سطر توقّع ({formatCurrency(orphanTotal)}) لأسبوع مش داخل في تقسيم الشهر الحالي
+            </span>
+            <p className="text-[10.5px] text-amber-800 leading-relaxed">
+              غالباً ده لأن التقسيم اتصغّر بعد ما الأرقام كتبت. السطور دي مش متحسبة في أي رقم
+              بالصفحة عشان متظهرش أرقام مش موجودة للعين. لو عايز ترجّعها، افتح «تقسيم الأسابيع» ووسّع الشهر تاني.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ========================================================================= */}
       {/* 2. Executive KPI Cards Summary (خفيفة جداً ومحسوبة بالذاكرة)             */}
       {/* ========================================================================= */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
           <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
-            <span>إجمالي التوقع للشهر</span>
-            <Wallet className="w-4 h-4 text-emerald-600" />
+            <span>التوقع الشهري المستقل</span>
+            <CalendarCheck className="w-4 h-4 text-teal-600" />
           </div>
-          <div className="text-base sm:text-lg font-black text-emerald-800 mt-1 font-mono">
-            {formatCurrency(kpiTotals.totalForecast)}
+          <div className="text-base sm:text-lg font-black text-teal-800 mt-1 font-mono">
+            {formatCurrency(kpiTotals.plannedTotal)}
           </div>
           <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
-            نسبة تغطية التارجت: <span className="text-emerald-700 font-black">{kpiTotals.coverage}%</span>
+            {kpiTotals.hasExplicitMonth ? (
+              <>مجموع الأسابيع: <span className="text-slate-700 font-black">{formatCurrency(kpiTotals.weeklyTotal)}</span></>
+            ) : (
+              <>لسه محدش كتب رقم شهري — الرقم ده مجموع الأسابيع</>
+            )}
           </div>
         </div>
 
@@ -580,7 +960,7 @@ export default function CollectionForecastView() {
             {formatCurrency(kpiTotals.targetCollection)}
           </div>
           <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
-            المسجل بتارجت الشهر المعتمد
+            نسبة التغطية: <span className="text-emerald-700 font-black">{kpiTotals.coverage}%</span>
           </div>
         </div>
 
@@ -593,7 +973,7 @@ export default function CollectionForecastView() {
             {formatCurrency(kpiTotals.actualCollection)}
           </div>
           <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
-            فارق التوقع: {formatCurrency(kpiTotals.totalForecast - kpiTotals.actualCollection)}
+            فارق التوقع: {formatCurrency(kpiTotals.plannedTotal - kpiTotals.actualCollection)}
           </div>
         </div>
 
@@ -606,7 +986,7 @@ export default function CollectionForecastView() {
             {filteredCustomers.length.toLocaleString('ar-EG')}
           </div>
           <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
-            إجمالي شبكة التوزيع ({scopedCustomers.length})
+            {debtOnly ? 'عملاء المديونية (مستحقات > 0)' : 'إجمالي شبكة التوزيع'} ({scopedCustomers.length})
           </div>
         </div>
       </section>
@@ -651,6 +1031,32 @@ export default function CollectionForecastView() {
             </option>
           ))}
         </select>
+
+        <select
+          value={classFilter}
+          onChange={(e) => setClassFilter(e.target.value)}
+          className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white cursor-pointer"
+        >
+          <option value="ALL">كل التصنيفات</option>
+          <option value="eligible">قابل للتعامل فقط</option>
+          <option value="blocked">غير قابل للتعامل فقط</option>
+          <option value="dealt">متعامل فقط</option>
+          <option value="not_dealt">غير متعامل فقط</option>
+        </select>
+
+        <button
+          type="button"
+          onClick={() => setDebtOnly((v) => !v)}
+          title="عرض عملاء المديونية اللي عندهم مستحقات أكبر من صفر فقط"
+          className={`px-3 py-2 rounded-xl text-xs font-black border transition cursor-pointer flex items-center gap-1.5 ${
+            debtOnly
+              ? 'bg-rose-600 text-white border-rose-700'
+              : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+          }`}
+        >
+          <Filter className="w-3.5 h-3.5" />
+          <span>{debtOnly ? 'عملاء المديونية فقط' : 'كل العملاء'}</span>
+        </button>
 
         <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
           <span>عرض:</span>
@@ -706,6 +1112,7 @@ export default function CollectionForecastView() {
                 <th className="p-3">المندوب والفرع</th>
                 <th className="p-3 text-rose-300">المديونية</th>
                 <th className="p-3 text-amber-300">إجمالي المستحقات</th>
+                <th className="p-3 text-center whitespace-nowrap">التصنيف</th>
                 {shownWeeks.map((w) => (
                   <th key={w.index} className="p-3 text-center whitespace-nowrap min-w-[105px]">
                     <div>متوقع أ{w.index}</div>
@@ -714,7 +1121,16 @@ export default function CollectionForecastView() {
                     </span>
                   </th>
                 ))}
-                <th className="p-3 text-emerald-300 text-center">إجمالي المتوقع</th>
+                <th className="p-3 text-teal-300 text-center whitespace-nowrap min-w-[130px]">
+                  <div className="flex items-center justify-center gap-1">
+                    <CalendarCheck className="w-3.5 h-3.5" />
+                    <span>متوقع شهري مستقل</span>
+                  </div>
+                  <span className="text-[9.5px] font-normal text-slate-400 block font-mono">
+                    رقم لوحده — مش مجموع الأسابيع
+                  </span>
+                </th>
+                <th className="p-3 text-emerald-300 text-center">مجموع الأسابيع</th>
                 <th className="p-3 text-center">الإجراءات</th>
               </tr>
             </thead>
@@ -723,11 +1139,12 @@ export default function CollectionForecastView() {
                 const rowNum = (safePage - 1) * pageSize + index + 1;
                 const balance = resolveCustomerBalanceValue(c);
                 const dues = resolveCustomerDuesValue(c);
-                const monthTotal = forecastTotalsByCustomer.get(c.id) || 0;
+                const weekSum = forecastTotalsByCustomer.get(c.id) || 0;
                 const repName = c.salesRepName || c.repName || 'المندوب';
                 const branchName = c.branchName || 'الفرع';
                 const returnInfo = returnsByCode.get(c.code || '');
                 const commentRecord = commentByCode.get(c.code || '');
+                const fin = calculateCustomerFinancials(c, 'ALL');
 
                 return (
                   <tr
@@ -784,12 +1201,38 @@ export default function CollectionForecastView() {
                       {dues > 0 ? formatCurrency(dues) : '0 ج.م'}
                     </td>
 
+                    {/* التصنيف — قراءة فقط من جدول العملاء */}
+                    <td className="p-3 text-center whitespace-nowrap">
+                      <div className="flex flex-col items-center gap-1">
+                        <span
+                          className={`px-2 py-0.5 rounded-lg font-black text-[10px] border inline-block ${
+                            fin.isEligible
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : 'bg-rose-100 text-rose-800 border-rose-300'
+                          }`}
+                          title={fin.sheetClassificationLabel || fin.eligibilityStatusLabel}
+                        >
+                          {fin.isEligible ? 'قابل للتعامل' : 'غير قابل'}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-lg font-black text-[10px] border inline-block ${
+                            fin.isDealtCustomer
+                              ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
+                              : 'bg-slate-100 text-slate-500 border-slate-300'
+                          }`}
+                          title={fin.dealtStatusLabel}
+                        >
+                          {fin.isDealtCustomer ? 'متعامل' : 'غير متعامل'}
+                        </span>
+                      </div>
+                    </td>
+
                     {/* Week Input Cells */}
                     {shownWeeks.map((w) => {
                       const recKey = `${c.id}::${w.index}`;
                       const rec = forecastByCustomerAndWeek.get(recKey);
                       const baseRec = recordFor(c, w.index);
-                      const editable = canWriteOwnForecast(currentUser, baseRec, users);
+                      const editable = canWriteOwnForecast(currentUser, baseRec, users) && !planLocked;
                       const locked = isLockedForEditing(baseRec, currentUser);
                       const currentVal = draft[recKey] !== undefined ? draft[recKey] : (rec ? String(rec.collectionForecast || '') : '');
 
@@ -821,9 +1264,55 @@ export default function CollectionForecastView() {
                       );
                     })}
 
-                    {/* Month Expected Total */}
+                    {/* التوقع الشهري المستقل — رقم بيكتبه المندوب لوحده */}
+                    {(() => {
+                      const recKey = `${c.id}::${MONTH_FORECAST_INDEX}`;
+                      const rec = monthForecastByCustomer.get(c.id);
+                      const baseRec = monthRecordFor(c);
+                      const editable = canWriteOwnForecast(currentUser, baseRec, users) && !planLocked;
+                      const locked = isLockedForEditing(baseRec, currentUser);
+                      const currentVal =
+                        draft[recKey] !== undefined ? draft[recKey] : (rec ? String(rec.collectionForecast || '') : '');
+                      // لو مفيش سطر شهري محفوظ، بنورّيه مجموع الأسابيع بس بلون
+                      // مختلف — كده المستخدم يفهم إن ده مش رقم مستقل بعد.
+                      const isDerived = !rec && weekSum > 0;
+
+                      return (
+                        <td className="p-2 text-center whitespace-nowrap bg-teal-50/30">
+                          <input
+                            type="number"
+                            min={0}
+                            disabled={!editable || locked}
+                            value={currentVal}
+                            placeholder={weekSum > 0 ? String(weekSum) : '0'}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDraft((prev) => ({ ...prev, [recKey]: val }));
+                            }}
+                            onBlur={(e) => {
+                              commitMonthCell(c, e.target.value);
+                            }}
+                            title={locked ? 'معتمد ومثبت من المشرف' : 'التوقع الشهري — رقم مستقل عن الأسابيع'}
+                            className={`w-28 px-2 py-1 rounded-xl text-center font-mono font-black text-xs border transition ${
+                              locked
+                                ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
+                                : isDerived
+                                ? 'bg-teal-50 text-teal-900 border-teal-300 border-dashed'
+                                : 'bg-teal-100 text-teal-950 border-teal-400 focus:outline-none'
+                            }`}
+                          />
+                          {isDerived && (
+                            <span className="block text-[9px] font-bold text-teal-600 mt-0.5" title="لسه مجموع الأسابيع — اكتب رقمك المستقل">
+                              محسوب من الأسابيع
+                            </span>
+                          )}
+                        </td>
+                      );
+                    })()}
+
+                    {/* مجموع الأسابيع — مقارنة صريحة بالرقم الشهري المكتوب */}
                     <td className="p-3 text-center font-mono font-black text-emerald-700 whitespace-nowrap bg-emerald-50/40">
-                      {monthTotal > 0 ? formatCurrency(monthTotal) : '—'}
+                      {weekSum > 0 ? formatCurrency(weekSum) : '—'}
                     </td>
 
                     {/* Actions */}
@@ -859,8 +1348,32 @@ export default function CollectionForecastView() {
 
               {pageCustomers.length === 0 && (
                 <tr>
-                  <td colSpan={8 + shownWeeks.length} className="p-8 text-center text-slate-400 font-bold text-xs">
-                    لا يوجد عملاء مطابقين للبحث والفلاتر المحددة حالياً.
+                  <td colSpan={10 + shownWeeks.length} className="p-8 text-center">
+                    <div className="space-y-2">
+                      <p className="text-slate-400 font-bold text-xs">لا يوجد عملاء مطابقين للبحث والفلاتر المحددة حالياً.</p>
+                      {/* الرسالة بتقول السبب الحقيقي للمشكلة بدل ما تسيب المستخدم يفكر
+                          إن مفيش عملاء أصلاً — فلتر المديونية والفلتر التصنيفي هم
+                          أكثر سببين يخفيوا الشبكة. */}
+                      {scopedCustomers.length > 0 && debtOnly && (
+                        <p className="text-slate-500 font-bold text-[11px]">
+                          في {scopedCustomers.length} عميل في نطاقك، بس مفيش ولا واحد عندهم مديونية ومستحقات أكبر من صفر.
+                        </p>
+                      )}
+                      {(debtOnly || classFilter !== 'ALL' || repFilter !== 'ALL' || deferredSearch.trim()) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDebtOnly(false);
+                            setClassFilter('ALL');
+                            setRepFilter('ALL');
+                            setSearch('');
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black cursor-pointer"
+                        >
+                          إعادة ضبط الفلاتر وعرض كل العملاء
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )}
@@ -900,6 +1413,160 @@ export default function CollectionForecastView() {
                 <ChevronLeft className="w-3.5 h-3.5" />
               </button>
             </div>
+          </div>
+        )}
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 2b. شريط الاعتماد حسب الدور: المندوب بيبعت، والمشرف بيPIOتمد أو يرجّع      */}
+      {/* ========================================================================= */}
+      <section className="bg-white rounded-3xl border border-slate-200 shadow-2xs overflow-hidden">
+        <div className="px-4 py-3 bg-slate-900 text-slate-100 flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span className="text-xs font-black">اعتماد التوقعات — دور كل مستخدم</span>
+            <span className="text-[11px] font-bold text-slate-400 font-mono">({progress.length} مندوب)</span>
+          </div>
+          <span className="text-[10.5px] text-slate-400 font-bold">
+            {canApprove
+              ? 'المشرف ومدير الفرع والإدارة بيحاولوا يعتمدوا أو يرجعوا التوقع للمعديل'
+              : 'مندوب بيبعت توقع الأسبوع أو التوقع الشهري للمشرف'}
+          </span>
+        </div>
+
+        {progress.length === 0 ? (
+          <p className="p-6 text-center text-xs font-bold text-slate-400">
+            مفيش توقعات مكتوبة لشهر {formatMonthLabel(monthKey)} بعد.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-right text-xs border-collapse">
+              <thead className="bg-slate-50 text-slate-600 font-black text-[11px]">
+                <tr>
+                  <th className="p-2.5">المندوب</th>
+                  <th className="p-2.5 text-center">التوقع الشهري</th>
+                  <th className="p-2.5 text-center">مجموع الأسابيع</th>
+                  <th className="p-2.5 text-center">الهدف</th>
+                  <th className="p-2.5 text-center">التغطية</th>
+                  <th className="p-2.5 text-center">حالة الأسابيع</th>
+                  <th className="p-2.5 text-center">الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {progress.map((p) => (
+                  <tr key={p.repId || p.repName} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="p-2.5 font-black text-slate-900 whitespace-nowrap">
+                      {p.repName}
+                      <span className="block text-[10px] font-normal text-slate-400">{p.branchName}</span>
+                    </td>
+                    <td className="p-2.5 text-center font-mono font-black text-teal-700 whitespace-nowrap">
+                      {p.monthCollection > 0 ? formatCurrency(p.monthCollection) : '—'}
+                    </td>
+                    <td className="p-2.5 text-center font-mono font-black text-emerald-700 whitespace-nowrap">
+                      {formatCurrency(p.weeklyCollection)}
+                    </td>
+                    <td className="p-2.5 text-center font-mono font-bold text-blue-700 whitespace-nowrap">
+                      {formatCurrency(p.targetCollection)}
+                    </td>
+                    <td className="p-2.5 text-center whitespace-nowrap">
+                      <span
+                        className={`px-2 py-0.5 rounded-lg font-black text-[10px] border inline-block ${
+                          p.status === 'ahead'
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            : p.status === 'on_track'
+                            ? 'bg-sky-100 text-sky-800 border-sky-300'
+                            : p.status === 'behind'
+                            ? 'bg-rose-100 text-rose-800 border-rose-300'
+                            : 'bg-slate-100 text-slate-500 border-slate-300'
+                        }`}
+                      >
+                        {p.collectionCoverage}%
+                      </span>
+                    </td>
+                    <td className="p-2.5 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1 flex-wrap">
+                        <span className={`px-1.5 py-0.5 rounded font-black text-[10px] border ${STATUS_STYLE.approved}`}>
+                          معتمد {p.approvedWeeks}
+                        </span>
+                        <span className={`px-1.5 py-0.5 rounded font-black text-[10px] border ${STATUS_STYLE.submitted}`}>
+                          مبعوت {p.submittedWeeks}
+                        </span>
+                        {p.changeRequestedWeeks > 0 && (
+                          <span className={`px-1.5 py-0.5 rounded font-black text-[10px] border ${STATUS_STYLE.change_requested}`}>
+                            مطلوب تعديل {p.changeRequestedWeeks}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-2.5 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1 flex-wrap">
+                        {(() => {
+                          // أسبوع 0 = التوقع الشهري المستقل، وعنده نفس دورة الاعتماد بالظبط.
+                          const slots = [MONTH_FORECAST_INDEX, ...weeks.map((w) => w.index)];
+                          return slots.map((w) => {
+                            const label = w === MONTH_FORECAST_INDEX ? 'شهري' : `أ${w}`;
+                            const weekValue =
+                              w === MONTH_FORECAST_INDEX
+                                ? p.monthCollection
+                                : Number(p.weekCollection?.[w] || 0);
+                            const status = weakestStatusFor(p.repId, w);
+                            return (
+                              <div key={w} className="flex items-center gap-1 border border-slate-200 rounded-xl px-1.5 py-1 bg-white">
+                                <span className="text-[10px] font-black text-slate-600">{label}</span>
+                                <span className="text-[10px] font-mono font-bold text-slate-500">
+                                  {weekValue > 0 ? Math.round(weekValue).toLocaleString('ar-EG') : '—'}
+                                </span>
+                                {status && (
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded font-black text-[9.5px] border ${STATUS_STYLE[status] || ''}`}
+                                    title={`حالة ${label}: ${STATUS_LABEL[status] || ''}`}
+                                  >
+                                    {STATUS_LABEL[status] || status}
+                                  </span>
+                                )}
+                                {!canApprove && !planLocked && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSubmitWeek(p.repId, w)}
+                                    className="px-1.5 py-0.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-black cursor-pointer"
+                                    title="إرسال التوقع للمشرف"
+                                  >
+                                    <Send className="w-3 h-3" />
+                                  </button>
+                                )}
+                                {canApprove && !planLocked && status !== '' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApproveWeek(p.repId, w)}
+                                      className="px-1.5 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black cursor-pointer"
+                                      title="اعتماد التوقع وقفله"
+                                    >
+                                      <CheckCircle2 className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setChangeNoteTarget({ repId: p.repId, weekIndex: w });
+                                        setChangeNote('');
+                                      }}
+                                      className="px-1.5 py-0.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-[10px] font-black cursor-pointer"
+                                      title="طلب تعديل من المندوب"
+                                    >
+                                      <RotateCcw className="w-3 h-3" />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </section>
@@ -1095,6 +1762,285 @@ export default function CollectionForecastView() {
           </div>
         );
       })()}
+
+      {/* ========================================================================= */}
+      {/* 6b. Week-plan editor — الأدمن والمطوّر فقط (يقسم الشهر على 4 أو 5 أسابيع) */}
+      {/* ========================================================================= */}
+      {showPlanEditor && planDraft && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] overflow-y-auto border border-slate-200 space-y-4">
+            <div className="sticky top-0 bg-slate-900 text-white px-5 py-4 flex items-center justify-between rounded-t-3xl z-10 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-violet-500/20 text-violet-400 flex items-center justify-center">
+                  <CalendarDays className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-white">تقسيم الشهر على الأسابيع</h3>
+                  <p className="text-[11px] text-slate-300">
+                    {formatMonthLabel(planDraft.id)} — أنت بتحدد بداية ونهاية الشهر وكل أسبوع
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPlanEditor(false);
+                  setPlanDraft(null);
+                  setPlanErrors([]);
+                }}
+                className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              {/* Month boundaries */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="font-black text-slate-700 block mb-1">بداية الشهر</span>
+                  <input
+                    type="date"
+                    value={planDraft.monthStart}
+                    onChange={(e) => {
+                      setPlanDraft((p) => (p ? { ...p, monthStart: e.target.value } : p));
+                      setPlanErrors([]);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold focus:outline-none focus:border-violet-500"
+                  />
+                </label>
+                <label className="block">
+                  <span className="font-black text-slate-700 block mb-1">نهاية الشهر</span>
+                  <input
+                    type="date"
+                    value={planDraft.monthEnd}
+                    onChange={(e) => {
+                      setPlanDraft((p) => (p ? { ...p, monthEnd: e.target.value } : p));
+                      setPlanErrors([]);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold focus:outline-none focus:border-violet-500"
+                  />
+                </label>
+              </div>
+
+              {/* Quick week-count picks */}
+              <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-3 space-y-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <span className="font-black text-violet-900 block">عدد أسابيع الشهر</span>
+                    <span className="text-[11px] text-violet-700">
+                      {/* المقترح بيتحسب من المدى اللي ظاهر فوق مش من الشهر التقويمي —
+                          لو الأدمن غيّر بداية/نهاية الشهر، المقترح لازم يتبعه. */}
+                      مقترح تلقائياً: {suggestedCount} أسابيع
+                      {suggestedCount === 4
+                        ? ` (المدة ${spanDays(planDraft.monthStart, planDraft.monthEnd)} يوم — 28 يوم أو أقل)`
+                        : ` (المدة ${spanDays(planDraft.monthStart, planDraft.monthEnd)} يوم — أكتر من 28 يوم)`}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => applyWeekCount(4)}
+                      className={`px-3 py-1.5 rounded-xl font-black transition cursor-pointer border ${
+                        planDraft.weeks.length === 4
+                          ? 'bg-violet-600 text-white border-violet-700'
+                          : 'bg-white text-violet-700 border-violet-300 hover:bg-violet-100'
+                      }`}
+                    >
+                      4 أسابيع
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyWeekCount(5)}
+                      className={`px-3 py-1.5 rounded-xl font-black transition cursor-pointer border ${
+                        planDraft.weeks.length === 5
+                          ? 'bg-violet-600 text-white border-violet-700'
+                          : 'bg-white text-violet-700 border-violet-300 hover:bg-violet-100'
+                      }`}
+                    >
+                      5 أسابيع
+                    </button>
+                    <button
+                      type="button"
+                      onClick={applySuggestedSplit}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-black transition cursor-pointer flex items-center gap-1"
+                      title="إعادة التقسيم المقترح: كل أسبوع 7 أيام"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>افتراضي</span>
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[10.5px] text-violet-700 leading-relaxed">
+                  اختيار 4 أو 5 بيوزّع الشهر بالتساوي، وبعدين تقدر تزحزح بداية ونهاية أي أسبوع بالأسفل.
+                </p>
+              </div>
+
+              {/* Week rows */}
+              <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="p-3 bg-slate-100 border-b border-slate-200 font-black text-slate-800 flex items-center justify-between">
+                  <span>تواريخ الأسابيع (بتعديل يدوي)</span>
+                  <button
+                    type="button"
+                    onClick={addPlanWeek}
+                    disabled={planDraft.weeks.length >= 5}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                    title="إضافة أسبوع (الحد الأقصى 5 أسابيع)"
+                  >
+                    <CalendarCheck className="w-3.5 h-3.5" />
+                    <span>إضافة أسبوع</span>
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs border-collapse">
+                    <thead className="bg-slate-50 text-slate-600 font-black text-[11px]">
+                      <tr>
+                        <th className="p-2.5 w-14">الأسبوع</th>
+                        <th className="p-2.5">من تاريخ</th>
+                        <th className="p-2.5">إلى تاريخ</th>
+                        <th className="p-2.5 text-center w-16">الأيام</th>
+                        <th className="p-2.5 text-center w-16">إزالة</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {planDraft.weeks.map((w) => {
+                        const len =
+                          (new Date(w.end).getTime() - new Date(w.start).getTime()) / 86400000 + 1;
+                        return (
+                          <tr key={w.index} className="hover:bg-slate-50/70">
+                            <td className="p-2.5 font-black text-violet-700">أ{w.index}</td>
+                            <td className="p-2">
+                              <input
+                                type="date"
+                                value={w.start}
+                                onChange={(e) => updatePlanWeek(w.index, 'start', e.target.value)}
+                                className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-[11px] font-bold focus:outline-none focus:border-violet-500"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="date"
+                                value={w.end}
+                                onChange={(e) => updatePlanWeek(w.index, 'end', e.target.value)}
+                                className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-[11px] font-bold focus:outline-none focus:border-violet-500"
+                              />
+                            </td>
+                            <td className="p-2.5 text-center font-mono font-bold text-slate-600">{len}</td>
+                            <td className="p-2.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => removePlanWeek(w.index)}
+                                disabled={planDraft.weeks.length <= 1}
+                                className="p-1 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                title="حذف هذا الأسبوع (آخر أسبوع يتمدد لتغطية فترته)"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {planErrors.length > 0 && (
+                <div className="rounded-2xl bg-rose-50 border border-rose-300 p-3 space-y-1">
+                  <div className="flex items-center gap-2 text-rose-900 font-black">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>لازم تصحّح قبل الحفظ:</span>
+                  </div>
+                  <ul className="list-disc pr-5 space-y-0.5 text-rose-800">
+                    {planErrors.map((e, i) => (
+                      <li key={i} className="text-[11px] font-bold">{e}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 flex-wrap">
+                <span className="text-[10.5px] text-slate-500 font-bold flex items-center gap-1">
+                  <Lock className="w-3.5 h-3.5" />
+                  بعد الاعتماد مش أي حد يقدر يعدّل غير بطلب تعديل من المشرف
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPlanEditor(false);
+                      setPlanDraft(null);
+                      setPlanErrors([]);
+                    }}
+                    className="px-3 py-1.5 rounded-xl border border-slate-300 font-bold text-slate-600 cursor-pointer"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSavePlan}
+                    className="px-4 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-black cursor-pointer shadow-sm flex items-center gap-1.5"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>حفظ التقسيم</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 6c. طلب تعديل — المشرف يرجّع التوقع للمندوب (تسجيل سبب) */}
+      {/* ========================================================================= */}
+      {changeNoteTarget && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-5 space-y-4 border border-slate-200 text-xs">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <span className="font-black text-sm text-slate-900">
+                طلب تعديل {changeNoteTarget.weekIndex === MONTH_FORECAST_INDEX ? 'التوقع الشهري' : `في الأسبوع ${changeNoteTarget.weekIndex}`}
+              </span>
+              <button
+                type="button"
+                onClick={() => setChangeNoteTarget(null)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="font-bold text-slate-600 block">سبب التعديل المطلوب:</label>
+              <textarea
+                rows={3}
+                value={changeNote}
+                onChange={(e) => setChangeNote(e.target.value)}
+                placeholder="اكتب للالمندوب إيه اللي محتاج يتظبط في الرقم..."
+                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setChangeNoteTarget(null)}
+                className="px-3 py-1.5 rounded-xl border border-slate-300 font-bold text-slate-600 cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleRequestChange}
+                disabled={!changeNote.trim()}
+                className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-black cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                رجوع للمندوب للتعديل
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* 6. Comments Modal (تسجيل ملاحظات الحساب)                                   */}

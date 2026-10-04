@@ -48,6 +48,7 @@ import { useApp } from '../context/AppContext';
 import { calculateCustomerFinancials } from '../services/customerFinancialService';
 import { formatCurrency } from '../services/invoiceService';
 import { isArabicNameMatch, normalizeArabicText } from '../services/arabicMatchingService';
+import { isMonthForecast } from '../services/forecastService';
 import { TargetRecord } from '../types';
 
 interface ManagementDashboardProps {
@@ -327,7 +328,13 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     const collectionRate = collectionTarget > 0 ? Math.round((collectionAchieved / collectionTarget) * 100) : 0;
 
     // Expected Collections (Forecast)
-    const forecastExpected = fList.reduce((sum, f) => sum + safeNumber(f.collectionForecast), 0);
+    // السطر الشهري المستقل (week_index = 0) بيتخزن في نفس جدول التوقعات
+    // الأسبوعية، فلازم يتشال هنا — غير كده التوقع المتوقع بيتحسب مرتين
+    // وربطة الدقة بتطلع غلط لأن المحقق بيقسم على رقم مضاعف.
+    const forecastExpected = fList.reduce(
+      (sum, f) => (isMonthForecast(f) ? sum : sum + safeNumber(f.collectionForecast)),
+      0
+    );
 
     const forecastAccuracy = forecastExpected > 0 ? Math.round((collectionAchieved / forecastExpected) * 100) : 0;
 
