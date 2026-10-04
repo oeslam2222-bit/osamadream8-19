@@ -2920,11 +2920,16 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             <span className="px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-black">
               {filteredCustomers.length.toLocaleString()} عميل
             </span>
+            {/* التصنيفات التلاتة كما هي في عمود "قابل /غير" — الأسماء من الشيت نفسه،
+                والأرقام بتتجمع على إجمالي نتيجة الفلاتر */}
             <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-black">
-              ✅ متعامل: {dealStatusCounts.dealt.toLocaleString()}
+              ✅ {sheetStatusCounts.dealt_eligibleLabel}: {sheetStatusCounts.dealt_eligible.toLocaleString()}
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-800 border border-rose-200 text-[11px] font-black">
+              ⛔ {sheetStatusCounts.ineligibleLabel}: {sheetStatusCounts.ineligible.toLocaleString()}
             </span>
             <span className="px-2.5 py-1 rounded-lg bg-sky-100 text-sky-800 border border-sky-200 text-[11px] font-black">
-              ⏳ غير متعامل: {dealStatusCounts.notDealt.toLocaleString()}
+              🟢 {sheetStatusCounts.idle_eligibleLabel}: {sheetStatusCounts.idle_eligible.toLocaleString()}
             </span>
           </div>
           {activeFiltersCount > 0 && (
