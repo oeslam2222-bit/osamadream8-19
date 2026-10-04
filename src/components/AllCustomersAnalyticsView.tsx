@@ -6150,7 +6150,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               <thead>
                 <tr className="bg-slate-100 text-slate-700 font-extrabold border-b border-slate-200 whitespace-nowrap">
                   <th className="p-3 text-center w-10">#</th>
-                  <th scope="col" className="p-3 text-center w-10">#</th>
                   <SortableHeader
                     column="code"
                     activeColumn={sortBy}
