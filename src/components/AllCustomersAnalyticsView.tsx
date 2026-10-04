@@ -1146,11 +1146,35 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       ineligible: 0,
       idle_eligible: 0,
     };
+    // Each bucket also reports the wording the sheet itself uses, so the dropdown
+    // and the coverage card cannot label a bucket differently from each other.
+    const wording: Record<SheetClassification, Map<string, number>> = {
+      dealt_eligible: new Map(),
+      ineligible: new Map(),
+      idle_eligible: new Map(),
+    };
     preDealFilteredCustomers.forEach((customer) => {
-      const classification = customerMetricsMap.get(customer.id)?.sheetClassification;
-      if (classification) counts[classification]++;
+      const m = customerMetricsMap.get(customer.id);
+      const classification = m?.sheetClassification;
+      if (!classification) return;
+      counts[classification]++;
+      const text = (m?.sheetClassificationLabel || '').trim() || 'قابل';
+      wording[classification].set(text, (wording[classification].get(text) || 0) + 1);
     });
-    return counts;
+    const dominant = (m: Map<string, number>, fallback: string) => {
+      let best = '';
+      let bestCount = -1;
+      m.forEach((count, text) => {
+        if (count > bestCount) { best = text; bestCount = count; }
+      });
+      return best || fallback;
+    };
+    return {
+      ...counts,
+      dealt_eligibleLabel: dominant(wording.dealt_eligible, 'متعامل'),
+      idle_eligibleLabel: dominant(wording.idle_eligible, 'قابل للتعامل'),
+      ineligibleLabel: dominant(wording.ineligible, 'غير قابل'),
+    };
   }, [preDealFilteredCustomers, customerMetricsMap]);
 
   // Guarantee counts (صنفين فقط: ماضي على أوراق ضمان / مش ماضي)
@@ -1220,6 +1244,22 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     let ineligibleCount = 0;
     let dealtEligibleCount = 0;
     let idleEligibleCount = 0;
+    // The sheet's own wording for each bucket, so the card can show what the sheet
+    // actually says instead of a label the UI composed (which used to call a
+    // customer "غير متعامل" on a cell that only said "قابل للتعامل").
+    const bucketLabels: Record<SheetClassification, Map<string, number>> = {
+      dealt_eligible: new Map(),
+      idle_eligible: new Map(),
+      ineligible: new Map(),
+    };
+    const dominantLabel = (m: Map<string, number>, fallback: string) => {
+      let best = '';
+      let bestCount = -1;
+      m.forEach((count, text) => {
+        if (count > bestCount) { best = text; bestCount = count; }
+      });
+      return best || fallback;
+    };
     let dealtCount = 0;
     let activeFilteredCount = 0;
     let nonDealtFilteredCount = 0;
@@ -1288,6 +1328,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       if (bucket === 'dealt_eligible') dealtEligibleCount++;
       else if (bucket === 'ineligible') ineligibleCount++;
       else idleEligibleCount++;
+      const bucketText = (m ? m.sheetClassificationLabel : 'قابل').trim() || 'قابل';
+      bucketLabels[bucket].set(bucketText, (bucketLabels[bucket].get(bucketText) || 0) + 1);
       if (isDealt) dealtCount++;
 
       if (c.monthlySales2026) {
@@ -1345,6 +1387,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       ineligibleCount,
       dealtEligibleCount,
       idleEligibleCount,
+      dealtEligibleLabel: dominantLabel(bucketLabels.dealt_eligible, 'متعامل'),
+      idleEligibleLabel: dominantLabel(bucketLabels.idle_eligible, 'قابل للتعامل'),
+      ineligibleLabel: dominantLabel(bucketLabels.ineligible, 'غير قابل'),
       dealtCount,
       activeFilteredCount,
       nonDealtFilteredCount,
@@ -2792,18 +2837,19 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               نسبة التغطية (من الإجمالي): {kpiStats.coverageRate}%
             </span>
           </div>
-          {/* التصنيفات التلاتة كما هي في عمود "قابل /غير" — نفس الأسماء والعدد */}
+          {/* التصنيفات كما هي مكتوبة في عمود "قابل /غير" — الاسم بيتقرأ من الشيت نفسه،
+              مش تركيبة من الكود، عشان ما ينسبش للعميل صفة مش مكتوبة */}
           <div className="mt-2.5 pt-2.5 border-t border-violet-400/20 space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-emerald-300">متعامل قابل للتعامل</span>
+              <span className="text-[11px] font-bold text-emerald-300">{kpiStats.dealtEligibleLabel}</span>
               <span className="text-sm font-black text-emerald-300 font-mono">{kpiStats.dealtEligibleCount.toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-sky-300">غير متعامل قابل للتعامل</span>
+              <span className="text-[11px] font-bold text-sky-300">{kpiStats.idleEligibleLabel}</span>
               <span className="text-sm font-black text-sky-300 font-mono">{kpiStats.idleEligibleCount.toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-rose-300">غير قابل</span>
+              <span className="text-[11px] font-bold text-rose-300">{kpiStats.ineligibleLabel}</span>
               <span className="text-sm font-black text-rose-300 font-mono">{kpiStats.ineligibleCount.toLocaleString()}</span>
             </div>
           </div>
@@ -4986,7 +5032,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
             {sheetStatusFilter !== 'ALL' && (
               <span className="inline-flex items-center gap-1 bg-white border border-emerald-200 text-emerald-900 px-2 py-0.8 rounded-md font-bold text-[11px] shadow-2xs">
-                <span>حالة التعامل (الشيت): {sheetStatusFilter === 'dealt_eligible' ? 'متعامل' : sheetStatusFilter === 'ineligible' ? 'غير قابل' : 'قابل للتعامل'}</span>
+                <span>حالة التعامل (الشيت): {sheetStatusFilter === 'dealt_eligible' ? sheetStatusCounts.dealt_eligibleLabel : sheetStatusFilter === 'ineligible' ? sheetStatusCounts.ineligibleLabel : sheetStatusCounts.idle_eligibleLabel}</span>
                 <button type="button" onClick={() => setSheetStatusFilter('ALL')} className="text-emerald-500 hover:text-rose-600 font-black mr-0.5 cursor-pointer">×</button>
               </span>
             )}
@@ -5322,9 +5368,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 transition shadow-2xs cursor-pointer"
                 >
                   <option value="ALL">جميع الحالات ({dealStatusCounts.total.toLocaleString()})</option>
-                  <option value="dealt_eligible">متعامل ✅ ({sheetStatusCounts.dealt_eligible.toLocaleString()})</option>
-                  <option value="ineligible">غير قابل ⛔ ({sheetStatusCounts.ineligible.toLocaleString()})</option>
-                  <option value="idle_eligible">قابل للتعامل 🟢 ({sheetStatusCounts.idle_eligible.toLocaleString()})</option>
+                  <option value="dealt_eligible">{sheetStatusCounts.dealt_eligibleLabel} ✅ ({sheetStatusCounts.dealt_eligible.toLocaleString()})</option>
+                  <option value="ineligible">{sheetStatusCounts.ineligibleLabel} ⛔ ({sheetStatusCounts.ineligible.toLocaleString()})</option>
+                  <option value="idle_eligible">{sheetStatusCounts.idle_eligibleLabel} 🟢 ({sheetStatusCounts.idle_eligible.toLocaleString()})</option>
                 </select>
               </div>
 
