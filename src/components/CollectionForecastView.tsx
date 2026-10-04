@@ -148,6 +148,11 @@ export default function CollectionForecastView() {
   const [changeNoteTarget, setChangeNoteTarget] = useState<{ repId: string; weekIndex: number } | null>(null);
   const [changeNote, setChangeNote] = useState('');
   const [savedFlash, setSavedFlash] = useState('');
+  const [page, setPage] = useState(1);
+  // One row carries an input per week for collection and sales, so a few
+  // thousand customers means tens of thousands of DOM nodes and the tab stops
+  // responding. Only the visible page is mounted.
+  const PAGE_SIZE = 50;
 
   const lastVisitMap = useLastVisitMap();
   const returnsByCode = useReturnsByCode();
@@ -251,6 +256,20 @@ export default function CollectionForecastView() {
     scopedCustomers, visibleForecasts, search, repFilter, weekFilter, hideIneligible,
     returnsByCode, lastVisitMap, customerComments, repOf,
   ]);
+
+  /* ---------- ترقيم الصفحات: لا نركّب إلا_PAGE_SIZE صف في نفس الوقت ---------- */
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pageRows = useMemo(
+    () => rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [rows, safePage]
+  );
+
+  // Changing any filter narrows the list, so start again from the first page
+  // instead of leaving the user on a page that no longer exists.
+  useEffect(() => {
+    setPage(1);
+  }, [search, repFilter, weekFilter, hideIneligible, monthKey]);
 
   /* ---------- تجميع ---------- */
   const repRows = useMemo(() => aggregateByRep(visibleForecasts, weeksCount), [visibleForecasts, weeksCount]);
@@ -865,7 +884,7 @@ export default function CollectionForecastView() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rows.map((r) => {
+              {pageRows.map((r) => {
                 const weeksToShow = shownWeeks;
                 return (
                   <tr key={r.customer.id} className={`${TONE_ROW[r.badge.tone]} hover:brightness-[0.99]`}>
@@ -995,6 +1014,36 @@ export default function CollectionForecastView() {
             </tfoot>
           </table>
         </div>
+
+        {/* ================= ترقيم الصفحات ================= */}
+        {rows.length > PAGE_SIZE && (
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-200">
+            <span className="text-[11px] font-bold text-slate-500">
+             Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, rows.length)} from {rows.length}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={safePage <= 1}
+                onClick={() => setPage(safePage - 1)}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-black disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 cursor-pointer"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <span className="px-2 text-[11px] font-black text-slate-700">
+                {safePage} / {pageCount}
+              </span>
+              <button
+                type="button"
+                disabled={safePage >= pageCount}
+                onClick={() => setPage(safePage + 1)}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-black disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 cursor-pointer"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ================= داش مبسط ================= */}
@@ -1277,8 +1326,15 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
 
 /** داش بسيط: آخر شهر تحصيل فيه + المديونية والمستحقات والحد الائتماني + طريقة الدفع. */
 function SimpleSummary({ customers, returnsByCode }: { customers: Customer[]; returnsByCode: Map<string, { count: number; amount: number; lastDate: string }> }) {
+  const [open, setOpen] = useState(false);
+
+  // Building this walks every customer, so it must not happen while the panel is
+  // shut, and the list itself stays capped so opening it cannot stall the tab.
+  const SUMMARY_LIMIT = 300;
+  const total = customers.length;
   const rows = useMemo(() => {
-    return customers.map((c) => {
+    if (!open) return [];
+    return customers.slice(0, SUMMARY_LIMIT).map((c) => {
       const fin = calculateCustomerFinancials(c, 'ALL');
       const m = c.monthlyCollections2026 || {};
       const lastMonthWithCollection = Object.entries(m)
@@ -1301,9 +1357,7 @@ function SimpleSummary({ customers, returnsByCode }: { customers: Customer[]; re
           (c.guaranteeAmount || 0) > 0 || /شيك|كمبيال/.test(c.guaranteeDocs || ''),
       };
     });
-  }, [customers, returnsByCode]);
-
-  const [open, setOpen] = useState(false);
+  }, [customers, returnsByCode, open]);
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -1320,6 +1374,11 @@ function SimpleSummary({ customers, returnsByCode }: { customers: Customer[]; re
       </button>
       {open && (
         <div className="overflow-x-auto max-h-96">
+          {total > SUMMARY_LIMIT && (
+            <div className="px-4 py-2 text-[11px] font-bold text-amber-800 bg-amber-50 border-b border-amber-200">
+              بيعرض {SUMMARY_LIMIT} عميل من {total} — استخدم البحث أو فلتر المندوب فوق عشان تباقي على باقي العملاء.
+            </div>
+          )}
           <table className="w-full text-right text-[11px] border-collapse">
             <thead className="bg-slate-100 text-slate-700 sticky top-0">
               <tr>
