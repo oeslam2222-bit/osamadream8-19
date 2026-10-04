@@ -126,9 +126,17 @@ export function mergeTwoCustomers(target: Customer, source: Customer): Customer 
   const sourceLimit = Number(source.creditLimit ?? 0);
   const finalLimit = pickConservative(targetLimit, sourceLimit, 0)!;
 
-  // Overdue / dues: same rule, and it must never silently collapse to zero.
-  const targetOverdue = target.totalOverdueAndDue !== undefined ? Number(target.totalOverdueAndDue) : undefined;
-  const sourceOverdue = source.totalOverdueAndDue !== undefined ? Number(source.totalOverdueAndDue) : undefined;
+  // Overdue / dues: same rule, and it must never silently collapse to zero. A blank
+  // sheet cell has to count as "no value" rather than a real zero, otherwise the
+  // merge keeps the blank side and throws away the amount the other row carried.
+  const readOverdue = (c: Customer): number | undefined => {
+    const raw = c.totalOverdueAndDue;
+    if (raw === undefined || raw === null) return undefined;
+    const n = Number(raw);
+    return isFinite(n) && String(raw).trim() !== '' ? n : undefined;
+  };
+  const targetOverdue = readOverdue(target);
+  const sourceOverdue = readOverdue(source);
   const finalOverdue = pickConservative(targetOverdue, sourceOverdue);
 
   // Monthly breakdown dictionaries - merge per month safely taking non-zero values by magnitude

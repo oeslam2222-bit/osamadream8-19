@@ -1,5 +1,8 @@
 import type { Customer } from '../types';
 import { normalizeArabicText } from './arabicMatchingService';
+import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from './customerDues';
+
+export { resolveCustomerBalanceValue, resolveCustomerDuesValue };
 
 // The three classifications the sheet's "قابل /غير" column carries, in one
 // place so the counters can never disagree with each other.
@@ -246,11 +249,10 @@ export function calculateCustomerFinancials(
 
   const returns2026 = 0;
 
-  // 4. Balances and Debt
-  const balance = parseCleanNumber(c.currentBalance ?? c.balance ?? 0);
-  const overdue = parseCleanNumber(
-    c.totalOverdueAndDue ?? c.overdueBalance ?? c.totalOverdue ?? c.dueUntilPeriod ?? 0
-  );
+  // 4. Balances and Debt — both figures come from the canonical resolvers so the
+  // main table, the Power BI tabs and the Excel export can never disagree.
+  const balance = resolveCustomerBalanceValue(c);
+  const overdue = resolveCustomerDuesValue(c);
   const dueBalance = c.dueBalance !== undefined ? parseCleanNumber(c.dueBalance) : overdue;
   const creditLimit = Math.max(0, parseCleanNumber(c.creditLimit || 0));
   const isOverLimit = creditLimit > 0 && balance > creditLimit;

@@ -46,6 +46,7 @@ import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import { doesCustomerBelongToRep, doesCustomerBelongToBranch, doesCustomerBelongToSupervisor, isArabicNameMatch, normalizeArabicText } from '../services/arabicMatchingService';
 import { isSummaryOrTotalRow, parseCleanNumber } from '../services/customerFinancialService';
+import { resolveCustomerDuesValue } from '../services/customerDues';
 import type { CustomerVisit, Customer } from '../types';
 import { VisitImportModal } from './VisitImportModal';
 
@@ -504,7 +505,7 @@ export const VisitsDashboard: React.FC = () => {
     let visitedToday = 0;
     routeCustomers.forEach((c) => {
       debt += debtOf(c);
-      overdue += Number(c.totalOverdueAndDue ?? c.overdueBalance ?? 0) || 0;
+      overdue += resolveCustomerDuesValue(c);
       if ((todayVisitsByCustomer.get(c.id) || []).some((v) => v.status === 'منفذة' || Boolean(v.checkOutTime))) {
         visitedToday++;
       }
@@ -2500,7 +2501,7 @@ export const VisitsDashboard: React.FC = () => {
                 const todayList = todayVisitsByCustomer.get(c.id) || [];
                 const doneToday = todayList.some((v) => v.status === 'منفذة' || Boolean(v.checkOutTime));
                 const debt = debtOf(c);
-                const overdue = Number(c.totalOverdueAndDue ?? c.overdueBalance ?? 0) || 0;
+                const overdue = resolveCustomerDuesValue(c);
                 const limit = Number(c.creditLimit || 0) || 0;
                 const ownerName = c.salesRepName || c.repName || 'غير محدد';
                 return (
@@ -2647,7 +2648,7 @@ export const VisitsDashboard: React.FC = () => {
                   <div>
                     <div className="text-[10px] text-rose-600 font-bold">المستحقات</div>
                     <div className="font-black font-mono text-rose-700">
-                      {formatCurrency(Number(c.totalOverdueAndDue ?? c.overdueBalance ?? 0) || 0)}
+                      {formatCurrency(resolveCustomerDuesValue(c))}
                     </div>
                   </div>
                 </div>
@@ -3939,7 +3940,7 @@ export const VisitsDashboard: React.FC = () => {
       {dossierCustomer && (() => {
         const dc = dossierCustomer;
         const balance = Number(dc.currentBalance ?? dc.balance ?? 0);
-        const overdue = Number(dc.totalOverdueAndDue ?? dc.overdueBalance ?? 0);
+        const overdue = resolveCustomerDuesValue(dc);
         const limit = Number(dc.creditLimit || 0);
         // Papers count only when there is an actual amount behind them, so a
         // blank or zero cell reads as "no papers" instead of a false pass.

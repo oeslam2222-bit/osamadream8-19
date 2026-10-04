@@ -41,6 +41,7 @@ import { CustomerFinancialSummaryCard } from './CustomerFinancialSummaryCard';
 import { formatCurrency } from '../services/invoiceService';
 import { findCustomerMatch, getBranchStockForProduct } from '../services/arabicMatchingService';
 import { getDepartmentMeta } from '../data/departmentMeta';
+import { resolveCustomerDuesValue } from '../services/customerDues';
 
 interface OrderBuilderModalProps {
   isOpen: boolean;
@@ -291,7 +292,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     const balAfter = balBefore + summary.grandTotal;
     const isExceeded = credLimit > 0 && balAfter > credLimit;
     const reqDown = isExceeded ? Math.max(0, balAfter - credLimit) : 0;
-    const overdue = Number(effectiveCustomer.totalOverdueAndDue ?? effectiveCustomer.overdueBalance ?? 0);
+    const overdue = resolveCustomerDuesValue(effectiveCustomer);
 
     try {
       const result = createOrder({
@@ -333,7 +334,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
   const balBefore = Number(activeCustomer?.currentBalance ?? activeCustomer?.balance ?? 0);
   const balAfter = balBefore + summary.grandTotal;
-  const overdueBal = Number(activeCustomer?.totalOverdueAndDue ?? activeCustomer?.overdueBalance ?? 0);
+  const overdueBal = resolveCustomerDuesValue(activeCustomer);
   const creditLimitVal = Number(activeCustomer?.creditLimit ?? 0);
   const isCreditExceeded = creditLimitVal > 0 && balAfter > creditLimitVal;
 

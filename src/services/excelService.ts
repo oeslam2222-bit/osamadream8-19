@@ -5,6 +5,7 @@ import { inferBranchFromText, resolveCustomerFinancials, getBranchStockForProduc
 import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
 import { deduplicateAndMergeCustomers } from './customerDeduplicationService';
 import { isSummaryOrTotalRow } from './customerFinancialService';
+import { resolveCustomerDuesValue } from './customerDues';
 
 /**
  * Preserves the product code exactly as supplied by the sheet, including prefixes
@@ -1882,7 +1883,20 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     ) {
       if (colMap.openingBalance2026 === -1) colMap.openingBalance2026 = idx;
     }
-    // 13. Check Dealt in 2026 (متعامل 2026)
+    // 13. Deal Eligibility (قابل /غير) — checked BEFORE the dealt column on purpose:
+    // a header like "قابل / غير متعامل" contains "متعامل", and the looser dealt
+    // matcher below would claim it and the eligibility column would be lost.
+    else if (
+      norm.includes('قابل/غير') ||
+      norm.includes('قابلغير') ||
+      norm.includes('قابل/غيرقابل') ||
+      norm.includes('قابليةالتعامل') ||
+      norm.includes('صلاحيةالتعامل') ||
+      norm.includes('eligib')
+    ) {
+      if (colMap.dealEligibility === -1) colMap.dealEligibility = idx;
+    }
+    // 14. Check Dealt in 2026 (متعامل 2026)
     else if (
       norm.includes('متعامل2026') ||
       norm.includes('تعامل2026') ||
@@ -1891,17 +1905,6 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('حالهالتعامل')
     ) {
       if (colMap.dealt2026 === -1) colMap.dealt2026 = idx;
-    }
-    // 14. Check Deal Eligibility (قابل /غير)
-    else if (
-      norm.includes('قابل/غير') ||
-      norm.includes('قابلغير') ||
-      norm.includes('قابل/غيرقابل') ||
-      norm.includes('قابليةالتعامل') ||
-      norm.includes('صلاحيةالتعامل') ||
-      norm.includes('eligibility')
-    ) {
-      if (colMap.dealEligibility === -1) colMap.dealEligibility = idx;
     }
     // 15. Check Customer Debt Status (حالة دين العميل)
     else if (
@@ -3099,7 +3102,7 @@ export function exportCustomerTargetSheetToExcel(customers: Customer[]): void {
     }
     const totalColl = c.totalMonthlyCollections !== undefined && c.totalMonthlyCollections > 0 ? c.totalMonthlyCollections : sumColl;
 
-    const overdue = Number(c.totalOverdueAndDue ?? c.overdueBalance ?? c.currentBalance ?? c.balance ?? 0);
+    const overdue = resolveCustomerDuesValue(c);
 
     return [
       c.name,

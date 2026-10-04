@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { Branch, Customer, Invoice, Product, User, UserRole, CustomerVisit } from '../types';
 import { withHashedCredential } from './passwordService';
+import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from './customerDues';
 
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://rxthpgmlcsfckstpqhqf.supabase.co';
 export const SUPABASE_ANON_KEY =
@@ -279,28 +280,15 @@ export async function fetchCustomersFromSupabase(
   }
 }
 
-const firstDefinedNumber = (...values: (number | undefined | null)[]): number | undefined => {
-  for (const v of values) {
-    if (v === undefined || v === null) continue;
-    const n = Number(v);
-    if (!isNaN(n)) return n;
-  }
-  return undefined;
-};
-
 /**
  * Single source of truth for إجمالي المستحقات (dues).
  *
- * Order must stay identical to the client-side resolver in AppContext so the
- * value written here is exactly what every role later reads back:
- * explicit dues column -> derived overdue columns -> debt balance (last resort).
+ * The logic itself now lives in customerFinancialService so the value written
+ * here is literally the same function every screen reads back — there is no
+ * second copy of the priority chain that can drift out of sync.
  */
 export function resolveCustomerDues(c: Customer): number {
-  const explicit = firstDefinedNumber(c.totalOverdueAndDue, c.overdueBalance, c.totalOverdue, c.dueBalance);
-  if (explicit !== undefined) return explicit;
-  const derived = firstDefinedNumber(c.overdue2026, c.dueUntilPeriod, c.overdue2025);
-  if (derived !== undefined) return derived;
-  return Number(c.currentBalance ?? c.balance ?? 0);
+  return resolveCustomerDuesValue(c);
 }
 
 /**
@@ -330,8 +318,8 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
         tax_number: c.taxNumber || null,
         tier: c.tier || 'متوسط',
         credit_limit: Number(c.creditLimit || 0),
-        balance: Number(c.balance ?? c.currentBalance ?? 0),
-        current_balance: Number(c.currentBalance ?? c.balance ?? 0),
+        balance: resolveCustomerBalanceValue(c),
+        current_balance: resolveCustomerBalanceValue(c),
         notes: c.notes || null,
         last_visit_date: c.lastVisitDate || null,
         visit_count_2026: Number(c.visitCount2026 || 0),

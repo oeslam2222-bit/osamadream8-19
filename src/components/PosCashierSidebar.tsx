@@ -31,6 +31,7 @@ import { downloadInvoicePDF } from '../services/pdfService';
 import { ProductImage } from './ProductImage';
 import { CustomerFinancialSummaryCard } from './CustomerFinancialSummaryCard';
 import { findCustomerMatch } from '../services/arabicMatchingService';
+import { resolveCustomerDuesValue } from '../services/customerDues';
 
 interface PosCashierSidebarProps {
   selectedCustomer?: Customer | null;
@@ -141,7 +142,7 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
     const balAfter = balBefore + cartSummary.grandTotal;
     const isExceeded = credLimit > 0 && balAfter > credLimit;
     const reqDown = isExceeded ? Math.max(0, balAfter - credLimit) : 0;
-    const overdue = Number(effectiveCustomer.totalOverdueAndDue ?? effectiveCustomer.overdueBalance ?? 0);
+    const overdue = resolveCustomerDuesValue(effectiveCustomer);
 
     try {
       const finalNotes = repNotes.trim()

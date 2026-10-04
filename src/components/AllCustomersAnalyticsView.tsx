@@ -4,6 +4,8 @@ import {
   Search,
   Filter,
   ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   Download,
   Upload,
   RefreshCw,
@@ -91,6 +93,7 @@ import {
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
 import { getSavedSourceUrl, saveSingleSourceUrl, getSavedSheetHistory } from '../services/dataSourceService';
 import { calculateCustomerFinancials, isSummaryOrTotalRow, parseCleanNumber, resolveNetCollections, resolveCollectionsMagnitude } from '../services/customerFinancialService';
+import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from '../services/customerDues';
 import { classifyEligibilityColumn } from '../services/customerFinancialService';
 import type { SheetClassification } from '../services/customerFinancialService';
 
@@ -141,6 +144,80 @@ const ClassificationBadge: React.FC<{ bucket: SheetClassification; label: string
       <Icon className={compact ? 'w-2.5 h-2.5' : 'w-3 h-3'} />
       {label}
     </span>
+  );
+};
+
+/** Columns the customers table header can sort by. 'ALL' means "no column override". */
+type SortableColumn =
+  | 'name'
+  | 'code'
+  | 'balance'
+  | 'overdue'
+  | 'creditLimit'
+  | 'sales2026'
+  | 'collections2026'
+  | 'lastVisit'
+  | 'order';
+
+const SORTABLE_COLUMN_LABELS: Record<SortableColumn, string> = {
+  name: 'اسم العميل / المحل',
+  code: 'الكود',
+  balance: 'المديونية (ج.م)',
+  overdue: 'المستحقات (ج.م)',
+  creditLimit: 'الحد الائتماني',
+  sales2026: 'البيع 2026',
+  collections2026: 'التحصيل 2026',
+  lastVisit: 'تاريخ آخر زيارة',
+  order: 'أمر البيع / الطلبية',
+};
+
+/**
+ * Clickable + keyboard-operable table header that toggles the sort on its column.
+ * All nine sortable headers used to be copy-pasted thunks with an onClick only,
+ * which made them unreachable by keyboard and by screen readers.
+ */
+const SortableHeader: React.FC<{
+  column: SortableColumn;
+  activeColumn: SortableColumn | 'ALL';
+  sortOrder: 'asc' | 'desc';
+  defaultOrder: 'asc' | 'desc';
+  align?: 'start' | 'center';
+  accent?: string;
+  onToggle: (column: SortableColumn, defaultOrder: 'asc' | 'desc') => void;
+}> = ({ column, activeColumn, sortOrder, defaultOrder, align = 'start', accent, onToggle }) => {
+  const isActive = activeColumn === column;
+  const justify = align === 'center' ? 'justify-center text-center' : 'justify-end';
+  return (
+    <th
+      scope="col"
+      role="button"
+      tabIndex={0}
+      aria-sort={isActive ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+      aria-label={`${SORTABLE_COLUMN_LABELS[column]} — ترتيب`}
+      onClick={() => onToggle(column, defaultOrder)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onToggle(column, defaultOrder);
+        }
+      }}
+      className={`p-3 cursor-pointer hover:bg-slate-200/60 transition ${
+        align === 'center' ? 'text-center' : 'text-left'
+      } ${isActive ? 'bg-slate-200/80' : ''}`}
+    >
+      <div className={`flex items-center ${justify} gap-1 ${accent || ''}`}>
+        <span>{SORTABLE_COLUMN_LABELS[column]}</span>
+        {isActive ? (
+          sortOrder === 'asc' ? (
+            <ArrowUp className="w-3 h-3 text-slate-500" />
+          ) : (
+            <ArrowDown className="w-3 h-3 text-slate-500" />
+          )
+        ) : (
+          <ArrowUpDown className="w-3 h-3 text-slate-400" />
+        )}
+      </div>
+    </th>
   );
 };
 
@@ -241,9 +318,23 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [dealingSearch, setDealingSearch] = useState<string>('');
   const [dealingRepFilter, setDealingRepFilter] = useState<string>('ALL');
 
-  // Sorting
-  const [sortBy, setSortBy] = useState<'name' | 'code' | 'balance' | 'overdue' | 'creditLimit' | 'sales2026' | 'collections2026' | 'lastVisit' | 'order'>('sales2026');
+  // Sorting — 'ALL' means "no column override", so the sortMode preset below applies
+  const [sortBy, setSortBy] = useState<SortableColumn | 'ALL'>('ALL');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  const handleSortToggle = (column: SortableColumn, defaultOrder: 'asc' | 'desc') => {
+    if (sortBy === column) {
+      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(column);
+      setSortOrder(defaultOrder);
+    }
+  };
+
+  const clearColumnSort = () => {
+    setSortBy('ALL');
+    setSortOrder('desc');
+  };
 
   // Pagination for high-performance (4000+ items)
   const [currentPage, setCurrentPage] = useState(1);
@@ -270,7 +361,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     if (selectedCustomer) {
       setEditCreditLimit(selectedCustomer.creditLimit || 0);
       setEditGuaranteeDocs(selectedCustomer.guaranteeDocs || (selectedCustomer.creditLimit && selectedCustomer.creditLimit > 0 ? 'شيك بنكي' : 'بدون ضمان'));
-      setEditOverdueBalance(selectedCustomer.totalOverdueAndDue ?? selectedCustomer.overdueBalance ?? 0);
+      setEditOverdueBalance(resolveCustomerDuesValue(selectedCustomer));
       setEditNextVisitDate(selectedCustomer.nextVisitDate || '');
       setIsEditingDossier(false);
     }
@@ -521,6 +612,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   // column always mirrors the sheet instead of a figure derived from the month
   // slicer. The sheet stores free text (متعامل / غير متعامل / نعم / لا).
   const sheetDealStatus = (c: Customer): boolean => {
+    const dealtClass = classifyEligibilityColumn(c.dealt2026);
+    if (dealtClass?.dealt !== undefined) return dealtClass.dealt;
     const raw = (c.dealt2026 || '').trim();
     if (raw && raw !== '-' && raw !== 'غير محدد') {
       if (raw.includes('غير')) return false;
@@ -531,11 +624,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
   // "قابل" comes from the sheet's own قابل / غير column, which is separate from
   // the dealt status: a customer can be قابل yet have not traded yet.
-  const isSheetQualified = (c: Customer): boolean => {
-    const e = (c.dealEligibility || '').trim();
-    if (!e || e === '-' || e === 'غير محدد') return false;
-    return !e.includes('غير') && !e.includes('موقوف') && !e.includes('ممتنع') && !e.includes('مستبعد');
-  };
+  // Classification goes through the shared classifier so this can never disagree
+  // with the badge, the counters and the slicers.
+  const isSheetQualified = (c: Customer): boolean =>
+    classifyEligibilityColumn(c.dealEligibility)?.eligible ?? false;
 
   // The guarantee column in the sheet is an AMOUNT: > 0 means signed (ماضي), 0 or blank means unsigned (مش ماضي)
   const hasGuaranteePapers = (c: Customer): boolean => {
@@ -747,7 +839,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       list = list.filter((c) => {
         const m = customerMetricsMap.get(c.id);
         const isDealt = m ? m.isDealtCustomer : (c.dealt2026 === 'متعامل' || Boolean(c.hasDealtIn2026));
-        const isEligible = m ? m.isEligible : !c.dealEligibility?.includes('غير');
+        const isEligible = m ? m.isEligible : (classifyEligibilityColumn(c.dealEligibility)?.eligible ?? true);
 
         if (dealEligibilityFilter === 'dealt') return isDealt;
         if (dealEligibilityFilter === 'non_dealt' || dealEligibilityFilter === 'not_dealt') return !isDealt;
@@ -762,7 +854,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       list = list.filter((c) => {
         const m = customerMetricsMap.get(c.id);
         const isDealt = m ? m.isDealtCustomer : Boolean(c.hasDealtIn2026);
-        const isEligible = m ? m.isEligible : !c.dealEligibility?.includes('غير');
+        const isEligible = m ? m.isEligible : (classifyEligibilityColumn(c.dealEligibility)?.eligible ?? true);
 
         if (dealtFilter === 'dealt') return isDealt;
         if (dealtFilter === 'not_dealt') return !isDealt;
@@ -947,11 +1039,36 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       });
     }
 
-    // Sorting Pipeline (Highest debt to lowest debt, etc.)
+    // Sorting Pipeline: an explicit column sort (set by clicking a table header)
+    // always wins; otherwise the sortMode preset from the dropdown applies.
     list = [...list].sort((a, b) => {
       const mA = customerMetricsMap.get(a.id);
       const mB = customerMetricsMap.get(b.id);
       if (!mA || !mB) return 0;
+
+      const dir = sortOrder === 'asc' ? 1 : -1;
+
+      if (sortBy !== 'ALL') {
+        if (sortBy === 'sales2026') return (mA.sales2026 - mB.sales2026) * dir;
+        if (sortBy === 'collections2026') return (mA.collections2026 - mB.collections2026) * dir;
+        if (sortBy === 'balance') return (mA.balance - mB.balance) * dir;
+        if (sortBy === 'overdue') return (mA.overdue - mB.overdue) * dir;
+        if (sortBy === 'creditLimit') return (mA.creditLimit - mB.creditLimit) * dir;
+        if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '', 'ar') * dir;
+        if (sortBy === 'code') return (a.code || '').localeCompare(b.code || '') * dir;
+        if (sortBy === 'lastVisit') {
+          const tA = (a.lastVisitDate ? new Date(a.lastVisitDate).getTime() : 0) || 0;
+          const tB = (b.lastVisitDate ? new Date(b.lastVisitDate).getTime() : 0) || 0;
+          return (tA - tB) * dir;
+        }
+        if (sortBy === 'order') {
+          const latest = (m: typeof mA) => {
+            const o = m.orderSummary?.latestOrder;
+            return (o ? new Date(o.date || o.createdAt || 0).getTime() : 0) || 0;
+          };
+          return (latest(mA) - latest(mB)) * dir;
+        }
+      }
 
       if (sortMode === 'highest_debt') return mB.balance - mA.balance;
       if (sortMode === 'lowest_debt') return mA.balance - mB.balance;
@@ -966,29 +1083,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         return locA.localeCompare(locB, 'ar');
       }
 
-      if (sortBy === 'sales2026') {
-        return sortOrder === 'asc' ? mA.sales2026 - mB.sales2026 : mB.sales2026 - mA.sales2026;
-      }
-      if (sortBy === 'collections2026') {
-        return sortOrder === 'asc' ? mA.collections2026 - mB.collections2026 : mB.collections2026 - mA.collections2026;
-      }
-      if (sortBy === 'balance') {
-        return sortOrder === 'asc' ? mA.balance - mB.balance : mB.balance - mA.balance;
-      }
-      if (sortBy === 'overdue') {
-        return sortOrder === 'asc' ? mA.overdue - mB.overdue : mB.overdue - mA.overdue;
-      }
-      if (sortBy === 'creditLimit') {
-        return sortOrder === 'asc' ? mA.creditLimit - mB.creditLimit : mB.creditLimit - mA.creditLimit;
-      }
-      if (sortBy === 'name') {
-        return sortOrder === 'asc' ? (a.name || '').localeCompare(b.name || '', 'ar') : (b.name || '').localeCompare(a.name || '', 'ar');
-      }
-      if (sortBy === 'code') {
-        return sortOrder === 'asc' ? (a.code || '').localeCompare(b.code || '') : (b.code || '').localeCompare(a.code || '');
-      }
-
-      return 0;
+      return mB.balance - mA.balance;
     });
 
     return { list, preDealList, preGuaranteeList };
@@ -1030,7 +1125,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     preDealFilteredCustomers.forEach((c) => {
       const m = customerMetricsMap.get(c.id);
       const isDealt = m ? m.isDealtCustomer : (c.dealt2026 === 'متعامل' || Boolean(c.hasDealtIn2026));
-      const isElig = m ? m.isEligible : !c.dealEligibility?.includes('غير');
+      const isElig = m ? m.isEligible : (classifyEligibilityColumn(c.dealEligibility)?.eligible ?? true);
       if (isDealt) dealt++;
       if (isElig) eligible++;
       else ineligible++;
@@ -1077,6 +1172,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     sheetStatusFilter,
     dealtFilter,
     sortMode,
+    sortBy,
+    sortOrder,
     selectedRegion,
     activityFilter,
     activityTypeFilter,
@@ -1145,7 +1242,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const c26 = signedCustomerCollections(c);
       const pCols = signedCustomerCollections(c, selectedMonth);
       const bal = m ? m.balance : (c.currentBalance ?? c.balance ?? 0);
-      const overdue = m ? m.overdue : (c.totalOverdueAndDue ?? c.overdueBalance ?? c.totalOverdue ?? c.dueUntilPeriod ?? 0);
+      const overdue = m ? m.overdue : resolveCustomerDuesValue(c);
       const cLimit = m ? m.creditLimit : (c.creditLimit || 0);
       const g = (c.guaranteeDocs || '').toLowerCase();
 
@@ -1650,7 +1747,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const s = m ? m.sales2026 : (c.sales2026 || c.totalMonthlySales || 0);
       const col = signedCustomerCollections(c);
       const d = m ? m.balance : (c.currentBalance ?? c.balance ?? 0);
-      const o = m ? m.overdue : (c.totalOverdueAndDue ?? c.overdueBalance ?? 0);
+      const o = m ? m.overdue : resolveCustomerDuesValue(c);
       cur.sales += s;
       cur.collections += col;
       cur.debt += d;
@@ -1796,7 +1893,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const signedCols = signedCustomerCollections(c);
       const cols = Math.abs(signedCols);
       const debt = c.currentBalance ?? c.balance ?? 0;
-      const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
+      const overdue = resolveCustomerDuesValue(c);
 
       const hasOrder = customerOrdersLookup.getOrdersForCustomer(c).length > 0;
       const isTrans = sales > 0 || cols !== 0 || hasOrder || Boolean(c.hasDealtIn2026);
@@ -2078,7 +2175,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const rep = c.salesRepName || c.repName || 'غير محدد';
       const branch = c.branchName || 'الفرع الرئيسي';
       const bal = c.currentBalance ?? c.balance ?? 0;
-      const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
+      const overdue = resolveCustomerDuesValue(c);
       const sales = c.sales2026 ?? 0;
       const isVip = bal > 40000 || sales > 50000 || (c.creditLimit || 0) > 50000;
 
@@ -2318,6 +2415,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     setOrderFilter('ALL');
     setVisitFilter('ALL');
     setSortMode('highest_debt');
+    clearColumnSort();
   };
 
   // Google Sheets Live Sync
@@ -4722,7 +4820,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setSortMode('route_asc')}
+                    onClick={() => {
+                      setSortMode('route_asc');
+                      clearColumnSort();
+                    }}
                     className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-black flex items-center gap-1 cursor-pointer transition"
                   >
                     <ArrowUpDown className="w-3.5 h-3.5 text-emerald-600" />
@@ -4754,6 +4855,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         onClick={() => {
                           setSelectedRegion(rt.route);
                           setSortMode('route_asc');
+                          clearColumnSort();
                           const el = document.getElementById('analytics-search-input');
                           if (el) el.scrollIntoView({ behavior: 'smooth' });
                         }}
@@ -5363,7 +5465,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 <select
                   id="analytics-sort-select"
                   value={sortMode}
-                  onChange={(e) => setSortMode(e.target.value as typeof sortMode)}
+                  onChange={(e) => {
+                    setSortMode(e.target.value as typeof sortMode);
+                    clearColumnSort();
+                  }}
                   className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-purple-500 transition shadow-2xs cursor-pointer"
                 >
                   <option value="highest_debt">🔴 الأكثر مديونية أولاً</option>
@@ -5372,6 +5477,18 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   <option value="route_asc">🗺️ ترتيب حسب خط السير</option>
                   <option value="name_asc">🔤 أبجدي (أ - ي)</option>
                 </select>
+                {sortBy !== 'ALL' && (
+                  <button
+                    type="button"
+                    onClick={clearColumnSort}
+                    className="self-start text-[10px] font-bold text-blue-700 hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <ArrowUpDown className="w-3 h-3" />
+                    <span>
+                      مرتب حسب عمود: {SORTABLE_COLUMN_LABELS[sortBy]} ({sortOrder === 'asc' ? 'تصاعدي' : 'تنازلي'}) — إلغاء
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -5470,10 +5587,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             <div className="bg-slate-900/90 p-3 rounded-xl border border-rose-900/50">
               <span className="text-[11px] text-rose-300 block font-bold">المستحقات والمتأخرات:</span>
               <span className="text-lg sm:text-xl font-black text-rose-400 font-mono mt-0.5 block" title={isPrivacyMode ? 'مخفي' : undefined}>
-                {formatMoney(selectedSlicerCustomer.totalOverdueAndDue ?? selectedSlicerCustomer.overdueBalance ?? 0)}
+                {formatMoney(resolveCustomerDuesValue(selectedSlicerCustomer))}
               </span>
               <span className="text-[10px] text-rose-300 mt-0.5 block">
-                {(selectedSlicerCustomer.totalOverdueAndDue ?? selectedSlicerCustomer.overdueBalance ?? 0) > 0 ? '⚠️ واجبة السداد الفوري' : '✓ لا توجد مستحقات متأخرة'}
+                {resolveCustomerDuesValue(selectedSlicerCustomer) > 0 ? '⚠️ واجبة السداد الفوري' : '✓ لا توجد مستحقات متأخرة'}
               </span>
             </div>
 
@@ -5753,11 +5870,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 const globalIdx = (currentPage - 1) * pageSize + index + 1;
                 const metrics = customerMetricsMap.get(c.id);
                 const bal = metrics ? metrics.balance : (c.currentBalance ?? c.balance ?? 0);
-                const overdue = metrics ? metrics.overdue : (c.totalOverdueAndDue ?? c.overdueBalance ?? 0);
+                const overdue = metrics ? metrics.overdue : resolveCustomerDuesValue(c);
                 const s26 = metrics ? metrics.sales2026 : (c.sales2026 || 0);
                 const col26 = metrics ? metrics.collections2026 : (c.collections2026 || 0);
                 const isDealt = metrics ? metrics.isDealtCustomer : sheetDealStatus(c);
-                const isElig = metrics ? metrics.isEligible : !c.dealEligibility?.includes('غير');
+                const isElig = metrics ? metrics.isEligible : (classifyEligibilityColumn(c.dealEligibility)?.eligible ?? true);
                 const classificationBucket: SheetClassification = metrics
                   ? metrics.sheetClassification
                   : (classifyEligibilityColumn(c.dealEligibility)?.bucket ?? 'idle_eligible');
@@ -5883,118 +6000,83 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               <thead>
                 <tr className="bg-slate-100 text-slate-700 font-extrabold border-b border-slate-200 whitespace-nowrap">
                   <th className="p-3 text-center w-10">#</th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'code') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('code'); setSortOrder('asc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition"
-                  >
-                    <div className="flex items-center gap-1">
-                      <span>الكود</span>
-                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'name') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('name'); setSortOrder('asc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition min-w-[180px]"
-                  >
-                    <div className="flex items-center gap-1">
-                      <span>اسم العميل / المحل</span>
-                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                    </div>
-                  </th>
-                  <th className="p-3 text-center whitespace-nowrap">قابل / غير</th>
-                  <th className="p-3">الفرع / المندوب</th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'balance') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('balance'); setSortOrder('desc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition text-left"
-                  >
-                    <div className="flex items-center justify-end gap-1 text-purple-700">
-                      <span>المديونية (ج.م)</span>
-                      <ArrowUpDown className="w-3 h-3" />
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'overdue') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('overdue'); setSortOrder('desc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition text-left"
-                  >
-                    <div className="flex items-center justify-end gap-1 text-rose-700">
-                      <span>المستحقات (ج.م)</span>
-                      <ArrowUpDown className="w-3 h-3" />
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'creditLimit') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('creditLimit'); setSortOrder('desc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition text-left"
-                  >
-                    <div className="flex items-center justify-end gap-1 text-slate-700">
-                      <span>الحد الائتماني</span>
-                      <ArrowUpDown className="w-3 h-3" />
-                    </div>
-                  </th>
-                  <th className="p-3 text-center">أوراق الضمان</th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'sales2026') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('sales2026'); setSortOrder('desc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition text-left"
-                  >
-                    <div className="flex items-center justify-end gap-1 text-blue-700">
-                      <span>البيع 2026</span>
-                      <ArrowUpDown className="w-3 h-3" />
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'collections2026') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('collections2026'); setSortOrder('desc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition text-left"
-                  >
-                    <div className="flex items-center justify-end gap-1 text-emerald-700">
-                      <span>التحصيل 2026</span>
-                      <ArrowUpDown className="w-3 h-3" />
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'lastVisit') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('lastVisit'); setSortOrder('desc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition text-center"
-                  >
-                    <div className="flex items-center justify-center gap-1 text-amber-800">
-                      <span>تاريخ آخر زيارة</span>
-                      <ArrowUpDown className="w-3 h-3" />
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'order') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('order'); setSortOrder('desc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition text-center"
-                  >
-                    <div className="flex items-center justify-center gap-1 text-teal-800">
-                      <span>أمر البيع / الطلبية</span>
-                      <ArrowUpDown className="w-3 h-3" />
-                    </div>
-                  </th>
-                  <th className="p-3 text-center">الإجراءات</th>
+                  <th scope="col" className="p-3 text-center w-10">#</th>
+                  <SortableHeader
+                    column="code"
+                    activeColumn={sortBy}
+                    sortOrder={sortOrder}
+                    defaultOrder="asc"
+                    onToggle={handleSortToggle}
+                  />
+                  <SortableHeader
+                    column="name"
+                    activeColumn={sortBy}
+                    sortOrder={sortOrder}
+                    defaultOrder="asc"
+                    onToggle={handleSortToggle}
+                  />
+                  <th scope="col" className="p-3 text-center whitespace-nowrap">قابل / غير</th>
+                  <th scope="col" className="p-3">الفرع / المندوب</th>
+                  <SortableHeader
+                    column="balance"
+                    activeColumn={sortBy}
+                    sortOrder={sortOrder}
+                    defaultOrder="desc"
+                    accent="text-purple-700"
+                    onToggle={handleSortToggle}
+                  />
+                  <SortableHeader
+                    column="overdue"
+                    activeColumn={sortBy}
+                    sortOrder={sortOrder}
+                    defaultOrder="desc"
+                    accent="text-rose-700"
+                    onToggle={handleSortToggle}
+                  />
+                  <SortableHeader
+                    column="creditLimit"
+                    activeColumn={sortBy}
+                    sortOrder={sortOrder}
+                    defaultOrder="desc"
+                    accent="text-slate-700"
+                    onToggle={handleSortToggle}
+                  />
+                  <th scope="col" className="p-3 text-center">أوراق الضمان</th>
+                  <SortableHeader
+                    column="sales2026"
+                    activeColumn={sortBy}
+                    sortOrder={sortOrder}
+                    defaultOrder="desc"
+                    accent="text-blue-700"
+                    onToggle={handleSortToggle}
+                  />
+                  <SortableHeader
+                    column="collections2026"
+                    activeColumn={sortBy}
+                    sortOrder={sortOrder}
+                    defaultOrder="desc"
+                    accent="text-emerald-700"
+                    onToggle={handleSortToggle}
+                  />
+                  <SortableHeader
+                    column="lastVisit"
+                    activeColumn={sortBy}
+                    sortOrder={sortOrder}
+                    defaultOrder="desc"
+                    align="center"
+                    accent="text-amber-800"
+                    onToggle={handleSortToggle}
+                  />
+                  <SortableHeader
+                    column="order"
+                    activeColumn={sortBy}
+                    sortOrder={sortOrder}
+                    defaultOrder="desc"
+                    align="center"
+                    accent="text-teal-800"
+                    onToggle={handleSortToggle}
+                  />
+                  <th scope="col" className="p-3 text-center">الإجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -6002,7 +6084,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   const globalIdx = (currentPage - 1) * pageSize + index + 1;
                   const metrics = customerMetricsMap.get(c.id);
                   const bal = metrics ? metrics.balance : (c.currentBalance ?? c.balance ?? 0);
-                  const overdue = metrics ? metrics.overdue : (c.totalOverdueAndDue ?? c.overdueBalance ?? 0);
+                  const overdue = metrics ? metrics.overdue : resolveCustomerDuesValue(c);
                   const limit = metrics ? metrics.creditLimit : (c.creditLimit || 0);
                   const isOverLimit = metrics ? metrics.isOverLimit : (limit > 0 && bal > limit);
                   const s26 = metrics ? metrics.sales2026 : (c.sales2026 || 0);
@@ -6012,7 +6094,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   const visitTime = getRelativeTimeArabic(c.lastVisitDate);
                   const orderSummary = metrics ? metrics.orderSummary : getCustomerOrderSummary(c);
                   const isDealt = metrics ? metrics.isDealtCustomer : sheetDealStatus(c);
-                  const isElig = metrics ? metrics.isEligible : !c.dealEligibility?.includes('غير');
+                  const isElig = metrics ? metrics.isEligible : (classifyEligibilityColumn(c.dealEligibility)?.eligible ?? true);
                   const classificationBucket: SheetClassification = metrics
                     ? metrics.sheetClassification
                     : (classifyEligibilityColumn(c.dealEligibility)?.bucket ?? 'idle_eligible');
@@ -6591,7 +6673,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <span className="w-2 h-2 rounded-full bg-rose-500" />
                   </div>
                   <div className="text-lg sm:text-2xl font-black font-mono text-rose-950 mt-1">
-                    {formatMoney(selectedCustomer.totalOverdueAndDue ?? selectedCustomer.overdueBalance ?? 0)}
+                    {formatMoney(resolveCustomerDuesValue(selectedCustomer))}
                   </div>
                   <div className="text-[11px] font-bold text-rose-600 mt-1 border-t border-rose-100 pt-1 flex items-center justify-between">
                     <span>الحالة:</span>

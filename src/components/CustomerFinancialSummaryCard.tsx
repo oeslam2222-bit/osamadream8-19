@@ -18,6 +18,7 @@ import {
 import { Customer, Invoice } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import { findCustomerMatch } from '../services/arabicMatchingService';
+import { resolveCustomerDuesValue } from '../services/customerDues';
 import { useApp } from '../context/AppContext';
 
 export interface CustomerFinancialSummaryCardProps {
@@ -89,7 +90,11 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
 
     // Authoritative financial figures strictly derived from master customer data
     const currentDebt = Number(masterCustomer?.currentBalance ?? masterCustomer?.balance ?? customer?.currentBalance ?? customer?.balance ?? 0);
-    const overdueAmount = Number(masterCustomer?.totalOverdueAndDue ?? masterCustomer?.overdueBalance ?? customer?.totalOverdueAndDue ?? customer?.overdueBalance ?? currentDebt);
+    const overdueAmount = masterCustomer
+      ? resolveCustomerDuesValue(masterCustomer)
+      : customer
+      ? resolveCustomerDuesValue(customer)
+      : currentDebt;
     const creditLimit = Number(masterCustomer?.creditLimit ?? customer?.creditLimit ?? 0);
     const invoiceTotal = Math.max(0, Number(currentInvoiceAmount || 0));
     const debtAfterInvoice = currentDebt + invoiceTotal;

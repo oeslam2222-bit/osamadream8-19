@@ -50,6 +50,7 @@ import {
 } from '../services/arabicMatchingService';
 import { parseExcelCustomers, parseRawRowsToCustomers } from '../services/excelService';
 import { getSavedSourceUrl, saveSingleSourceUrl, getSavedSheetHistory } from '../services/dataSourceService';
+import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from '../services/customerDues';
 import { isSummaryOrTotalRow, resolveNetCollections, resolveCollectionsMagnitude } from '../services/customerFinancialService';
 import * as XLSX from 'xlsx';
 
@@ -292,7 +293,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
       // Debt filter
       const debt = Number(c.currentBalance ?? c.balance ?? 0);
-      const overdueDue = Number(c.totalOverdueAndDue !== undefined ? c.totalOverdueAndDue : debt);
+      const overdueDue = resolveCustomerDuesValue(c);
       const limit = Number(c.creditLimit || 0);
 
       if (debtFilter === 'has_debt' && debt <= 0) return false;
@@ -345,13 +346,13 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
       }
       if (sortField === 'overdue') {
-        valA = Number(a.totalOverdueAndDue !== undefined ? a.totalOverdueAndDue : (a.currentBalance ?? a.balance ?? 0));
-        valB = Number(b.totalOverdueAndDue !== undefined ? b.totalOverdueAndDue : (b.currentBalance ?? b.balance ?? 0));
+        valA = resolveCustomerDuesValue(a);
+        valB = resolveCustomerDuesValue(b);
         return sortDirection === 'asc' ? valA - valB : valB - valA;
       }
       if (sortField === 'debt') {
-        valA = Number(a.currentBalance ?? a.balance ?? 0);
-        valB = Number(b.currentBalance ?? b.balance ?? 0);
+        valA = resolveCustomerBalanceValue(a);
+        valB = resolveCustomerBalanceValue(b);
         return sortDirection === 'asc' ? valA - valB : valB - valA;
       }
       if (sortField === 'sales') {
@@ -407,7 +408,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
     scopedCustomers.forEach((c) => {
       const debt = Number(c.currentBalance ?? c.balance ?? 0);
-      const overdueDue = Number(c.totalOverdueAndDue !== undefined ? c.totalOverdueAndDue : debt);
+      const overdueDue = resolveCustomerDuesValue(c);
       const mSalesSum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
       const sales = Math.max(Number(c.sales2026 || 0), Number(c.totalMonthlySales || 0), Number(c.totalOverallSales || 0), mSalesSum);
       const signedCollections = resolveNetCollections(c);
@@ -470,7 +471,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
   const handleOpenEdit = (customer: Customer) => {
     setEditingCustomer(customer);
     const balanceVal = Number(customer.currentBalance ?? customer.balance ?? 0);
-    const overdueVal = Number(customer.totalOverdueAndDue !== undefined ? customer.totalOverdueAndDue : balanceVal);
+    const overdueVal = resolveCustomerDuesValue(customer);
     setFormData({
       id: customer.id,
       code: customer.code || '',
@@ -745,7 +746,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     const rows = sortedCustomers.map((c) => {
       const limit = Number(c.creditLimit) || 0;
       const balance = Number(c.currentBalance ?? c.balance ?? 0);
-      const overdueAndDue = Number(c.totalOverdueAndDue !== undefined ? c.totalOverdueAndDue : balance);
+      const overdueAndDue = resolveCustomerDuesValue(c);
       const available = Math.max(0, limit - balance);
       return [
         c.code || '---',
@@ -1398,7 +1399,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 paginatedCustomers.map((customer, index) => {
                   const globalIdx = (currentPage - 1) * pageSize + index + 1;
                   const debt = Number(customer.currentBalance ?? customer.balance ?? 0);
-                  const overdueAndDue = Number(customer.totalOverdueAndDue !== undefined ? customer.totalOverdueAndDue : debt);
+                  const overdueAndDue = resolveCustomerDuesValue(customer);
                   const mSalesSum = customer.monthlySales2026 ? Object.values(customer.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
                   const sales = Math.max(Number(customer.sales2026 || 0), Number(customer.totalMonthlySales || 0), Number(customer.totalOverallSales || 0), mSalesSum);
                   const collections = resolveCollectionsMagnitude(customer);

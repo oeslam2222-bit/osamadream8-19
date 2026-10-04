@@ -1,4 +1,5 @@
 import { Customer, Product, User, Invoice } from '../types';
+import { resolveCustomerDuesValue } from './customerDues';
 
 /**
  * Universal Arabic Text Normalizer
@@ -1173,7 +1174,7 @@ export function resolveCustomerFinancials(
   if (invoice.customerOverdueBalance !== undefined && invoice.customerOverdueBalance !== null) {
     overdue = Number(invoice.customerOverdueBalance);
   } else if (matchedCustomer) {
-    overdue = Number(matchedCustomer.totalOverdueAndDue ?? matchedCustomer.overdueBalance ?? 0);
+    overdue = resolveCustomerDuesValue(matchedCustomer);
   } else {
     overdue = 0;
   }

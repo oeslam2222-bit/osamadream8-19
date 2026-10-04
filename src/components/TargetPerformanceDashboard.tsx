@@ -61,6 +61,8 @@ import {
   saveSingleSourceUrl,
 } from '../services/dataSourceService';
 import { resolveNetCollections, sumNetCollections, parseCleanNumber } from '../services/customerFinancialService';
+import { resolveCustomerDuesValue } from '../services/customerDues';
+import { classifyEligibilityColumn } from '../services/customerFinancialService';
 
 // Helper to normalize and match branch names with tolerance for prefixes
 const isBranchMatch = (b1?: string | null, b2?: string | null): boolean => {
@@ -549,7 +551,10 @@ export const TargetPerformanceDashboard: React.FC = () => {
         return false;
       };
 
-      const eligibleCustomers = repCustomers.filter((customer) => !normalizeArabicText(customer.dealEligibility || '').includes('غير')).length;
+      // Read eligibility through the canonical classifier. The old inline test
+      // ("does the text contain غير?") counted "غير متعامل" as ineligible, which
+      // is a dealt flag, not an eligibility block.
+      const eligibleCustomers = repCustomers.filter((customer) => classifyEligibilityColumn(customer.dealEligibility)?.eligible ?? true).length;
       const dealtCustomers = repCustomers.filter(isDealtCustomer).length;
       const coverageRate = eligibleCustomers > 0 ? Math.round((dealtCustomers / eligibleCustomers) * 100) : 0;
 
@@ -560,16 +565,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
         nonDealtCustomers: repCustomers.filter((customer) => !isDealtCustomer(customer)).length,
         eligibleCustomers,
         coverageRate,
-        dues: repCustomers.reduce((sum, customer) => {
-          const val = Number(
-            customer.totalOverdueAndDue ??
-            customer.overdueBalance ??
-            customer.dueUntilPeriod ??
-            customer.dueBalance ??
-            0
-          );
-          return sum + (isNaN(val) ? 0 : val);
-        }, 0),
+        dues: repCustomers.reduce((sum, customer) => sum + resolveCustomerDuesValue(customer), 0),
         debts: repCustomers.reduce((sum, customer) => {
           const val = Number(customer.currentBalance ?? customer.balance ?? 0);
           return sum + (isNaN(val) ? 0 : val);

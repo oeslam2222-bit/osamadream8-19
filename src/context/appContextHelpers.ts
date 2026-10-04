@@ -2,6 +2,7 @@ import type { Customer, Product, TargetRecord, User } from '../types';
 import { inferBranchFromText, normalizeArabicText } from '../services/arabicMatchingService';
 import { deduplicateAndMergeCustomers } from '../services/customerDeduplicationService';
 import { calculateCustomerFinancials, isSummaryOrTotalRow } from '../services/customerFinancialService';
+import { resolveCustomerDuesValue } from '../services/customerDues';
 
 export const STORAGE_KEYS = {
   PRODUCTS: 'dream_dist_products_v9',
@@ -72,17 +73,11 @@ export const firstNumber = (...values: (number | undefined | null)[]): number | 
 
 /**
  * Resolve إجمالي المستحقات (dues) for a customer.
- * Dues are a separate figure from المديونية and must never be silently
- * replaced by the debt balance; the balance fallback only applies when the
- * source has no dues figure at all.
+ *
+ * Delegates to the canonical resolver in customerFinancialService so the value
+ * used here, in the main table and in the database write path is one number.
  */
-export const resolveDues = (c: Customer): number => {
-  const explicit = firstNumber(c.totalOverdueAndDue, c.overdueBalance, c.totalOverdue, c.dueBalance);
-  if (explicit !== undefined) return explicit;
-  const derived = firstNumber(c.overdue2026, c.dueUntilPeriod, c.overdue2025);
-  if (derived !== undefined) return derived;
-  return Number(c.currentBalance ?? c.balance ?? 0);
-};
+export const resolveDues = (c: Customer): number => resolveCustomerDuesValue(c);
 
 /**
  * Lightweight fingerprint of the customer data a client is currently showing.
@@ -96,7 +91,7 @@ export const buildCustomersFingerprint = (list: Customer[]): string => {
   let dues = 0;
   list.forEach((c) => {
     debt += Number(c.currentBalance ?? c.balance ?? 0);
-    dues += Number(c.totalOverdueAndDue ?? 0);
+    dues += resolveCustomerDuesValue(c);
   });
   return `${list.length}:${Math.round(debt)}:${Math.round(dues)}`;
 };

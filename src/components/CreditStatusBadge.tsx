@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Customer, Invoice } from '../types';
+import { resolveCustomerDuesValue } from '../services/customerDues';
 
 interface CreditStatusBadgeProps {
   invoice: Invoice;
@@ -54,15 +55,10 @@ export const CreditStatusBadge: React.FC<CreditStatusBadgeProps> = ({
       ? Number(matchedCustomer.creditLimit)
       : 0;
 
-  const overdueDebt = Number(
+  const overdueDebt =
     invoice.customerOverdueBalance !== undefined && invoice.customerOverdueBalance !== null
-      ? invoice.customerOverdueBalance
-      : matchedCustomer?.totalOverdueAndDue !== undefined && matchedCustomer?.totalOverdueAndDue !== null
-      ? matchedCustomer.totalOverdueAndDue
-      : matchedCustomer?.overdueBalance !== undefined && matchedCustomer?.overdueBalance !== null
-      ? matchedCustomer.overdueBalance
-      : 0
-  );
+      ? Number(invoice.customerOverdueBalance)
+      : resolveCustomerDuesValue(matchedCustomer);
 
   const hasNoCredit = creditLimit <= 0;
   const isExceeded = !hasNoCredit && (invoice.creditLimitExceeded ?? (debtAfter > creditLimit));

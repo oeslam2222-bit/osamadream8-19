@@ -13,6 +13,7 @@ import {
 import { buildGoogleSheetsPublicCsvUrl } from './excelService';
 import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
 import { deduplicateAndMergeCustomers } from './customerDeduplicationService';
+import { resolveCustomerDuesValue } from './customerDues';
 
 export const MONTH_NAMES_AR = [
   'يناير',
@@ -427,6 +428,27 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     return { customers: [], errors: ['الملف فارغ أو لا يحتوي على صفوف صالحة.'], totalRows: 0, duplicatesCount: 0 };
   }
 
+  /**
+   * Recognises the sheet's قابل / غير قابل column.
+   *
+   * Matched on a space-stripped, lowercase form because the same column is
+   * written as "قابل / غير", "قابل/غير", "قابلية التعامل" and "صلاحية التعامل"
+   * across sheets. It must not match a plain "متعامل 2026" column.
+   */
+  const matchDealEligibilityHeader = (rawHeader: string): boolean => {
+    // normalizeArabicText strips "/" to a space, so "قابل / غير" arrives here as
+    // "قابلغير" — the slash must not be part of the pattern.
+    const h = normalizeHeaderDigits(normalizeArabicText(rawHeader)).toLowerCase().replace(/[\s_]+/g, '');
+    if (!h) return false;
+    return (
+      h.includes('قابلغير') ||
+      h.includes('قابليةالتعامل') ||
+      h.includes('صلاحيةالتعامل') ||
+      h.includes('امكانيةالتعامل') ||
+      h.includes('eligib')
+    );
+  };
+
   // 1. Locate header row
   let headerRowIdx = -1;
   let bestHeaderScore = 0;
@@ -515,6 +537,7 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     collections2025: -1,
     collections2026: -1,
     hasDealt2026: -1,
+    dealEligibility: -1,
     lastVisitDate: -1,
     visitCount: -1,
     guaranteeDocs: -1,
@@ -753,7 +776,16 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     ) {
       colMap.visitCount = idx;
     }
-    // 20. Dealing Status in 2026
+    // 20. Deal Eligibility (قابل / غير قابل)
+    // Checked BEFORE the dealt column on purpose: a header like "قابل / غير متعامل"
+    // contains "متعامل", and the looser dealt matcher below would steal it.
+    else if (
+      colMap.dealEligibility === -1 &&
+      matchDealEligibilityHeader(h)
+    ) {
+      colMap.dealEligibility = idx;
+    }
+    // 21. Dealing Status in 2026
     else if (
       colMap.hasDealt2026 === -1 &&
       (h.includes('متعامل 2026') || h.includes('تعامل 2026') || h.includes('متعامل') || h.includes('حالة العميل') || h.includes('حاله العميل'))
@@ -824,6 +856,7 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     const rawSupervisor = getCellStr(row, colMap.supervisor);
     const rawLastVisit = getCellStr(row, colMap.lastVisitDate);
     const rawGuarantee = colMap.guaranteeDocs !== -1 ? getCellStr(row, colMap.guaranteeDocs) : '';
+    const rawDealEligibility = colMap.dealEligibility !== -1 ? getCellStr(row, colMap.dealEligibility) : '';
 
     // Skip purely blank rows without any customer data
     if (!rawName && !rawCode && !rawPhone && !rawBranch && !rawRep && !rawAddress) continue;
@@ -837,11 +870,20 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     const s2025 = colMap.sales2025 !== -1 ? cleanNumber(row[colMap.sales2025]) : 0;
     // Keep signed collections from sheet (can be negative or positive as in source)
     const c2025 = colMap.collections2025 !== -1 ? cleanNumber(row[colMap.collections2025]) : 0;
-    // إجمالي المستحقات is its own column. Only fall back to the period figure
-    // ("مستحق حتي نهاية اغسطس") when the sheet has no إجمالي column at all.
-    const dueUntilPeriod = colMap.dueUntilPeriod !== -1 ? cleanNumber(row[colMap.dueUntilPeriod]) : undefined;
-    const overdueAndDue = colMap.totalOverdueAndDue !== -1
-      ? cleanNumber(row[colMap.totalOverdueAndDue])
+    // إجمالي المستحقات is its own column and wins when it actually carries a figure.
+    // A BLANK cell there must read as "this column said nothing", not as a real zero:
+    // a stored 0 would shadow both the period figure and the balance, and the
+    // customer would show zero dues while the sheet still shows a balance.
+    const readDuesCell = (idx: number): number | undefined => {
+      if (idx === -1) return undefined;
+      const cell = row[idx];
+      if (cell === undefined || cell === null || String(cell).trim() === '') return undefined;
+      return cleanNumber(cell);
+    };
+    const dueUntilPeriod = readDuesCell(colMap.dueUntilPeriod);
+    const totalDues = readDuesCell(colMap.totalOverdueAndDue);
+    const overdueAndDue = totalDues !== undefined
+      ? totalDues
       : (dueUntilPeriod !== undefined ? dueUntilPeriod : (colMap.currentBalance !== -1 ? balance : 0));
     const annualTarget = colMap.annualTarget !== -1 ? cleanNumber(row[colMap.annualTarget]) : 0;
     const openingBalance = colMap.openingBalance2026 !== -1 ? cleanNumber(row[colMap.openingBalance2026]) : balance;
@@ -943,15 +985,26 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     }
 
     // Dealings status
+    //
+    // "متعامل" means the customer BOUGHT, so sales decide it. A collection is
+    // somebody paying an old invoice and must never promote a customer to
+    // متعامل — otherwise the dealt count changes meaning depending on who paid
+    // and who returned, and the sheet's own "متعامل 2026" column is ignored.
     const rawDealt = colMap.hasDealt2026 !== -1 ? getCellStr(row, colMap.hasDealt2026).toLowerCase() : '';
-    const hasDealtIn2026 =
-      finalSales2026 > 0 ||
-      Math.abs(finalCollections2026) > 0 ||
+    // The negative wording has to be tested FIRST: "غير متعامل" contains "متعامل",
+    // so a positive-first test marks every non-buyer as a buyer.
+    const sheetSaysNotDealt =
+      rawDealt.includes('غير') ||
+      rawDealt.includes('لا') ||
+      rawDealt.includes('no');
+    const sheetSaysDealt =
       rawDealt.includes('متعامل') ||
       rawDealt.includes('نعم') ||
       rawDealt.includes('نشط') ||
       rawDealt.includes('yes') ||
       rawDealt.includes('active');
+    // The sheet's own wording wins when it says anything at all; sales decide otherwise.
+    const hasDealtIn2026 = sheetSaysNotDealt ? false : sheetSaysDealt ? true : finalSales2026 > 0;
 
     const hasPreviousDeals = s2025 > 0 || Math.abs(c2025) > 0 || hasDealtIn2026 || balance > 0;
 
@@ -1004,7 +1057,11 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
       monthlyCollections2026: Object.keys(monthlyCollections).length > 0 ? monthlyCollections : undefined,
       hasPreviousDeals: hasPreviousDeals,
       hasDealtIn2026: hasDealtIn2026,
-      dealt2026: hasDealtIn2026 ? 'متعامل' : (rawDealt.includes('غير') ? 'غير متعامل' : undefined),
+      dealt2026: hasDealtIn2026 ? 'متعامل' : (sheetSaysNotDealt ? 'غير متعامل' : undefined),
+      // The sheet's قابل / غير column, verbatim. When the sheet has no such
+      // column the field stays undefined and the classification falls back to
+      // the debt-status columns instead of guessing "قابل" for everybody.
+      dealEligibility: colMap.dealEligibility !== -1 ? (rawDealEligibility.trim() || undefined) : undefined,
       status2026: status2026,
       guaranteeDocs: finalGuaranteeDocs,
       guaranteeAmount: finalGuaranteeAmount > 0 ? finalGuaranteeAmount : undefined,
@@ -1233,7 +1290,7 @@ export function exportCustomerAnalyticsToExcel(
       c.region || c.governorate || '',
       c.phone || '',
       c.currentBalance ?? c.balance ?? 0,
-      c.totalOverdueAndDue ?? c.overdueBalance ?? 0,
+      resolveCustomerDuesValue(c),
       c.creditLimit || 0,
       c.guaranteeDocs || (c.creditLimit && c.creditLimit > 0 ? 'شيك بنكي' : 'بدون ضمان'),
       s25,

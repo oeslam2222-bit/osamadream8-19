@@ -112,6 +112,7 @@ import {
   sanitizeCustomers,
 } from './appContextHelpers';
 import { useUiPreferences } from './useUiPreferences';
+import { resolveCustomerDuesValue } from '../services/customerDues';
 import { hashPassword, verifyPassword, withHashedCredential } from '../services/passwordService';
 import {
   QueuedMutation,
@@ -3247,7 +3248,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const custOverdue = orderData.customerOverdueBalance !== undefined && orderData.customerOverdueBalance !== null
       ? Number(orderData.customerOverdueBalance)
-      : Number(matchedCustomer?.totalOverdueAndDue ?? matchedCustomer?.overdueBalance ?? 0);
+      : resolveCustomerDuesValue(matchedCustomer);
 
     const custBalanceAfter = orderData.customerBalanceAfter !== undefined && orderData.customerBalanceAfter !== null
       ? Number(orderData.customerBalanceAfter)
