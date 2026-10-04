@@ -175,6 +175,11 @@ export interface CustomerVisit {
   reviewNote?: string;
   reviewedAt?: string;
 
+  // Archiving capabilities (أرشفة الزيارات والملاحظات)
+  isArchived?: boolean;              // هل الزيارة/الملاحظة مؤرشفة؟
+  archivedAt?: string;               // تاريخ ووقت الأرشفة
+  archivedBy?: string;               // اسم المستخدم الذي قام بالأرشفة
+
   // Developed Visit Capabilities (تطوير الزيارات الميدانية)
   location?: {
     latitude: number;
@@ -644,4 +649,7 @@ export interface CustomerCommentRecord {
   authorName: string;
   createdAt: string;
   updatedAt?: string;
+  isArchived?: boolean;
+  archivedAt?: string;
+  archivedBy?: string;
 }

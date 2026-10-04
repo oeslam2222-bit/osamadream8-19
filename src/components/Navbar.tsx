@@ -135,7 +135,17 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     : 0;
 
   const navItems = [
-    { id: 'management', label: 'لوحة الإدارة', icon: BarChart3, roles: ['admin'] },
+    {
+      id: 'management',
+      label:
+        currentUser.role === 'admin' || currentUser.role === 'developer'
+          ? 'لوحة الإدارة وPower BI 📈'
+          : currentUser.role === 'branch_manager'
+          ? 'لوحة قيادة الفرع 📈'
+          : 'لوحة إشراف الفريق 📈',
+      icon: BarChart3,
+      roles: ['admin', 'branch_manager', 'supervisor', 'developer'],
+    },
     { id: 'catalog', label: 'كتالوج الأصناف والبيع', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'all_customers', label: currentUser.role === 'sales_rep' ? 'كافة العملاء والتحليل 👥' : 'كافة العملاء والتحليل 👥', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'dashboard', label: currentUser.role === 'sales_rep' ? 'متابعة طلبياتي 📊' : currentUser.role === 'admin' ? 'متابعة الطلبات' : 'لوحة المشرف والمتابعة 📊', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },

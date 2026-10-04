@@ -172,7 +172,11 @@ const MainLayout: React.FC = () => {
             />
           )}
 
-          {activeTab === 'management' && currentUser.role === 'admin' && (
+          {activeTab === 'management' &&
+            (currentUser.role === 'admin' ||
+              currentUser.role === 'branch_manager' ||
+              currentUser.role === 'supervisor' ||
+              currentUser.role === 'developer') && (
             <ManagementDashboard onNavigateToTab={setActiveTab} />
           )}
 

@@ -192,6 +192,7 @@ export interface AppContextType {
     onProgress?: (processed: number, total: number) => void
   ) => Promise<{ success: boolean; added: number; duplicates: number; queued: boolean; failed: string[] }>;
   updateVisit: (visit: CustomerVisit) => { success: boolean; message: string };
+  toggleArchiveVisit: (visitId: string, isArchived: boolean) => Promise<{ success: boolean; message: string }>;
   reviewVisit: (visitId: string, status: Extract<VisitReviewStatus, 'approved' | 'needs_fix'>, note?: string) => { success: boolean; message: string };
   deleteVisit: (visitId: string) => Promise<{ success: boolean; message: string }>;
   syncVisitsWithDatabase: () => Promise<{ success: boolean; message: string; count: number }>;
@@ -211,6 +212,7 @@ export interface AppContextType {
   requestForecastChange: (monthKey: string, weekIndex: number, repId: string, note: string) => Promise<number>;
   saveForecastPlan: (plan: ForecastMonthPlan) => Promise<void>;
   saveCustomerComment: (comment: CustomerCommentRecord) => Promise<void>;
+  toggleArchiveCustomerComment: (commentId: string, isArchived: boolean) => Promise<{ success: boolean; message: string }>;
   deleteCustomerComment: (id: string) => Promise<void>;
   getVisibleTargets: () => TargetRecord[];
   importTargetsFromExcel: (file: File) => Promise<{ success: boolean; count: number; message: string }>;

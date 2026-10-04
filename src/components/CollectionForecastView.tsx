@@ -1,51 +1,70 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ArrowDownToLine,
   Ban,
+  Calendar,
+  CalendarCheck,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Clock,
+  ExternalLink,
+  Eye,
   FileSpreadsheet,
+  FileText,
+  Filter,
   Info,
+  Layers,
   Lock,
+  MapPin,
   MessageSquare,
+  Package,
   Pencil,
+  Phone,
+  RotateCcw,
   Save,
+  Search,
   Send,
   ShieldCheck,
+  Sparkles,
   Target,
   TrendingUp,
+  UserCheck,
   Users,
   Wallet,
   X,
+  Zap,
 } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import { useApp } from '../context/AppContext';
-import type { CollectionForecastRecord, Customer, CustomerCommentKind, CustomerCommentRecord, ForecastMonthPlan } from '../types';
+import type {
+  CollectionForecastRecord,
+  Customer,
+  CustomerCommentKind,
+  CustomerCommentRecord,
+  CustomerVisit,
+  ForecastMonthPlan,
+} from '../types';
+import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from '../services/customerDues';
 import { calculateCustomerFinancials } from '../services/customerFinancialService';
 import {
   AR_MONTH_NAMES,
   COMMENT_KIND_COLORS,
-  COMMENT_KIND_LABELS,
-  aggregateByRep,
   buildAlerts,
-  buildCustomerBadge,
   buildDefaultMonthPlan,
   buildForecastExportRows,
   buildProgress,
   buildSuggestedWeeks,
   canApproveForecasts,
-  canEditMonthPlan,
   canManageForecasts,
   canSeeRepForecasts,
   canWriteOwnForecast,
   isLockedForEditing,
   commentId,
   currentMonthKey,
-  daysBetween,
   emptyForecastId,
   filterForecastsForUser,
   formatMonthLabel,
@@ -57,14 +76,6 @@ import {
 } from '../services/forecastService';
 import { formatCurrency } from '../services/invoiceService';
 import { isArabicNameMatch } from '../services/arabicMatchingService';
-
-type Tone = 'normal' | 'cheque' | 'returned';
-
-const TONE_ROW: Record<Tone, string> = {
-  normal: 'bg-white',
-  cheque: 'bg-amber-50/80',
-  returned: 'bg-rose-50/80',
-};
 
 const STATUS_STYLE: Record<string, string> = {
   draft: 'bg-slate-100 text-slate-600 border-slate-300',
@@ -80,40 +91,10 @@ const STATUS_LABEL: Record<string, string> = {
   change_requested: 'مطلوب تعديل',
 };
 
-const EDITABLE_ROW = 'bg-amber-100/40';
-
-/** آخر زيارة لكل عميل من سجل الزيارات. */
-function useLastVisitMap() {
-  const { visits } = useApp();
-  return useMemo(() => {
-    const map = new Map<string, string>();
-    visits.forEach((v) => {
-      const prev = map.get(v.customerId);
-      if (!prev || String(v.date) > prev) map.set(v.customerId, String(v.date));
-    });
-    return map;
-  }, [visits]);
-}
-
-/** المرتجعات مجمّعة بكود العميل — عشان الشارة الحمراء والتنبيه. */
-function useReturnsByCode() {
-  const { invoices } = useApp();
-  return useMemo(() => {
-    const map = new Map<string, { count: number; amount: number; lastDate: string }>();
-    invoices.forEach((inv) => {
-      (inv.returnRecords || []).forEach((r) => {
-        const code = r.customerCode || inv.customerCode || '';
-        if (!code) return;
-        const prev = map.get(code) || { count: 0, amount: 0, lastDate: '' };
-        prev.count += 1;
-        prev.amount += Number(r.totalRefundAmount || 0);
-        if (!prev.lastDate || String(r.date) > prev.lastDate) prev.lastDate = String(r.date);
-        map.set(code, prev);
-      });
-    });
-    return map;
-  }, [invoices]);
-}
+const MONTH_NAMES_AR_12 = [
+  'يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو',
+  'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+];
 
 export default function CollectionForecastView() {
   const {
@@ -124,43 +105,48 @@ export default function CollectionForecastView() {
     forecasts,
     forecastPlans,
     customerComments,
+    visits,
+    invoices,
     saveForecast,
     submitForecastWeek,
     approveForecastWeek,
     requestForecastChange,
     saveForecastPlan,
     saveCustomerComment,
-    deleteCustomerComment,
+    toggleArchiveVisit,
   } = useApp();
 
   const [monthKey, setMonthKey] = useState<string>(currentMonthKey());
   const [search, setSearch] = useState('');
+  const deferredSearch = useDeferredValue(search);
   const [repFilter, setRepFilter] = useState<string>('ALL');
   const [weekFilter, setWeekFilter] = useState<string>('ALL');
-  const [hideIneligible, setHideIneligible] = useState(false);
-  const [draft, setDraft] = useState<Record<string, { collection: string; sales: string }>>({});
+  const [pageSize, setPageSize] = useState<number>(25);
+  const [page, setPage] = useState<number>(1);
+
+  // Draft inputs state for week forecasts
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [savedFlash, setSavedFlash] = useState('');
+
+  // Selected customer for full dossier details modal
+  const [selectedCustomerDetail, setSelectedCustomerDetail] = useState<Customer | null>(null);
+
+  // Month plan & supervisor approval modals
   const [showPlanEditor, setShowPlanEditor] = useState(false);
   const [planDraft, setPlanDraft] = useState<ForecastMonthPlan | null>(null);
   const [planErrors, setPlanErrors] = useState<string[]>([]);
+  const [changeNoteTarget, setChangeNoteTarget] = useState<{ repId: string; weekIndex: number } | null>(null);
+  const [changeNote, setChangeNote] = useState('');
+
+  // Comments modal state
   const [commentTarget, setCommentTarget] = useState<Customer | null>(null);
   const [commentKind, setCommentKind] = useState<CustomerCommentKind>('defaulted');
   const [commentBody, setCommentBody] = useState('');
-  const [changeNoteTarget, setChangeNoteTarget] = useState<{ repId: string; weekIndex: number } | null>(null);
-  const [changeNote, setChangeNote] = useState('');
-  const [savedFlash, setSavedFlash] = useState('');
-  const [page, setPage] = useState(1);
-  // One row carries an input per week for collection and sales, so a few
-  // thousand customers means tens of thousands of DOM nodes and the tab stops
-  // responding. Only the visible page is mounted.
-  const PAGE_SIZE = 50;
-
-  const lastVisitMap = useLastVisitMap();
-  const returnsByCode = useReturnsByCode();
 
   const isAdmin = canManageForecasts(currentUser);
   const canApprove = canApproveForecasts(currentUser);
 
-  /* ---------- خطة الشهر: من Supabase، وإلا خطة مقترحة ---------- */
+  /* ---------- خطة الشهر: تقسيم الأسابيع ---------- */
   const plan: ForecastMonthPlan = useMemo(() => {
     const stored = forecastPlans.find((p) => p.id === monthKey);
     if (stored) return stored;
@@ -171,8 +157,6 @@ export default function CollectionForecastView() {
 
   const weeks = plan.weeks;
   const weeksCount = weeks.length;
-  // One source of truth for the week columns: header and body must render the
-  // same weeks or the filtered table gets misaligned.
   const shownWeeks = useMemo(
     () => (weekFilter === 'ALL' ? weeks : weeks.filter((w) => String(w.index) === weekFilter)),
     [weeks, weekFilter]
@@ -185,165 +169,162 @@ export default function CollectionForecastView() {
     [forecasts, monthKey, currentUser, users]
   );
 
+  /* ---------- O(1) Pre-Indexed Forecast Maps (سرعة فائقة) ---------- */
+  const { forecastByCustomerAndWeek, forecastTotalsByCustomer } = useMemo(() => {
+    const byCustWeek = new Map<string, CollectionForecastRecord>();
+    const byCustTotal = new Map<string, number>();
+
+    visibleForecasts.forEach((f) => {
+      byCustWeek.set(`${f.customerId}::${f.weekIndex}`, f);
+      const prev = byCustTotal.get(f.customerId) || 0;
+      byCustTotal.set(f.customerId, prev + (Number(f.collectionForecast) || 0));
+    });
+
+    return { forecastByCustomerAndWeek: byCustWeek, forecastTotalsByCustomer: byCustTotal };
+  }, [visibleForecasts]);
+
+  /* ---------- O(1) Pre-Indexed Comments & Returns & Visits ---------- */
+  const commentByCode = useMemo(() => {
+    const map = new Map<string, CustomerCommentRecord>();
+    (customerComments || []).forEach((c) => {
+      if (c.customerCode) map.set(c.customerCode, c);
+    });
+    return map;
+  }, [customerComments]);
+
+  const lastVisitMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (visits || []).forEach((v) => {
+      const prev = map.get(v.customerId);
+      if (!prev || String(v.date) > prev) map.set(v.customerId, String(v.date));
+    });
+    return map;
+  }, [visits]);
+
+  const returnsByCode = useMemo(() => {
+    const map = new Map<string, { count: number; amount: number; lastDate: string }>();
+    (invoices || []).forEach((inv) => {
+      (inv.returnRecords || []).forEach((r) => {
+        const code = r.customerCode || inv.customerCode || '';
+        if (!code) return;
+        const prev = map.get(code) || { count: 0, amount: 0, lastDate: '' };
+        prev.count += 1;
+        prev.amount += Number(r.totalRefundAmount || 0);
+        if (!prev.lastDate || String(r.date) > prev.lastDate) prev.lastDate = String(r.date);
+        map.set(code, prev);
+      });
+    });
+    return map;
+  }, [invoices]);
+
   /* ---------- العملاء: عميل واحد لكل (مندوب، عميل) مرتبط بالصلاحية ---------- */
   const scopedCustomers = useMemo(() => {
     return customers.filter((c) => {
-      const repId = (c as any).repId || '';
+      const repId = c.repId || '';
       const repName = c.salesRepName || c.repName || '';
       if (!repName) return false;
       return canSeeRepForecasts(currentUser, users, c.branchName || '', repId, repName);
     });
   }, [customers, currentUser, users]);
 
-  const repOf = useCallback(
-    (c: Customer) => (c as any).repId || (() => {
-      const u = users.find((x) => isArabicNameMatch(x.name, c.salesRepName || c.repName || ''));
-      return u?.id || '';
-    })(),
-    [users]
-  );
-
-  const rows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return scopedCustomers
-      .map((c) => {
-        const repId = repOf(c);
-        const repName = c.salesRepName || c.repName || 'غير محدد';
-        const fin = calculateCustomerFinancials(c, 'ALL');
-        const mine = visibleForecasts.filter((f) => f.customerId === c.id);
-        const ret = returnsByCode.get(c.code || '');
-        const badge = buildCustomerBadge(c, !!ret?.count, lastVisitMap.get(c.id));
-        const weekCollection: Record<number, number> = {};
-        mine.forEach((f) => {
-          weekCollection[f.weekIndex] = (weekCollection[f.weekIndex] || 0) + (Number(f.collectionForecast) || 0);
-        });
-        const weekSales: Record<number, number> = {};
-        mine.forEach((f) => {
-          weekSales[f.weekIndex] = (weekSales[f.weekIndex] || 0) + (Number(f.salesForecast) || 0);
-        });
-        const record = (w: number) => mine.find((f) => f.weekIndex === w);
-        return {
-          customer: c,
-          repId,
-          repName,
-          badge,
-          balance: fin.balance,
-          dues: fin.overdue,
-          creditLimit: fin.creditLimit,
-          isOverLimit: fin.isOverLimit,
-          monthCollection: mine.reduce((s, f) => s + (Number(f.collectionForecast) || 0), 0),
-          monthSales: mine.reduce((s, f) => s + (Number(f.salesForecast) || 0), 0),
-          weekCollection,
-          weekSales,
-          record,
-          lastVisit: badge.lastVisitDate,
-          comment: customerComments.find((cm) => cm.customerCode === (c.code || '')) || null,
-        };
-      })
-      .filter((r) => {
-        if (repFilter !== 'ALL' && r.repId !== repFilter && !isArabicNameMatch(r.repName, repFilter)) return false;
-        if (hideIneligible && !r.badge.isDealt) return false;
-        if (!q) return true;
-        return (
-          (r.customer.name || '').toLowerCase().includes(q) ||
-          (r.customer.code || '').toLowerCase().includes(q) ||
-          r.repName.toLowerCase().includes(q) ||
-          (r.customer.branchName || '').toLowerCase().includes(q)
-        );
-      })
-      .sort((a, b) => b.monthCollection - a.monthCollection || a.customer.name.localeCompare(b.customer.name, 'ar'));
-  }, [
-    scopedCustomers, visibleForecasts, search, repFilter, weekFilter, hideIneligible,
-    returnsByCode, lastVisitMap, customerComments, repOf,
-  ]);
-
-  /* ---------- ترقيم الصفحات: لا نركّب إلا_PAGE_SIZE صف في نفس الوقت ---------- */
-  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const safePage = Math.min(page, pageCount);
-  const pageRows = useMemo(
-    () => rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    [rows, safePage]
-  );
-
-  // Changing any filter narrows the list, so start again from the first page
-  // instead of leaving the user on a page that no longer exists.
-  useEffect(() => {
-    setPage(1);
-  }, [search, repFilter, weekFilter, hideIneligible, monthKey]);
-
-  /* ---------- تجميع ---------- */
-  const repRows = useMemo(() => aggregateByRep(visibleForecasts, weeksCount), [visibleForecasts, weeksCount]);
-  const progress: ForecastProgressRow[] = useMemo(
-    () => buildProgress(visibleForecasts, targets.filter((t) => monthKeyOf(t.year, t.month) === monthKey), weeksCount),
-    [visibleForecasts, targets, monthKey, weeksCount]
-  );
-
-  const totals = useMemo(() => {
-    const forecastCollection = rows.reduce((s, r) => s + r.monthCollection, 0);
-    const forecastSales = rows.reduce((s, r) => s + r.monthSales, 0);
-    const targetCollection = progress.reduce((s, p) => s + p.targetCollection, 0);
-    const targetSales = progress.reduce((s, p) => s + p.targetSales, 0);
-    const actualCollection = progress.reduce((s, p) => s + p.actualCollection, 0);
-    const balance = rows.reduce((s, r) => s + r.balance, 0);
-    const dues = rows.reduce((s, r) => s + r.dues, 0);
-    return {
-      forecastCollection,
-      forecastSales,
-      targetCollection,
-      targetSales,
-      actualCollection,
-      balance,
-      dues,
-      coverage: targetCollection > 0 ? Math.round((forecastCollection / targetCollection) * 100) : 0,
-      salesCoverage: targetSales > 0 ? Math.round((forecastSales / targetSales) * 100) : 0,
-    };
-  }, [rows, progress]);
-
-  const alerts = useMemo(
-    () =>
-      buildAlerts({
-        plan,
-        forecasts: visibleForecasts,
-        progress,
-        comments: customerComments,
-        customers: scopedCustomers,
-        returnsByCustomerCode: returnsByCode,
-      }),
-    [plan, visibleForecasts, progress, customerComments, scopedCustomers, returnsByCode]
-  );
-
-  const visibleAlerts = useMemo(() => {
-    if (!currentUser) return [];
-    if (isAdmin) return alerts;
-    return alerts.filter((a) => canSeeRepForecasts(currentUser, users, a.branchName, a.repId, repRows.find((r) => r.repId === a.repId)?.repName || ''));
-  }, [alerts, currentUser, isAdmin, users, repRows]);
-
+  /* ---------- خيارات المناديب المتاحة للفلترة ---------- */
   const repOptions = useMemo(() => {
     const seen = new Map<string, string>();
     scopedCustomers.forEach((c) => {
-      const id = repOf(c);
+      const repId = c.repId || c.salesRepName || c.repName || '';
       const name = c.salesRepName || c.repName || '';
-      if (id && name) seen.set(id, name);
+      if (repId && name) seen.set(repId, name);
     });
     return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1], 'ar'));
-  }, [scopedCustomers, repOf]);
+  }, [scopedCustomers]);
 
-  /* ---------- كتابة رقم (مسودة) ---------- */
-  const draftValue = (id: string, key: 'collection' | 'sales', fallback: number) =>
-    draft[id]?.[key] ?? (fallback ? String(fallback) : '');
+  /* ---------- الفلترة السريعة والخفيفة للعملاء (Instant Filtering) ---------- */
+  const filteredCustomers = useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
 
-  // The row as the permission check must see it: the saved record, or a blank
-  // draft-shaped one when the rep has not typed anything yet.
+    return scopedCustomers.filter((c) => {
+      const repId = c.repId || '';
+      const repName = c.salesRepName || c.repName || '';
+
+      if (repFilter !== 'ALL' && repId !== repFilter && !isArabicNameMatch(repName, repFilter)) {
+        return false;
+      }
+
+      if (!q) return true;
+
+      const name = (c.name || '').toLowerCase();
+      const code = (c.code || '').toLowerCase();
+      const rName = repName.toLowerCase();
+      const branch = (c.branchName || '').toLowerCase();
+
+      return name.includes(q) || code.includes(q) || rName.includes(q) || branch.includes(q);
+    });
+  }, [scopedCustomers, deferredSearch, repFilter]);
+
+  // Sort matched customers by expected collection desc, then by name
+  const sortedCustomers = useMemo(() => {
+    return [...filteredCustomers].sort((a, b) => {
+      const valA = forecastTotalsByCustomer.get(a.id) || 0;
+      const valB = forecastTotalsByCustomer.get(b.id) || 0;
+      if (valB !== valA) return valB - valA;
+      return (a.name || '').localeCompare(b.name || '', 'ar');
+    });
+  }, [filteredCustomers, forecastTotalsByCustomer]);
+
+  /* ---------- ترقيم الصفحات (Pagination) ---------- */
+  const totalPages = Math.max(1, Math.ceil(sortedCustomers.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+
+  const pageCustomers = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return sortedCustomers.slice(start, start + pageSize);
+  }, [sortedCustomers, safePage, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [deferredSearch, repFilter, weekFilter, monthKey, pageSize]);
+
+  /* ---------- إجماليات سريعة للبطاقات القيادية ---------- */
+  const kpiTotals = useMemo(() => {
+    let totalForecast = 0;
+    visibleForecasts.forEach((f) => {
+      totalForecast += Number(f.collectionForecast) || 0;
+    });
+
+    const monthTargets = targets.filter((t) => monthKeyOf(t.year, t.month) === monthKey);
+    const targetCollection = monthTargets.reduce((sum, t) => sum + (Number(t.collectionTarget) || 0), 0);
+    const actualCollection = monthTargets.reduce((sum, t) => sum + (Number(t.collectionAchieved) || 0), 0);
+    const coverage = targetCollection > 0 ? Math.round((totalForecast / targetCollection) * 100) : 0;
+
+    return {
+      totalForecast,
+      targetCollection,
+      actualCollection,
+      coverage,
+    };
+  }, [visibleForecasts, targets, monthKey]);
+
+  /* ---------- التقدم المالي والتجميع للمشرفين ---------- */
+  const progress: ForecastProgressRow[] = useMemo(() => {
+    return buildProgress(
+      visibleForecasts,
+      targets.filter((t) => monthKeyOf(t.year, t.month) === monthKey),
+      weeksCount
+    );
+  }, [visibleForecasts, targets, monthKey, weeksCount]);
+
+  /* ---------- كتابة وتعديل أرقام التوقع (Cell Commit) ---------- */
   const recordFor = useCallback(
     (customer: Customer, week: number): CollectionForecastRecord => {
-      const id = emptyForecastId(monthKey, week, customer.id);
-      const existing = forecasts.find((f) => f.id === id);
+      const key = `${customer.id}::${week}`;
+      const existing = forecastByCustomerAndWeek.get(key);
       if (existing) return existing;
+
       return {
-        id,
+        id: emptyForecastId(monthKey, week, customer.id),
         monthKey,
         weekIndex: week,
-        repId: repOf(customer),
+        repId: customer.repId || '',
         repName: customer.salesRepName || customer.repName || '',
         branchName: customer.branchName || '',
         customerId: customer.id,
@@ -354,168 +335,45 @@ export default function CollectionForecastView() {
         status: 'draft',
       };
     },
-    [monthKey, forecasts, repOf]
+    [monthKey, forecastByCustomerAndWeek]
   );
 
   const commitCell = useCallback(
-    async (customer: Customer, week: number, key: 'collection' | 'sales', raw: string) => {
-      const existing = forecasts.find((f) => f.id === emptyForecastId(monthKey, week, customer.id));
+    async (customer: Customer, week: number, raw: string) => {
       const base = recordFor(customer, week);
       const value = raw === '' ? 0 : Math.max(0, Number(raw) || 0);
 
       if (isLockedForEditing(base, currentUser)) {
-        setSavedFlash('الرقم معتمد ومقفول — لازم طلب تعديل من المشرف');
+        setSavedFlash('الرقم معتمد ومقفول — يتطلب طلب تعديل من المشرف');
         setTimeout(() => setSavedFlash(''), 4000);
         return;
       }
       if (!canWriteOwnForecast(currentUser, base, users)) {
-        setSavedFlash('مينفعش تعدّل في أرقام مندوب تاني');
+        setSavedFlash('غير مصرح لك بتعديل توقعات مندوب آخر');
         setTimeout(() => setSavedFlash(''), 4000);
         return;
       }
 
-      // Editing an approved week by an approver keeps it approved.
-      const nextStatus = existing && existing.status === 'approved' && canApprove ? 'approved' : base.status;
+      const nextStatus = base.status === 'approved' && canApprove ? 'approved' : base.status;
       await saveForecast({
         ...base,
-        [key === 'collection' ? 'collectionForecast' : 'salesForecast']: value,
+        collectionForecast: value,
         status: nextStatus,
         changeRequestNote: undefined,
       });
+
       setDraft((d) => {
         const next = { ...d };
-        delete next[base.id];
+        delete next[`${customer.id}::${week}`];
         return next;
       });
+      setSavedFlash(`تم حفظ توقع أسبوع ${week} لـ ${customer.name} ✅`);
+      setTimeout(() => setSavedFlash(''), 3000);
     },
-    [monthKey, forecasts, repOf, saveForecast, canApprove, recordFor, currentUser, users]
+    [recordFor, currentUser, users, canApprove, saveForecast]
   );
 
-  /* ---------- أسبوع: مندوب واحد ---------- */
-  const weekStatus = useCallback(
-    (repId: string, week: number) => {
-      const lines = visibleForecasts.filter((f) => f.repId === repId && f.weekIndex === week);
-      if (!lines.length) return 'draft';
-      if (lines.some((l) => l.status === 'change_requested')) return 'change_requested';
-      if (lines.some((l) => l.status === 'draft')) return 'draft';
-      if (lines.some((l) => l.status === 'submitted')) return 'submitted';
-      return 'approved';
-    },
-    [visibleForecasts]
-  );
-
-  const repIdForFilter = repFilter === 'ALL' ? null : repFilter;
-  const isMine = currentUser?.role === 'sales_rep';
-  const myRepId = useMemo(() => {
-    if (!isMine || !currentUser) return '';
-    const match = repOptions.find(([, name]) => isArabicNameMatch(name, currentUser.name || ''));
-    return match ? match[0] : currentUser.id;
-  }, [isMine, currentUser, repOptions]);
-
-  const submitWeek = async (repId: string, week: number) => {
-    const n = await submitForecastWeek(monthKey, week, repId);
-    setSavedFlash(n ? `تم إرسال توقع الأسبوع ${week} للمشرف (${n} عميل)` : 'مفيش أرقام مبعوتة');
-    setTimeout(() => setSavedFlash(''), 4000);
-  };
-
-  const approveWeek = async (repId: string, week: number) => {
-    const n = await approveForecastWeek(monthKey, week, repId);
-    setSavedFlash(n ? `تم اعتماد وتثبيت الأسبوع ${week} (${n} عميل)` : 'مفيش أرقام في الأسبوع ده');
-    setTimeout(() => setSavedFlash(''), 4000);
-  };
-
-  const askChange = async () => {
-    if (!changeNoteTarget) return;
-    await requestForecastChange(monthKey, changeNoteTarget.weekIndex, changeNoteTarget.repId, changeNote.trim());
-    setChangeNoteTarget(null);
-    setChangeNote('');
-    setSavedFlash('تم إرسال طلب التعديل للمندوب');
-    setTimeout(() => setSavedFlash(''), 4000);
-  };
-
-  /* ---------- خطة الشهر ---------- */
-  const openPlanEditor = () => {
-    setPlanDraft({ ...plan, weeks: plan.weeks.map((w) => ({ ...w })) });
-    setPlanErrors([]);
-    setShowPlanEditor(true);
-  };
-
-  const addWeek = () => {
-    if (!planDraft) return;
-    setPlanDraft({
-      ...planDraft,
-      weeks: [
-        ...planDraft.weeks,
-        { index: planDraft.weeks.length + 1, start: planDraft.monthEnd, end: planDraft.monthEnd },
-      ],
-    });
-  };
-
-  const removeWeek = (index: number) => {
-    if (!planDraft || planDraft.weeks.length <= 1) return;
-    setPlanDraft({
-      ...planDraft,
-      weeks: planDraft.weeks.filter((_, i) => i !== index).map((w, i) => ({ ...w, index: i + 1 })),
-    });
-  };
-
-  const applySuggested = () => {
-    if (!planDraft) return;
-    setPlanDraft({ ...planDraft, weeks: buildSuggestedWeeks(planDraft.year, planDraft.month) });
-    setPlanErrors([]);
-  };
-
-  const shiftMonth = (delta: number) => {
-    const m = /^(\d{4})-(\d{2})$/.exec(monthKey);
-    if (!m) return;
-    const d = new Date(Number(m[1]), Number(m[2]) - 1 + delta, 1);
-    setMonthKey(monthKeyOf(d.getFullYear(), d.getMonth() + 1));
-    setRepFilter('ALL');
-  };
-
-  const savePlan = async () => {
-    if (!planDraft) return;
-    const check = validateMonthPlan(planDraft);
-    if (!check.valid) {
-      setPlanErrors(check.errors);
-      return;
-    }
-    setPlanErrors([]);
-    await saveForecastPlan(planDraft);
-    setShowPlanEditor(false);
-    setSavedFlash('تم حفظ تقسيم الأسابيع — كل الأدوار هتشوفه');
-    setTimeout(() => setSavedFlash(''), 4000);
-  };
-
-  /* ---------- الكومنت ---------- */
-  const openComment = (c: Customer) => {
-    setCommentTarget(c);
-    const existing = customerComments.find((cm) => cm.customerCode === (c.code || ''));
-    setCommentKind(existing?.kind || 'defaulted');
-    setCommentBody(existing?.body || '');
-  };
-
-  const submitComment = async () => {
-    if (!commentTarget || !commentBody.trim()) return;
-    await saveCustomerComment({
-      id: commentId(commentTarget.code || commentTarget.id),
-      customerId: commentTarget.id,
-      customerCode: commentTarget.code || '',
-      customerName: commentTarget.name || '',
-      branchName: commentTarget.branchName || '',
-      repName: commentTarget.salesRepName || commentTarget.repName || '',
-      kind: commentKind,
-      body: commentBody.trim(),
-      authorName: currentUser?.name || '',
-      createdAt: new Date().toISOString(),
-    });
-    setCommentTarget(null);
-    setCommentBody('');
-    setSavedFlash('تم حفظ الكومنت على كود العميل');
-    setTimeout(() => setSavedFlash(''), 4000);
-  };
-
-  /* ---------- التصدير ---------- */
+  /* ---------- تصدير التقرير إلى Excel ---------- */
   const handleExport = () => {
     const data = buildForecastExportRows({
       forecasts: visibleForecasts,
@@ -536,47 +394,94 @@ export default function CollectionForecastView() {
     XLSX.writeFile(wb, `توقع_التحصيلات_${monthKey}.xlsx`);
   };
 
-  // Every hook must run before the `!currentUser` guard below, otherwise the first
-  // render (no user yet) calls fewer hooks than later renders and React throws.
+  const shiftMonth = (delta: number) => {
+    const m = /^(\d{4})-(\d{2})$/.exec(monthKey);
+    if (!m) return;
+    const d = new Date(Number(m[1]), Number(m[2]) - 1 + delta, 1);
+    setMonthKey(monthKeyOf(d.getFullYear(), d.getMonth() + 1));
+    setRepFilter('ALL');
+  };
+
   const monthOptions = useMemo(() => {
     const now = new Date();
     const out: string[] = [];
-    for (let i = -1; i <= 1; i++) {
+    for (let i = -1; i <= 2; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
       out.push(monthKeyOf(d.getFullYear(), d.getMonth() + 1));
     }
     return out;
   }, []);
 
+  const openCommentModal = (c: Customer) => {
+    setCommentTarget(c);
+    const existing = commentByCode.get(c.code || '');
+    setCommentKind(existing?.kind || 'defaulted');
+    setCommentBody(existing?.body || '');
+  };
+
+  const handleSaveComment = async () => {
+    if (!commentTarget || !commentBody.trim()) return;
+    await saveCustomerComment({
+      id: commentId(commentTarget.code || commentTarget.id),
+      customerId: commentTarget.id,
+      customerCode: commentTarget.code || '',
+      customerName: commentTarget.name || '',
+      branchName: commentTarget.branchName || '',
+      repName: commentTarget.salesRepName || commentTarget.repName || '',
+      kind: commentKind,
+      body: commentBody.trim(),
+      authorName: currentUser?.name || '',
+      createdAt: new Date().toISOString(),
+    });
+    setCommentTarget(null);
+    setCommentBody('');
+    setSavedFlash('تم حفظ الملاحظة على كود العميل ✅');
+    setTimeout(() => setSavedFlash(''), 3000);
+  };
+
   if (!currentUser) return null;
 
   return (
     <div className="space-y-4" dir="rtl">
-      {/* ================= Header ================= */}
-      <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-950 text-white rounded-2xl p-4 shadow-lg border border-emerald-500/25">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-black flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-emerald-400" />
-              توقع التحصيلات
-            </h2>
-            <p className="text-[11px] text-slate-300 mt-0.5">
-              الصفحة دي بتقول هل أرقام التارجت هتحقق ولا لأ — التوقع مقابل الهدف، والأسبوع، والعميل
+      {/* ========================================================================= */}
+      {/* 1. Header with Month Navigator & Actions                                  */}
+      {/* ========================================================================= */}
+      <section className="bg-gradient-to-r from-emerald-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-4 sm:p-5 shadow-lg border border-emerald-500/25 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-black flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                <span>إدارة التدفق النقدي والتحصيلات</span>
+              </span>
+              <span className="px-2 py-0.5 rounded-md bg-white/10 text-slate-300 text-xs font-bold">
+                نسخة خفيفة وسريعة ⚡
+              </span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+              <span>توقع التحصيلات الأسبوعية (W1 - W5)</span>
+              <span className="text-emerald-400 font-mono text-base">({formatMonthLabel(monthKey)})</span>
+            </h1>
+            <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+              عرض مباشر لبيانات العملاء (الكود، الاسم، المديونية، إجمالي المستحقات) مع فتح تفاصيل العميل والزيارات عند النقر.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 bg-slate-900/70 border border-slate-700 rounded-xl p-1">
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Month Switcher */}
+            <div className="flex items-center gap-1 bg-slate-900/90 border border-slate-700 rounded-2xl p-1 shadow-sm">
               <button
                 type="button"
                 onClick={() => shiftMonth(-1)}
-                className="px-2 py-1.5 rounded-lg text-emerald-300 hover:bg-slate-800 cursor-pointer"
+                className="px-2 py-1.5 rounded-xl text-emerald-300 hover:bg-slate-800 transition cursor-pointer"
+                title="الشهر السابق"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
               <select
                 value={monthKey}
                 onChange={(e) => setMonthKey(e.target.value)}
-                className="px-3 py-1.5 bg-transparent text-white text-xs font-black"
+                className="px-2 py-1.5 bg-transparent text-white text-xs font-black focus:outline-none cursor-pointer"
               >
                 {monthOptions.map((k) => (
                   <option key={k} value={k} className="text-slate-900">
@@ -587,836 +492,670 @@ export default function CollectionForecastView() {
               <button
                 type="button"
                 onClick={() => shiftMonth(1)}
-                className="px-2 py-1.5 rounded-lg text-emerald-300 hover:bg-slate-800 cursor-pointer"
+                className="px-2 py-1.5 rounded-xl text-emerald-300 hover:bg-slate-800 transition cursor-pointer"
+                title="الشهر القادم"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
             </div>
+
             {isAdmin && (
               <button
                 type="button"
-                onClick={openPlanEditor}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-black shadow cursor-pointer"
+                onClick={() => {
+                  setPlanDraft({ ...plan, weeks: plan.weeks.map((w) => ({ ...w })) });
+                  setPlanErrors([]);
+                  setShowPlanEditor(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-black shadow-sm transition cursor-pointer"
               >
                 <CalendarDays className="w-4 h-4" />
-                تقسيم الأسابيع
+                <span>تقسيم الأسابيع</span>
               </button>
             )}
+
             <button
               type="button"
               onClick={handleExport}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-sm transition cursor-pointer"
             >
               <FileSpreadsheet className="w-4 h-4" />
-              تصدير التقرير
+              <span>تصدير Excel 📥</span>
             </button>
           </div>
         </div>
 
-        {/* week strip */}
-        <div className="flex flex-wrap items-center gap-1.5 mt-3">
+        {/* Weeks Range Visual Strip */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-1">
           {weeks.map((w) => {
             const isCurrent = currentWeek === w.index;
-            const isPast = new Date(w.end).getTime() < Date.now();
             return (
               <span
                 key={w.index}
-                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black border ${
+                className={`px-2.5 py-1 rounded-xl text-[11px] font-black border transition ${
                   isCurrent
-                    ? 'bg-emerald-500 text-white border-emerald-300'
-                    : isPast
-                    ? 'bg-slate-800 text-slate-400 border-slate-700'
-                    : 'bg-slate-800 text-slate-200 border-slate-600'
+                    ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow-xs'
+                    : 'bg-slate-800/80 text-slate-300 border-slate-700'
                 }`}
               >
                 أسبوع {w.index}: {formatWeekRange(w)}
-                {isCurrent && <span className="mr-1">● الآن</span>}
+                {isCurrent && <span className="mr-1 text-slate-950">● الأسبوع الحالي</span>}
               </span>
             );
           })}
-          <span className="px-2.5 py-1.5 rounded-lg text-[11px] font-black bg-slate-800 text-slate-300 border border-slate-600">
-            {weeksCount} أسابيع
-          </span>
         </div>
-      </div>
+      </section>
 
+      {/* Notification Toast */}
       {savedFlash && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-bold">
-          <CheckCircle2 className="w-4 h-4" />
-          {savedFlash}
+        <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-emerald-100 text-emerald-950 border border-emerald-300 text-xs font-black shadow-sm animate-in fade-in">
+          <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+          <span>{savedFlash}</span>
         </div>
       )}
 
-      {/* ================= KPI ================= */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard
-          icon={<Wallet className="w-4 h-4 text-emerald-600" />}
-          label="المتوقع تحصيله الشهر ده"
-          value={formatCurrency(totals.forecastCollection)}
-          sub={
-            totals.targetCollection > 0
-              ? `هدف التارجت ${formatCurrency(totals.targetCollection)} (${totals.coverage}%)`
-              : 'مفيش هدف متسجل في التارجت لهذا الشهر'
-          }
-          tone={totals.coverage >= 100 ? 'good' : totals.coverage >= 80 ? 'warn' : 'bad'}
-        />
-        <KpiCard
-          icon={<Target className="w-4 h-4 text-sky-600" />}
-          label="المحقق فعلياً (من التارجت)"
-          value={formatCurrency(totals.actualCollection)}
-          sub={`الفرق بين المتوقع والمحقق: ${formatCurrency(totals.forecastCollection - totals.actualCollection)}`}
-        />
-        <KpiCard
-          icon={<TrendingUp className="w-4 h-4 text-violet-600" />}
-          label="المتوقع بيعه الشهر ده"
-          value={formatCurrency(totals.forecastSales)}
-          sub={totals.targetSales > 0 ? `هدف البيع ${formatCurrency(totals.targetSales)} (${totals.salesCoverage}%)` : 'مفيش هدف بيع مسجل'}
-          tone={totals.salesCoverage >= 100 ? 'good' : totals.salesCoverage >= 80 ? 'warn' : 'bad'}
-        />
-        <KpiCard
-          icon={<AlertTriangle className="w-4 h-4 text-rose-600" />}
-          label="تنبيهات المتابعة"
-          value={visibleAlerts.length.toLocaleString()}
-          sub={`${visibleAlerts.filter((a) => a.severity === 'high').length} عاجل · ${visibleAlerts.filter((a) => a.severity === 'medium').length} متوسط`}
-          tone={visibleAlerts.some((a) => a.severity === 'high') ? 'bad' : 'warn'}
-        />
-      </div>
-
-      {/* ================= التنبيهات ================= */}
-      {visibleAlerts.length > 0 && (
-        <div className="bg-white rounded-2xl border border-rose-200 shadow-sm overflow-hidden">
-          <div className="px-4 py-2.5 bg-rose-50 border-b border-rose-200 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-rose-600" />
-            <span className="text-xs font-black text-rose-900">تنبيهات تحتاج متابعة ({visibleAlerts.length})</span>
+      {/* ========================================================================= */}
+      {/* 2. Executive KPI Cards Summary (خفيفة جداً ومحسوبة بالذاكرة)             */}
+      {/* ========================================================================= */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
+          <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
+            <span>إجمالي التوقع للشهر</span>
+            <Wallet className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="max-h-56 overflow-y-auto divide-y divide-slate-100">
-            {visibleAlerts.slice(0, 40).map((a) => (
-              <div key={a.id} className="px-4 py-2 flex items-start gap-2.5 text-xs">
-                <span
-                  className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${
-                    a.severity === 'high' ? 'bg-rose-500' : a.severity === 'medium' ? 'bg-amber-500' : 'bg-slate-400'
-                  }`}
-                />
-                <div className="min-w-0">
-                  <div className="font-black text-slate-800">{a.title}</div>
-                  <div className="text-slate-500">{a.detail}</div>
-                </div>
-              </div>
-            ))}
+          <div className="text-base sm:text-lg font-black text-emerald-800 mt-1 font-mono">
+            {formatCurrency(kpiTotals.totalForecast)}
+          </div>
+          <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
+            نسبة تغطية التارجت: <span className="text-emerald-700 font-black">{kpiTotals.coverage}%</span>
           </div>
         </div>
-      )}
 
-      {/* ================= المشرف: اعتماد الأسابيع ================= */}
-      {canApprove && repRows.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-4 py-2.5 bg-slate-900 text-white flex items-center justify-between">
-            <span className="text-xs font-black flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              اعتماد التوقعات الأسبوعية
-            </span>
-            <span className="text-[10px] text-slate-400">بعد الاعتماد الرقم يتقفل والمندوب يطلب تعديل</span>
+        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
+          <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
+            <span>هدف التحصيل المطلوب</span>
+            <Target className="w-4 h-4 text-blue-600" />
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-[11px] border-collapse">
-              <thead className="bg-slate-100 text-slate-700">
-                <tr>
-                  <th className="p-2">المندوب</th>
-                  <th className="p-2">الفرع</th>
-                  {weeks.map((w) => (
-                    <th key={w.index} className="p-2 text-center whitespace-nowrap">
-                      أسبوع {w.index}
-                      <span className="block text-[9px] font-normal text-slate-500">{formatWeekRange(w)}</span>
-                    </th>
-                  ))}
-                  <th className="p-2 text-center">إجمالي الشهر</th>
-                  <th className="p-2 text-center">مقابل الهدف</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {repRows.map((rep) => {
-                  const pr = progress.find((p) => p.repId === rep.repId);
-                  return (
-                    <tr key={rep.repId} className="hover:bg-slate-50">
-                      <td className="p-2 font-black text-slate-800 whitespace-nowrap">{rep.repName}</td>
-                      <td className="p-2 text-slate-500 whitespace-nowrap">{rep.branchName || '—'}</td>
-                      {weeks.map((w) => {
-                        const st = weekStatus(rep.repId, w.index);
-                        const amount = rep.weekCollection[w.index] || 0;
-                        const canAct = st === 'submitted' || (st === 'change_requested' && canApprove);
-                        return (
-                          <td key={w.index} className="p-1.5 text-center">
-                            <div className="font-mono font-black text-slate-700">{Math.round(amount).toLocaleString()}</div>
-                            <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-black border ${STATUS_STYLE[st]}`}>
-                              {STATUS_LABEL[st]}
-                            </span>
-                            {canAct && (
-                              <div className="mt-1 flex items-center justify-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => approveWeek(rep.repId, w.index)}
-                                  title="اعتماد وتثبيت"
-                                  className="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[9px] font-black cursor-pointer"
-                                >
-                                  اعتماد
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setChangeNoteTarget({ repId: rep.repId, weekIndex: w.index })}
-                                  title="طلب تعديل"
-                                  className="px-1.5 py-0.5 rounded bg-amber-500 text-white text-[9px] font-black cursor-pointer"
-                                >
-                                  تعديل
-                                </button>
-                              </div>
-                            )}
-                          </td>
-                        );
-                      })}
-                      <td className="p-2 text-center font-mono font-black text-emerald-800">
-                        {Math.round(rep.totalCollection).toLocaleString()}
-                      </td>
-                      <td className="p-2 text-center">
-                        {pr ? (
-                          <span
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-black border ${
-                              pr.status === 'ahead'
-                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                : pr.status === 'on_track'
-                                ? 'bg-sky-100 text-sky-800 border-sky-300'
-                                : pr.status === 'behind'
-                                ? 'bg-rose-100 text-rose-800 border-rose-300'
-                                : 'bg-slate-100 text-slate-500 border-slate-300'
-                            }`}
-                          >
-                            {pr.targetCollection > 0 ? `${pr.collectionCoverage}%` : 'بدون هدف'}
-                          </span>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="text-base sm:text-lg font-black text-blue-800 mt-1 font-mono">
+            {formatCurrency(kpiTotals.targetCollection)}
+          </div>
+          <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
+            المسجل بتارجت الشهر المعتمد
           </div>
         </div>
-      )}
 
-      {/* ================= الفلاتر ================= */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 flex flex-wrap items-center gap-2">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="بحث باسم العميل أو الكود أو المندوب…"
-          className="flex-1 min-w-[200px] px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:border-emerald-500"
-        />
+        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
+          <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
+            <span>المحقق الفعلي حتى الآن</span>
+            <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+          </div>
+          <div className="text-base sm:text-lg font-black text-indigo-800 mt-1 font-mono">
+            {formatCurrency(kpiTotals.actualCollection)}
+          </div>
+          <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
+            فارق التوقع: {formatCurrency(kpiTotals.totalForecast - kpiTotals.actualCollection)}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
+          <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
+            <span>العملاء في نطاق البحث</span>
+            <Users className="w-4 h-4 text-purple-600" />
+          </div>
+          <div className="text-base sm:text-lg font-black text-slate-900 mt-1 font-mono">
+            {filteredCustomers.length.toLocaleString('ar-EG')}
+          </div>
+          <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
+            إجمالي شبكة التوزيع ({scopedCustomers.length})
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 3. Fast Instant Filter Bar (بدون أي تأخير)                                */}
+      {/* ========================================================================= */}
+      <section className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-3 flex flex-wrap items-center gap-2.5">
+        <div className="relative flex-1 min-w-[220px]">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="بحث فوري باسم العميل أو الكود أو المندوب أو الفرع..."
+            className="w-full px-3 py-2 pl-8 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-emerald-500"
+          />
+          <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
+        </div>
+
         <select
           value={repFilter}
           onChange={(e) => setRepFilter(e.target.value)}
-          className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold"
+          className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white cursor-pointer"
         >
-          <option value="ALL">كل المناديب ({repOptions.length})</option>
+          <option value="ALL">كافة المناديب ({repOptions.length})</option>
           {repOptions.map(([id, name]) => (
             <option key={id} value={id}>
               {name}
             </option>
           ))}
         </select>
+
         <select
           value={weekFilter}
           onChange={(e) => setWeekFilter(e.target.value)}
-          className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold"
+          className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white cursor-pointer"
         >
-          <option value="ALL">كل الأسابيع</option>
+          <option value="ALL">كافة الأسابيع (W1-W{weeksCount})</option>
           {weeks.map((w) => (
-<option key={w.index} value={String(w.index)}>
-            أسبوع {w.index} ({formatWeekRange(w)})
-          </option>
+            <option key={w.index} value={String(w.index)}>
+              أسبوع {w.index} ({formatWeekRange(w)})
+            </option>
           ))}
         </select>
-        <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer">
-          <input type="checkbox" checked={hideIneligible} onChange={(e) => setHideIneligible(e.target.checked)} />
-          المتعاملين فقط
-        </label>
-        <span className="px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-black">{rows.length} عميل</span>
-      </div>
 
-      {/* ================= جدول العملاء ================= */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
-          <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-            <Users className="w-4 h-4 text-slate-500" />
-            العملاء والمتوقع عليهم — {formatMonthLabel(monthKey)}
-          </span>
-          <div className="flex items-center gap-3 text-[10px] font-bold text-slate-500">
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded bg-amber-100 border border-amber-300" /> شيكات
+        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
+          <span>عرض:</span>
+          <select
+            value={pageSize}
+            onChange={(e) => setPageSize(Number(e.target.value))}
+            className="px-2 py-1 rounded-lg border border-slate-300 text-xs font-black bg-white cursor-pointer"
+          >
+            <option value={15}>15</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+        </div>
+
+        {search && (
+          <button
+            type="button"
+            onClick={() => setSearch('')}
+            className="px-2 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold cursor-pointer"
+          >
+            مسح البحث ✕
+          </button>
+        )}
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 4. Streamlined Customer Forecast Table (جدول العملاء والتوقع السريع)      */}
+      {/* ========================================================================= */}
+      <section className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
+        <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-emerald-700" />
+            <span className="text-xs font-black text-slate-900">
+              قائمة العملاء وبيانات المديونية والمستحقات والتوقع
             </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 rounded bg-rose-100 border border-rose-300" /> عنده مرتجع
+            <span className="text-[11px] font-bold text-slate-500 font-mono">
+              ({sortedCustomers.length} عميل مطابق)
             </span>
+          </div>
+          <div className="text-[11px] text-slate-500 font-medium flex items-center gap-2">
+            <span>💡 اضغط على اسم العميل أو زر (👁️) لفتح الملف الشامل والزيارات</span>
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-right text-[11px] border-collapse">
-            <thead className="bg-slate-900 text-slate-100">
+          <table className="w-full text-right text-xs border-collapse">
+            <thead className="bg-slate-900 text-slate-100 font-black">
               <tr>
-                <th className="p-2">الكود</th>
-                <th className="p-2">العميل</th>
-                <th className="p-2">المندوب</th>
-                <th className="p-2 text-center">طريقة الدفع</th>
-                <th className="p-2 text-center">التصنيف</th>
-                <th className="p-2 text-left">المديونية</th>
-                <th className="p-2 text-left">المستحقات</th>
-                <th className="p-2 text-left">الحد الائتماني</th>
+                <th className="p-3 text-center w-12">#</th>
+                <th className="p-3">كود العميل</th>
+                <th className="p-3 min-w-[200px]">اسم العميل</th>
+                <th className="p-3">المندوب والفرع</th>
+                <th className="p-3 text-rose-300">المديونية</th>
+                <th className="p-3 text-amber-300">إجمالي المستحقات</th>
                 {shownWeeks.map((w) => (
-                  <th key={w.index} className="p-2 text-center whitespace-nowrap">
-                    متوقع أ{w.index}
-                    <span className="block text-[9px] font-normal text-slate-400">{formatWeekRange(w)}</span>
+                  <th key={w.index} className="p-3 text-center whitespace-nowrap min-w-[105px]">
+                    <div>متوقع أ{w.index}</div>
+                    <span className="text-[9.5px] font-normal text-slate-400 block font-mono">
+                      {w.start.slice(5)} إلى {w.end.slice(5)}
+                    </span>
                   </th>
                 ))}
-                <th className="p-2 text-left">متوقع الشهر</th>
-                <th className="p-2">آخر زيارة</th>
-                <th className="p-2">الكومنت</th>
+                <th className="p-3 text-emerald-300 text-center">إجمالي المتوقع</th>
+                <th className="p-3 text-center">الإجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {pageRows.map((r) => {
-                const weeksToShow = shownWeeks;
+              {pageCustomers.map((c, index) => {
+                const rowNum = (safePage - 1) * pageSize + index + 1;
+                const balance = resolveCustomerBalanceValue(c);
+                const dues = resolveCustomerDuesValue(c);
+                const monthTotal = forecastTotalsByCustomer.get(c.id) || 0;
+                const repName = c.salesRepName || c.repName || 'المندوب';
+                const branchName = c.branchName || 'الفرع';
+                const returnInfo = returnsByCode.get(c.code || '');
+                const commentRecord = commentByCode.get(c.code || '');
+
                 return (
-                  <tr key={r.customer.id} className={`${TONE_ROW[r.badge.tone]} hover:brightness-[0.99]`}>
-                    <td className="p-2 font-mono text-slate-600 whitespace-nowrap">{r.customer.code || '—'}</td>
-                    <td className="p-2 font-black text-slate-800 whitespace-nowrap">
-                      <span className="flex items-center gap-1">
-                        {r.badge.hasReturn && <Ban className="w-3 h-3 text-rose-600" />}
-                        {r.badge.isCheque && !r.badge.hasReturn && <ShieldCheck className="w-3 h-3 text-amber-600" />}
-                        {r.customer.name}
-                      </span>
-                    </td>
-                    <td className="p-2 text-slate-500 whitespace-nowrap">{r.repName}</td>
-                    <td className="p-2 text-center">
-                      <span
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-black border ${
-                          r.badge.isCheque ? 'bg-amber-100 text-amber-900 border-amber-400' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                        }`}
-                      >
-                        {r.badge.paymentLabel}
-                      </span>
-                    </td>
-                    <td className="p-2 text-center">
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
-                        {r.badge.eligibilityLabel}
-                      </span>
-                    </td>
-                    <td className="p-2 text-left font-mono font-black text-rose-700">{Math.round(r.balance).toLocaleString()}</td>
-                    <td className="p-2 text-left font-mono font-black text-rose-600">{Math.round(r.dues).toLocaleString()}</td>
-                    <td className={`p-2 text-left font-mono ${r.isOverLimit ? 'font-black text-rose-700' : 'text-slate-500'}`}>
-                      {Math.round(r.creditLimit).toLocaleString()}
+                  <tr
+                    key={c.id}
+                    className="hover:bg-slate-50/80 transition-colors group"
+                  >
+                    <td className="p-3 text-center font-mono text-slate-400 text-xs">
+                      {rowNum}
                     </td>
 
-                    {weeksToShow.map((w) => {
-                      const rec = r.record(w.index);
-                      // Same helpers the save path uses, so a cell can never look
-                      // editable while the write would be refused (or vice versa).
-                      const cell = recordFor(r.customer, w.index);
-                      const editable = canWriteOwnForecast(currentUser, cell, users);
-                      const locked = isLockedForEditing(cell, currentUser);
-                      const active = rec && (rec.collectionForecast > 0 || rec.salesForecast > 0);
+                    {/* Customer Code */}
+                    <td className="p-3 font-mono font-bold text-slate-700 whitespace-nowrap">
+                      {c.code || '—'}
+                    </td>
+
+                    {/* Customer Name (Clickable to open dossier) */}
+                    <td className="p-3 font-black text-slate-900">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCustomerDetail(c)}
+                          className="hover:text-emerald-700 hover:underline cursor-pointer text-right flex items-center gap-1"
+                          title="عرض ملف العميل الشامل"
+                        >
+                          <span>{c.name}</span>
+                          <Eye className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition" />
+                        </button>
+                        {returnInfo && (
+                          <span className="text-[10px] bg-rose-100 text-rose-800 px-1.5 py-0.2 rounded font-black border border-rose-300" title={`مرتجع بقيمة ${formatCurrency(returnInfo.amount)}`}>
+                            مرتجع
+                          </span>
+                        )}
+                        {(c.guaranteeAmount || 0) > 0 && (
+                          <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-bold border border-amber-300">
+                            ضمانة 📄
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Rep & Branch */}
+                    <td className="p-3 whitespace-nowrap">
+                      <span className="font-bold text-slate-800 block">{repName}</span>
+                      <span className="text-[10px] text-slate-400 block">{branchName}</span>
+                    </td>
+
+                    {/* Current Balance */}
+                    <td className="p-3 font-mono font-black text-rose-700 whitespace-nowrap">
+                      {balance > 0 ? formatCurrency(balance) : '0 ج.م'}
+                    </td>
+
+                    {/* Total Dues */}
+                    <td className="p-3 font-mono font-black text-amber-800 whitespace-nowrap">
+                      {dues > 0 ? formatCurrency(dues) : '0 ج.م'}
+                    </td>
+
+                    {/* Week Input Cells */}
+                    {shownWeeks.map((w) => {
+                      const recKey = `${c.id}::${w.index}`;
+                      const rec = forecastByCustomerAndWeek.get(recKey);
+                      const baseRec = recordFor(c, w.index);
+                      const editable = canWriteOwnForecast(currentUser, baseRec, users);
+                      const locked = isLockedForEditing(baseRec, currentUser);
+                      const currentVal = draft[recKey] !== undefined ? draft[recKey] : (rec ? String(rec.collectionForecast || '') : '');
+
                       return (
-                        <td key={w.index} className={`p-1 text-center ${active ? EDITABLE_ROW : ''}`}>
+                        <td key={w.index} className="p-2 text-center whitespace-nowrap">
                           <input
                             type="number"
                             min={0}
                             disabled={!editable || locked}
-                            value={draftValue(
-                              rec ? rec.id : emptyForecastId(monthKey, w.index, r.customer.id),
-                              'collection',
-                              rec ? rec.collectionForecast : 0
-                            )}
-                            onChange={(e) =>
-                              setDraft((d) => ({
-                                ...d,
-                                [rec ? rec.id : emptyForecastId(monthKey, w.index, r.customer.id)]: {
-                                  ...d[rec ? rec.id : emptyForecastId(monthKey, w.index, r.customer.id)],
-                                  collection: e.target.value,
-                                },
-                              }))
-                            }
-                            onBlur={(e) => commitCell(r.customer, w.index, 'collection', e.target.value)}
-                            title={locked ? 'معتمد ومقفول — اطلب تعديل من المشرف' : `متوقع تحصيل ${r.customer.name} أسبوع ${w.index}`}
-                            className={`w-20 px-1 py-1 rounded text-center font-mono font-black text-[11px] border ${
+                            value={currentVal}
+                            placeholder="0"
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDraft((prev) => ({ ...prev, [recKey]: val }));
+                            }}
+                            onBlur={(e) => {
+                              commitCell(c, w.index, e.target.value);
+                            }}
+                            title={locked ? 'معتمد ومثبت من المشرف' : `تسجيل متوقع أسبوع ${w.index}`}
+                            className={`w-24 px-2 py-1 rounded-xl text-center font-mono font-black text-xs border transition ${
                               locked
-                                ? 'bg-slate-100 text-slate-500 border-slate-300 cursor-not-allowed'
+                                ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
+                                : Number(currentVal) > 0
+                                ? 'bg-emerald-50 text-emerald-900 border-emerald-400'
                                 : 'bg-white text-slate-800 border-slate-300 focus:border-emerald-500 focus:outline-none'
                             }`}
-                            placeholder="0"
                           />
-                          {locked && <Lock className="w-2.5 h-2.5 inline text-slate-400 mr-0.5" />}
                         </td>
                       );
                     })}
 
-                    <td className="p-2 text-left font-mono font-black text-emerald-700">
-                      {Math.round(r.monthCollection).toLocaleString()}
+                    {/* Month Expected Total */}
+                    <td className="p-3 text-center font-mono font-black text-emerald-700 whitespace-nowrap bg-emerald-50/40">
+                      {monthTotal > 0 ? formatCurrency(monthTotal) : '—'}
                     </td>
-                    <td className="p-2 text-slate-500 whitespace-nowrap">{r.lastVisit || '—'}</td>
-                    <td className="p-2">
-                      <button
-                        type="button"
-                        onClick={() => openComment(r.customer)}
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-black border cursor-pointer ${
-                          r.comment ? COMMENT_KIND_COLORS[r.comment.kind] : 'bg-slate-50 text-slate-500 border-slate-300'
-                        }`}
-                        title={r.comment?.body || 'إضافة كومنت'}
-                      >
-                        {r.comment ? (
-                          <span className="flex items-center gap-1 max-w-[160px]">
-                            <MessageSquare className="w-3 h-3 shrink-0" />
-                            <span className="truncate">{r.comment.body}</span>
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1">
-                            <Pencil className="w-3 h-3" /> كومنت
-                          </span>
-                        )}
-                      </button>
+
+                    {/* Actions */}
+                    <td className="p-3 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCustomerDetail(c)}
+                          className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-[11px] transition flex items-center gap-1 cursor-pointer"
+                          title="عرض كافة تفاصيل العميل"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-slate-600" />
+                          <span>التفاصيل</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openCommentModal(c)}
+                          className={`p-1.5 rounded-lg border transition cursor-pointer ${
+                            commentRecord
+                              ? `${COMMENT_KIND_COLORS[commentRecord.kind]} font-bold`
+                              : 'bg-white hover:bg-slate-100 text-slate-500 border-slate-300'
+                          }`}
+                          title={commentRecord?.body || 'تسجيل ملاحظة على العميل'}
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
               })}
-              {rows.length === 0 && (
+
+              {pageCustomers.length === 0 && (
                 <tr>
-                  <td colSpan={11 + weeks.length} className="p-8 text-center text-xs text-slate-400">
-                    مفيش عملاء مطابقين للفلاتر
+                  <td colSpan={8 + shownWeeks.length} className="p-8 text-center text-slate-400 font-bold text-xs">
+                    لا يوجد عملاء مطابقين للبحث والفلاتر المحددة حالياً.
                   </td>
                 </tr>
               )}
             </tbody>
-            <tfoot className="bg-slate-100 font-black">
-              <tr>
-                <td className="p-2" colSpan={5}>
-                  الإجمالي
-                </td>
-                <td className="p-2 text-left font-mono text-rose-700">{Math.round(totals.balance).toLocaleString()}</td>
-                <td className="p-2 text-left font-mono text-rose-600">{Math.round(totals.dues).toLocaleString()}</td>
-                <td className="p-2" />
-                {weeks.map((w) => (
-                  <td key={w.index} className="p-2 text-center font-mono text-emerald-800">
-                    {Math.round(rows.reduce((s, r) => s + (r.weekCollection[w.index] || 0), 0)).toLocaleString()}
-                  </td>
-                ))}
-                <td className="p-2 text-left font-mono text-emerald-800">{Math.round(totals.forecastCollection).toLocaleString()}</td>
-                <td className="p-2" colSpan={2} />
-              </tr>
-            </tfoot>
           </table>
         </div>
 
-        {/* ================= ترقيم الصفحات ================= */}
-        {rows.length > PAGE_SIZE && (
-          <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-200">
-            <span className="text-[11px] font-bold text-slate-500">
-             Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, rows.length)} from {rows.length}
+        {/* ================= Pagination Controls ================= */}
+        {sortedCustomers.length > 0 && (
+          <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <span className="font-bold text-slate-500">
+              عرض {(safePage - 1) * pageSize + 1} إلى {Math.min(safePage * pageSize, sortedCustomers.length)} من إجمالي {sortedCustomers.length} عميل
             </span>
-            <div className="flex items-center gap-1">
+
+            <div className="flex items-center gap-1.5 font-bold">
               <button
                 type="button"
                 disabled={safePage <= 1}
-                onClick={() => setPage(safePage - 1)}
-                className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-black disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 cursor-pointer"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer flex items-center gap-1"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-3.5 h-3.5" />
+                <span>السابق</span>
               </button>
-              <span className="px-2 text-[11px] font-black text-slate-700">
-                {safePage} / {pageCount}
+
+              <span className="px-3 py-1 font-mono font-black text-slate-800">
+                صفحة {safePage} من {totalPages}
               </span>
+
               <button
                 type="button"
-                disabled={safePage >= pageCount}
-                onClick={() => setPage(safePage + 1)}
-                className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-black disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 cursor-pointer"
+                disabled={safePage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer flex items-center gap-1"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <span>التالي</span>
+                <ChevronLeft className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
         )}
-      </div>
+      </section>
 
-      {/* ================= داش مبسط ================= */}
-      <SimpleSummary customers={scopedCustomers} returnsByCode={returnsByCode} />
+      {/* ========================================================================= */}
+      {/* 5. Complete Customer Dossier Modal (نفس تفاصيل كافه العملاء والزيارات)       */}
+      {/* ========================================================================= */}
+      {selectedCustomerDetail && (() => {
+        const c = selectedCustomerDetail;
+        const fin = calculateCustomerFinancials(c, 'ALL');
+        const customerVisitsList = c.visitHistory || [];
+        const activeVisits = customerVisitsList.filter((v) => !v.isArchived);
+        const archivedVisits = customerVisitsList.filter((v) => v.isArchived);
+        const relatedComments = (customerComments || []).filter(
+          (cm) => cm.customerCode === c.code || cm.customerId === c.id
+        );
 
-      {/* ================= زر الإرسال للمندوب ================= */}
-      {isMine && (
-        <div className="bg-white rounded-2xl border border-emerald-200 shadow-sm p-3 flex flex-wrap items-center gap-2">
-          <Send className="w-4 h-4 text-emerald-600" />
-          <span className="text-xs font-black text-slate-800">إرسال توقع الأسبوع للمشرف</span>
-          {weeks.map((w) => (
-            <button
-              key={w.index}
-              type="button"
-              onClick={() => submitWeek(myRepId, w.index)}
-              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black cursor-pointer"
-            >
-              أسبوع {w.index} ({formatWeekRange(w)})
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* ================= مودال تقسيم الأسابيع ================= */}
-      {showPlanEditor && planDraft && (
-        <Modal title="تقسيم الشهر على الأسابيع (الإدارة)" onClose={() => setShowPlanEditor(false)}>
-          <div className="space-y-3 text-xs">
-            <div className="p-3 rounded-xl bg-violet-50 border border-violet-200 text-violet-900">
-              <div className="font-black mb-1">راجع التواريخ — الأيام لازم تكون متجاورة ومفيشOverlap</div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={applySuggested}
-                  className="px-2.5 py-1 rounded-lg bg-violet-600 text-white text-[11px] font-black cursor-pointer"
-                >
-                  رجّع التقسيم المقترح (7 أيام لكل أسبوع)
-                </button>
-                <button
-                  type="button"
-                  onClick={addWeek}
-                  className="px-2.5 py-1 rounded-lg bg-slate-700 text-white text-[11px] font-black cursor-pointer"
-                >
-                  + ضيف أسبوع
-                </button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-right text-[11px] border-collapse">
-                <thead className="bg-slate-100 text-slate-700">
-                  <tr>
-                    <th className="p-2">الأسبوع</th>
-                    <th className="p-2">من</th>
-                    <th className="p-2">إلى</th>
-                    <th className="p-2">عدد الأيام</th>
-                    <th className="p-2" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {planDraft.weeks.map((w, i) => (
-                    <tr key={i}>
-                      <td className="p-2 font-black">{w.index}</td>
-                      <td className="p-1.5">
-                        <input
-                          type="date"
-                          value={w.start}
-                          onChange={(e) => {
-                            const weeks = planDraft.weeks.map((x, xi) => (xi === i ? { ...x, start: e.target.value } : x));
-                            setPlanDraft({ ...planDraft, weeks });
-                          }}
-                          className="px-2 py-1 rounded border border-slate-300"
-                        />
-                      </td>
-                      <td className="p-1.5">
-                        <input
-                          type="date"
-                          value={w.end}
-                          onChange={(e) => {
-                            const weeks = planDraft.weeks.map((x, xi) => (xi === i ? { ...x, end: e.target.value } : x));
-                            setPlanDraft({ ...planDraft, weeks });
-                          }}
-                          className="px-2 py-1 rounded border border-slate-300"
-                        />
-                      </td>
-                      <td className="p-2 text-center font-mono">
-                        {(() => {
-                          const d = daysBetween(w.start, w.end) + 1;
-                          return <span className={d < 0 ? 'text-rose-600 font-black' : ''}>{d}</span>;
-                        })()}
-                      </td>
-                      <td className="p-1.5">
-                        <button
-                          type="button"
-                          onClick={() => removeWeek(i)}
-                          className="px-1.5 py-1 rounded bg-rose-500 text-white text-[10px] font-black cursor-pointer"
-                        >
-                          حذف
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {planErrors.length > 0 && (
-              <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-300 text-rose-800">
-                {planErrors.map((e, i) => (
-                  <div key={i} className="flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" /> {e}
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto border border-slate-200 space-y-4">
+              {/* Modal Header */}
+              <div className="sticky top-0 bg-slate-900 text-white px-5 py-4 flex items-center justify-between rounded-t-3xl z-10 border-b border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black">
+                    <Users className="w-5 h-5" />
                   </div>
-                ))}
+                  <div>
+                    <h3 className="font-black text-base text-white flex items-center gap-2">
+                      <span>{c.name}</span>
+                      <span className="text-xs font-mono font-bold text-emerald-400 bg-white/10 px-2 py-0.5 rounded-md">
+                        كود: {c.code || '—'}
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-300">
+                      الملف الشامل للعميل والمبيعات والتحصيلات وسجل الزيارات
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedCustomerDetail(null)}
+                  className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-            )}
 
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={planDraft.isClosed}
-                onChange={(e) => setPlanDraft({ ...planDraft, isClosed: e.target.checked })}
-              />
-              <span className="font-bold">اقفل الشهر — مفيش تعديل بعد كده لأي حد</span>
-            </label>
+              <div className="p-5 space-y-4 text-xs">
+                {/* Information Card Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                  <div>
+                    <span className="text-[10.5px] font-bold text-slate-400 block">المندوب المسئول:</span>
+                    <span className="font-black text-slate-800 text-xs">{c.salesRepName || c.repName || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10.5px] font-bold text-slate-400 block">الفرع:</span>
+                    <span className="font-black text-slate-800 text-xs">{c.branchName || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10.5px] font-bold text-slate-400 block">الهاتف:</span>
+                    <span className="font-black text-slate-800 text-xs font-mono">{c.phone || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10.5px] font-bold text-slate-400 block">العنوان:</span>
+                    <span className="font-black text-slate-800 text-xs truncate block">{c.address || '—'}</span>
+                  </div>
+                </div>
 
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setShowPlanEditor(false)}
-                className="px-3 py-2 rounded-xl bg-slate-200 text-slate-800 text-xs font-black cursor-pointer"
-              >
-                إلغاء
-              </button>
-              <button
-                type="button"
-                onClick={savePlan}
-                className="px-3 py-2 rounded-xl bg-violet-600 text-white text-xs font-black cursor-pointer flex items-center gap-1"
-              >
-                <Save className="w-4 h-4" /> حفظ التقسيم
-              </button>
+                {/* Financial Summary Strip */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200">
+                    <span className="text-[11px] font-bold text-rose-800 block">المديونية الحالية</span>
+                    <span className="font-mono text-base font-black text-rose-900">{formatCurrency(fin.balance)}</span>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200">
+                    <span className="text-[11px] font-bold text-amber-800 block">إجمالي المستحقات</span>
+                    <span className="font-mono text-base font-black text-amber-900">{formatCurrency(fin.overdue)}</span>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-blue-50 border border-blue-200">
+                    <span className="text-[11px] font-bold text-blue-800 block">مبيعات 2026</span>
+                    <span className="font-mono text-base font-black text-blue-900">{formatCurrency(fin.sales2026)}</span>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200">
+                    <span className="text-[11px] font-bold text-emerald-800 block">تحصيلات 2026</span>
+                    <span className="font-mono text-base font-black text-emerald-900">{formatCurrency(fin.collections2026)}</span>
+                  </div>
+                </div>
+
+                {/* 2026 Monthly Breakdown Table */}
+                <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                  <div className="p-3 bg-slate-100 border-b border-slate-200 font-black text-slate-800 flex items-center justify-between">
+                    <span>حركة مبيعات وتحصيلات أشهر 2026</span>
+                    <span className="text-emerald-700">نسبة السداد العامة: {fin.collectionRate}%</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-center text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 text-[11px]">
+                          <th className="p-2.5 text-right">الشهر</th>
+                          <th className="p-2.5 text-blue-800">المبيعات (ج.م)</th>
+                          <th className="p-2.5 text-emerald-800">التحصيلات (ج.م)</th>
+                          <th className="p-2.5 text-center">نسبة السداد</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {MONTH_NAMES_AR_12.map((mName, idx) => {
+                          const mNum = idx + 1;
+                          const s = c.monthlySales2026?.[mNum] || 0;
+                          const col = c.monthlyCollections2026?.[mNum] || 0;
+                          const rate = s > 0 ? Math.round((col / s) * 100) : (col > 0 ? 100 : 0);
+                          const hasData = s > 0 || col > 0;
+
+                          return (
+                            <tr key={mNum} className="hover:bg-slate-50">
+                              <td className="p-2 text-right font-black text-slate-900">
+                                {mName} (شهر {mNum})
+                              </td>
+                              <td className="p-2 font-mono font-bold text-blue-900">
+                                {s > 0 ? formatCurrency(s) : '—'}
+                              </td>
+                              <td className="p-2 font-mono font-bold text-emerald-900">
+                                {col > 0 ? formatCurrency(col) : '—'}
+                              </td>
+                              <td className="p-2 text-center">
+                                {hasData ? (
+                                  <span className={`px-2 py-0.5 rounded-full font-black text-[10px] inline-block ${
+                                    rate >= 90 ? 'bg-emerald-100 text-emerald-800' : rate >= 50 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                                  }`}>
+                                    {rate}%
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-300">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Visit History Section */}
+                <div className="rounded-2xl border border-slate-200 p-4 space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-blue-700" />
+                      <span className="font-black text-sm text-slate-900">سجل وملاحظات الزيارات الميدانية للعميل</span>
+                      <span className="text-xs font-bold text-slate-400 font-mono">({customerVisitsList.length})</span>
+                    </div>
+                  </div>
+
+                  {activeVisits.length > 0 ? (
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {activeVisits.map((v) => (
+                        <div key={v.id} className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="space-y-1">
+                            <div className="font-black text-slate-900 flex items-center gap-2 flex-wrap">
+                              <span className="bg-white px-2 py-0.5 rounded border border-slate-200 font-mono">
+                                📅 {v.date} {v.time ? `• ${v.time}` : ''}
+                              </span>
+                              <span className="bg-indigo-50 text-indigo-900 px-2 py-0.5 rounded font-bold border border-indigo-200">
+                                المندوب: {v.repName || 'المندوب'}
+                              </span>
+                              <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-black border border-emerald-300">
+                                الإفادة: {v.outcome || 'متابعة'}
+                              </span>
+                            </div>
+                            {v.notes && (
+                              <p className="text-slate-700 bg-white p-2 rounded-lg border border-slate-200 mt-1">
+                                {v.notes}
+                              </p>
+                            )}
+                          </div>
+                          {v.collectedAmount && v.collectedAmount > 0 ? (
+                            <div className="font-mono font-black text-sm text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 shrink-0">
+                              +{formatCurrency(v.collectedAmount)}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center py-4 text-slate-400 font-bold">لا توجد زيارات مسجلة لهذا العميل حالياً.</p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
-        </Modal>
-      )}
+        );
+      })()}
 
-      {/* ================= مودال الكومنت ================= */}
+      {/* ========================================================================= */}
+      {/* 6. Comments Modal (تسجيل ملاحظات الحساب)                                   */}
+      {/* ========================================================================= */}
       {commentTarget && (
-        <Modal
-          title={`كومنت على ${commentTarget.name} (${commentTarget.code || 'بدون كود'})`}
-          onClose={() => setCommentTarget(null)}
-        >
-          <div className="space-y-2.5 text-xs">
-            <div className="flex flex-wrap gap-1.5">
-              {(Object.keys(COMMENT_KIND_LABELS) as CustomerCommentKind[]).map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setCommentKind(k)}
-                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black border cursor-pointer ${
-                    commentKind === k ? COMMENT_KIND_COLORS[k] : 'bg-white text-slate-500 border-slate-300'
-                  }`}
-                >
-                  {COMMENT_KIND_LABELS[k]}
-                </button>
-              ))}
-            </div>
-            <textarea
-              value={commentBody}
-              onChange={(e) => setCommentBody(e.target.value)}
-              rows={4}
-              placeholder="اكتب سبب التعثر أو المرتجع أو أي ملاحظة على العميل…"
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:border-emerald-500"
-            />
-            {customerComments.find((c) => c.customerCode === (commentTarget.code || '')) && (
-              <button
-                type="button"
-                onClick={async () => {
-                  await deleteCustomerComment(commentId(commentTarget.code || commentTarget.id));
-                  setCommentTarget(null);
-                }}
-                className="px-2.5 py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-300 text-[11px] font-black cursor-pointer"
-              >
-                امسح الكومنت
-              </button>
-            )}
-            <div className="flex justify-end gap-2 pt-1">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-5 space-y-4 border border-slate-200 text-xs">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <span className="font-black text-sm text-slate-900">
+                تسجيل ملاحظة على حساب: {commentTarget.name}
+              </span>
               <button
                 type="button"
                 onClick={() => setCommentTarget(null)}
-                className="px-3 py-2 rounded-xl bg-slate-200 text-slate-800 text-xs font-black cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="font-bold text-slate-600 block">تصنيف الملاحظة:</label>
+              <select
+                value={commentKind}
+                onChange={(e) => setCommentKind(e.target.value as CustomerCommentKind)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold cursor-pointer"
+              >
+                <option value="defaulted">⚠️ عميل متعثر في السداد</option>
+                <option value="return">↩️ بضاعة مرتجعة</option>
+                <option value="note">📝 ملاحظة ائتمانية عامة</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="font-bold text-slate-600 block">نص الملاحظة:</label>
+              <textarea
+                rows={3}
+                value={commentBody}
+                onChange={(e) => setCommentBody(e.target.value)}
+                placeholder="اكتب الملاحظة هنا بدقة لتظهر للفريق والمشرفين..."
+                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setCommentTarget(null)}
+                className="px-3 py-1.5 rounded-xl border border-slate-300 font-bold text-slate-600 cursor-pointer"
               >
                 إلغاء
               </button>
               <button
                 type="button"
-                onClick={submitComment}
-                className="px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-black cursor-pointer"
+                onClick={handleSaveComment}
+                className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black cursor-pointer shadow-sm"
               >
-                حفظ
+                حفظ الملاحظة ✅
               </button>
             </div>
           </div>
-        </Modal>
-      )}
-
-      {/* ================= مودال طلب التعديل ================= */}
-      {changeNoteTarget && (
-        <Modal title="طلب تعديل من المندوب" onClose={() => setChangeNoteTarget(null)}>
-          <div className="space-y-2.5 text-xs">
-            <div className="flex items-start gap-1.5 text-amber-800">
-              <Info className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>التوقع هيتقفل والمندوب يقدر يعدّله بعد ما يعدّل الأرقام ويحاول يبعتّه تاني.</span>
-            </div>
-            <textarea
-              value={changeNote}
-              onChange={(e) => setChangeNote(e.target.value)}
-              rows={3}
-              placeholder="اكتب المطلوب تعديله…"
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-amber-500"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setChangeNoteTarget(null)}
-                className="px-3 py-2 rounded-xl bg-slate-200 text-slate-800 text-xs font-black cursor-pointer"
-              >
-                إلغاء
-              </button>
-              <button
-                type="button"
-                onClick={askChange}
-                className="px-3 py-2 rounded-xl bg-amber-600 text-white text-xs font-black cursor-pointer"
-              >
-                إرسال الطلب
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-/* ---------------- components ---------------- */
-
-function KpiCard({
-  icon, label, value, sub, tone = 'plain',
-}: { icon: React.ReactNode; label: string; value: string; sub?: string; tone?: 'plain' | 'good' | 'warn' | 'bad' }) {
-  const toneClass =
-    tone === 'good' ? 'border-emerald-300 bg-emerald-50/60'
-    : tone === 'warn' ? 'border-amber-300 bg-amber-50/60'
-    : tone === 'bad' ? 'border-rose-300 bg-rose-50/60'
-    : 'border-slate-200';
-  return (
-    <div className={`bg-white rounded-2xl border p-3 shadow-sm ${toneClass}`}>
-      <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between gap-1">
-        <span>{label}</span>
-        {icon}
-      </div>
-      <div className="text-lg font-black text-slate-900 mt-1 font-mono">{value}</div>
-      {sub && <div className="text-[10px] text-slate-500 font-semibold mt-0.5">{sub}</div>}
-    </div>
-  );
-}
-
-function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] overflow-y-auto">
-        <div className="sticky top-0 bg-slate-900 text-white px-4 py-3 flex items-center justify-between">
-          <span className="text-sm font-black">{title}</span>
-          <button type="button" onClick={onClose} className="text-slate-300 hover:text-white cursor-pointer">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="p-4">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-/** داش بسيط: آخر شهر تحصيل فيه + المديونية والمستحقات والحد الائتماني + طريقة الدفع. */
-function SimpleSummary({ customers, returnsByCode }: { customers: Customer[]; returnsByCode: Map<string, { count: number; amount: number; lastDate: string }> }) {
-  const [open, setOpen] = useState(false);
-
-  // Building this walks every customer, so it must not happen while the panel is
-  // shut, and the list itself stays capped so opening it cannot stall the tab.
-  const SUMMARY_LIMIT = 300;
-  const total = customers.length;
-  const rows = useMemo(() => {
-    if (!open) return [];
-    return customers.slice(0, SUMMARY_LIMIT).map((c) => {
-      const fin = calculateCustomerFinancials(c, 'ALL');
-      const m = c.monthlyCollections2026 || {};
-      const lastMonthWithCollection = Object.entries(m)
-        .filter(([, v]) => Math.abs(Number(v) || 0) > 0)
-        .map(([k]) => Number(k))
-        .sort((a, b) => b - a)[0];
-      const ret = returnsByCode.get(c.code || '');
-      return {
-        code: c.code || '—',
-        name: c.name,
-        lastMonth: lastMonthWithCollection
-          ? `${AR_MONTH_NAMES[lastMonthWithCollection - 1]} 2026`
-          : 'مفيش تحصيل',
-        balance: fin.balance,
-        dues: fin.overdue,
-        creditLimit: fin.creditLimit,
-        payment: (c.guaranteeAmount || 0) > 0 || /شيك|كمبيال/.test(c.guaranteeDocs || '') ? 'شيكات' : 'نقدي',
-        hasReturn: !!ret?.count,
-        isCheque:
-          (c.guaranteeAmount || 0) > 0 || /شيك|كمبيال/.test(c.guaranteeDocs || ''),
-      };
-    });
-  }, [customers, returnsByCode, open]);
-
-  return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between cursor-pointer"
-      >
-        <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-          <ArrowDownToLine className="w-4 h-4 text-slate-500" />
-          ملخص سريع — آخر شهر تحصيل فيه، المديونية، المستحقات، الحد الائتماني، طريقة الدفع
-        </span>
-        <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="overflow-x-auto max-h-96">
-          {total > SUMMARY_LIMIT && (
-            <div className="px-4 py-2 text-[11px] font-bold text-amber-800 bg-amber-50 border-b border-amber-200">
-              بيعرض {SUMMARY_LIMIT} عميل من {total} — استخدم البحث أو فلتر المندوب فوق عشان تباقي على باقي العملاء.
-            </div>
-          )}
-          <table className="w-full text-right text-[11px] border-collapse">
-            <thead className="bg-slate-100 text-slate-700 sticky top-0">
-              <tr>
-                <th className="p-2">الكود</th>
-                <th className="p-2">العميل</th>
-                <th className="p-2">آخر شهر تحصيل فيه</th>
-                <th className="p-2 text-left">المديونية</th>
-                <th className="p-2 text-left">إجمالي المستحقات</th>
-                <th className="p-2 text-left">الحد الائتماني</th>
-                <th className="p-2 text-center">طريقة الدفع</th>
-                <th className="p-2 text-center">مرتجع</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {rows.map((r) => (
-                <tr key={r.code} className={r.hasReturn ? 'bg-rose-50/70' : r.isCheque ? 'bg-amber-50/70' : ''}>
-                  <td className="p-2 font-mono text-slate-600">{r.code}</td>
-                  <td className="p-2 font-black text-slate-800">{r.name}</td>
-                  <td className="p-2 text-slate-600">{r.lastMonth}</td>
-                  <td className="p-2 text-left font-mono text-rose-700">{Math.round(r.balance).toLocaleString()}</td>
-                  <td className="p-2 text-left font-mono text-rose-600">{Math.round(r.dues).toLocaleString()}</td>
-                  <td className="p-2 text-left font-mono text-slate-600">{Math.round(r.creditLimit).toLocaleString()}</td>
-                  <td className="p-2 text-center">
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-black border ${
-                        r.isCheque ? 'bg-amber-100 text-amber-900 border-amber-400' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                      }`}
-                    >
-                      {r.payment}
-                    </span>
-                  </td>
-                  <td className="p-2 text-center">
-                    {r.hasReturn ? <Ban className="w-3.5 h-3.5 text-rose-600 inline" /> : <span className="text-slate-300">—</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       )}
     </div>

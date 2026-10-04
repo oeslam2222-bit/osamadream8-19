@@ -1112,6 +1112,31 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     [customerComments, syncOrQueue]
   );
 
+  const toggleArchiveCustomerComment = useCallback(
+    async (commentId: string, isArchived: boolean): Promise<{ success: boolean; message: string }> => {
+      const now = new Date().toISOString();
+      const existing = customerComments.find((c) => c.id === commentId);
+      if (!existing) return { success: false, message: 'الملاحظة غير موجودة' };
+      const updated: CustomerCommentRecord = {
+        ...existing,
+        isArchived,
+        archivedAt: isArchived ? now : undefined,
+        archivedBy: isArchived ? (currentUser?.name || 'المستخدم') : undefined,
+        updatedAt: now,
+      };
+      const next = customerComments.map((c) => (c.id === commentId ? updated : c));
+      setCustomerComments(next);
+      await syncOrQueue('customer_comments', 'upsert', updated.id, updated, () =>
+        saveCustomerCommentsToSupabase([updated])
+      );
+      return {
+        success: true,
+        message: isArchived ? 'تم أرشفة الملاحظة بنجاح 🗄️' : 'تم استعادة الملاحظة من الأرشيف بنجاح 🔄',
+      };
+    },
+    [customerComments, currentUser, syncOrQueue]
+  );
+
   const deleteCustomerComment = useCallback(async (id: string) => {
     const next = customerComments.filter((c) => c.id !== id);
     setCustomerComments(next);
@@ -5259,6 +5284,55 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     return { success: true, message: shouldResubmit ? 'تم تحديث التقرير وإرساله للمشرف للمراجعة' : 'تم تحديث الزيارة وحفظها بقاعدة البيانات بنجاح ✅' };
   };
 
+  const toggleArchiveVisit = async (visitId: string, isArchived: boolean): Promise<{ success: boolean; message: string }> => {
+    if (!currentUser) return { success: false, message: 'يجب تسجيل الدخول أولاً' };
+    const visit = visits.find((v) => v.id === visitId);
+    if (!visit) return { success: false, message: 'الزيارة غير موجودة' };
+    if (!canManageVisit(visit)) return { success: false, message: 'لا تملك صلاحية أرشفة هذه الزيارة' };
+
+    const now = new Date().toISOString();
+    const updatedVisit: CustomerVisit = {
+      ...visit,
+      isArchived,
+      archivedAt: isArchived ? now : undefined,
+      archivedBy: isArchived ? (currentUser.name || currentUser.username) : undefined,
+      updatedAt: now,
+      syncStatus: 'synced',
+    };
+
+    setVisits((prev) => {
+      const next = prev.map((v) => (v.id === visitId ? updatedVisit : v));
+      persistVisits(next);
+      return next;
+    });
+
+    syncOrQueue('visits', 'upsert', updatedVisit.id, updatedVisit, () =>
+      saveVisitsToSupabase([updatedVisit])
+    ).catch((e) => console.warn('Supabase visit archive error:', e));
+
+    if (visit.customerId) {
+      setCustomers((prev) =>
+        prev.map((c) => {
+          if (c.id === visit.customerId) {
+            const history = (c.visitHistory || []).map((vh) => (vh.id === visitId ? updatedVisit : vh));
+            return {
+              ...c,
+              visitHistory: history,
+            };
+          }
+          return c;
+        })
+      );
+    }
+
+    return {
+      success: true,
+      message: isArchived
+        ? 'تم أرشفة الزيارة بنجاح وحفظها في سجل الأرشيف 🗄️'
+        : 'تم استعادة الزيارة من الأرشيف بنجاح إلى السجل النشط 🔄',
+    };
+  };
+
   const reviewVisit = (
     visitId: string,
     status: Extract<VisitReviewStatus, 'approved' | 'needs_fix'>,
@@ -5589,6 +5663,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         addVisit,
         addImportedVisits,
         updateVisit,
+        toggleArchiveVisit,
         reviewVisit,
         deleteVisit,
         syncVisitsWithDatabase,
@@ -5607,6 +5682,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         requestForecastChange,
         saveForecastPlan,
         saveCustomerComment,
+        toggleArchiveCustomerComment,
         deleteCustomerComment,
         getVisibleTargets,
         importTargetsFromExcel,

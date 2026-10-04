@@ -61,7 +61,9 @@ import {
   Navigation,
   TrendingDown,
   Store,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Archive,
+  ArchiveRestore
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -80,7 +82,7 @@ import {
 } from 'recharts';
 import { useApp } from '../context/AppContext';
 import * as XLSX from 'xlsx';
-import { Customer, CustomerVisit, User, Invoice, OrderStatus, Product } from '../types';
+import { Customer, CustomerVisit, CustomerCommentRecord, User, Invoice, OrderStatus, Product } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import {
   MONTH_NAMES_AR,
@@ -243,7 +245,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     syncToAccounting,
     isPrivacyMode,
     togglePrivacyMode,
-    cleanAndDeduplicateCustomers
+    cleanAndDeduplicateCustomers,
+    toggleArchiveVisit,
+    customerComments = [],
+    toggleArchiveCustomerComment
   } = useApp();
 
   // Roles
@@ -380,6 +385,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [visitReturnReason, setVisitReturnReason] = useState('');
   const [visitReturnItems, setVisitReturnItems] = useState('');
   const [visitReturnDetails, setVisitReturnDetails] = useState('');
+  const [customerDossierTab, setCustomerDossierTab] = useState<'active_visits' | 'archived_visits' | 'comments'>('active_visits');
+  const [newQuickComment, setNewQuickComment] = useState('');
 
   // Fast Indexed Customer Orders Lookup
   const customerOrdersLookup = useMemo(() => {
@@ -7302,36 +7309,313 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 );
               })()}
 
-              {/* Visit History Log if any */}
-              {selectedCustomer.visitHistory && selectedCustomer.visitHistory.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-black text-xs text-slate-800 flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-blue-500" />
-                    <span>سجل الزيارات الميدانية المسجلة ({selectedCustomer.visitHistory.length})</span>
-                  </h4>
+              {/* ========================================================================= */}
+              {/* Comprehensive Customer Visit Log, Notes & History Archive Hub            */}
+              {/* ========================================================================= */}
+              {(() => {
+                const customerVisitsList = selectedCustomer.visitHistory || [];
+                const activeVisits = customerVisitsList.filter((v) => !v.isArchived);
+                const archivedVisits = customerVisitsList.filter((v) => v.isArchived);
+                const relatedComments = (customerComments || []).filter(
+                  (cm) =>
+                    (selectedCustomer.code && cm.customerCode === selectedCustomer.code) ||
+                    (selectedCustomer.id && cm.customerId === selectedCustomer.id)
+                );
 
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {selectedCustomer.visitHistory.map((v) => (
-                      <div key={v.id} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs flex items-center justify-between">
-                        <div>
-                          <div className="font-black text-slate-800 flex items-center gap-2">
-                            <span>{v.date}</span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-bold">{v.type || 'زيارة'}</span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold">{v.outcome}</span>
-                          </div>
-                          {v.notes && <p className="text-slate-500 text-[11px] mt-1">{v.notes}</p>}
+                const handleToggleCustomerVisitArchive = async (visit: CustomerVisit) => {
+                  const targetState = !visit.isArchived;
+                  const res = await toggleArchiveVisit(visit.id, targetState);
+                  if (res.success) {
+                    setSelectedCustomer((prev) => {
+                      if (!prev) return null;
+                      const nextHistory = (prev.visitHistory || []).map((vh) =>
+                        vh.id === visit.id
+                          ? {
+                              ...vh,
+                              isArchived: targetState,
+                              archivedAt: targetState ? new Date().toISOString() : undefined,
+                              archivedBy: currentUser?.name,
+                            }
+                          : vh
+                      );
+                      return { ...prev, visitHistory: nextHistory };
+                    });
+                  }
+                };
+
+                const handleToggleCommentArchive = async (cm: CustomerCommentRecord) => {
+                  const targetState = !cm.isArchived;
+                  await toggleArchiveCustomerComment(cm.id, targetState);
+                };
+
+                return (
+                  <div className="rounded-2xl border-2 border-slate-200 bg-white p-4 space-y-3.5 shadow-xs">
+                    {/* Header with Title and Tabs */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-black">
+                          <Clock className="w-4 h-4" />
                         </div>
-
-                        {v.collectedAmount && v.collectedAmount > 0 ? (
-                          <div className="text-left font-mono font-black text-emerald-700">
-                            +{formatCurrency(v.collectedAmount)}
-                          </div>
-                        ) : null}
+                        <div>
+                          <h4 className="font-black text-xs sm:text-sm text-slate-900 flex items-center gap-1.5">
+                            <span>سجل وملاحظات الزيارات الميدانية للعميل</span>
+                            <span className="text-[11px] font-bold text-slate-400 font-mono">
+                              ({customerVisitsList.length} زيارة مسجلة)
+                            </span>
+                          </h4>
+                          <p className="text-[10.5px] text-slate-500 font-medium">
+                            توثيق باسم المندوب وتاريخ الزيارة والإفادة الميدانية مع إمكانية الأرشفة والاسترجاع
+                          </p>
+                        </div>
                       </div>
-                    ))}
+
+                      {/* Tab Slicers: Active Visits vs Archive vs Notes */}
+                      <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold self-start sm:self-auto">
+                        <button
+                          type="button"
+                          onClick={() => setCustomerDossierTab('active_visits')}
+                          className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                            customerDossierTab === 'active_visits'
+                              ? 'bg-white text-slate-900 shadow-2xs font-black'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <CalendarCheck className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>النشطة ({activeVisits.length})</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setCustomerDossierTab('archived_visits')}
+                          className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                            customerDossierTab === 'archived_visits'
+                              ? 'bg-amber-600 text-white shadow-2xs font-black'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <Archive className="w-3.5 h-3.5" />
+                          <span>الأرشيف 🗄️ ({archivedVisits.length})</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setCustomerDossierTab('comments')}
+                          className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                            customerDossierTab === 'comments'
+                              ? 'bg-slate-900 text-white shadow-2xs font-black'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>ملاحظات الحساب ({relatedComments.length})</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Content Section 1: Active Visits */}
+                    {customerDossierTab === 'active_visits' && (
+                      <div className="space-y-2">
+                        {activeVisits.length > 0 ? (
+                          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                            {activeVisits.map((v) => (
+                              <div
+                                key={v.id}
+                                className="p-3 rounded-xl bg-slate-50 hover:bg-slate-100/70 border border-slate-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition"
+                              >
+                                <div className="space-y-1 flex-1 min-w-0">
+                                  <div className="font-black text-slate-900 flex items-center gap-2 flex-wrap">
+                                    <span className="font-mono text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
+                                      📅 {v.date} {v.time ? `• ${v.time}` : ''}
+                                    </span>
+                                    <span className="text-[11px] font-bold text-indigo-900 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                                      المندوب: {v.repName || 'المندوب المسجل'}
+                                    </span>
+                                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-bold">
+                                      {v.type || 'زيارة'}
+                                    </span>
+                                    <span className="text-[10.5px] px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-black border border-emerald-300">
+                                      الإفادة: {v.outcome || 'متابعة'}
+                                    </span>
+                                  </div>
+
+                                  {v.notes && (
+                                    <p className="text-slate-700 text-xs mt-1 bg-white p-2 rounded-lg border border-slate-200/80 leading-relaxed">
+                                      <span className="font-bold text-slate-500">الملاحظات: </span>
+                                      {v.notes}
+                                    </p>
+                                  )}
+
+                                  {v.isReturn && (
+                                    <div className="text-[11px] font-bold text-rose-700 bg-rose-50 p-1.5 rounded-lg border border-rose-200 flex items-center gap-2">
+                                      <span>↩️ مرتجع بقيمة {formatCurrency(v.returnValue || 0)}</span>
+                                      {v.returnReason && <span>({v.returnReason})</span>}
+                                      {v.returnStatus && (
+                                        <span className="text-[10px] bg-rose-200/70 px-1.5 py-0.2 rounded font-black">
+                                          {v.returnStatus}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-200">
+                                  {v.collectedAmount && v.collectedAmount > 0 ? (
+                                    <div className="text-left font-mono font-black text-sm text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                                      +{formatCurrency(v.collectedAmount)}
+                                    </div>
+                                  ) : null}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleCustomerVisitArchive(v)}
+                                    className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-black text-[11px] transition cursor-pointer flex items-center gap-1"
+                                    title="أرشفة هذه الزيارة إلى سجل الأرشيف"
+                                  >
+                                    <Archive className="w-3 h-3 text-amber-700" />
+                                    <span>أرشفة الزيارة 🗄️</span>
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-6 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center space-y-1.5">
+                            <Clock className="w-8 h-8 text-slate-300 mx-auto" />
+                            <p className="text-xs font-bold text-slate-600">لا توجد زيارات نشطة مسجلة لهذا العميل حالياً</p>
+                            <p className="text-[11px] text-slate-400">
+                              يمكنك تسجيل زيارة أو تحصيل جديد عبر زر "تسجيل زيارة أو تحصيل ميداني" أعلاه.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Content Section 2: Archived Visits */}
+                    {customerDossierTab === 'archived_visits' && (
+                      <div className="space-y-2">
+                        {archivedVisits.length > 0 ? (
+                          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                            {archivedVisits.map((v) => (
+                              <div
+                                key={v.id}
+                                className="p-3 rounded-xl bg-amber-50/60 hover:bg-amber-50 border border-amber-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition"
+                              >
+                                <div className="space-y-1 flex-1 min-w-0">
+                                  <div className="font-black text-slate-900 flex items-center gap-2 flex-wrap">
+                                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-200 text-amber-950 font-black border border-amber-300 flex items-center gap-1">
+                                      <Archive className="w-3 h-3" />
+                                      <span>مؤرشفة</span>
+                                    </span>
+                                    <span className="font-mono text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
+                                      📅 {v.date}
+                                    </span>
+                                    <span className="text-[11px] font-bold text-slate-700">
+                                      المندوب: {v.repName || 'المندوب المسجل'}
+                                    </span>
+                                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-200 text-slate-800 font-bold">
+                                      {v.outcome || 'متابعة'}
+                                    </span>
+                                  </div>
+
+                                  {v.notes && (
+                                    <p className="text-slate-700 text-xs mt-1 bg-white p-2 rounded-lg border border-slate-200 leading-relaxed">
+                                      {v.notes}
+                                    </p>
+                                  )}
+
+                                  {v.archivedAt && (
+                                    <div className="text-[10px] text-slate-400">
+                                      تمت الأرشفة في: {new Date(v.archivedAt).toLocaleDateString('ar-EG')} بواسطة {v.archivedBy || 'المشرف'}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-amber-200">
+                                  {v.collectedAmount && v.collectedAmount > 0 ? (
+                                    <div className="text-left font-mono font-black text-sm text-emerald-700 bg-white px-2 py-1 rounded-lg border border-emerald-200">
+                                      +{formatCurrency(v.collectedAmount)}
+                                    </div>
+                                  ) : null}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleCustomerVisitArchive(v)}
+                                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                                    title="استعادة هذه الزيارة من الأرشيف إلى السجل النشط"
+                                  >
+                                    <ArchiveRestore className="w-3 h-3" />
+                                    <span>استعادة من الأرشيف 🔄</span>
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-6 rounded-2xl bg-amber-50/50 border border-dashed border-amber-200 text-center space-y-1.5">
+                            <Archive className="w-8 h-8 text-amber-400 mx-auto" />
+                            <p className="text-xs font-bold text-amber-900">سجل الأرشيف فارغ لهذا العميل</p>
+                            <p className="text-[11px] text-amber-700/80">
+                              الزيارات المؤرشفة تظهر هنا دائماً للرجوع إليها دون حذف أي بيانات أو سجلات تاريخية.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Content Section 3: Customer Comments & Account Notes */}
+                    {customerDossierTab === 'comments' && (
+                      <div className="space-y-2">
+                        {relatedComments.length > 0 ? (
+                          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                            {relatedComments.map((cm) => (
+                              <div
+                                key={cm.id}
+                                className={`p-3 rounded-xl border text-xs flex items-start justify-between gap-3 transition ${
+                                  cm.isArchived
+                                    ? 'bg-amber-50/50 border-amber-200'
+                                    : 'bg-slate-50 border-slate-200'
+                                }`}
+                              >
+                                <div className="space-y-1 flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-bold text-slate-800">
+                                      👤 {cm.authorName || 'المشرف'}
+                                    </span>
+                                    <span className="font-mono text-slate-400 text-[10.5px]">
+                                      {new Date(cm.createdAt).toLocaleDateString('ar-EG')}
+                                    </span>
+                                    {cm.isArchived && (
+                                      <span className="text-[9.5px] px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 font-bold">
+                                        مؤرشفة
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-slate-800 text-xs leading-relaxed bg-white p-2 rounded-lg border border-slate-200">
+                                    {cm.body}
+                                  </p>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleCommentArchive(cm)}
+                                  className="px-2 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[10.5px] transition cursor-pointer shrink-0"
+                                >
+                                  {cm.isArchived ? 'استعادة 🔄' : 'أرشفة 🗄️'}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-6 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center space-y-1">
+                            <FileText className="w-8 h-8 text-slate-300 mx-auto" />
+                            <p className="text-xs font-bold text-slate-600">لا توجد ملاحظات عامة مسجلة على حساب العميل</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Modal Footer with Clear, High-Affordance Close Button */}
