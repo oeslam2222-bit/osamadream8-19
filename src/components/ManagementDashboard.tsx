@@ -140,17 +140,35 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     return Array.from(setYears).sort((a, b) => b - a);
   }, [visibleTargets, invoices, visits]);
 
-  // Branch list
+  /**
+   * أسماء الفروع المتاحة للفلترة.
+   *
+   * لازم ترجع أسماء (`string`) مش كائنات `Branch`، لأن:
+   * 1. `<select>` بيرسل `value` نص، فأي كائن هيتحول لـ "[object Object]" ومفتاح
+   *    الفلترة `selectedBranch !== 'ALL'` مش هيلاقي أي فرع مطابق.
+   * 2. كل المقارنات في `filteredData` بتقارن `selectedBranch` (نص) بـ
+   *    `t.branch` / `c.branchName` (نص)، فلو رجعنا كائنات الفلتر كله بيبقى ميّت.
+   * 3. الـfallback جواه أصلاً بيبني Set من أسماء، فالخليط بين النوعين كان
+   *    مصدر خطأ React #31 (render كائن كـchild).
+   *
+   * الأسماء بتتجيب من `branches` لو موجود، وإلا من الفروع الفعلية اللي ظهرت
+   * في التارجتات والعملاء، عشان الفلتر يشتغل حتى قبل ماBranches تتزامن.
+   */
   const branchList = useMemo(() => {
-    if (branches && branches.length > 0) return branches;
-    const s = new Set<string>();
+    const names = new Set<string>();
+    if (branches && branches.length > 0) {
+      branches.forEach((b) => {
+        const name = (b?.name || '').trim();
+        if (name) names.add(name);
+      });
+    }
     visibleTargets.forEach((t) => {
-      if (t.branch) s.add(t.branch);
+      if (t.branch) names.add(t.branch);
     });
     customers.forEach((c) => {
-      if (c.branchName) s.add(c.branchName);
+      if (c.branchName) names.add(c.branchName);
     });
-    return Array.from(s).filter(Boolean);
+    return Array.from(names).filter(Boolean);
   }, [branches, visibleTargets, customers]);
 
   // Supervisors list matching branch selection

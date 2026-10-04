@@ -964,7 +964,7 @@ export function buildForecastExportRows(input: {
       'المندوب': c.salesRepName || c.repName || '',
       'متعامل': badge.isDealt ? 'نعم' : 'لا',
       'التصنيف من الشيت': fin.sheetClassificationLabel || (fin.isEligible ? 'قابل' : 'غير'),
-      'تصنيف القابلية': badge.eligibilityLabel,
+      'قابل / غير': fin.isEligible ? 'قابل' : 'غير',
       'قابل للتعامل': fin.isEligible ? 'نعم' : 'لا',
       'طريقة الدفع': badge.paymentLabel,
       'مرتجع': badge.hasReturn ? 'نعم' : 'لا',

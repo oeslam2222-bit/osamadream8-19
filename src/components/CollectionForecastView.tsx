@@ -132,9 +132,8 @@ export default function CollectionForecastView() {
   const [pageSize, setPageSize] = useState<number>(25);
   const [page, setPage] = useState<number>(1);
 
-  // الصفحة دي بتعرض عملاء المديونية بس — اللي عندهم مستحقات فعلاً. الفلتر ده
-  // مفعّل افتراضياً لأن قصد القسم متابعة التحصيل، بس يفضل مفتاح عشان المندوب
-  // يفتح شبكة عميله كلها لما يحب.
+  // الصفحة دي بتعرض اللي عليهم مستحقات فعلاً. الفلتر مفعّل افتراضياً لأن قصد
+  // القسم متابعة التحصيل، بس يفضل مفتاح عشان المندوب يفتح شبكة عميله كلها.
   const [debtOnly, setDebtOnly] = useState<boolean>(true);
   const [classFilter, setClassFilter] = useState<string>('ALL');
 
@@ -316,11 +315,15 @@ export default function CollectionForecastView() {
   /**
    * مين يدخل جدول التوقع أصلاً.
    *
-   * العميل يدخل بس لو مديونيته أكبر من صفر وعليه مستحقات أكبر من صفر — يعني
-   * عنده فلوس فعلاً لازم تتحصل. الشرطين مع بعض مقصود: مديونية من غير مستحقات
-   * معناها رصيد ملغى، ومستحقات من غير مديونية معناها حد صفّر المستحق من غير
-   * ما يكون مدين. والأرقام بتتقري من canonical readers في customerDues عشان
-   * كل شاشات النظام تتفق على نفس الرقم للعميل الواحد.
+   * العميل يدخل بشروط مع بعض: مديونيته أكبر من صفر **وعليه** مستحقات أكبر من
+   * صفر — يعني عنده فلوس فعلاً لازم تتحصل.
+   *
+   * الشرطين مع بعض مقصود: مديونية من غير مستحقات معناها رصيد ملغى أو حد
+   * دفع كل حاجة ومستحقاته اتصفّر، ومستحقات من غير مديونية معناها حد دفع
+   * زيادة (رصيد له مش عليه) — وهو مش مدين فمحلهوش في تقرير تحصيل أصلاً.
+   *
+   * الأرقام بتتقري من الـcanonical readers في customerDues عشان كل شاشات
+   * النظام تتفق على نفس الرقم لنفس العميل.
    */
   const isCollectibleCustomer = useCallback((c: Customer) => {
     return resolveCustomerBalanceValue(c) > 0 && resolveCustomerDuesValue(c) > 0;
@@ -586,7 +589,7 @@ export default function CollectionForecastView() {
     const ws = XLSX.utils.json_to_sheet(data);
     ws['!cols'] = [
       { wch: 12 }, { wch: 24 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 18 },
-      { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 16 },
+      { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 16 },
       { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 22 }, { wch: 22 },
       { wch: 20 }, { wch: 20 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
       { wch: 16 }, { wch: 40 }, { wch: 16 }, { wch: 16 },
@@ -1026,7 +1029,7 @@ export default function CollectionForecastView() {
             {filteredCustomers.length.toLocaleString('ar-EG')}
           </div>
           <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
-            {debtOnly ? 'عملاء المديونية (مستحقات > 0)' : 'إجمالي شبكة التوزيع'} ({scopedCustomers.length})
+            {debtOnly ? 'اللي عليهم مستحقات > 0' : 'إجمالي شبكة التوزيع'} ({scopedCustomers.length})
           </div>
         </div>
       </section>
@@ -1087,7 +1090,7 @@ export default function CollectionForecastView() {
         <button
           type="button"
           onClick={() => setDebtOnly((v) => !v)}
-          title="عرض عملاء المديونية اللي عندهم مستحقات أكبر من صفر فقط"
+          title="عرض اللي عليهم مستحقات أكبر من صفر فقط، بناءً على بيانات جدول العملاء"
           className={`px-3 py-2 rounded-xl text-xs font-black border transition cursor-pointer flex items-center gap-1.5 ${
             debtOnly
               ? 'bg-rose-600 text-white border-rose-700'
@@ -1095,7 +1098,7 @@ export default function CollectionForecastView() {
           }`}
         >
           <Filter className="w-3.5 h-3.5" />
-          <span>{debtOnly ? 'عملاء المديونية فقط' : 'كل العملاء'}</span>
+          <span>{debtOnly ? 'اللي عليهم مستحقات' : 'كل العملاء'}</span>
         </button>
 
         <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
@@ -1153,7 +1156,8 @@ export default function CollectionForecastView() {
                 <th className="p-3">المندوب والفرع</th>
                 <th className="p-3 text-rose-300">المديونية</th>
                 <th className="p-3 text-amber-300">إجمالي المستحقات</th>
-                <th className="p-3 text-center whitespace-nowrap">التصنيف</th>
+                <th className="p-3 text-center whitespace-nowrap">قابل / غير</th>
+                <th className="p-3 text-center whitespace-nowrap">متعامل</th>
                 <th className="p-3 text-center whitespace-nowrap min-w-[110px]">
                   <div>عدد الزيارات</div>
                   <span className="text-[9.5px] font-normal text-slate-400 block">منفّذة / الإجمالي</span>
@@ -1250,33 +1254,36 @@ export default function CollectionForecastView() {
                       {dues > 0 ? formatCurrency(dues) : '0 ج.م'}
                     </td>
 
-                    {/* التصنيف — نص الشيت نفسه كما هو، مش صياغة من عندنا.
+                    {/* التصنيف — خانة واحدة بس: قابل / غير، زي ما الشيت مكتوب.
                         إعادة صياغة العمود هنا هي بالظبط اللي بتخلي الشاشة تقول حاجات
                         الشيت ما قالهاش (cell مكتوب فيه «قابل» بيتعرض «قابل للتعامل»)،
-                        فبنعرض خام الأعمدة ونكتفي باللون للتمييز. */}
+                        فبنعرض خام الأعمدة في خانة مستقلة ونكتفي باللون للتمييز.
+                        حالة المتعامل اتنقلت لعمود لوحدها عشان ما تتلغبطش هنا. */}
                     <td className="p-3 text-center whitespace-nowrap">
-                      <div className="flex flex-col items-center gap-1">
-                        <span
-                          className={`px-2 py-0.5 rounded-lg font-black text-[10px] border inline-block ${
-                            fin.isEligible
-                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                              : 'bg-rose-100 text-rose-800 border-rose-300'
-                          }`}
-                          title={`تصنيف الشيت: ${sheetClassificationText}`}
-                        >
-                          {sheetClassificationText}
-                        </span>
-                        <span
-                          className={`px-2 py-0.5 rounded-lg font-black text-[10px] border inline-block ${
-                            fin.isDealtCustomer
-                              ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
-                              : 'bg-slate-100 text-slate-500 border-slate-300'
-                          }`}
-                          title={fin.dealtStatusLabel}
-                        >
-                          {fin.isDealtCustomer ? 'متعامل' : 'غير متعامل'}
-                        </span>
-                      </div>
+                      <span
+                        className={`px-2.5 py-1 rounded-lg font-black text-[11px] border inline-block ${
+                          fin.isEligible
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            : 'bg-rose-100 text-rose-800 border-rose-300'
+                        }`}
+                        title={`تصنيف الشيت: ${sheetClassificationText}`}
+                      >
+                        {sheetClassificationText}
+                      </span>
+                    </td>
+
+                    {/* متعامل — عمود مستقل، مش داخل خانة التصنيف */}
+                    <td className="p-3 text-center whitespace-nowrap">
+                      <span
+                        className={`px-2.5 py-1 rounded-lg font-black text-[11px] border inline-block ${
+                          fin.isDealtCustomer
+                            ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
+                            : 'bg-slate-100 text-slate-500 border-slate-300'
+                        }`}
+                        title={fin.dealtStatusLabel}
+                      >
+                        {fin.isDealtCustomer ? 'متعامل' : 'غير متعامل'}
+                      </span>
                     </td>
 
                     {/* عدد الزيارات — منفّذة من الإجمالي */}
@@ -1431,15 +1438,15 @@ export default function CollectionForecastView() {
 
               {pageCustomers.length === 0 && (
                 <tr>
-                  <td colSpan={11 + shownWeeks.length} className="p-8 text-center">
+                  <td colSpan={12 + shownWeeks.length} className="p-8 text-center">
                     <div className="space-y-2">
                       <p className="text-slate-400 font-bold text-xs">لا يوجد عملاء مطابقين للبحث والفلاتر المحددة حالياً.</p>
                       {/* الرسالة بتقول السبب الحقيقي للمشكلة بدل ما تسيب المستخدم يفكر
-                          إن مفيش عملاء أصلاً — فلتر المديونية والفلتر التصنيفي هم
+                          إن مفيش عملاء أصلاً — فلتر المستحقات والفلتر التصنيفي هم
                           أكثر سببين يخفيوا الشبكة. */}
                       {scopedCustomers.length > 0 && debtOnly && (
                         <p className="text-slate-500 font-bold text-[11px]">
-                          في {scopedCustomers.length} عميل في نطاقك، بس مفيش ولا واحد عندهم مديونية ومستحقات أكبر من صفر.
+                          في {scopedCustomers.length} عميل في نطاقك، بس مفيش ولا واحد عليهم مستحقات أكبر من صفر.
                         </p>
                       )}
                       {(debtOnly || classFilter !== 'ALL' || repFilter !== 'ALL' || deferredSearch.trim()) && (
