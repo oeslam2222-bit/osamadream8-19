@@ -196,19 +196,29 @@ export async function purgeLocalDataCaches(scope: SyncScope = 'all'): Promise<vo
     } catch {}
   }
 
-  // When purging ALL scopes, also clear the entire IndexedDB store to catch any
-  // legacy keys or orphaned entries that the individual deletes above might miss,
-  // which is what causes the duplication users see when clearing cache.
+  // Purge specific data caches without destroying user login, active cart, or offline queue!
+  const keysToPurge = [
+    'dream_dist_products_v9',
+    'dream_dist_products_v8',
+    'dream_dist_customers_v9',
+    'dream_dist_customers_v8',
+    'dream_dist_customers_v3',
+    'dream_dist_targets_v1',
+    'dream_dist_invoices_v9',
+    'dream_dist_invoices_v8',
+    'dream_dist_customer_visits_v1',
+    'dream_dist_customer_comments_v1',
+    'dream_dist_forecasts_v1',
+    'dream_dist_forecast_plans_v1',
+  ];
+
   if (scope === 'all') {
-    tasks.push(idbClear());
-    try {
-      // Clear any lingering localStorage keys
-      Object.keys(window.localStorage).forEach((k) => {
-        if (k.startsWith('dream_dist_')) {
-          window.localStorage.removeItem(k);
-        }
-      });
-    } catch {}
+    keysToPurge.forEach((key) => {
+      tasks.push(idbDelete(key));
+      try {
+        window.localStorage.removeItem(key);
+      } catch {}
+    });
   }
 
   await Promise.allSettled(tasks);

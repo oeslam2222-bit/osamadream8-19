@@ -1534,8 +1534,22 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         if (custRes.success) {
           const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers || []), users);
           const validCust = deduplicateCustomersArray(linked);
-          setCustomers(validCust);
-          idbSet(STORAGE_KEYS.CUSTOMERS, validCust).catch(() => {});
+          const queued = await getQueuedMutations();
+          const pendingCustIds = new Set(
+            queued.filter((m) => m.entity === 'customers' && m.op === 'upsert').map((m) => m.entityId)
+          );
+          setCustomers((prev) => {
+            const nextMap = new Map<string, Customer>();
+            validCust.forEach((c) => nextMap.set(c.id, c));
+            prev.forEach((c) => {
+              if (pendingCustIds.has(c.id) && !nextMap.has(c.id)) {
+                nextMap.set(c.id, c);
+              }
+            });
+            const next = Array.from(nextMap.values());
+            idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
+            return next;
+          });
         }
       }
 
@@ -1564,6 +1578,58 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           }));
           setTargets(mapped);
           safeLocalStorageSet(STORAGE_KEYS.TARGETS, JSON.stringify(mapped));
+        }
+      }
+
+      // 5. Refresh invoices if in scope (source of truth from Supabase; removes deleted invoices across all users)
+      if (scope === 'all' || scope === 'invoices') {
+        const invRes = await fetchInvoicesFromSupabase(500);
+        if (invRes.success && invRes.invoices) {
+          const remoteInvoices = invRes.invoices;
+          const pendingList = (await idbGet<Invoice[]>(STORAGE_KEYS.PENDING_INVOICES)) || [];
+          const queued = await getQueuedMutations();
+          const pendingIds = new Set([
+            ...pendingList.map((i) => i.id),
+            ...queued.filter((m) => m.entity === 'invoices' && m.op === 'upsert').map((m) => m.entityId),
+          ]);
+          setInvoices((prev) => {
+            const nextMap = new Map<string, Invoice>();
+            remoteInvoices.forEach((inv) => nextMap.set(inv.id, inv));
+            // Only keep local invoices that are genuinely pending offline upload
+            prev.forEach((inv) => {
+              if (pendingIds.has(inv.id) && !nextMap.has(inv.id)) {
+                nextMap.set(inv.id, inv);
+              }
+            });
+            const next = Array.from(nextMap.values());
+            idbSet(STORAGE_KEYS.INVOICES, next).catch(() => {});
+            safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify(next));
+            return next;
+          });
+        }
+      }
+
+      // 6. Refresh visits if in scope (source of truth from Supabase; removes deleted visits across all users)
+      if (scope === 'all' || scope === 'visits') {
+        const visRes = await fetchVisitsFromSupabase();
+        if (visRes.success && visRes.visits) {
+          const remoteVisits = visRes.visits;
+          const queued = await getQueuedMutations();
+          const pendingVisitIds = new Set(
+            queued.filter((m) => m.entity === 'visits' && m.op === 'upsert').map((m) => m.entityId)
+          );
+          setVisits((prev) => {
+            const nextMap = new Map<string, CustomerVisit>();
+            remoteVisits.forEach((v) => nextMap.set(v.id, { ...v, syncStatus: 'synced' }));
+            prev.forEach((v) => {
+              if (pendingVisitIds.has(v.id) && !nextMap.has(v.id)) {
+                nextMap.set(v.id, v);
+              }
+            });
+            const next = Array.from(nextMap.values());
+            persistVisits(next);
+            return next;
+          });
         }
       }
 
@@ -1788,66 +1854,88 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                 });
               }
             });
-            fetchCustomersFromSupabase(customerFetchScope).then((cRes) => {
+            fetchCustomersFromSupabase(customerFetchScope).then(async (cRes) => {
               if (cRes.success && cRes.customers && cRes.customers.length > 0) {
+                const linked = linkCustomersToUsers(sanitizeCustomers(cRes.customers!), users);
+                const valid = deduplicateCustomersArray(linked);
+                const queued = await getQueuedMutations();
+                const pendingCustIds = new Set(
+                  queued.filter((m) => m.entity === 'customers' && m.op === 'upsert').map((m) => m.entityId)
+                );
                 setCustomers((curr) => {
-                  if (curr.length === 0) {
-                    const linked = linkCustomersToUsers(sanitizeCustomers(cRes.customers!), users);
-                    const valid = deduplicateCustomersArray(linked);
-                    idbSet(STORAGE_KEYS.CUSTOMERS, valid).catch(() => {});
-                    return valid;
-                  }
-                  return curr;
+                  const map = new Map<string, Customer>();
+                  valid.forEach((c) => map.set(c.id, c));
+                  // Keep only genuinely pending offline creations
+                  curr.forEach((c) => {
+                    if (pendingCustIds.has(c.id) && !map.has(c.id)) {
+                      map.set(c.id, c);
+                    }
+                  });
+                  const next = Array.from(map.values());
+                  idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
+                  saveLocalCustomersFingerprint(next);
+                  return next;
                 });
               }
             });
           }
         });
 
-        // 3. Fetch Invoices from Supabase (source of truth; keeps locally-created offline invoices)
+        // 3. Fetch Invoices from Supabase (source of truth; keeps only genuinely pending offline invoices)
         const deletedInvoiceIds = getDeletedInvoiceIds();
-        fetchInvoicesFromSupabase(500).then((res) => {
+        fetchInvoicesFromSupabase(500).then(async (res) => {
           if (res.success && res.invoices) {
             const remoteInvoices = res.invoices.filter(
               (inv) => !deletedInvoiceIds.has(inv.id) && !deletedInvoiceIds.has(inv.invoiceNumber)
             );
+            const queued = await getQueuedMutations();
+            const pendingMutations = new Set(
+              queued.filter((m) => m.entity === 'invoices' && m.op === 'upsert').map((m) => m.entityId)
+            );
+            const pendingList = (await idbGet<Invoice[]>(STORAGE_KEYS.PENDING_INVOICES)) || [];
+            const pendingIds = new Set([...pendingList.map((i) => i.id), ...pendingMutations]);
+
             setInvoices((previous) => {
               const merged = new Map<string, Invoice>();
               // Start with remote invoices as source of truth
               remoteInvoices.forEach((inv) => merged.set(inv.id, inv));
-              // Add local invoices that were created offline (not on server)
-              const remoteIds = new Set(remoteInvoices.map((i) => i.id));
+              // Add ONLY local invoices that are genuinely pending offline upload
               previous.forEach((inv) => {
-                if (!remoteIds.has(inv.id) && !deletedInvoiceIds.has(inv.id) && !deletedInvoiceIds.has(inv.invoiceNumber)) {
+                if (pendingIds.has(inv.id) && !merged.has(inv.id) && !deletedInvoiceIds.has(inv.id) && !deletedInvoiceIds.has(inv.invoiceNumber)) {
                   merged.set(inv.id, inv);
                 }
               });
               const next = Array.from(merged.values());
               idbSet(STORAGE_KEYS.INVOICES, next);
+              safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify(next));
               return next;
             });
           }
         });
 
-        // 5. Fetch Visits from Supabase (Sync all visits for all roles, minus locally deleted)
+        // 5. Fetch Visits from Supabase (Sync all visits for all roles, minus deleted)
         const deletedVisitIds = getDeletedVisitIds();
-        fetchVisitsFromSupabase().then((res) => {
+        fetchVisitsFromSupabase().then(async (res) => {
           if (res.success && res.visits) {
             const remoteVisits = res.visits.filter(
               (v) => !deletedVisitIds.has(v.id)
             );
+            const queued = await getQueuedMutations();
+            const pendingVisitIds = new Set(
+              queued.filter((m) => m.entity === 'visits' && m.op === 'upsert').map((m) => m.entityId)
+            );
             setVisits((previous) => {
               const merged = new Map<string, CustomerVisit>();
               // Start with remote visits as source of truth
-              remoteVisits.forEach((visit) => merged.set(visit.id, visit));
-              // Add local visits that were created offline (not on server)
+              remoteVisits.forEach((visit) => merged.set(visit.id, { ...visit, syncStatus: 'synced' }));
+              // Add only local visits that are genuinely pending offline in outbox
               previous.forEach((visit) => {
-                if (!merged.has(visit.id) && !deletedVisitIds.has(visit.id)) {
+                if (pendingVisitIds.has(visit.id) && !merged.has(visit.id) && !deletedVisitIds.has(visit.id)) {
                   merged.set(visit.id, visit);
                 }
               });
               const next = Array.from(merged.values());
-              idbSet(STORAGE_KEYS.VISITS, next);
+              persistVisits(next);
               return next;
             });
           }
@@ -1909,9 +1997,36 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           } else if (payload.eventType === 'DELETE') {
             const deleted = payload.old as any;
             if (deleted?.id) {
+              markInvoiceAsDeletedInStorage(deleted.id);
               setInvoices((prev) => {
                 const next = prev.filter((invoice) => invoice.id !== deleted.id);
-                idbSet(STORAGE_KEYS.INVOICES, next);
+                idbSet(STORAGE_KEYS.INVOICES, next).catch(() => {});
+                safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify(next));
+                return next;
+              });
+            }
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const deleted = payload.old as any;
+            if (deleted?.id) {
+              setCustomers((prev) => {
+                const next = prev.filter((c) => c.id !== deleted.id);
+                idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
+                saveLocalCustomersFingerprint(next);
+                return next;
+              });
+            }
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_comments' }, (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const deleted = payload.old as any;
+            if (deleted?.id) {
+              setCustomerComments((prev) => {
+                const next = prev.filter((c) => c.id !== deleted.id);
+                idbSet(STORAGE_KEYS.CUSTOMER_COMMENTS, next).catch(() => {});
                 return next;
               });
             }
@@ -2016,7 +2131,12 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           } else if (payload.eventType === 'DELETE') {
             const deleted = payload.old as any;
             if (deleted?.id) {
-              setVisits((prev) => prev.filter((v) => v.id !== deleted.id));
+              markVisitAsDeletedInStorage(deleted.id);
+              setVisits((prev) => {
+                const next = prev.filter((v) => v.id !== deleted.id);
+                persistVisits(next);
+                return next;
+              });
             }
           }
         })
