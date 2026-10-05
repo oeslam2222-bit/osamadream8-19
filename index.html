@@ -7,6 +7,14 @@
       to inject code through the DOM or a stored value has nowhere to run.
       'unsafe-inline' stays for styles only, because React and Tailwind set
       element styles at runtime.
+
+      No frame-ancestors here on purpose: browsers ignore that directive when it
+      arrives in a <meta> tag (Chrome logs "directive 'frame-ancestors' is ignored
+      when delivered via a <meta> element"), so it was never actually protecting
+      anything — it was only producing a warning. Real clickjacking protection has
+      to be an HTTP response header set by the host:
+        Content-Security-Policy: frame-ancestors 'none'
+        X-Frame-Options: DENY
     -->
     <meta
       http-equiv="Content-Security-Policy"
@@ -19,8 +27,7 @@
                worker-src 'self' blob:;
                object-src 'none';
                base-uri 'self';
-               form-action 'self';
-               frame-ancestors 'none'"
+               form-action 'self'"
     />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />

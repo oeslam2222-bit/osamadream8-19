@@ -637,6 +637,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [isLocalDataHydrated, setIsLocalDataHydrated] = useState(false);
 
+  /**
+   * عدّاد جيل الاشتراكات اللحظية.
+   *
+   * بتزيده مرة واحدة بس لما الصفحة ترجع من الـBack-Forward Cache. المتصفح
+   * بيكسر أي WebSocket مفتوح لما يدخل الـBFCache، والصفحة بتترجم حالتها
+   * وجواها الكانال لسه فاكر نفسه «متوصّل» — فبيفضل ميت من غير ما يعمل
+   * rejoin تلقائي. زيادة العدّاد بتخلّي الـeffects بتاعت الـrealtime تتشال
+   * وتتبني من جديد بقنوات سليمة.
+   *
+   * ليه state في React مش استدعاء مباشر: عشان إعادة الاشتراك متبقاش شغل
+   * جوار الـimperative، ونفس الـcleanup بتاع الـchannels بيشتغل عادي.
+   */
+  const [dataEpoch, setDataEpoch] = useState(0);
+
   const [cart, setCart] = useState<CartItem[]>([]);
 
   const [cloudinaryConfig, setCloudinaryConfig] = useState<CloudinaryConfig>(() => {
@@ -1699,6 +1713,41 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     }
   };
 
+  /**
+   * إصلاح اشتراك الـrealtime بعد الرجوع بالـBack-Forward Cache.
+   *
+   * المشكلة: لما كروم يدخّل الصفحة في الـBFCache بيقفل الـWebSocket عشان
+   * provides resources، بس الصفحة بترجع وجواها الكانال لسه فاكر نفسه «متوصّل».
+   * قناة phoenix بتعمل rejoin تلقائياً بس لما الكانال يكون في حالة error،
+   * فكان بيفضل ميت صامت والبيانات بتتحدّث بس لما الـfocus يضرب (وبنقرّب بده).
+   *
+   * الحل: بنعيد فتح السوكيت (connect() آمن لو هو متوصّل أصلاً — بيعمل return
+   * فوري) وبنزوّد العدّاد عشان الـeffects بتعمل unsubscribe/subscribe من جديد
+   * بقنوات سليمة.
+   *
+   * `event.persisted` هو اللي بيفرق: true يعني الصفحة مرجّعة من الكاش، false
+   * يعني تحميل عادي أو إغلاق — وفي الحالة التانية مش بنعمل حاجة.
+   */
+  useEffect(() => {
+    let lastRestoreAt = 0;
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      // سبام زِرار الرجوع ممكن يطلّع pageshow كذا مرة ورا بعض، وكل مرة بتعمل
+      // إعادة مزامنة كاملة. المتغير ده بيخلي أول واحدة بس هي اللي تشتغل.
+      const now = Date.now();
+      if (now - lastRestoreAt < 3000) return;
+      lastRestoreAt = now;
+      try {
+        supabase.realtime.connect();
+      } catch (error) {
+        console.warn('Realtime reconnect notice:', error);
+      }
+      setDataEpoch((n) => n + 1);
+    };
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
+  }, []);
+
   // Re-check on focus, tab visibility, realtime version broadcasts, and as a short heartbeat.
   // The heartbeat is intentionally defensive: realtime can be disconnected on mobile networks.
   useEffect(() => {
@@ -1785,7 +1834,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       window.clearInterval(interval);
       supabase.removeChannel(versionChannel);
     };
-  }, [users, isLocalDataHydrated]);
+  }, [users, isLocalDataHydrated, dataEpoch]);
 
   // Initial Supabase connection check, fetch users, products, invoices & real-time sync
   useEffect(() => {
@@ -2148,7 +2197,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     } catch (e) {
       console.warn('Realtime channel error:', e);
     }
-  }, [isLocalDataHydrated]);
+  }, [isLocalDataHydrated, dataEpoch]);
 
   useEffect(() => {
     const handleOnlineSync = () => {

@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Boxes,
   Building,
+  CalendarCheck,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -27,6 +28,8 @@ import {
   ShieldAlert,
   ShieldCheck,
   Smartphone,
+  Target,
+  TrendingUp,
   Truck,
   UserCheck,
   Users,
@@ -42,9 +45,307 @@ interface SystemWorkflowGuideProps {
   onNavigateToTab?: (tab: string) => void;
 }
 
+/**
+ * خطوة واحدة في أي دورة عمل.
+ *
+ * الشكل واحد سواء كانت دورة الفاتورة ولا دورة التوقعات، عشان كارد العرض
+ * والشرائط يتشغلوا على أي دورة من غير تكرار.
+ */
+interface GuideStep {
+  step: number;
+  id: string;
+  title: string;
+  subtitle: string;
+  executedBy: string;
+  badge: string;
+  badgeColor: string;
+  icon: React.ComponentType<{ className?: string }>;
+  iconBg: string;
+  summary: string;
+  whatHappens: string[];
+  tip: string;
+}
+
+/** ألوان الدورة — الكارت والشريط بياخدوا اللون من هنا مش من جوّاهم. */
+interface GuideAccent {
+  barOn: string;
+  barOff: string;
+  /** صندوق الملخّص */
+  softBg: string;
+  softBorder: string;
+  softText: string;
+  /* عنوان صندوق التفاصيل */
+  detailHeading: string;
+  /* لون نص الملاحظة في الصندوق الأخير */
+  noteText: string;
+  noteIcon: string;
+  prevBtn: string;
+  nextBtn: string;
+}
+
+/**
+ * عنصر واحد في سلسلة الإشراف.
+ *
+ * الاسم والصفة بالحرفي زي ما هم مكتوبين في مصفوفة البيانات. مفيش أي وصف
+ * ولا تفسير متضاف هنا — أي كلام زي «الإشراف العام على...» لازم يتكتب في
+ * البيانات نفسها لو حابب يظهر، مش من عن_component.
+ */
+interface ChainEntry {
+  name: string;
+  role: string;
+  initial: string;
+  /** تدرّج لون الشارة الدائرية */
+  badge: string;
+  /** لون نص الصفة */
+  roleColor: string;
+  /** لون نقطة الصفة */
+  roleDot: string;
+  /** حلقة ملوّنة حول الكارت */
+  ring: string;
+  /** ترقيم تقني بالنظام الست عشري */
+  tag: string;
+}
+
+/**
+ * سلسلة الإشراف.
+ *
+ * معروضة من فوق لتحت بنفس ترتيب البيانات، وخط الرابط بين المستويات على
+ * اليمين لأن الصفحة كلها RTL. الكارت بيعرض الاسم والصفة وبس.
+ */
+const SupervisionChain: React.FC<{ entries: ChainEntry[] }> = ({ entries }) => (
+  <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 shadow-xl">
+    {/* شبكة تقنية خفيفة في الخلفية */}
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 opacity-40"
+      style={{
+        backgroundImage:
+          'linear-gradient(rgba(148,163,184,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.07) 1px, transparent 1px)',
+        backgroundSize: '30px 30px',
+      }}
+    />
+    {/* توهّج علوي */}
+    <div
+      aria-hidden
+      className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 h-48 w-2/3 rounded-full blur-3xl"
+      style={{ background: 'radial-gradient(closest-side, rgba(56,189,248,0.16), transparent)' }}
+    />
+
+    <div className="relative p-4 sm:p-5">
+      {entries.map((entry, idx) => {
+        const last = idx === entries.length - 1;
+        return (
+          <div key={entry.name} className="flex items-stretch gap-3 sm:gap-4">
+            {/* خط الرابط: على اليمين لأن الاتجاه RTL */}
+            <div className="flex flex-col items-center w-8 sm:w-10 shrink-0">
+              <div
+                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br ${entry.badge} text-slate-950 flex items-center justify-center font-black text-base sm:text-lg shrink-0 ring-1 ring-white/10`}
+              >
+                {entry.initial}
+              </div>
+              {!last && (
+                <div className="flex-1 w-px bg-gradient-to-b from-slate-600 to-slate-800 my-1" />
+              )}
+            </div>
+
+            {/* الكارت: الاسم والصفة وبس */}
+            <div
+              className={`flex-1 min-w-0 rounded-2xl border border-slate-800 bg-slate-900/60 backdrop-blur-xs p-4 shadow-lg ${entry.ring} mb-3`}
+            >
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <span className="text-base sm:text-lg font-black text-white tracking-tight">
+                    {entry.name}
+                  </span>
+                  <span className="flex items-center gap-1.5 mt-1">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${entry.roleDot}`} />
+                    <span className={`text-[11px] font-bold ${entry.roleColor}`}>{entry.role}</span>
+                  </span>
+                </div>
+                <span className="font-mono text-[11px] text-slate-500 bg-slate-950/70 border border-slate-800 rounded-lg px-2 py-1 shrink-0">
+                  {entry.tag}
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+);
+/**
+ * أعمدة شريط الخطوات حسب عددها.
+ *
+ * لازم تكون أسماء الـclasses كاملة مكتوبة حرفياً هنا: Tailwind بيبني الـCSS
+ * لما يمسح الملفات، فلو بنينا الاسم بسلسلة `sm:grid-cols-${n}` مش هيلاقيه ومش
+ * هيعمل الأعمدة صح على الموبايل.
+ */
+const STEP_STRIP_COLUMNS: Record<number, string> = {
+  4: 'grid-cols-2 sm:grid-cols-4',
+  5: 'grid-cols-2 sm:grid-cols-5',
+};
+
+const INVOICE_ACCENT: GuideAccent = {
+  barOn: 'bg-amber-500 text-slate-950 border-amber-400 shadow-md font-bold',
+  barOff: 'bg-slate-800/80 hover:bg-slate-750 text-slate-300 border-slate-700',
+  softBg: 'bg-amber-50/60',
+  softBorder: 'border-amber-200/80',
+  softText: 'text-amber-950',
+  detailHeading: 'ماذا يحدث في النظام والمخزون خلال هذه المرحلة؟',
+  noteText: 'text-amber-300',
+  noteIcon: 'text-amber-400',
+  prevBtn: 'bg-slate-800 hover:bg-slate-700',
+  nextBtn: 'bg-amber-500 hover:bg-amber-400 text-slate-950',
+};
+
+const FORECAST_ACCENT: GuideAccent = {
+  barOn: 'bg-teal-600 text-white border-teal-500 shadow-md font-bold',
+  barOff: 'bg-slate-800/80 hover:bg-slate-750 text-slate-300 border-slate-700',
+  softBg: 'bg-teal-50/60',
+  softBorder: 'border-teal-200/80',
+  softText: 'text-teal-950',
+  detailHeading: 'ماذا يحدث في النظام خلال هذه المرحلة؟',
+  noteText: 'text-teal-300',
+  noteIcon: 'text-teal-400',
+  prevBtn: 'bg-slate-800 hover:bg-slate-700',
+  nextBtn: 'bg-teal-600 hover:bg-teal-500 text-white',
+};
+
+/**
+ * شريط اختيار الخطوات.
+ *
+ * مبني على مصفوفة الخطوات بدل مربعات مكتوبة بإيدها، عشان يقدر يشتغل على أي عدد
+ * دورات وأي عدد خطوات من غير ما يتكرر الكود.
+ */
+const StepStrip: React.FC<{
+  steps: GuideStep[];
+  active: number;
+  onSelect: (n: number) => void;
+  accent: GuideAccent;
+}> = ({ steps, active, onSelect, accent }) => (
+  <div
+    className={`grid ${STEP_STRIP_COLUMNS[steps.length] || STEP_STRIP_COLUMNS[5]} gap-2 pt-5 border-t border-slate-700/80`}
+  >
+    {steps.map((step) => {
+      const Icon = step.icon;
+      const isSelected = active === step.step;
+      return (
+        <button
+          key={step.step}
+          onClick={() => onSelect(step.step)}
+          className={`p-2.5 rounded-xl border text-right transition cursor-pointer flex flex-col justify-between ${
+            isSelected ? accent.barOn : accent.barOff
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className={`text-[10px] px-1.5 py-0.5 rounded font-black ${isSelected ? 'bg-slate-950 text-amber-300' : 'bg-slate-900 text-slate-400'}`}>
+              خطوة {step.step}
+            </span>
+            <Icon className="w-4 h-4" />
+          </div>
+          <div className="text-xs font-black mt-2 truncate">{step.badge}</div>
+        </button>
+      );
+    })}
+  </div>
+);
+
+/** كارت تفاصيل الخطوة المختارة مع تنقّل السابق/التالي. */
+const StepDetailCard: React.FC<{
+  steps: GuideStep[];
+  active: number;
+  onSelect: (n: number) => void;
+  accent: GuideAccent;
+}> = ({ steps, active, onSelect, accent }) => {
+  const current = steps.find((s) => s.step === active) || steps[0];
+  if (!current) return null;
+  const Icon = current.icon;
+  return (
+    <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 p-5 sm:p-7 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+        <div className="flex items-center gap-3">
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black shadow-md shrink-0 ${current.iconBg}`}>
+            <Icon className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg sm:text-xl font-black text-slate-900">{current.title}</h2>
+              <span className={`text-xs px-2.5 py-0.5 rounded-full border font-bold ${current.badgeColor}`}>
+                {current.badge}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">{current.subtitle}</p>
+          </div>
+        </div>
+
+        <div className="bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 flex items-center gap-2 self-start sm:self-auto">
+          <UserCheck className="w-4 h-4 text-amber-600 shrink-0" />
+          <div className="text-xs">
+            <span className="text-slate-500">المنفذ للخطوة: </span>
+            <strong className="text-slate-900 font-black">{current.executedBy}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div className={`${accent.softBg} p-4 rounded-2xl border ${accent.softBorder} text-xs sm:text-sm text-slate-800 leading-relaxed`}>
+        <div className={`font-black ${accent.softText} mb-1 flex items-center gap-1.5`}>
+          <Info className={`w-4 h-4 ${accent.softText}`} />
+          <span>ملخص الإجراء:</span>
+        </div>
+        {current.summary}
+      </div>
+
+      <div className="space-y-3">
+        <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+          <Zap className={`w-4 h-4 ${accent.noteIcon}`} />
+          <span>{accent.detailHeading}</span>
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {current.whatHappens.map((item, idx) => (
+            <div key={idx} className="flex items-start gap-2.5 p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-700 leading-relaxed">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <span>{item}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-slate-900 text-white p-4 rounded-2xl flex items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2.5">
+          <ShieldCheck className={`w-5 h-5 ${accent.noteIcon} shrink-0`} />
+          <div>
+            <span className={`${accent.noteText} font-black`}>ملاحظة أمان وتشغيل: </span>
+            <span className="text-slate-200">{current.tip}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            disabled={active === steps[0].step}
+            onClick={() => onSelect(Math.max(steps[0].step, active - 1))}
+            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold disabled:opacity-40 transition cursor-pointer ${accent.prevBtn}`}
+          >
+            السابق
+          </button>
+          <button
+            disabled={active === steps[steps.length - 1].step}
+            onClick={() => onSelect(Math.min(steps[steps.length - 1].step, active + 1))}
+            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black disabled:opacity-40 transition cursor-pointer ${accent.nextBtn}`}
+          >
+            التالي
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavigateToTab }) => {
   const { currentUser } = useApp();
   const [activeWorkflowStep, setActiveWorkflowStep] = useState<number>(1);
+  // كل دورة ليها مؤشر مستقل، عشان ماشي وأنا في دورة التوقع ما يغيّرش
+  // الخطوة المعروضة في دورة الفاتورة والعكس.
+  const [activeForecastStep, setActiveForecastStep] = useState<number>(1);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const workflowSteps = [
@@ -143,6 +444,142 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
     }
   ];
 
+  /**
+   * دورة التوقعات الشهرية.
+   *
+   * منفصلة عن دورة الفاتورة تماماً: الفاتورة شغل تنفيذ، والتوقع شغل
+   * تخطيط. مكتوبة بنفس حقول دورة الفاتورة عشان الكارت المشترك يعرضها
+   * بنفس الشكل بالظبط.
+   */
+  const forecastSteps: GuideStep[] = [
+    {
+      step: 1,
+      id: 'forecast-monthly',
+      title: '1. التوقع الشهري المستقل (رقم المندوب بنفسه 📅)',
+      subtitle: 'الرقم الإجمالي المتوقع تحصيله من العميل خلال الشهر كله',
+      executedBy: 'مندوب المبيعات (يكتب) — المشرف ومدير الفرع والإدارة يعدّلوا في نطاقهم',
+      badge: 'شهري مستقل',
+      badgeColor: 'bg-teal-100 text-teal-900 border-teal-300',
+      icon: CalendarCheck,
+      iconBg: 'bg-teal-600 text-white',
+      summary:
+        'كل مندوب يكتب لكل عميل رقماً واحداً يمثّل التحصيل المتوقّع منه خلال الشهر كله. الرقم ده مستقل تماماً وما بيتحسبش من أرقام الفترات — لأن المجموع أحياناً يخالف نية المندوب، مثلاً عميل سداده اتأخر وخرج من الشهر أصلاً.',
+      whatHappens: [
+        'الرقم بيتخزن في نفس جدول التوقعات تحت اسم «شهري»، والنظاميميّزه عن أرقام الفترات لوحده من غير أي عمود إضافي.',
+        'لما المندوب ما يكونش كتب رقم، النظام بيعرض مجموع الفترات في نفس الخانة بلون مختلف وكلمة «محسوب من الفترات» عشان ما يختلطش الرقم المستقل بالمحسوب.',
+        'الرقم الشهري هو اللي بيتقارن بهدف الشهر في كارت نسبة التغطية.',
+        'مش لازم الشهر يتقسم لفترات أصلاً — من غير تقسيم، التوقع الشهري لوحده هو الشغل كله والجدول بيفتح عادي.'
+      ],
+      tip: 'اكتب الرقم اللي انت متوقعه فعلاً مش المحسوب؛ لو عايز تقارن، الفرق بينه وبين «مجموع الفترات» باين جنب بعض في نفس الصف.'
+    },
+    {
+      step: 2,
+      id: 'forecast-periods',
+      title: '2. التوقع لكل فترة (لو الإدارة قسمت الشهر 📆)',
+      subtitle: 'توزيع التحصيل المتوقع على فترات الشهر',
+      executedBy: 'مندوب المبيعات (يكتب) — الإدارة وحدها بتحدد التقسيم وتسمّيه',
+      badge: 'أسبوعي / بالفترة',
+      badgeColor: 'bg-sky-100 text-sky-900 border-sky-300',
+      icon: Layers,
+      iconBg: 'bg-sky-600 text-white',
+      summary:
+        'لو الإدارة قسمت الشهر لفترات، كل عميل بياخد عمود لكل فترة والمندوب يكتب المتوقّع في كل فترة لوحدها. ولو ما فيش تقسيم خالص، العمود ده مش بيظهر والجدول بيبقى على التوقع الشهري بس.',
+      whatHappens: [
+        'تقسيم الشهر بياخده الأدمن وحده: يختار أي عدد فترات من 1 لغاية 8، أو صفر يعني «بلا تقسيم»، وبيقدر يسمي كل فترة باسم يفهمه الفريق زي «نص الشهر».',
+        'مش مطلوب الفترات تغطّي أيام الشهر كلها — ممكن فترة في نص الشهر والباقي مفتوح، وده اختيار مشروع في شهر بيبدأ التحصيل فيه متأخر.',
+        'كل فترة ليها نفس دورة الاعتماد لوحدها: مسودة ← بعث للمشرف ← معتمدة أو راجعة للتعديل.',
+        'لو غيّرت التقسيم بعد ما أرقام كتبت، الأرقام القديمة بتفضل محفوظة، بس بتظهر كـ«أرقام معلّقة» لإشعار الأدمن ومش بتتحسب في أي رقم على الصفحة.'
+      ],
+      tip: 'تسمية الفترات بNames واضحة («نص الشهر» بدل «أسبوع 2») بتوفّر على الفريق كلام كتير وقت الاعتماد.'
+    },
+    {
+      step: 3,
+      id: 'forecast-approval',
+      title: '3. الإرسال والاعتماد (مسودة ← بعث ← معتمد 🔁)',
+      subtitle: 'دورة مراجعة المشرف لأرقام التوقع',
+      executedBy: 'مندوب (يبعت) ← مشرف القطاع أو مدير الفرع أو الإدارة (يعتمد أو يرجّع)',
+      badge: 'مراجعة واعتماد',
+      badgeColor: 'bg-indigo-100 text-indigo-900 border-indigo-300',
+      icon: ShieldCheck,
+      iconBg: 'bg-indigo-600 text-white',
+      summary:
+        'لما المندوب يخلص أرقامه بيبعتها للمشرف. المشرف بيبص عليها ويعتمدها فتقفل، أو يرجّعها للمندوب بتعديل مطلوب مع سبب مكتوب.',
+      whatHappens: [
+        'كل فترة ليها حالة مستقلة — يمكن المندوب يكون خلص الفترة الأولى ولسه في التانية.',
+        'أضعف حالة في الفترة هي اللي بتفتحها: لو في عميل واحد لسه مسودة، الفترة كلها بتفضل مفتوحة عند المشرف.',
+        'الاعتماد بيقفل الأرقام: محدش يعدّل بعدها إلا بطلب تعديل من المشرف.',
+        'الرجوع للتعديل بيتسجل سببه واسم المشرف وتوقيته، والمندوب بيشوف السبب تحت الخانة.'
+      ],
+      tip: 'المشرف بيقدر يعتمد فترة ويرجّع تانية في نفس اليوم — الموافقة مش لازم تكون على الشهر كله مرة واحدة.'
+    },
+    {
+      step: 4,
+      id: 'forecast-lock',
+      title: '4. قفل الشهر ومراجعة التغطية (🔒 + 📊)',
+      subtitle: 'تثبيت الأرقام ومقارنتها بهدف الشهر',
+      executedBy: 'الأدمن والمطور فقط',
+      badge: 'مقفل',
+      badgeColor: 'bg-rose-100 text-rose-900 border-rose-300',
+      icon: Target,
+      iconBg: 'bg-rose-600 text-white',
+      summary:
+        'لما الشهر يخلص الأدمن بيقفله فبتقف الكتابة. وقبل القفل أو بعده، الصفحة بتقارن التوقع الشهري بهدف الشهر بتطلع نسبة التغطية لكل مندوب وحالة كل فترة.',
+      whatHappens: [
+        'نسبة التغطية = (التوقع الشهري ÷ هدف الشهر) × 100، ولو ما كتبش حد رقم شهري النظام بيرجع لمجموع الفترات.',
+        'أربع حالات: متوقع مسبق (100% وفوق)، على المسار (80–99%)، متأخر (أقل من 80%)، ومفيش هدف متسجل.',
+        'القفل بيحمي الأرقام المحسوبة بس، والأدمن بيقدر يفتح الشهر تاني في أي وقت — مفيش قفل نهائي من غير مخرج.',
+        'شريط حالة الفترات بيوضح لكل مندوب كام فترة معتمدة وكام مبعوتة وكام رجعت.'
+      ],
+      tip: 'القفل بيقفل الكتابة مش القراءة — كل الأرقام والتقارير بتفضل متاحة للكل في نطاق صلاحياته.'
+    }
+  ];
+
+  /**
+   * سلسلة الإشراف — بالترتيب من أعلى إلى تحت.
+   *
+   * البيانات هنا مش من جدول المستخدمين عن قصد: دي بلوك تعريف بالمنظومة
+   * (مين يشرف على مين)، مش بيانات تشغيل بتتغير. كل مستوى ليه تدرّج لوني
+   * مختلف عشان التمييز يكون بالعين من غير ما يقرأ.
+   */
+  /**
+   * سلسلة الإشراف — بالترتيب من أعلى إلى تحت.
+   *
+   * الأسماء والأوصفات بالحرفي، زي ما هي مكتوبة فوق. متضيفش هنا أي وصف أو
+   * تفسير من عنا: لو حبيت تضيف جملة تحت أي اسم، ضيفها في `role` نفسها.
+   */
+  const supervisionChain: ChainEntry[] = [
+    {
+      name: 'الأستاذ محمد محمود',
+      role: 'المشرف علي المنظومة والتقارير',
+      initial: 'م',
+      badge: 'from-amber-300 to-amber-500',
+      roleColor: 'text-amber-300',
+      roleDot: 'bg-amber-400',
+      ring: 'ring-1 ring-amber-500/25',
+      tag: '0x01',
+    },
+    {
+      name: 'الأستاذ أحمد محمود',
+      role: 'المشرف علي المنظومة والتقارير',
+      initial: 'أ',
+      badge: 'from-sky-300 to-sky-500',
+      roleColor: 'text-sky-300',
+      roleDot: 'bg-sky-400',
+      ring: 'ring-1 ring-sky-500/25',
+      tag: '0x02',
+    },
+    {
+      name: 'أسامة إسلام',
+      role: 'مطور الموقع',
+      initial: 'أ',
+      badge: 'from-teal-300 to-emerald-500',
+      roleColor: 'text-teal-300',
+      roleDot: 'bg-teal-400',
+      ring: 'ring-1 ring-teal-500/25',
+      tag: '0x03',
+    },
+  ];
+
   const rolesMatrix = [
     {
       role: 'مندوب المبيعات (Sales Rep)',
@@ -152,13 +589,15 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
         'تصفح كتالوج الأصناف بالصور والأسعار والرصيد المتاح.',
         'إنشاء فواتير وحجز طلبيات العملاء نقداً أو بالآجل.',
         'متابعة فواتيره الخاصة وحالات اعتمادها (قيد المراجعة / معتمدة / ملغاة).',
+        'كتابة التوقع الشهري المستقل لكل عميل، وكتابة التوقع في كل فترة لو الشهر متقسم.',
         'مشاركة الفواتير الإلكترونية مع العملاء عبر الواتساب والـ PDF.',
         'العمل بدون إنترنت (Offline Mode) مع المزامنة التلقائية.'
       ],
       cannot: [
         'لا يستطيع اعتماد أو صرف المخزون بنفسه دون موافقة المشرف.',
         'لا يستطيع تعديل أرصدة المخازن أو توريدات المصنع.',
-        'لا يستطيع رؤية فواتير أو أرقام مناديب الفروع الأخرى.'
+        'لا يستطيع رؤية فواتير أو أرقام مناديب الفروع الأخرى.',
+        'لا يستطيع تقسيم الشهر لفترات ولا قفل الشهر — دي صلاحيات الإدارة فقط.'
       ]
     },
     {
@@ -170,6 +609,7 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
         'رفض أو إلغاء الطلبيات مع توثيق السبب وإرجاع المخزون آلياً.',
         'تسجيل مرتجعات المبيعات وإعادة الكميات للرصيد الصالح للبيع.',
         'متابعة مستهدفات المبيعات اليومية والشهرية لقطاعه.',
+        'مراجعة توقعات مناديبه وإرسالها أو اعتمادها أو الرجوع بها للتعديل.',
         'الاطلاع على حركة المخزون وسجل تدقيق العمليات (Audit Log).'
       ],
       cannot: [
@@ -184,7 +624,8 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
         'إدارة كامل مخزون الفرع (توريدات المصنع، تسويات الجرد، التحويلات).',
         'اعتماد كافة فواتير المناديب والمشرفين في الفرع.',
         'استيراد وتصدير الشيتات ومطابقة المخزون مع فواتير الشراء.',
-        'تفعيل واعتماد حسابات المناديب الجدد للفرع.'
+        'تفعيل واعتماد حسابات المناديب الجدد للفرع.',
+        'اعتماد توقعات كل مندوبي الفرع ومتابعة نسبة التغطية مقابل هدف الشهر.'
       ],
       cannot: [
         'التعديل على الفروع الأخرى إلا إذا كان مصرحاً له من الإدارة.'
@@ -198,7 +639,9 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
         'صلاحيات غير مقيدة (Super Admin) على كافة الفروع والقطاعات.',
         'إدارة قاعدة البيانات والمزامنة مع Supabase وبرامج الحسابات (ERP).',
         'تفعيل حسابات المستخدمين الجدد وتحديد أدوارهم ومشرفيهم.',
-        'مسح أو تصدير سجلات التدقيق والتقارير المالية الشاملة.'
+        'مسح أو تصدير سجلات التدقيق والتقارير المالية الشاملة.',
+        'تقسيم الشهر على أي عدد فترات (أو بلا تقسيم) وتسميات الفترات وتواريخها.',
+        'قفل الشهر وفتحه بعد اعتمادات المشرفين.'
       ],
       cannot: []
     }
@@ -224,6 +667,22 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
     {
       q: 'كيف يتم الربط مع الإكسل وجوجل شيتات وبرامج المحاسبة (ERP)؟',
       a: 'يوفر النظام تصدير فواتير إلكترونية معتمدة بصيغة Excel / CSV، مع إمكانية استيراد شيتات المنتجات والمخزون بضغطة زر واحدة من قسم "شيتات الإكسل" وربط Supabase والمحاسبة من وحدة المطور.'
+    },
+    {
+      q: 'ما الفرق بين «التوقع الشهري المستقل» و«مجموع الفترات»؟',
+      a: 'التوقع الشهري المستقل رقم بيكتبه المندوب بنفسه ويمثّل رأيه في تحصيل العميل خلال الشهر كله، وما بيتحسبش من الفترات. أمّا «مجموع الفترات» ورق آلي بيجمع أرقام الفترات بس. ولو ما كتبش المندوب رقماً شهرياً، النظام بيعرض مجموع الفترات في نفس الخانة بلون مختلف وكلمة «محسوب من الفترات» عشان ما يختلطش الرقم المستقل بالمحسوب.'
+    },
+    {
+      q: 'لماذا تقسيم الشهر إلى فترات اختياري؟ وليش مش لازم يغطي كل الأيام؟',
+      a: 'لأن إدارة الشهر قرار إداري مش قالب ثابت. الأدمن يختار أي عدد فترات من 1 لغاية 8 (أو صفر يعني بلا تقسيم)، وبيقدر يسمي كل فترة باسم يفهمه الفريق مثل «نص الشهر». تغطية الشهر كلها مش شرط: ممكن فترة في نص الشهر والباقي مفتوح، وده مشروع في شهر بيبدأ التحصيل فيه متأخر أو بيخلص بدري. الشيء الوحيد اللي النظام يرفضه هو تداخل فترتين في نفس اليوم، لأن كده اليوم بيتحسب مرتين.'
+    },
+    {
+      q: 'ماذا يحدث للأرقام إذا غيّرت تقسيم الشهر بعد ما المندوبين كتبوا توقعاتهم؟',
+      a: 'الأرقام بتفضل محفوظة في قاعدة البيانات وما بتتمسحش. لكن أي سطر فترة خرج من التقسيم الجديد بيظهر كـ«أرقام معلّقة» في تنبيه أعلى الصفحة، ومش بيتحسب في أي رقم (لا مجموع الفترات ولا نسبة التغطية) — عشان ما يظهرش رقم في مكان ما يشوفش مصدره. ولو عايز ترجّع الأرقام دي، افتح «تقسيم الفترات» ووسّع الشهر تاني.'
+    },
+    {
+      q: 'ماذا يعني «قفل الشهر» في التوقعات؟',
+      a: 'القفل بيوقف الكتابة في أرقام التوقع لكل المندوبين والمشرفين، ومينفعش حد يعدّل لحد ما الإدارة تفتح الشهر تاني. القفل بيحمي الأرقام المحسوبة بس — القراءة والتقارير بتفضل متاحة للكل في نطاق صلاحياته، والأدمن عنده مخرج دايماً يفتح بيه الشهر.'
     }
   ];
 
@@ -247,7 +706,7 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-300 mt-1">
-                شرح تفصيلي لدورة حياة الفاتورة من إنشاء المندوب إلى اعتماد وصرف المشرف والتسليم أو الإلغاء واسترجاع المخزون.
+                شرح تفصيلي لدورة حياة الفاتورة من إنشاء المندوب إلى اعتماد وصرف المشرف والتسليم أو الإلغاء واسترجاع المخزون — بالإضافة إلى دورة التوقعات الشهرية (التوقع الشهري، التقسيم الاختياري بالفترات، الاعتماد، وقفل الشهر).
               </p>
             </div>
           </div>
@@ -266,122 +725,21 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
         </div>
 
         {/* Quick Progress Indicator Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-6 pt-5 border-t border-slate-700/80">
-          {workflowSteps.map((step) => {
-            const Icon = step.icon;
-            const isSelected = activeWorkflowStep === step.step;
-            return (
-              <button
-                key={step.step}
-                onClick={() => setActiveWorkflowStep(step.step)}
-                className={`p-2.5 rounded-xl border text-right transition cursor-pointer flex flex-col justify-between ${
-                  isSelected
-                    ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md font-bold'
-                    : 'bg-slate-800/80 hover:bg-slate-750 text-slate-300 border-slate-700'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-black ${isSelected ? 'bg-slate-950 text-amber-300' : 'bg-slate-900 text-slate-400'}`}>
-                    خطوة {step.step}
-                  </span>
-                  <Icon className="w-4 h-4" />
-                </div>
-                <div className="text-xs font-black mt-2 truncate">{step.badge}</div>
-              </button>
-            );
-          })}
-        </div>
+        <StepStrip
+          steps={workflowSteps}
+          active={activeWorkflowStep}
+          onSelect={setActiveWorkflowStep}
+          accent={INVOICE_ACCENT}
+        />
       </div>
 
       {/* Interactive Step Details Card */}
-      {(() => {
-        const current = workflowSteps.find((s) => s.step === activeWorkflowStep) || workflowSteps[0];
-        const Icon = current.icon;
-        return (
-          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 p-5 sm:p-7 space-y-6">
-            
-            {/* Step Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black shadow-md shrink-0 ${current.iconBg}`}>
-                  <Icon className="w-6 h-6" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-lg sm:text-xl font-black text-slate-900">{current.title}</h2>
-                    <span className={`text-xs px-2.5 py-0.5 rounded-full border font-bold ${current.badgeColor}`}>
-                      {current.badge}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-0.5">{current.subtitle}</p>
-                </div>
-              </div>
-
-              <div className="bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 flex items-center gap-2 self-start sm:self-auto">
-                <UserCheck className="w-4 h-4 text-amber-600 shrink-0" />
-                <div className="text-xs">
-                  <span className="text-slate-500">المنفذ للخطوة: </span>
-                  <strong className="text-slate-900 font-black">{current.executedBy}</strong>
-                </div>
-              </div>
-            </div>
-
-            {/* Summary Box */}
-            <div className="bg-amber-50/60 p-4 rounded-2xl border border-amber-200/80 text-xs sm:text-sm text-slate-800 leading-relaxed">
-              <div className="font-black text-amber-950 mb-1 flex items-center gap-1.5">
-                <Info className="w-4 h-4 text-amber-600" />
-                <span>ملخص الإجراء:</span>
-              </div>
-              {current.summary}
-            </div>
-
-            {/* Action Details Grid */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                <Zap className="w-4 h-4 text-amber-500" />
-                <span>ماذا يحدث في النظام والمخزون خلال هذه المرحلة؟</span>
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {current.whatHappens.map((item, idx) => (
-                  <div key={idx} className="flex items-start gap-2.5 p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-700 leading-relaxed">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Pro Tip Box */}
-            <div className="bg-slate-900 text-white p-4 rounded-2xl flex items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2.5">
-                <ShieldCheck className="w-5 h-5 text-amber-400 shrink-0" />
-                <div>
-                  <span className="text-amber-300 font-black">ملاحظة أمان وتشغيل: </span>
-                  <span className="text-slate-200">{current.tip}</span>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  disabled={activeWorkflowStep === 1}
-                  onClick={() => setActiveWorkflowStep((p) => Math.max(1, p - 1))}
-                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-[11px] font-bold disabled:opacity-40 transition cursor-pointer"
-                >
-                  السابق
-                </button>
-                <button
-                  disabled={activeWorkflowStep === workflowSteps.length}
-                  onClick={() => setActiveWorkflowStep((p) => Math.min(workflowSteps.length, p + 1))}
-                  className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-[11px] font-black disabled:opacity-40 transition cursor-pointer"
-                >
-                  التالي
-                </button>
-              </div>
-            </div>
-
-          </div>
-        );
-      })()}
+      <StepDetailCard
+        steps={workflowSteps}
+        active={activeWorkflowStep}
+        onSelect={setActiveWorkflowStep}
+        accent={INVOICE_ACCENT}
+      />
 
       {/* Visual Lifecycle Flowchart */}
       <div className="bg-white p-5 sm:p-7 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 space-y-4">
@@ -485,6 +843,54 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
         </div>
       </div>
 
+      {/* ========================================================================= */}
+      {/* دورة التوقعات الشهرية — محتوى بس، من غير مخطط بصري                   */}
+      {/* ========================================================================= */}
+      <div className="bg-gradient-to-r from-teal-950 via-slate-900 to-slate-900 text-white p-5 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-teal-500/25">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-teal-500/20 text-teal-300 flex items-center justify-center shrink-0">
+              <TrendingUp className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg sm:text-xl font-black text-white">دورة التوقعات الشهرية</h2>
+                <span className="hidden sm:inline-block text-[11px] px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30 font-bold">
+                  Forecast Workflow
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5 leading-relaxed">
+                من رقم المندوب للشهر، مروراً بالفترات واعتماد المشرف، لحد قفل الشهر ومقارنة التوقع بهدفه.
+              </p>
+            </div>
+          </div>
+
+          {onNavigateToTab && (
+            <button
+              onClick={() => onNavigateToTab('forecast')}
+              className="bg-teal-500 hover:bg-teal-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+            >
+              <TrendingUp className="w-4 h-4" />
+              <span>فتح صفحة التوقعات</span>
+            </button>
+          )}
+        </div>
+
+        <StepStrip
+          steps={forecastSteps}
+          active={activeForecastStep}
+          onSelect={setActiveForecastStep}
+          accent={FORECAST_ACCENT}
+        />
+      </div>
+
+      <StepDetailCard
+        steps={forecastSteps}
+        active={activeForecastStep}
+        onSelect={setActiveForecastStep}
+        accent={FORECAST_ACCENT}
+      />
+
       {/* Role & Permissions Matrix */}
       <div className="bg-white p-5 sm:p-7 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 space-y-4">
         <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
@@ -539,7 +945,7 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
           <HelpCircle className="w-5 h-5 text-amber-600" />
           <div>
             <h2 className="text-base sm:text-lg font-black text-slate-900">
-              الأسئلة الشائعة حول إدارة الفواتير والمخزون
+              الأسئلة الشائعة حول الفواتير والمخزون والتوقعات
             </h2>
             <p className="text-xs text-slate-500">إجابات مباشرة على استفسارات فريق المبيعات والمشرفين</p>
           </div>
@@ -576,6 +982,9 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
           })}
         </div>
       </div>
+
+      {/* سلسلة الإشراف */}
+      <SupervisionChain entries={supervisionChain} />
 
     </div>
   );
