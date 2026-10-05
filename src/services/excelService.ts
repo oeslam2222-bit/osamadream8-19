@@ -651,6 +651,9 @@ export function parseRawRowsToProducts(rawRows: any[]): {
 
   // Track code occurrences to ensure 100% of rows (all 5500+) get unique IDs without overwriting
   const codeOccurrences: Record<string, number> = {};
+  // عدّاد الصفوف اللي مفيهاش كود حقيقي — بيتحوّل لملاحظة في نهاية الاستيراد.
+  let codeLessRowCount = 0;
+  const codeLessSample: string[] = [];
 
   // Loop rows
   for (let r = headerRowIndex + 1; r < rawRows.length; r++) {
@@ -678,7 +681,30 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     // a fallback for rows where the product-code cell is genuinely empty.
     const productCode = cleanProductCode(rawCode);
     const fallbackCode = rawUnifiedCode.replace(/^#/, '').trim();
-    const code = productCode || fallbackCode || String(1000 + r);
+    const code = productCode || fallbackCode;
+
+    // **بلا كود متخيّلق.**
+    //
+    // السطر القديم كان: `|| String(1000 + r)` — رقم الصف نفسه بيتخزن كأنهو
+    // كود الصنف. ده كان أسوأ من التكرار، لأن الرقم ده:
+    //   - بيتغيّر مع ترتيب الشيت وطوله (صف بيتزحزح = كوده بيتغيّر)، فنفس
+    //     الصنف بيبقى له كود مختلف في كل رفع.
+    //   - فريد لكل صف، فالمفتاح بيفصل الصفوف المتشابهة وبيخلّيها أصناف مختلفة.
+    //   - شكله كود حقيقي، فمحدش يقدر يكتشف إنه مش حقيقي.
+    // والأثر كان إن الكتالوج بيكبر بعد كل رفع بدل ما يدمج.
+    //
+    // دلوقتي الصف من غير كود بيفضل من غير كود، والمطابقة بتتم بالاسم/الكود
+    // الموحد/اللون/الحجم عبر `productIdentityKey`، يتحذّر منه المستخدم بدل ما
+    // يدخل الكتالوج صامت.
+    if (!code) {
+      const label = (getVal(colMap.name) || `صف ${r + 1}`).slice(0, 40);
+      codeLessRowCount += 1;
+      if (codeLessSample.length < 5) codeLessSample.push(label);
+      errors.push(
+        `الصف ${r + 1} («${label}») مفيهوش كود صنف ولا كود موحد — اتسجّل بالاسم فقط، ` +
+          'وممكن يتكرر في الكتالوج لو الاسم اتغيّر.'
+      );
+    }
 
     let cleanUnified = rawUnifiedCode.trim();
     if (cleanUnified && /^drm[-_]?([0-9a-zA-Z]+)$/i.test(cleanUnified)) {
@@ -792,14 +818,17 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const colorVal = getVal(colMap.color) || '';
 
     // Generate distinct product ID to guarantee preservation of all rows and prevent unwanted code merging
-    const baseCode = (code || `prd_${r}`).replace(/\s+/g, '_').toLowerCase();
+    const baseCode = (code || `prd_r${r}`).replace(/\s+/g, '_').toLowerCase();
     const cleanUnifiedSlug = unifiedCode ? `_u${unifiedCode.replace(/[^a-zA-Z0-9]/g, '')}` : '';
     const cleanName = (name || '').replace(/[^a-zA-Z0-9\u0621-\u064A]/g, '_').slice(0, 20).toLowerCase();
     const colorSlug = colorVal ? `_${colorVal.replace(/[^a-zA-Z0-9\u0621-\u064A]/g, '_').toLowerCase()}` : '';
     const sizeSlug = sizeVal ? `_${sizeVal.replace(/[^a-zA-Z0-9\u0621-\u064A]/g, '_').toLowerCase()}` : '';
     
-    // Each product gets a stable deterministic ID based strictly on product code and attributes
-    // This allows subsequent sheet uploads to reliably UPDATE existing products rather than creating duplicates
+    // الـid ثابت مش متغيّر: مبني على الكود + الكود الموحد + اللون + الحجم.
+    // اللاحقة `_v2`/`_v3` بتفرّق بين الصفوف المكرّرة جوه الشيت الواحد
+    // بس — هي **مش** هوية الصنف، وده مقصود. الدمج بيحصل على
+    // `productIdentityKey` (الكود لوحده) مش على الـid، فالصف التاني بنفس
+    // الكود بيتدمج مع الأول بدل ما يولّد صنف جديد.
     const occurrenceCount = (codeOccurrences[baseCode] || 0) + 1;
     codeOccurrences[baseCode] = occurrenceCount;
     const occurrenceSuffix = occurrenceCount > 1 ? `_v${occurrenceCount}` : '';
@@ -809,7 +838,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       id: deterministicId,
       code: code,
       unifiedCode: unifiedCode,
-      name: name || `صنف دريم ${code}`,
+      name: name || `صنف بدون كود (${baseCode})`,
       salesPriority: salesPriority,
       category: itemGroup,
       status: status,
@@ -841,12 +870,31 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     products.push(product);
   }
 
+  // ملخص واضح بدل ما المستخدم يشوف رقم غريب بعد الرفع.
+  if (codeLessRowCount > 0) {
+    errors.push(
+      `ملخص: ${codeLessRowCount} صف مفيهوش كود صنف (${codeLessSample.join('، ')}` +
+        `${codeLessRowCount > codeLessSample.length ? ' …' : ''}). ` +
+        'اكتب عمود «كود المنتج» في الشيت علشان الدمج يبقى مضمون.'
+    );
+  }
+
   return {
     products,
     errors,
     totalRows: products.length,
   };
 }
+
+/**
+ * نفس النتيجة، مع عدّ الصفوف المكرّرة جوه الشيت نفسه.
+ *
+ * بيستخدمه الاستيراد عشان يقدر يقول للمستخدم «اتقرأ 5,800 صف ودمجناهم في
+ * 4,508 صنف» بدل ما الرقم الكبير يخلّيه يفتكر إن التطبيق ضاع منه حاجة.
+ * التكرار بيتحسب على **الكود** (نفس مفتاح `productIdentityKey`)، فبنفس
+ * التعريف اللي بيستخدمه الدمج فعلاً.
+ */
+export { countDuplicateProductRows as countDuplicateCodeRows } from './productIdentity';
 
 /**
  * Smart Excel / CSV file parser for Dream Distribution product inventory

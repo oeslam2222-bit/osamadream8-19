@@ -109,6 +109,8 @@ import {
   markInvoiceAsDeletedInStorage,
   getDeletedVisitIds,
   markVisitAsDeletedInStorage,
+  readLegacyVisitsMirror,
+  clearLegacyVisitsMirror,
   firstNumber,
   resolveDues,
   buildCustomersFingerprint,
@@ -120,6 +122,7 @@ import {
   deduplicateCustomersArray,
   deduplicateTargetRecords,
   deduplicateProductArray,
+  productIdentityKey,
   sanitizeCustomers,
 } from './appContextHelpers';
 import { useUiPreferences } from './useUiPreferences';
@@ -420,6 +423,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             authorName: r.author_name ?? r.authorName ?? '',
             createdAt: r.created_at ?? r.createdAt ?? new Date().toISOString(),
             updatedAt: r.updated_at ?? r.updatedAt ?? undefined,
+            // حالة الأرشفة بتقرأ من السيرفر. قبل كده كانت مش متقراش، فأي
+            // تعليق مش مهم كان بيتنهض من الأرشيف أول ما السيرفر يردّ على أي
+            // عميل جديد (لأن القراءة كانت بتبني سجل جديد من الصفر).
+            // الأعمدة دي محتاجة supabase/fix_forecast_rls.sql — من غيرها
+            // undefined بيرجّع false وده سلوك الـfallback الطبيعي.
+            isArchived: !!(r.is_archived ?? r.isArchived),
+            archivedAt: r.archived_at ?? r.archivedAt ?? undefined,
+            archivedBy: r.archived_by ?? r.archivedBy ?? undefined,
           }))
         );
       }
@@ -660,12 +671,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [lastVersionSyncNotice, setLastVersionSyncNotice] = useState<string | null>(null);
   const clearVersionSyncNotice = () => setLastVersionSyncNotice(null);
 
-  const [visits, setVisits] = useState<CustomerVisit[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.VISITS);
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
+  /**
+   * الزيارات بتبدأ فاضية وبتتملّى من IndexedDB.
+   *
+   * كانت بتتقرأ من localStorage كـseed أول فتح، لكن المفتاح ده كان نسخة
+   * كاملة من السجل (نحو 1MB عند 4,000 زيارة). الـseed كان مش ضروري خالص لأن
+   * IndexedDB بيتكتب **فورًا** مع كل تعديل، فأي زيارة اتسجّلت على الجهاز
+   * موجودة هناك قبل إعادة التحميل. والقراءة دي كانت برضه block على الـmain
+   * thread قبل أول رسم.
+   */
+  const [visits, setVisits] = useState<CustomerVisit[]>(() => []);
 
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
     return [];
@@ -723,58 +738,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [customers]);
 
   /**
-   * Visit persistence, split by cost.
+   * حفظ الزيارات — IndexedDB بس.
    *
-   * IndexedDB is written immediately: it is async and off the main thread, so the data
-   * is safe at once and the boot path merges it back in. The localStorage mirror is the
-   * expensive half - it needs the whole log stringified and then written
-   * synchronously. Measured at 4,000 visits that is a ~1 MB stringify plus a blocking
-   * write, which stalls the main thread long enough to be felt as a hitch on a phone
-   * every single time a status is tapped, and it grows with the log.
+   * كان فيه مرآة تانية في localStorage بنفس السجل كامل. المرآة دي كانت بتعمل
+   * `JSON.stringify` للمصفوفة كلها (نحو 1MB عند 4,000 زيارة) + كتابة متزامنة
+   * بتوقف الـmain thread، وده بيتكرر مع **كل** ضغطة حالة على الزيارة. مع 400
+   * جهاز الشغل ده بيتضاعف 400 مرة على نفس البنية التحتية.
    *
-   * So the mirror is coalesced onto a short delay and flushed on pagehide /
-   * visibilitychange: backgrounding or closing the app still writes it, so nothing is
-   * lost, but tapping through visits no longer pays for a full serialisation each time.
+   * المرآة مش بتضيف حاجة: IndexedDB بيتكتب فورًا مع كل تعديل (async، بره الـmain
+   * thread)، والـboot path بيقرأ منه ويدمجه. والـquota بتاع localStorage ~5MB
+   * للأصل كله، فنسخة الـ1MB دي كانت بتزاحم عملاء وأصناف.
+   *
+   * النسخة القديمة بتتقري مرة واحدة وقت الإقلاع وبتتمسح فورًا بعد ما تتدمج
+   * (تحت في hydrateFromIndexedDB) — مش وقت كل تعديل.
    */
-  const visitsMirrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingVisitsMirrorRef = useRef<CustomerVisit[] | null>(null);
-
-  const flushVisitsMirror = useCallback(() => {
-    const pending = pendingVisitsMirrorRef.current;
-    if (!pending) return;
-    pendingVisitsMirrorRef.current = null;
-    if (visitsMirrorTimerRef.current !== null) {
-      clearTimeout(visitsMirrorTimerRef.current);
-      visitsMirrorTimerRef.current = null;
-    }
-    safeLocalStorageSet(STORAGE_KEYS.VISITS, JSON.stringify(pending));
+  const persistVisits = useCallback((next: CustomerVisit[]) => {
+    idbSet(STORAGE_KEYS.VISITS, next).catch(() => {});
   }, []);
-
-  const persistVisits = useCallback(
-    (next: CustomerVisit[]) => {
-      idbSet(STORAGE_KEYS.VISITS, next).catch(() => {});
-      pendingVisitsMirrorRef.current = next;
-      if (visitsMirrorTimerRef.current !== null) clearTimeout(visitsMirrorTimerRef.current);
-      visitsMirrorTimerRef.current = setTimeout(flushVisitsMirror, 1200);
-    },
-    [flushVisitsMirror]
-  );
 
   useEffect(() => {
     persistVisits(visits);
   }, [visits, persistVisits]);
-
-  useEffect(() => {
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden') flushVisitsMirror();
-    };
-    window.addEventListener('pagehide', flushVisitsMirror);
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      window.removeEventListener('pagehide', flushVisitsMirror);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, [flushVisitsMirror]);
 
   // Persist users to IndexedDB and localStorage so offline sessions and registered reps are immediately available
   useEffect(() => {
@@ -886,13 +870,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         if (Array.isArray(savedCart)) setCart(savedCart);
 
-        // Hydrate & merge visits from IndexedDB, localStorage, and customer visit histories
+        // Hydrate & merge visits from IndexedDB, the legacy localStorage mirror (read once,
+        // see migrateLegacyVisitsMirror), and customer visit histories
         const allVisitsMap = new Map<string, CustomerVisit>();
         const deletedVisitIds = getDeletedVisitIds();
         if (Array.isArray(savedVisits)) {
           savedVisits.forEach((v) => {
             if (v && v.id && !deletedVisitIds.has(v.id) && !deletedVisitIds.has(v.date)) {
               allVisitsMap.set(v.id, v);
+            }
+          });
+        }
+        // الزيارات اللي كانت متخزّنة في مرآة localStorage القديمة.
+        // الأجهزة اللي كانت شغالة قبل الإصدار ده ممكن يكون عندها زيارات في
+        // localStorage بس، فبنقراها مرة واحدة هنا وبندمجها قبل ما المفتاح
+        // يتمسح (التنضيف بيحصل في آخر hydrateFromIndexedDB تحت).
+        const legacyVisits = readLegacyVisitsMirror();
+        if (legacyVisits.length > 0) {
+          legacyVisits.forEach((v) => {
+            if (v && v.id && !deletedVisitIds.has(v.id) && !deletedVisitIds.has(v.date)) {
+              if (!allVisitsMap.has(v.id)) allVisitsMap.set(v.id, v);
             }
           });
         }
@@ -925,15 +922,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (v && v.id && !allVisitsMap.has(v.id)) allVisitsMap.set(v.id, v);
           });
           const merged = Array.from(allVisitsMap.values());
+          // دلوقتي المرآة القديمة اتدمجت في IndexedDB — امسحها عشان ما تفضل
+          // متخزّنة. المسح بعد الدمج مش قبله، عشان ما نضيّعش زيارات قديمة.
           if (merged.length > 0) {
             idbSet(STORAGE_KEYS.VISITS, merged).catch(() => {});
+            clearLegacyVisitsMirror();
           }
           return merged;
         });
         setIsLocalDataHydrated(true);
         refreshPendingInvoicesCount();
+        // حتى لو الدمج مالوش نتيجة (لا IDB ولا مرآة قديمة)، المفتاح القديم
+        // لازم يتمسح — تاني مرة هنا مش harmful، والنسخة لو ماقرأتهاش أصلاً.
+        clearLegacyVisitsMirror();
       } catch (err) {
         console.warn('IndexedDB initial hydration notice:', err);
+        clearLegacyVisitsMirror();
         if (isMounted) setIsLocalDataHydrated(true);
       }
     }
@@ -1440,6 +1444,33 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     return { branchNames: Array.from(names) };
   }, [currentUser?.id, currentUser?.branchName, currentUser?.role]);
 
+  /**
+   * scope القراءة من جدول الزيارات، على نفس نمط العملاء.
+   *
+   * الزيارات كانت بتتنزل كاملة على كل جهاز، وده كان أكبر بند في فاتورة
+   * الاستضافة على الخطة المجانية: كل مندوب بينزّل سجل الشركة كله عشان
+   * يشوف زيارات فرعه، والواجهة كانت بتخفي الباقي بعد ما يتحمّل.
+   *
+   * مين بيتضيّق؟ المندوب ومدير الفرع بس — وهما أصعب الأدوار صرامة في
+   * `visibleVisits` أصلاً (مندوب: زياراته هو بس). المشرف سيب من غير
+   * scope عمداً: صلاحيته مش مرتبطة بفرع واحد (بيشوف زيارات مندوبين
+   * `supervisorId`)، فأي تضييق هيعمله ممكن يخفي عنه زيارة
+   * سجّلها بنفسه. يعني ~7 مشرفين بيفضلوا السجل كامل بدل 300 مندوب.
+   *
+   * `sinceDate` بيقفل القراءة على 18 شهر: التقارير الشهرية بتغطي السنة
+   * اللي فاتت، وأقدم من كده مش بيتنزل على موبايل. الأدمن والمطور من غير
+   * حد، عشان تقرير المرتجعات على مستوى الشركة محتاج السجل كامل.
+   */
+  const visitFetchScope = useMemo(() => {
+    const role = currentUser?.role;
+    if (!currentUser || role !== 'sales_rep' && role !== 'branch_manager') return undefined;
+    const scope = customerFetchScope;
+    if (!scope?.branchNames?.length) return undefined;
+    const since = new Date();
+    since.setMonth(since.getMonth() - 18);
+    return { branchNames: scope.branchNames, sinceDate: since.toISOString().slice(0, 10) };
+  }, [currentUser?.id, currentUser?.branchName, currentUser?.role, customerFetchScope]);
+
   // Sync with Supabase (Direction: fetch, push, or both)
   const syncWithSupabase = async (
     direction: 'fetch' | 'push' | 'both' = 'both'
@@ -1545,7 +1576,22 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
    * Check remote published data version and automatically purge stale client caches
    * This guarantees that when an admin uploads a new Excel catalog or customer list,
    * no sales rep or user experiences duplicate records or outdated prices/stocks.
+   *
+   * `noStampPulledAtRef`: بيتحدّث إمتى آخر مرة سحبنا فيها جدول العملاء **من
+   * غير** ختم إصدار منشور على السيرفر.
    */
+  const noStampPulledAtRef = useRef(0);
+  /**
+   * من غير ختم إصدار منشور، المسار ده كان بيسحب جدول العملاء كامل **كل مرة**
+   * check() بينادي — يعني كل 30 ثانية على كل جهاز، وكمان عند كل focus.
+   * ده كان أكبر بند في فاتورة الاستضافة: 400 جهاز × 3,400 صف كل دقيقة.
+   *
+   * دلوقتي السحب بيحصل مرة واحدة لكل 15 دقيقة، وعند الإقلاع (`neverPulled`).
+   * انحراف المحتوى لسه متكفّل بيه `checkCustomersContent` عبر بصمة صف واحد
+   * (عدد الصفوف + أحدث updated_at)، فمفيش فقد في حداثة البيانات.
+   */
+  const NO_STAMP_PULL_INTERVAL_MS = 15 * 60 * 1000;
+
   const checkAndSyncDataVersion = async (force: boolean = false): Promise<{ updated: boolean; version?: number; message: string }> => {
     try {
       // Never purge and re-pull while our own authoritative write is still
@@ -1555,9 +1601,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
       const remoteMeta = await fetchRemoteDataVersion();
       if (!remoteMeta) {
-        // No version stamp has been published yet. Instead of giving up (which
-        // left every rep frozen on stale data), pull the authoritative customer
-        // list directly and swap state for it.
+        // No version stamp has been published yet. Pull the authoritative customer
+        // list directly - but only once per window, not on every heartbeat.
+        const dueForPull =
+          force || noStampPulledAtRef.current === 0 || Date.now() - noStampPulledAtRef.current >= NO_STAMP_PULL_INTERVAL_MS;
+        if (!dueForPull) {
+          return { updated: false, message: 'مفيش ختم إصدار منشور — الاعتماد على بصمة المحتوى' };
+        }
+        noStampPulledAtRef.current = Date.now();
         const custRes = await fetchCustomersFromSupabase(customerFetchScope);
         if (custRes.success && custRes.customers && custRes.customers.length > 0) {
           const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers), users);
@@ -1570,6 +1621,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         }
         return { updated: false, message: 'تم جلب أحدث بيانات العملاء مباشرة من السيرفر' };
       }
+      // الختم موجود: تبقّى نراقبه. لو اتشال من السيرفر نرجع للجهة اللي فوق
+      // من غير ما نفضل متعلقين بغيابه للأبد.
+      noStampPulledAtRef.current = 0;
 
       const localMeta = getLocalDataVersion();
       const isStale = isClientVersionStale(localMeta, remoteMeta);
@@ -1651,7 +1705,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
       // 5. Refresh visits if in scope (source of truth from Supabase; removes deleted visits across all users)
       if (inScope('visits')) {
-        const visRes = await fetchVisitsFromSupabase();
+        const visRes = await fetchVisitsFromSupabase(visitFetchScope);
         if (visRes.success && visRes.visits) {
           freshVisits = visRes.visits;
         }
@@ -2129,9 +2183,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           }
         });
 
-        // 5. Fetch Visits from Supabase (Sync all visits for all roles, minus deleted)
+        // 5. Fetch Visits from Supabase (المفروض يكون narrowed بالـscope بتاع الدور)
         const deletedVisitIds = getDeletedVisitIds();
-        fetchVisitsFromSupabase().then(async (res) => {
+        fetchVisitsFromSupabase(visitFetchScope).then(async (res) => {
           if (res.success && res.visits) {
             const remoteVisits = res.visits.filter(
               (v) => !deletedVisitIds.has(v.id)
@@ -3644,15 +3698,21 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       };
     };
 
-    const normalizeProductCode = (value?: string) => String(value || '').trim().toLowerCase();
-    // Stable business key: match strictly by product code (and color/size variant if present)
-    // Never merge distinct product codes together
-    const getProductMatchKey = (p: Product): string => {
-      const code = normalizeProductCode(p.code);
-      const color = (p.color || '').trim().toLowerCase();
-      const size = (p.size || '').trim().toLowerCase();
-      return `${code}__${color}__${size}`;
-    };
+    /**
+     * مفتاح مطابقة الصنف = نفس `productIdentityKey` المستخدم في الفلترة بعد
+     * الاستيراد (appContextHelpers).
+     *
+     * كانوا اتنين implementations مختلفين:
+     *   - هنا:  `${code}__${color}__${size}` — والمشكل إن الأصناف من غير كود
+     *     كلهم بيطلعوا نفس المفتاح `___`، فالاستيراد كان بيعمل **دمج**
+     *    amongهم accidentally.
+     *   - هناك: `code:${code}|${color}|${size}` وبفلتر fallback للمركّب.
+     *
+     * لما يكون المفتاحين مختلفين، الدمج بيعرف إن الصنف موجود والفلترة
+     * بتعتبره صنف جديد، فالصف بيفضل في الكتالوج من غير ما حد ياخد باله.
+     * دلوقتي التنين نفس الدالة، فمفيش طريق للبتر.
+     */
+    const getProductMatchKey = (p: Product): string => productIdentityKey(p);
 
     const existingById = new Map<string, Product>();
     const existingByKey = new Map<string, Product>();
@@ -5822,7 +5882,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
   const syncVisitsWithDatabase = async (): Promise<{ success: boolean; message: string; count: number }> => {
     try {
-      const res = await fetchVisitsFromSupabase();
+      const res = await fetchVisitsFromSupabase(visitFetchScope);
       const deletedVisitIds = getDeletedVisitIds();
       let mergedVisits: CustomerVisit[] = [];
 

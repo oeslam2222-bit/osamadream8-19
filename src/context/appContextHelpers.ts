@@ -1,8 +1,9 @@
-import type { Customer, Product, TargetRecord, User } from '../types';
+import type { Customer, CustomerVisit, Product, TargetRecord, User } from '../types';
 import { inferBranchFromText, normalizeArabicText } from '../services/arabicMatchingService';
 import { deduplicateAndMergeCustomers } from '../services/customerDeduplicationService';
 import { calculateCustomerFinancials, isSummaryOrTotalRow } from '../services/customerFinancialService';
 import { resolveCustomerDuesValue } from '../services/customerDues';
+import { productIdentityKey } from '../services/productIdentity';
 
 export const STORAGE_KEYS = {
   PRODUCTS: 'dream_dist_products_v9',
@@ -63,6 +64,32 @@ export const markVisitAsDeletedInStorage = (visitId: string) => {
     const current = getDeletedVisitIds();
     if (visitId) current.add(visitId);
     localStorage.setItem(STORAGE_KEYS.DELETED_VISIT_IDS, JSON.stringify(Array.from(current)));
+  } catch {}
+};
+
+/**
+ * اقرأ مرآة الزيارات القديمة في localStorage — مرة واحدة وقت الإقلاع بس.
+ *
+ * التطبيق كان بيخزّن نسخة كاملة من سجل الزيارات (~1MB عند 4,000 زيارة) في
+ * localStorage جنب IndexedDB. الـcopy دي اتشالت، لكن الأجهزة اللي كانت شغالة
+ * قبل الإصدار ده ممكن يكون عندها زيارات موجودة في المرآة دي فقط — فبنقراها
+ * مرة وندمجها قبل ما المفتاح يتمسح، وبعدين `clearLegacyVisitsMirror()`.
+ */
+export const readLegacyVisitsMirror = (): CustomerVisit[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.VISITS);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+/** امسح المرآة القديمة بعد ما يتقرأ وiddy merge. بيحرّر ~1MB من الـquota. */
+export const clearLegacyVisitsMirror = () => {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.VISITS);
   } catch {}
 };
 
@@ -196,26 +223,17 @@ export const deduplicateTargetRecords = (records: TargetRecord[]): TargetRecord[
   return Array.from(map.values());
 };
 
-// Deduplicate product catalog using a strong composite identity so that
-// distinct variants that merely share a code (different size/color/barcode)
-// are preserved. Only true duplicates (same id, or same code+name+unifiedCode
-// +barcode+size+color) collapse into one row.
-export const productIdentityKey = (p: Product): string => {
-  if (p.id && !String(p.id).startsWith('product-row')) {
-    return `id:${String(p.id).toLowerCase()}`;
-  }
-  const code = (p.code || '').toString().trim().toLowerCase();
-  const name = (p.name || '').toString().trim().toLowerCase();
-  const unified = (p.unifiedCode || '').toString().trim().toLowerCase();
-  const barcode = (p.barcode || '').toString().trim().toLowerCase();
-  const size = (p.size || '').toString().trim().toLowerCase();
-  const color = (p.color || '').toString().trim().toLowerCase();
-  if (code || name || unified) {
-    return `composite:${code}|${name}|${unified}|${barcode}|${size}|${color}`;
-  }
-  // No usable business key: keep every row distinct by name alone to avoid data loss
-  return `name:${name}|${barcode}`;
-};
+/**
+ * مفتاح هوية الصنف انتقل لـ`src/services/productIdentity.ts`.
+ *
+ * كان معرّف هنا، والخدمة دي محتاجاه كمان (عدّ التكرار وقت الاستيراد)،
+ * والـimport من services لـcontext layering معكوس. فالتعريف بقى في
+ * الـservice، وهنا re-export بس عشان الاستيرادات الموجودة مكانش تتكسر.
+ *
+ * التعريف: الصنف = الكود. راجع الملف ده للسبب (قاعدة البيانات عليها
+ * `UNIQUE(lower(trim(code)))` على جدول products، فالكود هو الهوية).
+ */
+export { productIdentityKey, normalizeProductCodeKey } from '../services/productIdentity';
 
 export const deduplicateProductArray = (list: Product[]): Product[] => {
   const map = new Map<string, number>();

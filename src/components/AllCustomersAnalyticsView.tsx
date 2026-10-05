@@ -406,7 +406,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   // بتلك القيمة المختارة وخلاص — يعني المستخدم كان بيختار حاجة وبيشوف
   // "لا نتائج" وبيفتكر إن مفيش زيارات أصلاً.
   const [visitType, setVisitType] = useState<CustomerVisit['type']>(VISIT_TYPE_OPTIONS[0].value as CustomerVisit['type']);
-  const [visitOutcome, setVisitOutcome] = useState<'تم عمل طلبية' | 'تم التحصيل' | 'تأجيل سداد' | 'المحل مغلق' | 'متابعة فقط'>('تم عمل طلبية');
+  // القائمة المرئية بقت 7 (منها
+  // «مرتجع لدي العميل» و«أخرى» زي باقي الشاشات). الـcast اليدوي ده كان
+  // اللي يخفي الـtype error، والنتيجة إن قيمتين من الـunion مكانش في
+  // القائمة أصلاً.
+  const [visitOutcome, setVisitOutcome] = useState<NonNullable<CustomerVisit['outcome']>>('تم عمل طلبية');
   const [visitCollected, setVisitCollected] = useState('');
   const [visitNotes, setVisitNotes] = useState('');
   // ===== المرتجع =====
@@ -6695,7 +6699,18 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       <label className="text-[11px] font-bold text-slate-500 block mb-1">نتيجة الزيارة:</label>
                       <select
                         value={visitOutcome}
-                        onChange={(e: any) => setVisitOutcome(e.target.value)}
+                        onChange={(e: any) => {
+                          const next = e.target.value;
+                          setVisitOutcome(next);
+                          // اختيار «مرتجع لدي العميل» بيفتح لوحة المرتجع
+                          // لوحدها. من غير الربط ده كان ينفع تختار
+                          // «مرتجع لدي العميل» وتسيب `visitHasReturn`
+                          // مقفول، فتتسجّل زيارة سببها مرتجع من غير صنف
+                          // ولا كمية ولا سبب — رقم فاضي في تقرير المرتجعات.
+                          // ولInverse: لو فعّل المرتجع يدوي، النتيجة بتتظبط
+                          // لوحدها على «مرتجع لدي العميل».
+                          if (next === 'مرتجع لدي العميل') setVisitHasReturn(true);
+                        }}
                         className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold"
                       >
                         <option value="تم عمل طلبية">تم عمل طلبية</option>
@@ -6703,6 +6718,19 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         <option value="تأجيل سداد">تأجيل سداد</option>
                         <option value="المحل مغلق">المحل مغلق</option>
                         <option value="متابعة فقط">متابعة فقط</option>
+                        {/*
+                          مسار المرتجع كان **مقفول** في هذه الشاشة: القائمة هنا
+                          كانت 5 قيم من غير «مرتجع لدي العميل» و«أخرى»، بينما
+                          نفس الشاشة فيها checkbox «visitHasReturn» بمنطق تاني.
+                          يعني نفس الزيارة لها مسارين مختلفين حسب الشاشة.
+
+                          دلوقتي «مرتجع لدي العميل» و«أخرى» متاحين هنا زي ما هم
+                          في صفحة الزيارات بالظبط. الشاشة دي بتعالج المرتجع
+                          بـvisitHasReturn/visitReturnValue لوحدها، فالاختيار من
+                          القائمة مش بيلغي المسار ده — القيمتان موجودتين جنب بعض.
+                        */}
+                        <option value="مرتجع لدي العميل">مرتجع لدي العميل 📦↩️</option>
+                        <option value="أخرى">أخرى</option>
                       </select>
                     </div>
                   </div>
@@ -6733,7 +6761,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   {/* ===== تسجيل مرتجع (Return) ===== */}
                   <button
                     type="button"
-                    onClick={() => setVisitHasReturn((v) => !v)}
+                    onClick={() => {
+                      const next = !visitHasReturn;
+                      setVisitHasReturn(next);
+                      // الاتجاه العكس للربط: تفعيل المرتجع يدوي بيسوّي النتيجة
+                      // على «مرتجع لدي العميل»، وإلغاؤه بيسيبها زي ما هي عشان
+                      // المستخدم يكون قاصد قيمة تانية صراحةً.
+                      if (next) setVisitOutcome('مرتجع لدي العميل');
+                    }}
                     className={`w-full flex items-center justify-center gap-2.5 rounded-2xl py-3 border-2 transition cursor-pointer ${
                       visitHasReturn
                         ? 'bg-rose-600 text-white border-rose-700 shadow-lg shadow-rose-600/30'

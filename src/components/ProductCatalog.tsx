@@ -59,6 +59,7 @@ import {
 import { formatCurrency } from '../services/invoiceService';
 import { cacheProductImages, getCachedImagesStats, clearCachedImages } from '../services/imageCacheService';
 import { parseExcelProducts, fetchAndParseGoogleSheet, generateSampleExcelTemplate } from '../services/excelService';
+import { countDuplicateProductRows } from '../services/productIdentity';
 import { Customer, ItemStatus, Product, SalesPriority, ParentProduct, ProductVariant } from '../types';
 import { DepartmentCategorySlicer } from './DepartmentCategorySlicer';
 import { getDepartmentMeta } from '../data/departmentMeta';
@@ -260,6 +261,24 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     }
   };
 
+  /**
+   * رسالة نجاح الاستيراد بتقول صراحةً كام صف اتقرأ وكام صنف فعلي.
+   *
+   * من غير كده المستخدم بيشوف «تم استيراد 5,800 صنف» ويفتكر إن التطبيق ضاع
+   * منه حاجات وهو في الحقيقة بيشوف أكتر من اللازم. التكرار بيتحسب بنفس
+   * مفتاح الدمج (`countDuplicateProductRows`) فالرقم مضمون إنه نفس اللي
+   * الكتالوج هيتعرض بيه.
+   */
+  const describeImportResult = (parsed: Product[], sourceLabel: string): string => {
+    const { duplicateRows, uniqueCount } = countDuplicateProductRows(parsed);
+    const mergedNote =
+      duplicateRows > 0
+        ? ` — اتقرأ ${parsed.length.toLocaleString('ar-EG')} صف ودمجناهم في ${uniqueCount.toLocaleString('ar-EG')} صنف ` +
+          `(${duplicateRows.toLocaleString('ar-EG')} صف مكرر بنفس الكود اتحدّث بدل ما يضاف جديد)`
+        : '';
+    return `تم استيراد ${uniqueCount.toLocaleString('ar-EG')} صنف ${sourceLabel} بنجاح وربط الصور والمخازن!${mergedNote}`;
+  };
+
   // Upload Excel file directly
   const handleFileUpload = async (file: File) => {
     if (!file) return;
@@ -273,7 +292,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         setUploadError(res.errors.join(' | ') || 'لم يتم العثور على أي أصناف في الملف.');
       } else {
         importProductsList(res.products, 'replace');
-        setUploadSuccess(`تم استيراد ${res.products.length} صنف بنجاح وربط الصور والمخازن!`);
+        setUploadSuccess(describeImportResult(res.products, ''));
+        // تحذيرات الصفوف اللي مفيهاش كود: بتظهر مع رسالة النجاح، مش بتلغيها،
+        // لأن الاستيراد تمّ فعلاً — بس المستخدم لازم يعرف إن فيه صفوف
+        // مش مضمونة الدمج بتاعها.
+        if (res.errors.length > 0) {
+          setUploadError(res.errors.slice(0, 4).join(' • '));
+        }
         setIsUploadBoxOpen(false);
       }
     } catch (err: any) {
@@ -299,7 +324,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         setUploadError(res.errors.join(' | ') || 'لم يتم العثور على أصناف داخل الشيت.');
       } else {
         importProductsList(res.products, 'replace');
-        setUploadSuccess(`تم استيراد ${res.products.length} صنف بنجاح من Google Sheets!`);
+        setUploadSuccess(describeImportResult(res.products, 'من Google Sheets '));
+        if (res.errors.length > 0) {
+          setUploadError(res.errors.slice(0, 4).join(' • '));
+        }
         setIsUploadBoxOpen(false);
       }
     } catch (err: any) {
@@ -357,7 +385,23 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ar'));
   }, [products, selectedOfficialDept, dynamicItemGroups]);
 
-  const visibleProducts = getVisibleProducts();
+  /**
+   * المنتجات الظاهرة للصلاحية الحالية — memoized.
+   *
+   * `getVisibleProducts()` بتعمل `products.map(...)` وبترجّع **أوبجكت جديد لكل
+   * صنف**. من غير memoization الـ array بياخد هوية جديدة في كل render،
+   * فكل useMemo شايلها (subCategories, stock summaries, filteredProducts)
+   * كان بيتحسب تاني من الصفر في كل ضغطة زر — وده سبب تقيل الصفحة.
+   *
+   * المدخلات الحقيقية هي الـ products وهوية المستخدم، فالثبات مضمون.
+   * ملاحظة: getVisibleProducts نفسها مش في الـ deps عن قصد — هي function
+   * جديدة كل render، وحطّها كانت هتكسر الـ memoization.
+   */
+  const visibleProducts = useMemo(
+    () => getVisibleProducts(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [products, currentUser?.id, currentUser?.role, currentUser?.branchName]
+  );
 
   // Active branch context for stock resolution: specific user's branch for reps/supervisors, or global filter for admin
   const currentActiveBranch = useMemo(() => {
@@ -534,7 +578,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
   // Filtered & Sorted Products
   const filteredProducts = useMemo(() => {
-    let result = getVisibleProducts().filter((p) => {
+    let result = visibleProducts.filter((p) => {
       // Search match (Arabic-normalized, so أ/ا ة/ه ى/ي and tashkeel do not matter)
       if (deferredSearchTerm.trim()) {
         const query = normalizeArabicText(deferredSearchTerm);
@@ -658,8 +702,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
     return result;
   }, [
-    getVisibleProducts,
-    products,
+    // visibleProducts جواه memoized بـ products + هوية المستخدم، فبيغطي الاتنين.
+    visibleProducts,
     searchTerm,
     selectedOfficialDept,
     selectedSubCategory,

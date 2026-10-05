@@ -70,8 +70,21 @@ function isoToday(offsetDays = 0): string {
 /**
  * أسباب الزيارة — نفس القيم الموجودة في الـoutcome بتاع الـCustomerVisit،
  * مع إيموجي للعرض السريع كشرائح بلمسة واحدة بدل قائمة منسدلة.
+ *
+ * القائمة دي **مرجع واحد** بيتشارك بين كل النماذج في التطبيق (الجدولة،
+ * الإنهاء السريع، تقرير الإرسال، وصفحة التحليلات). قبل كده كان في 4 قوائم
+ * مختلفة: واحدة فيها 6 قيم والتانية 7 والتالتة 5، ونموذج الجدولة كان من غير
+ * «أخرى» أصلاً، وصفحة التحليلات من غير «مرتجع لدي العميل» — يعني نفس الزيارة
+ * بتتسجّل بنتيجتين مختلفتين حسب الشاشة.
+ *
+ * مسار المرتجع محفوظ: «مرتجع لدي العميل» معروض في كل النماذج، وله لوحته
+ * الخاصة (صنف + كمية + سبب) في كل مرة.
  */
-const VISIT_OUTCOME_CHIPS: { value: NonNullable<CustomerVisit['outcome']>; label: string; hint: string }[] = [
+export const VISIT_OUTCOME_CHIPS: {
+  value: NonNullable<CustomerVisit['outcome']>;
+  label: string;
+  hint: string;
+}[] = [
   { value: 'تم التحصيل', label: 'تم التحصيل', hint: 'خُد المبلغ ✅' },
   { value: 'تم عمل طلبية', label: 'تم عمل طلبية', hint: 'أخذطلبية 📦' },
   { value: 'تأجيل سداد', label: 'تأجيل سداد', hint: 'ميعاد تاني ⏳' },
@@ -80,6 +93,9 @@ const VISIT_OUTCOME_CHIPS: { value: NonNullable<CustomerVisit['outcome']>; label
   { value: 'مرتجع لدي العميل', label: 'مرتجع', hint: 'إرجاع صنف 📦↩️' },
   { value: 'أخرى', label: 'أخرى', hint: 'سبب تاني' },
 ];
+
+/** نفس القيم، للـ<select> العادي: <option> لـ label واحد لكل قيمة. */
+export const VISIT_OUTCOME_OPTIONS = VISIT_OUTCOME_CHIPS;
 
 /**
  * True / false once the viewport width is known, and null before that (or when
@@ -107,6 +123,17 @@ function useIsWideViewport(): boolean | null {
 
   return isWide;
 }
+
+/**
+ * النطاق الزمني الافتراضي للصفحة.
+ *
+ * شهر واحد لور: هو المدى اللي بتُدار عليه المتابعة فعلياً، وبفيه بتشتغل
+ * إحصائيات الصفحة كلها. «النهاردة» كانت تخفي 99% من البيانات ورا
+ * «كل الزيارات» من غير سبب.
+ */
+export const DEFAULT_TIME_PRESET = 'last30' as const;
+
+type TimePreset = 'last30' | 'today' | 'week' | 'month' | 'last3months' | 'all' | 'range';
 
 export const VisitsDashboard: React.FC = () => {
   const {
@@ -176,11 +203,30 @@ export const VisitsDashboard: React.FC = () => {
     d.setDate(d.getDate() - 7);
     return d.toISOString().slice(0, 10);
   }, []);
+  // أول يوم في الشهر الماضي بالتقويم — «الشهر الأخير» بالمعنى التقويمي.
+  const lastMonthStartStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 1);
+    return d.toISOString().slice(0, 10);
+  }, []);
+  const threeMonthsAgoStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 3);
+    return d.toISOString().slice(0, 10);
+  }, []);
 
-  // Date filters: Quick presets or Month / Exact Date
-  // Today is the default view: the page opens on the working day, not on a month of
-  // history, because that is what a manager checks first thing in the morning.
-  const [timePreset, setTimePreset] = useState<'today' | 'week' | 'month' | 'all' | 'range'>('today');
+/**
+ * التاريخ: شرائح جاهزة أو شهر / يوم محدد.
+  //
+  // الافتراضي **الشهر الأخير** مش النهارده. السبب إن الصفحة أصلاً بتعرض كل
+  // الزيارات المحمّلة على الجهاز (آلاف الصفوف)، وفتحها على يوم واحد بيخلي
+  // 99% من البيانات مخفية ورا "كل الزيارات". الشهر الأخير هو المدى اللي بتُدار
+  // عليه المتابعة فعلياً، والأقدم متاح بضغطة ("آخر 3 شهور" / "كل الزيارات")
+  // فلو حد محتاجه مش هيبقى محجوب.
+  */
+  const [timePreset, setTimePreset] = useState<TimePreset>(DEFAULT_TIME_PRESET);
   const [rangeFrom, setRangeFrom] = useState(todayStr);
   const [rangeTo, setRangeTo] = useState(todayStr);
   // "المجدولة اللي اتنفذت" is not a status of its own: a visit stays 'مجدولة' even after
@@ -456,6 +502,8 @@ export const VisitsDashboard: React.FC = () => {
 
   const selectedPeriod = useMemo(() => {
     if (timePreset === 'all') return { from: '', to: '', label: 'كل الزيارات' };
+    if (timePreset === 'last30') return { from: lastMonthStartStr, to: todayStr, label: 'الشهر الأخير' };
+    if (timePreset === 'last3months') return { from: threeMonthsAgoStr, to: todayStr, label: 'آخر 3 شهور' };
     if (timePreset === 'today') return { from: todayStr, to: todayStr, label: `اليوم ${todayStr}` };
     if (timePreset === 'week') return { from: weekAgoStr, to: todayStr, label: 'آخر 7 أيام' };
     if (timePreset === 'month') {
@@ -474,7 +522,7 @@ export const VisitsDashboard: React.FC = () => {
       to,
       label: `من ${from || 'البداية'} إلى ${to || 'النهاية'}`,
     };
-  }, [timePreset, todayStr, weekAgoStr, exactDate, month, rangeFrom, rangeTo]);
+  }, [timePreset, todayStr, weekAgoStr, lastMonthStartStr, threeMonthsAgoStr, exactDate, month, rangeFrom, rangeTo]);
 
   const periodVisits = useMemo(
     () => visible.filter((visit) =>
@@ -665,6 +713,27 @@ export const VisitsDashboard: React.FC = () => {
       .filter((v) => v.customerId === custId && v.id !== currentVisitId)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [selectedVisit?.customerId, selectedVisit?.id, executingVisit?.customerId, executingVisit?.id, visible]);
+
+  /**
+   * سجل زيارات العميل المفتوح في ملفه (dossier).
+   *
+   * قبل كده الملف كان بيعرض «تاريخ آخر زيارة» كنص واحد في سطر — يعني أي سؤال
+   * زي «كام مرة زاره؟» أو «إيه نتيجة آخر زيارة؟» أو «فيه مرتجع متقاعد؟» ما
+   *كانش له جواب على الشاشة. دلوقتي جدول كامل بالتاريخ والمندوب والنتيجة
+   *والمحصّل وحالة المراجعة.
+   *
+   * المصدر `visible` مش `periodVisits`: الفلتر الزمني بيزمّني، فلو هنا استخدمناه
+   * كان سجل العميل هيتغير بإيهاريمرّ من غير سبب. والحد الأقصى 40 سطر عشان
+   * عميل عنده 300 زيارة ما يقدرش يوقف الرسم.
+   */
+  const dossierCustomerVisits = useMemo(() => {
+    const custId = dossierCustomer?.id;
+    if (!custId) return [];
+    return visible
+      .filter((v) => v.customerId === custId)
+      .sort((a, b) => (b.date === a.date ? String(b.createdAt || '').localeCompare(String(a.createdAt || '')) : b.date.localeCompare(a.date)))
+      .slice(0, 40);
+  }, [dossierCustomer?.id, visible]);
 
   // Filter visits, minus the scheduled split (that one is applied separately so the
   // pills can show both sides no matter which side is currently selected).
@@ -1474,6 +1543,27 @@ allowSameDaySecondVisit: false,
     }
   };
 
+/**
+   * زرار «تنفيذ ✅».
+   *
+   * كان بيعمل `status = 'منفذة'` وخلاص — من غير أي سبب. يعني كان بينتج زيارات
+   * منفذة ما ليهاش `outcome` خالص، وفي التقارير بتظهر «منفذة» من غير سبب و
+   * من غير مبلغ محصّل، و«هل تم التحصيل؟» بيبقى لأ صعب يتجاوب عليه.
+   *
+   * السلوك الجديد: لو الزيارة لسه ما اتسجلش لها سبب، الزرار بيفتح نموذج
+   * الإنهاء السريع بدل ما يكتب الحالة على طول. لو السبب موجود فعلاً، تحديث
+   * الحالة مباشرة يفضل زر واحد عادي — فالناس اللي بتفحص زيارات قديمة ما
+   * بتتحمّلش فورم جديد كل مرة.
+   */
+  const handleMarkExecuted = (visit: CustomerVisit) => {
+    const hasReason = Boolean(visit.outcome);
+    if (!hasReason && visit.status !== 'منفذة') {
+      handleOpenQuickComplete(visit);
+      return;
+    }
+    handleQuickStatusChange(visit, 'منفذة');
+  };
+
   const handleSubmitReview = (status: 'approved' | 'needs_fix') => {
     if (!reviewTarget) return;
     const result = reviewVisit(reviewTarget.id, status, reviewNoteDraft);
@@ -1682,6 +1772,8 @@ allowSameDaySecondVisit: false,
     const dateLabel =
       timePreset === 'today' ? 'اليوم' :
       timePreset === 'week' ? 'آخر 7 أيام' :
+      timePreset === 'last30' ? 'الشهر الأخير' :
+      timePreset === 'last3months' ? 'آخر 3 شهور' :
       timePreset === 'month' ? 'الشهر' :
       timePreset === 'range' ? 'من/إلى' : 'كل الزيارات';
     chips.push({
@@ -1689,7 +1781,7 @@ allowSameDaySecondVisit: false,
       label: 'التاريخ:',
       value: timePreset === 'range' ? `${rangeFrom} ← ${rangeTo}` : dateLabel,
       clear: () => {
-        setTimePreset('today');
+        setTimePreset(DEFAULT_TIME_PRESET);
         setExactDate('');
       },
     });
@@ -1745,7 +1837,7 @@ allowSameDaySecondVisit: false,
     return chips;
   }, [timePreset, rangeFrom, rangeTo, exactDate, branch, rep, statusFilter, executionFilter, reviewFilter, returnFilter, archiveFilter, searchQuery, userById]);
 
-  /** Back to the default view: today, nothing narrowed. */
+  /** Back to the default view: last month, nothing narrowed. */
   const clearAllFilters = () => {
     setSearchQuery('');
     setStatusFilter('الكل');
@@ -1756,7 +1848,7 @@ allowSameDaySecondVisit: false,
     setRep('الكل');
     setExecutionFilter('all');
     setExactDate('');
-    setTimePreset('today');
+    setTimePreset(DEFAULT_TIME_PRESET);
   };
 
   const renderedVisits = useMemo(
@@ -2234,6 +2326,37 @@ allowSameDaySecondVisit: false,
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-100 pb-3">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-xs font-bold text-slate-500 ml-1">النطاق الزمني:</span>
+
+            {/* الافتراضي. الترتيب مقصود: المدى الواسع الأول عشان يكون
+                واضح إن الصفحة على آخر شهر مش النهارده. */}
+            <button
+              onClick={() => {
+                setTimePreset('last30');
+                setExactDate('');
+              }}
+              className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
+                timePreset === 'last30'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              الشهر الأخير
+            </button>
+
+            <button
+              onClick={() => {
+                setTimePreset('last3months');
+                setExactDate('');
+              }}
+              className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
+                timePreset === 'last3months'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              آخر 3 شهور
+            </button>
+
             <button
               onClick={() => {
                 setTimePreset('today');
@@ -2478,6 +2601,33 @@ allowSameDaySecondVisit: false,
               <option value="ملغاة">ملغاة</option>
             </select>
           </div>
+
+          {/*
+            فلتر حالة المراجعة.
+            الفلتر ده كان متحسب وبيفلتر فعلاً، وفيه شريحة مسح في شريط
+            الفلاتر النشطة — بس مفيش أي زرار بيغيّره، يعني المحور كان
+            ميوت: ميقدرش حد يطلبه ومينفعش يمسحه غير إنه يبقى على حاله.
+            الرقمي جنب الحالة عشان يبقى باقي أدوات المشرف متاحة.
+          */}
+          {(currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' ||
+            currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+            <div>
+              <select
+                value={reviewFilter}
+                onChange={(e) => setReviewFilter(e.target.value as typeof reviewFilter)}
+                className={`w-full px-3 py-2 border rounded-xl text-xs font-black focus:outline-none transition cursor-pointer ${
+                  reviewFilter !== 'all'
+                    ? 'bg-amber-50 border-amber-400 text-amber-900 ring-1 ring-amber-300'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 focus:border-amber-500'
+                }`}
+              >
+                <option value="all">حالة المراجعة (الكل)</option>
+                <option value="pending">⏳ بانتظار اعتماد المشرف</option>
+                <option value="approved">✅ تم الاعتماد</option>
+                <option value="needs_fix">⚠️ مطلوب تعديل</option>
+              </select>
+            </div>
+          )}
 
           {/* Return Filter (فلتر المرتجعات وتحويل المخزن) */}
           <div>
@@ -3687,12 +3837,14 @@ allowSameDaySecondVisit: false,
                     }}
                     className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:border-emerald-500"
                   >
-                    <option value="تم التحصيل">تم التحصيل المالي ✅</option>
-                    <option value="تم عمل طلبية">تم أخذ طلبية جديدة 📦</option>
-                    <option value="تأجيل سداد">تأجيل سداد بميعاد محدد ⏳</option>
-                    <option value="المحل مغلق">المحل مغلق ⛔</option>
-                    <option value="متابعة فقط">متابعة وفحص دوري 🔍</option>
-                    <option value="مرتجع لدي العميل">مرتجع لدي العميل 📦↩️</option>
+                    {/* نفس قائمة `VISIT_OUTCOME_CHIPS` المستخدمة في الإنهاء السريع
+                        وتقرير الإرسال وصفحة التحليلات — فالنتيجة اللي بتختارها هنا
+                        معناها واحد في كل الشاشات. */}
+                    {VISIT_OUTCOME_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.value} {option.hint}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -4522,13 +4674,9 @@ allowSameDaySecondVisit: false,
               <label className="block text-xs font-bold text-slate-700">
                 نتيجة الزيارة
                 <select value={executionForm.outcome} onChange={(e) => setExecutionForm({ ...executionForm, outcome: e.target.value as CustomerVisit['outcome'] })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
-                  <option value="تم عمل طلبية">تم عمل طلبية</option>
-                  <option value="تم التحصيل">تم التحصيل</option>
-                  <option value="تأجيل سداد">تأجيل سداد</option>
-                  <option value="المحل مغلق">المحل مغلق</option>
-                  <option value="متابعة فقط">متابعة فقط</option>
-                  <option value="مرتجع لدي العميل">مرتجع لدي العميل</option>
-                  <option value="أخرى">أخرى</option>
+                  {VISIT_OUTCOME_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.value}</option>
+                  ))}
                 </select>
               </label>
               <label className="block text-xs font-bold text-slate-700">
@@ -4674,6 +4822,100 @@ allowSameDaySecondVisit: false,
                   <span className="text-[11px] font-black font-mono text-slate-800">
                     {dc.lastVisitDate || 'لا توجد زيارات سابقة'}
                   </span>
+                </div>
+
+                {/* ============================================================
+                    سجل زيارات العميل — جدول كامل مش سطر تاريخ واحد.
+                    ============================================================ */}
+                <div className="rounded-xl border border-slate-200 overflow-hidden">
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200">
+                    <span className="text-[11px] font-black text-slate-700">سجل زيارات العميل</span>
+                    <span className="text-[10.5px] font-bold text-slate-500">
+                      {dossierCustomerVisits.length > 0
+                        ? `${dossierCustomerVisits.length} زيارة`
+                        : 'لا توجد زيارات مسجّلة'}
+                    </span>
+                  </div>
+
+                  {dossierCustomerVisits.length > 0 ? (
+                    <div className="max-h-72 overflow-y-auto">
+                      <table className="w-full text-right text-[10.5px] border-collapse">
+                        <thead className="bg-slate-100 text-slate-600 font-black sticky top-0">
+                          <tr>
+                            <th className="p-2">التاريخ</th>
+                            <th className="p-2">المندوب</th>
+                            <th className="p-2">الغرض</th>
+                            <th className="p-2">النتيجة</th>
+                            <th className="p-2 text-left">المحصّل</th>
+                            <th className="p-2 text-center">الحالة</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {dossierCustomerVisits.map((v) => (
+                            <tr key={v.id} className="hover:bg-slate-50">
+                              <td className="p-2 font-mono font-bold text-slate-700 whitespace-nowrap">
+                                {v.date || '-'}
+                                {v.time ? ` ${v.time}` : ''}
+                              </td>
+                              <td className="p-2 font-bold text-slate-600">{v.repName || '-'}</td>
+                              <td className="p-2 text-slate-500">{v.type || '-'}</td>
+                              <td className="p-2">
+                                {v.outcome ? (
+                                  <span
+                                    className={`inline-block px-1.5 py-0.5 rounded font-black ${
+                                      v.outcome === 'مرتجع لدي العميل'
+                                        ? 'bg-rose-100 text-rose-800'
+                                        : v.outcome === 'تم التحصيل'
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : 'bg-slate-100 text-slate-700'
+                                    }`}
+                                  >
+                                    {v.outcome}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-300">—</span>
+                                )}
+                                {/* المرتجع أهم تفصيلة في الملف: بيبقى مكتوب في
+                                    الزاوية لو الزيارة كان عليها مرتجع، عشان المدير
+                                    ميعدّيش على مرتجعات قديمة من غير ما يشوفها. */}
+                                {(v.isReturn || v.returnValue) && (
+                                  <span className="block text-[9px] font-black text-rose-600 mt-0.5">
+                                    مرتجع {v.returnValue ? formatCurrency(Number(v.returnValue)) : ''}
+                                    {v.returnStatus ? ` • ${v.returnStatus}` : ''}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-2 text-left font-mono font-bold text-emerald-700">
+                                {Number(v.collectedAmount || 0) > 0 ? formatCurrency(Number(v.collectedAmount || 0)) : '—'}
+                              </td>
+                              <td className="p-2 text-center">
+                                <span
+                                  className={`inline-block px-1.5 py-0.5 rounded font-black ${
+                                    v.status === 'منفذة'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : v.status === 'مجدولة'
+                                      ? 'bg-sky-100 text-sky-800'
+                                      : v.status === 'ملغاة'
+                                      ? 'bg-rose-100 text-rose-800'
+                                      : 'bg-amber-100 text-amber-800'
+                                  }`}
+                                >
+                                  {v.status || '-'}
+                                </span>
+                                {v.reviewStatus === 'needs_fix' && (
+                                  <span className="block text-[9px] font-black text-amber-600">مطلوب تعديل</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="p-3 text-[10.5px] font-bold text-slate-400 text-center">
+                      لسه متسجّلش أي زيارة لهذا العميل
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

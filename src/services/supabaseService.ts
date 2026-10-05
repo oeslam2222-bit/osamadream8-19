@@ -160,6 +160,25 @@ export interface CustomerFetchScope {
 }
 
 /**
+ * Which slice of the visits table a device is allowed to download.
+ *
+ * نفس منطق العملاء بالظبط: جدول الزيارات بيVOLUME كبير (آلاف الصفوف)،
+ * والمندوب شغال في فرع واحد بس. سحب السجل كامل onto كل جهاز =_payload
+ * بيدفع فاتورة الاستضافة على 400 جهاز لمحتوى مش هيتشاف أصلاً.
+ *
+ * الأدمن والمطور بيسحبوا كل حاجة عشان تقرير المرتجعات وحالات الديون
+ * على مستوى الشركة محتاجها.
+ */
+export interface VisitFetchScope {
+  branchNames?: string[];
+  /** حد أدنى للتاريخ (YYYY-MM-DD): الزيارات الأقدم مش محمولة على الموبايل. */
+  sinceDate?: string;
+}
+
+/** أربعين ألف صف: حدّ أمان ضد جدول مش متوقع، مش رقم تشغيل. */
+const MAX_VISIT_PAGES = 40;
+
+/**
  * Supabase REST returns at most 1,000 rows per request by default.
  * Read the table in pages so imports and role-specific counts include the full dataset.
  */
@@ -599,6 +618,15 @@ export async function replaceCustomersInSupabase(
 const CATALOG_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000001';
 
 /**
+ * سجل الإصدار العام (`dataVersionService`) بيتخزّن كصف في جدول orders نفسه.
+ * معرّفه معرّف هنا مش في dataVersionService عشان 서비스 دي بتستورد supabase
+ * من الملف ده — لو_cur كان معرّفه هناك كان هيعمل circular import، والـ
+ * استيراد في cycle بيدي undefined في وقت البناء.
+ * dataVersionService بيعمل re-export للاسم فأي حد مستورده من هناك بيفضل شغال.
+ */
+export const GLOBAL_SYNC_VERSION_RECORD_ID = 'dream_app_global_sync_version_v1';
+
+/**
  * أقصى عدد صفحات (1,000 صف كل صفحة) بنجيبه من جدول products.
  * حدّ حماية ضد حلقة لا نهائية بس — الكتالوج الحالي 5,444 صنف، فـ 60 صفحة
  * (60,000 صنف) أوسع من المحتاج بكتير. لو وصلنا هنا فالمشكلة في البيانات مش
@@ -607,15 +635,42 @@ const CATALOG_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000001';
 const MAX_PRODUCT_PAGES = 60;
 export const USER_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000002';
 
+/** خمسين ألف صف تارجت ≈ 125 شهر لكل مندوب (10 سنين). */
+const MAX_TARGET_PAGES = 50;
+
 export async function fetchTargetsFromSupabase(): Promise<{ success: boolean; targets?: any[]; error?: string }> {
   try {
-    const { data, error } = await supabase
-      .from('targets')
-      .select('*')
-      .order('year', { ascending: false })
-      .order('month', { ascending: true });
-    if (error) return { success: false, error: error.message };
-    return { success: true, targets: data || [] };
+    /**
+     * بيتقرأ بالدفعات مش `select('*')` من غير حد.
+     *
+     * `select('*')` من غير range بيرجع أول 1,000 صف بصمت، فكان أول ما عدد
+     * المندوبين يعدّي 1,000 صف التارجت بيبدأ ينقص من غير رسالة خطأ.
+     * الترتيب موجود أصلاً (year desc, month asc) والـrange بيشتغل معاه عادي.
+     *
+     * الحد الأقصى 50 ألف صف ≈ صف لكل مندوب × ~125 شهر (10 سنين). أقدم من
+     * كده نادر، والـconsole.warn بيقولها صراحةً لو وصلنا.
+     */
+    const pageSize = 1000;
+    const rows: any[] = [];
+    for (let page = 0; page < MAX_TARGET_PAGES; page++) {
+      const from = page * pageSize;
+      const { data, error } = await supabase
+        .from('targets')
+        .select('*')
+        .order('year', { ascending: false })
+        .order('month', { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) return { success: false, error: error.message };
+      rows.push(...(data || []));
+      if (!data || data.length < pageSize) break;
+      if (page === MAX_TARGET_PAGES - 1) {
+        console.warn(
+          `Stopgap: targets read hit the ${MAX_TARGET_PAGES}-page cap (${MAX_TARGET_PAGES * pageSize} rows). ` +
+            'Older months were not loaded — check the data, not the code.'
+        );
+      }
+    }
+    return { success: true, targets: rows };
   } catch (error: any) {
     return { success: false, error: error?.message || 'فشل تحميل التارجت المشترك' };
   }
@@ -655,6 +710,16 @@ export async function saveTargetsToSupabase(targets: any[]): Promise<{ success: 
 let cachedUsersResponse: { data: User[]; timestamp: number } | null = null;
 const USERS_CACHE_TTL_MS = 60 * 1000; // 60 seconds memory cache
 let activeUsersFetchPromise: Promise<{ success: boolean; users?: User[]; error?: string }> | null = null;
+
+/**
+ * pagination لجدول المستخدمين.
+ *
+ * الحجم المستهدف 400 موظف، والصفحة 1,000 صف — يعني في الواقع قراءة واحدة.
+ * الحد موجود عشان لو الجدول كبر فجأة (نسخة تانية من الشركة، بيانات تجريبية)
+ * التطبيق ما يفترضش إن 1,000 صف = الجدول كله.
+ */
+const USER_PAGE_SIZE = 1000;
+const MAX_USER_PAGES = 5;
 
 export function invalidateUsersCache() {
   cachedUsersResponse = null;
@@ -700,9 +765,33 @@ export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Pro
       };
 
       // 1. Prioritize querying the primary 'users' table first
+      // بيتقرأ بالدفعات: `select('*')` من غير range بيرجع أول 1,000 صف بس
+      // بصمت. جدول المستخدمين كله ~400 صف دلوقتي، بس ده بالظبط الرقم اللي
+      // ركبنا عليه، وأول ما يعدّيه التطبيق هيتعطل لعدد مندوبين على manuals.
+      const readUserRows = async (table: string): Promise<any[] | null> => {
+        const rows: any[] = [];
+        for (let page = 0; page < MAX_USER_PAGES; page++) {
+          const from = page * USER_PAGE_SIZE;
+          const { data, error } = await supabase
+            .from(table)
+            .select('*')
+            .range(from, from + USER_PAGE_SIZE - 1);
+          if (error) return null;
+          rows.push(...(data || []));
+          if (!data || data.length < USER_PAGE_SIZE) break;
+          if (page === MAX_USER_PAGES - 1) {
+            console.warn(
+              `Stopgap: users read from "${table}" hit the ${MAX_USER_PAGES}-page cap ` +
+                `(${MAX_USER_PAGES * USER_PAGE_SIZE} accounts). Check the data, not the code.`
+            );
+          }
+        }
+        return rows;
+      };
+
       try {
-        const { data, error } = await supabase.from('users').select('*');
-        if (!error && data && data.length > 0) {
+        const data = await readUserRows('users');
+        if (data && data.length > 0) {
           data.forEach((row: any, idx: number) => {
             const user = mapUser(row, 'users', idx);
             byId.set(user.id, user);
@@ -717,8 +806,8 @@ export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Pro
       if (byId.size === 0) {
         for (const tbl of ['app_users', 'profiles']) {
           try {
-            const { data, error } = await supabase.from(tbl).select('*');
-            if (error || !data) continue;
+            const data = await readUserRows(tbl);
+            if (!data) continue;
             data.forEach((row: any, idx: number) => {
               const user = mapUser(row, tbl, idx);
               const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
@@ -1015,35 +1104,30 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
       created_at: invoice.date ? `${invoice.date} ${invoice.time || ''}`.trim() : new Date().toISOString(),
     };
 
-    // 1. Try upserting full payload to 'invoices' table
+    /**
+     * مسار الحفظ.
+     *
+     * الشكل القديم كان 4 محاولات: `invoices` بالـpayload الكامل، وبعدين
+     * `invoices` بـpayload مصغّر، وبعدين `invoices` بـأقل أعمدة، وأخيرًا
+     * `orders`. المحاولات الـ3 الأولى بتقع دايمًا بـ42501 على السيرفر الحالي
+     * لأن جدول invoices عليه RLS مربوط بـauth.uid() والتطبيق شغال بمفتاح
+     * publishable — يعني 3 طلبات ضايعة **لكل فاتورة** قبل ما البيانات تكتب
+     * فعلاً، وبيتضاعفوا مع كل مزامنة جماعية على 400 جهاز.
+     *
+     * واليوم مسار الحفظ 3 محاولات مش 4:
+     *   1. invoices بالـpayload الكامل (المحاولة الوحيدة على الجدول الغني).
+     *   2. orders بالـpayload الكامل — مش المصغّر. الـorders ميت用它 في كل
+     *      مشروع، فلازم ياخد كل الأعمدة (QR، النواقص، الفاتورة الأم) عشان
+     *      ما نخسرش بيانات لو جدول invoices رجع يوم.
+     *   3. orders بأقل أعمدة — للشيمات اللي مالهاش الأعمدة الحديثة دي.
+     */
     const { error: invErr } = await supabase.from('invoices').upsert(payload);
     if (!invErr) return { success: true };
 
-    // 2. Try standard core payload (omitting newer extra columns that may not be in older schema cache)
-    const corePayload = {
-      id: invoice.id,
-      invoice_number: invoice.invoiceNumber,
-      customer_name: invoice.customerName,
-      customer_phone: invoice.customerPhone || '',
-      customer_address: invoice.customerAddress || '',
-      rep_name: invoice.repName,
-      branch_name: invoice.branchName,
-      status: invoice.status,
-      total_cartons: invoice.totalCartons,
-      total_pieces: invoice.totalPieces,
-      subtotal: invoice.subtotal,
-      discount_percentage: invoice.discountPercentage,
-      discount_amount: invoice.discountAmount,
-      estimated_grand_total: invoice.estimatedGrandTotal,
-      notes: invoice.notes || '',
-      items: invoice.items,
-      created_at: invoice.date ? `${invoice.date} ${invoice.time || ''}`.trim() : new Date().toISOString(),
-    };
+    const { error: ordFullErr } = await supabase.from('orders').upsert(payload);
+    if (!ordFullErr) return { success: true };
 
-    const { error: coreInvErr } = await supabase.from('invoices').upsert(corePayload);
-    if (!coreInvErr) return { success: true };
-
-    // 3. Try minimal payload
+    // 3. orders بأقل الأعمدة (fallback لشيم قديم مالهاش الأعمدة الحديثة).
     const minimalPayload = {
       id: invoice.id,
       invoice_number: invoice.invoiceNumber,
@@ -1059,15 +1143,11 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
       created_at: invoice.date ? `${invoice.date} ${invoice.time || ''}`.trim() : new Date().toISOString(),
     };
 
-    const { error: minInvErr } = await supabase.from('invoices').upsert(minimalPayload);
-    if (!minInvErr) return { success: true };
+    const { error: ordMinErr } = await supabase.from('orders').upsert(minimalPayload);
+    if (!ordMinErr) return { success: true };
 
-    // 4. Try 'orders' table as fallback
-    const { error: ordErr } = await supabase.from('orders').upsert(minimalPayload);
-    if (!ordErr) return { success: true };
-
-    console.warn('Supabase Invoice Save Notice:', invErr?.message || coreInvErr?.message || minInvErr?.message);
-    return { success: false, error: invErr?.message || coreInvErr?.message || minInvErr?.message };
+    console.warn('Supabase Invoice Save Notice:', invErr?.message || ordFullErr?.message || ordMinErr?.message);
+    return { success: false, error: invErr?.message || ordFullErr?.message || ordMinErr?.message };
   } catch (e: any) {
     console.warn('Supabase Invoice Save Exception:', e);
     return { success: false, error: e?.message };
@@ -1121,12 +1201,22 @@ export async function saveInvoicesToSupabase(
         created_at: inv.date ? `${inv.date} ${inv.time || ''}`.trim() : new Date().toISOString(),
       }));
 
-      // Try invoices table first
+      // invoices الأول بالـpayload الكامل. على السيرفر الحالي ده بيفشل بـ42501
+      // (RLS مربوط بـauth.uid() والمفتاح publishable)، بس بنحاوله عادي: لو
+      // الجدول رجع يوم، ده بيبقى المسار الغني صح.
       const { error: invErr } = await supabase.from('invoices').upsert(payload, { onConflict: 'id' });
       if (!invErr) {
         savedCount += chunk.length;
       } else {
-        // Fallback to minimal core fields
+        // Fallback: نفس الـpayload الكامل على orders مش الحقول المصغّرة.
+        // الحقول المصغّرة كانت بتضيّع QR والنواقص والفاتورة الأم لو الجدول
+        // الغني ميت — يعني البيانات بتتسجل ناقصة من غير ما حد ياخد باله.
+        const { error: ordFullErr } = await supabase.from('orders').upsert(payload, { onConflict: 'id' });
+        if (!ordFullErr) {
+          savedCount += chunk.length;
+          continue;
+        }
+        // آخر محاولة: أقل الأعمدة، للشيم اللي مالهاش الأعمدة الحديثة.
         const minPayload = chunk.map((inv) => ({
           id: inv.id,
           invoice_number: inv.invoiceNumber,
@@ -1145,7 +1235,7 @@ export async function saveInvoicesToSupabase(
         if (!ordErr) {
           savedCount += chunk.length;
         } else {
-          console.warn('Batch invoice save notice:', invErr.message || ordErr.message);
+          console.warn('Batch invoice save notice:', invErr.message || ordFullErr.message || ordErr.message);
         }
       }
     }
@@ -1172,24 +1262,37 @@ export async function saveInvoicesToSupabase(
  */
 export async function fetchInvoicesFromSupabase(limit = 150): Promise<{ success: boolean; invoices?: Invoice[]; error?: string }> {
   try {
+    /**
+     * الاتنين بيتقرؤوا **مع بعض** مش واحد ورا التاني.
+     *
+     * المنطق زي ما كان بالظبط (جدول invoices الأول، و orders fallback لو
+     * رجع فاضي)، بس الكود كان مستني invoices يخلص ثم يطلب orders، يعني
+     * كل قراءة فاتورتين ورا بعض. ده بيتكرر عند 5 مواضع في الإقلاع والمزامنة،
+     * وكل واحد منهم = طلب زائد على الشبكة.
+     *
+     * `Promise.allSettled` مش بيعمل فشلش: لو واحد فيهم وقع، التاني بيفضل
+     * شغال. وترتيب الاختيار بيفضل زي ما كان — invoices لو فيها صف، غير كده
+     * orders.
+     */
+    const [invoicesRead, ordersRead] = await Promise.allSettled([
+      supabase.from('invoices').select('*').order('created_at', { ascending: false }).limit(limit),
+      supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(limit),
+    ]);
+
+    const invResult = invoicesRead.status === 'fulfilled' ? invoicesRead.value : null;
+    const ordResult = ordersRead.status === 'fulfilled' ? ordersRead.value : null;
+
     let rawInvoices: any[] | null = null;
-    const { data: invData, error: invErr } = await supabase
-      .from('invoices')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    
-    if (!invErr && invData && invData.length > 0) {
-      rawInvoices = invData;
-    } else {
-      const { data: ordData, error: ordErr } = await supabase
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(limit);
-      if (!ordErr && ordData && ordData.length > 0) {
-        rawInvoices = ordData;
-      }
+    if (!invResult?.error && invResult?.data && invResult.data.length > 0) {
+      rawInvoices = invResult.data;
+    } else if (!ordResult?.error && ordResult?.data && ordResult.data.length > 0) {
+      rawInvoices = ordResult.data;
+    }
+    if (invoicesRead.status === 'rejected' || ordersRead.status === 'rejected') {
+      console.warn(
+        'Supabase invoice read warning:',
+        invoicesRead.status === 'rejected' ? invoicesRead.reason : ordersRead.status === 'rejected' ? ordersRead.reason : null
+      );
     }
 
     const invoiceRows = (rawInvoices || []).filter((row: any) => {
@@ -1285,17 +1388,36 @@ export async function deleteInvoiceFromSupabase(
   }
 }
 
+/**
+ * الصفوف اللي جدول orders بيستخدمها كـ"سجل نظام" مش كفاتورة.
+ *
+ * المشروع بيخزّن الكتالوج ونسخة المستخدمين ورقم الإصدار العام جوّه جدول
+ * الفواتير نفسه (صف واحد لكل واحد فيهم). أي مسح شامل لازم يتخطّاهم، وإلا
+ * أول مسح هيمسح سجل الإصدار العام `dream_app_global_sync_version_v1` والكتالوج
+ * كله وكل المستخدمين — وكل الأجهزة التانية مش هتلاقي فايمة أبداً.
+ */
+export const NON_INVOICE_ORDER_IDS: readonly string[] = [
+  GLOBAL_SYNC_VERSION_RECORD_ID,
+  USER_SYNC_STORE_ID,
+  CATALOG_SYNC_STORE_ID,
+];
+
+/** بادئات صفحات الكتالوج في جدول orders (manifest + chunks). */
+const CATALOG_ORDER_ID_PATTERN = 'dream_catalog_chunk_%';
+
+const CATALOG_MANIFEST_ORDER_ID = 'dream_catalog_manifest';
+
 export async function deleteAllInvoicesFromSupabase(): Promise<{ success: boolean; error?: string }> {
   try {
     const errors: string[] = [];
     const invoiceResult = await supabase.from('invoices').delete().not('id', 'is', null);
     if (invoiceResult.error) errors.push(invoiceResult.error.message);
-    const orderResult = await supabase
-      .from('orders')
-      .delete()
-      .not('id', 'is', null)
-      .not('id', 'eq', 'dream_catalog_manifest')
-      .not('id', 'like', 'dream_catalog_chunk_%');
+
+    let orderQuery = supabase.from('orders').delete().not('id', 'is', null);
+    for (const protectedId of [...NON_INVOICE_ORDER_IDS, CATALOG_MANIFEST_ORDER_ID]) {
+      orderQuery = orderQuery.neq('id', protectedId);
+    }
+    const orderResult = await orderQuery.not('id', 'like', CATALOG_ORDER_ID_PATTERN);
     if (orderResult.error) errors.push(orderResult.error.message);
     return errors.length > 0 ? { success: false, error: errors.join(' | ') } : { success: true };
   } catch (e: any) {
@@ -1577,24 +1699,61 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
  *
  * نفس باترن `fetchAllRows` بتاع العملاء: `.range()` بالدفعات لحد ما الجدول يخلص.
  */
-export async function fetchVisitsFromSupabase(): Promise<{ success: boolean; visits?: CustomerVisit[]; error?: string }> {
+export async function fetchVisitsFromSupabase(
+  scope?: VisitFetchScope
+): Promise<{ success: boolean; visits?: CustomerVisit[]; error?: string; scoped?: boolean }> {
   try {
     const pageSize = 1000;
-    const rows: any[] = [];
+    const branchFilter = scope?.branchNames?.filter((b) => b && b.trim().length > 0) || [];
+    const sinceDate = scope?.sinceDate?.trim() || '';
 
-    for (let from = 0; ; from += pageSize) {
-      const { data, error } = await supabase
-        .from('visits')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .range(from, from + pageSize - 1);
+    /**
+     * بتقرأ جدول الزيارات بالدفعات وتطبّق الـscope على السيرفر.
+     *
+     * الـscope بيرجع صفر صف على النطاق الضيق (أسماء الفروع نص عربي حر)،
+     * فالسلوك هنا زي العملاء بالظبط: نرجع للقراءة الكاملة بدل ما نرجع
+     * صفحة زيارات فاضية على موبايل المندوب.
+     */
+    const readPages = async (useScope: boolean) => {
+      const rows: any[] = [];
+      for (let page = 0; page < MAX_VISIT_PAGES; page++) {
+        const from = page * pageSize;
+        let query = supabase.from('visits').select('*').order('created_at', { ascending: false });
+        if (useScope && branchFilter.length > 0) {
+          query = query.in('branch_name', branchFilter);
+        }
+        if (useScope && sinceDate) {
+          query = query.gte('date', sinceDate);
+        }
+        const { data, error } = await query.range(from, from + pageSize - 1);
 
-      if (error) return { success: false, error: error.message };
-      rows.push(...(data || []));
-      if (!data || data.length < pageSize) break;
+        if (error) return { data: rows, error };
+        rows.push(...(data || []));
+        if (!data || data.length < pageSize) break;
+        if (page === MAX_VISIT_PAGES - 1) {
+          console.warn(
+            `Stopgap: visits read hit the ${MAX_VISIT_PAGES}-page cap (${MAX_VISIT_PAGES * pageSize} rows). ` +
+              'Older rows were not loaded — check the data, not the code.'
+          );
+        }
+      }
+      return { data: rows, error: null as any };
+    };
+
+    let scopedUsed = branchFilter.length > 0 || Boolean(sinceDate);
+    let { data: rows, error } = await readPages(scopedUsed);
+    if (!error && scopedUsed && rows.length === 0) {
+      console.warn('Scoped visits fetch matched no rows; falling back to the full table.');
+      scopedUsed = false;
+      const fallback = await readPages(false);
+      if (!fallback.error) {
+        rows = fallback.data;
+        error = null;
+      }
     }
+    if (error) return { success: false, error: error.message };
 
-    if (rows.length === 0) return { success: true, visits: [] };
+    if (rows.length === 0) return { success: true, visits: [], scoped: scopedUsed };
 
     const mapped: CustomerVisit[] = rows.map((v: any) => ({
       id: v.id || `visit-${v.created_at}-${v.customer_id}`,
@@ -1641,7 +1800,7 @@ export async function fetchVisitsFromSupabase(): Promise<{ success: boolean; vis
       reviewedAt: v.reviewed_at || v.reviewedAt || undefined,
     }));
 
-    return { success: true, visits: mapped };
+    return { success: true, visits: mapped, scoped: scopedUsed };
   } catch (err: any) {
     return { success: false, error: err?.message };
   }
@@ -1812,11 +1971,48 @@ CREATE TABLE customer_comments (
 );
 */
 
+/**
+ * قراءة بالدفعات لجداول التوقعات والتعليقات.
+ *
+ * نفس سبب `fetchAllRows`: `select('*')` من غير range بياقص عند 1,000 صف
+ * بصمت. الجداول دي مفهومة الحجم (شهر واحد لكل مندوب × 8 فترات)، فالحد
+ * الأقصى هنا حماية ضد جدول مش متوقع مش رقم تشغيل.
+ */
+async function fetchAllRowsPaged(
+  table: 'collection_forecasts' | 'customer_comments',
+  maxPages: number
+): Promise<{ data: any[]; error: any }> {
+  const pageSize = 1000;
+  const rows: any[] = [];
+  for (let page = 0; page < maxPages; page++) {
+    const from = page * pageSize;
+    const { data, error } = await supabase.from(table).select('*').range(from, from + pageSize - 1);
+    if (error) return { data: rows, error };
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+    if (page === maxPages - 1) {
+      console.warn(
+        `Stopgap: ${table} read hit the ${maxPages}-page cap (${maxPages * pageSize} rows). ` +
+          'Check the data, not the code.'
+      );
+    }
+  }
+  return { data: rows, error: null };
+}
+
+/**
+ * 50 ألف سطر توقع ≈ 400 مندوب × 9 فترات × 14 شهر. أكبر من المحتاج.
+ */
+const MAX_FORECAST_PAGES = 50;
+
+/** 20 ألف تعليق: تعليق لكل عميل بسعر فاضي. */
+const MAX_COMMENT_PAGES = 20;
+
 export async function fetchForecastsFromSupabase(): Promise<{ success: boolean; forecasts?: any[]; error?: string }> {
   try {
-    const { data, error } = await supabase.from('collection_forecasts').select('*');
+    const { data, error } = await fetchAllRowsPaged('collection_forecasts', MAX_FORECAST_PAGES);
     if (error) return { success: false, error: error.message };
-    return { success: true, forecasts: data || [] };
+    return { success: true, forecasts: data };
   } catch (error: any) {
     return { success: false, error: error?.message || 'فشل تحميل التوقعات المشتركة' };
   }
@@ -1858,9 +2054,17 @@ export async function saveForecastsToSupabase(forecasts: any[]): Promise<{ succe
 
 export async function fetchForecastMonthPlansFromSupabase(): Promise<{ success: boolean; plans?: any[]; error?: string }> {
   try {
-    const { data, error } = await supabase.from('forecast_month_plans').select('*');
-    if (error) return { success: false, error: error.message };
-    return { success: true, plans: data || [] };
+    // صف واحد لكل شهر مُدار. حتى 20 سنة = 240 صف، فحد 5 آلاف أكثر من اللازم.
+    const pageSize = 1000;
+    const rows: any[] = [];
+    for (let page = 0; page < 5; page++) {
+      const from = page * pageSize;
+      const { data, error } = await supabase.from('forecast_month_plans').select('*').range(from, from + pageSize - 1);
+      if (error) return { success: false, error: error.message };
+      rows.push(...(data || []));
+      if (!data || data.length < pageSize) break;
+    }
+    return { success: true, plans: rows };
   } catch (error: any) {
     return { success: false, error: error?.message || 'فشل تحميل خطط الأسابيع المشتركة' };
   }
@@ -1893,9 +2097,9 @@ export async function saveForecastMonthPlanToSupabase(plan: any): Promise<{ succ
 
 export async function fetchCustomerCommentsFromSupabase(): Promise<{ success: boolean; comments?: any[]; error?: string }> {
   try {
-    const { data, error } = await supabase.from('customer_comments').select('*');
+    const { data, error } = await fetchAllRowsPaged('customer_comments', MAX_COMMENT_PAGES);
     if (error) return { success: false, error: error.message };
-    return { success: true, comments: data || [] };
+    return { success: true, comments: data };
   } catch (error: any) {
     return { success: false, error: error?.message || 'فشل تحميل كومنتات العملاء' };
   }
@@ -1915,10 +2119,28 @@ export async function saveCustomerCommentsToSupabase(comments: any[]): Promise<{
       author_name: c.authorName,
       created_at: c.createdAt,
       updated_at: c.updatedAt || c.createdAt,
+      // حالة الأرشفة كانت بتتخزن على الجهاز بس وبتتنضف أول ما السيرفر يردّ
+      // على أي عميل جديد (AppContext بيعيد بناء التعليقات من السيرفر).
+      // الأعمدة دي بتتطلب supabase/fix_forecast_rls.sql — من غيرها الـupsert
+      // بيرجع عمود مش موجود، ونرجع للـfallback بدل ما نضيع الأرشفة تاني.
+      is_archived: !!c.isArchived,
+      archived_at: c.archivedAt || null,
+      archived_by: c.archivedBy || null,
     }));
     for (let i = 0; i < payload.length; i += 500) {
       const { error } = await supabase.from('customer_comments').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
-      if (error) return { success: false, error: error.message };
+      if (error) {
+        // شيم ناقصة الأعمدة الجديدة: نعيد المحاولة بدون أعمدة الأرشفة عشان
+        // التعليقات نفسها متحفظش، والأرشفة بس ترجع لوضع الجهاز.
+        const legacyPayload = payload.slice(i, i + 500).map(({ is_archived, archived_at, archived_by, ...rest }) => rest);
+        const { error: legacyErr } = await supabase.from('customer_comments').upsert(legacyPayload, { onConflict: 'id' });
+        if (legacyErr) return { success: false, error: error.message };
+        console.warn(
+          'customer_comments archive columns are missing on the server. ' +
+            'Run supabase/fix_forecast_rls.sql to persist archiving; comments saved without it.'
+        );
+        continue;
+      }
     }
     return { success: true };
   } catch (error: any) {

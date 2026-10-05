@@ -1,7 +1,12 @@
-import { supabase } from './supabaseService';
+import { supabase, GLOBAL_SYNC_VERSION_RECORD_ID } from './supabaseService';
 import { idbDelete, idbClear } from './storageService';
 
-export const GLOBAL_VERSION_RECORD_ID = 'dream_app_global_sync_version_v1';
+/**
+ * معرّف سجل الإصدار العام. معرّفه الأصلي معرّف في supabaseService (لأنه
+ * بيحتاجه كمان مسح الفواتير عشان ما يمسحش الصف ده)، وهنا re-export عشان
+ * الاستيراد من dataVersionService يفضل شغال زي ما كان.
+ */
+export const GLOBAL_VERSION_RECORD_ID = GLOBAL_SYNC_VERSION_RECORD_ID;
 export const CLIENT_VERSION_STORAGE_KEY = 'dream_dist_client_data_version_meta_v1';
 
 export type SyncScope = 'all' | 'products' | 'customers' | 'targets' | 'invoices' | 'visits';
