@@ -174,6 +174,28 @@ const SORTABLE_COLUMN_LABELS: Record<SortableColumn, string> = {
 };
 
 /**
+ * أنواع الزيارة المتاحة في الفلتر.
+ *
+ * لازم تكون نفس قيم فورم تسجيل الزيارة في VisitsDashboard، وإلا الفلتر
+ * بيعرض خيارات مش موجودة في البيانات. متعدد اللغات (multi-select) عشان
+ * الاختيار متعدد هو المفيد فعلاً في تقرير زي ده.
+ *
+ * ملاحظة: لو أي يوم فورم الزيارات بدأ يحفظ نوع جديد، لازم تضاف هنا — وإلا
+ * الزيارات دي هتختفي من الفلتر.
+ */
+const VISIT_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'زيارة دورية', label: 'زيارة دورية' },
+  { value: 'تحصيل', label: 'تحصيل مديونية ومستحقات' },
+  { value: 'تسليم بضاعة', label: 'تسليم بضاعة أو طلبية' },
+  { value: 'حل مشكلة', label: 'خدمة عملاء وحل مشكلة' },
+  { value: 'فتح حساب جديد', label: 'فتح حساب عميل جديد' },
+  { value: 'زيارة تحصيل', label: 'زيارة تحصيل (سجل قديم)' },
+  { value: 'زيارة بيع وطلبية', label: 'زيارة بيع وطلبية (سجل قديم)' },
+  { value: 'متابعة حساب', label: 'متابعة حساب (سجل قديم)' },
+  { value: 'أخرى', label: 'أخرى' },
+];
+
+/**
  * Clickable + keyboard-operable table header that toggles the sort on its column.
  * All nine sortable headers used to be copy-pasted thunks with an onClick only,
  * which made them unreachable by keyboard and by screen readers.
@@ -374,8 +396,16 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
   // Visit logging modal state
   const [isLoggingVisit, setIsLoggingVisit] = useState(false);
+  // رسالة فشل تسجيل الزيارة — بتظهر جوه الفورم بدل ما تضيع في الكونسول.
+  const [visitFormError, setVisitFormError] = useState<string | null>(null);
   const [visitDate, setVisitDate] = useState(new Date().toISOString().slice(0, 10));
-  const [visitType, setVisitType] = useState<'زيارة بيع وطلبية' | 'زيارة تحصيل' | 'زيارة دورية' | 'متابعة حساب'>('زيارة بيع وطلبية');
+  // قيم النوع اللي بتتحفظ فعلياً في جدول visits. اتأكدت منها على السيرفر:
+  // الـ 3,774 زيارة الموجودة كلها 'زيارة دورية'. الفلتر القديم كان بيعرض
+  // أربع قيم مختلفة (زيارة بيع وطلبية / زيارة تحصيل / متابعة حساب) ولا
+  // واحدة منهم كانت موجودة في البيانات، فكان الفلتر بيرجّع نتيجة واحدة
+  // بتلك القيمة المختارة وخلاص — يعني المستخدم كان بيختار حاجة وبيشوف
+  // "لا نتائج" وبيفتكر إن مفيش زيارات أصلاً.
+  const [visitType, setVisitType] = useState<CustomerVisit['type']>(VISIT_TYPE_OPTIONS[0].value as CustomerVisit['type']);
   const [visitOutcome, setVisitOutcome] = useState<'تم عمل طلبية' | 'تم التحصيل' | 'تأجيل سداد' | 'المحل مغلق' | 'متابعة فقط'>('تم عمل طلبية');
   const [visitCollected, setVisitCollected] = useState('');
   const [visitNotes, setVisitNotes] = useState('');
@@ -2373,7 +2403,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       // Refresh locally-selected customer so the dossier UI reflects the visit
       const refreshed = customers.find((c) => c.id === selectedCustomer.id) || selectedCustomer;
       setSelectedCustomer(refreshed);
+      setVisitFormError(null);
     } else {
+      // الخطأ كان بيروح في الكونسول بس (console.warn) والمستخدم مبيشوفش
+      // حاجة — يعني لو منع الازدواج رفض الزيارة، المستخدم يفتكر إنها اتسجلت.
+      // الرسالة دلوقتي ظاهرة جوه الفورم نفسه.
+      setVisitFormError(message);
       console.warn('Failed to log visit:', message);
     }
 
@@ -6615,6 +6650,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               {/* Visit Logging Form Inline */}
               {isLoggingVisit && (
                 <div className="p-4 bg-amber-50/50 rounded-2xl border border-amber-200 space-y-3 animate-in fade-in">
+                  {visitFormError && (
+                    <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-[11px] font-bold text-red-800 leading-relaxed">
+                      {visitFormError}
+                    </div>
+                  )}
                   <div className="font-black text-xs text-slate-800 flex items-center justify-between">
                     <span>تسجيل زيارة جديدة لـ ({selectedCustomer.name})</span>
                     <button
@@ -6640,13 +6680,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       <label className="text-[11px] font-bold text-slate-500 block mb-1">نوع الزيارة:</label>
                       <select
                         value={visitType}
-                        onChange={(e: any) => setVisitType(e.target.value)}
+                        onChange={(e) => setVisitType(e.target.value as CustomerVisit['type'])}
                         className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold"
                       >
-                        <option value="زيارة بيع وطلبية">زيارة بيع وطلبية</option>
-                        <option value="زيارة تحصيل">زيارة تحصيل</option>
-                        <option value="زيارة دورية">زيارة دورية</option>
-                        <option value="متابعة حساب">متابعة حساب</option>
+                        {VISIT_TYPE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
                       </select>
                     </div>
 

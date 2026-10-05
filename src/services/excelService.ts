@@ -2908,11 +2908,42 @@ export function generateSampleCustomersTemplate(): void {
 }
 
 /**
+ * يمنع تصدير ملف ضخم قبل ما الجهاز يتجمّد.
+ *
+ * تصدير Excel شغال بالكامل على الـ main thread: الـ worksheet object model
+ * بيتبني في الذاكرة، بعدين التنسيق، بعدين الضغط — كلها متزامنة. عند
+ * 100,000 صف ده gigabyte من الـ heap وتاب بتتقفل (خصوصاً على موبايل
+ * المندوب، وده الجهاز اللي بيتصدّر منه).
+ *
+ * الحد 50,000 صف أكبر بكتير من أي تقرير بيتعمله الإدارة حالياً (أكبر
+ * قائمة في المشروع ~3,447 عميل)، فلو وصلنا هنا ففيه حاجة غلط في الفلتر.
+ * بنحذّر ولا بنمنع — القرار للمستخدم، بس بنخبره قبل ما الـ tab يموت.
+ */
+const MAX_EXPORT_ROWS = 50_000;
+
+function guardHugeExport(rowCount: number, label: string): boolean {
+  if (rowCount <= MAX_EXPORT_ROWS) return true;
+  const proceed = window.confirm(
+    `تصدير ${label} فيه ${rowCount.toLocaleString('ar-EG')} صف.\n` +
+    `Excel بيعمل الملف كله في الذاكرة، فعند الحجم ده الجهاز ممكن يعلّق أو يقفل التبويب.\n\n` +
+    `تلغي وتضيّق الفلتر، ولا تكمل؟`
+  );
+  if (!proceed) {
+    // نرجّع بدل ما نرمي: أزرار التصدير نداءات مباشرة في JSX من غير try/catch،
+    // فرمي exception كان هيطلع كخطأ في الكونسول بس من غير أي رسالة للمستخدم.
+    console.info(`تم إلغاء تصدير ${label} (${rowCount.toLocaleString('ar-EG')} صف) بناءً على اختيار المستخدم.`);
+    return false;
+  }
+  return true;
+}
+
+/**
  * Export Customers List to Excel
  */
 export function exportCustomersToExcel(customers: Customer[], branchName = 'الكل'): void {
   const wb = XLSX.utils.book_new();
   const listToExport = branchName === 'الكل' ? customers : customers.filter((c) => c.branchName === branchName);
+  if (!guardHugeExport(listToExport.length, 'قائمة العملاء')) return;
 
   const headers = [
     'كود العميل',
@@ -3560,6 +3591,7 @@ export function exportProductsToExcel(
   branchName = 'الكل',
   currentUser?: User | null
 ): void {
+  if (!guardHugeExport(products.length, 'كتالوج الأصناف')) return;
   const wb = XLSX.utils.book_new();
 
   const isBranchScoped =

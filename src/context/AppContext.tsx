@@ -148,7 +148,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Auth and Session Notice
   const [authTerminationNotice, setAuthTerminationNotice] = useState<string | null>(null);
-  // فحص连通ية Supabase Auth: بيقول للإدارة هل الـ migration اتنفّذ ولا لأ.
+  // فحص اتصال Supabase Auth: بيقول للإدارة هل الـ migration اتنفّذ ولا لأ.
   // بيتحدّث مرة واحدة عند الإقلاع وخلاص — مفيش أي طلبات متكررة.
   const [serverAuthProbe, setServerAuthProbe] = useState<{
     checked: boolean;
@@ -1217,6 +1217,36 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const group = (entity: QueuedMutation['entity'], op: QueuedMutation['op']) =>
       queued.filter((item) => item.entity === entity && item.op === op);
 
+    /**
+     * أنى نطاق يناسب اللي اتبع فعلاً.
+     *
+     * كان الـ flush بينشر scope: 'all' مع forcePurge — يعني مندوب واحد
+     * يسجّل زيارة offline ويرجع نت، كل الـ 299 جهاز بيمسح كاشه بالكامل
+     * ويعيد تحميل الكتالوج والعملاء والأهداف والفواتير. زيارة واحدة كانت
+     * بتكلّف datacenter كامل.
+     *
+     * الطبقات اللي checkAndSyncDataVersion بيعرف يحدّثها هي بس:
+     * products / customers / targets / invoices / visits. الجداول التانية
+     * في الـ queue (users, forecasts, forecast_plans, customer_comments) مفيش
+     * ليها فرع في إعادة الجلب ولا اشتراك realtime — يعني نشر 'all' عشانها
+     * ما كانش بيعمل حاجة، كان بيبعت تعريفة وخلاص.
+     *
+     * فبنحسب النطاق الحقيقي: نطاق واحد → نطاقه، أكتر من واحد → 'all'
+     * (سلوك النهارده، وبيحصل نادر — الـ Excel imports ما بتمشيش من الـ queue).
+     */
+    const resolveFlushScope = (): SyncScope => {
+      const touched = new Set<SyncScope>();
+      if (invoiceDeletes.length > 0 || invoiceUpserts.length > 0) touched.add('invoices');
+      if (visitDeletes.length > 0 || visitUpserts.length > 0) touched.add('visits');
+      if (customerDeletes.length > 0 || customerUpserts.length > 0) touched.add('customers');
+      if (productReplaces.length > 0) touched.add('products');
+      if (targetReplaces.length > 0) touched.add('targets');
+
+      if (touched.size === 0) return 'all';
+      if (touched.size === 1) return touched.values().next().value as SyncScope;
+      return 'all';
+    };
+
     // Deletes first, so a row that was recreated later is not wiped by an older delete.
     const invoiceDeletes = group('invoices', 'delete');
     if (invoiceDeletes.length > 0) {
@@ -1336,7 +1366,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       // Tell every other device that the shared data moved, so admins and reps
       // repaint instead of showing a stale local cache.
       publishDataVersionUpdate({
-        scope: 'all',
+        scope: resolveFlushScope(),
         notes: `مزامنة تلقائية بعد العمل بدون إنترنت (${done.length} تغيير)`,
       }).catch(() => {});
     }
@@ -1552,62 +1582,44 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       setIsVersionSyncing(true);
       const scope = remoteMeta.scope || 'all';
 
-      // 1. Purge stale local caches for this scope to completely prevent duplicates
-      await purgeLocalDataCaches(scope);
+      // كل الجلبات بتتعمل الأول وتخزّن متغيرات، وبعدين بيتمسح الكاش القديم
+      // بس للأجزاء اللي نزلت فعلاً.
+      //
+      // الترتيب القديم كان: امسح الكاش ← فضّي الشاشة ← جلب. فلو أي جلب
+      // فشل على شبكة ضعيفة، المندوب كان بيفقد بياناته المحلية من غير ما
+      // ييجيله بديل — IndexedDB كان اتمسح والشاشة فاضية. دلوقتي البيانات
+      // المحلية بتفضل مكانها لحد ما الجديد يوصل فعلاً.
+      const inScope = (s: SyncScope) => scope === 'all' || scope === s;
 
-      // 2. Clear in-memory caches that live outside React state so stale data cannot
-      //    leak into the fresh fetch (prevents the duplication users see on cache clear)
-      if (scope === 'all' || scope === 'customers') {
-        setActiveCustomersCache([]);
-        setCustomers([]);
-      }
-      if (scope === 'all' || scope === 'products') {
-        setProducts([]);
-      }
-      if (scope === 'all' || scope === 'targets') {
-        setTargets([]);
-      }
+      // Fresh payloads, held until we know which ones actually arrived.
+      let freshProducts: Product[] | null = null;
+      let freshCustomers: Customer[] | null = null;
+      let freshTargets: TargetRecord[] | null = null;
+      let freshInvoices: Invoice[] | null = null;
+      let freshVisits: CustomerVisit[] | null = null;
 
-      // 2. Refresh products if in scope
-      if (scope === 'all' || scope === 'products') {
+      // 1. Refresh products if in scope
+      if (inScope('products')) {
         const prodRes = await fetchProductsFromSupabase();
         if (prodRes.success) {
-          const valid = sanitizeProducts(prodRes.products || []);
-          setProducts(valid);
-          idbSet(STORAGE_KEYS.PRODUCTS, valid).catch(() => {});
+          freshProducts = sanitizeProducts(prodRes.products || []);
         }
       }
 
-      // 3. Refresh customers if in scope
-      if (scope === 'all' || scope === 'customers') {
+      // 2. Refresh customers if in scope
+      if (inScope('customers')) {
         const custRes = await fetchCustomersFromSupabase(customerFetchScope);
         if (custRes.success) {
           const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers || []), users);
-          const validCust = deduplicateCustomersArray(linked);
-          const queued = await getQueuedMutations();
-          const pendingCustIds = new Set(
-            queued.filter((m) => m.entity === 'customers' && m.op === 'upsert').map((m) => m.entityId)
-          );
-          setCustomers((prev) => {
-            const nextMap = new Map<string, Customer>();
-            validCust.forEach((c) => nextMap.set(c.id, c));
-            prev.forEach((c) => {
-              if (pendingCustIds.has(c.id) && !nextMap.has(c.id)) {
-                nextMap.set(c.id, c);
-              }
-            });
-            const next = Array.from(nextMap.values());
-            idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
-            return next;
-          });
+          freshCustomers = deduplicateCustomersArray(linked);
         }
       }
 
-      // 4. Refresh targets if in scope
-      if (scope === 'all' || scope === 'targets') {
+      // 3. Refresh targets if in scope
+      if (inScope('targets')) {
         const trgRes = await fetchTargetsFromSupabase();
         if (trgRes.success) {
-          const mapped: TargetRecord[] = (trgRes.targets || []).map((row: any) => ({
+          freshTargets = (trgRes.targets || []).map((row: any) => ({
             id: String(row.id),
             branch: resolveBranchName(row.branch) || row.branch || '',
             repName: row.rep_name || '',
@@ -1626,61 +1638,129 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             updatedAt: row.updated_at,
             notes: row.notes || undefined,
           }));
-          setTargets(mapped);
-          safeLocalStorageSet(STORAGE_KEYS.TARGETS, JSON.stringify(mapped));
         }
       }
 
-      // 5. Refresh invoices if in scope (source of truth from Supabase; removes deleted invoices across all users)
-      if (scope === 'all' || scope === 'invoices') {
+      // 4. Refresh invoices if in scope (source of truth from Supabase; removes deleted invoices across all users)
+      if (inScope('invoices')) {
         const invRes = await fetchInvoicesFromSupabase(500);
         if (invRes.success && invRes.invoices) {
-          const remoteInvoices = invRes.invoices;
-          const pendingList = (await idbGet<Invoice[]>(STORAGE_KEYS.PENDING_INVOICES)) || [];
-          const queued = await getQueuedMutations();
-          const pendingIds = new Set([
-            ...pendingList.map((i) => i.id),
-            ...queued.filter((m) => m.entity === 'invoices' && m.op === 'upsert').map((m) => m.entityId),
-          ]);
-          setInvoices((prev) => {
-            const nextMap = new Map<string, Invoice>();
-            remoteInvoices.forEach((inv) => nextMap.set(inv.id, inv));
-            // Only keep local invoices that are genuinely pending offline upload
-            prev.forEach((inv) => {
-              if (pendingIds.has(inv.id) && !nextMap.has(inv.id)) {
-                nextMap.set(inv.id, inv);
-              }
-            });
-            const next = Array.from(nextMap.values());
-            idbSet(STORAGE_KEYS.INVOICES, next).catch(() => {});
-            safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify(next));
-            return next;
-          });
+          freshInvoices = invRes.invoices;
         }
       }
 
-      // 6. Refresh visits if in scope (source of truth from Supabase; removes deleted visits across all users)
-      if (scope === 'all' || scope === 'visits') {
+      // 5. Refresh visits if in scope (source of truth from Supabase; removes deleted visits across all users)
+      if (inScope('visits')) {
         const visRes = await fetchVisitsFromSupabase();
         if (visRes.success && visRes.visits) {
-          const remoteVisits = visRes.visits;
-          const queued = await getQueuedMutations();
-          const pendingVisitIds = new Set(
-            queued.filter((m) => m.entity === 'visits' && m.op === 'upsert').map((m) => m.entityId)
-          );
-          setVisits((prev) => {
-            const nextMap = new Map<string, CustomerVisit>();
-            remoteVisits.forEach((v) => nextMap.set(v.id, { ...v, syncStatus: 'synced' }));
-            prev.forEach((v) => {
-              if (pendingVisitIds.has(v.id) && !nextMap.has(v.id)) {
-                nextMap.set(v.id, v);
-              }
-            });
-            const next = Array.from(nextMap.values());
-            persistVisits(next);
-            return next;
-          });
+          freshVisits = visRes.visits;
         }
+      }
+
+      /**
+       * Point of no return: we now hold real replacements for at least part of
+       * the scope, so the stale local caches for exactly those parts can go.
+       *
+       * Only the scopes that actually landed are purged. If the network dropped
+       * mid-sync, the customer's own copy stays on the device and the screen
+       * keeps rendering the last good data instead of going blank.
+       */
+      const purgedScopes: SyncScope[] = [];
+      if (freshProducts) purgedScopes.push('products');
+      if (freshCustomers) purgedScopes.push('customers');
+      if (freshTargets) purgedScopes.push('targets');
+      if (freshInvoices) purgedScopes.push('invoices');
+      if (freshVisits) purgedScopes.push('visits');
+
+      if (purgedScopes.length === 0) {
+        // Nothing arrived. Keep every local cache and every pending offline
+        // record exactly as it is — losing them would be far worse than
+        // staying one version behind for a minute.
+        saveLocalDataVersion(remoteMeta);
+        setGlobalDataVersion(remoteMeta);
+        const staleMsg = 'تعذر تحديث البيانات من السيرفر — تم الاحتفاظ بالبيانات المحلية. لما يتحسن الاتصال هيتم التحديث تلقائياً.';
+        setLastVersionSyncNotice(staleMsg);
+        setTimeout(() => setLastVersionSyncNotice(null), 8000);
+        return { updated: false, version: remoteMeta.version, message: staleMsg };
+      }
+
+      for (const one of purgedScopes) {
+        await purgeLocalDataCaches(one);
+      }
+
+      // Commit: everything below writes the fresh lists into React state and
+      // back into IndexedDB, so it runs strictly after the purge.
+      const queuedMutations = await getQueuedMutations();
+
+      if (freshProducts) {
+        setProducts(freshProducts);
+        idbSet(STORAGE_KEYS.PRODUCTS, freshProducts).catch(() => {});
+      }
+
+      if (freshCustomers) {
+        const remoteCustomers = freshCustomers;
+        const pendingCustIds = new Set(
+          queuedMutations.filter((m) => m.entity === 'customers' && m.op === 'upsert').map((m) => m.entityId)
+        );
+        setCustomers((prev) => {
+          const nextMap = new Map<string, Customer>();
+          remoteCustomers.forEach((c) => nextMap.set(c.id, c));
+          prev.forEach((c) => {
+            if (pendingCustIds.has(c.id) && !nextMap.has(c.id)) {
+              nextMap.set(c.id, c);
+            }
+          });
+          const next = Array.from(nextMap.values());
+          idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
+          return next;
+        });
+      }
+
+      if (freshTargets) {
+        setTargets(freshTargets);
+        safeLocalStorageSet(STORAGE_KEYS.TARGETS, JSON.stringify(freshTargets));
+      }
+
+      if (freshInvoices) {
+        const remoteInvoices = freshInvoices;
+        const pendingList = (await idbGet<Invoice[]>(STORAGE_KEYS.PENDING_INVOICES)) || [];
+        const pendingIds = new Set([
+          ...pendingList.map((i) => i.id),
+          ...queuedMutations.filter((m) => m.entity === 'invoices' && m.op === 'upsert').map((m) => m.entityId),
+        ]);
+        setInvoices((prev) => {
+          const nextMap = new Map<string, Invoice>();
+          remoteInvoices.forEach((inv) => nextMap.set(inv.id, inv));
+          // Only keep local invoices that are genuinely pending offline upload
+          prev.forEach((inv) => {
+            if (pendingIds.has(inv.id) && !nextMap.has(inv.id)) {
+              nextMap.set(inv.id, inv);
+            }
+          });
+          const next = Array.from(nextMap.values());
+          idbSet(STORAGE_KEYS.INVOICES, next).catch(() => {});
+          safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify(next));
+          return next;
+        });
+      }
+
+      if (freshVisits) {
+        const remoteVisits = freshVisits;
+        const pendingVisitIds = new Set(
+          queuedMutations.filter((m) => m.entity === 'visits' && m.op === 'upsert').map((m) => m.entityId)
+        );
+        setVisits((prev) => {
+          const nextMap = new Map<string, CustomerVisit>();
+          remoteVisits.forEach((v) => nextMap.set(v.id, { ...v, syncStatus: 'synced' }));
+          prev.forEach((v) => {
+            if (pendingVisitIds.has(v.id) && !nextMap.has(v.id)) {
+              nextMap.set(v.id, v);
+            }
+          });
+          const next = Array.from(nextMap.values());
+          persistVisits(next);
+          return next;
+        });
       }
 
       saveLocalDataVersion(remoteMeta);
@@ -2507,7 +2587,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
 
       const rawRep = (updated.salesRepName || updated.repName || '').trim();
-      if ((!rawRep || rawRep === '��ندوب المبيعات' || rawRep === 'المندوب' || rawRep === 'غير محدد') && !updated.repId) {
+      if ((!rawRep || rawRep === 'مندوب المبيعات' || rawRep === 'المندوب' || rawRep === 'غير محدد') && !updated.repId) {
         return updated;
       }
 
@@ -2663,7 +2743,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     listToAnalyze.forEach((c) => {
       const rep = (c.salesRepName || c.repName || '').trim();
-      if (!rep || rep === 'مند��ب المبيعات' || rep === 'المندوب' || rep === 'غير محدد') {
+      if (!rep || rep === 'مندوب المبيعات' || rep === 'المندوب' || rep === 'غير محدد') {
         unassignedCount++;
         return;
       }
@@ -3015,7 +3095,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     }
 
     if (found.approvalStatus === 'rejected' || found.isActive === false) {
-      return { success: false, message: '��ذا الحساب موقوف أو تم رفض تفعيله من قبل الإدارة.' };
+      return { success: false, message: 'هذا الحساب موقوف أو تم رفض تفعيله من قبل الإدارة.' };
     }
 
     // Verify the credential.
@@ -3122,7 +3202,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     return {
       success: true,
-      message: 'تم تسجيل طلب الحساب بنجاح وهو الآن بانتظار تفعيل الأدمن وتخصيص المشرف و��لف��ع.'
+      message: 'تم تسجيل طلب الحساب بنجاح وهو الآن بانتظار تفعيل الأدمن وتخصيص المشرف والتفعيل.'
     };
   };
 
@@ -3161,7 +3241,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           branchName: branchName || u.branchName,
           action: 'update_user',
           actionTitle: `اعتماد وتفعيل حساب (${u.name})`,
-          details: `تم اعتماد المستخدم وتعيين الصلاحية (${role || u.role}) لفر�� (${branchName || u.branchName}).`,
+          details: `تم اعتماد المستخدم وتعيين الصلاحية (${role || u.role}) لفرع (${branchName || u.branchName}).`,
           badgeType: 'success',
         });
 
@@ -4248,7 +4328,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const invoice = invoices.find((item) => item.id === invoiceId);
     if (!invoice) return { success: false, message: 'الفاتورة غير موجودة.' };
     if (!['معتمدة ومصروفة من المخزن', 'معتمدة'].includes(invoice.status)) {
-      return { success: false, message: 'لا يمكن إرسال الفا��ورة قبل اعتمادها.' };
+      return { success: false, message: 'لا يمكن إرسال الفاتورة قبل اعتمادها.' };
     }
     if (
       !['admin', 'developer'].includes(currentUser.role) &&
@@ -4551,7 +4631,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     return {
       success: true,
-      message: `تم فتح الطلبية #${invoice.invoiceNumber} في السلة بنجاح! يمكنك الآن تعديل الكميات أو إضافة أصناف جديدة من الكتالوج وإ��ادة إصدار الفاتورة.`,
+      message: `تم فتح الطلبية #${invoice.invoiceNumber} في السلة بنجاح! يمكنك الآن تعديل الكميات أو إضافة أصناف جديدة من الكتالوج وإعادة إصدار الفاتورة.`,
       customer: matchedCustomer,
     };
   };
@@ -4890,7 +4970,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       userRole: currentUser?.role || 'admin',
       branchName: inv.branchName,
       action: 'return_invoice',
-      actionTitle: `تسجيل ��رتجع مبيعات ${isFullReturn ? 'كلي' : 'جزئي'} للفاتورة #${inv.invoiceNumber}`,
+      actionTitle: `تسجيل مرتجع مبيعات ${isFullReturn ? 'كلي' : 'جزئي'} للفاتورة #${inv.invoiceNumber}`,
       details: `إذن #${returnVoucherNumber} • العميل: ${inv.customerName} • القيمة المسترجعة: ${totalRefundAmount.toLocaleString()} ج.م • الكراتين: ${totalReturnedCartons} • السبب: ${reason}`,
       invoiceId: inv.id,
       invoiceNumber: inv.invoiceNumber,
@@ -5304,6 +5384,35 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       (currentUser.role === 'branch_manager' && (assignedRep?.branchName === currentUser.branchName || doesCustomerBelongToBranch(customer, currentUser.branchName, users)));
 
     if (!allowed) return { success: false, message: 'لا تملك صلاحية تسجيل زيارة لهذا العميل' };
+
+    /**
+     * نفس العميل في نفس اليوم — بدل ما نسجّل سطر تاني.
+     *
+     * كل زيارة بتعمل حاجتين مؤثرتين على العميل:
+     *   - بتزود `visitCount2026` بواحد
+     *   - بتنقص `currentBalance` بمبلغ التحصيل
+     * فلو اتسجلت نفس الزيارة مرتين، الرصيد بينقص مرتين والعدّاد بيزيد مرتين.
+     * ده مش احتمال نظري: فيه 117 صف مكرر على السيرفر دلوقتي (80 عميل/يوم).
+     *
+* بنفس منطق addImportedVisits بالظبط — نفس دالة dayKey، فالمساران
+     * متسقان واللي بيتسجل بالاستيراد بيتقيّد بنفس القاعدة.
+     *
+     * ملاحظة: بنرجّع `visit` الموجود مع `success: false`. الشاشة بتقدر
+     * تعرضه وتسأل المستخدم: يعدّل الزيارة دي ولا يسجّل رغم ذلك.
+     * القرار للمستخدم مش للكود.
+     */
+    const visitDay = String(visit.date || '').slice(0, 10);
+    const sameDayVisit =
+      visitDay
+        ? visits.find((v) => v.customerId === customer.id && String(v.date || '').slice(0, 10) === visitDay)
+        : undefined;
+    if (sameDayVisit && !(visit as CustomerVisit).allowSameDaySecondVisit) {
+      return {
+        success: false,
+        message: `تم تسجيل زيارة للعميل ${customer.name} بتاريخ ${visitDay} بالفعل. عدّل الزيارة الموجودة أو سجّل رغم ذلك.`,
+        visit: sameDayVisit,
+      };
+    }
 
     const newVisitId = `visit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const newVisitObj: CustomerVisit = {

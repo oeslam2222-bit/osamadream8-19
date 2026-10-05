@@ -231,6 +231,13 @@ export const VisitsDashboard: React.FC = () => {
 
   // Modals & Active Items
   const [showForm, setShowForm] = useState(false);
+
+  /**
+   * يظهر checkbox تجاوز منع الازدواج — بس بعد ما المستخدم يحاول يسجّل
+   * ويطلعه تحذير. مخفي في الشكل العادي عشان ما يزحمش الفورم بخيار
+   * المستخدم محتاجه في حالات نادرة بس.
+   */
+  const [showSameDayWarning, setShowSameDayWarning] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState<CustomerVisit | null>(null);
   const [reviewTarget, setReviewTarget] = useState<CustomerVisit | null>(null);
   const [reviewNoteDraft, setReviewNoteDraft] = useState('');
@@ -263,6 +270,18 @@ export const VisitsDashboard: React.FC = () => {
     returnValue: 0 as number | undefined,
     returnReason: '',
     returnItems: '',
+
+    /**
+     * تجاوز منع الازدواج لنفس العميل في نفس اليوم.
+     *
+     * addVisit بيرفض سطر تانية لنفس (العميل + التاريخ) افتراضياً — عشان كل
+     * زيارة بتزود عدّاد الزيارات وبتنقص رصيد العميل بمبلغ التحصيل، فالتكرار
+     * معناه خصم مزدوج وأرقام غلط في التقارير.
+     *
+     * الحقل ده بيبدأ false (آمن)، والشاشة بتعرض له checkbox بس بعد ما
+     * المستخدمين يحاول يسجّل ويطلعه تحذير.
+     */
+    allowSameDaySecondVisit: false,
     location: undefined as CustomerVisit['location'],
   });
 
@@ -1180,6 +1199,7 @@ export const VisitsDashboard: React.FC = () => {
       returnReason: v.returnReason || '',
       returnItems: v.returnItems || '',
       location: v.location,
+      allowSameDaySecondVisit: false,
     });
     if (c) {
       setModalCustomerSearch(c.name);
@@ -1343,6 +1363,9 @@ export const VisitsDashboard: React.FC = () => {
     // سطر زيارة مستقل لكل عميل — عشان كل عدّاد واعتماد وإكسل يفضل زي ما هو.
     let okCount = 0;
     let lastError = '';
+    // العملاء اللي فيهم زيارة لنفس اليوم بالفعل، مع الزيارة الموجودة.
+    // بنجمّعهم بدل ما نرمي رسالة ونتجاهل — عشانStatuses يقدر decides.
+    const sameDayBlocked: { customerName: string; date: string; existing: CustomerVisit }[] = [];
     targetIds.forEach((id) => {
       const c = customerById.get(id);
       const result = addVisit({
@@ -1366,10 +1389,30 @@ export const VisitsDashboard: React.FC = () => {
           ? `${selectedReturnProduct.code} - ${selectedReturnProduct.name} × ${returnQuantity} قطعة`
           : undefined,
         returnStatus: isReturnOutcome ? 'بانتظار المشرف' : undefined,
+        allowSameDaySecondVisit: form.allowSameDaySecondVisit,
       });
       if (result.success) okCount += 1;
-      else lastError = result.message;
+      else if (result.visit) {
+        sameDayBlocked.push({
+          customerName: c?.name || result.visit.customerName || 'العميل',
+          date: String(form.date || '').slice(0, 10),
+          existing: result.visit,
+        });
+      } else lastError = result.message;
     });
+
+    // كل العملاء المختارين فيهم زيارة اليوم — نوقف ونشرح بدل ما نخسر تعب
+    // المستخدم في تعبئة الفورم.
+    if (sameDayBlocked.length > 0) {
+      const names = sameDayBlocked.map((b) => b.customerName).join('، ');
+      showToast(
+        'error',
+        `تم منع الازدواج: ${sameDayBlocked.length} من ${targetIds.length} عميل فيهم زيارة بتاريخ ${sameDayBlocked[0].date} بالفعل — ${names}. ` +
+        `افتح الزيارة الموجودة أو عدّلها، أو فعّل «تسجيل زيارة ثانية لنفس العميل» بالأسفل لو الزيارة دي فعلاً تانية.`
+      );
+      setShowForm(true);
+      setShowSameDayWarning(true);
+    }
 
     const result = {
       success: okCount > 0,
@@ -1403,6 +1446,7 @@ export const VisitsDashboard: React.FC = () => {
         returnReason: '',
         returnItems: '',
         location: undefined,
+allowSameDaySecondVisit: false,
       });
       setModalCustomerSearch('');
       setSelectedCustomerIds([]);
@@ -3651,6 +3695,36 @@ export const VisitsDashboard: React.FC = () => {
                     <option value="مرتجع لدي العميل">مرتجع لدي العميل 📦↩️</option>
                   </select>
                 </div>
+
+                {/*
+                  تجاوز منع الازدواج — يظهر بس بعد ما المستخدم يحاول يسجّل
+                  ويطلعه تحذير. كل زيارة بتزود عدّاد الزيارات وبتنقص رصيد
+                  العميل بمبلغ التحصيل، فسطر تانية لنفس العميل في نفس اليوم
+                  = خصم مزدوج وأرقام غلط. الافتراضي ممنوع، والعلم ده هو
+                  طريق الخروج الوحيد لو الزيارة فعلاً تانية (زي وردية بعد
+                  Morning visit).
+                */}
+                {showSameDayWarning && (
+                  <label className="sm:col-span-2 flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.allowSameDaySecondVisit}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setShowSameDayWarning(false);
+                        setForm({ ...form, allowSameDaySecondVisit: checked });
+                      }}
+                      className="mt-0.5 w-4 h-4 accent-amber-600 shrink-0"
+                    />
+                    <span className="text-[11px] font-bold text-amber-900 leading-relaxed">
+                      تسجيل زيارة ثانية لنفس العميل في نفس اليوم
+                      <span className="block font-normal text-amber-800 mt-0.5">
+                        اتأكد إن الزيارة المسجّلة قبل كده مش هي. لو هتعدّلها، افتح  بدل ما تسجّل سطر جديد — التعديل بيصحّح
+                        نفس السطر بدل ما يكوّن اتنين.
+                      </span>
+                    </span>
+                  </label>
+                )}
 
                 {form.outcome === 'مرتجع لدي العميل' ? (
                   <div className="sm:col-span-2 rounded-2xl border-2 border-rose-300 bg-rose-50/70 p-3 space-y-3 animate-in fade-in">

@@ -266,7 +266,7 @@ export const sanitizeCustomers = (list: Customer[]): Customer[] => {
     const col26 = fin.collections2026;
 
     // Guarantee docs logic:
-    // لو كبر من صفر يبقي ماضي علي ورق ضم������ن بالمبلغ ده
+    // لو كبر من صفر يبقي ماضي علي ورق ضمان بالمبلغ ده
     // لو 0 او مافيش يبق لا يوجد ورق ضمان
     let gAmount = Math.abs(Number(c.guaranteeAmount || 0));
     const rawG = String(c.guaranteeDocs || '').trim();

@@ -597,6 +597,14 @@ export async function replaceCustomersInSupabase(
 }
 
 const CATALOG_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000001';
+
+/**
+ * أقصى عدد صفحات (1,000 صف كل صفحة) بنجيبه من جدول products.
+ * حدّ حماية ضد حلقة لا نهائية بس — الكتالوج الحالي 5,444 صنف، فـ 60 صفحة
+ * (60,000 صنف) أوسع من المحتاج بكتير. لو وصلنا هنا فالمشكلة في البيانات مش
+ * في الكود، والـ console.warn بيقول ذلك بصراحة بدل ما نقصّ السعر في صمت.
+ */
+const MAX_PRODUCT_PAGES = 60;
 export const USER_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000002';
 
 export async function fetchTargetsFromSupabase(): Promise<{ success: boolean; targets?: any[]; error?: string }> {
@@ -1505,7 +1513,18 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
       allProdData.push(...chunk);
       if (chunk.length < pageSize) break;
       page++;
-      if (page >= 35) break; // Safety limit
+      // The old `if (page >= 35) break` cut the catalog off at 35,000 rows with
+      // no error and no warning — prices would silently vanish from the screen.
+      // 35,000 products is far past anything this catalog can reach (5,444 SKUs
+      // today), so the guard only ever mattered as a runaway-loop brake. It now
+      // warns loudly instead of truncating quietly.
+      if (page >= MAX_PRODUCT_PAGES) {
+        console.warn(
+          `Product fetch stopped at ${allProdData.length} rows after ${page} pages. ` +
+          'The catalog is larger than expected; some products may be missing.'
+        );
+        break;
+      }
     }
 
     if (allProdData.length > 0) {
@@ -1550,14 +1569,34 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
 
 /**
  * Fetch all visits from Supabase (visits table)
+ *
+ * بتتقري على دفعات. الاستعلام القديم كان `select('*')` من غير حد، وPostgREST
+ * بيرجّع 1,000 صف بحد أقصى وبس — يعني على السيرفر الحالي (3,774 زيارة) التطبيق
+ * كان شايف 1,000 منهم **من غير أي رسالة خطأ**. الـ 2,774 الباقيين كان بيختفيوا
+ * من صفحة الزيارات ومن تقرير المرتجعات ومن التحليلات من غير ما حد ياخد باله.
+ *
+ * نفس باترن `fetchAllRows` بتاع العملاء: `.range()` بالدفعات لحد ما الجدول يخلص.
  */
 export async function fetchVisitsFromSupabase(): Promise<{ success: boolean; visits?: CustomerVisit[]; error?: string }> {
   try {
-    const { data, error } = await supabase.from('visits').select('*').order('created_at', { ascending: false });
-    if (error) return { success: false, error: error.message };
-    if (!data || data.length === 0) return { success: true, visits: [] };
+    const pageSize = 1000;
+    const rows: any[] = [];
 
-    const mapped: CustomerVisit[] = data.map((v: any) => ({
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from('visits')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(from, from + pageSize - 1);
+
+      if (error) return { success: false, error: error.message };
+      rows.push(...(data || []));
+      if (!data || data.length < pageSize) break;
+    }
+
+    if (rows.length === 0) return { success: true, visits: [] };
+
+    const mapped: CustomerVisit[] = rows.map((v: any) => ({
       id: v.id || `visit-${v.created_at}-${v.customer_id}`,
       customerId: v.customer_id || v.customerId || '',
       customerName: v.customer_name || v.customerName || '',
@@ -1610,6 +1649,11 @@ export async function fetchVisitsFromSupabase(): Promise<{ success: boolean; vis
 
 /**
  * Save/Upsert visits into Supabase
+ *
+ * بيتكتب على دفعات 100 — نفس باترن العملاء (سطر 440) والفواتير (سطر 1079).
+ * كان الـ upsert بيتبعت المصفوفة كلها في طلب واحد، ومع 4,000+ زيارة كل صف
+ * فيها ملاحظات وGPS ومراجعات، ده بيوصل لحدود حجم جسم الطلب في PostgREST
+ * ويفشل الحفظ كله.
  */
 export async function saveVisitsToSupabase(visits: CustomerVisit[]): Promise<{ success: boolean; savedCount: number; error?: string }> {
   try {
@@ -1673,40 +1717,52 @@ export async function saveVisitsToSupabase(visits: CustomerVisit[]): Promise<{ s
       };
     });
 
-    const { data, error } = await supabase.from('visits').upsert(payload, { onConflict: 'id' }).select();
-    if (error) {
-      if (/review_status|reviewed_by_name|review_note|reviewed_at/i.test(error.message)) {
-        console.warn('Supabase visit review columns are missing:', error.message);
-        return { success: false, savedCount: 0, error: 'شغّل migration مراجعة الزيارات على Supabase أولاً' };
-      }
-      // The return columns require add_visit_return_columns.sql. Retry without
-      // them so a missing migration never blocks saving a visit.
-      if (/column .*(is_return|return_value|return_reason|return_difficulty|return_status|return_handled_by|return_handled_at|return_note)|schema cache/i.test(error.message)) {
-        const legacyPayload = payload.map((row: any) => {
-          const {
-            is_return, return_value, return_reason, return_difficulty,
-            return_status, return_handled_by, return_handled_at, return_note,
-            ...rest
-          } = row;
-          // Keep the return visible in the notes as a degraded fallback.
-          return {
-            ...rest,
-            notes: row.is_return
-              ? `${rest.notes}\n[مرتجع بقيمة ${row.return_value ?? 0} - ${row.return_reason || ''} - ${row.return_status || 'بانتظار المشرف'}]`.trim()
-              : rest.notes,
-          };
-        });
-        const { error: retryErr } = await supabase.from('visits').upsert(legacyPayload, { onConflict: 'id' }).select();
-        if (retryErr) {
-          console.warn('Supabase upsert visits retry note:', retryErr.message);
-          return { success: false, savedCount: 0, error: retryErr.message };
+    const CHUNK_SIZE = 100;
+    let savedCount = 0;
+
+    for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
+      const chunk = payload.slice(i, i + CHUNK_SIZE);
+      // .select() متشال عن قصد: الـ data راجع مش بيستخدم، وطلبه بيرجّع
+      // الصفوف كلها تاني — وحدّ PostgREST في الاستجابة 1,000 صف، فكان
+      // ممكن يفشل الدفعات الكبيرة من غير سبب واضح.
+      const { error } = await supabase.from('visits').upsert(chunk, { onConflict: 'id' });
+      if (error) {
+        if (/review_status|reviewed_by_name|review_note|reviewed_at/i.test(error.message)) {
+          console.warn('Supabase visit review columns are missing:', error.message);
+          return { success: false, savedCount, error: 'شغّل migration مراجعة الزيارات على Supabase أولاً' };
         }
-        return { success: true, savedCount: payload.length };
+        // The return columns require add_visit_return_columns.sql. Retry without
+        // them so a missing migration never blocks saving a visit.
+        if (/column .*(is_return|return_value|return_reason|return_difficulty|return_status|return_handled_by|return_handled_at|return_note)|schema cache/i.test(error.message)) {
+          const legacyPayload = chunk.map((row: any) => {
+            const {
+              is_return, return_value, return_reason, return_difficulty,
+              return_status, return_handled_by, return_handled_at, return_note,
+              ...rest
+            } = row;
+            // Keep the return visible in the notes as a degraded fallback.
+            return {
+              ...rest,
+              notes: row.is_return
+                ? `${rest.notes}\n[مرتجع بقيمة ${row.return_value ?? 0} - ${row.return_reason || ''} - ${row.return_status || 'بانتظار المشرف'}]`.trim()
+                : rest.notes,
+            };
+          });
+          const { error: retryErr } = await supabase.from('visits').upsert(legacyPayload, { onConflict: 'id' });
+          if (retryErr) {
+            console.warn('Supabase upsert visits retry note:', retryErr.message);
+            return { success: false, savedCount, error: retryErr.message };
+          }
+          savedCount += chunk.length;
+          continue;
+        }
+        console.warn('Supabase upsert visits note:', error.message);
+        return { success: false, savedCount, error: error.message };
       }
-      console.warn('Supabase upsert visits note:', error.message);
-      return { success: false, savedCount: 0, error: error.message };
+      savedCount += chunk.length;
     }
-    return { success: true, savedCount: payload.length };
+
+    return { success: true, savedCount };
   } catch (err: any) {
     return { success: false, savedCount: 0, error: err?.message };
   }

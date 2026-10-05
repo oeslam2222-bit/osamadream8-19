@@ -2887,7 +2887,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-base font-black text-slate-900">
-                  رفع شيت أهداف ��لمبيعات والتحصيل اليومي
+                  رفع شيت أهداف المبيعات والتحصيل اليومي
                 </h3>
                 <p className="text-xs text-slate-500 font-bold">
                   يدعم ملفات Excel (.xlsx, .xls) وCSV

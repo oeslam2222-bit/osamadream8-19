@@ -256,7 +256,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- تفعيل التح��يث اللحظي (Realtime)
+-- تفعيل التحديث اللحظي (Realtime)
 ALTER PUBLICATION supabase_realtime ADD TABLE public.invoices;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.products;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
