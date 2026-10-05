@@ -1139,7 +1139,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
             </div>
 
             <div className="h-80 w-full" dir="ltr">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                 <BarChart data={metrics.monthlyTrend} margin={{ top: 12, right: 12, left: 12, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748b' }} />
@@ -1179,7 +1179,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               </div>
 
               <div className="h-64 w-full" dir="ltr">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                   <AreaChart data={metrics.monthlyTrend} margin={{ top: 10, right: 8, left: 8, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorSalesRate" x1="0" y1="0" x2="0" y2="1">

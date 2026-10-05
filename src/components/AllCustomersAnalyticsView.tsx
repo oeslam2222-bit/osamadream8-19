@@ -3289,7 +3289,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 </span>
               </div>
               <div className="h-80 sm:h-96 w-full" dir="ltr">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                   {/* barCategoryGap separates the 12 month groups; barGap keeps the
                       sales and collections columns touching inside each group. */}
                   <BarChart
@@ -3376,7 +3376,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   <span className="text-[11px] text-slate-400">انقر على أي فرع لتصفيته بالسلايسر 🔍</span>
                 </div>
                 <div className="h-64 sm:h-72 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                     <BarChart
                       data={branchAnalyticsData}
                       onClick={(data: any) => {
@@ -3531,7 +3531,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 <span className="font-bold text-slate-700">ترتيب تنازلي</span>
               </div>
               <div className="h-64 sm:h-72 w-full">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                   <BarChart
                     data={topRepsAnalyticsData}
                     layout="vertical"
@@ -4217,7 +4217,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           {isAdminOrDev && activeChartTab === 'payment_guarantee' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
               <div className="h-60 w-full flex items-center justify-center">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                   <RechartsPieChart>
                     <Pie
                       data={paymentGuaranteePieData}
@@ -4300,7 +4300,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <span className="text-[11px] text-slate-500 font-semibold">قيم نقدية (ج.م)</span>
                   </div>
                   <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                       <BarChart data={activityClientAnalyticsData.activities.slice(0, 8)} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
                         <XAxis dataKey="activity" tick={{ fontSize: 11, fill: '#64748B' }} />
@@ -4324,7 +4324,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <span className="text-[11px] text-slate-500 font-semibold">{filteredCustomers.length} عميل</span>
                   </div>
                   <div className="h-64 w-full flex items-center justify-center">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                       <RechartsPieChart>
                         <Pie
                           data={activityClientAnalyticsData.clientTypes}
@@ -4785,7 +4785,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
               {/* Performance Comparison Chart */}
               <div className="h-64 sm:h-72 w-full bg-white p-2 rounded-xl border border-slate-200">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                   <BarChart
                     data={runRateAnalyticsData.list.slice(0, 8).map(r => ({
                       rep: r.repName.length > 15 ? `${r.repName.substring(0, 15)}...` : r.repName,

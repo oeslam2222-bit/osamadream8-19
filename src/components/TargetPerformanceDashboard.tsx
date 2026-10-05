@@ -2033,7 +2033,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
                     {/* The Chart */}
                     <div className="h-[300px] sm:h-[360px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                         <BarChart
                           data={monthlyComparisonChartData}
                           margin={{ top: 15, right: 10, left: 10, bottom: 25 }}
@@ -2228,7 +2228,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     </div>
 
                     <div className="h-[280px] sm:h-[340px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                         <BarChart
                           data={repsRankingData}
                           margin={{ top: 10, right: 10, left: 10, bottom: 25 }}
@@ -2395,7 +2395,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     </div>
 
                     <div className="h-[280px] sm:h-[320px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                         <BarChart
                           data={displayChartData}
                           margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
@@ -2468,7 +2468,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     </div>
 
                     <div className="h-[250px] sm:h-[280px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                         <BarChart
                           data={displayChartData}
                           margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
