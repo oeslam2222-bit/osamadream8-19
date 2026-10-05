@@ -25,6 +25,7 @@ import {
   deleteUserFromSupabase,
   deleteVisitFromSupabase,
   fetchCustomersFromSupabase,
+  fetchCustomerContentStamp,
   fetchInvoicesFromSupabase,
   fetchProductsFromSupabase,
   fetchTargetsFromSupabase,
@@ -125,6 +126,14 @@ import { useUiPreferences } from './useUiPreferences';
 import { resolveCustomerDuesValue } from '../services/customerDues';
 import { hashPassword, verifyPassword, withHashedCredential } from '../services/passwordService';
 import {
+  getAuthMode,
+  getServerSessionAsync,
+  isServerAuthEnabled,
+  linkAuthUserToProfile,
+  signOutServer,
+  tryServerSignIn,
+} from '../services/authService';
+import {
   QueuedMutation,
   enqueueMutation,
   enqueueMutations,
@@ -139,6 +148,33 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Auth and Session Notice
   const [authTerminationNotice, setAuthTerminationNotice] = useState<string | null>(null);
+  // فحص连通ية Supabase Auth: بيقول للإدارة هل الـ migration اتنفّذ ولا لأ.
+  // بيتحدّث مرة واحدة عند الإقلاع وخلاص — مفيش أي طلبات متكررة.
+  const [serverAuthProbe, setServerAuthProbe] = useState<{
+    checked: boolean;
+    reachable: boolean;
+    lastCheckedAt?: string;
+  }>({ checked: false, reachable: false });
+
+  useEffect(() => {
+    if (!isServerAuthEnabled()) {
+      setServerAuthProbe({ checked: true, reachable: false, lastCheckedAt: new Date().toISOString() });
+      return;
+    }
+    let cancelled = false;
+    // getSession بيرجع بهدوء لو مفيش جلسة — الفرق بين "Supabase Auth مش
+    // مفعّل أصلاً" و "مفيش حد داخل دلوقتي" مش مهم للإدارة هنا، اللي
+    // مهم إن الاتصال بالمشروع شغال.
+    getServerSessionAsync()
+      .catch(() => null)
+      .then(() => {
+        if (cancelled) return;
+        setServerAuthProbe({ checked: true, reachable: true, lastCheckedAt: new Date().toISOString() });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const clearAuthTerminationNotice = () => setAuthTerminationNotice(null);
 
   // Initialize state with localStorage fallbacks, ensuring all core initial users are merged
@@ -1755,6 +1791,13 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     let checkInFlight = false;
     let lastHeartbeatCheck = 0;
     const HEARTBEAT_INTERVAL_MS = 60 * 1000;
+    // شبكة أمان: لو البصمة مرجعتش نتيجة (عمود updated_at مش موجود، أو
+    // حد عدّل بـ SQL مباشر من غير ما يمسّه) بنعمل تحميل كامل كل ربع ساعة
+    // عشان الجهاز يفضل صحيح. ده 4 مرات في الساعة بدل 60 مرة.
+    const FULL_REFRESH_FALLBACK_MS = 15 * 60 * 1000;
+    let lastFullCustomerFetchAt = 0;
+    let lastCustomerStamp: { count: number | null; maxUpdatedAt: string | null } | null = null;
+    let lastStampWasKnown = false;
 
     const check = () => {
       if (checkInFlight || document.visibilityState === 'hidden') return;
@@ -1768,12 +1811,48 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
      * Content heartbeat. Compares the customer data currently on screen against
      * the server. If the numbers moved, the client swaps in the fresh list so
      * every rep/supervisor sees the admin's numbers without doing anything.
+     *
+     * Previously this pulled all 3,400 customer rows (≈3-8MB, every column) on
+     * every device every 60 seconds — roughly 27GB/hour at 300 employees,
+     * against Supabase Free's 5GB/month egress. Now it first asks the server
+     * for a two-value stamp (row count + newest updated_at, one row of
+     * payload) and only pulls the full table when that stamp actually moved.
+     * The outcome is identical; only the bytes are gone.
      */
-    const checkCustomersContent = async () => {
+    const checkCustomersContent = async (force: boolean = false) => {
       if (checkInFlight || document.visibilityState === 'hidden') return;
       // Skip while our own write is still propagating, otherwise a lagging
       // server response overwrites the fresh data we just published.
       if (Date.now() - authoritativeWriteAtRef.current < 120000) return;
+
+      const neverFetchedYet = lastFullCustomerFetchAt === 0;
+      let shouldFetchFull = force || neverFetchedYet;
+      let stamp: { count: number | null; maxUpdatedAt: string | null } | null = null;
+
+      if (!shouldFetchFull) {
+        stamp = await fetchCustomerContentStamp(customerFetchScope);
+        const stampComparable =
+          stamp !== null && (stamp.count !== null || stamp.maxUpdatedAt !== null);
+
+        if (stampComparable) {
+          const unchanged =
+            lastStampWasKnown &&
+            stamp.count === lastCustomerStamp?.count &&
+            stamp.maxUpdatedAt === lastCustomerStamp?.maxUpdatedAt;
+          // Server says nothing moved since our last full pull, so there is
+          // nothing to download.
+          if (unchanged) return;
+          shouldFetchFull = true;
+        } else {
+          // The probe told us nothing (no updated_at column, or the read
+          // failed). Fall back to a full refresh on a slow timer instead of
+          // never.
+          shouldFetchFull = Date.now() - lastFullCustomerFetchAt >= FULL_REFRESH_FALLBACK_MS;
+        }
+      }
+
+      if (!shouldFetchFull) return;
+
       checkInFlight = true;
       try {
         const res = await fetchCustomersFromSupabase(customerFetchScope);
@@ -1781,6 +1860,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         const linked = linkCustomersToUsers(sanitizeCustomers(res.customers), usersRef.current);
         const fresh = deduplicateCustomersArray(linked);
         const fingerprint = buildCustomersFingerprint(fresh);
+        lastFullCustomerFetchAt = Date.now();
+        // The stamp we probed describes the exact table we just downloaded, so
+        // it becomes the new baseline for the next probe. Only on a successful
+        // read — a failed fetch must never claim we are in sync.
+        if (stamp && (stamp.count !== null || stamp.maxUpdatedAt !== null)) {
+          lastCustomerStamp = stamp;
+          lastStampWasKnown = true;
+        }
         if (fingerprint === getLocalCustomersFingerprint()) return;
         setCustomers(fresh);
         idbSet(STORAGE_KEYS.CUSTOMERS, fresh).catch(() => {});
@@ -1821,7 +1908,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${GLOBAL_VERSION_RECORD_ID}` },
         () => {
           check();
-          checkCustomersContent();
+          checkCustomersContent(true);
         }
       )
       .subscribe();
@@ -2860,6 +2947,29 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const rawTrim = sanitizeIdentifier(identifier);
     const cleanPass = (password || '').trim();
 
+    /**
+     * Supabase Auth (اختياري، بيشتغل لو اتنفّذ migration الـ SQL).
+     *
+     * بنحاوله الأول عشان التحقق يبقى على السيرفر مش في المتصفح. لو رجّع
+     * anything غير 'success' بنكمل عادي في التحقق القديم بالظبط — يعني
+     * قبل ما حد يفعّل الحسابات على السيرفر، الـ login بيشتغل زي ما هو
+     * من غير أي تغيير. لو نجح، بنكمل باقي فحص الحساب (الموافقة، الإيقاف)
+     * بنفس القواعد القديمة بالظبط، فالأدوار مش بتتغير خالص.
+     */
+    let serverAuthUserId: string | null = null;
+    if (isServerAuthEnabled()) {
+      const outcome = await tryServerSignIn(identifier, cleanPass);
+      if (outcome.kind === 'success') {
+        serverAuthUserId = outcome.authUserId;
+        if (outcome.email) {
+          linkAuthUserToProfile(outcome.authUserId, outcome.email).catch(() => {});
+        }
+      }
+      // 'unavailable' و 'no-server-account' و 'wrong-credentials' كلهم
+      // بيروحوا لل(old) تحقق — فالحساب اللي لسه على الوضع القديم
+      // بيفضل يدخل عادي.
+    }
+
     // 1. Search in local memory first with rich identifier matching
     let found = users.find(
       (u) =>
@@ -2908,11 +3018,16 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       return { success: false, message: '��ذا الحساب موقوف أو تم رفض تفعيله من قبل الإدارة.' };
     }
 
-    // Verify against the stored credential. Legacy plaintext rows still work, and
-    // the first successful login rewrites them as a salted digest so the readable
-    // password disappears from the device and from Supabase.
+    // Verify the credential.
+    //
+    // لو Supabase Auth نجح فوق، التحقق اتعمل على السيرفر خلاص، فبنعدّي على
+    // مقارنة البصمة المحلية دي. في كل الحالات التانية (الحساب لسه على
+    // الوضع القديم، أو السيرفر مش متاح) بنستخدم نفس تحقق بصمة sha256
+    // القديم بالظبط — فسلوك الدخول الحالي مش بيتغيّر خالص.
     const storedCredential = (found.password || '').trim();
-    if (storedCredential.length > 0) {
+    if (serverAuthUserId) {
+      // اتحقق على السيرفر خلاص — مفيش مقارنة محلية لازم تعملها.
+    } else if (storedCredential.length > 0) {
       const check = await verifyPassword(cleanPass, storedCredential);
       if (!check.valid) {
         return { success: false, message: 'كلمة المرور غير صحيحة. يرجى التأكد من كتابة كلمة المرور بدقة.' };
@@ -2929,12 +3044,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         saveUserToSupabase(found).catch((e) => console.warn('Password upgrade sync notice:', e));
       }
     } else {
-    return {
-      success: false,
-      message: 'لا توجد كلمة مرور مسجلة لهذا الحساب. يرجى مراجعة إدارة النظام لتعيين كلمة المرور قبل تسجيل الدخول.',
-    };
-  }
-
+      return {
+        success: false,
+        message: 'لا توجد كلمة مرور مسجلة لهذا الحساب. يرجى مراجعة إدارة النظام لتعيين كلمة المرور قبل تسجيل الدخول.',
+      };
+    }
 
     setCurrentUser(found);
     setIsAuthenticated(true);
@@ -3019,6 +3133,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_DATA);
     clearCart();
+    // لو الجلسة كانت على Supabase Auth، اقفلها هناك كمان. لو مفيش جلسة
+    // (وضع legacy) أو فيه مشكلة شبكة، سيبتها بهدوء — حالة العميل المحلية
+    // اتقفلت فوق في كل الأحوال.
+    signOutServer().catch(() => {});
   };
 
   const approveUser = (userId: string, supervisorId?: string, branchName?: string, role?: UserRole) => {
@@ -5802,6 +5920,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         assignSupervisor,
         authTerminationNotice,
         clearAuthTerminationNotice,
+        authMode: getAuthMode(),
+        serverAuthEnabled: isServerAuthEnabled(),
+        serverAuthProbe,
         updateCloudinarySettings,
         saveMatchedProductImages,
         clearAllAppData,

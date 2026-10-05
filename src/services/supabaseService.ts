@@ -43,8 +43,36 @@ export interface SupabaseSyncStatus {
   productsCount?: number;
   invoicesCount?: number;
   customersCount?: number;
+  /**
+   * حالة جدول الفواتير نفسه.
+   *
+   * production-hardening.sql فعّل RLS على invoices وربطه بـ auth.uid()، و
+   * users.id في المشروع نص مش UUID، فالسياسة مش هتطابق أبداً. النتيجة:
+   * الجدول مقفول على الكل (بترجع 0 صفوف من غير error) والتطبيق شغال على
+   * جدول orders بدله — وده السبب إن كل الفواتير محفوظة في orders.
+   *
+   * الفحص هنا بيخلّي الوضع يبان بدل ما حد يبني عليه من غير ما يعرف.
+   */
+  invoicesTableState?: 'live' | 'blocked-by-rls' | 'missing';
   lastSyncTime?: string;
   error?: string;
+}
+
+/**
+ * يفرق بين جدول فواتير فاضي فعلاً، وجدول مقفول بسبب RLS.
+ *
+ * الـ RLS بيرجع HTTP 200 مع 0 صفوف، يعني مفيش error نتعرف عليه — العلامة
+ * الوحيدة إن orders فيها بيانات. لو получа كده، التطبيق بيشتغل صح على
+ * orders بس جدول invoices ميت ومحتاج المرحلة الثانية من
+   * add_server_auth_rls.sql عشان يرجع.
+ */
+function resolveInvoicesTableState(
+  invoicesCount: number | null,
+  ordersCount: number | null
+): 'live' | 'blocked-by-rls' | 'missing' {
+  if (invoicesCount === null) return 'missing';
+  if (invoicesCount > 0) return 'live';
+  return ordersCount !== null && ordersCount > 0 ? 'blocked-by-rls' : 'live';
 }
 
 /**
@@ -70,11 +98,12 @@ export async function testSupabaseConnection(): Promise<SupabaseSyncStatus> {
 
     // These independent head-only count requests can run together instead of
     // making app startup wait for each network round trip in sequence.
-    const [usersResult, productsResult, invoicesResult, customersResult] = await Promise.all([
+    const [usersResult, productsResult, invoicesResult, customersResult, ordersResult] = await Promise.all([
       countTable('users'),
       countTable('products'),
       countTable('invoices'),
       countTable('customers'),
+      countTable('orders'),
     ]);
 
     if (usersResult !== null) {
@@ -107,6 +136,7 @@ export async function testSupabaseConnection(): Promise<SupabaseSyncStatus> {
       productsCount,
       invoicesCount,
       customersCount,
+      invoicesTableState: resolveInvoicesTableState(invoicesResult, ordersResult),
       lastSyncTime: new Date().toLocaleTimeString('ar-EG'),
     };
   } catch (err: any) {
@@ -269,6 +299,56 @@ export async function fetchCustomersFromSupabase(
     return { success: true, customers: [] };
   } catch (err: any) {
     return { success: false, error: err?.message || 'خطأ في جلب قاعدة بيانات العملاء' };
+  }
+}
+
+/**
+ * بصمة محتوى جدول العملاء — صف واحد بدل 3,400 صف.
+ *
+ * الـ heartbeat كان بينزّل الجدول كامل (3,400 صف × ~60 عمود ≈ 3-8MB) كل 60
+ * ثانية على كل جهاز عشان يشوف الإدارة عدّلت أرقام ولا لأ. مع 300 موظف ده
+ * كان بياكل ~27GB في الساعة ضد حد 5GB في الشهر.
+ *
+ * البصمة هنا بترجّع عمودين بس: عدد الصفوف (بييجي من هيدر content-range عبر
+* count=exact من غير ما يتبعت في الـ body)، وآخر updated_at على الجدول. لو
+ * الاتنين ماتغيّروش مفيش داعي نحمّل حاجة — والتطبيق بيفصل التنزيل الكامل
+ * ويكتفي بالبصمة.
+ *
+ * updated_at بيتحدّث في كل حفظ (saveCustomersToSupabase بيكتبه صريح)،
+ * فأي تعديل إداري بيتغيّر معاه. لو التعديل حصل بطريقة تانية (SQL مباشر
+ * مثلاً) الـ count بيساعد، وفي كل الأحوال في شبكة أمان كاملة في
+ * AppContext بتشتغل كل ربع ساعة.
+ */
+export interface CustomerContentStamp {
+  count: number | null;
+  maxUpdatedAt: string | null;
+}
+
+export async function fetchCustomerContentStamp(
+  scope?: CustomerFetchScope
+): Promise<CustomerContentStamp | null> {
+  try {
+    const branchFilter = scope?.branchNames?.filter((b) => b && b.trim().length > 0) || [];
+
+    let query = supabase
+      .from('customers')
+      .select('updated_at', { count: 'exact' })
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .limit(1);
+    if (branchFilter.length > 0) {
+      query = query.in('branch_name', branchFilter);
+    }
+
+    const { data, error, count } = await query;
+    if (error) return null;
+
+    const maxUpdatedAt = data && data.length > 0 ? data[0]?.updated_at ?? null : null;
+    return {
+      count: typeof count === 'number' ? count : null,
+      maxUpdatedAt: maxUpdatedAt ? String(maxUpdatedAt) : null,
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -1071,6 +1151,16 @@ export async function saveInvoicesToSupabase(
 
 /**
  * Fetch invoices / orders from Supabase (capped to latest 150 by default to save Egress bandwidth)
+ *
+ * ملاحظة مهمة عن جدول `invoices`: هو مقفول بسبب RLS من ساعه،
+ * فبيجيب 0 صفوف مع إن مفيش error (RLS بيرجع 200 بـ 0 صفوف). كل الفواتير
+ * الحقيقية متخزنة في جدول `orders` — والكتابة كمان بتروح هناك
+ * (saveInvoicesToSupabase). فالجواب هنا هو orders دايماً، والدالة اللي فوق
+ * مجرد محاولة أولى ضايعة.
+ *
+ * تصحيح الجدول بيحتاج المرحلة 2.1 من supabase/add_server_auth_rls.sql بعد
+ * ما كل الحسابات تتربط بـ Supabase Auth. قبل كده سيبها ميت أحسن من إنها
+ * تفتح وتكشف بيانات.
  */
 export async function fetchInvoicesFromSupabase(limit = 150): Promise<{ success: boolean; invoices?: Invoice[]; error?: string }> {
   try {

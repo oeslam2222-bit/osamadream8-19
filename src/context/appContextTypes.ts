@@ -97,6 +97,13 @@ export interface AppContextType {
   }) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
 
+  // وضع المصادقة — legacy (الوضع القديم) / hybrid (السيرفر الأول مع رجوع
+  // تلقائي للقديم) / server (Supabase Auth بس). بيتقرأ من VITE_AUTH_MODE
+  // ويمكن تغيّره من الديف من غير إعادة نشر.
+  authMode: 'legacy' | 'hybrid' | 'server';
+  serverAuthEnabled: boolean;
+  serverAuthProbe: { checked: boolean; reachable: boolean; lastCheckedAt?: string };
+
   // Cart Actions (Smart Carton & Piece Logic)
   addToCart: (product: Product, orderType?: 'carton' | 'piece' | 'mixed', count?: number, piecesCount?: number) => { success: boolean; message?: string };
   updateCartItem: (productId: string, updates: Partial<CartItem>) => void;
