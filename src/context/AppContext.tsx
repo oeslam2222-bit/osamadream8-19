@@ -3752,7 +3752,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     }
 
     // Persist full catalog to Supabase so reps & branch supervisors instantly receive it on all devices
-    saveProductsToSupabase(finalUpdated).then(() => {
+    saveProductsToSupabase(finalUpdated).then((result) => {
+      if (!result.success) {
+        console.warn('Supabase catalog auto-sync warning:', result.error || 'Product save failed.');
+        return;
+      }
       publishNewDataVersion({
         scope: 'products',
         updatedBy: currentUser?.name || 'مدير النظام',

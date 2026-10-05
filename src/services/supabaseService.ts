@@ -1533,7 +1533,7 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
         (Number(p.cartonPrice || 0) > 0 ? Math.round((Number(p.cartonPrice) / cartonQuantity) * 100) / 100 : 0);
       return {
         id: safeId,
-        code: p.code || null,
+        code: p.code?.trim() || null,
         name: p.name,
         category: p.itemGroup || p.department || p.category || 'عام',
         price: piecePrice,
@@ -1542,13 +1542,38 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
       };
     });
 
-    for (let i = 0; i < payload.length; i += 100) {
-      const chunk = payload.slice(i, i + 100);
-      const { error } = await supabase.from('products').upsert(chunk, { onConflict: 'id' });
-      if (error) {
-        console.warn('Direct products chunk save notice:', error.message);
+    // The products table treats a normalized code as unique, even when imported
+    // rows have different IDs. Keep only the last row for each code in this save.
+    const productsByKey = new Map<string, (typeof payload)[number]>();
+    payload.forEach((product) => {
+      const key = product.code
+        ? `code:${product.code.toLowerCase()}`
+        : `id:${product.id}`;
+      productsByKey.set(key, product);
+    });
+    const deduplicatedPayload = Array.from(productsByKey.values());
+    const productsWithCode = deduplicatedPayload.filter((product) => product.code);
+    const productsWithoutCode = deduplicatedPayload.filter((product) => !product.code);
+    let saveError: string | undefined;
+
+    const saveChunks = async (
+      rows: typeof payload,
+      onConflict: 'code' | 'id'
+    ) => {
+      for (let i = 0; i < rows.length; i += 100) {
+        const chunk = rows.slice(i, i + 100);
+        const { error } = await supabase.from('products').upsert(chunk, { onConflict });
+        if (error) {
+          console.warn('Direct products chunk save notice:', error.message);
+          saveError ??= error.message;
+        }
       }
-    }
+    };
+
+    await saveChunks(productsWithCode, 'code');
+    await saveChunks(productsWithoutCode, 'id');
+
+    if (saveError) return { success: false, error: saveError };
 
     return { success: true };
   } catch (e: any) {
