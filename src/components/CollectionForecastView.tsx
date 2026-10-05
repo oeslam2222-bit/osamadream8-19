@@ -47,6 +47,7 @@ import type {
   CustomerCommentRecord,
   CustomerVisit,
   ForecastMonthPlan,
+  ForecastWeek,
   ForecastStatus,
 } from '../types';
 import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from '../services/customerDues';
@@ -64,6 +65,7 @@ import {
   canWriteOwnForecast,
   isLockedForEditing,
   addDays,
+  clampWeekCount,
   commentId,
   currentMonthKey,
   daysInMonth,
@@ -73,13 +75,19 @@ import {
   formatMonthLabel,
   formatWeekRange,
   isWeekForecast,
+  MAX_WEEK_LABEL_LENGTH,
+  MAX_WEEKS_PER_MONTH,
+  MIN_WEEKS_PER_MONTH,
   monthKeyOf,
   MONTH_FORECAST_INDEX,
+  normalizeWeekLabels,
   scopeForecastsToPlan,
   spanDays,
+  suggestedWeekCountForSpan,
   toISODate,
   validateMonthPlan,
   weekIndexForDate,
+  weekLabel,
   type ForecastProgressRow,
 } from '../services/forecastService';
 import { formatCurrency } from '../services/invoiceService';
@@ -103,6 +111,30 @@ const MONTH_NAMES_AR_12 = [
   'يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو',
   'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
 ];
+
+/**
+ * صياغة عدد الفترات بالعربي.
+ *
+ * الشهر بقى بيتقسم على أي عدد فترات، فصيغة `${n} أسابيع` تبقى غلط لغوياً مع 1
+ * و2 — فبنكتبهم صح.
+ */
+function weekCountLabel(count: number): string {
+  if (count === 1) return 'أسبوع واحد';
+  if (count === 2) return 'أسبوعين';
+  return `${count} أسابيع`;
+}
+
+/**
+ * اسم خانة التوقع في الرسائل: رقم شهري أو اسم الفترة اللي الأدمن كتبه.
+ *
+ * الدوال دي بتشتغل بـweekIndex بس (مش بالـweek object)، فبتبص في خطة الشهر
+ * نفسها. لو الفترة مش موجودة في التقسيم الحالي رجعنا لاسم افتراضي.
+ */
+function forecastSlotLabel(weekIndex: number, weeks: ForecastWeek[]): string {
+  if (weekIndex === MONTH_FORECAST_INDEX) return 'التوقع الشهري';
+  const found = weeks.find((w) => w.index === weekIndex);
+  return found ? weekLabel(found) : `الأسبوع ${weekIndex}`;
+}
 
 export default function CollectionForecastView() {
   const {
@@ -148,6 +180,8 @@ export default function CollectionForecastView() {
   const [showPlanEditor, setShowPlanEditor] = useState(false);
   const [planDraft, setPlanDraft] = useState<ForecastMonthPlan | null>(null);
   const [planErrors, setPlanErrors] = useState<string[]>([]);
+  /** رقم الأسابيع المكتوب في خانة العدد — حر من 1 لغاية MAX، مش 4/5 بس. */
+  const [weekCountInput, setWeekCountInput] = useState('');
   const [changeNoteTarget, setChangeNoteTarget] = useState<{ repId: string; weekIndex: number } | null>(null);
   const [changeNote, setChangeNote] = useState('');
 
@@ -617,7 +651,7 @@ export default function CollectionForecastView() {
     return out;
   }, []);
 
-  /* ---------- خطة الشهر: تقسيم 4 أو 5 أسابيع (الأدمن والمطوّر فقط) ---------- */
+  /* ---------- خطة الشهر: تقسيم مرن للأيام (الأدمن والمطوّر فقط) ---------- */
   const openPlanEditor = () => {
     setPlanDraft({
       ...plan,
@@ -625,6 +659,7 @@ export default function CollectionForecastView() {
       monthEnd: plan.monthEnd || toISODate(plan.year, plan.month, daysInMonth(plan.year, plan.month)),
       weeks: plan.weeks.map((w) => ({ ...w })),
     });
+    setWeekCountInput(String(plan.weeks.length || MIN_WEEKS_PER_MONTH));
     setPlanErrors([]);
     setShowPlanEditor(true);
   };
@@ -634,25 +669,71 @@ export default function CollectionForecastView() {
     if (!planDraft) return;
     // بنقسّم المدى اللي الأدمن حدده (مش الشهر التقويمي) عشان لو عمل الشهر
     // من يوم 25، التقسيم يفضل جواه ومحدش يفقد يوم.
-    const suggested = buildBlockWeeks(planDraft.monthStart, planDraft.monthEnd, 7);
+    const suggested = buildBlockWeeks(planDraft.monthStart, planDraft.monthEnd, 7).slice(
+      0,
+      MAX_WEEKS_PER_MONTH
+    );
     if (!suggested.length) {
       setPlanErrors(['مدى الشهر غير صحيح — راجع بداية ونهاية الشهر']);
       return;
     }
     setPlanDraft((p) => (p ? { ...p, weeks: suggested } : p));
+    setWeekCountInput(String(suggested.length));
     setPlanErrors([]);
   };
 
-  /** التحويل لـ 4 أو 5 أسابيع مع الحفاظ على بداية ونهاية الشهر. */
+  /**
+   * يوزّع مدى الشهر على أي عدد فترات من 1 لغاية MAX.
+   *
+   * مفيش رقم ثابت هنا — فترة واحدة بغطي الشهر كله، اتنين نص ونص، 4، 5، أو
+   * أي رقم تاني الإدارة تختاره. بداية ونهاية الشهر بيفضلوا زي ما الأدمن كاتبهم.
+   *
+   * أسماء الفترات بتتنقل مع ترتيبها: لو كتبت «نص شهر» على الفترة التانية وبعدين
+   * طلبت 4 فترات، الاسم بيفضل على مكانه التاني. غير كده أي تغيير في التقسيم
+   * كان هيمسح شغل الإدارة اليدوي من غير سبب.
+   */
   const applyWeekCount = (count: number) => {
     if (!planDraft) return;
-    const weeks = buildEvenWeeks(planDraft.monthStart, planDraft.monthEnd, count);
+    const total = spanDays(planDraft.monthStart, planDraft.monthEnd);
+    const safe = clampWeekCount(count);
+    // كل فترة لازم يوم واحد على الأقل، فلو المدة أقل من عدد الفترات التقسيم
+    // مستحيل — بنقول السبب بدل ما نرمي رسالة "المدى غير صحيح" المضللة.
+    if (total <= 0 || total < safe) {
+      setPlanErrors([
+        `مدى الشهر ${total} يوم مش بيسمح على ${safe} فترات — لازم كل فترة يوم على الأقل`,
+      ]);
+      return;
+    }
+    const weeks = buildEvenWeeks(planDraft.monthStart, planDraft.monthEnd, safe);
     if (!weeks.length) {
       setPlanErrors(['مدى الشهر غير صحيح — راجع بداية ونهاية الشهر']);
       return;
     }
-    setPlanDraft((p) => (p ? { ...p, weeks } : p));
+    const previousLabels = planDraft.weeks;
+    setPlanDraft((p) =>
+      p
+        ? { ...p, weeks: weeks.map((w, i) => (previousLabels[i]?.label ? { ...w, label: previousLabels[i].label } : w)) }
+        : p
+    );
+    setWeekCountInput(String(weeks.length));
     setPlanErrors([]);
+  };
+
+  /** بيشتغل على قيمة خانة العدد: بيلغي الـ min/max وبيبلّغ قبل ما يقصّ. */
+  const applyWeekCountInput = () => {
+    const parsed = Number(weekCountInput);
+    if (!weekCountInput.trim() || !Number.isFinite(parsed)) {
+      setPlanErrors(['اكتب رقم صحيح لعدد الفترات']);
+      return;
+    }
+    const rounded = Math.round(parsed);
+    if (rounded < MIN_WEEKS_PER_MONTH || rounded > MAX_WEEKS_PER_MONTH) {
+      setPlanErrors([
+        `عدد الفترات لازم يكون من ${MIN_WEEKS_PER_MONTH} لغاية ${MAX_WEEKS_PER_MONTH}`,
+      ]);
+      return;
+    }
+    applyWeekCount(rounded);
   };
 
   const updatePlanWeek = (index: number, field: 'start' | 'end', value: string) => {
@@ -666,9 +747,26 @@ export default function CollectionForecastView() {
     setPlanErrors([]);
   };
 
+  /**
+   * تسمية الفترة باسم يعرضه بدل «أسبوع 2».
+   *
+   * الاسم للعرض بس: week_index فضل مفتاح الربط في كل حاجة (الـid، الترقيم،
+   * الاعتماد، التصدير)، فتسمة الفترة مش بتلصق الأرقام بتاعة حد تاني.
+   */
+  const updatePlanWeekLabel = (index: number, value: string) => {
+    setPlanDraft((p) => {
+      if (!p) return p;
+      return {
+        ...p,
+        weeks: p.weeks.map((w) => (w.index === index ? { ...w, label: value } : w)),
+      };
+    });
+    setPlanErrors([]);
+  };
+
   const addPlanWeek = () => {
     setPlanDraft((p) => {
-      if (!p || p.weeks.length >= 5) return p;
+      if (!p || p.weeks.length >= MAX_WEEKS_PER_MONTH) return p;
       const last = p.weeks[p.weeks.length - 1];
       const nextIndex = p.weeks.length + 1;
       const start = last ? addDays(last.end, 1) : p.monthStart;
@@ -677,6 +775,7 @@ export default function CollectionForecastView() {
         weeks: [...p.weeks, { index: nextIndex, start, end: last ? last.end : p.monthEnd }],
       };
     });
+    setWeekCountInput(String((planDraft?.weeks.length || 0) + 1));
     setPlanErrors([]);
   };
 
@@ -698,21 +797,26 @@ export default function CollectionForecastView() {
       }
       return { ...p, weeks };
     });
+    setWeekCountInput(String(Math.max(MIN_WEEKS_PER_MONTH, (planDraft?.weeks.length || 1) - 1)));
     setPlanErrors([]);
   };
 
   const handleSavePlan = async () => {
     if (!planDraft) return;
-    const check = validateMonthPlan(planDraft);
+    // بننضّف الأسماء قبل التحقق: مسافات زيادة أو اسم فاضي لازم يتشال قبل ما
+    // يتخزن، ومتنسجلوش كـundefined في الـjsonb.
+    const cleaned: ForecastMonthPlan = { ...planDraft, weeks: normalizeWeekLabels(planDraft.weeks) };
+    const check = validateMonthPlan(cleaned);
     if (!check.valid) {
       setPlanErrors(check.errors);
       return;
     }
-    await saveForecastPlan({ ...planDraft, weeks: planDraft.weeks.map((w) => ({ ...w })) });
+    await saveForecastPlan(cleaned);
+    const savedCount = cleaned.weeks.length;
     setShowPlanEditor(false);
     setPlanDraft(null);
     setPlanErrors([]);
-    setSavedFlash(`تم حفظ تقسيم الشهر على ${planDraft.weeks.length} أسابيع ✅`);
+    setSavedFlash(`تم حفظ تقسيم الشهر: ${weekCountLabel(savedCount)} ✅`);
     setTimeout(() => setSavedFlash(''), 3500);
   };
 
@@ -757,7 +861,7 @@ export default function CollectionForecastView() {
 /* ---------- اعتماد التوقعات: المندوب بيبعت، والمشرف يعتمد أو يرجّع ---------- */
   const handleSubmitWeek = async (repId: string, weekIndex: number) => {
     const changed = await submitForecastWeek(monthKey, weekIndex, repId);
-    const label = weekIndex === MONTH_FORECAST_INDEX ? 'التوقع الشهري' : `الأسبوع ${weekIndex}`;
+    const label = forecastSlotLabel(weekIndex, weeks);
     setSavedFlash(
       changed > 0 ? `تم إرسال ${label} للمشرف ✅` : `مفيش صفوف ${label} مبعوتة بعد`
     );
@@ -766,7 +870,7 @@ export default function CollectionForecastView() {
 
   const handleApproveWeek = async (repId: string, weekIndex: number) => {
     const changed = await approveForecastWeek(monthKey, weekIndex, repId);
-    const label = weekIndex === MONTH_FORECAST_INDEX ? 'التوقع الشهري' : `الأسبوع ${weekIndex}`;
+    const label = forecastSlotLabel(weekIndex, weeks);
     setSavedFlash(
       changed > 0 ? `تم اعتماد ${label} وقفل الأرقام 🔒` : `مفيش صفوف ${label} تختص`
     );
@@ -779,7 +883,7 @@ export default function CollectionForecastView() {
     await requestForecastChange(monthKey, weekIndex, repId, changeNote.trim());
     setChangeNoteTarget(null);
     setChangeNote('');
-    const label = weekIndex === MONTH_FORECAST_INDEX ? 'التوقع الشهري' : `الأسبوع ${weekIndex}`;
+    const label = forecastSlotLabel(weekIndex, weeks);
     setSavedFlash(`تم رجوع ${label} للمندوب للتعديل ✅`);
     setTimeout(() => setSavedFlash(''), 3000);
   };
@@ -813,8 +917,10 @@ export default function CollectionForecastView() {
 
   if (!currentUser) return null;
 
-  // المقترح بيتحسب من المدة الفعلية اللي الأدمن كتبها في المودال.
-  const suggestedCount = spanDays(planDraft?.monthStart || '', planDraft?.monthEnd || '') > 28 ? 5 : 4;
+  // المقترح بيتحسب من المدة الفعلية اللي الأدمن كتبها في المودال: كتل 7 أيام،
+  // مقصوصة بين الحد الأدنى والأعلى. مش رقم ثابت 4/5.
+  const spanLength = spanDays(planDraft?.monthStart || '', planDraft?.monthEnd || '');
+  const suggestedCount = suggestedWeekCountForSpan(spanLength);
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -924,8 +1030,8 @@ export default function CollectionForecastView() {
                     : 'bg-slate-800/80 text-slate-300 border-slate-700'
                 }`}
               >
-                أسبوع {w.index}: {formatWeekRange(w)}
-                {isCurrent && <span className="mr-1 text-slate-950">● الأسبوع الحالي</span>}
+                {weekLabel(w)}: {formatWeekRange(w)}
+                {isCurrent && <span className="mr-1 text-slate-950">● الفترة الحالية</span>}
               </span>
             );
           })}
@@ -1067,10 +1173,10 @@ export default function CollectionForecastView() {
           onChange={(e) => setWeekFilter(e.target.value)}
           className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white cursor-pointer"
         >
-          <option value="ALL">كافة الأسابيع (W1-W{weeksCount})</option>
+          <option value="ALL">كافة الفترات ({weeksCount})</option>
           {weeks.map((w) => (
             <option key={w.index} value={String(w.index)}>
-              أسبوع {w.index} ({formatWeekRange(w)})
+              {weekLabel(w)} ({formatWeekRange(w)})
             </option>
           ))}
         </select>
@@ -1164,8 +1270,12 @@ export default function CollectionForecastView() {
                 </th>
                 <th className="p-3 text-center whitespace-nowrap">آخر زيارة</th>
                 {shownWeeks.map((w) => (
-                  <th key={w.index} className="p-3 text-center whitespace-nowrap min-w-[105px]">
-                    <div>متوقع أ{w.index}</div>
+                  <th
+                    key={w.index}
+                    className="p-3 text-center whitespace-nowrap min-w-[105px] max-w-[160px]"
+                    title={weekLabel(w)}
+                  >
+                    <div className="truncate">{weekLabel(w)}</div>
                     <span className="text-[9.5px] font-normal text-slate-400 block font-mono">
                       {w.start.slice(5)} إلى {w.end.slice(5)}
                     </span>
@@ -1592,9 +1702,12 @@ export default function CollectionForecastView() {
                       <div className="flex items-center justify-center gap-1 flex-wrap">
                         {(() => {
                           // أسبوع 0 = التوقع الشهري المستقل، وعنده نفس دورة الاعتماد بالظبط.
+                          const weekByIndex = new Map(weeks.map((wk) => [wk.index, wk]));
                           const slots = [MONTH_FORECAST_INDEX, ...weeks.map((w) => w.index)];
                           return slots.map((w) => {
-                            const label = w === MONTH_FORECAST_INDEX ? 'شهري' : `أ${w}`;
+                            const week = weekByIndex.get(w);
+                            const label =
+                              w === MONTH_FORECAST_INDEX ? 'شهري' : week ? weekLabel(week) : `أ${w}`;
                             const weekValue =
                               w === MONTH_FORECAST_INDEX
                                 ? p.monthCollection
@@ -1854,7 +1967,7 @@ export default function CollectionForecastView() {
       })()}
 
       {/* ========================================================================= */}
-      {/* 6b. Week-plan editor — الأدمن والمطوّر فقط (يقسم الشهر على 4 أو 5 أسابيع) */}
+      {/* 6b. Week-plan editor — الأدمن والمطوّر فقط (يقسم الشهر على أي عدد فترات) */}
       {/* ========================================================================= */}
       {showPlanEditor && planDraft && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
@@ -1913,79 +2026,120 @@ export default function CollectionForecastView() {
                 </label>
               </div>
 
-              {/* Quick week-count picks */}
+              {/* Flexible week-count picker — أي عدد من 1 لغاية MAX */}
               <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-3 space-y-2">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
-                    <span className="font-black text-violet-900 block">عدد أسابيع الشهر</span>
+                    <span className="font-black text-violet-900 block">
+                      عدد فترات الشهر (مش لازم 4)
+                    </span>
                     <span className="text-[11px] text-violet-700">
                       {/* المقترح بيتحسب من المدى اللي ظاهر فوق مش من الشهر التقويمي —
                           لو الأدمن غيّر بداية/نهاية الشهر، المقترح لازم يتبعه. */}
-                      مقترح تلقائياً: {suggestedCount} أسابيع
-                      {suggestedCount === 4
-                        ? ` (المدة ${spanDays(planDraft.monthStart, planDraft.monthEnd)} يوم — 28 يوم أو أقل)`
-                        : ` (المدة ${spanDays(planDraft.monthStart, planDraft.monthEnd)} يوم — أكتر من 28 يوم)`}
+                      مقترح تلقائياً: {weekCountLabel(suggestedCount)} — المدى {spanLength} يوم
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => applyWeekCount(4)}
-                      className={`px-3 py-1.5 rounded-xl font-black transition cursor-pointer border ${
-                        planDraft.weeks.length === 4
-                          ? 'bg-violet-600 text-white border-violet-700'
-                          : 'bg-white text-violet-700 border-violet-300 hover:bg-violet-100'
-                      }`}
-                    >
-                      4 أسابيع
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => applyWeekCount(5)}
-                      className={`px-3 py-1.5 rounded-xl font-black transition cursor-pointer border ${
-                        planDraft.weeks.length === 5
-                          ? 'bg-violet-600 text-white border-violet-700'
-                          : 'bg-white text-violet-700 border-violet-300 hover:bg-violet-100'
-                      }`}
-                    >
-                      5 أسابيع
-                    </button>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {[1, 2, 4, 5].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => applyWeekCount(n)}
+                        className={`px-3 py-1.5 rounded-xl font-black transition cursor-pointer border ${
+                          planDraft.weeks.length === n
+                            ? 'bg-violet-600 text-white border-violet-700'
+                            : 'bg-white text-violet-700 border-violet-300 hover:bg-violet-100'
+                        }`}
+                        title={
+                          n === 1
+                            ? 'أسبوع واحد بيغطي الشهر كله — التوقع الشهري بس'
+                            : n === 2
+                            ? 'أسبوعين: نص شهر ونص'
+                            : `${weekCountLabel(n)} بالتساوي`
+                        }
+                      >
+                        {weekCountLabel(n)}
+                      </button>
+                    ))}
                     <button
                       type="button"
                       onClick={applySuggestedSplit}
                       className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-black transition cursor-pointer flex items-center gap-1"
-                      title="إعادة التقسيم المقترح: كل أسبوع 7 أيام"
+                      title="إعادة التقسيم المقترح: كل فترة 7 أيام"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
                       <span>افتراضي</span>
                     </button>
                   </div>
                 </div>
+
+                {/* أي رقم تاني: خانة عدد حرة بين 1 و MAX */}
+                <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-violet-200/70">
+                  <label className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-black text-violet-900">أي عدد تاني:</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={MIN_WEEKS_PER_MONTH}
+                      max={MAX_WEEKS_PER_MONTH}
+                      value={weekCountInput}
+                      onChange={(e) => {
+                        setWeekCountInput(e.target.value);
+                        setPlanErrors([]);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') applyWeekCountInput();
+                      }}
+                      className="w-20 px-2 py-1.5 rounded-lg border border-violet-300 text-xs font-black text-center focus:outline-none focus:border-violet-500"
+                    />
+                    <span className="text-[11px] font-bold text-violet-700">
+                      من {MIN_WEEKS_PER_MONTH} لغاية {MAX_WEEKS_PER_MONTH}
+                    </span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={applyWeekCountInput}
+                    className="px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-black transition cursor-pointer"
+                  >
+                    تطبيق
+                  </button>
+                  <span className="text-[11px] font-black text-emerald-700 bg-emerald-100 border border-emerald-300 rounded-lg px-2 py-1">
+                    التقسيم الحالي: {weekCountLabel(planDraft.weeks.length)}
+                  </span>
+                </div>
+
                 <p className="text-[10.5px] text-violet-700 leading-relaxed">
-                  اختيار 4 أو 5 بيوزّع الشهر بالتساوي، وبعدين تقدر تزحزح بداية ونهاية أي أسبوع بالأسفل.
+                  أي عدد بيعمل بالتساوي على مدى الشهر، وبعدين تقدر تزحزح بداية ونهاية أي فترة
+                  بالأسفل. لو خليت الشهر فترة واحدة، التوقع الشهري المستقل يفضل شغال لوحده.
                 </p>
               </div>
 
               {/* Week rows */}
               <div className="rounded-2xl border border-slate-200 overflow-hidden">
                 <div className="p-3 bg-slate-100 border-b border-slate-200 font-black text-slate-800 flex items-center justify-between">
-                  <span>تواريخ الأسابيع (بتعديل يدوي)</span>
+                  <span>تواريخ الفترات (بتعديل يدوي)</span>
                   <button
                     type="button"
                     onClick={addPlanWeek}
-                    disabled={planDraft.weeks.length >= 5}
+                    disabled={planDraft.weeks.length >= MAX_WEEKS_PER_MONTH}
                     className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
-                    title="إضافة أسبوع (الحد الأقصى 5 أسابيع)"
+                    title={`إضافة فترة (الحد الأقصى ${MAX_WEEKS_PER_MONTH} فترات)`}
                   >
                     <CalendarCheck className="w-3.5 h-3.5" />
-                    <span>إضافة أسبوع</span>
+                    <span>إضافة فترة</span>
                   </button>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-right text-xs border-collapse">
                     <thead className="bg-slate-50 text-slate-600 font-black text-[11px]">
                       <tr>
-                        <th className="p-2.5 w-14">الأسبوع</th>
+                        <th className="p-2.5 w-14">رقم</th>
+                        <th className="p-2.5 min-w-[150px]">
+                          اسم الفترة
+                          <span className="block text-[9.5px] font-normal text-slate-400">
+                            اختياري — فاضي يعني «أسبوع 1»
+                          </span>
+                        </th>
                         <th className="p-2.5">من تاريخ</th>
                         <th className="p-2.5">إلى تاريخ</th>
                         <th className="p-2.5 text-center w-16">الأيام</th>
@@ -1999,6 +2153,16 @@ export default function CollectionForecastView() {
                         return (
                           <tr key={w.index} className="hover:bg-slate-50/70">
                             <td className="p-2.5 font-black text-violet-700">أ{w.index}</td>
+                            <td className="p-2">
+                              <input
+                                type="text"
+                                value={w.label || ''}
+                                maxLength={MAX_WEEK_LABEL_LENGTH}
+                                placeholder={`أسبوع ${w.index}`}
+                                onChange={(e) => updatePlanWeekLabel(w.index, e.target.value)}
+                                className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-[11px] font-bold focus:outline-none focus:border-violet-500"
+                              />
+                            </td>
                             <td className="p-2">
                               <input
                                 type="date"
@@ -2089,7 +2253,7 @@ export default function CollectionForecastView() {
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-5 space-y-4 border border-slate-200 text-xs">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <span className="font-black text-sm text-slate-900">
-                طلب تعديل {changeNoteTarget.weekIndex === MONTH_FORECAST_INDEX ? 'التوقع الشهري' : `في الأسبوع ${changeNoteTarget.weekIndex}`}
+                طلب تعديل {changeNoteTarget.weekIndex === MONTH_FORECAST_INDEX ? 'التوقع الشهري' : `في ${forecastSlotLabel(changeNoteTarget.weekIndex, weeks)}`}
               </span>
               <button
                 type="button"

@@ -578,14 +578,16 @@ export interface TargetRecord {
    التارجت نفسه (TargetRecord) بيفضل مصدر verdad تاني.
    ============================================================ */
 
-/** أسبوع واحد داخل الشهر. تواريخه الإدارة بتحددها يدوياً (أو مقترحة أوتوماتيكاً). */
+/** فترة واحدة داخل الشهر (اتسمّاها أسبوع). تواريخها الإدارة بتحددها يدوياً. */
 export interface ForecastWeek {
-  index: number;                // 1..5
+  index: number;                // 1..MAX_WEEKS_PER_MONTH (مش ثابت — الإدارة بتختار)
   start: string;                // YYYY-MM-DD
   end: string;                  // YYYY-MM-DD (شامل)
+  /** اسم يعرضه بدل «أسبوع 1» — اختياري، والإدارة بتحطه وقت ما تحب. */
+  label?: string;
 }
 
-/** خطة الشهر: تقسيم الأسابيع + حالة الإغلاق. */
+/** خطة الشهر: تقسيم الفترات + حالة الإغلاق. */
 export interface ForecastMonthPlan {
   id: string;                   // `${year}-${month}` مثل '2026-09'
   year: number;
@@ -614,7 +616,7 @@ export type ForecastStatus = 'draft' | 'submitted' | 'approved' | 'change_reques
 export interface CollectionForecastRecord {
   id: string;
   monthKey: string;             // '2026-09'
-  weekIndex: number;            // 1..5
+  weekIndex: number;            // 0 = شهري مستقل، 1..MAX_WEEKS_PER_MONTH
   repId: string;
   repName: string;
   branchName: string;

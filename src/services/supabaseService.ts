@@ -1631,6 +1631,8 @@ export async function saveVisitsToSupabase(visits: CustomerVisit[]): Promise<{ s
    ============================================================ */
 
 /*
+-- week_index: 1..MAX_WEEKS_PER_MONTH = فترة حقيقية من تقسيم الشهر (مش لازم 4)
+--              0                   = التوقع الشهري المستقل
 CREATE TABLE collection_forecasts (
   id text PRIMARY KEY,
   month_key text NOT NULL,

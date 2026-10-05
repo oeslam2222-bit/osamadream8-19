@@ -71,9 +71,42 @@ export function daysBetween(fromISO: string, toISODateISO: string): number {
   return Math.round((b - a) / 86400000);
 }
 
-/** الشهر بيقسم على 4 أسابيع لو 28 يوم أو أقل، وإلا 5. */
+/**
+ * حدود مرونة تقسيم الشهر.
+ *
+ * الشهر مش مقسوم على 4 أو 5 أسابيع إجباري — الإدارة بتختار التقسيم: أسبوع واحد
+ * يغطي الشهر كله، أو اتنين (نص شهر ونص)، أو 4/5، أو 6/7/8، وبعدين تقدر تزحزح
+ * بداية ونهاية أي أسبوع يدوي. الحد الأعلى 8 لأنه آخر حد مفيد للتوقع الأسبوعي
+ * (شهر 31 يوم ÷ 8 ≈ 4 أيام للفترة)، وأكتر من كده الرقم الأسبوعي بيبقى
+ * مضلّل أكتر ما هو مفيد. الحد الأدنى أسبوع واحد — معناه إن التوقع الشهري
+ * المستقل لوحده، وده مسموح ومقصود.
+ */
+export const MIN_WEEKS_PER_MONTH = 1;
+export const MAX_WEEKS_PER_MONTH = 8;
+
+/** بيقرّب أي رقم arbitrary لده جوه المدى المسموح به. */
+export function clampWeekCount(count: number): number {
+  const rounded = Math.round(Number(count) || 0);
+  if (rounded < MIN_WEEKS_PER_MONTH) return MIN_WEEKS_PER_MONTH;
+  if (rounded > MAX_WEEKS_PER_MONTH) return MAX_WEEKS_PER_MONTH;
+  return rounded;
+}
+
+/**
+ * اقتراح مرن لتقسيم مدى على كتل 7 أيام.
+ *
+ * شيلنا القاعدة القديمة الثابتة (28 يوم ⇒ 4، وأكتر ⇒ 5) لأنها كانت بتفترض
+ * إن الشهر 4/5 بس. دلوقتي بيعتمد على طول المدى نفسه: ceil(days / 7) مقصوص
+ * بين MIN وMAX. يعني شهر 31 يوم ⇒ 5، وشهر 28 ⇒ 4، ومدى 10 أيام ⇒ 2.
+ */
+export function suggestedWeekCountForSpan(totalDays: number): number {
+  if (!totalDays || totalDays <= 0) return MIN_WEEKS_PER_MONTH;
+  return clampWeekCount(Math.ceil(totalDays / 7));
+}
+
+/** نفس الاقتراح بس من شهر تقويمي. */
 export function suggestedWeekCount(year: number, month: number): number {
-  return daysInMonth(year, month) > 28 ? 5 : 4;
+  return suggestedWeekCountForSpan(daysInMonth(year, month));
 }
 
 /**
@@ -130,17 +163,23 @@ export function spanDays(start: string, end: string): number {
  * بنحسب من المدى اللي الأدمن حدده فعلاً مش من تقويم الشهر الطبيعي، لأن ممكن
  * يكون عمل الشهر من يوم 25 للشهر اللي بعده — ولو رجعنا للأيام التقويمية هنا
  * هنمحي المدة اللي هو حددها. باقي القسمة بيتوزّع على أول الأسابيع.
+ *
+ * العدد بيتقرّب لده جوه [MIN_WEEKS_PER_MONTH, MAX_WEEKS_PER_MONTH] قبل الحساب،
+ * عشان رقم غلط في الواجهة (0 أو سالب أو 50) ما يبقاش سبب رفض صامت.
  */
 export function buildEvenWeeks(start: string, end: string, count: number): ForecastWeek[] {
   const total = spanDays(start, end);
-  if (!count || total < count) return [];
+  if (total <= 0) return [];
 
-  const base = Math.floor(total / count);
-  const extra = total % count;
+  const safe = clampWeekCount(count);
+  if (total < safe) return [];
+
+  const base = Math.floor(total / safe);
+  const extra = total % safe;
   const weeks: ForecastWeek[] = [];
   let cursorMs = new Date(`${start}T00:00:00`).getTime();
 
-  for (let i = 1; i <= count; i++) {
+  for (let i = 1; i <= safe; i++) {
     const len = base + (i <= extra ? 1 : 0);
     const endMs = cursorMs + (len - 1) * 86400000;
     weeks.push({
@@ -196,10 +235,10 @@ export function weekIndexForDate(plan: ForecastMonthPlan, isoDate: string): numb
    المندوب بيكتب رقم السداد للشهر كله لوحده، مش محسوب من الأسابيع.
    الرقم ده بيتخزن في نفس جدول التوقعات الأسبوعية، لكن بـ week_index = 0.
 
-   ليه 0 بالذات؟ لأن الشهر بيقسم على 4 أو 5 أسابيع بس، فمفيش أسبوع رقمه 0
-   أصلاً — يعني الفاصل بين السطر الشهري والأسابيع بيبقى مضمون بالبيانات نفسها،
-   مش محتاج عمود جديد ولا migration. وأهم حاجة: كل تجميع لازم يتجاهل السطر
-   الشهري لما بيجمع الأسابيع، وإلا الرقم هيتحسب مرتين.
+   ليه 0 بالذات؟ لأن أرقام الأسابيع دايماً بتبدأ من 1 (من 1 لغاية MAX)، فمفيش
+   أسبوع رقمه 0 أصلاً — يعني الفاصل بين السطر الشهري والأسابيع بيبقى مضمون
+   بالبيانات نفسها، مش محتاج عمود جديد ولا migration. وأهم حاجة: كل تجميع لازم
+   يتجاهل السطر الشهري لما بيجمع الأسابيع، وإلا الرقم هيتحسب مرتين.
    ============================================================ */
 
 export const MONTH_FORECAST_INDEX = 0;
@@ -275,7 +314,52 @@ export function formatWeekRange(week: ForecastWeek): string {
   return `${strip(week.start)} - ${strip(week.end)}`;
 }
 
-/** يتحقق إن تقسيم الأسابيع سليم: مرتب، متجاور، جواه الشهر. */
+/**
+ * اسم الفترة كما بتظهر للمستخدم.
+ *
+ * دي للعرض بس: المخزن والـid والربط كله على week_index، فالاسم مالوش أي
+ * تأثير على البيانات. لو الإدارة مسابتش اسم، بنرجع للاسم الافتراضي
+ * «أسبوع 1» عشان أي خطة قديمة من غير اسم تفضل بتتعرض زي ما هي.
+ */
+export function weekLabel(week: Pick<ForecastWeek, 'index' | 'label'>): string {
+  const custom = (week.label || '').trim();
+  return custom || `أسبوع ${week.index}`;
+}
+
+/**
+ * تنظيف اسم الفترة قبل الحفظ.
+ *
+ * بيقصّ الطول (عشان الاسم ما يطالّعش عمود في الجدول) وبيجمّع المسافات.
+ * الاسم الفاضي معناها «سيب الافتراضي» مش «اسم فاضي».
+ */
+export const MAX_WEEK_LABEL_LENGTH = 40;
+
+export function normalizeWeekLabel(raw: unknown): string {
+  const text = String(raw ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_WEEK_LABEL_LENGTH);
+  return text;
+}
+
+/** بيشيل المسافات الفاضية ويقصّ الطول لكل أسماء الفترات مرة واحدة. */
+export function normalizeWeekLabels(weeks: ForecastWeek[]): ForecastWeek[] {
+  return weeks.map((w) => {
+    const label = normalizeWeekLabel(w.label);
+    if (label === (w.label ?? '')) return w;
+    if (label) return { ...w, label };
+    const { label: _drop, ...rest } = w;
+    return rest as ForecastWeek;
+  });
+}
+
+/**
+ * يتحقق إن تقسيم الأسابيع سليم: مرتب، متجاور، جواه الشهر، وبغطي مداه.
+ *
+ * مفيش حد أقصى لطول الفترة الواحدة — تقسيم الشهر على أسبوع واحد أو اتنين
+ * مقصود ومسموح. اللي بيتتحقق منه هنا هو التجاور والجلو داخل مدى الشهر والتغطية
+ * الكاملة للمدى، وهي اللي بتمنع يوم يطلع بره التقسيم أو يفضل من غير تغطية.
+ */
 export function validateMonthPlan(plan: ForecastMonthPlan): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
   if (!plan.weeks.length) errors.push('لازم أسبوع واحد على الأقل');
@@ -301,10 +385,21 @@ export function validateMonthPlan(plan: ForecastMonthPlan): { valid: boolean; er
     }
     if (s < monthStart) errors.push(`الأسبوع ${w.index} بيبدأ قبل بداية الشهر`);
     if (e > monthEnd) errors.push(`الأسبوع ${w.index} بيعدّي نهاية الشهر`);
-    if (i > 0 && s <= previousEnd) errors.push(`الأسبوع ${w.index} بيتقاطع مع اللي قبله أو مش متجاور`);
-    if (daysBetween(w.start, w.end) > 10) errors.push(`الأسبوع ${w.index} طويل أوي (أكتر من 10 أيام)`);
+    if (i > 0) {
+      if (s <= previousEnd) {
+        errors.push(`الأسبوع ${w.index} بيتقاطع مع اللي قبله`);
+      } else if (s > previousEnd + 2 * 86400000) {
+        // لازم كل يوم في الشهر يبقى داخل فترة. سايبين تفاوت يوم واحد
+        // متساوي مع تسامح أول الشهر وآخره تحت، لا أكتر.
+        errors.push(`في أيام مش مغطاة بين الأسبوع ${i} والأسبوع ${w.index}`);
+      }
+    }
     previousEnd = e;
   });
+
+  if (plan.weeks.length > MAX_WEEKS_PER_MONTH) {
+    errors.push(`عدد الأسابيع ${plan.weeks.length} أكبر من الحد المسموح (${MAX_WEEKS_PER_MONTH})`);
+  }
 
   if (plan.weeks.length && !errors.some((e) => e.includes('الأسبوع'))) {
     const firstStart = new Date(plan.weeks[0].start).getTime();
@@ -773,8 +868,8 @@ export function buildAlerts(input: {
           id: `miss_${repId}_${w.index}`,
           severity: 'high',
           kind: 'not_submitted',
-          title: `${info.repName} لم يكتب توقع الأسبوع ${w.index}`,
-          detail: `الأسبوع ${w.index} (${formatWeekRange(w)}) — التوقع مطلوب قبل بداية الأسبوع`,
+          title: `${info.repName} لم يكتب توقع ${weekLabel(w)}`,
+          detail: `${weekLabel(w)} (${formatWeekRange(w)}) — التوقع مطلوب قبل بداية الفترة`,
           branchName: info.branchName,
           repId,
         });
@@ -783,8 +878,8 @@ export function buildAlerts(input: {
           id: `chg_${repId}_${w.index}`,
           severity: 'medium',
           kind: 'change_requested',
-          title: `${info.repName} مطلوب منه تعديل توقع الأسبوع ${w.index}`,
-          detail: `المشرف رجّع التوقع — ${formatWeekRange(w)}`,
+          title: `${info.repName} مطلوب منه تعديل توقع ${weekLabel(w)}`,
+          detail: `المشرف رجّع التوقع — ${weekLabel(w)} (${formatWeekRange(w)})`,
           branchName: info.branchName,
           repId,
         });
@@ -793,8 +888,8 @@ export function buildAlerts(input: {
           id: `draft_${repId}_${w.index}`,
           severity: 'low',
           kind: 'not_submitted',
-          title: `${info.repName} لسه بيكتب توقع الأسبوع ${w.index}`,
-          detail: `الأسبوع ${w.index} (${formatWeekRange(w)}) — لسه مسودة`,
+          title: `${info.repName} لسه بيكتب توقع ${weekLabel(w)}`,
+          detail: `${weekLabel(w)} (${formatWeekRange(w)}) — لسه مسودة`,
           branchName: info.branchName,
           repId,
         });

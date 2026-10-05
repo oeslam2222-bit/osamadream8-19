@@ -4,12 +4,13 @@
 -- السكربت ده idempotent بالكامل، ينفع يتنفذ على قاعدة موجودة أو على قاعدة فاضية.
 --
 -- ملاحظة مهمة على week_index:
---   1..5  = سطر توقع أسبوعي (أسبوع حقيقي من تقسيم الشهر اللي الإدارة حددته)
+--   1..8  = سطر توقع لفترة حقيقية من تقسيم الشهر اللي الإدارة حددته (مش لازم 4)
 --   0     = سطر التوقع الشهري المستقل (رقم بيكتبه المندوب لوحده، مش محسوب من الأسابيع)
 --
--- رقم 0 مستحيل يبقى أسبوع حقيقي، فالشهر بيقسم على 4 أو 5 أسابيع بس. عشان كده
--- التوقع الشهري بيتخزن في نفس الجدول بدل جدول جديد: نفس الـ upsert، نفس الـ offline
--- queue، نفس دورة الاعتماد، ومن غير migration.
+-- رقم 0 مستحيل يبقى فترة حقيقية، فالتوقع الشهري بيتخزن في نفس الجدول بدل جدول
+-- جديد: نفس الـ upsert، نفس الـ offline queue، نفس دورة الاعتماد، ومن غير migration.
+-- الحد الأعلى 8 جوه الحد المسموح بيه في الكود (MAX_WEEKS_PER_MONTH) — لو زاد
+-- عدد الفترات في الكود لازم يتوسّع القيد ده في نفس الوقت.
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS collection_forecasts (
@@ -63,22 +64,24 @@ DO $$ BEGIN
 END $$;
 
 -- -------------------------------------------- guard on week_index semantics ----
--- القيد ده بيمنع كتابة سطر توقع بـ week_index سالب أو أكبر من 5، بس بيسمح بـ 0
--- لأنه معنى التوقع الشهري المستقل. لو الـweek_index وصل لقيمة بره 0..5 فالمشكلة
--- في الكود مش في البيانات.
+-- القيد ده بيمنع كتابة سطر توقع بـ week_index سالب أو أكبر من الحد المسموح،
+-- بس بيسمح بـ 0 لأنه معنى التوقع الشهري المستقل. لو الـweek_index وصل لقيمة
+-- بره المدى فالمشكلة في الكود مش في البيانات.
 --
--- لازم فحص الوجود يكون مربوط بالجدول نفسه: أسماء القيود في Postgres متكررة
--- على مستوى الجداول المختلفة، فلو لقينا نفس الاسم على جدول تاني اتنين ما
--- نضيفش القيد أصلاً والتقسيم يفضل من غير حماية.
+-- بنعمله DROP + ADD في كل مرة (idempotent) عشان القيد القديم كان <= 5
+-- واللي عايزينه <= 8. الـ DROP والـ ADD جوّه block واحد: لو في بيانات قديمة
+-- بره المدى الجديد، الـ exception بيعمل rollback للـ block كله — يعني القيد
+-- القديم بيرجع زي ما كان ومش بنسيب الجدول من غير حماية. لو عدّى، القيد الجديد
+-- اتحط والاتنين نضيفة.
 
-DO $$ BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint c
-    JOIN pg_class t ON t.oid = c.conrelid
-    WHERE c.conname = 'collection_forecasts_week_index_range'
-      AND t.relname = 'collection_forecasts'
-  ) THEN
+DO $$
+BEGIN
+  BEGIN
     ALTER TABLE collection_forecasts
-      ADD CONSTRAINT collection_forecasts_week_index_range CHECK (week_index >= 0 AND week_index <= 5);
-  END IF;
+      DROP CONSTRAINT IF EXISTS collection_forecasts_week_index_range;
+    ALTER TABLE collection_forecasts
+      ADD CONSTRAINT collection_forecasts_week_index_range CHECK (week_index >= 0 AND week_index <= 8);
+  EXCEPTION WHEN others THEN
+    RAISE WARNING 'مش قادرين نوسّع قيد week_index لـ 8 (في بيانات قديمة بره المدى) — القيد القديم اتساب زي ما هو. راجع collection_forecasts.';
+  END;
 END $$;
