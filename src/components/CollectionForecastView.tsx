@@ -393,8 +393,6 @@ export default function CollectionForecastView() {
         const fin = calculateCustomerFinancials(c, 'ALL');
         if (classFilter === 'eligible' && !fin.isEligible) return false;
         if (classFilter === 'blocked' && fin.isEligible) return false;
-        if (classFilter === 'dealt' && !fin.isDealtCustomer) return false;
-        if (classFilter === 'not_dealt' && fin.isDealtCustomer) return false;
       }
 
       if (!q) return true;
@@ -1245,8 +1243,6 @@ export default function CollectionForecastView() {
           <option value="ALL">كل التصنيفات</option>
           <option value="eligible">قابل للتعامل فقط</option>
           <option value="blocked">غير قابل للتعامل فقط</option>
-          <option value="dealt">متعامل فقط</option>
-          <option value="not_dealt">غير متعامل فقط</option>
         </select>
 
         <button
@@ -1319,7 +1315,6 @@ export default function CollectionForecastView() {
                 <th className="p-3 text-rose-300">المديونية</th>
                 <th className="p-3 text-amber-300">إجمالي المستحقات</th>
                 <th className="p-3 text-center whitespace-nowrap">قابل / غير</th>
-                <th className="p-3 text-center whitespace-nowrap">متعامل</th>
                 <th className="p-3 text-center whitespace-nowrap min-w-[110px]">
                   <div>عدد الزيارات</div>
                   <span className="text-[9.5px] font-normal text-slate-400 block">منفّذة / الإجمالي</span>
@@ -1424,7 +1419,7 @@ export default function CollectionForecastView() {
                         إعادة صياغة العمود هنا هي بالظبط اللي بتخلي الشاشة تقول حاجات
                         الشيت ما قالهاش (cell مكتوب فيه «قابل» بيتعرض «قابل للتعامل»)،
                         فبنعرض خام الأعمدة في خانة مستقلة ونكتفي باللون للتمييز.
-                        حالة المتعامل اتنقلت لعمود لوحدها عشان ما تتلغبطش هنا. */}
+                        حالة المتعامل مش معروضة في الصفحة دي خالص، والفلتر بيمسّها كمان. */}
                     <td className="p-3 text-center whitespace-nowrap">
                       <span
                         className={`px-2.5 py-1 rounded-lg font-black text-[11px] border inline-block ${
@@ -1438,19 +1433,6 @@ export default function CollectionForecastView() {
                       </span>
                     </td>
 
-                    {/* متعامل — عمود مستقل، مش داخل خانة التصنيف */}
-                    <td className="p-3 text-center whitespace-nowrap">
-                      <span
-                        className={`px-2.5 py-1 rounded-lg font-black text-[11px] border inline-block ${
-                          fin.isDealtCustomer
-                            ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
-                            : 'bg-slate-100 text-slate-500 border-slate-300'
-                        }`}
-                        title={fin.dealtStatusLabel}
-                      >
-                        {fin.isDealtCustomer ? 'متعامل' : 'غير متعامل'}
-                      </span>
-                    </td>
 
                     {/* عدد الزيارات — منفّذة من الإجمالي */}
                     <td className="p-3 text-center whitespace-nowrap">
@@ -1604,7 +1586,7 @@ export default function CollectionForecastView() {
 
               {pageCustomers.length === 0 && (
                 <tr>
-                  <td colSpan={12 + shownWeeks.length} className="p-8 text-center">
+                  <td colSpan={11 + shownWeeks.length} className="p-8 text-center">
                     <div className="space-y-2">
                       <p className="text-slate-400 font-bold text-xs">لا يوجد عملاء مطابقين للبحث والفلاتر المحددة حالياً.</p>
                       {/* الرسالة بتقول السبب الحقيقي للمشكلة بدل ما تسيب المستخدم يفكر
