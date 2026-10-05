@@ -80,6 +80,7 @@ import {
   MIN_WEEKS_PER_MONTH,
   monthKeyOf,
   MONTH_FORECAST_INDEX,
+  NO_WEEK_DIVISION,
   normalizeWeekLabels,
   scopeForecastsToPlan,
   spanDays,
@@ -193,7 +194,7 @@ export default function CollectionForecastView() {
   const isAdmin = canManageForecasts(currentUser);
   const canApprove = canApproveForecasts(currentUser);
 
-  /* ---------- خطة الشهر: تقسيم الأسابيع ---------- */
+  /* ---------- خطة الشهر: تقسيم الفترات (اختياري) ---------- */
   const plan: ForecastMonthPlan = useMemo(() => {
     const stored = forecastPlans.find((p) => p.id === monthKey);
     if (stored) return stored;
@@ -659,7 +660,7 @@ export default function CollectionForecastView() {
       monthEnd: plan.monthEnd || toISODate(plan.year, plan.month, daysInMonth(plan.year, plan.month)),
       weeks: plan.weeks.map((w) => ({ ...w })),
     });
-    setWeekCountInput(String(plan.weeks.length || MIN_WEEKS_PER_MONTH));
+    setWeekCountInput(String(plan.weeks.length));
     setPlanErrors([]);
     setShowPlanEditor(true);
   };
@@ -727,9 +728,14 @@ export default function CollectionForecastView() {
       return;
     }
     const rounded = Math.round(parsed);
+    // صفر مش خطأ — معناه «بلا تقسيم»، والصفحة تشتغل على التوقع الشهري بس.
+    if (rounded === NO_WEEK_DIVISION) {
+      clearPlanWeeks();
+      return;
+    }
     if (rounded < MIN_WEEKS_PER_MONTH || rounded > MAX_WEEKS_PER_MONTH) {
       setPlanErrors([
-        `عدد الفترات لازم يكون من ${MIN_WEEKS_PER_MONTH} لغاية ${MAX_WEEKS_PER_MONTH}`,
+        `عدد الفترات لازم يكون من 0 (بلا تقسيم) لغاية ${MAX_WEEKS_PER_MONTH}`,
       ]);
       return;
     }
@@ -764,18 +770,51 @@ export default function CollectionForecastView() {
     setPlanErrors([]);
   };
 
+  /**
+   * زرار «إضافة فترة».
+   *
+   * مش بنضيف فترة فارغة بره الشهر وخلاص — بنقسّص آخر فترة نصين. كده النتيجة
+   * سليمة على طول (ترتيب، جوه الشهر، من غير فجوة) والأدمن بيعدّل التواريخ لو
+   * عايز غير كده. أول ضغطة من حالة «بلا تقسيم» بتعمل فترة واحدة على الشهر كله.
+   */
   const addPlanWeek = () => {
     setPlanDraft((p) => {
       if (!p || p.weeks.length >= MAX_WEEKS_PER_MONTH) return p;
       const last = p.weeks[p.weeks.length - 1];
-      const nextIndex = p.weeks.length + 1;
-      const start = last ? addDays(last.end, 1) : p.monthStart;
+      if (!last) {
+        return { ...p, weeks: [{ index: 1, start: p.monthStart, end: p.monthEnd }] };
+      }
+      const lastLen = spanDays(last.start, last.end);
+      // آخر فترة يوم واحد: مفيش نص يتقسم. بنقول للأدمن السبب بدل ما نعمل
+      // فترة تانية بتقاطع الأولى أو ضغطة مش هتعمل حاجة.
+      if (lastLen < 2) {
+        setPlanErrors([`الفترة الأخيرة (${weekLabel(last)}) يوم واحد — وسّعها الأول عشان نقدر نقسّمها`]);
+        return p;
+      }
+      const firstHalfEnd = addDays(last.start, Math.floor(lastLen / 2) - 1);
       return {
         ...p,
-        weeks: [...p.weeks, { index: nextIndex, start, end: last ? last.end : p.monthEnd }],
+        weeks: [
+          ...p.weeks.slice(0, -1),
+          { ...last, end: firstHalfEnd },
+          { index: p.weeks.length + 1, start: addDays(firstHalfEnd, 1), end: last.end },
+        ],
       };
     });
     setWeekCountInput(String((planDraft?.weeks.length || 0) + 1));
+    setPlanErrors([]);
+  };
+
+  /**
+   * «بلا تقسيم»: يمسح التقسيم كله.
+   *
+   * مش حذف بيانات — سطور التوقع نفسها بتفضل زي ما هي في القاعدة. الفرق إن
+   * الصفحة هتعرض التوقع الشهري المستقل بس، وأي سطر أسبوعي قديم يبقى معلّق
+   * لإشعار الأدمن (نفس سلوك تصغير الشهر).
+   */
+  const clearPlanWeeks = () => {
+    setPlanDraft((p) => (p ? { ...p, weeks: [] } : p));
+    setWeekCountInput('0');
     setPlanErrors([]);
   };
 
@@ -1002,7 +1041,7 @@ export default function CollectionForecastView() {
                 title="تحديد بداية ونهاية الشهر ونهاية كل أسبوع (الأدمن والمطوّر فقط)"
               >
                 <CalendarDays className="w-4 h-4" />
-                <span>تقسيم الأسابيع</span>
+                <span>تقسيم الفترات</span>
               </button>
             )}
 
@@ -1017,7 +1056,20 @@ export default function CollectionForecastView() {
           </div>
         </div>
 
+        {/* No-division banner — الشهر على التوقع الشهري المستقل لوحده */}
+        {weeksCount === 0 && (
+          <div className="flex items-start gap-2 px-3.5 py-2.5 rounded-2xl bg-white/10 border border-white/15 text-[11.5px] font-bold text-slate-200">
+            <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+            <span className="leading-relaxed">
+              الشهر ده مش متقسم لفترات — الجدول بيعرض التوقع الشهري المستقل بس. لو عايز
+              فترات، افتح «تقسيم الفترات» واختار أي عدد من 1 لغاية {MAX_WEEKS_PER_MONTH} (أو
+              سيبه على 0).
+            </span>
+          </div>
+        )}
+
         {/* Weeks Range Visual Strip */}
+        {weeksCount > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 pt-1">
           {weeks.map((w) => {
             const isCurrent = currentWeek === w.index;
@@ -1036,6 +1088,7 @@ export default function CollectionForecastView() {
             );
           })}
         </div>
+        )}
       </section>
 
       {/* Notification Toast */}
@@ -1069,11 +1122,12 @@ export default function CollectionForecastView() {
           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
           <div className="space-y-1">
             <span className="font-black">
-              في {orphanForecasts.length} سطر توقّع ({formatCurrency(orphanTotal)}) لأسبوع مش داخل في تقسيم الشهر الحالي
+              في {orphanForecasts.length} سطر توقّع ({formatCurrency(orphanTotal)}) لفترة مش داخل في تقسيم الشهر الحالي
             </span>
             <p className="text-[10.5px] text-amber-800 leading-relaxed">
-              غالباً ده لأن التقسيم اتصغّر بعد ما الأرقام كتبت. السطور دي مش متحسبة في أي رقم
-              بالصفحة عشان متظهرش أرقام مش موجودة للعين. لو عايز ترجّعها، افتح «تقسيم الأسابيع» ووسّع الشهر تاني.
+              غالباً ده لأن التقسيم اتصغّر أو اتشال بعد ما الأرقام كتبت. السطور دي مش متحسبة في
+              أي رقم بالصفحة عشان متظهرش أرقام مش موجودة للعين. لو عايز ترجّعها، افتح «تقسيم
+              الفترات» ووسّع الشهر تاني.
             </p>
           </div>
         </div>
@@ -1168,6 +1222,7 @@ export default function CollectionForecastView() {
           ))}
         </select>
 
+        {weeksCount > 0 && (
         <select
           value={weekFilter}
           onChange={(e) => setWeekFilter(e.target.value)}
@@ -1180,6 +1235,7 @@ export default function CollectionForecastView() {
             </option>
           ))}
         </select>
+        )}
 
         <select
           value={classFilter}
@@ -1978,7 +2034,7 @@ export default function CollectionForecastView() {
                   <CalendarDays className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-black text-base text-white">تقسيم الشهر على الأسابيع</h3>
+                  <h3 className="font-black text-base text-white">تقسيم الشهر على الفترات (اختياري)</h3>
                   <p className="text-[11px] text-slate-300">
                     {formatMonthLabel(planDraft.id)} — أنت بتحدد بداية ونهاية الشهر وكل أسبوع
                   </p>
@@ -2040,6 +2096,19 @@ export default function CollectionForecastView() {
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={clearPlanWeeks}
+                      disabled={planDraft.weeks.length === 0}
+                      className={`px-3 py-1.5 rounded-xl font-black transition cursor-pointer border disabled:opacity-40 disabled:cursor-not-allowed ${
+                        planDraft.weeks.length === 0
+                          ? 'bg-slate-800 text-white border-slate-900'
+                          : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
+                      }`}
+                      title="مفيش تقسيم خالص — التوقع الشهري المستقل لوحده"
+                    >
+                      بلا تقسيم
+                    </button>
                     {[1, 2, 4, 5].map((n) => (
                       <button
                         key={n}
@@ -2080,7 +2149,7 @@ export default function CollectionForecastView() {
                     <input
                       type="number"
                       inputMode="numeric"
-                      min={MIN_WEEKS_PER_MONTH}
+                      min={NO_WEEK_DIVISION}
                       max={MAX_WEEKS_PER_MONTH}
                       value={weekCountInput}
                       onChange={(e) => {
@@ -2093,7 +2162,7 @@ export default function CollectionForecastView() {
                       className="w-20 px-2 py-1.5 rounded-lg border border-violet-300 text-xs font-black text-center focus:outline-none focus:border-violet-500"
                     />
                     <span className="text-[11px] font-bold text-violet-700">
-                      من {MIN_WEEKS_PER_MONTH} لغاية {MAX_WEEKS_PER_MONTH}
+                      0 = بلا تقسيم، ومن {MIN_WEEKS_PER_MONTH} لغاية {MAX_WEEKS_PER_MONTH}
                     </span>
                   </label>
                   <button
@@ -2103,14 +2172,23 @@ export default function CollectionForecastView() {
                   >
                     تطبيق
                   </button>
-                  <span className="text-[11px] font-black text-emerald-700 bg-emerald-100 border border-emerald-300 rounded-lg px-2 py-1">
-                    التقسيم الحالي: {weekCountLabel(planDraft.weeks.length)}
+                  <span
+                    className={`text-[11px] font-black rounded-lg px-2 py-1 border ${
+                      planDraft.weeks.length === 0
+                        ? 'bg-slate-800 text-white border-slate-900'
+                        : 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                    }`}
+                  >
+                    {planDraft.weeks.length === 0
+                      ? 'التقسيم الحالي: مفيش تقسيم'
+                      : `التقسيم الحالي: ${weekCountLabel(planDraft.weeks.length)}`}
                   </span>
                 </div>
 
                 <p className="text-[10.5px] text-violet-700 leading-relaxed">
                   أي عدد بيعمل بالتساوي على مدى الشهر، وبعدين تقدر تزحزح بداية ونهاية أي فترة
-                  بالأسفل. لو خليت الشهر فترة واحدة، التوقع الشهري المستقل يفضل شغال لوحده.
+                  بالأسفل. التقسيم اختياري بالكامل: «بلا تقسيم» أو 0 بيخلي الصفحة تشتغل على
+                  التوقع الشهري المستقل لوحده، ومش لازم الفترات تغطي أيام الشهر كلها.
                 </p>
               </div>
 
@@ -2123,10 +2201,10 @@ export default function CollectionForecastView() {
                     onClick={addPlanWeek}
                     disabled={planDraft.weeks.length >= MAX_WEEKS_PER_MONTH}
                     className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
-                    title={`إضافة فترة (الحد الأقصى ${MAX_WEEKS_PER_MONTH} فترات)`}
+                    title={`بيقسّص آخر فترة نصين (الحد الأقصى ${MAX_WEEKS_PER_MONTH} فترات)`}
                   >
                     <CalendarCheck className="w-3.5 h-3.5" />
-                    <span>إضافة فترة</span>
+                    <span>قسّم آخر فترة نصين</span>
                   </button>
                 </div>
                 <div className="overflow-x-auto">

@@ -594,6 +594,7 @@ export interface ForecastMonthPlan {
   month: number;                // 1 - 12
   monthStart: string;           // YYYY-MM-DD
   monthEnd: string;             // YYYY-MM-DD
+  /** اختياري: مفيش تقسيم = []، والصفحة بتفتح على التوقع الشهري بس. */
   weeks: ForecastWeek[];
   /** الأرقام تتقفل بعد اعتماد المشرف؛ لا يمكن تعديلها إلا بطلب تعديل. */
   isClosed: boolean;

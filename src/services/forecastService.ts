@@ -84,6 +84,14 @@ export function daysBetween(fromISO: string, toISODateISO: string): number {
 export const MIN_WEEKS_PER_MONTH = 1;
 export const MAX_WEEKS_PER_MONTH = 8;
 
+/**
+ * صفر فترات = مفيش تقسيم خالص.
+ *
+ * الشهر مش ملزوم يتقسم أصلاً: الإدارة ممكن تسيب الشهر على التوقع الشهري
+ * المستقل لوحده، والصفحة بتفتح عادي بعمود شهري بس ومن غير أعمدة أسابيع.
+ */
+export const NO_WEEK_DIVISION = 0;
+
 /** بيقرّب أي رقم arbitrary لده جوه المدى المسموح به. */
 export function clampWeekCount(count: number): number {
   const rounded = Math.round(Number(count) || 0);
@@ -354,15 +362,18 @@ export function normalizeWeekLabels(weeks: ForecastWeek[]): ForecastWeek[] {
 }
 
 /**
- * يتحقق إن تقسيم الأسابيع سليم: مرتب، متجاور، جواه الشهر، وبغطي مداه.
+ * يتحقق إن التقسيم سليم لو موجود.
  *
- * مفيش حد أقصى لطول الفترة الواحدة — تقسيم الشهر على أسبوع واحد أو اتنين
- * مقصود ومسموح. اللي بيتتحقق منه هنا هو التجاور والجلو داخل مدى الشهر والتغطية
- * الكاملة للمدى، وهي اللي بتمنع يوم يطلع بره التقسيم أو يفضل من غير تغطية.
+ * القرار: التقسيم اختياري. مفيش تقسيم (صفر فترات) خطة صحيحة، والصفحة بتفتح
+ * على التوقع الشهري المستقل لوحده. وحتى مع وجود تقسيم، تغطية الشهر كلها مش
+ * شرط — الإدارة ممكن تغطي فترة وتسيب الباقي مفتوح، وده اختيار مشروع في
+ * شهر بيبدأ التحصيل فيه متأخر أو بيخلص بدري.
+ *
+ * اللي بيتترفض فعلاً هو الخطأ اللي بيبوظ الحسابات: تاريخ مش صالح، فترة جوه
+ * الشهر بره، أو فترتين متقاطعتين (اللي بيخلي يوم يتحسب مرتين).
  */
 export function validateMonthPlan(plan: ForecastMonthPlan): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
-  if (!plan.weeks.length) errors.push('لازم أسبوع واحد على الأقل');
   const monthStart = new Date(plan.monthStart).getTime();
   const monthEnd = new Date(plan.monthEnd).getTime();
   if (isNaN(monthStart) || isNaN(monthEnd)) {
@@ -371,41 +382,29 @@ export function validateMonthPlan(plan: ForecastMonthPlan): { valid: boolean; er
   }
   if (monthEnd < monthStart) errors.push('نهاية الشهر قبل بدايته');
 
+  // مفيش تقسيم = خطة صحيحة، ومفيش أخطاء تتفحص.
+  if (!plan.weeks.length) return { valid: errors.length === 0, errors };
+
   let previousEnd = 0;
   plan.weeks.forEach((w, i) => {
     const s = new Date(w.start).getTime();
     const e = new Date(w.end).getTime();
     if (isNaN(s) || isNaN(e)) {
-      errors.push(`تواريخ الأسبوع ${w.index} غير صحيحة`);
+      errors.push(`تواريخ الفترة ${w.index} غير صحيحة`);
       return;
     }
     if (e < s) {
-      errors.push(`نهاية الأسبوع ${w.index} قبل بدايته`);
+      errors.push(`نهاية الفترة ${w.index} قبل بدايتها`);
       return;
     }
-    if (s < monthStart) errors.push(`الأسبوع ${w.index} بيبدأ قبل بداية الشهر`);
-    if (e > monthEnd) errors.push(`الأسبوع ${w.index} بيعدّي نهاية الشهر`);
-    if (i > 0) {
-      if (s <= previousEnd) {
-        errors.push(`الأسبوع ${w.index} بيتقاطع مع اللي قبله`);
-      } else if (s > previousEnd + 2 * 86400000) {
-        // لازم كل يوم في الشهر يبقى داخل فترة. سايبين تفاوت يوم واحد
-        // متساوي مع تسامح أول الشهر وآخره تحت، لا أكتر.
-        errors.push(`في أيام مش مغطاة بين الأسبوع ${i} والأسبوع ${w.index}`);
-      }
-    }
+    if (s < monthStart) errors.push(`الفترة ${w.index} بتبدأ قبل بداية الشهر`);
+    if (e > monthEnd) errors.push(`الفترة ${w.index} بتعدّي نهاية الشهر`);
+    if (i > 0 && s <= previousEnd) errors.push(`الفترة ${w.index} بتقاطع اللي قبلها`);
     previousEnd = e;
   });
 
   if (plan.weeks.length > MAX_WEEKS_PER_MONTH) {
-    errors.push(`عدد الأسابيع ${plan.weeks.length} أكبر من الحد المسموح (${MAX_WEEKS_PER_MONTH})`);
-  }
-
-  if (plan.weeks.length && !errors.some((e) => e.includes('الأسبوع'))) {
-    const firstStart = new Date(plan.weeks[0].start).getTime();
-    const lastEnd = new Date(plan.weeks[plan.weeks.length - 1].end).getTime();
-    if (firstStart > monthStart + 86400000) errors.push('في أيام في أول الشهر مش مغطاة');
-    if (lastEnd < monthEnd - 86400000) errors.push('في أيام في آخر الشهر مش مغطاة');
+    errors.push(`عدد الفترات ${plan.weeks.length} أكبر من الحد المسموح (${MAX_WEEKS_PER_MONTH})`);
   }
 
   return { valid: errors.length === 0, errors };
