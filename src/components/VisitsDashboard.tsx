@@ -58,6 +58,29 @@ import { VisitImportModal } from './VisitImportModal';
  */
 const VISIT_CHUNK_SIZE = 40;
 
+/** تاريخ اليوم بصيغة YYYY-MM-DD بتوقيت الجهاز. */
+function isoToday(offsetDays = 0): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
+/**
+ * أسباب الزيارة — نفس القيم الموجودة في الـoutcome بتاع الـCustomerVisit،
+ * مع إيموجي للعرض السريع كشرائح بلمسة واحدة بدل قائمة منسدلة.
+ */
+const VISIT_OUTCOME_CHIPS: { value: NonNullable<CustomerVisit['outcome']>; label: string; hint: string }[] = [
+  { value: 'تم التحصيل', label: 'تم التحصيل', hint: 'خُد المبلغ ✅' },
+  { value: 'تم عمل طلبية', label: 'تم عمل طلبية', hint: 'أخذطلبية 📦' },
+  { value: 'تأجيل سداد', label: 'تأجيل سداد', hint: 'ميعاد تاني ⏳' },
+  { value: 'المحل مغلق', label: 'المحل مغلق', hint: 'ما اتفتحش ⛔' },
+  { value: 'متابعة فقط', label: 'متابعة فقط', hint: 'زيارة دورية 🔍' },
+  { value: 'مرتجع لدي العميل', label: 'مرتجع', hint: 'إرجاع صنف 📦↩️' },
+  { value: 'أخرى', label: 'أخرى', hint: 'سبب تاني' },
+];
+
 /**
  * True / false once the viewport width is known, and null before that (or when
  * matchMedia is unavailable). Callers treat null as "build both lists", so the first
@@ -245,6 +268,18 @@ export const VisitsDashboard: React.FC = () => {
 
   // Customer search state inside the scheduling modal
   const [modalCustomerSearch, setModalCustomerSearch] = useState('');
+
+  /**
+   * العملاء المختارين في مودال الجدولة (اختيار متعدد).
+   *
+   * المندوب بيمشي عند 5 أو 10 عملاء جولة واحدة، فالمودال بيقبل أكتر من عميل
+   * وبيعمل سطر زيارة مستقل لكل واحد فيهم — عشان كل عدّاد واعتماد وإكسل في
+   * التطبيق يفضل شغال زي ما هو من غير أي موديل بيانات جديد.
+   *
+   * استثناء واحد: سبب الزيارة «مرتجع لدي العميل» بيفضل عميل واحد بس، لأن
+   * المرتجع مرتبط بصنف وكمية محددين — تكرارهم على 10 عملاء هيبقى رقم غلط.
+   */
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
   const [returnProductQuery, setReturnProductQuery] = useState('');
   const [selectedReturnProductId, setSelectedReturnProductId] = useState('');
   const [returnQuantity, setReturnQuantity] = useState(1);
@@ -261,6 +296,25 @@ export const VisitsDashboard: React.FC = () => {
       )
       .slice(0, 8);
   }, [products, returnProductQuery]);
+
+  /**
+   * المودال السريع إنهاء الزيارة.
+   *
+   * المندوب خلص عند عميل وعايز يقفل الزيارة في خطوة واحدة: «تمت الزيارة»
+   * + سبب بضغطة + مبلغ اختياري. المودال القديم الطويل بيفضل موجود لو حد
+   * محتاج التفاصيل الكاملة (تقييم، توافر مخزون، موعد الزيارة الجاية).
+   *
+   * استثناء المرتجع: لو السبب «مرتجع لدي العميل» بيفتح قسم المرتجع الكامل
+   * (الصنف والكمية والتفاصيل + تنبيه الإبلاغ) — زي بالظبط في مودال الجدولة.
+   * السبب ده مرتبط ببضاعة وكميات، فبياخد نفس المعاملة مش مسار مبسّط.
+   */
+  const [quickVisit, setQuickVisit] = useState<CustomerVisit | null>(null);
+  const [quickForm, setQuickForm] = useState<{
+    status: CustomerVisit['status'];
+    outcome: CustomerVisit['outcome'];
+    notes: string;
+    collectedAmount: number;
+  }>({ status: 'منفذة', outcome: 'تم التحصيل', notes: '', collectedAmount: 0 });
 
   // Execution modal state (تسجيل وتوثيق ما تم في الزيارة الميدانية)
   const [executingVisit, setExecutingVisit] = useState<CustomerVisit | null>(null);
@@ -566,17 +620,22 @@ export const VisitsDashboard: React.FC = () => {
       .slice(0, 25);
   }, [myCustomers, modalCustomerSearch]);
 
-  const selectedCustomerInForm = useMemo(() => {
-    return customerById.get(form.customerId);
-  }, [customers, form.customerId]);
-
-  // Customer past visits for the schedule form
-  const customerPastVisitsInForm = useMemo(() => {
-    if (!form.customerId) return [];
-    return visible
-      .filter((v) => v.customerId === form.customerId)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [form.customerId, visible]);
+  /**
+   * تاريخ آخر زيارة لكل عميل — بيتحسب مرة واحدة لكل الصفحة.
+   *
+   * المودال القديم كان بيعرض سجل الزيارات السابقة للعميل المختار. مع
+   * الاختيار المتعدد بقى مش عملي نعرض سجل كامل لكل عميل، فبنكتفي بالتاريخ:
+   * بيكفي المندوب يعرف إنه زاره من زمان ولا لأ.
+   */
+  const lastVisitDateByCustomer = useMemo(() => {
+    const map = new Map<string, string>();
+    visible.forEach((v) => {
+      if (!v.customerId) return;
+      const prev = map.get(v.customerId);
+      if (!prev || v.date > prev) map.set(v.customerId, v.date);
+    });
+    return map;
+  }, [visible]);
 
   // Customer past visits for the details/execution modal
   const customerPastVisitsInModal = useMemo(() => {
@@ -1130,6 +1189,78 @@ export const VisitsDashboard: React.FC = () => {
   };
 
   // Open modal to log what was done in visit (تسجيل وتوثيق ما تم إنجازه في الزيارة)
+  /** فتح المودال السريع على زيارة مجدولة أو على أي زيارة لسه مفتوحة. */
+  const handleOpenQuickComplete = (v: CustomerVisit) => {
+    setQuickVisit(v);
+    setQuickForm({
+      status: 'منفذة',
+      outcome: v.outcome || 'تم التحصيل',
+      notes: '',
+      collectedAmount: v.collectedAmount || 0,
+    });
+    setReturnProductQuery('');
+    setSelectedReturnProductId('');
+    setReturnQuantity(1);
+    setReturnDetails('');
+    setIsReturnProductListOpen(false);
+  };
+
+  /**
+   * حفظ إنهاء الزيارة السريع.
+   *
+   * مسار المرتجع بيروح في نفس الحقول والققود بتاعة مودال الجدولة: لازم صنف
+   * متختار من المخزون وكمية صحيحة، والداتا بتتسجل بـisReturn وreturnStatus
+   * عشان المشرف ومدير الفرع وأمين المخزن يتلكفوا بيها زي أي مرتجع تاني.
+   */
+  const handleSaveQuickComplete = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickVisit) return;
+
+    const isReturnOutcome = quickForm.outcome === 'مرتجع لدي العميل';
+    const selectedReturnProduct = products.find((product) => product.id === selectedReturnProductId);
+    if (isReturnOutcome && !selectedReturnProduct) {
+      showToast('error', 'اختر الصنف المرتجع من المخزون الأول.');
+      return;
+    }
+    if (isReturnOutcome && (!Number.isInteger(returnQuantity) || returnQuantity < 1)) {
+      showToast('error', 'أدخل كمية مرتجع صحيحة.');
+      return;
+    }
+
+    const res = updateVisit({
+      ...quickVisit,
+      status: quickForm.status,
+      outcome: quickForm.outcome,
+      notes: quickForm.notes.trim() || quickVisit.notes,
+      collectedAmount: Number(quickForm.collectedAmount) || 0,
+      // لو السبب مش مرتجع بنسيب بيانات المرتجع القديمة زي ما هي — إعادة فتح
+      // زيارة كانت فيها مرتجع وتغيير السبب مش معناه إننا نمحي المرتجع المسجل.
+      isReturn: isReturnOutcome ? true : quickVisit.isReturn,
+      returnValue: isReturnOutcome ? 0 : quickVisit.returnValue,
+      returnReason: isReturnOutcome ? returnDetails.trim() || undefined : quickVisit.returnReason,
+      returnItems:
+        isReturnOutcome && selectedReturnProduct
+          ? `${selectedReturnProduct.code} - ${selectedReturnProduct.name} × ${returnQuantity} قطعة`
+          : quickVisit.returnItems,
+      returnStatus: isReturnOutcome ? 'بانتظار المشرف' : quickVisit.returnStatus,
+    });
+
+    if (res.success) {
+      showToast('success', isReturnOutcome ? 'تم تسجيل الزيارة والمرتجع ✅' : 'تم إنهاء الزيارة ✅');
+      setQuickVisit(null);
+      setReturnProductQuery('');
+      setSelectedReturnProductId('');
+      setReturnQuantity(1);
+      setReturnDetails('');
+      setIsReturnProductListOpen(false);
+      if (selectedVisit && selectedVisit.id === quickVisit.id) {
+        setSelectedVisit({ ...selectedVisit, status: quickForm.status, outcome: quickForm.outcome });
+      }
+    } else {
+      showToast('error', res.message);
+    }
+  };
+
   const handleOpenExecutionModal = (v: CustomerVisit) => {
     setExecutingVisit(v);
     setExecutionForm({
@@ -1185,15 +1316,21 @@ export const VisitsDashboard: React.FC = () => {
   // Submit new visit with complete field support
   const handleSubmitVisit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.customerId) {
-      showToast('error', 'يرجى اختيار العميل المستهدف أولاً.');
+    const targetIds = selectedCustomerIds.length > 0 ? selectedCustomerIds : form.customerId ? [form.customerId] : [];
+    if (targetIds.length === 0) {
+      showToast('error', 'يرجى اختيار عميل واحد على الأقل.');
       return;
     }
     const r = reps.find((u) => u.id === form.repId) || userById.get(form.repId) || (currentUser?.role === 'sales_rep' ? currentUser : undefined);
-    const c = customerById.get(form.customerId);
 
     const isReturnOutcome = form.outcome === 'مرتجع لدي العميل';
     const selectedReturnProduct = products.find((product) => product.id === selectedReturnProductId);
+    // المرتجع مرتبط بصنف وكمية محددين، فمتكررش على أكتر من عميل: رقم واحد
+    // مكرر على 10 عملاء هيبقى مخزون غلط وتقارير غلط. بنرجّعه لعميل واحد.
+    if (isReturnOutcome && targetIds.length > 1) {
+      showToast('error', 'المرتجع بيسجل لعميل واحد بس في المرة — اختار عميل واحد أو غيّر السبب.');
+      return;
+    }
     if (isReturnOutcome && !selectedReturnProduct) {
       showToast('error', 'يرجى البحث عن الصنف واختياره من مخزون التطبيق.');
       return;
@@ -1203,27 +1340,44 @@ export const VisitsDashboard: React.FC = () => {
       return;
     }
 
-    const result = addVisit({
-      ...form,
-      customerId: c?.id || form.customerId,
-      customerName: c?.name,
-      customerCode: c?.code,
-      repId: r?.id || currentUser?.id,
-      repName: r?.name || currentUser?.name || 'المندوب',
-      branchName: r?.branchName || c?.branchName || currentUser?.branchName || '',
-      supervisorId: r?.supervisorId,
-      status: form.status || 'منفذة',
-      orderAmount: form.outcome === 'تم عمل طلبية' ? Number(form.orderAmount) || 0 : undefined,
-      collectedAmount: form.outcome === 'تم التحصيل' ? Number(form.collectedAmount) || 0 : Number(form.collectedAmount) || 0,
-      nextVisitDate: form.nextVisitDate || undefined,
-      isReturn: isReturnOutcome,
-      returnValue: isReturnOutcome ? 0 : undefined,
-      returnReason: isReturnOutcome ? returnDetails.trim() || undefined : undefined,
-      returnItems: isReturnOutcome && selectedReturnProduct
-        ? `${selectedReturnProduct.code} - ${selectedReturnProduct.name} × ${returnQuantity} قطعة`
-        : undefined,
-      returnStatus: isReturnOutcome ? 'بانتظار المشرف' : undefined,
+    // سطر زيارة مستقل لكل عميل — عشان كل عدّاد واعتماد وإكسل يفضل زي ما هو.
+    let okCount = 0;
+    let lastError = '';
+    targetIds.forEach((id) => {
+      const c = customerById.get(id);
+      const result = addVisit({
+        ...form,
+        customerId: c?.id || id,
+        customerName: c?.name,
+        customerCode: c?.code,
+        repId: r?.id || currentUser?.id,
+        repName: r?.name || currentUser?.name || 'المندوب',
+        branchName: r?.branchName || c?.branchName || currentUser?.branchName || '',
+        supervisorId: r?.supervisorId,
+        status: form.status || 'منفذة',
+        time: form.time || undefined,
+        orderAmount: form.outcome === 'تم عمل طلبية' ? Number(form.orderAmount) || 0 : undefined,
+        collectedAmount: form.outcome === 'تم التحصيل' ? Number(form.collectedAmount) || 0 : Number(form.collectedAmount) || 0,
+        nextVisitDate: form.nextVisitDate || undefined,
+        isReturn: isReturnOutcome,
+        returnValue: isReturnOutcome ? 0 : undefined,
+        returnReason: isReturnOutcome ? returnDetails.trim() || undefined : undefined,
+        returnItems: isReturnOutcome && selectedReturnProduct
+          ? `${selectedReturnProduct.code} - ${selectedReturnProduct.name} × ${returnQuantity} قطعة`
+          : undefined,
+        returnStatus: isReturnOutcome ? 'بانتظار المشرف' : undefined,
+      });
+      if (result.success) okCount += 1;
+      else lastError = result.message;
     });
+
+    const result = {
+      success: okCount > 0,
+      message:
+        okCount === targetIds.length
+          ? `تم جدولة ${okCount} ${okCount === 1 ? 'زيارة' : 'زيارة'} بنجاح`
+          : `تم حفظ ${okCount} من ${targetIds.length} زيارة${lastError ? ` — ${lastError}` : ''}`,
+    };
 
     if (result.success) {
       setShowForm(false);
@@ -1251,6 +1405,7 @@ export const VisitsDashboard: React.FC = () => {
         location: undefined,
       });
       setModalCustomerSearch('');
+      setSelectedCustomerIds([]);
       setReturnProductQuery('');
       setSelectedReturnProductId('');
       setReturnQuantity(1);
@@ -2969,6 +3124,16 @@ export const VisitsDashboard: React.FC = () => {
                             تعديل التقرير
                           </button>
                         )}
+                        {isRep && v.status === 'مجدولة' && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenQuickComplete(v)}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2 py-1 rounded-lg text-[11px] transition cursor-pointer"
+                            title="إنهاء الزيارة بخطوة واحدة: الحالة + السبب + المبلغ (والمرتجع لو محتاج)"
+                          >
+                            إنهاء سريع ⚡
+                          </button>
+                        )}
                         {v.status !== 'منفذة' && (
                           <button
                             type="button"
@@ -3118,6 +3283,16 @@ export const VisitsDashboard: React.FC = () => {
                       تعديل التقرير
                     </button>
                   )}
+                  {isRep && v.status === 'مجدولة' && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenQuickComplete(v)}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1 rounded-lg text-xs transition cursor-pointer"
+                      title="إنهاء الزيارة بخطوة واحدة: الحالة + السبب + المبلغ (والمرتجع لو محتاج)"
+                    >
+                      إنهاء سريع ⚡
+                    </button>
+                  )}
                   {v.status !== 'منفذة' && (
                     <button
                       type="button"
@@ -3238,75 +3413,121 @@ export const VisitsDashboard: React.FC = () => {
                   العميل المستهدف للزيارة *
                 </label>
 
-                {selectedCustomerInForm ? (
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between">
-                    <div>
-                      <div className="text-xs font-black text-emerald-950 flex items-center gap-2">
-                        <span>{selectedCustomerInForm.name}</span>
-                        <span className="text-[11px] font-mono text-emerald-800 font-bold">
-                          ({selectedCustomerInForm.code})
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-emerald-700 mt-0.5">
-                        {selectedCustomerInForm.branchName} • المديونية:{' '}
-                        {formatCurrency(selectedCustomerInForm.currentBalance ?? selectedCustomerInForm.balance ?? 0)}
-                      </div>
-                    </div>
+                {/* شريط العدد والاختيار السريع — بيظهر بس لو في اختيار */}
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-[11px] font-black text-emerald-800">
+                    {selectedCustomerIds.length > 0
+                      ? `مختار ${selectedCustomerIds.length} عميل`
+                      : 'اختر عميل واحد أو أكتر'}
+                  </span>
+                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => setForm({ ...form, customerId: '' })}
-                      className="bg-white hover:bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-xl text-xs border border-emerald-300 transition cursor-pointer"
+                      onClick={() =>
+                        setSelectedCustomerIds(modalFilteredCustomers.map((c) => c.id))
+                      }
+                      disabled={modalFilteredCustomers.length === 0 || selectedCustomerIds.length === modalFilteredCustomers.length}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10.5px] font-black transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      تغيير العميل
+                      اختر المعروض ({modalFilteredCustomers.length})
                     </button>
+                    {selectedCustomerIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCustomerIds([])}
+                        className="px-2.5 py-1 rounded-lg bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 text-[10.5px] font-black transition cursor-pointer"
+                      >
+                        مسح الكل
+                      </button>
+                    )}
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="relative">
-                      <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        type="text"
-                        value={modalCustomerSearch}
-                        onChange={(e) => setModalCustomerSearch(e.target.value)}
-                        placeholder="ابحث بالاسم، كود العميل، الهاتف، أو اسم المحل..."
-                        className="w-full bg-slate-50 focus:bg-white border border-slate-200 focus:border-emerald-500 rounded-xl pr-9 pl-3 py-2 text-xs text-slate-800 focus:outline-none transition"
-                        autoFocus
-                      />
-                    </div>
+                </div>
 
-                    <div className="max-h-44 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-slate-50/50">
-                      {modalFilteredCustomers.length === 0 ? (
-                        <div className="p-3 text-center text-xs text-slate-400">
-                          لم يتم العثور على عملاء مطابقين للبحث
-                        </div>
-                      ) : (
-                        modalFilteredCustomers.map((c) => (
-                          <div
-                            key={c.id}
-                            onClick={() => {
-                              setForm({
-                                ...form,
-                                customerId: c.id,
-                                repId: c.repId || form.repId
-                              });
-                            }}
-                            className="p-2.5 hover:bg-emerald-50 transition cursor-pointer flex items-center justify-between text-xs"
-                          >
-                            <div>
-                              <div className="font-black text-slate-900">{c.name}</div>
-                              <div className="text-[10px] text-slate-500">
-                                كود: {c.code || '-'} | {c.branchName}
-                              </div>
-                            </div>
-                            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md">
-                              اختيار
+                {/* العملاء المختارين — كل واحد في شريحة قابلة للإزالة */}
+                {selectedCustomerIds.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-2 bg-emerald-50/70 border border-emerald-200 rounded-xl">
+                    {selectedCustomerIds.map((id) => {
+                      const c = customerById.get(id);
+                      return (
+                        <span
+                          key={id}
+                          className="inline-flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-lg bg-white border border-emerald-300 text-[10.5px] font-black text-emerald-900"
+                        >
+                          {c?.name || id}
+                          {lastVisitDateByCustomer.get(id) && (
+                            <span className="text-[9px] font-bold text-slate-400">
+                              آخر زيارة {lastVisitDateByCustomer.get(id)?.slice(5)}
                             </span>
-                          </div>
-                        ))
-                      )}
-                    </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCustomerIds((prev) => prev.filter((x) => x !== id))}
+                            className="text-emerald-600 hover:text-rose-600 transition cursor-pointer"
+                            aria-label={`إزالة ${c?.name || ''}`}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      );
+                    })}
                   </div>
                 )}
+
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={modalCustomerSearch}
+                      onChange={(e) => setModalCustomerSearch(e.target.value)}
+                      placeholder="ابحث بالاسم، كود العميل، الهاتف، أو اسم المحل..."
+                      className="w-full bg-slate-50 focus:bg-white border border-slate-200 focus:border-emerald-500 rounded-xl pr-9 pl-3 py-2 text-xs text-slate-800 focus:outline-none transition"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="max-h-44 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-slate-50/50">
+                    {modalFilteredCustomers.length === 0 ? (
+                      <div className="p-3 text-center text-xs text-slate-400">
+                        لم يتم العثور على عملاء مطابقين للبحث
+                      </div>
+                    ) : (
+                      modalFilteredCustomers.map((c) => {
+                        const picked = selectedCustomerIds.includes(c.id);
+                        return (
+                          <button
+                            type="button"
+                            key={c.id}
+                            onClick={() =>
+                              setSelectedCustomerIds((prev) =>
+                                picked ? prev.filter((x) => x !== c.id) : [...prev, c.id]
+                              )
+                            }
+                            className={`w-full text-right p-2.5 transition flex items-center gap-2.5 cursor-pointer ${
+                              picked ? 'bg-emerald-50' : 'hover:bg-emerald-50/60'
+                            }`}
+                          >
+                            <span
+                              className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center ${
+                                picked
+                                  ? 'bg-emerald-600 border-emerald-600 text-white'
+                                  : 'bg-white border-slate-300'
+                              }`}
+                            >
+                              {picked && <Check className="w-3 h-3" />}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="font-black text-slate-900 block truncate">{c.name}</span>
+                              <span className="text-[10px] text-slate-500">
+                                كود: {c.code || '-'} | {c.branchName}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Rep selector */}
@@ -3358,28 +3579,50 @@ export const VisitsDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Date & Time */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">تاريخ الزيارة *</label>
+              {/* اختيار سريع للتاريخ — أشهر المواعيد اللي بتتكرر */}
+              <div>
+                <span className="block text-xs font-bold text-slate-700 mb-1.5">موعد الزيارة</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[
+                    { label: 'النهاردة', offset: 0 },
+                    { label: 'بكرة', offset: 1 },
+                    { label: 'بعد بكره', offset: 2 },
+                  ].map((chip) => (
+                    <button
+                      type="button"
+                      key={chip.label}
+                      onClick={() => setForm({ ...form, date: isoToday(chip.offset) })}
+                      className={`px-3 py-1.5 rounded-xl text-[11px] font-black border transition cursor-pointer ${
+                        form.date === isoToday(chip.offset)
+                          ? 'bg-emerald-600 text-white border-emerald-700'
+                          : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50'
+                      }`}
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
                   <input
                     required
                     type="date"
                     value={form.date}
                     onChange={(e) => setForm({ ...form, date: e.target.value })}
-                    className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:border-emerald-500"
+                    className="flex-1 min-w-[130px] border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:border-emerald-500"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">الوقت التقريبي *</label>
-                  <input
-                    required
-                    type="time"
-                    value={form.time}
-                    onChange={(e) => setForm({ ...form, time: e.target.value })}
-                    className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
+              </div>
+
+              {/* الوقت التقريبي — اختياري: مش مهم للمندوب وهو بيمشي جولة */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  الوقت التقريبي
+                  <span className="text-[10px] font-normal text-slate-400"> — اختياري</span>
+                </label>
+                <input
+                  type="time"
+                  value={form.time}
+                  onChange={(e) => setForm({ ...form, time: e.target.value })}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:border-emerald-500"
+                />
               </div>
 
               {/* Outcome & Financials */}
@@ -3594,6 +3837,208 @@ export const VisitsDashboard: React.FC = () => {
               >
                 <Save className="w-4 h-4" />
                 <span>حفظ وجدولة الزيارة</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Quick Complete Modal — إنهاء الزيارة بخطوة واحدة، مع مسار مرتجع كامل */}
+      {quickVisit && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-end sm:items-center justify-center sm:p-4 z-50 animate-in fade-in duration-150">
+          <form
+            onSubmit={handleSaveQuickComplete}
+            className="bg-white rounded-t-3xl sm:rounded-3xl p-5 w-full sm:max-w-md space-y-3.5 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto"
+            dir="rtl"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="min-w-0">
+                <h2 className="text-base font-black text-slate-900">إنهاء الزيارة</h2>
+                <p className="text-[11px] text-slate-500 truncate">
+                  {quickVisit.customerName}
+                  {quickVisit.customerCode ? ` (${quickVisit.customerCode})` : ''}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuickVisit(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* حالة الزيارة */}
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { value: 'منفذة', label: 'تمت الزيارة', icon: '✅' },
+                { value: 'لم تتم', label: 'ما اتنفذتش', icon: '⚠️' },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setQuickForm({ ...quickForm, status: opt.value })}
+                  className={`px-3 py-2.5 rounded-2xl text-xs font-black border transition cursor-pointer ${
+                    quickForm.status === opt.value
+                      ? 'bg-emerald-600 text-white border-emerald-700'
+                      : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  {opt.icon} {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {/* السبب — شرائح بضغطة واحدة */}
+            <div>
+              <span className="block text-xs font-bold text-slate-700 mb-1.5">السبب</span>
+              <div className="grid grid-cols-2 gap-1.5">
+                {VISIT_OUTCOME_CHIPS.map((chip) => {
+                  const picked = quickForm.outcome === chip.value;
+                  return (
+                    <button
+                      key={chip.value}
+                      type="button"
+                      onClick={() =>
+                        setQuickForm({ ...quickForm, outcome: chip.value })
+                      }
+                      title={chip.hint}
+                      className={`px-2.5 py-2 rounded-xl text-[11px] font-black border transition cursor-pointer text-right ${
+                        picked
+                          ? chip.value === 'مرتجع لدي العميل'
+                            ? 'bg-rose-600 text-white border-rose-700'
+                            : 'bg-emerald-600 text-white border-emerald-700'
+                          : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      {chip.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* المبلغ — بيظهر مع التحصيل بس */}
+            {quickForm.outcome === 'تم التحصيل' && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">المبلغ المحصل</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  inputMode="decimal"
+                  value={quickForm.collectedAmount || ''}
+                  onChange={(e) =>
+                    setQuickForm({ ...quickForm, collectedAmount: Number(e.target.value) || 0 })
+                  }
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-black text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            )}
+
+            {/* المرتجع — نفس قسم مودال الجدولة بالكامل */}
+            {quickForm.outcome === 'مرتجع لدي العميل' && (
+              <div className="rounded-2xl border-2 border-rose-300 bg-rose-50/70 p-3 space-y-3 animate-in fade-in">
+                <div className="flex items-center gap-2 text-rose-700 font-black text-[11px]">
+                  <AlertTriangle className="w-4 h-4" />
+                  تفاصيل المرتجع — سيتم إبلاغ المشرف ومدير الفرع وأمين المخزن فوراً
+                </div>
+                <div className="relative">
+                  <label className="block text-[11px] font-bold text-rose-700 mb-1">
+                    بحث عن الصنف بالاسم أو الكود *
+                  </label>
+                  <input
+                    type="search"
+                    value={returnProductQuery}
+                    onFocus={() => setIsReturnProductListOpen(true)}
+                    onChange={(e) => {
+                      setReturnProductQuery(e.target.value);
+                      setSelectedReturnProductId('');
+                      setIsReturnProductListOpen(true);
+                    }}
+                    placeholder="اكتب اسم الصنف مثل طقم حلن"
+                    autoComplete="off"
+                    className="w-full border border-rose-300 rounded-xl p-2.5 text-xs font-bold text-rose-900 bg-white focus:bg-white focus:outline-none"
+                  />
+                  {isReturnProductListOpen && returnProductQuery.trim() && (
+                    <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-rose-200 bg-white shadow-lg">
+                      {returnProductOptions.length > 0 ? (
+                        returnProductOptions.map((product) => (
+                          <button
+                            key={product.id}
+                            type="button"
+                            onClick={() => {
+                              setReturnProductQuery(product.name);
+                              setSelectedReturnProductId(product.id);
+                              setIsReturnProductListOpen(false);
+                            }}
+                            className="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-3 py-2 text-right last:border-b-0 hover:bg-rose-50"
+                          >
+                            <span className="min-w-0 truncate text-xs font-bold text-slate-800">{product.name}</span>
+                            <span className="shrink-0 text-[10px] font-mono text-slate-500">{product.code}</span>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="px-3 py-2 text-xs text-slate-500">لا توجد أصناف مطابقة في المخزون.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-rose-700 mb-1">الكمية المرتجعة *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={returnQuantity}
+                      onChange={(e) => setReturnQuantity(Number(e.target.value))}
+                      required
+                      className="w-full border border-rose-300 rounded-xl p-2.5 text-xs font-bold text-rose-900 bg-white focus:bg-white focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-rose-700 mb-1">تفاصيل المرتجع</label>
+                    <textarea
+                      rows={2}
+                      value={returnDetails}
+                      onChange={(e) => setReturnDetails(e.target.value)}
+                      placeholder="حالة الصنف أو سبب إرجاعه"
+                      className="w-full border border-rose-300 rounded-xl p-2.5 text-xs font-bold text-rose-900 bg-white focus:bg-white focus:outline-none resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ملاحظات — اختيارية */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                ملاحظات
+                <span className="text-[10px] font-normal text-slate-400"> — اختياري</span>
+              </label>
+              <textarea
+                rows={2}
+                value={quickForm.notes}
+                onChange={(e) => setQuickForm({ ...quickForm, notes: e.target.value })}
+                placeholder="أي حاجة تحب تسجّلها"
+                className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none resize-none"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="submit"
+                className="flex-1 px-4 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm shadow-md transition cursor-pointer"
+              >
+                حفظ وإنهاء
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuickVisit(null)}
+                className="px-4 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs transition cursor-pointer"
+              >
+                إلغاء
               </button>
             </div>
           </form>
