@@ -1151,7 +1151,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const changedRows: CollectionForecastRecord[] = [];
       const next = forecasts.map((f) => {
         if (f.monthKey !== monthKey || f.weekIndex !== weekIndex || f.repId !== repId) return f;
-        if (f.status === 'approved') return f;
+        if (f.status !== 'draft' && f.status !== 'change_requested') return f;
         const updated = { ...f, status: 'submitted' as const, submittedAt: now, changeRequestNote: undefined, updatedAt: now, updatedBy: currentUser?.name };
         changedRows.push(updated);
         return updated;
@@ -1170,6 +1170,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const next = forecasts.map((f) => {
         if (f.monthKey !== monthKey || f.weekIndex !== weekIndex || f.repId !== repId) return f;
         if (customerIdScope && !customerIdScope.has(f.customerId)) return f;
+        if (f.status !== 'submitted') return f;
         const updated = {
           ...f,
           status: 'approved' as const,
@@ -1201,7 +1202,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const next = forecasts.map((forecast) => {
         if (forecast.monthKey !== monthKey) return forecast;
         const customerScope = approvalScopes.get(`${forecast.repId}::${forecast.weekIndex}`);
-        if (!customerScope?.has(forecast.customerId) || forecast.status === 'approved') return forecast;
+        if (!customerScope?.has(forecast.customerId) || forecast.status !== 'submitted') return forecast;
         const updated: CollectionForecastRecord = {
           ...forecast,
           status: 'approved',

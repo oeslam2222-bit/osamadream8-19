@@ -628,9 +628,10 @@ export interface RepForecastRow {
   /** مجموع الأسابيع فقط — السطر الشهري مستقل ومش داخل في الرقم ده. */
   totalCollection: number;
   totalSales: number;
-  submittedWeeks: number;
-  approvedWeeks: number;
-  changeRequestedWeeks: number;
+  draftPeriods: number;
+  submittedPeriods: number;
+  approvedPeriods: number;
+  changeRequestedPeriods: number;
   customerCount: number;
 }
 
@@ -659,9 +660,10 @@ export function aggregateByRep(
         plannedCollectionTotal: 0,
         totalCollection: 0,
         totalSales: 0,
-        submittedWeeks: 0,
-        approvedWeeks: 0,
-        changeRequestedWeeks: 0,
+        draftPeriods: 0,
+        submittedPeriods: 0,
+        approvedPeriods: 0,
+        changeRequestedPeriods: 0,
         customerCount: 0,
       };
       map.set(r.repId, row);
@@ -690,9 +692,10 @@ export function aggregateByRep(
         plannedCollectionTotal: 0,
         totalCollection: 0,
         totalSales: 0,
-        submittedWeeks: 0,
-        approvedWeeks: 0,
-        changeRequestedWeeks: 0,
+        draftPeriods: 0,
+        submittedPeriods: 0,
+        approvedPeriods: 0,
+        changeRequestedPeriods: 0,
         customerCount: 0,
       };
       map.set(r.repId, row);
@@ -717,26 +720,29 @@ export function aggregateByRep(
 
   // A week's status is the weakest status any of its customers is in, so one
   // unapproved line keeps the whole week open for the supervisor.
-  const weekStatus = new Map<string, Set<ForecastStatus>>();
-  weeks.forEach((r) => {
+  const periodStatus = new Map<string, Set<ForecastStatus>>();
+  const customerIdsByRep = new Map<string, Set<string>>();
+  [...weeks, ...months].forEach((r) => {
     const key = `${r.repId}::${Math.floor(r.weekIndex)}`;
-    const set = weekStatus.get(key) || new Set<ForecastStatus>();
+    const set = periodStatus.get(key) || new Set<ForecastStatus>();
     set.add(r.status);
-    weekStatus.set(key, set);
+    periodStatus.set(key, set);
+    const customerIds = customerIdsByRep.get(r.repId) || new Set<string>();
+    customerIds.add(r.customerId);
+    customerIdsByRep.set(r.repId, customerIds);
   });
 
   const rows = Array.from(map.values());
-  const customerKeys = new Set(weeks.map((r) => `${r.repId}::${r.customerId}`));
   rows.forEach((row) => {
-    row.customerCount = Array.from(customerKeys).filter((k) => k.startsWith(`${row.repId}::`)).length;
-    for (let w = 1; w <= weekCount; w++) {
-      const statuses = weekStatus.get(`${row.repId}::${w}`);
+    row.customerCount = customerIdsByRep.get(row.repId)?.size || 0;
+    for (let w = 0; w <= weekCount; w++) {
+      const statuses = periodStatus.get(`${row.repId}::${w}`);
       if (!statuses) continue;
-      // Weakest status in the week wins: one draft line keeps the whole week open.
-      if (statuses.has('change_requested')) row.changeRequestedWeeks++;
-      else if (statuses.has('draft')) continue;
-      else if (statuses.has('submitted')) row.submittedWeeks++;
-      else if (statuses.has('approved')) row.approvedWeeks++;
+      // Count periods by their weakest customer-row status; slot 0 is monthly.
+      if (statuses.has('change_requested')) row.changeRequestedPeriods++;
+      else if (statuses.has('draft')) row.draftPeriods++;
+      else if (statuses.has('submitted')) row.submittedPeriods++;
+      else if (statuses.has('approved')) row.approvedPeriods++;
     }
   });
 
@@ -771,10 +777,11 @@ export interface ForecastProgressRow {
   collectionCoverage: number;   // المتوقع ÷ الهدف  %
   collectionVsTarget: number;   // فائض / عجز
   status: 'ahead' | 'on_track' | 'behind' | 'no_target';
-  /** عدّاد أسابيع كل حالة — شريط الاعتماد بيعرضها للمشرف. */
-  submittedWeeks: number;
-  approvedWeeks: number;
-  changeRequestedWeeks: number;
+  /** عدّاد الفترات الشهرية والأسبوعية حسب حالة الاعتماد. */
+  draftPeriods: number;
+  submittedPeriods: number;
+  approvedPeriods: number;
+  changeRequestedPeriods: number;
   weekCollection: Record<number, number>;
   customerCount: number;
 }
@@ -826,9 +833,10 @@ export function buildProgress(
       collectionCoverage: coverage,
       collectionVsTarget: diff,
       status,
-      submittedWeeks: r.submittedWeeks,
-      approvedWeeks: r.approvedWeeks,
-      changeRequestedWeeks: r.changeRequestedWeeks,
+      draftPeriods: r.draftPeriods,
+      submittedPeriods: r.submittedPeriods,
+      approvedPeriods: r.approvedPeriods,
+      changeRequestedPeriods: r.changeRequestedPeriods,
       weekCollection: r.weekCollection,
       customerCount: r.customerCount,
     };

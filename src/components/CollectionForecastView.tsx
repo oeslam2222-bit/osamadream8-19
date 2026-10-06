@@ -123,7 +123,7 @@ const parseAmount = (rawAmount: string) => {
  */
 const STATUS_LABEL: Record<string, string> = {
   draft: 'مسودة',
-  submitted: 'بعت للمشرف',
+  submitted: 'مُرسل للمشرف',
   approved: 'معتمد',
   change_requested: 'مطلوب تعديل',
 };
@@ -555,16 +555,8 @@ export default function CollectionForecastView() {
   }, [filteredCustomers, visibleForecasts, targets, monthKey, branchFilter, supervisorForCustomer]);
 
   const approvalScope = useMemo(() => {
-    const scopeCustomers = scopedCustomers.filter((customer) => {
-      const repId = customer.repId || '';
-      const repName = customer.salesRepName || customer.repName || '';
-      if (branchFilter !== 'ALL' && !isArabicNameMatch(customer.branchName, branchFilter)) return false;
-      if (supervisorFilter !== 'ALL' && !isArabicNameMatch(supervisorForCustomer(customer), supervisorFilter)) return false;
-      if (repFilter !== 'ALL' && repId !== repFilter && !isArabicNameMatch(repName, repFilter)) return false;
-      return true;
-    });
-    const customerIds = new Set(scopeCustomers.map((customer) => customer.id));
-    const repNames = new Set(scopeCustomers.map((customer) => customer.salesRepName || customer.repName || ''));
+    const customerIds = new Set(filteredCustomers.map((customer) => customer.id));
+    const repNames = new Set(filteredCustomers.map((customer) => customer.salesRepName || customer.repName || ''));
     return {
       scopedForecasts: visibleForecasts.filter((forecast) => customerIds.has(forecast.customerId)),
       scopedTargets: targets.filter((target) =>
@@ -573,18 +565,19 @@ export default function CollectionForecastView() {
         && repNames.has(target.repName)
       ),
     };
-  }, [scopedCustomers, visibleForecasts, targets, monthKey, branchFilter, supervisorFilter, repFilter, supervisorForCustomer]);
+  }, [filteredCustomers, visibleForecasts, targets, monthKey, branchFilter]);
 
   const kpiTotals = useMemo(() => {
     let weeklyTotal = 0;
     let monthTotal = 0;
-    let explicitMonthCount = 0;
+    let weeklyFallbackTotal = 0;
+    let customersAboveDues = 0;
+    let plannedAboveDues = 0;
 
     dashboardScope.scopedForecasts.forEach((f) => {
       if (isWeekForecast(f)) weeklyTotal += Number(f.collectionForecast) || 0;
       else {
         monthTotal += Number(f.collectionForecast) || 0;
-        explicitMonthCount += 1;
       }
     });
 
@@ -595,11 +588,17 @@ export default function CollectionForecastView() {
      */
     const plannedTotal = filteredCustomers.reduce((sum, c) => {
       const monthRec = monthForecastByCustomer.get(c.id);
-      if (monthRec) return sum + (Number(monthRec.collectionForecast) || 0);
-      return sum + (forecastTotalsByCustomer.get(c.id) || 0);
+      const planned = monthRec
+        ? Number(monthRec.collectionForecast) || 0
+        : forecastTotalsByCustomer.get(c.id) || 0;
+      if (!monthRec) weeklyFallbackTotal += planned;
+      const dues = resolveCustomerDuesValue(c);
+      if (dues > 0 && planned > dues) {
+        customersAboveDues += 1;
+        plannedAboveDues += planned - dues;
+      }
+      return sum + planned;
     }, 0);
-
-    const hasExplicitMonth = explicitMonthCount > 0;
 
     const targetCollection = dashboardScope.scopedTargets.reduce((sum, t) => sum + (Number(t.collectionTarget) || 0), 0);
     const actualCollection = dashboardScope.scopedTargets.reduce((sum, t) => sum + (Number(t.collectionAchieved) || 0), 0);
@@ -608,7 +607,10 @@ export default function CollectionForecastView() {
     return {
       weeklyTotal,
       monthTotal,
-      hasExplicitMonth,
+      weeklyFallbackTotal,
+      monthEntryCount: dashboardScope.scopedForecasts.filter((forecast) => !isWeekForecast(forecast)).length,
+      customersAboveDues,
+      plannedAboveDues,
       plannedTotal,
       targetCollection,
       actualCollection,
@@ -628,6 +630,13 @@ export default function CollectionForecastView() {
       weeksCount
     );
   }, [approvalScope, weeksCount]);
+  const submittedForecastCount = useMemo(
+    () => approvalScope.scopedForecasts.filter((forecast) =>
+      forecast.status === 'submitted'
+      && (approvalSlot === 'ALL' || forecast.weekIndex === Number(approvalSlot))
+    ).length,
+    [approvalScope, approvalSlot]
+  );
 
   /* ---------- كتابة وتعديل أرقام التوقع (Cell Commit) ---------- */
   const recordFor = useCallback(
@@ -1017,11 +1026,8 @@ export default function CollectionForecastView() {
     setTimeout(() => setSavedFlash(''), 3500);
   };
 
-  /* ---------- حالة كل أسبوع لكل مندوب (أضعف حالة في الأسبوع تغلب) ---------- */
-  /* أسبوع واحد فيه سطر واحد لسه مسودة = الأسبوع كله لسه مفتوح عند المشرف.
-     عشان كده بنجمع كل الحالات وناخد الأضعف، مش حالة أول صف في الجدول.
-     السطر الشهري (0) داخل في الخريطة عن قصد — ليه نفس دورة الاعتماد. */
-  const weekStatusByRep = useMemo(() => {
+  /* ---------- حالات كل فترة لكل مندوب (الشهري = 0، ثم الفترات الأسبوعية) ---------- */
+  const statusesByRepAndPeriod = useMemo(() => {
     const map = new Map<string, ForecastStatus[]>();
     approvalScope.scopedForecasts.forEach((f) => {
       const key = `${f.repId}::${f.weekIndex}`;
@@ -1032,8 +1038,8 @@ export default function CollectionForecastView() {
     return map;
   }, [approvalScope]);
 
-  const weakestStatusFor = (repId: string, weekIndex: number): ForecastStatus | '' => {
-    const list = weekStatusByRep.get(`${repId}::${weekIndex}`);
+  const weakestStatusForPeriod = (repId: string, weekIndex: number): ForecastStatus | '' => {
+    const list = statusesByRepAndPeriod.get(`${repId}::${weekIndex}`);
     if (!list || list.length === 0) return '';
     if (list.includes('change_requested')) return 'change_requested';
     if (list.includes('draft')) return 'draft';
@@ -1056,7 +1062,14 @@ export default function CollectionForecastView() {
     if (approvingSlot) return;
     setApprovingSlot(key);
     try {
-      const changed = await approveForecastWeek(monthKey, weekIndex, repId);
+      const customerIds = approvalScope.scopedForecasts
+        .filter((forecast) =>
+          forecast.repId === repId
+          && forecast.weekIndex === weekIndex
+          && forecast.status === 'submitted'
+        )
+        .map((forecast) => forecast.customerId);
+      const changed = await approveForecastWeek(monthKey, weekIndex, repId, customerIds);
       const label = forecastSlotLabel(weekIndex, weeks);
       setSavedFlash(
         changed > 0 ? `تم اعتماد ${changed} توقع في ${label} وقفل الأرقام 🔒` : `لا توجد توقعات ${label} للاعتماد`
@@ -1075,28 +1088,25 @@ export default function CollectionForecastView() {
     const slots = approvalSlot === 'ALL'
       ? [MONTH_FORECAST_INDEX, ...weeks.map((week) => week.index)]
       : [Number(approvalSlot)];
-    const approvals = progress.flatMap((row) =>
-      slots
-        .filter((slot) => {
-          const status = weakestStatusFor(row.repId, slot);
-          return status !== '' && status !== 'approved';
-        })
-        .map((slot) => ({
-          repId: row.repId,
-          slot,
-          customerIds: Array.from(new Set(
-            approvalScope.scopedForecasts
-              .filter((forecast) =>
-                forecast.repId === row.repId
-                && forecast.weekIndex === slot
-                && forecast.status !== 'approved'
-              )
-              .map((forecast) => forecast.customerId)
-          )),
-        }))
-    );
+    const approvalGroups = new Map<string, { repId: string; weekIndex: number; customerIds: Set<string> }>();
+    approvalScope.scopedForecasts.forEach((forecast) => {
+      if (forecast.status !== 'submitted' || !slots.includes(forecast.weekIndex)) return;
+      const key = `${forecast.repId}::${forecast.weekIndex}`;
+      const group = approvalGroups.get(key) || {
+        repId: forecast.repId,
+        weekIndex: forecast.weekIndex,
+        customerIds: new Set<string>(),
+      };
+      group.customerIds.add(forecast.customerId);
+      approvalGroups.set(key, group);
+    });
+    const approvals = Array.from(approvalGroups.values()).map((group) => ({
+      repId: group.repId,
+      weekIndex: group.weekIndex,
+      customerIds: Array.from(group.customerIds),
+    }));
     if (!approvals.length) {
-      setSavedFlash('كل التوقعات في النطاق المحدد معتمدة بالفعل أو لا توجد توقعات جاهزة');
+      setSavedFlash('لا توجد توقعات مُرسلة للمشرف في النطاق والفترة المحددين');
       setTimeout(() => setSavedFlash(''), 4000);
       return;
     }
@@ -1105,7 +1115,7 @@ export default function CollectionForecastView() {
     try {
       const approvedRows = await approveForecastBatch(
         monthKey,
-        approvals.map(({ slot, ...approval }) => ({ weekIndex: slot, ...approval }))
+        approvals
       );
       setSavedFlash(
         approvedRows > 0
@@ -1482,17 +1492,24 @@ export default function CollectionForecastView() {
       <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
         <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
           <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
-            <span>التوقع الشهري المستقل</span>
+            <span>إجمالي المتوقع للتحصيل</span>
             <CalendarCheck className="w-4 h-4 text-teal-600" />
           </div>
           <div className="text-base sm:text-lg font-black text-teal-800 mt-1 font-mono">
             {formatCurrency(kpiTotals.plannedTotal)}
           </div>
           <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
-            {kpiTotals.hasExplicitMonth ? (
-              <>مجموع الأسابيع: <span className="text-slate-700 font-black">{formatCurrency(kpiTotals.weeklyTotal)}</span></>
-            ) : (
-              <>لسه محدش كتب رقم شهري — الرقم ده مجموع الأسابيع</>
+            شهري مستقل ({kpiTotals.monthEntryCount} عميل): <span className="text-slate-700 font-black">{formatCurrency(kpiTotals.monthTotal)}</span>
+            {' · '}
+            بديل أسبوعي: <span className="text-slate-700 font-black">{formatCurrency(kpiTotals.weeklyFallbackTotal)}</span>
+            <span className="block mt-1">
+              إجمالي الأسابيع للمقارنة: <span className="text-slate-700 font-black">{formatCurrency(kpiTotals.weeklyTotal)}</span>
+              {' · '}{filteredCustomers.length} عميل حسب الفلاتر الحالية
+            </span>
+            {kpiTotals.customersAboveDues > 0 && (
+              <span className="block mt-1 text-amber-700">
+                تنبيه: توقع {kpiTotals.customersAboveDues} عميل أعلى من مستحقاته بإجمالي {formatCurrency(kpiTotals.plannedAboveDues)}.
+              </span>
             )}
           </div>
         </div>
@@ -1752,7 +1769,7 @@ export default function CollectionForecastView() {
                 <th className="p-3 text-teal-300 text-center whitespace-nowrap min-w-[130px]">
                   <div className="flex items-center justify-center gap-1">
                     <CalendarCheck className="w-3.5 h-3.5" />
-                    <span>متوقع شهري مستقل</span>
+                    <span>توقع شهري مستقل</span>
                   </div>
                   <span className="text-[9.5px] font-normal text-slate-400 block font-mono">
                     رقم لوحده — مش مجموع الأسابيع
@@ -1945,7 +1962,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                               min={0}
                               disabled={!editable || locked}
                               value={currentVal}
-                              placeholder={weekSum > 0 ? String(weekSum) : '0'}
+                              placeholder={weekSum > 0 ? String(weekSum) : 'لم يُكتب'}
                               onChange={(e) => {
                                 const val = e.target.value;
                                 setDraft((prev) => ({ ...prev, [recKey]: val }));
@@ -2090,12 +2107,12 @@ const visitStats = visitStatsByCustomer.get(c.id);
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
             <span className="text-xs font-black">اعتماد التوقعات حسب الفرع والمشرف والمندوب</span>
-            <span className="text-[11px] font-bold text-slate-400 font-mono">({progress.length} مندوب)</span>
+            <span className="text-[11px] font-bold text-slate-400 font-mono">({progress.length} مندوب لديه توقعات)</span>
           </div>
           <span className="text-[10.5px] text-slate-400 font-bold">
             {canApprove
-              ? 'المشرف ومدير الفرع والإدارة بيحاولوا يعتمدوا أو يرجعوا التوقع للمعديل'
-              : 'مندوب بيبعت توقع الأسبوع أو التوقع الشهري للمشرف'}
+              ? 'الاعتماد متاح للتوقعات المُرسلة فقط؛ والمسودة أو التعديل المطلوب لم يُعتمدا بعد'
+              : 'المندوب يرسل التوقع للمشرف؛ لا يمكن اعتماد المسودة مباشرة'}
           </span>
         </div>
 
@@ -2110,7 +2127,10 @@ const visitStats = visitStatsByCustomer.get(c.id);
                 {' · '}
                 {repFilter === 'ALL' ? 'كل المناديب' : repOptions.find(([id]) => id === repFilter)?.[1] || repFilter}
                 {' — '}
-                {progress.length} مندوب ضمن النطاق الحالي
+                {progress.length} مندوب لديهم توقعات لعملاء النطاق المعروض
+              </p>
+              <p className="mt-1 text-[10px] font-bold text-slate-500">
+                الاعتماد الجماعي يشمل التوقعات المُرسلة فقط وللعملاء المطابقين للفلاتر الحالية. أرقام الحالة عدد الفترات، والشرائح داخل الفترة عدد العملاء.
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -2130,11 +2150,11 @@ const visitStats = visitStatsByCustomer.get(c.id);
               <button
                 type="button"
                 onClick={handleApproveFilteredScope}
-                disabled={isApprovingScope || !!approvingSlot || planLocked || !progress.length}
+                disabled={isApprovingScope || !!approvingSlot || planLocked || !submittedForecastCount}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isApprovingScope ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" />}
-                {isApprovingScope ? 'جاري اعتماد النطاق...' : 'اعتماد المحدد'}
+                {isApprovingScope ? 'جاري اعتماد النطاق...' : `اعتماد التوقعات المُرسلة (${submittedForecastCount})`}
               </button>
             </div>
           </div>
@@ -2156,7 +2176,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                   <th className="p-2.5 text-center">مجموع الأسابيع</th>
                   <th className="p-2.5 text-center">الهدف</th>
                   <th className="p-2.5 text-center">التغطية</th>
-                  <th className="p-2.5 text-center">حالة الأسابيع</th>
+                  <th className="p-2.5 text-center">حالة الفترات</th>
                   <th className="p-2.5 text-center">الإجراءات</th>
                 </tr>
               </thead>
@@ -2182,13 +2202,17 @@ const visitStats = visitStatsByCustomer.get(c.id);
                       {p.repName}
                     </td>
                     <td className="p-2.5 text-center font-mono font-black text-teal-700 whitespace-nowrap">
-                      {p.monthCollection > 0 ? formatCurrency(p.monthCollection) : '—'}
+                      {weakestStatusForPeriod(p.repId, MONTH_FORECAST_INDEX)
+                        ? formatCurrency(p.monthCollection)
+                        : 'لم يُكتب'}
                     </td>
                     <td className="p-2.5 text-center font-mono font-black text-emerald-700 whitespace-nowrap">
-                      {formatCurrency(p.weeklyCollection)}
+                      {weeks.some((week) => statusesByRepAndPeriod.has(`${p.repId}::${week.index}`))
+                        ? formatCurrency(p.weeklyCollection)
+                        : '—'}
                     </td>
                     <td className="p-2.5 text-center font-mono font-bold text-blue-700 whitespace-nowrap">
-                      {formatCurrency(p.targetCollection)}
+                      {p.targetCollection > 0 ? formatCurrency(p.targetCollection) : 'غير محدد'}
                     </td>
                     <td className="p-2.5 text-center whitespace-nowrap">
                       <span
@@ -2202,20 +2226,25 @@ const visitStats = visitStatsByCustomer.get(c.id);
                             : 'bg-slate-100 text-slate-500 border-slate-300'
                         }`}
                       >
-                        {p.collectionCoverage}%
+                        {p.status === 'no_target' ? '—' : `${p.collectionCoverage}%`}
                       </span>
                     </td>
                     <td className="p-2.5 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1 flex-wrap">
                         <span className={`px-1.5 py-0.5 rounded font-black text-[10px] border ${STATUS_STYLE.approved}`}>
-                          معتمد {p.approvedWeeks}
+                          فترات معتمدة {p.approvedPeriods}
                         </span>
                         <span className={`px-1.5 py-0.5 rounded font-black text-[10px] border ${STATUS_STYLE.submitted}`}>
-                          مبعوت {p.submittedWeeks}
+                          فترات مُرسلة {p.submittedPeriods}
                         </span>
-                        {p.changeRequestedWeeks > 0 && (
+                        {p.draftPeriods > 0 && (
+                          <span className={`px-1.5 py-0.5 rounded font-black text-[10px] border ${STATUS_STYLE.draft}`}>
+                            مسودة {p.draftPeriods}
+                          </span>
+                        )}
+                        {p.changeRequestedPeriods > 0 && (
                           <span className={`px-1.5 py-0.5 rounded font-black text-[10px] border ${STATUS_STYLE.change_requested}`}>
-                            مطلوب تعديل {p.changeRequestedWeeks}
+                            تعديلات مطلوبة {p.changeRequestedPeriods}
                           </span>
                         )}
                       </div>
@@ -2234,55 +2263,65 @@ const visitStats = visitStatsByCustomer.get(c.id);
                               w === MONTH_FORECAST_INDEX
                                 ? p.monthCollection
                                 : Number(p.weekCollection?.[w] || 0);
-                            const status = weakestStatusFor(p.repId, w);
+                            const status = weakestStatusForPeriod(p.repId, w);
+                            const slotStatuses = statusesByRepAndPeriod.get(`${p.repId}::${w}`) || [];
                             return (
                               <div key={w} className="flex items-center gap-1 border border-slate-200 rounded-xl px-1.5 py-1 bg-white">
                                 <span className="text-[10px] font-black text-slate-600">{label}</span>
                                 <span className="text-[10px] font-mono font-bold text-slate-500">
-                                  {weekValue > 0 ? Math.round(weekValue).toLocaleString('ar-EG') : '—'}
+                                  {status ? `${Math.round(weekValue).toLocaleString('ar-EG')} ج.م` : 'لم يُكتب'}
                                 </span>
-                                {status && (
-                                  <span
-                                    className={`px-1.5 py-0.5 rounded font-black text-[9.5px] border ${STATUS_STYLE[status] || ''}`}
-                                    title={`حالة ${label}: ${STATUS_LABEL[status] || ''}`}
-                                  >
-                                    {STATUS_LABEL[status] || status}
-                                  </span>
-                                )}
-                                {!canApprove && !planLocked && (
+                                {(['approved', 'submitted', 'draft', 'change_requested'] as ForecastStatus[]).map((slotStatus) => {
+                                  const count = slotStatuses.filter((item) => item === slotStatus).length;
+                                  if (!count) return null;
+                                  return (
+                                    <span
+                                      key={slotStatus}
+                                      className={`px-1.5 py-0.5 rounded font-black text-[9.5px] border ${STATUS_STYLE[slotStatus] || ''}`}
+                                      title={`${count} عميل — ${STATUS_LABEL[slotStatus] || slotStatus}`}
+                                    >
+                                      {STATUS_LABEL[slotStatus]} {count}
+                                    </span>
+                                  );
+                                })}
+                                {!canApprove && !planLocked && slotStatuses.some((item) => item === 'draft' || item === 'change_requested') && (
                                   <button
                                     type="button"
                                     onClick={() => handleSubmitWeek(p.repId, w)}
                                     className="px-1.5 py-0.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-black cursor-pointer"
-                                    title="إرسال التوقع للمشرف"
+                                    title="إرسال المسودة أو التعديل المطلوب للمشرف"
                                   >
                                     <Send className="w-3 h-3" />
                                   </button>
                                 )}
-                                {canApprove && !planLocked && !isApprovingScope && status !== '' && (
+                                {canApprove && !planLocked && !isApprovingScope && (slotStatuses.includes('submitted') || slotStatuses.includes('approved')) && (
                                   <>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleApproveWeek(p.repId, w)}
-                                      disabled={!!approvingSlot}
-                                      className="px-1.5 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black cursor-pointer disabled:opacity-50"
-                                      title="اعتماد التوقع وقفله"
-                                    >
-                                      {approvingSlot === `${p.repId}::${w}`
-                                        ? <LoaderCircle className="w-3 h-3 animate-spin" />
-                                        : <CheckCircle2 className="w-3 h-3" />}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setChangeNoteTarget({ repId: p.repId, weekIndex: w });
-                                        setChangeNote('');
-                                      }}
-                                      className="px-1.5 py-0.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-[10px] font-black cursor-pointer"
-                                      title="طلب تعديل من المندوب"
-                                    >
-                                      <RotateCcw className="w-3 h-3" />
-                                    </button>
+                                    {slotStatuses.includes('submitted') && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleApproveWeek(p.repId, w)}
+                                        disabled={!!approvingSlot}
+                                        className="px-1.5 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black cursor-pointer disabled:opacity-50"
+                                        title="اعتماد توقعات العملاء المُرسلة فقط وقفلها"
+                                      >
+                                        {approvingSlot === `${p.repId}::${w}`
+                                          ? <LoaderCircle className="w-3 h-3 animate-spin" />
+                                          : <CheckCircle2 className="w-3 h-3" />}
+                                      </button>
+                                    )}
+                                    {slotStatuses.some((item) => item === 'submitted' || item === 'approved') && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setChangeNoteTarget({ repId: p.repId, weekIndex: w });
+                                          setChangeNote('');
+                                        }}
+                                        className="px-1.5 py-0.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-[10px] font-black cursor-pointer"
+                                        title="طلب تعديل من المندوب"
+                                      >
+                                        <RotateCcw className="w-3 h-3" />
+                                      </button>
+                                    )}
                                   </>
                                 )}
                               </div>
