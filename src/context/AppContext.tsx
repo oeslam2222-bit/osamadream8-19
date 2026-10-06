@@ -426,7 +426,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             updatedAt: r.updated_at ?? r.updatedAt ?? undefined,
             // حالة الأرشفة بتقرأ من السيرفر. قبل كده كانت مش متقراش، فأي
             // تعليق مش مهم كان بيتنهض من الأرشيف أول ما السيرفر يردّ على أي
-            // عميل جديد (لأن القراءة كانت بتبني سجل جديد من الصفر).
+            // عميل جديد (لأن القراءة كانت بتبني سجل جديد من الصف��).
             // الأعمدة دي محتاجة supabase/fix_forecast_rls.sql — من غيرها
             // undefined بيرجّع false وده سلوك الـfallback الطبيعي.
             isArchived: !!(r.is_archived ?? r.isArchived),
@@ -1089,8 +1089,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         window.localStorage.setItem(STORAGE_KEYS.FORECASTS, JSON.stringify(next));
       } catch {}
-      await syncOrQueue('forecasts', 'delete', id, { id }, () => deleteForecastFromSupabase(id));
-      publishDataVersionUpdate({ scope: 'all', reason: 'forecast_deleted', timestamp: Date.now() }).catch(() => {});
+      await syncOrQueue('forecasts', 'delete', id, undefined, () => deleteForecastFromSupabase(id));
+      publishDataVersionUpdate({ scope: 'all' }).catch(() => {});
     },
     [forecasts, syncOrQueue]
   );
@@ -1110,9 +1110,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         window.localStorage.setItem(STORAGE_KEYS.FORECASTS, JSON.stringify(next));
       } catch {}
       for (const item of targetsToDelete) {
-        await syncOrQueue('forecasts', 'delete', item.id, { id: item.id }, () => deleteForecastFromSupabase(item.id));
+        await syncOrQueue('forecasts', 'delete', item.id, undefined, () => deleteForecastFromSupabase(item.id));
       }
-      publishDataVersionUpdate({ scope: 'all', reason: 'customer_forecasts_deleted', timestamp: Date.now() }).catch(() => {});
+      publishDataVersionUpdate({ scope: 'all' }).catch(() => {});
     },
     [forecasts, syncOrQueue]
   );
@@ -4959,7 +4959,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     restockToInventory: boolean = true
   ): { success: boolean; message: string; returnRecord?: ReturnRecord } => {
     const inv = invoices.find((i) => i.id === invoiceId);
-    if (!inv) return { success: false, message: 'الفاتورة غير موجودة' };
+    if (!inv) return { success: false, message: 'الفاتورة ��ير موجودة' };
 
     if (!returnedItems || returnedItems.length === 0) {
       return { success: false, message: 'يرجى تحديد صنف واحد على الأقل مع تحديد الكمية المرتجعة' };
@@ -5078,7 +5078,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           netAmountAfterReturns: netGrandTotal,
           lastReturnDate: dateStr,
           restoredStockDetails: `تم استرجاع ${totalReturnedCartons} كرتونة بقيمة ${totalRefundAmount.toLocaleString()} ج.م (إذن #${returnVoucherNumber})`,
-          notes: `${i.notes ? i.notes + ' | ' : ''}مرتجع ${isFullReturn ? 'كلي' : 'جزئي'} إذن #${returnVoucherNumber} بقيمة ${totalRefundAmount.toLocaleString()} ج.م (${reason})`,
+          notes: `${i.notes ? i.notes + ' | ' : ''}مرتجع ${isFullReturn ? 'كلي' : 'جز��ي'} إذن #${returnVoucherNumber} بقيمة ${totalRefundAmount.toLocaleString()} ج.م (${reason})`,
         };
         saveInvoiceWithQueue(updated).catch((e) => console.warn('Supabase return sync failed:', e));
         return updated;
