@@ -169,6 +169,7 @@ export default function CollectionForecastView() {
   const [showPasteMonthly, setShowPasteMonthly] = useState(false);
   const [pasteMonthlyText, setPasteMonthlyText] = useState('');
   const [pasteMonthlyPreview, setPasteMonthlyPreview] = useState<Array<{ code: string; amount: number; customer: Customer | null }>>([]);
+  const [pasteFrequency, setPasteFrequency] = useState<'monthly' | 'weekly'>('monthly');
   const [isSavingPastedMonthly, setIsSavingPastedMonthly] = useState(false);
   const [pageSize, setPageSize] = useState<number>(25);
   const [page, setPage] = useState<number>(1);
@@ -393,7 +394,7 @@ export default function CollectionForecastView() {
     return Array.from(seen.keys()).sort((a, b) => a.localeCompare(b, 'ar'));
   }, [scopedCustomers, users]);
 
-  /* ---------- الفلترة السريعة والخفيفة للعملاء (Instant Filtering) ---------- */
+  /* ---------- الفلترة السريعة والخف��فة للعملاء (Instant Filtering) ---------- */
   const filteredCustomers = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
 
@@ -656,23 +657,13 @@ export default function CollectionForecastView() {
     XLSX.writeFile(wb, `توقع_التحصيلات_${monthKey}.xlsx`);
   };
 
-  const shiftMonth = (delta: number) => {
-    const m = /^(\d{4})-(\d{2})$/.exec(monthKey);
-    if (!m) return;
-    const d = new Date(Number(m[1]), Number(m[2]) - 1 + delta, 1);
-    setMonthKey(monthKeyOf(d.getFullYear(), d.getMonth() + 1));
+  const shiftMonth = (_delta: number) => {
+    // توقعات التحصيل تُسجّل للشهر الحالي فقط حتى لا تتغير الشهور السابقة بالخطأ.
+    setMonthKey(currentMonthKey());
     setRepFilter('ALL');
   };
 
-  const monthOptions = useMemo(() => {
-    const now = new Date();
-    const out: string[] = [];
-    for (let i = -1; i <= 2; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-      out.push(monthKeyOf(d.getFullYear(), d.getMonth() + 1));
-    }
-    return out;
-  }, []);
+  const monthOptions = useMemo(() => [currentMonthKey()], []);
 
   /* ---------- خطة الشهر: تقسيم مرن للأيام (الأدمن والمطوّر فقط) ---------- */
   const openPlanEditor = () => {
@@ -993,13 +984,21 @@ export default function CollectionForecastView() {
     if (isSavingPastedMonthly) return;
 
     const rows = pasteMonthlyPreview.filter((row) => row.customer && row.amount >= 0);
+    if (!rows.length) return;
+    const targetWeek = weekFilter !== 'ALL' ? Number(weekFilter) : currentWeek > 0 ? currentWeek : weeks[0]?.index;
     setIsSavingPastedMonthly(true);
     try {
-      for (const row of rows) await commitMonthCell(row.customer!, String(row.amount));
+      for (const row of rows) {
+        if (pasteFrequency === 'weekly' && targetWeek) {
+          await commitCell(row.customer!, targetWeek, String(row.amount));
+        } else {
+          await commitMonthCell(row.customer!, String(row.amount));
+        }
+      }
       setShowPasteMonthly(false);
       setPasteMonthlyText('');
       setPasteMonthlyPreview([]);
-      setSavedFlash(`تم حفظ ${rows.length} توقع شهري من البيانات المنسوخة`);
+      setSavedFlash(`تم حفظ ${rows.length} توقع ${pasteFrequency === 'weekly' ? 'أسبوعي' : 'شهري'} من البيانات المنسوخة`);
       setTimeout(() => setSavedFlash(''), 3500);
     } finally {
       setIsSavingPastedMonthly(false);
@@ -1918,6 +1917,20 @@ export default function CollectionForecastView() {
               </button>
             </div>
             <div className="p-5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-3">
+                <div>
+                  <p className="text-xs font-black text-slate-900">نوع التوقع الذي سيتم تعبئته</p>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    {pasteFrequency === 'weekly'
+                      ? `سيتم الحفظ في ${weekFilter !== 'ALL' ? forecastSlotLabel(Number(weekFilter), weeks) : currentWeek > 0 ? forecastSlotLabel(currentWeek, weeks) : 'أول فترة متاحة'}`
+                      : `سيتم الحفظ للشهر الحالي: ${formatMonthLabel(monthKey)}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 rounded-xl bg-white border border-emerald-200 p-1" role="group" aria-label="نوع التوقع">
+                  <button type="button" onClick={() => setPasteFrequency('monthly')} className={`px-3 py-2 rounded-lg text-xs font-black transition ${pasteFrequency === 'monthly' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-emerald-50'}`}>شهري</button>
+                  <button type="button" onClick={() => setPasteFrequency('weekly')} className={`px-3 py-2 rounded-lg text-xs font-black transition ${pasteFrequency === 'weekly' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-emerald-50'}`}>أسبوعي</button>
+                </div>
+              </div>
               <textarea
                 value={pasteMonthlyText}
                 onChange={(e) => handlePasteMonthlyPreview(e.target.value)}
@@ -1941,9 +1954,9 @@ export default function CollectionForecastView() {
                 </div>
               )}
               <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setShowPasteMonthly(false)} className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-black cursor-pointer">إلغاء</button>
+                <button type="button" disabled={isSavingPastedMonthly} onClick={() => setShowPasteMonthly(false)} className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-black cursor-pointer disabled:opacity-50">إلغاء</button>
                 <button type="button" disabled={isSavingPastedMonthly || !pasteMonthlyPreview.some((row) => row.customer)} onClick={handleSavePastedMonthly} className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-black cursor-pointer inline-flex items-center gap-2" aria-live="polite">
-  {isSavingPastedMonthly ? <><LoaderCircle className="w-4 h-4 animate-spin" aria-hidden="true" /> جاري التحميل...</> : 'مطابقة وحفظ التوقعات'}
+  {isSavingPastedMonthly ? <><LoaderCircle className="w-4 h-4 animate-spin" aria-hidden="true" /> جاري مطابقة وحفظ {pasteMonthlyPreview.filter((row) => row.customer).length} عميل...</> : `مطابقة وحفظ التوقع ${pasteFrequency === 'weekly' ? 'الأسبوعي' : 'الشهري'}`}
 </button>
               </div>
             </div>
