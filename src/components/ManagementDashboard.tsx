@@ -77,13 +77,20 @@ const getYearFromStr = (value?: string): number | null => {
   return match ? Number(match[0]) : null;
 };
 
+const getMonthFromStr = (value?: string): number | null => {
+  if (!value) return null;
+  const match = value.match(/^(?:19|20)\d{2}[-/](\d{1,2})(?:[-/]|$)/);
+  const month = match ? Number(match[1]) : NaN;
+  return Number.isInteger(month) && month >= 1 && month <= 12 ? month : null;
+};
+
 const safeNumber = (value: unknown): number => {
   const amount = Number(value);
   return Number.isFinite(amount) ? amount : 0;
 };
 
-const getTargetYear = (target: TargetRecord): number =>
-  target.year || getYearFromStr(target.date) || 2026;
+const getTargetYear = (target: TargetRecord): number | null =>
+  target.year || getYearFromStr(target.date);
 
 const isCanceledInv = (status: string): boolean =>
   status === 'ملغاة' || status === 'مرفوضة / ملغاة';
@@ -211,21 +218,15 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     // Rep and branch predicate for target records
     const matchesTarget = (t: TargetRecord) => {
       if (getTargetYear(t) !== selectedYear) return false;
-      if (t.month && !matchesMonth(t.month)) return false;
-      if (selectedBranch !== 'ALL' && t.branch && t.branch !== selectedBranch) return false;
+      if (!Number.isInteger(t.month) || t.month < 1 || t.month > 12 || !matchesMonth(t.month)) return false;
+      if (selectedBranch !== 'ALL' && (!t.branch || t.branch !== selectedBranch)) return false;
       if (selectedSupervisor !== 'ALL') {
         const repUser = users.find((u) => isArabicNameMatch(u.name, t.repName));
-        if (repUser && repUser.supervisorId !== selectedSupervisor) return false;
+        if (!repUser || repUser.supervisorId !== selectedSupervisor) return false;
       }
       if (selectedRep !== 'ALL') {
         const repUser = users.find((u) => u.id === selectedRep);
-        if (repUser && !isArabicNameMatch(repUser.name, t.repName)) return false;
-      }
-      if (searchQuery.trim()) {
-        const q = normalizeArabicText(searchQuery.toLowerCase());
-        const matchName = normalizeArabicText(t.repName || '').includes(q);
-        const matchBranch = normalizeArabicText(t.branch || '').includes(q);
-        if (!matchName && !matchBranch) return false;
+        if (!repUser || !isArabicNameMatch(repUser.name, t.repName)) return false;
       }
       return true;
     };
@@ -235,18 +236,12 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     // Invoices matching filters
     const periodInvoices = invoices.filter((inv) => {
       const invYear = getYearFromStr(inv.date);
-      if (invYear && invYear !== selectedYear) return false;
-      if (inv.date) {
-        const parts = inv.date.split('-');
-        if (parts.length >= 2) {
-          const m = parseInt(parts[1], 10);
-          if (!matchesMonth(m)) return false;
-        }
-      }
-      if (selectedBranch !== 'ALL' && inv.branchName && inv.branchName !== selectedBranch) return false;
+      const invMonth = getMonthFromStr(inv.date);
+      if (invYear !== selectedYear || invMonth === null || !matchesMonth(invMonth)) return false;
+      if (selectedBranch !== 'ALL' && (!inv.branchName || inv.branchName !== selectedBranch)) return false;
       if (selectedSupervisor !== 'ALL') {
         const repUser = users.find((u) => u.id === inv.repId || isArabicNameMatch(u.name, inv.repName || ''));
-        if (repUser && repUser.supervisorId !== selectedSupervisor) return false;
+        if (!repUser || repUser.supervisorId !== selectedSupervisor) return false;
       }
       if (selectedRep !== 'ALL' && inv.repId !== selectedRep) {
         const repUser = users.find((u) => u.id === selectedRep);
@@ -258,18 +253,12 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     // Visits matching filters
     const periodVisits = visits.filter((v) => {
       const vYear = getYearFromStr(v.date);
-      if (vYear && vYear !== selectedYear) return false;
-      if (v.date) {
-        const parts = v.date.split('-');
-        if (parts.length >= 2) {
-          const m = parseInt(parts[1], 10);
-          if (!matchesMonth(m)) return false;
-        }
-      }
-      if (selectedBranch !== 'ALL' && v.branchName && v.branchName !== selectedBranch) return false;
+      const visitMonth = getMonthFromStr(v.date);
+      if (vYear !== selectedYear || visitMonth === null || !matchesMonth(visitMonth)) return false;
+      if (selectedBranch !== 'ALL' && (!v.branchName || v.branchName !== selectedBranch)) return false;
       if (selectedSupervisor !== 'ALL') {
         const repUser = users.find((u) => u.id === v.repId || isArabicNameMatch(u.name, v.repName || ''));
-        if (repUser && repUser.supervisorId !== selectedSupervisor) return false;
+        if (!repUser || repUser.supervisorId !== selectedSupervisor) return false;
       }
       if (selectedRep !== 'ALL' && v.repId !== selectedRep) {
         const repUser = users.find((u) => u.id === selectedRep);
@@ -280,15 +269,12 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
 
     // Forecasts matching filters
     const periodForecasts = (forecasts || []).filter((f) => {
-      if (f.monthKey) {
-        const [y, mStr] = f.monthKey.split('-');
-        if (Number(y) !== selectedYear) return false;
-        if (!matchesMonth(Number(mStr))) return false;
-      }
-      if (selectedBranch !== 'ALL' && f.branchName && f.branchName !== selectedBranch) return false;
+      const monthKeyMatch = f.monthKey?.match(/^((?:19|20)\d{2})-(0?[1-9]|1[0-2])$/);
+      if (!monthKeyMatch || Number(monthKeyMatch[1]) !== selectedYear || !matchesMonth(Number(monthKeyMatch[2]))) return false;
+      if (selectedBranch !== 'ALL' && (!f.branchName || f.branchName !== selectedBranch)) return false;
       if (selectedSupervisor !== 'ALL') {
         const repUser = users.find((u) => u.id === f.repId);
-        if (repUser && repUser.supervisorId !== selectedSupervisor) return false;
+        if (!repUser || repUser.supervisorId !== selectedSupervisor) return false;
       }
       if (selectedRep !== 'ALL' && f.repId !== selectedRep) return false;
       return true;
@@ -296,10 +282,10 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
 
     // Customers in scope
     const scopedCustomers = customers.filter((c) => {
-      if (selectedBranch !== 'ALL' && c.branchName && c.branchName !== selectedBranch) return false;
+      if (selectedBranch !== 'ALL' && (!c.branchName || c.branchName !== selectedBranch)) return false;
       if (selectedSupervisor !== 'ALL') {
         const repUser = users.find((u) => u.id === c.repId || isArabicNameMatch(u.name, c.repName || c.salesRepName || ''));
-        if (repUser && repUser.supervisorId !== selectedSupervisor) return false;
+        if (!repUser || repUser.supervisorId !== selectedSupervisor) return false;
       }
       if (selectedRep !== 'ALL') {
         const repUser = users.find((u) => u.id === selectedRep);
@@ -330,7 +316,6 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     selectedBranch,
     selectedSupervisor,
     selectedRep,
-    searchQuery,
   ]);
 
   // Aggregate Metrics & Executive Analysis
@@ -351,12 +336,28 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     // الأسبوعية، فلازم يتشال هنا — غير كده التوقع المتوقع بيتحسب مرتين
     // وربطة الدقة بتطلع غلط لأن المحقق بيقسم على رقم مضاعف.
     const forecastExpected = fList.reduce(
-      (sum, f) => (isMonthForecast(f) ? sum : sum + safeNumber(f.collectionForecast)),
+      (sum, f) => (
+        isMonthForecast(f) || f.status !== 'submitted' && f.status !== 'approved'
+          ? sum
+          : sum + safeNumber(f.collectionForecast)
+      ),
       0
     );
+    const forecastNeedsAttention = fList.reduce(
+      (sum, f) => (
+        isMonthForecast(f) || f.status === 'submitted' || f.status === 'approved'
+          ? sum
+          : sum + safeNumber(f.collectionForecast)
+      ),
+      0
+    );
+    const forecastNeedsAttentionCount = fList.filter(
+      (f) => !isMonthForecast(f) && f.status !== 'submitted' && f.status !== 'approved'
+    ).length;
 
     // Customer coverage & financials
     let totalDues = 0;
+    let customersWithDues = 0;
     let eligibleCount = 0;
     let dealtCount = 0;
 
@@ -364,20 +365,25 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
       const fin = calculateCustomerFinancials(c, 'ALL');
       if (fin.isEligible) eligibleCount++;
       if (fin.isDealtCustomer) dealtCount++;
-      totalDues += Math.max(0, resolveCustomerDuesValue(c));
+      const customerDues = Math.max(0, resolveCustomerDuesValue(c));
+      totalDues += customerDues;
+      if (customerDues > 0) customersWithDues++;
     });
 
     const customerCoverageRate = eligibleCount > 0 ? Math.round((dealtCount / eligibleCount) * 100) : 0;
 
-    // This indicator combines period sales with the current receivables snapshot;
-    // keep its label explicit so it is not mistaken for a target or forecast rate.
-    const totalCirculating = salesAchieved + totalDues;
-    const collectionEfficiency = totalCirculating > 0 ? Math.round((collectionAchieved / totalCirculating) * 100) : (collectionAchieved > 0 ? 100 : 0);
-
     // Field Visits Analysis
     const totalVisits = vList.length;
-    const completedVisits = vList.filter((v) => v.status === 'منفذة' || Boolean(v.checkOutTime)).length;
-    const visitsExecutionRate = totalVisits > 0 ? Math.round((completedVisits / totalVisits) * 100) : 0;
+    const today = new Date();
+    const todayISODate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const isVisitDueForExecution = (visit: typeof vList[number]) =>
+      visit.status !== 'ملغاة' &&
+      !(visit.status === 'مجدولة' && Boolean(visit.date) && visit.date > todayISODate);
+    const executionScopeVisits = vList.filter(isVisitDueForExecution);
+    const completedVisits = executionScopeVisits.filter((v) => v.status === 'منفذة' || Boolean(v.checkOutTime)).length;
+    const visitsExecutionRate = executionScopeVisits.length > 0
+      ? Math.round((completedVisits / executionScopeVisits.length) * 100)
+      : 0;
     const visitsWithCollection = vList.filter((v) => safeNumber(v.collectedAmount) > 0).length;
     const directCollectedFromVisits = vList.reduce((sum, v) => sum + safeNumber(v.collectedAmount), 0);
     const returnVisits = vList.filter((v) => v.isReturn);
@@ -420,6 +426,14 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         'نسبة إنجاز التحصيل': cTarget > 0 ? Math.round((cAchieved / cTarget) * 100) : 0,
         visitsCount: mVisits.length,
       };
+    }).filter((_, idx) => {
+      const month = idx + 1;
+      if (selectedMonth !== 'ALL') return month === Number(selectedMonth);
+      if (selectedQuarter === 'Q1') return month >= 1 && month <= 3;
+      if (selectedQuarter === 'Q2') return month >= 4 && month <= 6;
+      if (selectedQuarter === 'Q3') return month >= 7 && month <= 9;
+      if (selectedQuarter === 'Q4') return month >= 10 && month <= 12;
+      return true;
     });
 
     // Reps Performance Matrix
@@ -465,6 +479,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
 
     // Augment rep rows with visits and forecast
     vList.forEach((v) => {
+      if (!isVisitDueForExecution(v)) return;
       const repKey = `${v.branchName || 'عام'}::${v.repName}`;
       const row = repMatrixMap.get(repKey);
       if (row) {
@@ -474,7 +489,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     });
 
     fList.forEach((f) => {
-      if (isMonthForecast(f)) return;
+      if (isMonthForecast(f) || f.status !== 'submitted' && f.status !== 'approved') return;
       const userObj = users.find((u) => u.id === f.repId);
       if (userObj) {
         const repKey = `${f.branchName || userObj.branchName || 'عام'}::${userObj.name}`;
@@ -494,15 +509,21 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         salesRate: sRate,
         collectionRate: cRate,
         visitsRate: vRate,
-        overallScore: Math.round(sRate * 0.45 + cRate * 0.45 + vRate * 0.1),
       };
     });
 
+    const matrixSearch = normalizeArabicText(searchQuery.trim());
+    const filteredRepMatrixList = matrixSearch
+      ? repMatrixList.filter((rep) =>
+          normalizeArabicText(`${rep.repName} ${rep.branch} ${rep.supervisorName}`).includes(matrixSearch)
+        )
+      : repMatrixList;
+
     // Sorting rep rows
-    repMatrixList.sort((a, b) => {
+    filteredRepMatrixList.sort((a, b) => {
       if (sortBy === 'sales') return b.salesAchieved - a.salesAchieved;
       if (sortBy === 'collection') return b.collectionAchieved - a.collectionAchieved;
-      if (sortBy === 'rate') return b.overallScore - a.overallScore;
+      if (sortBy === 'rate') return b.collectionRate - a.collectionRate;
       if (sortBy === 'visits') return b.visitsCompleted - a.visitsCompleted;
       return 0;
     });
@@ -558,12 +579,15 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
       collectionAchieved,
       collectionRate,
       forecastExpected,
+      forecastNeedsAttention,
+      forecastNeedsAttentionCount,
       eligibleCount,
       dealtCount,
       customerCoverageRate,
       totalDues,
-      collectionEfficiency,
+      customersWithDues,
       totalVisits,
+      executionScopeVisits: executionScopeVisits.length,
       completedVisits,
       visitsExecutionRate,
       visitsWithCollection,
@@ -574,10 +598,10 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
       deliveredSalesValue,
       pendingInvoicesCount: pendingInvoices.length,
       monthlyTrend,
-      repMatrixList,
+      repMatrixList: filteredRepMatrixList,
       branchBreakdownList,
     };
-  }, [filteredData, users, sortBy]);
+  }, [filteredData, users, sortBy, searchQuery, selectedMonth, selectedQuarter]);
 
   // Export Power BI Styled Report to Excel
   const handleExportPowerBIReport = () => {
@@ -591,12 +615,13 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
       ['المؤشر التنفيذي (KPI)', 'القيمة المحققة', 'الهدف المخطط', 'نسبة الإنجاز %', 'ملاحظات الأداء'],
       ['مبيعات الفترة المختارة', metrics.salesAchieved, metrics.salesTarget, `${metrics.salesRate}%`, metrics.salesRate >= 90 ? 'أداء ممتاز' : 'يحتاج متابعة'],
       ['تحصيل الفترة المختارة', metrics.collectionAchieved, metrics.collectionTarget, `${metrics.collectionRate}%`, metrics.collectionRate >= 90 ? 'تحصيل فائق' : 'متوسط'],
-      ['إجمالي التوقع الأسبوعي للمتابعة', metrics.forecastExpected, '—', '—', 'توقع المندوب منفصل عن التارجت والمحقق'],
-      ['مؤشر تغطية التحصيل', `${metrics.collectionEfficiency}%`, '—', '—', 'المحقق للفترة ÷ (مبيعات الفترة + المستحقات الحالية)'],
+      ['التوقع الأسبوعي المرسل أو المعتمد', metrics.forecastExpected, '—', '—', 'توقع المندوب؛ لا يُجمع مع التوقع الشهري المستقل'],
+      ['توقعات مسودة أو مطلوبة التعديل', metrics.forecastNeedsAttention, '—', '—', `${metrics.forecastNeedsAttentionCount} سجل؛ غير داخلة في إجمالي التوقع المرسل/المعتمد`],
       ['إجمالي المستحقات الحالية', metrics.totalDues, '—', '—', 'لقطة أرصدة حالية وليست رقمًا خاصًا بالفترة المختارة'],
+      ['عدد العملاء ذوي المستحقات الحالية', metrics.customersWithDues, '—', '—', 'ضمن الفروع والمناديب المطابقين للفلاتر'],
       ['تغطية العملاء القابلين', metrics.dealtCount, metrics.eligibleCount, `${metrics.customerCoverageRate}%`, 'تغطية شبكة التوزيع'],
-      ['الزيارات الميدانية المنفذة', metrics.completedVisits, metrics.totalVisits, `${metrics.visitsExecutionRate}%`, 'تنفيذ خطوط السير'],
-      ['قيمة المبيعات المسلّمة', metrics.deliveredSalesValue, '—', '—', 'فواتير تم تسليمها للعميل'],
+      ['الزيارات المنفذة', metrics.completedVisits, metrics.executionScopeVisits, `${metrics.visitsExecutionRate}%`, `من الزيارات المستحقة للتنفيذ؛ إجمالي السجلات: ${metrics.totalVisits}`],
+      ['قيمة المبيعات المسلّمة من الفواتير المحمّلة', metrics.deliveredSalesValue, '—', '—', `مبنية على ${metrics.validInvoicesCount} فاتورة محمّلة؛ قد لا تشمل كامل سجل الفترة`],
       ['قيمة المرتجعات الميدانية', metrics.totalReturnsValue, '—', '—', `عدد ${metrics.returnVisitsCount} زيارة مرتجع`],
     ];
 
@@ -606,7 +631,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     // 2. Reps Matrix Sheet
     const repHeader = [
       ['مصفوفة أداء المناديب والمشرفين'],
-      ['اسم المندوب', 'الفرع', 'المشرف المباشر', 'هدف البيع', 'المحقق بيع', 'نسبة بيع %', 'هدف التحصيل', 'المحقق تحصيل', 'نسبة تحصيل %', 'الزيارات المنفذة', 'إجمالي الزيارات', 'التقييم الشامل %'],
+      ['اسم المندوب', 'الفرع', 'المشرف المباشر', 'هدف البيع', 'المحقق بيع', 'نسبة بيع %', 'هدف التحصيل', 'المحقق تحصيل', 'نسبة تحصيل %', 'الزيارات المنفذة المستحقة', 'زيارات مسجلة', 'التوقع الأسبوعي المرسل/المعتمد'],
     ];
 
     const repRows = metrics.repMatrixList.map((r) => [
@@ -621,7 +646,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
       `${r.collectionRate}%`,
       r.visitsCompleted,
       r.visitsTotal,
-      `${r.overallScore}%`,
+      r.forecastExpected,
     ]);
 
     const wsReps = XLSX.utils.aoa_to_sheet([...repHeader, ...repRows]);
@@ -931,40 +956,34 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               {formatCurrency(metrics.forecastExpected)}
             </div>
             <div className="text-[11px] text-slate-500 font-medium leading-relaxed">
-              مجموع توقعات الأسابيع المسجلة للفترة، للمتابعة فقط
+              المُرسل للمشرف أو المعتمد فقط؛ المسودات وطلبات التعديل مستبعدة
             </div>
           </div>
           <div className="mt-2.5 pt-2 border-t border-slate-100">
-            <div className="text-[10px] text-purple-800 font-bold">منفصل عن هدف التحصيل والمحقق الفعلي</div>
+            <div className="text-[10px] text-purple-800 font-bold">
+              مسودة/مطلوب تعديله: {formatCurrency(metrics.forecastNeedsAttention)} · {metrics.forecastNeedsAttentionCount.toLocaleString('ar-EG')} سجل
+            </div>
           </div>
         </article>
 
-        {/* KPI 4: Collection Efficiency */}
+        {/* KPI 4: Current customer receivables (snapshot, not a period target) */}
         <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
-              <span>مؤشر تغطية التحصيل</span>
+              <span>مستحقات العملاء الحالية</span>
               <span className="p-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200">
                 <Wallet className="w-4 h-4" />
               </span>
             </div>
-            <div className="font-mono font-black text-base sm:text-lg text-amber-900">
-              {metrics.collectionEfficiency}%
+            <div className="font-mono font-black text-base sm:text-lg text-amber-900 truncate" title={formatCurrency(metrics.totalDues)}>
+              {formatCurrency(metrics.totalDues)}
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
-              المستحقات الحالية: <span className="font-mono">{formatCurrency(metrics.totalDues)}</span>
+              على {metrics.customersWithDues.toLocaleString('ar-EG')} عميل ضمن النطاق
             </div>
           </div>
           <div className="mt-2.5 pt-2 border-t border-slate-100">
-            <div className="text-[10px] text-slate-500 font-bold">
-              المحقق للفترة ÷ (مبيعات الفترة + المستحقات الحالية)
-            </div>
-            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden mt-1">
-              <div
-                className="h-full rounded-full bg-amber-500 transition-all"
-                style={{ width: `${Math.min(100, metrics.collectionEfficiency)}%` }}
-              />
-            </div>
+            <div className="text-[10px] text-slate-500 font-bold">رصيد حالي؛ ليس إنجازًا لفترة التارجت المختارة</div>
           </div>
         </article>
 
@@ -1010,7 +1029,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               {metrics.completedVisits.toLocaleString('ar-EG')}
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
-              من {metrics.totalVisits.toLocaleString('ar-EG')} زيارة مسجلة
+              من {metrics.executionScopeVisits.toLocaleString('ar-EG')} مستحقة التنفيذ
             </div>
           </div>
           <div className="mt-2.5 pt-2 border-t border-slate-100">
@@ -1031,7 +1050,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
-              <span>الفواتير المسلّمة</span>
+              <span>الفواتير المسلّمة (المحمّلة)</span>
               <span className="p-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200">
                 <FileText className="w-4 h-4" />
               </span>
@@ -1045,7 +1064,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           </div>
           <div className="mt-2.5 pt-2 border-t border-slate-100">
             <div className="text-[10px] text-slate-500 font-bold">
-              {metrics.pendingInvoicesCount} طلبية بانتظار الاعتماد
+              {metrics.pendingInvoicesCount} طلبية بانتظار الاعتماد ضمن الفواتير المحمّلة
             </div>
             <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden mt-1">
               <div className="h-full rounded-full bg-rose-500" style={{ width: '100%' }} />
@@ -1143,10 +1162,14 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                 </div>
                 <div>
                   <h3 className="font-black text-sm text-slate-900">
-                    مقارنة المبيعات والتحصيلات (الهدف مقابل المحقق) شهرياً · {selectedYear}
+                    مقارنة المبيعات والتحصيلات (الهدف مقابل المحقق) · {selectedYear}
                   </h3>
                   <p className="text-[11px] text-slate-500 font-medium">
-                    تحليل مقارن للمبيعات والتحصيل لكافة شهور السنة بالأرقام والجنيه المصري
+                    {selectedMonth !== 'ALL'
+                      ? `الشهر المختار: ${MONTHS_NAMES_AR[Number(selectedMonth) - 1]}`
+                      : selectedQuarter !== 'ALL'
+                      ? `أشهر ${selectedQuarter} فقط`
+                      : 'كافة شهور السنة'} · الأرقام بالجنيه المصري
                   </p>
                 </div>
               </div>
@@ -1244,7 +1267,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               <div>
                 <h3 className="font-black text-sm text-slate-900">مصفوفة أداء المناديب والمشرفين (Power BI Matrix)</h3>
                 <p className="text-[11px] text-slate-500 font-medium">
-                  مرتب حسب المؤشر المحدد. التقييم المركب: البيع 45%، التحصيل 45%، تنفيذ الزيارات 10%.
+                  الفرز حسب المؤشر المحدد. التوقع الأسبوعي المعروض للطلبات المرسلة أو المعتمدة فقط.
                 </p>
               </div>
             </div>
@@ -1289,7 +1312,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                     sortBy === 'rate' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  النسبة %
+                  نسبة التحصيل
                 </button>
                 <button
                   type="button"
@@ -1317,10 +1340,8 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                     </div>
                     <p className="text-[10px] text-slate-500 mt-1 truncate">{r.branch} · {r.supervisorName}</p>
                   </div>
-                  <span className={`shrink-0 px-2 py-1 rounded-lg text-xs font-black ${
-                    r.overallScore >= 90 ? 'bg-emerald-100 text-emerald-800' : r.overallScore >= 70 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
-                  }`}>
-                    {r.overallScore}%
+                  <span className="shrink-0 px-2 py-1 rounded-lg text-xs font-black bg-blue-100 text-blue-800">
+                    تحصيل {r.collectionRate}%
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 mt-3">
@@ -1341,7 +1362,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                 </div>
                 <div className="mt-2 flex items-center justify-between text-[10px] text-slate-600">
                   <span>الزيارات المنفذة: <b className="text-cyan-800">{r.visitsCompleted} / {r.visitsTotal}</b></span>
-                  <span>التقييم المركب</span>
+                  <span>توقع أسبوعي: <b className="text-purple-800">{formatCurrency(r.forecastExpected)}</b></span>
                 </div>
               </article>
             ))}
@@ -1365,7 +1386,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                   <th className="p-3 text-blue-900">المحقق تحصيل</th>
                   <th className="p-3 text-center">نسبة التحصيل</th>
                   <th className="p-3 text-center">الزيارات المنفذة</th>
-                  <th className="p-3 text-center">التقييم الشامل</th>
+                  <th className="p-3 text-center">التوقع الأسبوعي المرسل/المعتمد</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1381,11 +1402,6 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                       <td className="p-3 font-black text-slate-900">
                         <div className="flex items-center gap-1.5">
                           <span>{r.repName}</span>
-                          {r.overallScore >= 95 && (
-                            <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-bold border border-amber-300">
-                              نجم الأداء ⭐
-                            </span>
-                          )}
                         </div>
                       </td>
                       <td className="p-3 text-slate-600 font-medium">{r.branch}</td>
@@ -1429,18 +1445,8 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                         <span className="text-slate-400 text-[10px]"> / {r.visitsTotal}</span>
                         <span className="block text-[10px] text-cyan-700 font-bold">{r.visitsRate}%</span>
                       </td>
-                      <td className="p-3 text-center">
-                        <span
-                          className={`px-2.5 py-1 rounded-xl font-black text-xs inline-block shadow-2xs ${
-                            r.overallScore >= 90
-                              ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white'
-                              : r.overallScore >= 70
-                              ? 'bg-amber-500 text-slate-950 font-black'
-                              : 'bg-rose-600 text-white'
-                          }`}
-                        >
-                          {r.overallScore}%
-                        </span>
+                      <td className="p-3 text-center font-mono font-bold text-purple-800">
+                        {formatCurrency(r.forecastExpected)}
                       </td>
                     </tr>
                   );
