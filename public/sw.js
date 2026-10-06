@@ -1,7 +1,7 @@
 // Service Worker for Tantawy Group - Official PWA & Offline Image Caching
-const CACHE_NAME = 'tantawy-group-pwa-v5';
-const ASSET_CACHE_NAME = 'tantawy-group-assets-v5';
-const IMAGE_CACHE_NAME = 'tantawy-group-images-v4';
+const CACHE_NAME = 'tantawy-group-pwa-v6';
+const ASSET_CACHE_NAME = 'tantawy-group-assets-v6';
+const IMAGE_CACHE_NAME = 'tantawy-group-images-v5';
 
 const PRECACHE_ASSETS = [
   '/',
@@ -66,31 +66,47 @@ self.addEventListener('fetch', (event) => {
         .catch(async () => {
           const cachedResponse = await caches.match(request);
           if (cachedResponse) return cachedResponse;
-          const fallback = await caches.match('/index.html');
-          return fallback || new Response('Offline', { status: 200, headers: { 'Content-Type': 'text/html' } });
+          const fallback = (await caches.match('/index.html')) || (await caches.match('/'));
+          return fallback || new Response('Offline', { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
         })
     );
     return;
   }
 
-  // 2. App Shell Code (JS / CSS / Fonts).
-  // The app is code-split, so every screen is a separate hashed chunk. Without
-  // this cache a rep who opens a screen for the first time while offline gets a
-  // permanent loading skeleton. Cache-first with a background refresh keeps the
-  // previously opened screens working offline and still picks up new builds.
+  // 2. Supabase API calls: If network fails offline, gracefully return empty JSON
+  if (url.hostname.includes('supabase.co')) {
+    event.respondWith(
+      fetch(request).catch(() => {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      })
+    );
+    return;
+  }
+
+  // 3. App Shell Code (JS / CSS / Fonts / Vite Chunks).
+  // Cache-first with background refresh keeps all previously opened screens working offline
   if (
-    url.origin === self.location.origin &&
-    (request.destination === 'script' ||
-      request.destination === 'style' ||
-      request.destination === 'font' ||
-      url.pathname.startsWith('/assets/'))
+    (url.origin === self.location.origin &&
+      (request.destination === 'script' ||
+        request.destination === 'style' ||
+        request.destination === 'font' ||
+        url.pathname.startsWith('/assets/') ||
+        url.pathname.startsWith('/src/') ||
+        url.pathname.startsWith('/@') ||
+        url.pathname.includes('node_modules') ||
+        url.pathname.match(/\.(js|jsx|ts|tsx|css)$/))) ||
+    url.hostname.includes('fonts.googleapis.com') ||
+    url.hostname.includes('fonts.gstatic.com')
   ) {
     event.respondWith(
       caches.open(ASSET_CACHE_NAME).then((cache) => {
         return cache.match(request).then((cachedResponse) => {
           const networkPromise = fetch(request)
             .then((networkResponse) => {
-              if (networkResponse && networkResponse.status === 200) {
+              if (networkResponse && (networkResponse.status === 200 || networkResponse.type === 'opaque')) {
                 const clone = networkResponse.clone();
                 cache.put(request, clone).catch(() => {});
               }
@@ -99,12 +115,13 @@ self.addEventListener('fetch', (event) => {
             .catch(() => null);
 
           if (cachedResponse) {
-            // Refresh in the background, but never block on the network.
+            // Return cached version immediately, revalidate in background if online
             networkPromise.catch(() => {});
             return cachedResponse;
           }
+
           return networkPromise.then((response) => {
-            return response || new Response('', { status: 504, statusText: 'Offline' });
+            return response || cachedResponse || new Response('', { status: 200 });
           });
         });
       })
@@ -112,7 +129,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. App Icons and Brand Assets
+  // 4. App Icons and Brand Assets
   if (
     url.pathname.includes('icon') ||
     url.pathname.includes('tantawy') ||
@@ -136,7 +153,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 4. Product Images (Cloudinary, Google Drive CDN, Unsplash, etc.) - Cache First with Data Saver
+  // 5. Product Images (Cloudinary, Google Drive CDN, Unsplash, etc.) - Cache First with Data Saver
   if (
     request.destination === 'image' ||
     url.hostname.includes('cloudinary.com') ||

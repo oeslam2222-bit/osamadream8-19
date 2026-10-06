@@ -103,6 +103,7 @@ export interface ProductVariant {
   id: string;                        // variant_id (معرف الشباك الفريد)
   productId: string;                 // product_id (مرتبط بالمنتج الرئيسي)
   code: string;                      // كود الصنف الفرعي للشباك (SKU)
+  unifiedCode?: string;              // الكود الموحد (#) الذي يربط ألوان وموديلات الصنف معاً
   name: string;                      // اسم الشباك / اللون (شباك 1، شباك 2، أحمر، ...)
   windowNumber?: number;             // رقم الشباك (1, 2, 3...)
   color: string;                     // اللون

@@ -614,49 +614,76 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                 <tr>
                   <th className="p-2.5 text-center w-8">م</th>
                   <th className="p-2.5">كود الصنف</th>
+                  <th className="p-2.5 text-center">الكود الموحد</th>
                   <th className="p-2.5">اسم وبيان الصنف</th>
                   <th className="p-2.5 text-center">شدة الكرتونة</th>
-                  <th className="p-2.5 text-center">الكراتين المطلوبة</th>
+                  <th className="p-2.5 text-center">عدد الكرتون</th>
+                  <th className="p-2.5 text-center">عدد القطع</th>
+                  <th className="p-2.5 text-left">سعر القطعة</th>
                   <th className="p-2.5 text-left">سعر الكرتونة</th>
-                  <th className="p-2.5 text-left">الإجمالي</th>
-                  <th className="p-2.5 text-left">الخصم</th>
-                  <th className="p-2.5 text-left">الصافي</th>
+                  <th className="p-2.5 text-left">المبلغ الصافي</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {invoice.items.map((item, index) => (
-                  <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>
-                    <td className="p-2.5 text-center text-slate-400 font-mono text-[11px]">{index + 1}</td>
-                    <td className="p-2.5 font-black font-mono text-slate-800">{item.productCode}</td>
-                    <td className="p-2.5 font-bold text-slate-900">
-                      <div>{item.productName}</div>
-                      {item.fulfilledFrom === 'main_warehouse' && (
-                        <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded font-bold border border-amber-200 inline-block mt-0.5">
-                          سحب مركزي (أكتوبر)
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-2.5 text-center text-slate-600 font-bold">{item.cartonQuantity || 1} ق</td>
-                    <td className="p-2.5 text-center font-black text-amber-950 bg-amber-50/60">
-                      {item.cartonCount} كرتونة
-                    </td>
-                    <td className="p-2.5 text-left font-bold text-slate-900">
-                      {item.appliedPrice && item.appliedPrice !== item.pricePerCarton ? (
+                {invoice.items.map((item, index) => {
+                  const unified = item.unifiedCode || (item.product as any)?.unifiedCode;
+                  const cQty = item.cartonQuantity || 1;
+                  const pPrice = item.pricePerPiece || (cQty > 0 ? Math.round((item.pricePerCarton / cQty) * 100) / 100 : item.pricePerCarton);
+
+                  return (
+                    <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>
+                      <td className="p-2.5 text-center text-slate-400 font-mono text-[11px]">{index + 1}</td>
+                      <td className="p-2.5 font-black font-mono text-slate-800">{item.productCode}</td>
+                      <td className="p-2.5 text-center font-mono font-bold text-blue-700">
+                        {unified ? (
+                          <span className="bg-blue-50 text-blue-800 px-2 py-0.5 rounded border border-blue-200 text-[11px]">
+                            {unified}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="p-2.5 font-bold text-slate-900">
                         <div>
-                          <span className="text-rose-600 font-black block">{formatCurrency(item.appliedPrice)}</span>
-                          <span className="text-[10px] text-slate-400 line-through">{formatCurrency(item.pricePerCarton)}</span>
+                          <span>{item.productName}</span>
+                          {item.color && (
+                            <span className="text-[11px] font-medium text-slate-500 mr-1.5">
+                              ({item.color})
+                            </span>
+                          )}
                         </div>
-                      ) : (
-                        formatCurrency(item.pricePerCarton)
-                      )}
-                    </td>
-                    <td className="p-2.5 text-left font-medium text-slate-700">{formatCurrency(item.totalBeforeTax)}</td>
-                    <td className="p-2.5 text-left text-emerald-700 font-medium">
-                      {item.discountAmount > 0 ? `-${formatCurrency(item.discountAmount)}` : '—'}
-                    </td>
-                    <td className="p-2.5 text-left font-black text-slate-950">{formatCurrency(item.netTotal)}</td>
-                  </tr>
-                ))}
+                        {item.fulfilledFrom === 'main_warehouse' && (
+                          <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded font-bold border border-amber-200 inline-block mt-0.5">
+                            سحب مركزي (أكتوبر)
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-2.5 text-center text-slate-600 font-bold">{cQty} ق</td>
+                      <td className="p-2.5 text-center font-black text-amber-950 bg-amber-50/60">
+                        {item.cartonCount} ك
+                      </td>
+                      <td className="p-2.5 text-center font-bold text-slate-700 font-mono">
+                        {item.pieceCount && item.pieceCount > 0 ? `${item.pieceCount} ق` : '—'}
+                      </td>
+                      <td className="p-2.5 text-left font-mono text-slate-600 text-[11px]">
+                        {formatCurrency(pPrice)}
+                      </td>
+                      <td className="p-2.5 text-left font-bold text-slate-900 font-mono">
+                        {item.appliedPrice && item.appliedPrice !== item.pricePerCarton ? (
+                          <div>
+                            <span className="text-rose-600 font-black block">{formatCurrency(item.appliedPrice)}</span>
+                            <span className="text-[10px] text-slate-400 line-through">{formatCurrency(item.pricePerCarton)}</span>
+                          </div>
+                        ) : (
+                          formatCurrency(item.pricePerCarton)
+                        )}
+                      </td>
+                      <td className="p-2.5 text-left font-black text-slate-950 font-mono bg-emerald-50/30">
+                        {formatCurrency(item.netTotal)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

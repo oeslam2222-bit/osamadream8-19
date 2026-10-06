@@ -144,6 +144,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [gridDensity, setGridDensity] = useState<'comfortable' | 'compact'>('comfortable');
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+  const [isSearchSuggestionsOpen, setIsSearchSuggestionsOpen] = useState(false);
 
   // Role permissions: ONLY Developer and Admin can upload or wipe catalog data
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
@@ -845,6 +846,75 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     sortBy,
   ]);
 
+  // Smart Search Auto-Suggestions Engine (اقتراحات البحث الذكية بالاسم والكود)
+  const searchSuggestions = useMemo(() => {
+    const rawQ = searchTerm.trim();
+    if (rawQ.length === 0) return [];
+
+    const normQ = normalizeArabicText(rawQ);
+    const cleanCodeQ = rawQ.replace(/^#/, '').toLowerCase();
+
+    const results: Array<{
+      id: string;
+      title: string;
+      code: string;
+      unifiedCode?: string;
+      variantsCount: number;
+      department?: string;
+      category?: string;
+      parent: ParentProduct;
+      matchedType: 'name' | 'code' | 'unified' | 'color';
+      matchedHighlight: string;
+    }> = [];
+
+    const seenCodes = new Set<string>();
+
+    for (const parent of parentProducts) {
+      if (results.length >= 4) break;
+
+      const normName = normalizeArabicText(parent.name || '');
+      const rawCode = (parent.primaryCode || '').toLowerCase();
+      const rawUnified = (parent.unifiedCode || '').toLowerCase().replace(/^#/, '');
+
+      const isNameMatch = normName.includes(normQ);
+      const isCodeMatch = rawCode.includes(cleanCodeQ);
+      const isUnifiedMatch = rawUnified.includes(cleanCodeQ);
+
+      const matchedVariant = parent.variants.find((v) => {
+        const vCode = (v.code || '').toLowerCase();
+        const vUnified = (v.unifiedCode || '').toLowerCase().replace(/^#/, '');
+        const vColor = normalizeArabicText(v.color || '');
+        return vCode.includes(cleanCodeQ) || vUnified.includes(cleanCodeQ) || vColor.includes(normQ);
+      });
+
+      if (isNameMatch || isCodeMatch || isUnifiedMatch || Boolean(matchedVariant)) {
+        if (!seenCodes.has(parent.primaryCode)) {
+          seenCodes.add(parent.primaryCode);
+          results.push({
+            id: parent.id,
+            title: parent.name,
+            code: parent.primaryCode,
+            unifiedCode: matchedVariant?.unifiedCode || parent.unifiedCode,
+            variantsCount: parent.variantsCount,
+            department: parent.department,
+            category: parent.category,
+            parent,
+            matchedType: isCodeMatch
+              ? 'code'
+              : isUnifiedMatch
+              ? 'unified'
+              : matchedVariant
+              ? 'color'
+              : 'name',
+            matchedHighlight: matchedVariant?.color ? `${parent.name} (لون ${matchedVariant.color})` : parent.name,
+          });
+        }
+      }
+    }
+
+    return results;
+  }, [searchTerm, parentProducts]);
+
   const activeTotalItems = isParentGroupingEnabled ? filteredParentProducts.length : filteredProducts.length;
 
   /**
@@ -1185,42 +1255,118 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       <div className="sticky top-14 sm:top-16 z-30 bg-slate-900/95 backdrop-blur-md text-white rounded-2xl sm:rounded-3xl p-3 sm:p-4 shadow-xl border border-slate-800 space-y-2.5">
         {/* Row 1: Search Bar & Quick View Controls */}
         <div className="flex items-center gap-2">
-          {/* Main search input */}
+          {/* Main search input with Smart Auto-Suggestions */}
           <div className="relative flex-1">
             <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setIsSearchSuggestionsOpen(true);
+              }}
+              onFocus={() => setIsSearchSuggestionsOpen(true)}
+              onBlur={() => {
+                // Short timeout to allow click on suggestion item to register
+                setTimeout(() => setIsSearchSuggestionsOpen(false), 250);
+              }}
               placeholder="ابحث بالاسم، كود الصنف، الماركة، أو الكود الموحد (#)..."
               className="w-full h-11 sm:h-12 pl-10 pr-10 bg-slate-800/90 text-white placeholder-slate-400 border border-slate-700 rounded-xl text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
             />
             {searchTerm && (
               <button
                 type="button"
-                onClick={() => setSearchTerm('')}
+                onClick={() => {
+                  setSearchTerm('');
+                  setIsSearchSuggestionsOpen(false);
+                }}
                 className="absolute left-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white w-9 h-9 flex items-center justify-center cursor-pointer"
                 aria-label="مسح البحث"
               >
                 <X className="w-5 h-5" />
               </button>
             )}
+
+            {/* Smart Auto-Suggestion Dropdown Popover */}
+            {isSearchSuggestionsOpen && searchSuggestions.length > 0 && (
+              <div className="absolute top-full mt-2 inset-x-0 bg-slate-900/98 border-2 border-amber-400/60 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-1 backdrop-blur-xl space-y-1">
+                <div className="flex items-center justify-between px-2.5 py-1 text-[11px] font-bold text-amber-300 border-b border-slate-800">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>أقرب اقتراحات مطابقة ({searchSuggestions.length}):</span>
+                  </span>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setIsSearchSuggestionsOpen(false);
+                    }}
+                    className="text-slate-400 hover:text-white cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {searchSuggestions.map((sug) => (
+                  <button
+                    key={sug.id}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setSearchTerm(sug.code);
+                      setSelectedParentForModal(sug.parent);
+                      setIsSearchSuggestionsOpen(false);
+                    }}
+                    className="w-full text-right p-2.5 rounded-xl hover:bg-slate-800 transition flex items-center justify-between gap-3 group cursor-pointer border border-transparent hover:border-slate-700"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-amber-400/20 text-amber-300 flex items-center justify-center font-mono font-black text-xs shrink-0 border border-amber-400/30">
+                        {sug.code}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-white group-hover:text-amber-300 truncate transition">
+                          {sug.matchedHighlight}
+                        </div>
+                        <div className="text-[10px] text-slate-400 flex items-center gap-2">
+                          <span>{sug.department || 'عام'}</span>
+                          {sug.unifiedCode && (
+                            <span className="font-mono text-amber-400/80">
+                              كود موحد: {sug.unifiedCode}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] font-black bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded-lg border border-indigo-800">
+                        {sug.variantsCount} {sug.variantsCount === 1 ? 'كود' : 'أكواد/ألوان'}
+                      </span>
+                      <ChevronLeft className="w-4 h-4 text-slate-500 group-hover:text-amber-400 transition transform group-hover:-translate-x-0.5" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Unified Products Active Badge (Consolidated Catalog with all Windows embedded) */}
-          <div className="flex items-center bg-slate-800/90 px-3 py-1 rounded-xl border border-slate-700 h-11 shrink-0 gap-2" title="الكتالوج يعمل بنظام الأصناف الموحدة حيث تظهر كافة الشبابيك والتفريعات مدمجة داخل كل صنف رئيسي">
+          <div
+            className="flex items-center bg-slate-800/90 px-3 py-1 rounded-xl border border-slate-700 h-11 shrink-0 gap-2.5"
+            title={`نظام توفير المساحة الذكي: إجمالي ${products.length.toLocaleString()} شباك ولون مدمجة داخل ${parentProducts.length.toLocaleString()} كود أساسي دون أي صنف مفقود`}
+          >
             <div className="w-7 h-7 rounded-lg bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0">
               <Boxes className="w-4 h-4" />
             </div>
             <div className="text-right">
               <div className="text-xs font-black text-amber-300 flex items-center gap-1.5 leading-tight">
-                <span>أصناف موحدة شاملة الشبابيك</span>
-                <span className="text-[10px] bg-amber-400/20 text-amber-200 px-1.5 py-0.2 rounded font-mono font-black border border-amber-400/30">
-                  {parentProducts.length.toLocaleString()}
+                <span>{parentProducts.length.toLocaleString()} كود أساسي</span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded font-mono font-black border border-emerald-500/30">
+                  تضم {products.length.toLocaleString()} شباك ولون
                 </span>
               </div>
               <div className="text-[9.5px] text-slate-400 hidden sm:block">
-                كافة الشبابيك والألوان والتفريعات مدمجة بداخل كل صنف
+                تجميع ذكي لتوفير المساحة: كل كود أساسي يضم كافة ألوانه وأكواده الموحدة
               </div>
             </div>
           </div>
@@ -1689,12 +1835,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     {/* Top Right: Code Badge */}
                     <div className="absolute top-2 right-2 z-10 flex flex-col gap-1 items-end">
                       <div className="bg-slate-950/90 text-amber-300 text-xs font-black px-2.5 py-1 rounded-xl backdrop-blur-sm shadow-md border border-amber-400/30 font-mono flex items-center gap-1">
-                        <span>كود:</span>
-                        <span>{parent.unifiedCode || parent.primaryCode}</span>
+                        <span>كود أساسي:</span>
+                        <span>{parent.primaryCode}</span>
                       </div>
-                      {activeVariant.code !== parent.primaryCode && (
-                        <div className="bg-slate-900/80 text-slate-300 text-[10px] font-bold px-2 py-0.5 rounded-lg font-mono">
-                          شباك: {activeVariant.code}
+                      {(activeVariant.unifiedCode || activeVariant.rawProduct?.unifiedCode || parent.unifiedCode) && (
+                        <div className="bg-blue-950/90 text-blue-200 text-[10px] font-bold px-2 py-0.5 rounded-lg font-mono border border-blue-400/30 shadow-xs">
+                          موحد: {activeVariant.unifiedCode || activeVariant.rawProduct?.unifiedCode || parent.unifiedCode}
                         </div>
                       )}
                     </div>
@@ -1707,11 +1853,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                           e.stopPropagation();
                           setSelectedParentForModal(parent);
                         }}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-black px-2.5 py-1 rounded-xl shadow-md border border-indigo-400/40 flex items-center gap-1 transition"
-                        title="فتح نافذة تفاعلية لاختيار الشباك واللون"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-black px-2.5 py-1 rounded-xl shadow-md border border-indigo-400/40 flex items-center gap-1 transition cursor-pointer"
+                        title="فتح نافذة تفاعلية لاختيار الشباك واللون والكود الموحد"
                       >
-                        <Boxes className="w-3 h-3 text-amber-300" />
-                        <span>{parent.variantsCount} شبابيك / ألوان</span>
+                        <Boxes className="w-3.5 h-3.5 text-amber-300" />
+                        <span>{parent.variantsCount} {parent.variantsCount === 1 ? 'كود موحد' : 'أكواد موحدة / ألوان'}</span>
                       </button>
                       {isPromo && (
                         <div className="bg-rose-600 text-white text-[10px] font-black px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-sm">
@@ -2561,8 +2707,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
       )}
 
-      {/* Empty State with Fast Setup Assistant */}
-      {filteredProducts.length === 0 && (
+      {/* Empty State with Fast Setup Assistant & Smart Did-You-Mean Suggestions */}
+      {activeTotalItems === 0 && (
         <div className="bg-white rounded-3xl p-8 sm:p-12 text-center border border-slate-200 shadow-sm space-y-4 max-w-xl mx-auto">
           <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
             <Package className="w-8 h-8" />
@@ -2575,8 +2721,37 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           <p className="text-xs sm:text-sm text-slate-500">
             {products.length === 0
               ? 'يمكنك الآن رفع ملف الإكسل الخاص بشركة دريم أو ربط رابط Google Sheets وصور جوجل درايف للبدء فوراً.'
+              : searchTerm.trim()
+              ? `لم نعثر على نتيجة دقيقة تطابق "${searchTerm}". جرّب الاقتراحات الذكية أدناه أو الكود الأساسي.`
               : 'جرّب تغيير كلمات البحث أو إزالة الفلاتر المحددة لعرض كافة الأصناف.'}
           </p>
+
+          {/* Smart "Did you mean" suggestions */}
+          {products.length > 0 && searchTerm.trim() && searchSuggestions.length > 0 && (
+            <div className="bg-amber-50/80 border border-amber-300 rounded-2xl p-3.5 text-right space-y-2">
+              <div className="text-xs font-black text-amber-950 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-amber-600" />
+                <span>هل تقصد أحد هذه الأصناف المقترحة؟</span>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {searchSuggestions.slice(0, 3).map((sug) => (
+                  <button
+                    key={sug.id}
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm(sug.code);
+                      setSelectedParentForModal(sug.parent);
+                    }}
+                    className="bg-white hover:bg-amber-100 border border-amber-300 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-800 flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                  >
+                    <span className="font-mono text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded font-black">{sug.code}</span>
+                    <span>{sug.title}</span>
+                    <span className="text-[10px] text-slate-500">({sug.variantsCount} ألوان)</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center justify-center gap-2 pt-2">
             {products.length === 0 ? (
@@ -2604,7 +2779,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 }}
                 className="bg-slate-900 text-amber-300 px-5 py-2.5 rounded-2xl text-xs font-bold shadow hover:bg-slate-800 cursor-pointer"
               >
-                إعادة تعيين البحث
+                إعادة تعيين البحث والفلاتر
               </button>
             )}
           </div>

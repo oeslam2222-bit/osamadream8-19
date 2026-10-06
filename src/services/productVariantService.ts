@@ -103,8 +103,24 @@ export function extractWindowInfo(
  * Extracts base unifying code for grouping products into Parent items
  */
 export function getUnifiedBaseKey(product: Product): { key: string; displayCode: string; unifiedCode?: string } {
-  // 1. Authoritative unifiedCode (#100061 or 100061)
+  const rawCode = (product.code || '').trim();
   const rawUnified = (product.unifiedCode || '').trim();
+
+  // 1. Group primarily by the Base Product Code (e.g. 6008).
+  // A single product code may repeat 10 times in the sheet for different colors,
+  // each having a distinct unifiedCode (#). Grouping by product.code consolidates
+  // all 10 color variants together under code 6008 as requested by the user.
+  if (rawCode) {
+    const cleanWithoutSuffix = rawCode.replace(/[-_/][0-9]{1,2}$/, '').trim();
+    const baseCode = cleanWithoutSuffix || rawCode;
+    return {
+      key: baseCode.toLowerCase(),
+      displayCode: baseCode,
+      unifiedCode: rawUnified || (rawCode.startsWith('#') ? rawCode : undefined),
+    };
+  }
+
+  // 2. Fallback to unifiedCode if product.code is missing
   if (rawUnified) {
     const clean = rawUnified.replace(/^#/, '').trim();
     if (clean) {
@@ -116,30 +132,12 @@ export function getUnifiedBaseKey(product: Product): { key: string; displayCode:
     }
   }
 
-  // 2. Base code by removing variant suffix from product.code (e.g. 100061-1 -> 100061)
-  const rawCode = (product.code || '').trim();
-  if (rawCode) {
-    const cleanWithoutSuffix = rawCode.replace(/[-_/][0-9]{1,2}$/, '').trim();
-    if (cleanWithoutSuffix && cleanWithoutSuffix !== rawCode) {
-      return {
-        key: cleanWithoutSuffix.toLowerCase(),
-        displayCode: cleanWithoutSuffix,
-        unifiedCode: `#${cleanWithoutSuffix}`,
-      };
-    }
-    return {
-      key: rawCode.toLowerCase(),
-      displayCode: rawCode,
-      unifiedCode: undefined,
-    };
-  }
-
   // 3. Fallback to product name or ID
   const fallbackKey = (product.name || product.id || 'unknown').trim().toLowerCase();
   return {
     key: fallbackKey,
     displayCode: product.code || '---',
-    unifiedCode: undefined,
+    unifiedCode: rawUnified || undefined,
   };
 }
 
@@ -205,6 +203,7 @@ export function groupProductsIntoParents(products: Product[]): ParentProduct[] {
         id: prod.id || `var_${prod.code}_${idx}`,
         productId: key,
         code: prod.code,
+        unifiedCode: prod.unifiedCode,
         name: windowInfo.name,
         windowNumber: windowInfo.windowNumber,
         color: windowInfo.color,

@@ -420,6 +420,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [visitReturnItems, setVisitReturnItems] = useState('');
   const [visitReturnDetails, setVisitReturnDetails] = useState('');
   const [customerDossierTab, setCustomerDossierTab] = useState<'active_visits' | 'archived_visits' | 'comments'>('active_visits');
+  const [showAllCustomerVisits, setShowAllCustomerVisits] = useState(false);
   const [newQuickComment, setNewQuickComment] = useState('');
 
   // Fast Indexed Customer Orders Lookup
@@ -7490,9 +7491,25 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     {/* Content Section 1: Active Visits */}
                     {customerDossierTab === 'active_visits' && (
                       <div className="space-y-2">
+                        {activeVisits.length > 3 && (
+                          <div className="flex items-center justify-between bg-blue-50/80 border border-blue-200 px-3 py-1.5 rounded-xl text-xs">
+                            <span className="text-blue-900 font-bold">
+                              {showAllCustomerVisits
+                                ? `يتم عرض كافة زيارات العميل (${activeVisits.length} زيارة)`
+                                : `يتم عرض تفاصيل آخر 3 زيارات فقط للعميل`}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setShowAllCustomerVisits((prev) => !prev)}
+                              className="text-blue-700 hover:text-blue-950 font-black cursor-pointer underline text-[11px]"
+                            >
+                              {showAllCustomerVisits ? 'عرض آخر 3 زيارات فقط' : `عرض كافة الزيارات (${activeVisits.length})`}
+                            </button>
+                          </div>
+                        )}
                         {activeVisits.length > 0 ? (
                           <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                            {activeVisits.map((v) => (
+                            {(showAllCustomerVisits ? activeVisits : activeVisits.slice(0, 3)).map((v) => (
                               <div
                                 key={v.id}
                                 className="p-3 rounded-xl bg-slate-50 hover:bg-slate-100/70 border border-slate-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition"

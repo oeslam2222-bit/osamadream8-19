@@ -32,6 +32,7 @@ import {
   ShieldCheck,
   Sparkles,
   Target,
+  Trash2,
   TrendingUp,
   UserCheck,
   Users,
@@ -154,7 +155,7 @@ export default function CollectionForecastView() {
     requestForecastChange,
     saveForecastPlan,
     saveCustomerComment,
-
+    deleteCustomerForecasts,
   } = useApp();
 
   const [monthKey, setMonthKey] = useState<string>(currentMonthKey());

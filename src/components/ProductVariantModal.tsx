@@ -457,8 +457,8 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                         </div>
 
                         <div className="flex items-center justify-between w-full mt-1.5 text-[10px]">
-                          <span className="font-mono text-slate-500">
-                            {variant.code}
+                          <span className="font-mono text-slate-600 font-bold">
+                            {variant.unifiedCode || variant.rawProduct?.unifiedCode || variant.code}
                           </span>
                           <span
                             className={`font-black font-mono px-1.5 py-0.5 rounded-md ${
@@ -785,7 +785,8 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                   <thead>
                     <tr className="bg-slate-200/80 text-slate-700 font-bold border-b border-slate-300 sticky top-0 z-10">
                       <th className="p-2.5">الشباك / اللون</th>
-                      <th className="p-2.5">الكود</th>
+                      <th className="p-2.5">كود الصنف</th>
+                      <th className="p-2.5 text-center">الكود الموحد (#)</th>
                       <th className="p-2.5 text-center">رصيد الفرع</th>
                       <th className="p-2.5 text-center">رصيد أكتوبر</th>
                       <th className="p-2.5 text-left">سعر الكرتونة</th>
@@ -814,7 +815,16 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                               <span>{v.name}</span>
                             </span>
                           </td>
-                          <td className="p-2.5 font-mono text-slate-500">{v.code}</td>
+                          <td className="p-2.5 font-mono text-slate-600 font-bold">{v.code}</td>
+                          <td className="p-2.5 text-center font-mono font-black text-blue-700">
+                            {v.unifiedCode || v.rawProduct?.unifiedCode ? (
+                              <span className="bg-blue-50 text-blue-800 px-2 py-0.5 rounded border border-blue-200">
+                                {v.unifiedCode || v.rawProduct?.unifiedCode}
+                              </span>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
                           <td className="p-2.5 text-center font-mono font-bold text-emerald-700">
                             {v.branchStockActual || 0} ك
                           </td>

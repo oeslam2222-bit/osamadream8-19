@@ -3149,7 +3149,7 @@ allowSameDaySecondVisit: false,
                 <th className="p-3">الفرع</th>
                 <th className="p-3">المندوب المسئول</th>
                 <th className="p-3">تاريخ ووقت الزيارة</th>
-                <th className="p-3">نوع الغرض والنتيجة</th>
+                <th className="p-3">طبيعة ونتيجة الزيارة</th>
                 <th className="p-3">الحالة الحالية</th>
                 <th className="p-3">المحصل / الطلب</th>
                 <th className="p-3">التحقق وقاعدة البيانات</th>
@@ -3744,31 +3744,46 @@ allowSameDaySecondVisit: false,
               </div>
 
               {/* Status & Execution Mode */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">حالة الزيارة *</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">طبيعة الزيارة *</label>
                   <select
-                    value={form.status}
-                    onChange={(e) => setForm({ ...form, status: e.target.value as CustomerVisit['status'] })}
+                    value={form.status === 'مجدولة' ? 'زيارة مجدولة' : 'زيارة مباشرة'}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === 'زيارة مجدولة') {
+                        setForm({ ...form, status: 'مجدولة', type: 'زيارة مجدولة' });
+                      } else {
+                        setForm({ ...form, status: 'منفذة', type: 'زيارة مباشرة' });
+                      }
+                    }}
                     className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:border-emerald-500"
                   >
-                    <option value="منفذة">منفذة (تمت الزيارة ميدانياً ✅)</option>
-                    <option value="مجدولة">مجدولة (موعد قادم ⏳)</option>
-                    <option value="لم تتم">لم تتم (المحل مغلق أو تعذر ⚠️)</option>
+                    <option value="زيارة مباشرة">زيارة مباشرة (منفذة ميدانياً ✅)</option>
+                    <option value="زيارة مجدولة">زيارة مجدولة (موعد قادم ⏳)</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">نوع الغرض من الزيارة</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">نتيجة الزيارة الميدانية *</label>
                   <select
-                    value={form.type}
-                    onChange={(e) => setForm({ ...form, type: e.target.value as CustomerVisit['type'] })}
+                    value={form.outcome}
+                    onChange={(e) => {
+                      const outcome = e.target.value as CustomerVisit['outcome'];
+                      setForm({ ...form, outcome });
+                      if (outcome !== 'مرتجع لدي العميل') {
+                        setReturnProductQuery('');
+                        setSelectedReturnProductId('');
+                        setReturnQuantity(1);
+                        setReturnDetails('');
+                      }
+                    }}
                     className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:border-emerald-500"
                   >
-                    <option value="زيارة دورية">زيارة دورية اعتيادية</option>
-                    <option value="تحصيل">تحصيل مديونية ومستحقات</option>
-                    <option value="تسليم بضاعة">تسليم بضاعة أو طلبية</option>
-                    <option value="حل مشكلة">خدمة عملاء وحل مشكلة</option>
-                    <option value="فتح حساب جديد">فتح حساب عميل جديد</option>
+                    {VISIT_OUTCOME_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.value} {option.hint}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -3819,34 +3834,8 @@ allowSameDaySecondVisit: false,
                 />
               </div>
 
-              {/* Outcome & Financials */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">نتيجة الزيارة الميدانية</label>
-                  <select
-                    value={form.outcome}
-                    onChange={(e) => {
-                      const outcome = e.target.value as CustomerVisit['outcome'];
-                      setForm({ ...form, outcome });
-                      if (outcome !== 'مرتجع لدي العميل') {
-                        setReturnProductQuery('');
-                        setSelectedReturnProductId('');
-                        setReturnQuantity(1);
-                        setReturnDetails('');
-                      }
-                    }}
-                    className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:border-emerald-500"
-                  >
-                    {/* نفس قائمة `VISIT_OUTCOME_CHIPS` المستخدمة في الإنهاء السريع
-                        وتقرير الإرسال وصفحة التحليلات — فالنتيجة اللي بتختارها هنا
-                        معناها واحد في كل الشاشات. */}
-                    {VISIT_OUTCOME_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.value} {option.hint}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* Financials & Warnings */}
+              <div className="space-y-3">
 
                 {/*
                   تجاوز منع الازدواج — يظهر بس بعد ما المستخدم يحاول يسجّل
