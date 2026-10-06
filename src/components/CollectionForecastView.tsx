@@ -39,6 +39,7 @@ import {
   Users,
   X,
   Zap,
+  LoaderCircle,
 } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import { useApp } from '../context/AppContext';
@@ -168,6 +169,7 @@ export default function CollectionForecastView() {
   const [showPasteMonthly, setShowPasteMonthly] = useState(false);
   const [pasteMonthlyText, setPasteMonthlyText] = useState('');
   const [pasteMonthlyPreview, setPasteMonthlyPreview] = useState<Array<{ code: string; amount: number; customer: Customer | null }>>([]);
+  const [isSavingPastedMonthly, setIsSavingPastedMonthly] = useState(false);
   const [pageSize, setPageSize] = useState<number>(25);
   const [page, setPage] = useState<number>(1);
 
@@ -755,7 +757,7 @@ export default function CollectionForecastView() {
     }
     if (rounded < MIN_WEEKS_PER_MONTH || rounded > MAX_WEEKS_PER_MONTH) {
       setPlanErrors([
-        `عدد الفترات لازم يكون من 0 (بلا تقسيم) ل��اية ${MAX_WEEKS_PER_MONTH}`,
+        `عدد الفترات لازم يكون من 0 (بلا تقسيم) ل����اية ${MAX_WEEKS_PER_MONTH}`,
       ]);
       return;
     }
@@ -988,13 +990,20 @@ export default function CollectionForecastView() {
   };
 
   const handleSavePastedMonthly = async () => {
+    if (isSavingPastedMonthly) return;
+
     const rows = pasteMonthlyPreview.filter((row) => row.customer && row.amount >= 0);
-    for (const row of rows) await commitMonthCell(row.customer!, String(row.amount));
-    setShowPasteMonthly(false);
-    setPasteMonthlyText('');
-    setPasteMonthlyPreview([]);
-    setSavedFlash(`تم حفظ ${rows.length} توقع شهري من البيانات المنسوخة`);
-    setTimeout(() => setSavedFlash(''), 3500);
+    setIsSavingPastedMonthly(true);
+    try {
+      for (const row of rows) await commitMonthCell(row.customer!, String(row.amount));
+      setShowPasteMonthly(false);
+      setPasteMonthlyText('');
+      setPasteMonthlyPreview([]);
+      setSavedFlash(`تم حفظ ${rows.length} توقع شهري من البيانات المنسوخة`);
+      setTimeout(() => setSavedFlash(''), 3500);
+    } finally {
+      setIsSavingPastedMonthly(false);
+    }
   };
 
   const handleSaveComment = async () => {
@@ -1189,7 +1198,7 @@ export default function CollectionForecastView() {
         </div>
       )}
 
-      {/* سطور معلّقة: أرقام كتبت في أسبوع بقى خارج التقسيم الحالي */}
+      {/* سطور معلّقة: أ��قام كتبت في أسبوع بقى خارج التقسيم الحالي */}
       {orphanForecasts.length > 0 && (
         <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-2xl bg-amber-50 text-amber-950 border border-amber-300 text-xs font-bold shadow-sm">
           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -1673,7 +1682,7 @@ export default function CollectionForecastView() {
                   <td colSpan={11 + shownWeeks.length} className="p-8 text-center">
                     <div className="space-y-2">
                       <p className="text-slate-400 font-bold text-xs">لا يوجد عملاء مطابقين للبحث والفلاتر المحددة حالياً.</p>
-                      {/* الرسالة بتقول السبب الحقيقي للمشكلة بدل ما تسيب المستخدم يفكر
+                      {/* الرسالة بتقول السبب الحقيقي للمشكلة بدل ما تسيب الم��تخدم يفكر
                           إن مفيش عملاء أصلاً — فلتر المستحقات والفلتر التصنيفي هم
                           أكثر سببين يخفيوا الشبكة. */}
                       {scopedCustomers.length > 0 && debtOnly && (
@@ -1933,7 +1942,9 @@ export default function CollectionForecastView() {
               )}
               <div className="flex justify-end gap-2">
                 <button type="button" onClick={() => setShowPasteMonthly(false)} className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-black cursor-pointer">إلغاء</button>
-                <button type="button" disabled={!pasteMonthlyPreview.some((row) => row.customer)} onClick={handleSavePastedMonthly} className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-black cursor-pointer">مطابقة وحفظ التوقعات</button>
+                <button type="button" disabled={isSavingPastedMonthly || !pasteMonthlyPreview.some((row) => row.customer)} onClick={handleSavePastedMonthly} className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-black cursor-pointer inline-flex items-center gap-2" aria-live="polite">
+  {isSavingPastedMonthly ? <><LoaderCircle className="w-4 h-4 animate-spin" aria-hidden="true" /> جاري التحميل...</> : 'مطابقة وحفظ التوقعات'}
+</button>
               </div>
             </div>
           </div>
