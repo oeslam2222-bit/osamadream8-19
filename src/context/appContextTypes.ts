@@ -218,6 +218,7 @@ export interface AppContextType {
   deleteCustomerForecasts: (customerId: string, monthKey: string) => Promise<void>;
   submitForecastWeek: (monthKey: string, weekIndex: number, repId: string) => Promise<number>;
   approveForecastWeek: (monthKey: string, weekIndex: number, repId: string, customerIds?: string[]) => Promise<number>;
+  approveForecastBatch: (monthKey: string, approvals: Array<{ weekIndex: number; repId: string; customerIds: string[] }>) => Promise<number>;
   requestForecastChange: (monthKey: string, weekIndex: number, repId: string, note: string) => Promise<number>;
   saveForecastPlan: (plan: ForecastMonthPlan) => Promise<void>;
   saveCustomerComment: (comment: CustomerCommentRecord) => Promise<void>;

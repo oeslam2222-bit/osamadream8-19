@@ -1160,6 +1160,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [forecasts, persistForecasts, currentUser]
   );
 
+  const approveForecastBatch = useCallback(
+    async (monthKey: string, approvals: Array<{ weekIndex: number; repId: string; customerIds: string[] }>) => {
+      const now = new Date().toISOString();
+      const approvalScopes = new Map(
+        approvals.map((approval) => [
+          `${approval.repId}::${approval.weekIndex}`,
+          new Set(approval.customerIds),
+        ])
+      );
+      const changedRows: CollectionForecastRecord[] = [];
+      const next = forecasts.map((forecast) => {
+        if (forecast.monthKey !== monthKey) return forecast;
+        const customerScope = approvalScopes.get(`${forecast.repId}::${forecast.weekIndex}`);
+        if (!customerScope?.has(forecast.customerId) || forecast.status === 'approved') return forecast;
+        const updated: CollectionForecastRecord = {
+          ...forecast,
+          status: 'approved',
+          approvedBy: currentUser?.name || '',
+          approvedAt: now,
+          changeRequestNote: undefined,
+          updatedAt: now,
+          updatedBy: currentUser?.name,
+        };
+        changedRows.push(updated);
+        return updated;
+      });
+      if (changedRows.length) await persistForecasts(next, changedRows);
+      return changedRows.length;
+    },
+    [forecasts, persistForecasts, currentUser]
+  );
+
   const requestForecastChange = useCallback(
     async (monthKey: string, weekIndex: number, repId: string, note: string) => {
       const now = new Date().toISOString();
@@ -6204,6 +6236,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         deleteCustomerForecasts,
         submitForecastWeek,
         approveForecastWeek,
+        approveForecastBatch,
         requestForecastChange,
         saveForecastPlan,
         saveCustomerComment,

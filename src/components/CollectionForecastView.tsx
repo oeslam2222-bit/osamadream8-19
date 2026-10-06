@@ -155,6 +155,7 @@ export default function CollectionForecastView() {
     saveForecast,
     submitForecastWeek,
     approveForecastWeek,
+    approveForecastBatch,
     requestForecastChange,
     saveForecastPlan,
     saveCustomerComment,
@@ -1056,18 +1057,13 @@ export default function CollectionForecastView() {
 
     setIsApprovingScope(true);
     try {
-      let approvedRows = 0;
-      for (const approval of approvals) {
-        approvedRows += await approveForecastWeek(
-          monthKey,
-          approval.slot,
-          approval.repId,
-          approval.customerIds
-        );
-      }
+      const approvedRows = await approveForecastBatch(
+        monthKey,
+        approvals.map(({ slot, ...approval }) => ({ weekIndex: slot, ...approval }))
+      );
       setSavedFlash(
         approvedRows > 0
-          ? `تم اعتماد ${approvals.length} مجموعة توقعات في النطاق المحدد (${approvedRows} عميل) ✅`
+          ? `تم اعتماد ${approvedRows} توقع في النطاق المحدد ✅`
           : 'لم يتم اعتماد أي توقع — راجع الصلاحيات وحالة التوقعات'
       );
       setTimeout(() => setSavedFlash(''), 5000);

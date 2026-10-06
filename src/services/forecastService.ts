@@ -761,17 +761,23 @@ export function buildProgress(
 ): ForecastProgressRow[] {
   const monthForecasts = forecasts;
   const rows = aggregateByRep(monthForecasts, weekCount);
-  const targetByRep = new Map<string, TargetRecord>();
+  const targetsByRep = new Map<string, TargetRecord[]>();
   const targetByBranchAndRep = new Map<string, TargetRecord>();
   targets.forEach((t) => {
-    const prev = targetByRep.get(t.repName);
-    if (!prev) targetByRep.set(t.repName, t);
-    targetByBranchAndRep.set(`${t.branch.trim()}::${t.repName.trim()}`, t);
+    const repName = t.repName.trim();
+    const key = `${t.branch.trim()}::${repName}`;
+    const branchRecord = targetByBranchAndRep.get(key);
+    if (!branchRecord || t.updatedAt > branchRecord.updatedAt) targetByBranchAndRep.set(key, t);
+    const repTargets = targetsByRep.get(repName) || [];
+    repTargets.push(t);
+    targetsByRep.set(repName, repTargets);
   });
 
   return rows.map((r) => {
     const t = targetByBranchAndRep.get(`${r.branchName.trim()}::${r.repName.trim()}`)
-      || targetByRep.get(r.repName);
+      || (targetsByRep.get(r.repName.trim())?.length === 1
+        ? targetsByRep.get(r.repName.trim())?.[0]
+        : undefined);
     const targetCollection = Number(t?.collectionTarget || 0);
     const targetSales = Number(t?.salesTarget || 0);
     // المقارنة بهدف الشهر لازم تتم على الرقم الشهري، مش على مجموع الأسابيع.
