@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ClipboardPaste,
   Clock,
   ExternalLink,
   Eye,
@@ -162,7 +163,11 @@ export default function CollectionForecastView() {
   const [search, setSearch] = useState('');
   const deferredSearch = useDeferredValue(search);
   const [repFilter, setRepFilter] = useState<string>('ALL');
+  const [supervisorFilter, setSupervisorFilter] = useState<string>('ALL');
   const [weekFilter, setWeekFilter] = useState<string>('ALL');
+  const [showPasteMonthly, setShowPasteMonthly] = useState(false);
+  const [pasteMonthlyText, setPasteMonthlyText] = useState('');
+  const [pasteMonthlyPreview, setPasteMonthlyPreview] = useState<Array<{ code: string; amount: number; customer: Customer | null }>>([]);
   const [pageSize, setPageSize] = useState<number>(25);
   const [page, setPage] = useState<number>(1);
 
@@ -376,6 +381,16 @@ export default function CollectionForecastView() {
     return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1], 'ar'));
   }, [scopedCustomers]);
 
+  const supervisorOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    scopedCustomers.forEach((c) => {
+      const rep = users.find((u) => u.id === c.repId || u.name === (c.salesRepName || c.repName));
+      const name = c.supervisorName || users.find((u) => u.id === rep?.supervisorId)?.name || '';
+      if (name) seen.set(name, name);
+    });
+    return Array.from(seen.keys()).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [scopedCustomers, users]);
+
   /* ---------- الفلترة السريعة والخفيفة للعملاء (Instant Filtering) ---------- */
   const filteredCustomers = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
@@ -386,6 +401,12 @@ export default function CollectionForecastView() {
 
       if (repFilter !== 'ALL' && repId !== repFilter && !isArabicNameMatch(repName, repFilter)) {
         return false;
+      }
+
+      if (supervisorFilter !== 'ALL') {
+        const rep = users.find((u) => u.id === c.repId || u.name === repName);
+        const supervisorName = c.supervisorName || users.find((u) => u.id === rep?.supervisorId)?.name || '';
+        if (!isArabicNameMatch(supervisorName, supervisorFilter)) return false;
       }
 
       if (debtOnly && !isCollectibleCustomer(c)) return false;
@@ -405,7 +426,7 @@ export default function CollectionForecastView() {
 
       return name.includes(q) || code.includes(q) || rName.includes(q) || branch.includes(q);
     });
-  }, [scopedCustomers, deferredSearch, repFilter, debtOnly, classFilter, isCollectibleCustomer]);
+  }, [scopedCustomers, deferredSearch, repFilter, supervisorFilter, debtOnly, classFilter, isCollectibleCustomer, users]);
 
   // Sort matched customers by their planned collection desc, then by name
   const sortedCustomers = useMemo(() => {
@@ -437,7 +458,7 @@ export default function CollectionForecastView() {
   // وإلا المستخدم يبقى واقف على صفحة 5 وفلتره سايبه صفحة فاضية.
   useEffect(() => {
     setPage(1);
-  }, [deferredSearch, repFilter, weekFilter, monthKey, pageSize, debtOnly, classFilter]);
+  }, [deferredSearch, repFilter, supervisorFilter, weekFilter, monthKey, pageSize, debtOnly, classFilter]);
 
   /* ---------- إجماليات سريعة للبطاقات القيادية ---------- */
   const kpiTotals = useMemo(() => {
@@ -933,6 +954,31 @@ export default function CollectionForecastView() {
     setCommentBody(existing?.body || '');
   };
 
+  const parseMonthlyPaste = (text: string) => {
+    const customerByCode = new Map(customers.map((c) => [String(c.code || '').trim(), c]));
+    return text.split(/\\r?\\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
+      const parts = line.split(/[\\t,;]+/).map((part) => part.trim()).filter(Boolean);
+      const code = parts[0] || '';
+      const amount = Number(String(parts[1] || '').replace(/[^0-9.-]/g, '')) || 0;
+      return { code, amount, customer: customerByCode.get(code) || null };
+    }).filter((row) => row.code);
+  };
+
+  const handlePasteMonthlyPreview = (text: string) => {
+    setPasteMonthlyText(text);
+    setPasteMonthlyPreview(parseMonthlyPaste(text));
+  };
+
+  const handleSavePastedMonthly = async () => {
+    const rows = pasteMonthlyPreview.filter((row) => row.customer && row.amount >= 0);
+    for (const row of rows) await commitMonthCell(row.customer!, String(row.amount));
+    setShowPasteMonthly(false);
+    setPasteMonthlyText('');
+    setPasteMonthlyPreview([]);
+    setSavedFlash(`تم حفظ ${rows.length} توقع شهري من البيانات المنسوخة`);
+    setTimeout(() => setSavedFlash(''), 3500);
+  };
+
   const handleSaveComment = async () => {
     if (!commentTarget || !commentBody.trim()) return;
     await saveCustomerComment({
@@ -1043,6 +1089,16 @@ export default function CollectionForecastView() {
                 <span>تقسيم الفترات</span>
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => setShowPasteMonthly(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black shadow-sm transition cursor-pointer"
+              title="لصق كود العميل والمبلغ الشهري من واتساب أو إكسل"
+            >
+              <ClipboardPaste className="w-4 h-4" />
+              <span>لصق توقعات شهرية</span>
+            </button>
 
             <button
               type="button"
@@ -1207,6 +1263,15 @@ export default function CollectionForecastView() {
           />
           <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
         </div>
+
+        <select
+          value={supervisorFilter}
+          onChange={(e) => setSupervisorFilter(e.target.value)}
+          className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white cursor-pointer"
+        >
+          <option value="ALL">كافة المشرفين ({supervisorOptions.length})</option>
+          {supervisorOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+        </select>
 
         <select
           value={repFilter}
@@ -1812,6 +1877,50 @@ export default function CollectionForecastView() {
           </div>
         )}
       </section>
+
+      {showPasteMonthly && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3" dir="rtl">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden">
+            <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
+              <div>
+                <h3 className="font-black text-base">لصق توقعات شهرية</h3>
+                <p className="text-[11px] text-slate-300 mt-1">انسخ عمودين من واتساب أو إكسل: كود العميل ثم المبلغ الشهري</p>
+              </div>
+              <button type="button" onClick={() => setShowPasteMonthly(false)} className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 cursor-pointer" aria-label="إغلاق">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <textarea
+                value={pasteMonthlyText}
+                onChange={(e) => handlePasteMonthlyPreview(e.target.value)}
+                placeholder={'مثال:\n10025\t15000\n10026\t8500'}
+                className="w-full min-h-36 rounded-2xl border border-slate-300 p-3 text-sm font-mono focus:outline-none focus:border-amber-500"
+                aria-label="بيانات التوقعات المنسوخة"
+              />
+              {pasteMonthlyPreview.length > 0 && (
+                <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                  <div className="px-3 py-2 bg-slate-50 text-xs font-black">المراجعة قبل الحفظ ({pasteMonthlyPreview.length} سطر)</div>
+                  <div className="max-h-44 overflow-y-auto divide-y divide-slate-100">
+                    {pasteMonthlyPreview.map((row, index) => (
+                      <div key={`${row.code}-${index}`} className="px-3 py-2 flex items-center justify-between text-xs">
+                        <span className="font-mono font-bold">{row.code}</span>
+                        <span className={row.customer ? 'text-emerald-700 font-black' : 'text-rose-700 font-black'}>
+                          {row.customer ? `${row.customer.name} — ${formatCurrency(row.amount)}` : 'كود غير موجود'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setShowPasteMonthly(false)} className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-black cursor-pointer">إلغاء</button>
+                <button type="button" disabled={!pasteMonthlyPreview.some((row) => row.customer)} onClick={handleSavePastedMonthly} className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-black cursor-pointer">مطابقة وحفظ التوقعات</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* 5. Complete Customer Dossier Modal (نفس تفاصيل كافه العملاء والزيارات)       */}
