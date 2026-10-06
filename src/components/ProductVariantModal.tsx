@@ -197,50 +197,72 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
         dir="rtl"
       >
         {/* Header Bar */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-900 text-white shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-sm shadow-md">
-              <Boxes className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded-lg text-xs font-black border border-amber-400/30">
-                  {parentProduct.unifiedCode || parentProduct.primaryCode}
-                </span>
-                <span className="text-xs text-slate-400 font-bold">
-                  {parentProduct.department} {parentProduct.classification ? `• ${parentProduct.classification}` : ''}
-                </span>
+        <div className="px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white shrink-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="w-11 h-11 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-sm shadow-md shrink-0 mt-0.5">
+                <Boxes className="w-6 h-6" />
               </div>
-              <h2 className="text-base sm:text-lg font-black text-white leading-tight mt-0.5">
-                {parentProduct.name}
-              </h2>
-            </div>
-          </div>
+              <div className="min-w-0 space-y-1">
+                {/* Code Badges Row */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center bg-slate-800/90 rounded-lg px-2.5 py-0.5 border border-slate-700 text-xs">
+                    <span className="text-slate-400 text-[11px] ml-1 font-medium">كود الصنف:</span>
+                    <span className="font-mono font-black text-white">{parentProduct.primaryCode}</span>
+                  </div>
 
-          <div className="flex items-center gap-2">
-            {onOpenCart && cart.length > 0 && (
+                  {(activeVariant.unifiedCode || activeVariant.rawProduct?.unifiedCode || parentProduct.unifiedCode) && (
+                    <div className="flex items-center bg-blue-950/90 text-blue-200 rounded-lg px-2.5 py-0.5 border border-blue-600/40 text-xs font-bold font-mono shadow-xs">
+                      <span className="text-blue-300 text-[11px] ml-1 font-sans">الكود الموحد:</span>
+                      <span className="text-amber-300 font-black">
+                        {activeVariant.unifiedCode || activeVariant.rawProduct?.unifiedCode || parentProduct.unifiedCode}
+                      </span>
+                    </div>
+                  )}
+
+                  {activeVariant.color && activeVariant.color !== '---' && !activeVariant.color.toLowerCase().includes('blank') && (
+                    <div className="flex items-center bg-amber-500/20 text-amber-300 rounded-lg px-2.5 py-0.5 border border-amber-500/30 text-xs font-bold shadow-xs">
+                      <span>اللون: {activeVariant.color}</span>
+                    </div>
+                  )}
+
+                  <span className="text-xs text-slate-400 font-bold hidden sm:inline">
+                    {parentProduct.department} {parentProduct.classification ? `• ${parentProduct.classification}` : ''}
+                  </span>
+                </div>
+
+                {/* Product Name */}
+                <h2 className="text-base sm:text-xl font-black text-amber-400 leading-tight">
+                  {parentProduct.name}
+                </h2>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {onOpenCart && cart.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenCart();
+                  }}
+                  className="hidden sm:flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-black shadow transition cursor-pointer"
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                  <span>السلة ({cart.length})</span>
+                </button>
+              )}
+
               <button
                 type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenCart();
-                }}
-                className="hidden sm:flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-black shadow transition cursor-pointer"
+                onClick={onClose}
+                className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer"
+                title="إغلاق"
+                aria-label="إغلاق النافذة"
               >
-                <ShoppingCart className="w-4 h-4" />
-                <span>عرض السلة ({cart.length})</span>
+                <X className="w-5 h-5" />
               </button>
-            )}
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer"
-              title="إغلاق"
-              aria-label="إغلاق النافذة"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            </div>
           </div>
         </div>
 
@@ -415,13 +437,13 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
             <div className="md:col-span-7 space-y-4">
               
               {/* 1. Interactive Windows / Colors Selector Buttons */}
-              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
+              <div className="bg-slate-50/90 p-3.5 rounded-2xl border border-slate-200/90 space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-black text-slate-900 flex items-center gap-1.5">
                     <Sparkles className="w-4 h-4 text-amber-500" />
                     <span>اختر الشباك أو اللون المطلوب:</span>
                   </span>
-                  <span className="text-[11px] font-bold text-slate-500">
+                  <span className="text-[11px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-lg border border-slate-200">
                     متوفر {parentProduct.variants.length} خيارات
                   </span>
                 </div>
@@ -433,38 +455,40 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                     const vOctStock = variant.mainWarehouseActual || 0;
                     const vTotalStock = vBranchStock + vOctStock;
                     const inCart = cart.find((i) => i.product.id === variant.rawProduct.id);
+                    const cleanColorName = (variant.color || '').replace(/\(blank\)/gi, '').replace(/blank/gi, '').trim();
+                    const displayName = variant.name.replace(/\(blank\)/gi, '').replace(/blank/gi, '').trim() || `شباك ${variant.windowNumber || 1}`;
 
                     return (
                       <button
                         key={variant.id}
                         type="button"
                         onClick={() => handleSelectVariant(variant)}
-                        className={`p-2.5 rounded-xl border-2 text-right transition cursor-pointer relative flex flex-col justify-between min-h-[68px] ${
+                        className={`p-2.5 rounded-xl border-2 text-right transition cursor-pointer relative flex flex-col justify-between min-h-[72px] ${
                           isSelected
-                            ? 'bg-amber-400 border-slate-950 text-slate-950 shadow-md scale-[1.02] ring-2 ring-amber-400/40'
-                            : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800 hover:bg-slate-100/80'
+                            ? 'bg-amber-400 border-slate-950 text-slate-950 shadow-md scale-[1.02] ring-2 ring-amber-400/50'
+                            : 'bg-white border-slate-200 hover:border-amber-300 text-slate-800 hover:bg-amber-50/40'
                         }`}
                       >
                         <div className="flex items-center justify-between w-full">
                           <span className="font-black text-xs truncate">
-                            {variant.name}
+                            {displayName}
                           </span>
                           {inCart && (
-                            <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[9px] font-bold shrink-0" title="موجود بالسلة">
+                            <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[9px] font-bold shrink-0 shadow-xs" title="موجود بالسلة">
                               ✓
                             </span>
                           )}
                         </div>
 
-                        <div className="flex items-center justify-between w-full mt-1.5 text-[10px]">
-                          <span className="font-mono text-slate-600 font-bold">
+                        <div className="flex items-center justify-between w-full mt-2 text-[10px]">
+                          <span className="font-mono text-slate-700 font-bold truncate max-w-[95px]">
                             {variant.unifiedCode || variant.rawProduct?.unifiedCode || variant.code}
                           </span>
                           <span
-                            className={`font-black font-mono px-1.5 py-0.5 rounded-md ${
+                            className={`font-black font-mono px-1.5 py-0.5 rounded-md text-[10px] shrink-0 ${
                               vTotalStock > 0
                                 ? isSelected
-                                  ? 'bg-slate-900 text-amber-300'
+                                  ? 'bg-slate-950 text-amber-300'
                                   : 'bg-emerald-100 text-emerald-800'
                                 : 'bg-rose-100 text-rose-700'
                             }`}
@@ -480,44 +504,61 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
 
               {/* 2. Selected Window Details & Stock Card */}
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <div>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="min-w-0">
                     <span className="text-[10px] text-slate-400 font-bold block">الشباك المحدد حالياً:</span>
-                    <span className="text-sm font-black text-slate-900 flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                      <span>{activeVariant.name}</span>
-                      <span className="text-xs font-normal text-slate-500 font-mono">({activeVariant.code})</span>
-                    </span>
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      <span className="text-sm font-black text-slate-950 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                        <span>{activeVariant.name.replace(/\(blank\)/gi, '').replace(/blank/gi, '').trim() || `شباك ${activeVariant.windowNumber || 1}`}</span>
+                      </span>
+                      <span className="text-xs font-mono font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                        كود: {activeVariant.code}
+                      </span>
+                      {(activeVariant.unifiedCode || activeVariant.rawProduct?.unifiedCode) && (
+                        <span className="text-xs font-mono font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                          موحد: {activeVariant.unifiedCode || activeVariant.rawProduct?.unifiedCode}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="text-left">
+                  <div className="text-left shrink-0">
                     <span className="text-[10px] text-slate-400 font-bold block">شدة الكرتونة:</span>
-                    <span className="text-xs font-black text-slate-800">{cartonQty} قطعة / كرتونة</span>
+                    <span className="text-xs font-black text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                      {cartonQty} قطعة / كرتونة
+                    </span>
                   </div>
                 </div>
 
-                {/* Pricing Box */}
-                <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white">
+                {/* Pricing Box - Sleek Gold & Slate Theme */}
+                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white shadow-inner">
                   <div>
-                    <span className="text-[10px] text-slate-400 block font-bold">سعر الكرتونة</span>
-                    <div className="text-lg font-black text-amber-300">
+                    <span className="text-[10px] text-amber-300/80 block font-bold">سعر الكرتونة</span>
+                    <div className="text-xl font-black text-amber-400 font-mono">
                       {isConfidentialMode ? '••••••' : formatCurrency(appliedPrice)}
                     </div>
                   </div>
 
-                  <div className="text-center">
-                    <span className="text-[10px] text-slate-400 block font-bold">سعر القطعة</span>
-                    <div className="text-sm font-black text-slate-200">
+                  <div className="text-center px-4 border-x border-slate-800">
+                    <span className="text-[10px] text-slate-400 block font-bold">سعر القطعة (في الشيت)</span>
+                    <div className="text-base font-black text-slate-100 font-mono">
                       {isConfidentialMode ? '••••' : formatCurrency(currentPiecePrice)}
                     </div>
+                    <span className="text-[9px] text-slate-400">× شدة {cartonQty} = الكرتونة</span>
                   </div>
 
-                  {activeVariant.promoPrice && activeVariant.promoPrice > 0 && (
+                  {activeVariant.promoPrice && activeVariant.promoPrice > 0 ? (
                     <div className="text-left">
-                      <span className="text-[10px] text-rose-300 block font-bold">وفر</span>
-                      <div className="text-xs font-black text-rose-400">
-                        خصم عرض
+                      <span className="text-[10px] text-rose-300 block font-bold">عرض خاص</span>
+                      <div className="text-xs font-black text-rose-400 bg-rose-950/60 px-2 py-0.5 rounded border border-rose-800">
+                        خصم ترويجي
                       </div>
+                    </div>
+                  ) : (
+                    <div className="text-left text-xs font-bold text-slate-400">
+                      <span className="text-[10px] block">الرصيد المتاح</span>
+                      <span className="text-emerald-400 font-black font-mono">{totalStockAvailable} ك</span>
                     </div>
                   )}
                 </div>

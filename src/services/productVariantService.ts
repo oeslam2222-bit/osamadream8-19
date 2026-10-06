@@ -38,6 +38,12 @@ export function extractWindowInfo(
   const pColor = (product.color || '').trim();
   const pCode = (product.code || '').trim();
 
+  // 0. Clean and sanitize color value
+  let cleanColor = pColor.replace(/\(blank\)/gi, '').replace(/blank/gi, '').trim();
+  if (cleanColor === '-' || cleanColor === 'عام' || cleanColor === 'بدون' || cleanColor.includes('غير محدد') || cleanColor === '0') {
+    cleanColor = '';
+  }
+
   // 1. Look for explicit Arabic "شباك X" in name, color, or notes
   const windowRegex = /شباك\s*([0-9\u0660-\u0669]+|[أ-ي]+)/i;
   const matchName = pName.match(windowRegex);
@@ -53,9 +59,9 @@ export function extractWindowInfo(
     const rawVal = matchColor[1];
     const num = arabicNumMap[rawVal] || parseInt(rawVal, 10) || (indexInGroup + 1);
     return {
-      name: `شباك ${num}`,
+      name: cleanColor ? `شباك ${num} (${cleanColor})` : `شباك ${num}`,
       windowNumber: num,
-      color: pColor || `شباك ${num}`,
+      color: cleanColor || `شباك ${num}`,
     };
   }
 
@@ -63,9 +69,9 @@ export function extractWindowInfo(
     const rawVal = matchName[1];
     const num = arabicNumMap[rawVal] || parseInt(rawVal, 10) || (indexInGroup + 1);
     return {
-      name: `شباك ${num}`,
+      name: cleanColor ? `شباك ${num} (${cleanColor})` : `شباك ${num}`,
       windowNumber: num,
-      color: pColor || `شباك ${num}`,
+      color: cleanColor || `شباك ${num}`,
     };
   }
 
@@ -75,19 +81,19 @@ export function extractWindowInfo(
     const num = parseInt(codeSuffixMatch[1], 10);
     if (!isNaN(num) && num > 0) {
       return {
-        name: pColor ? `شباك ${num} (${pColor})` : `شباك ${num}`,
+        name: cleanColor ? `شباك ${num} (${cleanColor})` : `شباك ${num}`,
         windowNumber: num,
-        color: pColor || `شباك ${num}`,
+        color: cleanColor || `شباك ${num}`,
       };
     }
   }
 
   // 3. If color is distinct and not generic
-  if (pColor && pColor !== '-' && pColor !== 'عام' && pColor !== 'بدون' && !pColor.includes('غير محدد')) {
+  if (cleanColor) {
     return {
-      name: `لون ${pColor}`,
+      name: `لون ${cleanColor}`,
       windowNumber: indexInGroup + 1,
-      color: pColor,
+      color: cleanColor,
     };
   }
 
@@ -95,7 +101,7 @@ export function extractWindowInfo(
   return {
     name: `شباك ${indexInGroup + 1}`,
     windowNumber: indexInGroup + 1,
-    color: pColor || `شباك ${indexInGroup + 1}`,
+    color: `شباك ${indexInGroup + 1}`,
   };
 }
 
