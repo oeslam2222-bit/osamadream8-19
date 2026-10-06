@@ -21,20 +21,26 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
+export async function idbGetStrict<T>(key: string): Promise<T | undefined> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const req = tx.objectStore(STORE_NAME).get(key);
+    let result: T | undefined;
+
+    req.onsuccess = () => {
+      result = req.result as T | undefined;
+    };
+    req.onerror = () => reject(req.error || new Error(`IndexedDB read failed for "${key}"`));
+    tx.oncomplete = () => resolve(result);
+    tx.onerror = () => reject(tx.error || new Error(`IndexedDB transaction failed for "${key}"`));
+    tx.onabort = () => reject(tx.error || new Error(`IndexedDB transaction aborted for "${key}"`));
+  });
+}
+
 export async function idbGet<T>(key: string): Promise<T | null> {
   try {
-    const db = await openDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.get(key);
-      req.onsuccess = () => {
-        resolve(req.result !== undefined ? (req.result as T) : null);
-      };
-      req.onerror = () => {
-        resolve(null);
-      };
-    });
+    return (await idbGetStrict<T>(key)) ?? null;
   } catch {
     return null;
   }
@@ -46,9 +52,10 @@ export async function idbSet<T>(key: string, value: T): Promise<boolean> {
     return new Promise((resolve) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
-      const req = store.put(value, key);
-      req.onsuccess = () => resolve(true);
-      req.onerror = () => resolve(false);
+      store.put(value, key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+      tx.onabort = () => resolve(false);
     });
   } catch {
     return false;

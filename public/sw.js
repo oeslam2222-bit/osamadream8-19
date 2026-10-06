@@ -73,16 +73,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. Supabase API calls: If network fails offline, gracefully return empty JSON
+  // 2. Supabase API calls: Preserve network failures so callers can keep local data
   if (url.hostname.includes('supabase.co')) {
-    event.respondWith(
-      fetch(request).catch(() => {
-        return new Response(JSON.stringify([]), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      })
-    );
+    event.respondWith(fetch(request));
     return;
   }
 

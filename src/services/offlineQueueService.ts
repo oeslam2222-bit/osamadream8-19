@@ -1,4 +1,4 @@
-import { idbGet, idbSet } from './storageService';
+import { idbGetStrict, idbSet } from './storageService';
 import type {
   CollectionForecastRecord,
   Customer,
@@ -42,12 +42,17 @@ const makeId = (): string =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 export async function getQueuedMutations(): Promise<QueuedMutation[]> {
-  const stored = await idbGet<QueuedMutation[]>(QUEUE_KEY);
-  return Array.isArray(stored) ? stored : [];
+  const stored = await idbGetStrict<QueuedMutation[]>(QUEUE_KEY);
+  if (stored === undefined) return [];
+  if (!Array.isArray(stored)) {
+    throw new Error('Offline queue data is invalid; refusing to overwrite it.');
+  }
+  return stored;
 }
 
 async function writeQueue(items: QueuedMutation[]): Promise<void> {
-  await idbSet(QUEUE_KEY, items);
+  const saved = await idbSet(QUEUE_KEY, items);
+  if (!saved) throw new Error('Failed to persist offline queue in IndexedDB.');
 }
 
 /**

@@ -205,8 +205,8 @@ export default function CollectionForecastView() {
   const [pageSize, setPageSize] = useState<number>(25);
   const [page, setPage] = useState<number>(1);
 
-  // الصفحة دي بتعرض اللي عليهم مستحقات فعلاً. الفلتر مفعّل افتراضياً لأن قصد
-  // القسم متابعة التحصيل، بس يفضل مفتاح عشان المندوب يفتح شبكة عميله كلها.
+  // الصفحة تركز افتراضياً على العملاء ذوي المديونية الموجبة. لا نشترط وجود
+  // مستحقات مسجلة لأن بعض صفوف الشيت لا تحمل هذا الرقم رغم وجود مديونية.
   const [debtOnly, setDebtOnly] = useState<boolean>(true);
   const [classFilter, setClassFilter] = useState<string>('ALL');
 
@@ -422,18 +422,14 @@ export default function CollectionForecastView() {
   /**
    * مين يدخل جدول التوقع أصلاً.
    *
-   * العميل يدخل بشروط مع بعض: مديونيته أكبر من صفر **وعليه** مستحقات أكبر من
-   * صفر — يعني عنده فلوس فعلاً لازم تتحصل.
-   *
-   * الشرطين مع بعض مقصود: مديونية من غير مستحقات معناها رصيد ملغى أو حد
-   * دفع كل حاجة ومستحقاته اتصفّر، ومستحقات من غير مديونية معناها حد دفع
-   * زيادة (رصيد له مش عليه) — وهو مش مدين فمحلهوش في تقرير تحصيل أصلاً.
+   * الفلتر هنا على المديونية فقط حتى لا تختفي توقعات العملاء الذين لم تصل
+   * قيمة مستحقاتهم من الشيت. يظل رقم المستحقات مستقلاً ولا نستنتجه من المديونية.
    *
    * الأرقام بتتقري من الـcanonical readers في customerDues عشان كل شاشات
    * النظام تتفق على نفس الرقم لنفس العميل.
    */
-  const isCollectibleCustomer = useCallback((c: Customer) => {
-    return resolveCustomerBalanceValue(c) > 0 && resolveCustomerDuesValue(c) > 0;
+  const hasPositiveDebt = useCallback((c: Customer) => {
+    return resolveCustomerBalanceValue(c) > 0;
   }, []);
 
   /* ---------- خيارات المناديب المتاحة للفلترة ---------- */
@@ -479,7 +475,7 @@ export default function CollectionForecastView() {
         if (!isArabicNameMatch(supervisorForCustomer(c), supervisorFilter)) return false;
       }
 
-      if (debtOnly && !isCollectibleCustomer(c)) return false;
+      if (debtOnly && !hasPositiveDebt(c)) return false;
 
       if (classFilter !== 'ALL') {
         const fin = calculateCustomerFinancials(c, 'ALL');
@@ -496,25 +492,18 @@ export default function CollectionForecastView() {
 
       return name.includes(q) || code.includes(q) || rName.includes(q) || branch.includes(q);
     });
-  }, [scopedCustomers, deferredSearch, branchFilter, repFilter, supervisorFilter, debtOnly, classFilter, isCollectibleCustomer, supervisorForCustomer]);
+  }, [scopedCustomers, deferredSearch, branchFilter, repFilter, supervisorFilter, debtOnly, classFilter, hasPositiveDebt, supervisorForCustomer]);
 
-  // Sort matched customers by planned collection ascending, then by name.
+  // أظهر أصحاب المستحقات الأعلى أولاً، ثم استخدم المديونية لكسر التعادل.
   const sortedCustomers = useMemo(() => {
-    // الترتيب بالأولوية: رقم العميل الشهري المستقل، ومجموع الأسابيع fallback.
-    const plannedFor = (c: Customer) => {
-      const monthRec = monthForecastByCustomer.get(c.id);
-      if (monthRec) return Number(monthRec.collectionForecast) || 0;
-      return forecastTotalsByCustomer.get(c.id) || 0;
-    };
-
     return [...filteredCustomers].sort((a, b) => {
-      const valA = plannedFor(a);
-      const valB = plannedFor(b);
-      // من الأقل توقعاً إلى الأكثر لمعرفة العملاء ذوي المتوقع الأقل أولاً.
-      if (valA !== valB) return valA - valB;
+      const duesDifference = resolveCustomerDuesValue(b) - resolveCustomerDuesValue(a);
+      if (duesDifference !== 0) return duesDifference;
+      const balanceDifference = resolveCustomerBalanceValue(b) - resolveCustomerBalanceValue(a);
+      if (balanceDifference !== 0) return balanceDifference;
       return (a.name || '').localeCompare(b.name || '', 'ar');
     });
-  }, [filteredCustomers, forecastTotalsByCustomer, monthForecastByCustomer]);
+  }, [filteredCustomers]);
 
   /* ---------- ترقيم الصفحات (Pagination) ---------- */
   const totalPages = Math.max(1, Math.ceil(sortedCustomers.length / pageSize));
@@ -1682,7 +1671,7 @@ export default function CollectionForecastView() {
         <button
           type="button"
           onClick={() => setDebtOnly((v) => !v)}
-          title="عرض اللي عليهم مستحقات أكبر من صفر فقط، بناءً على بيانات جدول العملاء"
+          title="عرض العملاء الذين مديونيتهم أكبر من صفر، حتى لو كانت المستحقات غير مسجلة في الشيت"
           className={`px-3 py-2 rounded-xl text-xs font-black border transition cursor-pointer flex items-center gap-1.5 ${
             debtOnly
               ? 'bg-rose-600 text-white border-rose-700'
@@ -1690,7 +1679,7 @@ export default function CollectionForecastView() {
           }`}
         >
           <Filter className="w-3.5 h-3.5" />
-          <span>{debtOnly ? 'اللي عليهم مستحقات' : 'كل العملاء'}</span>
+          <span>{debtOnly ? 'المديونية أكبر من صفر' : 'كل العملاء'}</span>
         </button>
 
         <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
@@ -2036,7 +2025,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                           أكثر سببين يخفيوا الشبكة. */}
                       {scopedCustomers.length > 0 && debtOnly && (
                         <p className="text-slate-500 font-bold text-[11px]">
-                          في {scopedCustomers.length} عميل في نطاقك، بس مفيش ولا واحد عليهم مستحقات أكبر من صفر.
+                          في {scopedCustomers.length} عميل في نطاقك، بس مفيش ولا واحد مديونيته أكبر من صفر.
                         </p>
                       )}
                       {(debtOnly || classFilter !== 'ALL' || branchFilter !== 'ALL' || supervisorFilter !== 'ALL' || repFilter !== 'ALL' || deferredSearch.trim()) && (
