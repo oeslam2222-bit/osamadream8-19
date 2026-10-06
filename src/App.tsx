@@ -39,18 +39,27 @@ const SystemWorkflowGuide = lazy(() => import('./components/SystemWorkflowGuide'
 const OrderBuilderModal = lazy(() => import('./components/OrderBuilderModal').then((m) => ({ default: m.OrderBuilderModal })));
 const ElectronicInvoiceModal = lazy(() => import('./components/ElectronicInvoiceModal').then((m) => ({ default: m.ElectronicInvoiceModal })));
 
-// Lightweight Skeleton for tab transitions
-const TabLoadingSkeleton = () => (
-  <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[350px] space-y-4 animate-in fade-in">
-    <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center animate-spin">
-      <Loader2 className="w-6 h-6" />
+// Suspense here waits for the screen's lazy-loaded JavaScript, not its server data.
+const TabLoadingSkeleton = () => {
+  const { isOffline } = useApp();
+  return (
+    <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[350px] space-y-4 animate-in fade-in">
+      <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center animate-spin">
+        <Loader2 className="w-6 h-6" />
+      </div>
+      <div className="text-center">
+        <h3 className="font-black text-slate-800 text-sm">
+          {isOffline ? 'جاري فتح ملفات القسم المحفوظة على الجهاز...' : 'جاري تجهيز ملفات القسم...'}
+        </h3>
+        <p className="text-xs text-slate-400 mt-1">
+          {isOffline
+            ? 'الأقسام التي سبق فتحها أثناء الاتصال يمكن فتحها دون إنترنت.'
+            : 'يتم تحميل واجهة القسم؛ لا يعني ذلك إعادة تحميل كل بياناتك من السيرفر.'}
+        </p>
+      </div>
     </div>
-    <div className="text-center">
-      <h3 className="font-black text-slate-800 text-sm">جاري تحميل البيانات...</h3>
-      <p className="text-xs text-slate-400 mt-1">يتم جلب محتويات القسم وتجهيزها بأعلى سرعة</p>
-    </div>
-  </div>
-);
+  );
+};
 
 const MainLayout: React.FC = () => {
   const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder } = useApp();
@@ -134,7 +143,7 @@ const MainLayout: React.FC = () => {
       {isOffline && (
         <div className="bg-amber-600 text-white text-xs py-1.5 px-4 text-center font-bold flex items-center justify-center gap-2 shadow-inner">
           <WifiOff className="w-3.5 h-3.5" />
-          <span>أنت تعمل حالياً في وضع عدم الاتصال (Offline) - يتم حفظ الفواتير محلياً والربط تلقائياً فور عودة الشبكة</span>
+          <span>أنت دون اتصال: البيانات المحفوظة والأقسام التي سبق فتحها متاحة. التغييرات المدعومة تُحفظ محلياً وتُزامن عند عودة الإنترنت.</span>
         </div>
       )}
 
