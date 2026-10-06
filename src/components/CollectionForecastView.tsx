@@ -121,47 +121,6 @@ const parseAmount = (rawAmount: string) => {
  * gets flagged so the supervisor can chase a reason instead of discovering
  * the gap at month-end.
  */
-type CollectionHealth = 'healthy' | 'watch' | 'critical' | 'noDues';
-
-export function assessCollectionHealth(planned: number, dues: number): CollectionHealth {
-  if (dues <= 0) return 'noDues';
-  const ratio = planned / dues;
-  if (ratio >= 0.6) return 'healthy';
-  if (ratio >= 0.3) return 'watch';
-  return 'critical';
-}
-
-const HEALTH_STYLE: Record<CollectionHealth, { row: string; badge: string; label: string }> = {
-  healthy: { row: '', badge: '', label: '' },
-  watch: {
-    row: 'bg-amber-50/40 hover:bg-amber-100/60',
-    badge: 'bg-amber-100 text-amber-800 border-amber-300',
-    label: 'تحصيل منخفض',
-  },
-  critical: {
-    row: 'bg-rose-50/40 hover:bg-rose-100/60',
-    badge: 'bg-rose-100 text-rose-800 border-rose-300',
-    label: 'تحصيل ضعيف جداً',
-  },
-  noDues: { row: '', badge: '', label: '' },
-};
-
-/**
- * Tooltip text shown when hovering a collection-health badge.
- *
- * It explains the gap in plain numbers and nudges the supervisor to open the
- * note composer — the note is keyed by customer code, so it survives month
- * refreshes and becomes the running explanation for a recurring problem.
- */
-function healthTooltip(planned: number, dues: number, commentRecord?: CustomerCommentRecord | null): string {
-  const ratio = dues > 0 ? Math.round((planned / dues) * 100) : 0;
-  const base = `التوقع: ${formatCurrency(planned)} · المستحقات: ${formatCurrency(dues)} (${ratio}%)`;
-  if (commentRecord?.body) {
-    return `${base} · نوتي مسجّل: ${commentRecord.body}`;
-  }
-  return `${base} · اضغط على زر الملاحظة لOwnership سبب التحصيل الضعيف — النوتي تبقى محفوظة شهريًا`;
-}
-
 const STATUS_LABEL: Record<string, string> = {
   draft: 'مسودة',
   submitted: 'بعت للمشرف',
@@ -1801,13 +1760,9 @@ const visitStats = visitStatsByCustomer.get(c.id);
                   const monthVal = monthRec ? Number(monthRec.collectionForecast) || 0 : 0;
                   return monthVal > 0 ? monthVal : (forecastTotalsByCustomer.get(c.id) || 0);
                 })();
-                const health = assessCollectionHealth(plannedForHealth, dues);
 
                 return (
-                  <tr
-                    key={c.id}
-                    className={`group transition-colors ${HEALTH_STYLE[health].row}`}
-                  >
+                  <tr key={c.id} className="group transition-colors">
                     {/* Customer Code */}
                     <td className="p-3 font-mono font-bold text-slate-700 whitespace-nowrap">
                       {c.code || '—'}
@@ -1825,25 +1780,12 @@ const visitStats = visitStatsByCustomer.get(c.id);
                           <span>{c.name}</span>
                           <Eye className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition" />
                         </button>
-                        {health !== 'healthy' && health !== 'noDues' && (
-                          <span
-                            className={`text-[10px] px-1.5 py-0.5 rounded font-bold border inline-flex items-center gap-1 ${HEALTH_STYLE[health].badge}`}
-                            title={healthTooltip(plannedForHealth, dues, commentRecord)}
-                          >
-                            <AlertTriangle className="w-3 h-3" />
-                            {HEALTH_STYLE[health].label}
-                          </span>
-                        )}
                         {returnInfo && (
                           <span className="text-[10px] bg-rose-100 text-rose-800 px-1.5 py-0.2 rounded font-black border border-rose-300" title={`مرتجع بقيمة ${formatCurrency(returnInfo.amount)}`}>
                             مرتجع
                           </span>
                         )}
-                        {(c.guaranteeAmount || 0) > 0 && (
-                          <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-bold border border-amber-300">
-                            ضمانة 📄
-                          </span>
-                        )}
+                        
                       </div>
                     </td>
 
