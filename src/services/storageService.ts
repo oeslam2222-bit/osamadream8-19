@@ -86,6 +86,34 @@ export async function idbClear(): Promise<boolean> {
 }
 
 /**
+ * Debounced IndexedDB write. Batches rapid state changes (keystrokes, filters,
+ * re-renders) into a single write after the data settles. Without this, a
+ * 5000-row customer table (~5MB) was written to IDB on every keystroke,
+ * blocking the main thread and making the app feel sluggish.
+ */
+export function debouncedIdbSet<T>(key: string, value: T, delay = 2000): () => void {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const schedule = () => {
+    if (timer) return;
+    timer = setTimeout(async () => {
+      timer = null;
+      try {
+        await idbSet(key, value);
+      } catch {
+        // ignore
+      }
+    }, delay);
+  };
+  const cancel = () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+  return cancel;
+}
+
+/**
  * Safely writes to localStorage with quota protection and auto-cleanup.
  * Large collections (products, invoices, customers) are stored in IndexedDB.
  */

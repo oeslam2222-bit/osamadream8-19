@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { COMPANY_INFO, INITIAL_AUDIT_LOGS, INITIAL_BRANCHES, INITIAL_USERS } from '../data/mockData';
 import { DEFAULT_CLOUDINARY_CONFIG } from '../services/cloudinaryService';
 import { clearCachedImages } from '../services/imageCacheService';
-import { idbClear, idbDelete, idbGet, idbSet, safeLocalStorageSet } from '../services/storageService';
+import { idbClear, idbDelete, idbGet, idbSet, debouncedIdbSet, safeLocalStorageSet } from '../services/storageService';
 import {
   doesCustomerBelongToBranch,
   doesCustomerBelongToRep,
@@ -2003,7 +2003,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     if (!isLocalDataHydrated) return;
     let checkInFlight = false;
     let lastHeartbeatCheck = 0;
-    const HEARTBEAT_INTERVAL_MS = 60 * 1000;
+    const HEARTBEAT_INTERVAL_MS = 120 * 1000;
     // شبكة أمان: لو البصمة مرجعتش نتيجة (عمود updated_at مش موجود، أو
     // حد عدّل بـ SQL مباشر من غير ما يمسّه) بنعمل تحميل كامل كل ربع ساعة
     // عشان الجهاز يفضل صحيح. ده 4 مرات في الساعة بدل 60 مرة.
@@ -2113,7 +2113,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleVisibility);
-    const interval = window.setInterval(heartbeat, 30 * 1000);
+    // Heartbeat every 2 minutes (was 30s). At 5000 customers × 300 employees,
+    // the old 30s interval generated ~27GB/hour of egress on Supabase Free
+    // (5GB/month). The stamp probe means we only pull the full table when
+    // something actually moved, so the interval is now safe to relax.
+    const interval = window.setInterval(heartbeat, 120 * 1000);
     const versionChannel = supabase
       .channel('global-data-version-sync')
       .on(
@@ -3078,25 +3082,37 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     });
   }, [users]);
 
-  // Sync high-capacity data directly to IndexedDB (preventing LocalStorage quota overflow)
+  // Sync high-capacity data directly to IndexedDB (preventing LocalStorage quota overflow).
+  // Debounced: a 5000-row customer table (~5MB) was being written on every
+  // keystroke/filter change, blocking the main thread. Now batches into a
+  // single write after the data settles.
+  const cancelCustomersIdb = useRef(debouncedIdbSet(STORAGE_KEYS.CUSTOMERS, customers));
+  const cancelInvoicesIdb = useRef(debouncedIdbSet(STORAGE_KEYS.INVOICES, invoices));
+  const cancelProductsIdb = useRef(debouncedIdbSet(STORAGE_KEYS.PRODUCTS, products));
+  const cancelCartIdb = useRef(debouncedIdbSet(STORAGE_KEYS.CART, cart));
+
   useEffect(() => {
     if (!isLocalDataHydrated) return;
-    idbSet(STORAGE_KEYS.PRODUCTS, products);
+    cancelProductsIdb.current = debouncedIdbSet(STORAGE_KEYS.PRODUCTS, products);
+    cancelProductsIdb.current();
   }, [products, isLocalDataHydrated]);
 
   useEffect(() => {
     if (!isLocalDataHydrated) return;
-    idbSet(STORAGE_KEYS.CUSTOMERS, customers);
+    cancelCustomersIdb.current = debouncedIdbSet(STORAGE_KEYS.CUSTOMERS, customers);
+    cancelCustomersIdb.current();
   }, [customers, isLocalDataHydrated]);
 
   useEffect(() => {
     if (!isLocalDataHydrated) return;
-    idbSet(STORAGE_KEYS.INVOICES, invoices);
+    cancelInvoicesIdb.current = debouncedIdbSet(STORAGE_KEYS.INVOICES, invoices);
+    cancelInvoicesIdb.current();
   }, [invoices, isLocalDataHydrated]);
 
   useEffect(() => {
     if (!isLocalDataHydrated) return;
-    idbSet(STORAGE_KEYS.CART, cart);
+    cancelCartIdb.current = debouncedIdbSet(STORAGE_KEYS.CART, cart);
+    cancelCartIdb.current();
   }, [cart, isLocalDataHydrated]);
 
   useEffect(() => {
