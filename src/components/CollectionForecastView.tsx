@@ -55,7 +55,7 @@ import type {
   ForecastStatus,
 } from '../types';
 import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from '../services/customerDues';
-import { calculateCustomerFinancials } from '../services/customerFinancialService';
+import { calculateCustomerFinancials, parseCleanNumber } from '../services/customerFinancialService';
 import {
   COMMENT_KIND_COLORS,
   buildDefaultMonthPlan,
@@ -486,7 +486,8 @@ export default function CollectionForecastView() {
     return [...filteredCustomers].sort((a, b) => {
       const valA = plannedFor(a);
       const valB = plannedFor(b);
-      if (valB !== valA) return valB - valA;
+      // من الأقل توقعاً إلى الأكثر (تصاعدي) عشان ن sees من هو الأقل تحصيل أولاً
+      if (valA !== valB) return valA - valB;
       return (a.name || '').localeCompare(b.name || '', 'ar');
     });
   }, [filteredCustomers, forecastTotalsByCustomer, monthForecastByCustomer]);
@@ -553,17 +554,32 @@ export default function CollectionForecastView() {
   const kpiTotals = useMemo(() => {
     let weeklyTotal = 0;
     let monthTotal = 0;
+    let explicitMonthCount = 0;
 
     dashboardScope.scopedForecasts.forEach((f) => {
       if (isWeekForecast(f)) weeklyTotal += Number(f.collectionForecast) || 0;
-      else monthTotal += Number(f.collectionForecast) || 0;
+      else {
+        monthTotal += Number(f.collectionForecast) || 0;
+        explicitMonthCount += 1;
+      }
     });
 
-    // الرقم اللي بيتقارن بهدف الشهر هو التوقع الشهري المستقل. لو محدش كتب رقم
-    // شهري (لأننا لسه في أول استخدام) بنرجع لمجموع الأسابيع بدل ما نحسب صفر
-    // ونقول إن التغطية صفر والمطالبة غلط.
-    const hasExplicitMonth = monthTotal > 0;
-    const plannedTotal = hasExplicitMonth ? monthTotal : weeklyTotal;
+    /**
+     * plannedTotal = مجموع التوقعات ب fairness per-customer:
+     * - العميل اللي كتب رقم شهري مستقل → نستخدمه (وشال الأسابيع له)
+     * - العميل اللي ما كتبش شهري → نستخدم مجموع أرقامه الأسبوعية
+     *
+     *旧代码用的是 all-or-nothing: لو أي عميل كتب شهري، الـ weekly كله يُتج declar
+     * ويسقط. ده كان بيجعل الإجمالي أقل من الحقيقي (مثلاً 70M بدل 84M).
+     */
+    const plannedTotal = filteredCustomers.reduce((sum, c) => {
+      const monthRec = monthForecastByCustomer.get(c.id);
+      const monthVal = monthRec ? Number(monthRec.collectionForecast) || 0 : 0;
+      if (monthVal > 0) return sum + monthVal;
+      return sum + (forecastTotalsByCustomer.get(c.id) || 0);
+    }, 0);
+
+    const hasExplicitMonth = explicitMonthCount > 0;
 
     const targetCollection = dashboardScope.scopedTargets.reduce((sum, t) => sum + (Number(t.collectionTarget) || 0), 0);
     const actualCollection = dashboardScope.scopedTargets.reduce((sum, t) => sum + (Number(t.collectionAchieved) || 0), 0);
@@ -582,7 +598,7 @@ export default function CollectionForecastView() {
       repCount: dashboardScope.repCount,
       supervisorCount: dashboardScope.supervisorCount,
     };
-  }, [dashboardScope]);
+  }, [dashboardScope, filteredCustomers, monthForecastByCustomer, forecastTotalsByCustomer]);
 
   /* ---------- التقدم المالي والتجميع للمشرفين ---------- */
   const progress: ForecastProgressRow[] = useMemo(() => {
@@ -1107,7 +1123,10 @@ export default function CollectionForecastView() {
   codeMatches.forEach((match, index) => {
   const code = match[0].toUpperCase();
   const amountText = rawLine.slice(match.index! + match[0].length, codeMatches[index + 1]?.index ?? rawLine.length);
-  const amount = Number(amountText.replace(/[^0-9.-]/g, '')) || 0;
+  // parseCleanNumber handles Arabic-Indic digits (٠١٢...) and comma/decimal
+  // separators — the old /[^0-9.-]/g regex silently dropped Arabic digits,
+  // turning "٢٠٠٠٠٠" into 0.
+  const amount = parseCleanNumber(amountText) || 0;
   rows.push({ code, amount, customer: customerByCode.get(code) || null });
   });
   continue;
@@ -1115,7 +1134,7 @@ export default function CollectionForecastView() {
 
   const parts = rawLine.split(/[\t,;]+/).map((part) => part.trim()).filter(Boolean);
   const code = parts[0] || '';
-  const amount = Number(String(parts[1] || '').replace(/[^0-9.-]/g, '')) || 0;
+  const amount = parseCleanNumber(parts[1]) || 0;
   rows.push({ code, amount, customer: customerByCode.get(code.toUpperCase()) || null });
   }
 

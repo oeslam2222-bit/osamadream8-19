@@ -2,12 +2,18 @@ import { COMPANY_INFO } from '../data/mockData';
 import { Invoice } from '../types';
 
 /**
- * Format Egyptian Pound currency with clean integer/rounded numbers (e.g. 840 ج.م or 31,958 ج.م)
+ * Format Egyptian Pound currency. Shows decimals only when the amount has a
+ * fractional part, otherwise prints a clean integer (e.g. 84,000,000 ج.م or
+ * 31,958.50 ج.م). Arabic-Indic digits and comma separators are handled.
  */
 export function formatCurrency(amount: number | undefined): string {
   if (amount === undefined || isNaN(amount)) return '0 ج.م';
-  const rounded = Math.round(amount);
-  return `${rounded.toLocaleString('en-US')} ج.م`;
+  const rounded = Math.round(amount * 100) / 100;
+  const hasFraction = Math.abs(rounded - Math.floor(rounded)) > 0.001;
+  const formatted = hasFraction
+    ? rounded.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : Math.floor(rounded).toLocaleString('en-US');
+  return `${formatted} ج.م`;
 }
 
 /**
