@@ -46,6 +46,7 @@ import {
 import * as XLSX from 'xlsx-js-style';
 import { useApp } from '../context/AppContext';
 import { calculateCustomerFinancials } from '../services/customerFinancialService';
+import { resolveCustomerDuesValue } from '../services/customerDues';
 import { formatCurrency } from '../services/invoiceService';
 import { isArabicNameMatch, normalizeArabicText } from '../services/arabicMatchingService';
 import { isMonthForecast } from '../services/forecastService';
@@ -354,8 +355,6 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
       0
     );
 
-    const forecastAccuracy = forecastExpected > 0 ? Math.round((collectionAchieved / forecastExpected) * 100) : 0;
-
     // Customer coverage & financials
     let totalDues = 0;
     let eligibleCount = 0;
@@ -365,12 +364,13 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
       const fin = calculateCustomerFinancials(c, 'ALL');
       if (fin.isEligible) eligibleCount++;
       if (fin.isDealtCustomer) dealtCount++;
-      totalDues += safeNumber(fin.dueBalance + fin.overdue);
+      totalDues += Math.max(0, resolveCustomerDuesValue(c));
     });
 
     const customerCoverageRate = eligibleCount > 0 ? Math.round((dealtCount / eligibleCount) * 100) : 0;
 
-    // Collection Efficiency: Ratio of collected amount vs (sales + overdue debts)
+    // This indicator combines period sales with the current receivables snapshot;
+    // keep its label explicit so it is not mistaken for a target or forecast rate.
     const totalCirculating = salesAchieved + totalDues;
     const collectionEfficiency = totalCirculating > 0 ? Math.round((collectionAchieved / totalCirculating) * 100) : (collectionAchieved > 0 ? 100 : 0);
 
@@ -474,6 +474,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     });
 
     fList.forEach((f) => {
+      if (isMonthForecast(f)) return;
       const userObj = users.find((u) => u.id === f.repId);
       if (userObj) {
         const repKey = `${f.branchName || userObj.branchName || 'عام'}::${userObj.name}`;
@@ -557,7 +558,6 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
       collectionAchieved,
       collectionRate,
       forecastExpected,
-      forecastAccuracy,
       eligibleCount,
       dealtCount,
       customerCoverageRate,
@@ -586,13 +586,14 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     // 1. Executive Summary Sheet
     const summaryData = [
       ['تقرير لوحة الإدارة وPower BI التنفيذي - مجموعة الطنطاوي'],
-      [`السنة: ${selectedYear}`, `الفترة: ${selectedQuarter === 'ALL' ? 'العام بأكمله' : selectedQuarter}`, `الفرع: ${selectedBranch}`],
+      [`السنة: ${selectedYear}`, `الفترة: ${selectedMonth !== 'ALL' ? MONTHS_NAMES_AR[Number(selectedMonth) - 1] : selectedQuarter === 'ALL' ? 'العام بأكمله' : selectedQuarter}`, `الفرع: ${selectedBranch}`],
       [''],
       ['المؤشر التنفيذي (KPI)', 'القيمة المحققة', 'الهدف المخطط', 'نسبة الإنجاز %', 'ملاحظات الأداء'],
-      ['هدف المبيعات السنوي', metrics.salesAchieved, metrics.salesTarget, `${metrics.salesRate}%`, metrics.salesRate >= 90 ? 'أداء ممتاز' : 'يحتاج متابعة'],
-      ['هدف التحصيلات السنوية', metrics.collectionAchieved, metrics.collectionTarget, `${metrics.collectionRate}%`, metrics.collectionRate >= 90 ? 'تحصيل فائق' : 'متوسط'],
-      ['توقع التحصيلات (Forecast)', metrics.collectionAchieved, metrics.forecastExpected, `${metrics.forecastAccuracy}%`, 'دقة التوقع الأسبوعي'],
-      ['كفاءة التحصيل العامة', `${metrics.collectionEfficiency}%`, '—', '—', 'نسبة التحصيل للسيولة المتداولة'],
+      ['مبيعات الفترة المختارة', metrics.salesAchieved, metrics.salesTarget, `${metrics.salesRate}%`, metrics.salesRate >= 90 ? 'أداء ممتاز' : 'يحتاج متابعة'],
+      ['تحصيل الفترة المختارة', metrics.collectionAchieved, metrics.collectionTarget, `${metrics.collectionRate}%`, metrics.collectionRate >= 90 ? 'تحصيل فائق' : 'متوسط'],
+      ['إجمالي التوقع الأسبوعي للمتابعة', metrics.forecastExpected, '—', '—', 'توقع المندوب منفصل عن التارجت والمحقق'],
+      ['مؤشر تغطية التحصيل', `${metrics.collectionEfficiency}%`, '—', '—', 'المحقق للفترة ÷ (مبيعات الفترة + المستحقات الحالية)'],
+      ['إجمالي المستحقات الحالية', metrics.totalDues, '—', '—', 'لقطة أرصدة حالية وليست رقمًا خاصًا بالفترة المختارة'],
       ['تغطية العملاء القابلين', metrics.dealtCount, metrics.eligibleCount, `${metrics.customerCoverageRate}%`, 'تغطية شبكة التوزيع'],
       ['الزيارات الميدانية المنفذة', metrics.completedVisits, metrics.totalVisits, `${metrics.visitsExecutionRate}%`, 'تنفيذ خطوط السير'],
       ['قيمة المبيعات المسلّمة', metrics.deliveredSalesValue, '—', '—', 'فواتير تم تسليمها للعميل'],
@@ -667,11 +668,15 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
-              <span>برج المراقبة والتحكم المالي والإداري</span>
+              <span>لوحة الإدارة والأداء</span>
               <span className="text-emerald-400 font-mono text-base font-bold">({selectedYear})</span>
             </h1>
+            <p className="text-[11px] text-emerald-200 font-bold">
+              الفترة: {selectedMonth !== 'ALL' ? MONTHS_NAMES_AR[Number(selectedMonth) - 1] : selectedQuarter !== 'ALL' ? selectedQuarter : 'السنة كاملة'}
+              {selectedBranch !== 'ALL' ? ` · ${selectedBranch}` : ' · كل الفروع'}
+            </p>
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-              تحليل فوري دقيق يربط بين تارجت المبيعات والتحصيل، توقع التدفق النقدي، أداء المشرفين والمناديب، وسجلات الزيارات الميدانية.
+              التارجت والمحقق من شيت الأهداف، والتوقع الأسبوعي تقدير مستقل من المندوب، والزيارات من سجل الميدان.
             </p>
           </div>
 
@@ -844,9 +849,9 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
       {/* ========================================================================= */}
       {/* 2. Executive 7-KPI Power BI Control Cards (بطاقات المؤشرات القيادية)       */}
       {/* ========================================================================= */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+      <section className="grid grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7 gap-2 sm:gap-3">
         {/* KPI 1: Sales Target vs Achieved */}
-        <article className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+        <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>تحقيق البيع</span>
@@ -854,7 +859,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                 <Target className="w-4 h-4" />
               </span>
             </div>
-            <div className="font-mono font-black text-lg text-emerald-800">
+            <div className="font-mono font-black text-base sm:text-lg text-emerald-800 truncate" title={formatCurrency(metrics.salesAchieved)}>
               {formatCurrency(metrics.salesAchieved)}
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
@@ -880,7 +885,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         </article>
 
         {/* KPI 2: Collection Target vs Achieved */}
-        <article className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+        <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>تحقيق التحصيل</span>
@@ -888,7 +893,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                 <Receipt className="w-4 h-4" />
               </span>
             </div>
-            <div className="font-mono font-black text-lg text-blue-800">
+            <div className="font-mono font-black text-base sm:text-lg text-blue-800 truncate" title={formatCurrency(metrics.collectionAchieved)}>
               {formatCurrency(metrics.collectionAchieved)}
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
@@ -913,55 +918,46 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           </div>
         </article>
 
-        {/* KPI 3: Forecast Expected vs Actual */}
-        <article className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+        {/* KPI 3: Weekly rep forecast, kept separate from targets and actuals */}
+        <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
-              <span>توقع التحصيلات</span>
+              <span>التوقع الأسبوعي</span>
               <span className="p-1 rounded-lg bg-purple-50 text-purple-700 border border-purple-200">
                 <TrendingUp className="w-4 h-4" />
               </span>
             </div>
-            <div className="font-mono font-black text-lg text-purple-900">
+            <div className="font-mono font-black text-base sm:text-lg text-purple-900 truncate" title={formatCurrency(metrics.forecastExpected)}>
               {formatCurrency(metrics.forecastExpected)}
             </div>
-            <div className="text-[11px] text-slate-500 font-medium">
-              محصل فعلي: <span className="font-mono">{formatCurrency(metrics.collectionAchieved)}</span>
+            <div className="text-[11px] text-slate-500 font-medium leading-relaxed">
+              مجموع توقعات الأسابيع المسجلة للفترة، للمتابعة فقط
             </div>
           </div>
           <div className="mt-2.5 pt-2 border-t border-slate-100">
-            <div className="flex items-center justify-between text-[11px] font-black mb-1">
-              <span className="text-slate-600">دقة التوقع</span>
-              <span className="text-purple-700">{metrics.forecastAccuracy}%</span>
-            </div>
-            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-purple-600 transition-all"
-                style={{ width: `${Math.min(100, metrics.forecastAccuracy)}%` }}
-              />
-            </div>
+            <div className="text-[10px] text-purple-800 font-bold">منفصل عن هدف التحصيل والمحقق الفعلي</div>
           </div>
         </article>
 
         {/* KPI 4: Collection Efficiency */}
-        <article className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+        <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
-              <span>كفاءة التحصيل</span>
+              <span>مؤشر تغطية التحصيل</span>
               <span className="p-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200">
                 <Wallet className="w-4 h-4" />
               </span>
             </div>
-            <div className="font-mono font-black text-lg text-amber-900">
+            <div className="font-mono font-black text-base sm:text-lg text-amber-900">
               {metrics.collectionEfficiency}%
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
-              الديون: <span className="font-mono">{formatCurrency(metrics.totalDues)}</span>
+              المستحقات الحالية: <span className="font-mono">{formatCurrency(metrics.totalDues)}</span>
             </div>
           </div>
           <div className="mt-2.5 pt-2 border-t border-slate-100">
             <div className="text-[10px] text-slate-500 font-bold">
-              نسبة التحصيل للسيولة المتداولة
+              المحقق للفترة ÷ (مبيعات الفترة + المستحقات الحالية)
             </div>
             <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden mt-1">
               <div
@@ -973,7 +969,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         </article>
 
         {/* KPI 5: Customer Coverage */}
-        <article className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+        <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>تغطية العملاء</span>
@@ -981,7 +977,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                 <Users className="w-4 h-4" />
               </span>
             </div>
-            <div className="font-mono font-black text-lg text-indigo-900">
+            <div className="font-mono font-black text-base sm:text-lg text-indigo-900">
               {metrics.customerCoverageRate}%
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
@@ -1002,7 +998,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         </article>
 
         {/* KPI 6: Field Visits Execution */}
-        <article className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+        <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>الزيارات الميدانية</span>
@@ -1010,7 +1006,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                 <CalendarCheck className="w-4 h-4" />
               </span>
             </div>
-            <div className="font-mono font-black text-lg text-cyan-900">
+            <div className="font-mono font-black text-base sm:text-lg text-cyan-900">
               {metrics.completedVisits.toLocaleString('ar-EG')}
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
@@ -1032,7 +1028,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         </article>
 
         {/* KPI 7: Delivered Sales & Net Logistics */}
-        <article className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+        <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>الفواتير المسلّمة</span>
@@ -1040,7 +1036,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                 <FileText className="w-4 h-4" />
               </span>
             </div>
-            <div className="font-mono font-black text-lg text-rose-900">
+            <div className="font-mono font-black text-base sm:text-lg text-rose-900 truncate" title={formatCurrency(metrics.deliveredSalesValue)}>
               {formatCurrency(metrics.deliveredSalesValue)}
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
@@ -1058,13 +1054,21 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         </article>
       </section>
 
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10px] sm:text-[11px] font-bold text-slate-600">
+        <span className="flex items-center gap-1.5"><i aria-hidden="true" className="w-2 h-2 rounded-full bg-emerald-600" />التارجت والمحقق: شيت الأهداف</span>
+        <span className="flex items-center gap-1.5"><i aria-hidden="true" className="w-2 h-2 rounded-full bg-purple-600" />التوقع الأسبوعي: إدخال المندوب، وليس محققًا</span>
+        <span className="flex items-center gap-1.5"><i aria-hidden="true" className="w-2 h-2 rounded-full bg-cyan-600" />الزيارات: سجل الزيارات الميدانية</span>
+      </div>
+
       {/* ========================================================================= */}
       {/* 3. Sub-Tab Switcher (نوافذ التحليل المتقدم في الداشبورد)                     */}
       {/* ========================================================================= */}
-      <div className="flex items-center gap-1.5 bg-slate-200/80 p-1 rounded-2xl text-xs font-black overflow-x-auto shadow-inner">
+      <div role="tablist" aria-label="أقسام لوحة الإدارة" className="flex items-center gap-1.5 bg-slate-200/80 p-1 rounded-2xl text-xs font-black overflow-x-auto shadow-inner snap-x">
         <button
           type="button"
           onClick={() => setActiveSubTab('overview')}
+          role="tab"
+          aria-selected={activeSubTab === 'overview'}
           className={`px-4 py-2 rounded-xl transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
             activeSubTab === 'overview'
               ? 'bg-white text-slate-900 shadow-xs'
@@ -1072,12 +1076,15 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           }`}
         >
           <BarChart3 className="w-4 h-4 text-emerald-600" />
-          <span>المخططات والاتجاه الشهري (Trends)</span>
+          <span className="hidden sm:inline">المخططات والاتجاه الشهري</span>
+          <span className="sm:hidden">نظرة عامة</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveSubTab('matrix')}
+          role="tab"
+          aria-selected={activeSubTab === 'matrix'}
           className={`px-4 py-2 rounded-xl transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
             activeSubTab === 'matrix'
               ? 'bg-white text-slate-900 shadow-xs'
@@ -1085,12 +1092,15 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           }`}
         >
           <Award className="w-4 h-4 text-indigo-600" />
-          <span>مصفوفة ترتيب وأداء المناديب والمشرفين ({metrics.repMatrixList.length})</span>
+          <span className="hidden sm:inline">ترتيب وأداء الفريق ({metrics.repMatrixList.length})</span>
+          <span className="sm:hidden">الفريق ({metrics.repMatrixList.length})</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveSubTab('branches')}
+          role="tab"
+          aria-selected={activeSubTab === 'branches'}
           className={`px-4 py-2 rounded-xl transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
             activeSubTab === 'branches'
               ? 'bg-white text-slate-900 shadow-xs'
@@ -1098,12 +1108,15 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           }`}
         >
           <Building2 className="w-4 h-4 text-purple-600" />
-          <span>مقارنة الفروع والتحليل الجغرافي ({metrics.branchBreakdownList.length})</span>
+          <span className="hidden sm:inline">مقارنة الفروع ({metrics.branchBreakdownList.length})</span>
+          <span className="sm:hidden">الفروع ({metrics.branchBreakdownList.length})</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveSubTab('visits_audit')}
+          role="tab"
+          aria-selected={activeSubTab === 'visits_audit'}
           className={`px-4 py-2 rounded-xl transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
             activeSubTab === 'visits_audit'
               ? 'bg-white text-slate-900 shadow-xs'
@@ -1111,7 +1124,8 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           }`}
         >
           <CalendarCheck className="w-4 h-4 text-cyan-600" />
-          <span>تدقيق ورقابة الميدان والزيارات ({metrics.totalVisits})</span>
+          <span className="hidden sm:inline">تدقيق الزيارات الميدانية ({metrics.totalVisits})</span>
+          <span className="sm:hidden">الزيارات ({metrics.totalVisits})</span>
         </button>
       </div>
 
@@ -1138,14 +1152,14 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               </div>
             </div>
 
-            <div className="h-80 w-full" dir="ltr">
+            <div className="h-64 sm:h-80 w-full" dir="ltr">
               <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                 <BarChart data={metrics.monthlyTrend} margin={{ top: 12, right: 12, left: 12, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`} />
+                  <XAxis dataKey="month" interval="preserveStartEnd" minTickGap={8} tick={{ fontSize: 9, fill: '#64748b' }} />
+                  <YAxis width={42} tick={{ fontSize: 9, fill: '#64748b' }} tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`} />
                   <Tooltip
-                    formatter={(value) => [formatCurrency(Number(value)), '']}
+                    formatter={(value, name) => [formatCurrency(Number(value)), String(name)]}
                     contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', color: '#fff', fontSize: '12px' }}
                   />
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
@@ -1156,7 +1170,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <div className="flex items-center justify-between text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] sm:text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
               <span className="font-bold">إجمالي مبيعات الفترة: {formatCurrency(metrics.salesAchieved)}</span>
               <span className="font-bold text-blue-700">إجمالي تحصيلات الفترة: {formatCurrency(metrics.collectionAchieved)}</span>
               <span className="font-bold text-emerald-700">نسبة التحصيل للبيع: {metrics.salesAchieved > 0 ? Math.round((metrics.collectionAchieved / metrics.salesAchieved) * 100) : 0}%</span>
@@ -1209,7 +1223,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                 <span>ملاحظة التحليل التنفيذي:</span>
               </div>
               <p className="text-[11px] leading-relaxed">
-                متوسط تحقيق التحصيلات في الربع الحالي يصل إلى <strong className="font-black">{metrics.collectionRate}%</strong>،
+                نسبة تحقيق هدف التحصيل للفترة المختارة <strong className="font-black">{metrics.collectionRate}%</strong>،
                 مع تدفق نقدي مباشر من الزيارات الميدانية بقيمة <strong className="font-black">{formatCurrency(metrics.directCollectedFromVisits)}</strong>.
               </p>
             </div>
@@ -1230,7 +1244,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               <div>
                 <h3 className="font-black text-sm text-slate-900">مصفوفة أداء المناديب والمشرفين (Power BI Matrix)</h3>
                 <p className="text-[11px] text-slate-500 font-medium">
-                  جدول تفاعلي شامل مرتب حسب معايير التقييم الرباعي مع شارات الإنجاز
+                  مرتب حسب المؤشر المحدد. التقييم المركب: البيع 45%، التحصيل 45%، تنفيذ الزيارات 10%.
                 </p>
               </div>
             </div>
@@ -1290,7 +1304,53 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="lg:hidden grid grid-cols-1 sm:grid-cols-2 gap-2 p-2">
+            {metrics.repMatrixList.map((r, index) => (
+              <article key={`mobile-${r.branch}::${r.repName}`} className="rounded-xl border border-slate-200 bg-white p-3 shadow-2xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 shrink-0 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center text-[10px] font-black">
+                        {index + 1}
+                      </span>
+                      <h4 className="font-black text-sm text-slate-900 truncate">{r.repName}</h4>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1 truncate">{r.branch} · {r.supervisorName}</p>
+                  </div>
+                  <span className={`shrink-0 px-2 py-1 rounded-lg text-xs font-black ${
+                    r.overallScore >= 90 ? 'bg-emerald-100 text-emerald-800' : r.overallScore >= 70 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                  }`}>
+                    {r.overallScore}%
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-3">
+                  <div className="rounded-lg bg-emerald-50 p-2 min-w-0">
+                    <div className="text-[10px] font-bold text-emerald-800">المبيعات المحققة</div>
+                    <div className="font-mono text-xs font-black text-emerald-950 truncate" title={formatCurrency(r.salesAchieved)}>
+                      {formatCurrency(r.salesAchieved)}
+                    </div>
+                    <div className="text-[10px] text-slate-500">من {formatCurrency(r.salesTarget)} · {r.salesRate}%</div>
+                  </div>
+                  <div className="rounded-lg bg-blue-50 p-2 min-w-0">
+                    <div className="text-[10px] font-bold text-blue-800">التحصيل المحقق</div>
+                    <div className="font-mono text-xs font-black text-blue-950 truncate" title={formatCurrency(r.collectionAchieved)}>
+                      {formatCurrency(r.collectionAchieved)}
+                    </div>
+                    <div className="text-[10px] text-slate-500">من {formatCurrency(r.collectionTarget)} · {r.collectionRate}%</div>
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-[10px] text-slate-600">
+                  <span>الزيارات المنفذة: <b className="text-cyan-800">{r.visitsCompleted} / {r.visitsTotal}</b></span>
+                  <span>التقييم المركب</span>
+                </div>
+              </article>
+            ))}
+            {metrics.repMatrixList.length === 0 && (
+              <p className="col-span-full p-6 text-center text-slate-400 font-bold text-xs">لا توجد بيانات مطابقة للفلاتر المحددة حالياً.</p>
+            )}
+          </div>
+
+          <div className="hidden lg:block overflow-x-auto">
             <table className="w-full text-right text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-100 text-slate-700 font-black border-b border-slate-200">
