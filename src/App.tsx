@@ -292,7 +292,7 @@ class MobileErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBound
           </div>
           <h2 className="text-xl font-black text-amber-300 mb-2">منظومة مجموعة الطنطاوي للتجارة والتوزيع</h2>
           <p className="text-sm text-slate-300 max-w-md mb-6 leading-relaxed">
-            تم استعادة بيانات التطبيق بنجاح لمنع توقف الشاشة. اضغط على الزر أدناه لإعادة تشغيل الكتالوج.
+            حدث خطأ أثناء تحميل أحد أقسام التطبيق. بياناتك المحلية لم تُحذف؛ أعد تشغيل التطبيق لمحاولة تحميل النسخة الحالية.
           </p>
           <button
             onClick={() => {

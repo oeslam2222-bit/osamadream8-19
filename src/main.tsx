@@ -3,6 +3,27 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
+const CHUNK_RECOVERY_KEY = 'tantawy:chunk-recovery';
+
+window.addEventListener('vite:preloadError', (event) => {
+  let shouldReload = true;
+  try {
+    const lastRecovery = Number(sessionStorage.getItem(CHUNK_RECOVERY_KEY));
+    if (Number.isFinite(lastRecovery) && Date.now() - lastRecovery < 60_000) {
+      shouldReload = false;
+    } else {
+      sessionStorage.setItem(CHUNK_RECOVERY_KEY, String(Date.now()));
+      window.setTimeout(() => sessionStorage.removeItem(CHUNK_RECOVERY_KEY), 60_000);
+    }
+  } catch {
+    shouldReload = false;
+  }
+
+  if (!shouldReload) return;
+  event.preventDefault();
+  window.location.reload();
+});
+
 /**
  * The service worker caches every script under /assets, and in dev Vite serves
  * modules from /src. Registering it locally meant an edit kept serving the

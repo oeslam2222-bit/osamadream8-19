@@ -114,7 +114,10 @@ self.addEventListener('fetch', (event) => {
           }
 
           return networkPromise.then((response) => {
-            return response || cachedResponse || new Response('', { status: 200 });
+            return response || cachedResponse || new Response('Application asset unavailable', {
+              status: 503,
+              headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+            });
           });
         });
       })
