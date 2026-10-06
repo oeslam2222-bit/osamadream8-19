@@ -39,6 +39,7 @@ import {
   fetchCustomerCommentsFromSupabase,
   saveCustomerCommentsToSupabase,
   deleteCustomerCommentFromSupabase,
+  deleteForecastFromSupabase,
   fetchUsersFromSupabase,
   findUserInSupabase,
   sanitizeEmail,
@@ -1080,6 +1081,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [forecasts, persistForecasts, currentUser]
   );
 
+  const deleteForecast = useCallback(
+    async (id: string) => {
+      const next = forecasts.filter((f) => f.id !== id);
+      setForecasts(next);
+      await idbSet(STORAGE_KEYS.FORECASTS, next);
+      try {
+        window.localStorage.setItem(STORAGE_KEYS.FORECASTS, JSON.stringify(next));
+      } catch {}
+      await syncOrQueue('forecasts', 'delete', id, { id }, () => deleteForecastFromSupabase(id));
+      publishDataVersionUpdate({ scope: 'all', reason: 'forecast_deleted', timestamp: Date.now() }).catch(() => {});
+    },
+    [forecasts, syncOrQueue]
+  );
+
+  const deleteCustomerForecasts = useCallback(
+    async (customerId: string, monthKey: string) => {
+      const targetsToDelete = forecasts.filter(
+        (f) => f.customerId === customerId && f.monthKey === monthKey
+      );
+      if (targetsToDelete.length === 0) return;
+      const next = forecasts.filter(
+        (f) => !(f.customerId === customerId && f.monthKey === monthKey)
+      );
+      setForecasts(next);
+      await idbSet(STORAGE_KEYS.FORECASTS, next);
+      try {
+        window.localStorage.setItem(STORAGE_KEYS.FORECASTS, JSON.stringify(next));
+      } catch {}
+      for (const item of targetsToDelete) {
+        await syncOrQueue('forecasts', 'delete', item.id, { id: item.id }, () => deleteForecastFromSupabase(item.id));
+      }
+      publishDataVersionUpdate({ scope: 'all', reason: 'customer_forecasts_deleted', timestamp: Date.now() }).catch(() => {});
+    },
+    [forecasts, syncOrQueue]
+  );
+
   const submitForecastWeek = useCallback(
     async (monthKey: string, weekIndex: number, repId: string) => {
       const now = new Date().toISOString();
@@ -1332,6 +1369,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         forecastUpserts.map((i) => i.payload as CollectionForecastRecord)
       );
       (res.success ? done : failed).push(...forecastUpserts.map((i) => i.id));
+    }
+
+    const forecastDeletes = group('forecasts', 'delete');
+    if (forecastDeletes.length > 0) {
+      const results = await Promise.all(
+        forecastDeletes.map((item) => deleteForecastFromSupabase(item.entityId))
+      );
+      (results.every((r) => r.success) ? done : failed).push(...forecastDeletes.map((i) => i.id));
     }
 
     // The month plan is one row per month, so only the newest queued copy matters.
@@ -2297,6 +2342,19 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
               setCustomerComments((prev) => {
                 const next = prev.filter((c) => c.id !== deleted.id);
                 idbSet(STORAGE_KEYS.CUSTOMER_COMMENTS, next).catch(() => {});
+                return next;
+              });
+            }
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'collection_forecasts' }, (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const deleted = payload.old as any;
+            if (deleted?.id) {
+              setForecasts((prev) => {
+                const next = prev.filter((f) => f.id !== deleted.id);
+                idbSet(STORAGE_KEYS.FORECASTS, next).catch(() => {});
+                safeLocalStorageSet(STORAGE_KEYS.FORECASTS, JSON.stringify(next));
                 return next;
               });
             }
@@ -6140,6 +6198,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         forecastPlans,
         customerComments,
         saveForecast,
+        deleteForecast,
+        deleteCustomerForecasts,
         submitForecastWeek,
         approveForecastWeek,
         requestForecastChange,

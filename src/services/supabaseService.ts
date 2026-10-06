@@ -2077,6 +2077,16 @@ export async function saveForecastsToSupabase(forecasts: any[]): Promise<{ succe
   }
 }
 
+export async function deleteForecastFromSupabase(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.from('collection_forecasts').delete().eq('id', id);
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'فشل حذف التوقع' };
+  }
+}
+
 export async function fetchForecastMonthPlansFromSupabase(): Promise<{ success: boolean; plans?: any[]; error?: string }> {
   try {
     // صف واحد لكل شهر مُدار. حتى 20 سنة = 240 صف، فحد 5 آلاف أكثر من اللازم.
