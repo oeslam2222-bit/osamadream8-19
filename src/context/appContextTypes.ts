@@ -214,6 +214,7 @@ export interface AppContextType {
   forecastPlans: ForecastMonthPlan[];
   customerComments: CustomerCommentRecord[];
   saveForecast: (record: CollectionForecastRecord) => Promise<void>;
+  saveForecastBatch: (records: CollectionForecastRecord[]) => Promise<void>;
   deleteForecast: (id: string) => Promise<void>;
   deleteCustomerForecasts: (customerId: string, monthKey: string) => Promise<void>;
   submitForecastWeek: (monthKey: string, weekIndex: number, repId: string) => Promise<number>;

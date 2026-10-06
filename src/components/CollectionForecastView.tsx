@@ -169,6 +169,7 @@ export default function CollectionForecastView() {
     visits,
     invoices,
     saveForecast,
+    saveForecastBatch,
     submitForecastWeek,
     approveForecastWeek,
     approveForecastBatch,
@@ -199,7 +200,8 @@ export default function CollectionForecastView() {
   const [pasteFrequency, setPasteFrequency] = useState<'monthly' | 'weekly'>('monthly');
   const [pasteWeekIndex, setPasteWeekIndex] = useState('');
   const [isSavingPastedMonthly, setIsSavingPastedMonthly] = useState(false);
-  const [pasteSaveProgress, setPasteSaveProgress] = useState<{ completed: number; total: number } | null>(null);
+  const [pasteSaveProgress, setPasteSaveProgress] = useState<{ total: number } | null>(null);
+  const [approvingSlot, setApprovingSlot] = useState<string | null>(null);
   const [pageSize, setPageSize] = useState<number>(25);
   const [page, setPage] = useState<number>(1);
 
@@ -1050,16 +1052,26 @@ export default function CollectionForecastView() {
   };
 
   const handleApproveWeek = async (repId: string, weekIndex: number) => {
-    const changed = await approveForecastWeek(monthKey, weekIndex, repId);
-    const label = forecastSlotLabel(weekIndex, weeks);
-    setSavedFlash(
-      changed > 0 ? `تم اعتماد ${label} وقفل الأرقام 🔒` : `مفيش صفوف ${label} تختص`
-    );
-    setTimeout(() => setSavedFlash(''), 3000);
+    const key = `${repId}::${weekIndex}`;
+    if (approvingSlot) return;
+    setApprovingSlot(key);
+    try {
+      const changed = await approveForecastWeek(monthKey, weekIndex, repId);
+      const label = forecastSlotLabel(weekIndex, weeks);
+      setSavedFlash(
+        changed > 0 ? `تم اعتماد ${changed} توقع في ${label} وقفل الأرقام 🔒` : `لا توجد توقعات ${label} للاعتماد`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'خطأ غير معروف';
+      setSavedFlash(`تعذر اعتماد التوقع: ${message}`);
+    } finally {
+      setApprovingSlot(null);
+      setTimeout(() => setSavedFlash(''), 5000);
+    }
   };
 
   const handleApproveFilteredScope = async () => {
-    if (isApprovingScope || !canApprove || !progress.length) return;
+    if (isApprovingScope || approvingSlot || !canApprove || !progress.length) return;
     const slots = approvalSlot === 'ALL'
       ? [MONTH_FORECAST_INDEX, ...weeks.map((week) => week.index)]
       : [Number(approvalSlot)];
@@ -1228,17 +1240,34 @@ export default function CollectionForecastView() {
     }
 
     let savedCount = 0;
-    let completedCount = 0;
     setIsSavingPastedMonthly(true);
-    setPasteSaveProgress({ completed: 0, total: rows.length });
+    setPasteSaveProgress({ total: rows.length });
     try {
+      const batch: CollectionForecastRecord[] = [];
+      const draftKeys: string[] = [];
       for (const row of rows) {
-        const saved = pasteFrequency === 'weekly'
-          ? await commitCell(row.customer!, selectedPasteWeek, String(row.amount), false)
-          : await commitMonthCell(row.customer!, String(row.amount), false);
-        if (saved) savedCount += 1;
-        completedCount += 1;
-        setPasteSaveProgress({ completed: completedCount, total: rows.length });
+        const customer = row.customer!;
+        const base = pasteFrequency === 'weekly'
+          ? recordFor(customer, selectedPasteWeek)
+          : monthRecordFor(customer);
+        if (isLockedForEditing(base, currentUser) || !canWriteOwnForecast(currentUser, base, users)) continue;
+        batch.push({
+          ...base,
+          collectionForecast: row.amount,
+          status: base.status === 'approved' && canApprove ? 'approved' : base.status,
+          changeRequestNote: undefined,
+        });
+        draftKeys.push(`${customer.id}::${pasteFrequency === 'weekly' ? selectedPasteWeek : MONTH_FORECAST_INDEX}`);
+      }
+
+      if (batch.length) {
+        await saveForecastBatch(batch);
+        savedCount = batch.length;
+        setDraft((previous) => {
+          const next = { ...previous };
+          draftKeys.forEach((key) => delete next[key]);
+          return next;
+        });
       }
 
       if (savedCount === rows.length) {
@@ -1247,7 +1276,7 @@ export default function CollectionForecastView() {
         setPasteMonthlyPreview([]);
         setSavedFlash(`تم حفظ ${savedCount} توقع ${pasteFrequency === 'weekly' ? 'أسبوعي' : 'شهري'} للشهر الحالي`);
       } else {
-        setSavedFlash(`تم حفظ ${savedCount} من ${rows.length} فقط — تعذّر تعديل الباقي بسبب الصلاحيات أو اعتماد التوقع`);
+        setSavedFlash(`تم حفظ ${savedCount} من ${rows.length} — تعذّر تعديل الباقي بسبب الصلاحيات أو اعتماد التوقع`);
       }
       setTimeout(() => setSavedFlash(''), 5000);
     } catch (error) {
@@ -1866,28 +1895,31 @@ const visitStats = visitStatsByCustomer.get(c.id);
 
                       return (
                         <td key={w.index} className="p-2 text-center whitespace-nowrap">
-                          <input
-                            type="number"
-                            min={0}
-                            disabled={!editable || locked}
-                            value={currentVal}
-                            placeholder="0"
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setDraft((prev) => ({ ...prev, [recKey]: val }));
-                            }}
-                            onBlur={(e) => {
-                              commitCell(c, w.index, e.target.value);
-                            }}
-                            title={locked ? 'معتمد ومثبت من المشرف' : `تسجيل متوقع أسبوع ${w.index}`}
-                            className={`w-24 px-2 py-1 rounded-xl text-center font-mono font-black text-xs border transition ${
-                              locked
-                                ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
-                                : Number(currentVal) > 0
-                                ? 'bg-emerald-50 text-emerald-900 border-emerald-400'
-                                : 'bg-white text-slate-800 border-slate-300 focus:border-emerald-500 focus:outline-none'
-                            }`}
-                          />
+                          <div className="inline-flex items-center gap-1">
+                            <input
+                              type="number"
+                              min={0}
+                              disabled={!editable || locked}
+                              value={currentVal}
+                              placeholder="0"
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setDraft((prev) => ({ ...prev, [recKey]: val }));
+                              }}
+                              onBlur={(e) => {
+                                commitCell(c, w.index, e.target.value);
+                              }}
+                              title={locked ? 'معتمد ومثبت من المشرف' : `تسجيل متوقع أسبوع ${w.index}`}
+                              className={`w-20 px-2 py-1 rounded-xl text-center font-mono font-black text-xs border transition ${
+                                locked
+                                  ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
+                                  : Number(currentVal) > 0
+                                  ? 'bg-emerald-50 text-emerald-900 border-emerald-400'
+                                  : 'bg-white text-slate-800 border-slate-300 focus:border-emerald-500 focus:outline-none'
+                              }`}
+                            />
+                            <span className="text-[9px] font-black text-slate-500">ج.م</span>
+                          </div>
                         </td>
                       );
                     })}
@@ -1907,28 +1939,31 @@ const visitStats = visitStatsByCustomer.get(c.id);
 
                       return (
                         <td className="p-2 text-center whitespace-nowrap bg-teal-50/30">
-                          <input
-                            type="number"
-                            min={0}
-                            disabled={!editable || locked}
-                            value={currentVal}
-                            placeholder={weekSum > 0 ? String(weekSum) : '0'}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setDraft((prev) => ({ ...prev, [recKey]: val }));
-                            }}
-                            onBlur={(e) => {
-                              commitMonthCell(c, e.target.value);
-                            }}
-                            title={locked ? 'معتمد ومثبت من المشرف' : 'التوقع الشهري — رقم مستقل عن الأسابيع'}
-                            className={`w-28 px-2 py-1 rounded-xl text-center font-mono font-black text-xs border transition ${
-                              locked
-                                ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
-                                : isDerived
-                                ? 'bg-teal-50 text-teal-900 border-teal-300 border-dashed'
-                                : 'bg-teal-100 text-teal-950 border-teal-400 focus:outline-none'
-                            }`}
-                          />
+                          <div className="inline-flex items-center gap-1">
+                            <input
+                              type="number"
+                              min={0}
+                              disabled={!editable || locked}
+                              value={currentVal}
+                              placeholder={weekSum > 0 ? String(weekSum) : '0'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setDraft((prev) => ({ ...prev, [recKey]: val }));
+                              }}
+                              onBlur={(e) => {
+                                commitMonthCell(c, e.target.value);
+                              }}
+                              title={locked ? 'معتمد ومثبت من المشرف' : 'التوقع الشهري — رقم مستقل عن الأسابيع'}
+                              className={`w-28 px-2 py-1 rounded-xl text-center font-mono font-black text-xs border transition ${
+                                locked
+                                  ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
+                                  : isDerived
+                                  ? 'bg-teal-50 text-teal-900 border-teal-300 border-dashed'
+                                  : 'bg-teal-100 text-teal-950 border-teal-400 focus:outline-none'
+                              }`}
+                            />
+                            <span className="text-[9px] font-black text-teal-700">ج.م</span>
+                          </div>
                           {isDerived && (
                             <span className="block text-[9px] font-bold text-teal-600 mt-0.5" title="لسه مجموع الأسابيع — اكتب رقمك المستقل">
                               محسوب من الأسابيع
@@ -2082,7 +2117,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
               <select
                 value={approvalSlot}
                 onChange={(e) => setApprovalSlot(e.target.value)}
-                disabled={isApprovingScope}
+                disabled={isApprovingScope || !!approvingSlot}
                 aria-label="الفترة المطلوب اعتمادها"
                 className="min-w-[175px] rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-60"
               >
@@ -2095,7 +2130,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
               <button
                 type="button"
                 onClick={handleApproveFilteredScope}
-                disabled={isApprovingScope || planLocked || !progress.length}
+                disabled={isApprovingScope || !!approvingSlot || planLocked || !progress.length}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isApprovingScope ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" />}
@@ -2229,10 +2264,13 @@ const visitStats = visitStatsByCustomer.get(c.id);
                                     <button
                                       type="button"
                                       onClick={() => handleApproveWeek(p.repId, w)}
-                                      className="px-1.5 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black cursor-pointer"
+                                      disabled={!!approvingSlot}
+                                      className="px-1.5 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black cursor-pointer disabled:opacity-50"
                                       title="اعتماد التوقع وقفله"
                                     >
-                                      <CheckCircle2 className="w-3 h-3" />
+                                      {approvingSlot === `${p.repId}::${w}`
+                                        ? <LoaderCircle className="w-3 h-3 animate-spin" />
+                                        : <CheckCircle2 className="w-3 h-3" />}
                                     </button>
                                     <button
                                       type="button"
@@ -2335,7 +2373,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
               <div className="flex justify-end gap-2">
                 <button type="button" disabled={isSavingPastedMonthly} onClick={() => setShowPasteMonthly(false)} className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-black cursor-pointer disabled:opacity-50">إلغاء</button>
                 <button type="button" disabled={isSavingPastedMonthly || !pasteMonthlyPreview.some((row) => row.customer && row.amountValid)} onClick={handleSavePastedMonthly} className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-black cursor-pointer inline-flex items-center gap-2" aria-live="polite">
-                  {isSavingPastedMonthly ? <><LoaderCircle className="w-4 h-4 animate-spin" aria-hidden="true" /> جاري مطابقة وحفظ التوقعات...</> : `مطابقة وحفظ التوقع ${pasteFrequency === 'weekly' ? 'الأسبوعي' : 'الشهري'}`}
+                  {isSavingPastedMonthly ? <><LoaderCircle className="w-4 h-4 animate-spin" aria-hidden="true" /> جاري حفظ التوقعات...</> : `مطابقة وحفظ التوقع ${pasteFrequency === 'weekly' ? 'الأسبوعي' : 'الشهري'}`}
                 </button>
               </div>
             </div>
@@ -2349,27 +2387,21 @@ const visitStats = visitStatsByCustomer.get(c.id);
                   <LoaderCircle className="h-6 w-6 animate-spin" aria-hidden="true" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-base font-black text-slate-900">جاري مطابقة وحفظ التوقعات</h3>
+                  <h3 className="text-base font-black text-slate-900">جاري حفظ التوقعات دفعة واحدة</h3>
                   <p className="mt-1 text-xs font-bold text-slate-500">
                     {pasteFrequency === 'weekly' ? forecastSlotLabel(selectedPasteWeek, weeks) : 'التوقع الشهري'} · {formatMonthLabel(monthKey)}
                   </p>
                 </div>
               </div>
-              <div className="mt-6 flex items-center justify-between text-xs font-black text-slate-700">
-                <span>تمت مطابقة {pasteSaveProgress.completed} من {pasteSaveProgress.total} عميل</span>
-                <span>{Math.round((pasteSaveProgress.completed / pasteSaveProgress.total) * 100)}٪</span>
-              </div>
+              <p className="mt-6 text-xs font-black text-slate-700">
+                جار حفظ {pasteSaveProgress.total} توقع — تمت المطابقة في المعاينة
+              </p>
               <div
                 className="mt-2 h-3 overflow-hidden rounded-full bg-slate-100"
-                role="progressbar"
-                aria-label="تقدم مطابقة وحفظ التوقعات"
-                aria-valuemin={0}
-                aria-valuemax={pasteSaveProgress.total}
-                aria-valuenow={pasteSaveProgress.completed}
+                aria-label="جاري حفظ التوقعات"
               >
                 <div
-                  className="h-full rounded-full bg-gradient-to-l from-emerald-500 via-teal-500 to-cyan-500 transition-[width] duration-300 ease-out"
-                  style={{ width: `${(pasteSaveProgress.completed / pasteSaveProgress.total) * 100}%` }}
+                  className="h-full w-1/3 animate-pulse rounded-full bg-gradient-to-l from-emerald-500 via-teal-500 to-cyan-500"
                 />
               </div>
               <p className="mt-3 text-center text-[11px] font-semibold text-slate-400">يرجى الانتظار — لا تغلق الصفحة أثناء الحفظ</p>

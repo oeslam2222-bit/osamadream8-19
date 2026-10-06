@@ -1055,18 +1055,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Local save always happens first, so nothing is lost when the device is offline.
-  // Only the rows that actually changed are pushed, and any row Supabase refuses
-  // is parked in the outbox instead of being dropped.
+  // Changed rows are pushed together, and any failed batch is parked in the outbox.
   const persistForecasts = useCallback(
     async (next: CollectionForecastRecord[], changed: CollectionForecastRecord[]) => {
       setForecasts(next);
-      for (const row of changed) {
-        await syncOrQueue('forecasts', 'upsert', row.id, row, () =>
-          saveForecastsToSupabase([row])
-        );
+      if (!changed.length) return;
+
+      if (navigator.onLine) {
+        const result = await saveForecastsToSupabase(changed);
+        if (result.success) return;
       }
+
+      await enqueueMutations(changed.map((row) => ({
+        entity: 'forecasts' as const,
+        op: 'upsert' as const,
+        entityId: row.id,
+        payload: row,
+      })));
+      await refreshOfflineQueueCount();
     },
-    [syncOrQueue]
+    []
   );
 
   const saveForecast = useCallback(
@@ -1077,6 +1085,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (idx >= 0) next[idx] = stamped;
       else next.push(stamped);
       await persistForecasts(next, [stamped]);
+    },
+    [forecasts, persistForecasts, currentUser]
+  );
+
+  const saveForecastBatch = useCallback(
+    async (records: CollectionForecastRecord[]) => {
+      if (!records.length) return;
+      const now = new Date().toISOString();
+      const stamped = records.map((record) => ({
+        ...record,
+        updatedAt: now,
+        updatedBy: currentUser?.name,
+      }));
+      const changedById = new Map(stamped.map((record) => [record.id, record]));
+      const next = forecasts.map((record) => changedById.get(record.id) || record);
+      const existingIds = new Set(forecasts.map((record) => record.id));
+      stamped.forEach((record) => {
+        if (!existingIds.has(record.id)) next.push(record);
+      });
+      await persistForecasts(next, stamped);
     },
     [forecasts, persistForecasts, currentUser]
   );
@@ -6248,6 +6276,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         forecastPlans,
         customerComments,
         saveForecast,
+        saveForecastBatch,
         deleteForecast,
         deleteCustomerForecasts,
         submitForecastWeek,
