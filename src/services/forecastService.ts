@@ -479,8 +479,8 @@ function isSameScope(
 ): boolean {
   if (user.role === 'branch_manager') return doesCustomerBelongToBranch({ branchName } as Customer, user.branchName);
   if (user.role === 'supervisor') {
-    if (user.branchName && branchName && !isArabicNameMatch(branchName, user.branchName)) return false;
-    // A supervisor also fills in their own row, the same way they do in Targets.
+    // Supervisor sees ONLY their own row + their direct subordinates.
+    // They do NOT see the whole branch (other supervisors' reps).
     if (repId === user.id) return true;
     return isRepUnderSupervisor(user, allUsers, repId, repName);
   }
@@ -500,7 +500,8 @@ export function canSeeRepForecasts(
   if (user.role === 'sales_rep') return repId === user.id || isArabicNameMatch(repName, user.name);
   if (user.role === 'branch_manager') return doesCustomerBelongToBranch({ branchName } as Customer, user.branchName);
   if (user.role === 'supervisor') {
-    if (user.branchName && branchName && !isArabicNameMatch(branchName, user.branchName)) return false;
+    // Supervisor sees ONLY their own row + their direct subordinates.
+    // They do NOT see the whole branch (other supervisors' reps).
     if (repId === user.id) return true;
     return isRepUnderSupervisor(user, allUsers, repId, repName);
   }
@@ -622,6 +623,8 @@ export interface RepForecastRow {
   weekSales: Record<number, number>;
   /** التوقع الشهري المستقل اللي كتبه المندوب (مش محسوب من الأسابيع). */
   monthCollection: number;
+  /** إجمالي عادل لكل عميل: الشهري إن وُجد، وإلا مجموع أسابيعه. */
+  plannedCollectionTotal: number;
   /** مجموع الأسابيع فقط — السطر الشهري مستقل ومش داخل في الرقم ده. */
   totalCollection: number;
   totalSales: number;
@@ -636,6 +639,7 @@ export function aggregateByRep(
   weekCount: number
 ): RepForecastRow[] {
   const map = new Map<string, RepForecastRow>();
+  const plannedByRepAndCustomer = new Map<string, { weekly: number; monthly?: number }>();
 
   // السطر الشهري بيتخزن بنفس الجدول، فلازم يتشال من التجميع الأسبوعي الأول —
   // غير كده التوقع بيتحسب مرتين في كل رقم أسبوعي وفي إجمالي الشهر.
@@ -652,6 +656,7 @@ export function aggregateByRep(
         weekCollection: {},
         weekSales: {},
         monthCollection: 0,
+        plannedCollectionTotal: 0,
         totalCollection: 0,
         totalSales: 0,
         submittedWeeks: 0,
@@ -665,6 +670,10 @@ export function aggregateByRep(
     row.weekSales[week] = (row.weekSales[week] || 0) + Number(r.salesForecast || 0);
     row.totalCollection += Number(r.collectionForecast || 0);
     row.totalSales += Number(r.salesForecast || 0);
+    const customerKey = `${r.repId}::${r.customerId}`;
+    const customerPlanned = plannedByRepAndCustomer.get(customerKey) || { weekly: 0 };
+    customerPlanned.weekly += Number(r.collectionForecast || 0);
+    plannedByRepAndCustomer.set(customerKey, customerPlanned);
   });
 
   // التوقع الشهري بيتجمع لوحده، وده اللي بيتقارن بهدف الشهر.
@@ -678,6 +687,7 @@ export function aggregateByRep(
         weekCollection: {},
         weekSales: {},
         monthCollection: 0,
+        plannedCollectionTotal: 0,
         totalCollection: 0,
         totalSales: 0,
         submittedWeeks: 0,
@@ -688,6 +698,21 @@ export function aggregateByRep(
       map.set(r.repId, row);
     }
     row.monthCollection += Number(r.collectionForecast || 0);
+    const customerKey = `${r.repId}::${r.customerId}`;
+    const customerPlanned = plannedByRepAndCustomer.get(customerKey) || { weekly: 0 };
+    customerPlanned.monthly = Number(r.collectionForecast) || 0;
+    plannedByRepAndCustomer.set(customerKey, customerPlanned);
+  });
+
+  plannedByRepAndCustomer.forEach((customerPlanned, key) => {
+    const separator = key.indexOf('::');
+    const repId = key.slice(0, separator);
+    const row = map.get(repId);
+    if (row) {
+      row.plannedCollectionTotal += customerPlanned.monthly !== undefined
+        ? customerPlanned.monthly
+        : customerPlanned.weekly;
+    }
   });
 
   // A week's status is the weakest status any of its customers is in, so one
@@ -726,7 +751,7 @@ export function aggregateByRep(
  * خالص، والصفحة هتبين أن مفيش توقعات لو الأرقام الأسبوعية موجودة.
  */
 export function plannedCollection(row: RepForecastRow): number {
-  return row.monthCollection > 0 ? row.monthCollection : row.totalCollection;
+  return row.plannedCollectionTotal;
 }
 
 export interface ForecastProgressRow {

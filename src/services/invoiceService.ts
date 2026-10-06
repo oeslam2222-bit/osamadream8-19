@@ -4,7 +4,7 @@ import { Invoice } from '../types';
 /**
  * Format Egyptian Pound currency. Shows decimals only when the amount has a
  * fractional part, otherwise prints a clean integer (e.g. 84,000,000 ج.م or
- * 31,958.50 ج.م). Arabic-Indic digits and comma separators are handled.
+ * 31,958.50 ج.م).
  */
 export function formatCurrency(amount: number | undefined): string {
   if (amount === undefined || isNaN(amount)) return '0 ج.م';

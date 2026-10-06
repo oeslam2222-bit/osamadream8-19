@@ -104,6 +104,13 @@ const STATUS_STYLE: Record<string, string> = {
   approved: 'bg-emerald-100 text-emerald-800 border-emerald-300',
   change_requested: 'bg-amber-100 text-amber-900 border-amber-400',
 };
+const parseAmount = (rawAmount: string) => {
+  const amount = parseCleanNumber(rawAmount);
+  return {
+    amount,
+    amountValid: /[0-9٠-٩]/.test(rawAmount) && amount >= 0,
+  };
+};
 
 const STATUS_LABEL: Record<string, string> = {
   draft: 'مسودة',
@@ -173,7 +180,13 @@ export default function CollectionForecastView() {
   const [weekFilter, setWeekFilter] = useState<string>('ALL');
   const [showPasteMonthly, setShowPasteMonthly] = useState(false);
   const [pasteMonthlyText, setPasteMonthlyText] = useState('');
-  const [pasteMonthlyPreview, setPasteMonthlyPreview] = useState<Array<{ code: string; amount: number; customer: Customer | null }>>([]);
+  const [pasteMonthlyPreview, setPasteMonthlyPreview] = useState<Array<{
+    code: string;
+    amount: number;
+    amountValid: boolean;
+    customer: Customer | null;
+    matchIssue?: string;
+  }>>([]);
   const [pasteFrequency, setPasteFrequency] = useState<'monthly' | 'weekly'>('monthly');
   const [pasteWeekIndex, setPasteWeekIndex] = useState('');
   const [isSavingPastedMonthly, setIsSavingPastedMonthly] = useState(false);
@@ -474,19 +487,19 @@ export default function CollectionForecastView() {
     });
   }, [scopedCustomers, deferredSearch, branchFilter, repFilter, supervisorFilter, debtOnly, classFilter, isCollectibleCustomer, supervisorForCustomer]);
 
-  // Sort matched customers by their planned collection desc, then by name
+  // Sort matched customers by planned collection ascending, then by name.
   const sortedCustomers = useMemo(() => {
     // الترتيب بالأولوية: رقم العميل الشهري المستقل، ومجموع الأسابيع fallback.
     const plannedFor = (c: Customer) => {
       const monthRec = monthForecastByCustomer.get(c.id);
-      const monthVal = monthRec ? Number(monthRec.collectionForecast) || 0 : 0;
-      return monthVal > 0 ? monthVal : forecastTotalsByCustomer.get(c.id) || 0;
+      if (monthRec) return Number(monthRec.collectionForecast) || 0;
+      return forecastTotalsByCustomer.get(c.id) || 0;
     };
 
     return [...filteredCustomers].sort((a, b) => {
       const valA = plannedFor(a);
       const valB = plannedFor(b);
-      // من الأقل توقعاً إلى الأكثر (تصاعدي) عشان ن sees من هو الأقل تحصيل أولاً
+      // من الأقل توقعاً إلى الأكثر لمعرفة العملاء ذوي المتوقع الأقل أولاً.
       if (valA !== valB) return valA - valB;
       return (a.name || '').localeCompare(b.name || '', 'ar');
     });
@@ -566,16 +579,12 @@ export default function CollectionForecastView() {
 
     /**
      * plannedTotal = مجموع التوقعات ب fairness per-customer:
-     * - العميل اللي كتب رقم شهري مستقل → نستخدمه (وشال الأسابيع له)
+     * - العميل اللي عنده سطر شهري مستقل → نستخدمه حتى لو قيمته صفر
      * - العميل اللي ما كتبش شهري → نستخدم مجموع أرقامه الأسبوعية
-     *
-     *旧代码用的是 all-or-nothing: لو أي عميل كتب شهري، الـ weekly كله يُتج declar
-     * ويسقط. ده كان بيجعل الإجمالي أقل من الحقيقي (مثلاً 70M بدل 84M).
      */
     const plannedTotal = filteredCustomers.reduce((sum, c) => {
       const monthRec = monthForecastByCustomer.get(c.id);
-      const monthVal = monthRec ? Number(monthRec.collectionForecast) || 0 : 0;
-      if (monthVal > 0) return sum + monthVal;
+      if (monthRec) return sum + (Number(monthRec.collectionForecast) || 0);
       return sum + (forecastTotalsByCustomer.get(c.id) || 0);
     }, 0);
 
@@ -1110,9 +1119,42 @@ export default function CollectionForecastView() {
     setCommentBody(existing?.body || '');
   };
 
+  /**
+   * O(1) customer lookup map for paste matching. Rebuilt only when the
+   * relevant filters change — the old code rebuilt this 5000-row map from
+   * scratch on every keystroke, which made pasting 5000 rows take minutes.
+   */
+  const customersByCode = useMemo(() => {
+    const pasteScopeCustomers = scopedCustomers.filter((customer) => {
+      const repId = customer.repId || '';
+      const repName = customer.salesRepName || customer.repName || '';
+      if (branchFilter !== 'ALL' && !isArabicNameMatch(customer.branchName, branchFilter)) return false;
+      if (supervisorFilter !== 'ALL' && !isArabicNameMatch(supervisorForCustomer(customer), supervisorFilter)) return false;
+      if (repFilter !== 'ALL' && repId !== repFilter && !isArabicNameMatch(repName, repFilter)) return false;
+      return true;
+    });
+    const map = new Map<string, Customer[]>();
+    pasteScopeCustomers.forEach((customer) => {
+      const code = String(customer.code || '').trim().toUpperCase();
+      if (!code) return;
+      const matches = map.get(code) || [];
+      if (!matches.some((match) => match.id === customer.id)) matches.push(customer);
+      map.set(code, matches);
+    });
+    return map;
+  }, [scopedCustomers, branchFilter, supervisorFilter, repFilter, supervisorForCustomer]);
+
   const parseMonthlyPaste = (text: string) => {
-  const customerByCode = new Map(customers.map((c) => [String(c.code || '').trim().toUpperCase(), c]));
-  const rows: Array<{ code: string; amount: number; customer: Customer | null }> = [];
+  const rows: Array<{ code: string; amount: number; amountValid: boolean; customer: Customer | null; matchIssue?: string }> = [];
+  const resolveCustomer = (rawCode: string) => {
+    const code = rawCode.trim().toUpperCase();
+    const matches = customersByCode.get(code) || [];
+    if (matches.length === 1) return { customer: matches[0], matchIssue: undefined };
+    return {
+      customer: null,
+      matchIssue: matches.length > 1 ? 'الكود مكرر في النطاق — حدّد الفرع أو المندوب' : 'كود غير موجود في النطاق',
+    };
+  };
 
   for (const rawLine of text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)) {
   // Excel/WhatsApp may remove tabs and line breaks, leaving values like
@@ -1126,19 +1168,38 @@ export default function CollectionForecastView() {
   // parseCleanNumber handles Arabic-Indic digits (٠١٢...) and comma/decimal
   // separators — the old /[^0-9.-]/g regex silently dropped Arabic digits,
   // turning "٢٠٠٠٠٠" into 0.
-  const amount = parseCleanNumber(amountText) || 0;
-  rows.push({ code, amount, customer: customerByCode.get(code) || null });
+  rows.push({ code, ...parseAmount(amountText), ...resolveCustomer(code) });
   });
   continue;
   }
 
-  const parts = rawLine.split(/[\t,;]+/).map((part) => part.trim()).filter(Boolean);
-  const code = parts[0] || '';
-  const amount = parseCleanNumber(parts[1]) || 0;
-  rows.push({ code, amount, customer: customerByCode.get(code.toUpperCase()) || null });
+  const tabParts = rawLine.split('\t');
+  const semicolonParts = rawLine.split(';');
+  const commaIndex = rawLine.indexOf(',');
+  const code = tabParts.length > 1
+    ? tabParts[0].trim()
+    : semicolonParts.length > 1
+      ? semicolonParts[0].trim()
+      : commaIndex >= 0
+        ? rawLine.slice(0, commaIndex).trim()
+        : rawLine.trim();
+  const amountText = tabParts.length > 1
+    ? tabParts.slice(1).join(' ')
+    : semicolonParts.length > 1
+      ? semicolonParts.slice(1).join(' ')
+      : commaIndex >= 0
+        ? rawLine.slice(commaIndex + 1)
+        : '';
+  rows.push({ code, ...parseAmount(amountText), ...resolveCustomer(code) });
   }
 
-  return rows.filter((row) => row.code);
+  const codeCounts = new Map<string, number>();
+  rows.forEach((row) => codeCounts.set(row.code.toUpperCase(), (codeCounts.get(row.code.toUpperCase()) || 0) + 1));
+  return rows
+    .filter((row) => row.code)
+    .map((row) => codeCounts.get(row.code.toUpperCase())! > 1
+      ? { ...row, customer: null, matchIssue: 'الكود مكرر في البيانات الملصقة — راجع الصفوف قبل الحفظ' }
+      : row);
   };
 
   const handlePasteMonthlyPreview = (text: string) => {
@@ -1149,7 +1210,7 @@ export default function CollectionForecastView() {
   const handleSavePastedMonthly = async () => {
     if (isSavingPastedMonthly) return;
 
-    const rows = pasteMonthlyPreview.filter((row) => row.customer && row.amount >= 0);
+    const rows = pasteMonthlyPreview.filter((row) => row.customer && row.amountValid);
     if (!rows.length) return;
     if (pasteFrequency === 'weekly' && !selectedPasteWeek) {
       setSavedFlash('لا توجد فترات أسبوعية لهذا الشهر — اختَر التوقع الشهري أو قسّم الشهر لفترات أولاً');
@@ -1790,7 +1851,7 @@ export default function CollectionForecastView() {
                       const baseRec = recordFor(c, w.index);
                       const editable = canWriteOwnForecast(currentUser, baseRec, users) && !planLocked;
                       const locked = isLockedForEditing(baseRec, currentUser);
-                      const currentVal = draft[recKey] !== undefined ? draft[recKey] : (rec ? String(rec.collectionForecast || '') : '');
+                      const currentVal = draft[recKey] !== undefined ? draft[recKey] : (rec ? String(rec.collectionForecast ?? '') : '');
 
                       return (
                         <td key={w.index} className="p-2 text-center whitespace-nowrap">
@@ -1828,7 +1889,7 @@ export default function CollectionForecastView() {
                       const editable = canWriteOwnForecast(currentUser, baseRec, users) && !planLocked;
                       const locked = isLockedForEditing(baseRec, currentUser);
                       const currentVal =
-                        draft[recKey] !== undefined ? draft[recKey] : (rec ? String(rec.collectionForecast || '') : '');
+                        draft[recKey] !== undefined ? draft[recKey] : (rec ? String(rec.collectionForecast ?? '') : '');
                       // لو مفيش سطر شهري محفوظ، بنورّيه مجموع الأسابيع بس بلون
                       // مختلف — كده المستخدم يفهم إن ده مش رقم مستقل بعد.
                       const isDerived = !rec && weekSum > 0;
@@ -2250,8 +2311,10 @@ export default function CollectionForecastView() {
                     {pasteMonthlyPreview.map((row, index) => (
                       <div key={`${row.code}-${index}`} className="px-3 py-2 flex items-center justify-between text-xs">
                         <span className="font-mono font-bold">{row.code}</span>
-                        <span className={row.customer ? 'text-emerald-700 font-black' : 'text-rose-700 font-black'}>
-                          {row.customer ? `${row.customer.name} — ${formatCurrency(row.amount)}` : 'كود غير موجود'}
+                        <span className={row.customer && row.amountValid ? 'text-emerald-700 font-black' : 'text-rose-700 font-black'}>
+                          {row.customer && row.amountValid
+                            ? `${row.customer.name} — ${formatCurrency(row.amount)}`
+                            : `${row.customer ? `${row.customer.name} — ` : ''}${row.matchIssue || 'المبلغ غير واضح أو سالب'}`}
                         </span>
                       </div>
                     ))}
@@ -2260,7 +2323,7 @@ export default function CollectionForecastView() {
               )}
               <div className="flex justify-end gap-2">
                 <button type="button" disabled={isSavingPastedMonthly} onClick={() => setShowPasteMonthly(false)} className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-black cursor-pointer disabled:opacity-50">إلغاء</button>
-                <button type="button" disabled={isSavingPastedMonthly || !pasteMonthlyPreview.some((row) => row.customer)} onClick={handleSavePastedMonthly} className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-black cursor-pointer inline-flex items-center gap-2" aria-live="polite">
+                <button type="button" disabled={isSavingPastedMonthly || !pasteMonthlyPreview.some((row) => row.customer && row.amountValid)} onClick={handleSavePastedMonthly} className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-black cursor-pointer inline-flex items-center gap-2" aria-live="polite">
                   {isSavingPastedMonthly ? <><LoaderCircle className="w-4 h-4 animate-spin" aria-hidden="true" /> جاري مطابقة وحفظ التوقعات...</> : `مطابقة وحفظ التوقع ${pasteFrequency === 'weekly' ? 'الأسبوعي' : 'الشهري'}`}
                 </button>
               </div>
