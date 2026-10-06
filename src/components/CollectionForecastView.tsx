@@ -755,7 +755,7 @@ export default function CollectionForecastView() {
     }
     if (rounded < MIN_WEEKS_PER_MONTH || rounded > MAX_WEEKS_PER_MONTH) {
       setPlanErrors([
-        `عدد الفترات لازم يكون من 0 (بلا تقسيم) لغاية ${MAX_WEEKS_PER_MONTH}`,
+        `عدد الفترات لازم يكون من 0 (بلا تقسيم) ل��اية ${MAX_WEEKS_PER_MONTH}`,
       ]);
       return;
     }
@@ -955,13 +955,31 @@ export default function CollectionForecastView() {
   };
 
   const parseMonthlyPaste = (text: string) => {
-    const customerByCode = new Map(customers.map((c) => [String(c.code || '').trim(), c]));
-    return text.split(/\\r?\\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
-      const parts = line.split(/[\\t,;]+/).map((part) => part.trim()).filter(Boolean);
-      const code = parts[0] || '';
-      const amount = Number(String(parts[1] || '').replace(/[^0-9.-]/g, '')) || 0;
-      return { code, amount, customer: customerByCode.get(code) || null };
-    }).filter((row) => row.code);
+  const customerByCode = new Map(customers.map((c) => [String(c.code || '').trim().toUpperCase(), c]));
+  const rows: Array<{ code: string; amount: number; customer: Customer | null }> = [];
+
+  for (const rawLine of text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)) {
+  // Excel/WhatsApp may remove tabs and line breaks, leaving values like
+  // CUST000129200,000CUST003754300,000. Recover each CUST code and the
+  // amount up to the next code before applying the regular two-column parser.
+  const codeMatches = [...rawLine.matchAll(/CUST\d+/gi)];
+  if (codeMatches.length > 0) {
+  codeMatches.forEach((match, index) => {
+  const code = match[0].toUpperCase();
+  const amountText = rawLine.slice(match.index! + match[0].length, codeMatches[index + 1]?.index ?? rawLine.length);
+  const amount = Number(amountText.replace(/[^0-9.-]/g, '')) || 0;
+  rows.push({ code, amount, customer: customerByCode.get(code) || null });
+  });
+  continue;
+  }
+
+  const parts = rawLine.split(/[\t,;]+/).map((part) => part.trim()).filter(Boolean);
+  const code = parts[0] || '';
+  const amount = Number(String(parts[1] || '').replace(/[^0-9.-]/g, '')) || 0;
+  rows.push({ code, amount, customer: customerByCode.get(code.toUpperCase()) || null });
+  }
+
+  return rows.filter((row) => row.code);
   };
 
   const handlePasteMonthlyPreview = (text: string) => {
