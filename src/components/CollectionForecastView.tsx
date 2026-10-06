@@ -37,6 +37,7 @@ import {
   TrendingUp,
   UserCheck,
   Users,
+  Wallet,
   X,
   Zap,
   LoaderCircle,
@@ -163,14 +164,19 @@ export default function CollectionForecastView() {
   const [monthKey, setMonthKey] = useState<string>(currentMonthKey());
   const [search, setSearch] = useState('');
   const deferredSearch = useDeferredValue(search);
+  const [branchFilter, setBranchFilter] = useState<string>('ALL');
   const [repFilter, setRepFilter] = useState<string>('ALL');
   const [supervisorFilter, setSupervisorFilter] = useState<string>('ALL');
+  const [approvalSlot, setApprovalSlot] = useState<string>('ALL');
+  const [isApprovingScope, setIsApprovingScope] = useState(false);
   const [weekFilter, setWeekFilter] = useState<string>('ALL');
   const [showPasteMonthly, setShowPasteMonthly] = useState(false);
   const [pasteMonthlyText, setPasteMonthlyText] = useState('');
   const [pasteMonthlyPreview, setPasteMonthlyPreview] = useState<Array<{ code: string; amount: number; customer: Customer | null }>>([]);
   const [pasteFrequency, setPasteFrequency] = useState<'monthly' | 'weekly'>('monthly');
+  const [pasteWeekIndex, setPasteWeekIndex] = useState('');
   const [isSavingPastedMonthly, setIsSavingPastedMonthly] = useState(false);
+  const [pasteSaveProgress, setPasteSaveProgress] = useState<{ completed: number; total: number } | null>(null);
   const [pageSize, setPageSize] = useState<number>(25);
   const [page, setPage] = useState<number>(1);
 
@@ -203,6 +209,19 @@ export default function CollectionForecastView() {
   const isAdmin = canManageForecasts(currentUser);
   const canApprove = canApproveForecasts(currentUser);
 
+  useEffect(() => {
+    const syncCurrentMonth = () => {
+      const currentMonth = currentMonthKey();
+      setMonthKey((previousMonth) => previousMonth === currentMonth ? previousMonth : currentMonth);
+    };
+    const intervalId = window.setInterval(syncCurrentMonth, 60_000);
+    window.addEventListener('focus', syncCurrentMonth);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', syncCurrentMonth);
+    };
+  }, []);
+
   /* ---------- خطة الشهر: تقسيم الفترات (اختياري) ---------- */
   const plan: ForecastMonthPlan = useMemo(() => {
     const stored = forecastPlans.find((p) => p.id === monthKey);
@@ -228,6 +247,14 @@ export default function CollectionForecastView() {
     [weeks, weekFilter]
   );
   const currentWeek = weekIndexForDate(plan, new Date().toISOString().slice(0, 10));
+  const suggestedPasteWeek = weekFilter !== 'ALL'
+    ? Number(weekFilter)
+    : currentWeek > 0
+      ? currentWeek
+      : weeks[0]?.index || 0;
+  const selectedPasteWeek = weeks.some((week) => String(week.index) === pasteWeekIndex)
+    ? Number(pasteWeekIndex)
+    : suggestedPasteWeek;
 
   /* ---------- التوقعات الظاهرة للمستخدم الحالي ---------- */
   /* بنقصّ السطور على التقسيم الحالي للشهر. السبب إن سطور أسبوع مقفول بتفضل
@@ -356,6 +383,17 @@ export default function CollectionForecastView() {
     });
   }, [customers, currentUser, users]);
 
+  const branchOptions = useMemo(
+    () => Array.from(new Set(scopedCustomers.map((customer) => customer.branchName).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, 'ar')),
+    [scopedCustomers]
+  );
+
+  const supervisorForCustomer = useCallback((customer: Customer) => {
+    const rep = users.find((user) => user.id === customer.repId || user.name === (customer.salesRepName || customer.repName));
+    return customer.supervisorName || users.find((user) => user.id === rep?.supervisorId)?.name || '';
+  }, [users]);
+
   /**
    * مين يدخل جدول التوقع أصلاً.
    *
@@ -376,23 +414,28 @@ export default function CollectionForecastView() {
   /* ---------- خيارات المناديب المتاحة للفلترة ---------- */
   const repOptions = useMemo(() => {
     const seen = new Map<string, string>();
-    scopedCustomers.forEach((c) => {
+    scopedCustomers.filter((customer) => {
+      if (branchFilter !== 'ALL' && !isArabicNameMatch(customer.branchName, branchFilter)) return false;
+      if (supervisorFilter !== 'ALL' && !isArabicNameMatch(supervisorForCustomer(customer), supervisorFilter)) return false;
+      return true;
+    }).forEach((c) => {
       const repId = c.repId || c.salesRepName || c.repName || '';
       const name = c.salesRepName || c.repName || '';
       if (repId && name) seen.set(repId, name);
     });
     return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1], 'ar'));
-  }, [scopedCustomers]);
+  }, [scopedCustomers, branchFilter, supervisorFilter, supervisorForCustomer]);
 
   const supervisorOptions = useMemo(() => {
     const seen = new Map<string, string>();
-    scopedCustomers.forEach((c) => {
-      const rep = users.find((u) => u.id === c.repId || u.name === (c.salesRepName || c.repName));
-      const name = c.supervisorName || users.find((u) => u.id === rep?.supervisorId)?.name || '';
+    scopedCustomers.filter((customer) =>
+      branchFilter === 'ALL' || isArabicNameMatch(customer.branchName, branchFilter)
+    ).forEach((c) => {
+      const name = supervisorForCustomer(c);
       if (name) seen.set(name, name);
     });
     return Array.from(seen.keys()).sort((a, b) => a.localeCompare(b, 'ar'));
-  }, [scopedCustomers, users]);
+  }, [scopedCustomers, branchFilter, supervisorForCustomer]);
 
   /* ---------- الفلترة السريعة والخف��فة للعملاء (Instant Filtering) ---------- */
   const filteredCustomers = useMemo(() => {
@@ -402,14 +445,13 @@ export default function CollectionForecastView() {
       const repId = c.repId || '';
       const repName = c.salesRepName || c.repName || '';
 
+      if (branchFilter !== 'ALL' && !isArabicNameMatch(c.branchName, branchFilter)) return false;
       if (repFilter !== 'ALL' && repId !== repFilter && !isArabicNameMatch(repName, repFilter)) {
         return false;
       }
 
       if (supervisorFilter !== 'ALL') {
-        const rep = users.find((u) => u.id === c.repId || u.name === repName);
-        const supervisorName = c.supervisorName || users.find((u) => u.id === rep?.supervisorId)?.name || '';
-        if (!isArabicNameMatch(supervisorName, supervisorFilter)) return false;
+        if (!isArabicNameMatch(supervisorForCustomer(c), supervisorFilter)) return false;
       }
 
       if (debtOnly && !isCollectibleCustomer(c)) return false;
@@ -429,7 +471,7 @@ export default function CollectionForecastView() {
 
       return name.includes(q) || code.includes(q) || rName.includes(q) || branch.includes(q);
     });
-  }, [scopedCustomers, deferredSearch, repFilter, supervisorFilter, debtOnly, classFilter, isCollectibleCustomer, users]);
+  }, [scopedCustomers, deferredSearch, branchFilter, repFilter, supervisorFilter, debtOnly, classFilter, isCollectibleCustomer, supervisorForCustomer]);
 
   // Sort matched customers by their planned collection desc, then by name
   const sortedCustomers = useMemo(() => {
@@ -461,14 +503,57 @@ export default function CollectionForecastView() {
   // وإلا المستخدم يبقى واقف على صفحة 5 وفلتره سايبه صفحة فاضية.
   useEffect(() => {
     setPage(1);
-  }, [deferredSearch, repFilter, supervisorFilter, weekFilter, monthKey, pageSize, debtOnly, classFilter]);
+  }, [deferredSearch, branchFilter, repFilter, supervisorFilter, weekFilter, monthKey, pageSize, debtOnly, classFilter]);
 
   /* ---------- إجماليات سريعة للبطاقات القيادية ---------- */
+  const dashboardScope = useMemo(() => {
+    const customerIds = new Set(filteredCustomers.map((customer) => customer.id));
+    const repIds = new Set(filteredCustomers.map((customer) => customer.repId || customer.salesRepName || customer.repName || ''));
+    const repNames = new Set(filteredCustomers.map((customer) => customer.salesRepName || customer.repName || ''));
+    const supervisorNames = new Set(filteredCustomers.map(supervisorForCustomer).filter(Boolean));
+    const branches = new Set(filteredCustomers.map((customer) => customer.branchName).filter(Boolean));
+    const scopedForecasts = visibleForecasts.filter((forecast) => customerIds.has(forecast.customerId));
+    const scopedTargets = targets.filter((target) => {
+      if (monthKeyOf(target.year, target.month) !== monthKey) return false;
+      if (branchFilter !== 'ALL' && !isArabicNameMatch(target.branch, branchFilter)) return false;
+      return repNames.has(target.repName);
+    });
+    return {
+      scopedForecasts,
+      scopedTargets,
+      dueTotal: filteredCustomers.reduce((total, customer) => total + resolveCustomerDuesValue(customer), 0),
+      branchCount: branches.size,
+      repCount: repIds.size,
+      supervisorCount: supervisorNames.size,
+    };
+  }, [filteredCustomers, visibleForecasts, targets, monthKey, branchFilter, supervisorForCustomer]);
+
+  const approvalScope = useMemo(() => {
+    const scopeCustomers = scopedCustomers.filter((customer) => {
+      const repId = customer.repId || '';
+      const repName = customer.salesRepName || customer.repName || '';
+      if (branchFilter !== 'ALL' && !isArabicNameMatch(customer.branchName, branchFilter)) return false;
+      if (supervisorFilter !== 'ALL' && !isArabicNameMatch(supervisorForCustomer(customer), supervisorFilter)) return false;
+      if (repFilter !== 'ALL' && repId !== repFilter && !isArabicNameMatch(repName, repFilter)) return false;
+      return true;
+    });
+    const customerIds = new Set(scopeCustomers.map((customer) => customer.id));
+    const repNames = new Set(scopeCustomers.map((customer) => customer.salesRepName || customer.repName || ''));
+    return {
+      scopedForecasts: visibleForecasts.filter((forecast) => customerIds.has(forecast.customerId)),
+      scopedTargets: targets.filter((target) =>
+        monthKeyOf(target.year, target.month) === monthKey
+        && (branchFilter === 'ALL' || isArabicNameMatch(target.branch, branchFilter))
+        && repNames.has(target.repName)
+      ),
+    };
+  }, [scopedCustomers, visibleForecasts, targets, monthKey, branchFilter, supervisorFilter, repFilter, supervisorForCustomer]);
+
   const kpiTotals = useMemo(() => {
     let weeklyTotal = 0;
     let monthTotal = 0;
 
-    visibleForecasts.forEach((f) => {
+    dashboardScope.scopedForecasts.forEach((f) => {
       if (isWeekForecast(f)) weeklyTotal += Number(f.collectionForecast) || 0;
       else monthTotal += Number(f.collectionForecast) || 0;
     });
@@ -479,9 +564,8 @@ export default function CollectionForecastView() {
     const hasExplicitMonth = monthTotal > 0;
     const plannedTotal = hasExplicitMonth ? monthTotal : weeklyTotal;
 
-    const monthTargets = targets.filter((t) => monthKeyOf(t.year, t.month) === monthKey);
-    const targetCollection = monthTargets.reduce((sum, t) => sum + (Number(t.collectionTarget) || 0), 0);
-    const actualCollection = monthTargets.reduce((sum, t) => sum + (Number(t.collectionAchieved) || 0), 0);
+    const targetCollection = dashboardScope.scopedTargets.reduce((sum, t) => sum + (Number(t.collectionTarget) || 0), 0);
+    const actualCollection = dashboardScope.scopedTargets.reduce((sum, t) => sum + (Number(t.collectionAchieved) || 0), 0);
     const coverage = targetCollection > 0 ? Math.round((plannedTotal / targetCollection) * 100) : 0;
 
     return {
@@ -492,17 +576,21 @@ export default function CollectionForecastView() {
       targetCollection,
       actualCollection,
       coverage,
+      dueTotal: dashboardScope.dueTotal,
+      branchCount: dashboardScope.branchCount,
+      repCount: dashboardScope.repCount,
+      supervisorCount: dashboardScope.supervisorCount,
     };
-  }, [visibleForecasts, targets, monthKey]);
+  }, [dashboardScope]);
 
   /* ---------- التقدم المالي والتجميع للمشرفين ---------- */
   const progress: ForecastProgressRow[] = useMemo(() => {
     return buildProgress(
-      visibleForecasts,
-      targets.filter((t) => monthKeyOf(t.year, t.month) === monthKey),
+      approvalScope.scopedForecasts,
+      approvalScope.scopedTargets,
       weeksCount
     );
-  }, [visibleForecasts, targets, monthKey, weeksCount]);
+  }, [approvalScope, weeksCount]);
 
   /* ---------- كتابة وتعديل أرقام التوقع (Cell Commit) ---------- */
   const recordFor = useCallback(
@@ -560,19 +648,23 @@ export default function CollectionForecastView() {
   );
 
   const commitCell = useCallback(
-    async (customer: Customer, week: number, raw: string) => {
+    async (customer: Customer, week: number, raw: string, notify = true): Promise<boolean> => {
       const base = recordFor(customer, week);
       const value = raw === '' ? 0 : Math.max(0, Number(raw) || 0);
 
       if (isLockedForEditing(base, currentUser)) {
-        setSavedFlash('الرقم معتمد ومقفول — يتطلب طلب تعديل من المشرف');
-        setTimeout(() => setSavedFlash(''), 4000);
-        return;
+        if (notify) {
+          setSavedFlash('الرقم معتمد ومقفول — يتطلب طلب تعديل من المشرف');
+          setTimeout(() => setSavedFlash(''), 4000);
+        }
+        return false;
       }
       if (!canWriteOwnForecast(currentUser, base, users)) {
-        setSavedFlash('غير مصرح لك بتعديل توقعات مندوب آخر');
-        setTimeout(() => setSavedFlash(''), 4000);
-        return;
+        if (notify) {
+          setSavedFlash('غير مصرح لك بتعديل توقعات مندوب آخر');
+          setTimeout(() => setSavedFlash(''), 4000);
+        }
+        return false;
       }
 
       const nextStatus = base.status === 'approved' && canApprove ? 'approved' : base.status;
@@ -588,27 +680,34 @@ export default function CollectionForecastView() {
         delete next[`${customer.id}::${week}`];
         return next;
       });
-      setSavedFlash(`تم حفظ توقع أسبوع ${week} لـ ${customer.name} ✅`);
-      setTimeout(() => setSavedFlash(''), 3000);
+      if (notify) {
+        setSavedFlash(`تم حفظ توقع أسبوع ${week} لـ ${customer.name} ✅`);
+        setTimeout(() => setSavedFlash(''), 3000);
+      }
+      return true;
     },
     [recordFor, currentUser, users, canApprove, saveForecast]
   );
 
   /** حفظ التوقع الشهري المستقل — نفس مسار الحفظ الأسبوعي بس على week_index = 0. */
   const commitMonthCell = useCallback(
-    async (customer: Customer, raw: string) => {
+    async (customer: Customer, raw: string, notify = true): Promise<boolean> => {
       const base = monthRecordFor(customer);
       const value = raw === '' ? 0 : Math.max(0, Number(raw) || 0);
 
       if (isLockedForEditing(base, currentUser)) {
-        setSavedFlash('التوقع الشهري معتمد ومقفول — يتطلب طلب تعديل من المشرف');
-        setTimeout(() => setSavedFlash(''), 4000);
-        return;
+        if (notify) {
+          setSavedFlash('التوقع الشهري معتمد ومقفول — يتطلب طلب تعديل من المشرف');
+          setTimeout(() => setSavedFlash(''), 4000);
+        }
+        return false;
       }
       if (!canWriteOwnForecast(currentUser, base, users)) {
-        setSavedFlash('غير مصرح لك بتعديل توقعات مندوب آخر');
-        setTimeout(() => setSavedFlash(''), 4000);
-        return;
+        if (notify) {
+          setSavedFlash('غير مصرح لك بتعديل توقعات مندوب آخر');
+          setTimeout(() => setSavedFlash(''), 4000);
+        }
+        return false;
       }
 
       await saveForecast({
@@ -623,8 +722,11 @@ export default function CollectionForecastView() {
         delete next[`${customer.id}::${MONTH_FORECAST_INDEX}`];
         return next;
       });
-      setSavedFlash(`تم حفظ التوقع الشهري لـ ${customer.name} ✅`);
-      setTimeout(() => setSavedFlash(''), 3000);
+      if (notify) {
+        setSavedFlash(`تم حفظ التوقع الشهري لـ ${customer.name} ✅`);
+        setTimeout(() => setSavedFlash(''), 3000);
+      }
+      return true;
     },
     [monthRecordFor, currentUser, users, canApprove, saveForecast]
   );
@@ -656,14 +758,6 @@ export default function CollectionForecastView() {
     XLSX.utils.book_append_sheet(wb, ws, 'توقع التحصيلات');
     XLSX.writeFile(wb, `توقع_التحصيلات_${monthKey}.xlsx`);
   };
-
-  const shiftMonth = (_delta: number) => {
-    // توقعات التحصيل تُسجّل للشهر الحالي فقط حتى لا تتغير الشهور السابقة بالخطأ.
-    setMonthKey(currentMonthKey());
-    setRepFilter('ALL');
-  };
-
-  const monthOptions = useMemo(() => [currentMonthKey()], []);
 
   /* ---------- خطة الشهر: تقسيم مرن للأيام (الأدمن والمطوّر فقط) ---------- */
   const openPlanEditor = () => {
@@ -892,14 +986,14 @@ export default function CollectionForecastView() {
      السطر الشهري (0) داخل في الخريطة عن قصد — ليه نفس دورة الاعتماد. */
   const weekStatusByRep = useMemo(() => {
     const map = new Map<string, ForecastStatus[]>();
-    visibleForecasts.forEach((f) => {
+    approvalScope.scopedForecasts.forEach((f) => {
       const key = `${f.repId}::${f.weekIndex}`;
       const list = map.get(key) || [];
       list.push(f.status);
       map.set(key, list);
     });
     return map;
-  }, [visibleForecasts]);
+  }, [approvalScope]);
 
   const weakestStatusFor = (repId: string, weekIndex: number): ForecastStatus | '' => {
     const list = weekStatusByRep.get(`${repId}::${weekIndex}`);
@@ -927,6 +1021,63 @@ export default function CollectionForecastView() {
       changed > 0 ? `تم اعتماد ${label} وقفل الأرقام 🔒` : `مفيش صفوف ${label} تختص`
     );
     setTimeout(() => setSavedFlash(''), 3000);
+  };
+
+  const handleApproveFilteredScope = async () => {
+    if (isApprovingScope || !canApprove || !progress.length) return;
+    const slots = approvalSlot === 'ALL'
+      ? [MONTH_FORECAST_INDEX, ...weeks.map((week) => week.index)]
+      : [Number(approvalSlot)];
+    const approvals = progress.flatMap((row) =>
+      slots
+        .filter((slot) => {
+          const status = weakestStatusFor(row.repId, slot);
+          return status !== '' && status !== 'approved';
+        })
+        .map((slot) => ({
+          repId: row.repId,
+          slot,
+          customerIds: Array.from(new Set(
+            approvalScope.scopedForecasts
+              .filter((forecast) =>
+                forecast.repId === row.repId
+                && forecast.weekIndex === slot
+                && forecast.status !== 'approved'
+              )
+              .map((forecast) => forecast.customerId)
+          )),
+        }))
+    );
+    if (!approvals.length) {
+      setSavedFlash('كل التوقعات في النطاق المحدد معتمدة بالفعل أو لا توجد توقعات جاهزة');
+      setTimeout(() => setSavedFlash(''), 4000);
+      return;
+    }
+
+    setIsApprovingScope(true);
+    try {
+      let approvedRows = 0;
+      for (const approval of approvals) {
+        approvedRows += await approveForecastWeek(
+          monthKey,
+          approval.slot,
+          approval.repId,
+          approval.customerIds
+        );
+      }
+      setSavedFlash(
+        approvedRows > 0
+          ? `تم اعتماد ${approvals.length} مجموعة توقعات في النطاق المحدد (${approvedRows} عميل) ✅`
+          : 'لم يتم اعتماد أي توقع — راجع الصلاحيات وحالة التوقعات'
+      );
+      setTimeout(() => setSavedFlash(''), 5000);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'خطأ غير معروف';
+      setSavedFlash(`تعذر إكمال اعتماد النطاق: ${message}`);
+      setTimeout(() => setSavedFlash(''), 6000);
+    } finally {
+      setIsApprovingScope(false);
+    }
   };
 
   const handleRequestChange = async () => {
@@ -985,23 +1136,42 @@ export default function CollectionForecastView() {
 
     const rows = pasteMonthlyPreview.filter((row) => row.customer && row.amount >= 0);
     if (!rows.length) return;
-    const targetWeek = weekFilter !== 'ALL' ? Number(weekFilter) : currentWeek > 0 ? currentWeek : weeks[0]?.index;
+    if (pasteFrequency === 'weekly' && !selectedPasteWeek) {
+      setSavedFlash('لا توجد فترات أسبوعية لهذا الشهر — اختَر التوقع الشهري أو قسّم الشهر لفترات أولاً');
+      setTimeout(() => setSavedFlash(''), 4000);
+      return;
+    }
+
+    let savedCount = 0;
+    let completedCount = 0;
     setIsSavingPastedMonthly(true);
+    setPasteSaveProgress({ completed: 0, total: rows.length });
     try {
       for (const row of rows) {
-        if (pasteFrequency === 'weekly' && targetWeek) {
-          await commitCell(row.customer!, targetWeek, String(row.amount));
-        } else {
-          await commitMonthCell(row.customer!, String(row.amount));
-        }
+        const saved = pasteFrequency === 'weekly'
+          ? await commitCell(row.customer!, selectedPasteWeek, String(row.amount), false)
+          : await commitMonthCell(row.customer!, String(row.amount), false);
+        if (saved) savedCount += 1;
+        completedCount += 1;
+        setPasteSaveProgress({ completed: completedCount, total: rows.length });
       }
-      setShowPasteMonthly(false);
-      setPasteMonthlyText('');
-      setPasteMonthlyPreview([]);
-      setSavedFlash(`تم حفظ ${rows.length} توقع ${pasteFrequency === 'weekly' ? 'أسبوعي' : 'شهري'} من البيانات المنسوخة`);
-      setTimeout(() => setSavedFlash(''), 3500);
+
+      if (savedCount === rows.length) {
+        setShowPasteMonthly(false);
+        setPasteMonthlyText('');
+        setPasteMonthlyPreview([]);
+        setSavedFlash(`تم حفظ ${savedCount} توقع ${pasteFrequency === 'weekly' ? 'أسبوعي' : 'شهري'} للشهر الحالي`);
+      } else {
+        setSavedFlash(`تم حفظ ${savedCount} من ${rows.length} فقط — تعذّر تعديل الباقي بسبب الصلاحيات أو اعتماد التوقع`);
+      }
+      setTimeout(() => setSavedFlash(''), 5000);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'خطأ غير معروف';
+      setSavedFlash(`تعذر إكمال الحفظ بعد ${savedCount} من ${rows.length}: ${message}`);
+      setTimeout(() => setSavedFlash(''), 6000);
     } finally {
       setIsSavingPastedMonthly(false);
+      setPasteSaveProgress(null);
     }
   };
 
@@ -1059,35 +1229,10 @@ export default function CollectionForecastView() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Month Switcher */}
-            <div className="flex items-center gap-1 bg-slate-900/90 border border-slate-700 rounded-2xl p-1 shadow-sm">
-              <button
-                type="button"
-                onClick={() => shiftMonth(-1)}
-                className="px-2 py-1.5 rounded-xl text-emerald-300 hover:bg-slate-800 transition cursor-pointer"
-                title="الشهر السابق"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-              <select
-                value={monthKey}
-                onChange={(e) => setMonthKey(e.target.value)}
-                className="px-2 py-1.5 bg-transparent text-white text-xs font-black focus:outline-none cursor-pointer"
-              >
-                {monthOptions.map((k) => (
-                  <option key={k} value={k} className="text-slate-900">
-                    {formatMonthLabel(k)}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => shiftMonth(1)}
-                className="px-2 py-1.5 rounded-xl text-emerald-300 hover:bg-slate-800 transition cursor-pointer"
-                title="الشهر القادم"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
+            <div className="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900/90 px-3 py-2 shadow-sm" aria-label="شهر التوقع الحالي">
+              <CalendarDays className="h-4 w-4 text-emerald-300" />
+              <span className="text-xs font-black text-white">{formatMonthLabel(monthKey)}</span>
+              <span className="rounded-lg bg-emerald-500/15 px-2 py-1 text-[10px] font-black text-emerald-300">الشهر الحالي</span>
             </div>
 
             {isAdmin && (
@@ -1118,12 +1263,15 @@ export default function CollectionForecastView() {
 
             <button
               type="button"
-              onClick={() => setShowPasteMonthly(true)}
+              onClick={() => {
+                setPasteWeekIndex(String(suggestedPasteWeek || ''));
+                setShowPasteMonthly(true);
+              }}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black shadow-sm transition cursor-pointer"
-              title="لصق كود العميل والمبلغ الشهري من واتساب أو إكسل"
+              title="لصق ومطابقة أكواد العملاء لتوقع الشهر الحالي أو إحدى فتراته الأسبوعية"
             >
               <ClipboardPaste className="w-4 h-4" />
-              <span>لصق توقعات شهرية</span>
+              <span>نسخ ومطابقة التوقعات</span>
             </button>
 
             <button
@@ -1217,7 +1365,7 @@ export default function CollectionForecastView() {
       {/* ========================================================================= */}
       {/* 2. Executive KPI Cards Summary (خفيفة جداً ومحسوبة بالذاكرة)             */}
       {/* ========================================================================= */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
         <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
           <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
             <span>التوقع الشهري المستقل</span>
@@ -1232,6 +1380,19 @@ export default function CollectionForecastView() {
             ) : (
               <>لسه محدش كتب رقم شهري — الرقم ده مجموع الأسابيع</>
             )}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
+          <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
+            <span>إجمالي المستحقات في النطاق</span>
+            <Wallet className="w-4 h-4 text-amber-600" />
+          </div>
+          <div className="text-base sm:text-lg font-black text-amber-800 mt-1 font-mono">
+            {formatCurrency(kpiTotals.dueTotal)}
+          </div>
+          <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
+            للعملاء المطابقين للفلاتر الحالية
           </div>
         </div>
 
@@ -1263,14 +1424,45 @@ export default function CollectionForecastView() {
 
         <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
           <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
-            <span>العملاء في نطاق البحث</span>
-            <Users className="w-4 h-4 text-purple-600" />
+            <span>الفروع في النطاق</span>
+            <MapPin className="w-4 h-4 text-purple-600" />
           </div>
           <div className="text-base sm:text-lg font-black text-slate-900 mt-1 font-mono">
-            {filteredCustomers.length.toLocaleString('ar-EG')}
+            {kpiTotals.branchCount.toLocaleString('ar-EG')}
           </div>
           <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
-            {debtOnly ? 'اللي عليهم مستحقات > 0' : 'إجمالي شبكة التوزيع'} ({scopedCustomers.length})
+            {branchFilter === 'ALL' ? 'الفروع المطابقة للفلاتر' : branchFilter}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
+          <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
+            <span>المشرفون في النطاق</span>
+            <UserCheck className="w-4 h-4 text-sky-600" />
+          </div>
+          <div className="text-base sm:text-lg font-black text-slate-900 mt-1 font-mono">
+            {kpiTotals.supervisorCount.toLocaleString('ar-EG')}
+          </div>
+          <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
+            حسب الفرع والمشرف المختارين
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
+          <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
+            <span>المناديب والعملاء</span>
+            <Users className="w-4 h-4 text-purple-600" />
+          </div>
+          <div className="flex items-baseline gap-3 mt-1">
+            <span className="text-base sm:text-lg font-black text-slate-900 font-mono">
+              {kpiTotals.repCount.toLocaleString('ar-EG')} <span className="text-[10px] text-slate-400">مندوب</span>
+            </span>
+            <span className="text-sm font-black text-purple-700 font-mono">
+              {filteredCustomers.length.toLocaleString('ar-EG')} <span className="text-[10px] text-slate-400">عميل</span>
+            </span>
+          </div>
+          <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
+            {debtOnly ? 'العملاء عليهم مستحقات فقط' : 'كل العملاء في النطاق'}
           </div>
         </div>
       </section>
@@ -1291,8 +1483,26 @@ export default function CollectionForecastView() {
         </div>
 
         <select
+          value={branchFilter}
+          onChange={(e) => {
+            setBranchFilter(e.target.value);
+            setSupervisorFilter('ALL');
+            setRepFilter('ALL');
+          }}
+          aria-label="تصفية حسب الفرع"
+          className="min-w-[145px] px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white cursor-pointer"
+        >
+          <option value="ALL">كل الفروع ({branchOptions.length})</option>
+          {branchOptions.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+        </select>
+
+        <select
           value={supervisorFilter}
-          onChange={(e) => setSupervisorFilter(e.target.value)}
+          onChange={(e) => {
+            setSupervisorFilter(e.target.value);
+            setRepFilter('ALL');
+          }}
+          aria-label="تصفية حسب المشرف"
           className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white cursor-pointer"
         >
           <option value="ALL">كافة المشرفين ({supervisorOptions.length})</option>
@@ -1302,6 +1512,7 @@ export default function CollectionForecastView() {
         <select
           value={repFilter}
           onChange={(e) => setRepFilter(e.target.value)}
+          aria-label="تصفية حسب المندوب"
           className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white cursor-pointer"
         >
           <option value="ALL">كافة المناديب ({repOptions.length})</option>
@@ -1689,12 +1900,14 @@ export default function CollectionForecastView() {
                           في {scopedCustomers.length} عميل في نطاقك، بس مفيش ولا واحد عليهم مستحقات أكبر من صفر.
                         </p>
                       )}
-                      {(debtOnly || classFilter !== 'ALL' || repFilter !== 'ALL' || deferredSearch.trim()) && (
+                      {(debtOnly || classFilter !== 'ALL' || branchFilter !== 'ALL' || supervisorFilter !== 'ALL' || repFilter !== 'ALL' || deferredSearch.trim()) && (
                         <button
                           type="button"
                           onClick={() => {
                             setDebtOnly(false);
                             setClassFilter('ALL');
+                            setBranchFilter('ALL');
+                            setSupervisorFilter('ALL');
                             setRepFilter('ALL');
                             setSearch('');
                           }}
@@ -1754,7 +1967,7 @@ export default function CollectionForecastView() {
         <div className="px-4 py-3 bg-slate-900 text-slate-100 flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span className="text-xs font-black">اعتماد التوقعات — دور كل مستخدم</span>
+            <span className="text-xs font-black">اعتماد التوقعات حسب الفرع والمشرف والمندوب</span>
             <span className="text-[11px] font-bold text-slate-400 font-mono">({progress.length} مندوب)</span>
           </div>
           <span className="text-[10.5px] text-slate-400 font-bold">
@@ -1763,6 +1976,47 @@ export default function CollectionForecastView() {
               : 'مندوب بيبعت توقع الأسبوع أو التوقع الشهري للمشرف'}
           </span>
         </div>
+
+        {canApprove && (
+          <div className="flex flex-col gap-3 border-b border-slate-200 bg-gradient-to-l from-emerald-50 via-white to-sky-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-black text-slate-900">اعتماد جماعي للنطاق المحدد</p>
+              <p className="mt-1 text-[10.5px] font-bold leading-relaxed text-slate-500">
+                {branchFilter === 'ALL' ? 'كل الفروع' : branchFilter}
+                {' · '}
+                {supervisorFilter === 'ALL' ? 'كل المشرفين' : supervisorFilter}
+                {' · '}
+                {repFilter === 'ALL' ? 'كل المناديب' : repOptions.find(([id]) => id === repFilter)?.[1] || repFilter}
+                {' — '}
+                {progress.length} مندوب ضمن النطاق الحالي
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <select
+                value={approvalSlot}
+                onChange={(e) => setApprovalSlot(e.target.value)}
+                disabled={isApprovingScope}
+                aria-label="الفترة المطلوب اعتمادها"
+                className="min-w-[175px] rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-60"
+              >
+                <option value="ALL">كل الفترات والشهري</option>
+                <option value={MONTH_FORECAST_INDEX}>التوقع الشهري فقط</option>
+                {weeks.map((week) => (
+                  <option key={week.index} value={week.index}>{weekLabel(week)} فقط</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={handleApproveFilteredScope}
+                disabled={isApprovingScope || planLocked || !progress.length}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isApprovingScope ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" />}
+                {isApprovingScope ? 'جاري اعتماد النطاق...' : 'اعتماد المحدد'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {progress.length === 0 ? (
           <p className="p-6 text-center text-xs font-bold text-slate-400">
@@ -1773,6 +2027,8 @@ export default function CollectionForecastView() {
             <table className="w-full text-right text-xs border-collapse">
               <thead className="bg-slate-50 text-slate-600 font-black text-[11px]">
                 <tr>
+                  <th className="p-2.5">الفرع</th>
+                  <th className="p-2.5">المشرف</th>
                   <th className="p-2.5">المندوب</th>
                   <th className="p-2.5 text-center">التوقع الشهري</th>
                   <th className="p-2.5 text-center">مجموع الأسابيع</th>
@@ -1785,9 +2041,23 @@ export default function CollectionForecastView() {
               <tbody className="divide-y divide-slate-100">
                 {progress.map((p) => (
                   <tr key={p.repId || p.repName} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="p-2.5 font-bold text-slate-600 whitespace-nowrap">{p.branchName || '—'}</td>
+                    <td className="p-2.5 font-bold text-slate-700 whitespace-nowrap">
+                      {(() => {
+                        const repCustomer = scopedCustomers.find((customer) =>
+                          (p.repId && customer.repId === p.repId)
+                          || isArabicNameMatch(customer.salesRepName || customer.repName || '', p.repName)
+                        );
+                        const repUser = users.find((user) =>
+                          (p.repId && user.id === p.repId) || isArabicNameMatch(user.name, p.repName)
+                        );
+                        return repCustomer
+                          ? supervisorForCustomer(repCustomer) || '—'
+                          : users.find((user) => user.id === repUser?.supervisorId)?.name || '—';
+                      })()}
+                    </td>
                     <td className="p-2.5 font-black text-slate-900 whitespace-nowrap">
                       {p.repName}
-                      <span className="block text-[10px] font-normal text-slate-400">{p.branchName}</span>
                     </td>
                     <td className="p-2.5 text-center font-mono font-black text-teal-700 whitespace-nowrap">
                       {p.monthCollection > 0 ? formatCurrency(p.monthCollection) : '—'}
@@ -1867,7 +2137,7 @@ export default function CollectionForecastView() {
                                     <Send className="w-3 h-3" />
                                   </button>
                                 )}
-                                {canApprove && !planLocked && status !== '' && (
+                                {canApprove && !planLocked && !isApprovingScope && status !== '' && (
                                   <>
                                     <button
                                       type="button"
@@ -1905,14 +2175,15 @@ export default function CollectionForecastView() {
       </section>
 
       {showPasteMonthly && (
+        <>
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3" dir="rtl">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden">
             <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
               <div>
-                <h3 className="font-black text-base">لصق توقعات شهرية</h3>
-                <p className="text-[11px] text-slate-300 mt-1">انسخ عمودين من واتساب أو إكسل: كود العميل ثم المبلغ الشهري</p>
+                <h3 className="font-black text-base">نسخ ومطابقة توقعات التحصيل</h3>
+                <p className="text-[11px] text-slate-300 mt-1">الصق عمودي كود العميل والمبلغ من واتساب أو Excel — للشهر الحالي فقط</p>
               </div>
-              <button type="button" onClick={() => setShowPasteMonthly(false)} className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 cursor-pointer" aria-label="إغلاق">
+              <button type="button" disabled={isSavingPastedMonthly} onClick={() => setShowPasteMonthly(false)} className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 cursor-pointer disabled:opacity-50" aria-label="إغلاق">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1922,15 +2193,34 @@ export default function CollectionForecastView() {
                   <p className="text-xs font-black text-slate-900">نوع التوقع الذي سيتم تعبئته</p>
                   <p className="mt-1 text-[11px] text-slate-500">
                     {pasteFrequency === 'weekly'
-                      ? `سيتم الحفظ في ${weekFilter !== 'ALL' ? forecastSlotLabel(Number(weekFilter), weeks) : currentWeek > 0 ? forecastSlotLabel(currentWeek, weeks) : 'أول فترة متاحة'}`
+                      ? `سيتم الحفظ في ${forecastSlotLabel(selectedPasteWeek, weeks)} من ${formatMonthLabel(monthKey)}`
                       : `سيتم الحفظ للشهر الحالي: ${formatMonthLabel(monthKey)}`}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 rounded-xl bg-white border border-emerald-200 p-1" role="group" aria-label="نوع التوقع">
-                  <button type="button" onClick={() => setPasteFrequency('monthly')} className={`px-3 py-2 rounded-lg text-xs font-black transition ${pasteFrequency === 'monthly' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-emerald-50'}`}>شهري</button>
-                  <button type="button" onClick={() => setPasteFrequency('weekly')} className={`px-3 py-2 rounded-lg text-xs font-black transition ${pasteFrequency === 'weekly' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-emerald-50'}`}>أسبوعي</button>
+                  <button type="button" disabled={isSavingPastedMonthly} onClick={() => setPasteFrequency('monthly')} aria-pressed={pasteFrequency === 'monthly'} className={`px-3 py-2 rounded-lg text-xs font-black transition disabled:opacity-50 ${pasteFrequency === 'monthly' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-emerald-50'}`}>شهري</button>
+                  {weeksCount > 0 && (
+                    <button type="button" disabled={isSavingPastedMonthly} onClick={() => setPasteFrequency('weekly')} aria-pressed={pasteFrequency === 'weekly'} className={`px-3 py-2 rounded-lg text-xs font-black transition disabled:opacity-50 ${pasteFrequency === 'weekly' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-emerald-50'}`}>أسبوعي</button>
+                  )}
                 </div>
               </div>
+              {pasteFrequency === 'weekly' && weeksCount > 0 && (
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-black text-slate-700">الفترة الأسبوعية المستهدفة</span>
+                  <select
+                    value={String(selectedPasteWeek)}
+                    onChange={(e) => setPasteWeekIndex(e.target.value)}
+                    disabled={isSavingPastedMonthly}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none disabled:bg-slate-100"
+                  >
+                    {weeks.map((week) => (
+                      <option key={week.index} value={week.index}>
+                        {weekLabel(week)} — {formatWeekRange(week)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <textarea
                 value={pasteMonthlyText}
                 onChange={(e) => handlePasteMonthlyPreview(e.target.value)}
@@ -1956,12 +2246,48 @@ export default function CollectionForecastView() {
               <div className="flex justify-end gap-2">
                 <button type="button" disabled={isSavingPastedMonthly} onClick={() => setShowPasteMonthly(false)} className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-black cursor-pointer disabled:opacity-50">إلغاء</button>
                 <button type="button" disabled={isSavingPastedMonthly || !pasteMonthlyPreview.some((row) => row.customer)} onClick={handleSavePastedMonthly} className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-black cursor-pointer inline-flex items-center gap-2" aria-live="polite">
-  {isSavingPastedMonthly ? <><LoaderCircle className="w-4 h-4 animate-spin" aria-hidden="true" /> جاري مطابقة وحفظ {pasteMonthlyPreview.filter((row) => row.customer).length} عميل...</> : `مطابقة وحفظ التوقع ${pasteFrequency === 'weekly' ? 'الأسبوعي' : 'الشهري'}`}
-</button>
+                  {isSavingPastedMonthly ? <><LoaderCircle className="w-4 h-4 animate-spin" aria-hidden="true" /> جاري مطابقة وحفظ التوقعات...</> : `مطابقة وحفظ التوقع ${pasteFrequency === 'weekly' ? 'الأسبوعي' : 'الشهري'}`}
+                </button>
               </div>
             </div>
           </div>
         </div>
+        {isSavingPastedMonthly && pasteSaveProgress && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm" role="status" aria-live="polite" aria-busy="true" dir="rtl">
+            <div className="w-full max-w-md rounded-3xl border border-white/70 bg-white p-6 shadow-2xl">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                  <LoaderCircle className="h-6 w-6 animate-spin" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base font-black text-slate-900">جاري مطابقة وحفظ التوقعات</h3>
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    {pasteFrequency === 'weekly' ? forecastSlotLabel(selectedPasteWeek, weeks) : 'التوقع الشهري'} · {formatMonthLabel(monthKey)}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-6 flex items-center justify-between text-xs font-black text-slate-700">
+                <span>تمت مطابقة {pasteSaveProgress.completed} من {pasteSaveProgress.total} عميل</span>
+                <span>{Math.round((pasteSaveProgress.completed / pasteSaveProgress.total) * 100)}٪</span>
+              </div>
+              <div
+                className="mt-2 h-3 overflow-hidden rounded-full bg-slate-100"
+                role="progressbar"
+                aria-label="تقدم مطابقة وحفظ التوقعات"
+                aria-valuemin={0}
+                aria-valuemax={pasteSaveProgress.total}
+                aria-valuenow={pasteSaveProgress.completed}
+              >
+                <div
+                  className="h-full rounded-full bg-gradient-to-l from-emerald-500 via-teal-500 to-cyan-500 transition-[width] duration-300 ease-out"
+                  style={{ width: `${(pasteSaveProgress.completed / pasteSaveProgress.total) * 100}%` }}
+                />
+              </div>
+              <p className="mt-3 text-center text-[11px] font-semibold text-slate-400">يرجى الانتظار — لا تغلق الصفحة أثناء الحفظ</p>
+            </div>
+          </div>
+        )}
+        </>
       )}
 
       {/* ========================================================================= */}

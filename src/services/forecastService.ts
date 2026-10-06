@@ -762,13 +762,16 @@ export function buildProgress(
   const monthForecasts = forecasts;
   const rows = aggregateByRep(monthForecasts, weekCount);
   const targetByRep = new Map<string, TargetRecord>();
+  const targetByBranchAndRep = new Map<string, TargetRecord>();
   targets.forEach((t) => {
     const prev = targetByRep.get(t.repName);
     if (!prev) targetByRep.set(t.repName, t);
+    targetByBranchAndRep.set(`${t.branch.trim()}::${t.repName.trim()}`, t);
   });
 
   return rows.map((r) => {
-    const t = targetByRep.get(r.repName);
+    const t = targetByBranchAndRep.get(`${r.branchName.trim()}::${r.repName.trim()}`)
+      || targetByRep.get(r.repName);
     const targetCollection = Number(t?.collectionTarget || 0);
     const targetSales = Number(t?.salesTarget || 0);
     // المقارنة بهدف الشهر لازم تتم على الرقم الشهري، مش على مجموع الأسابيع.

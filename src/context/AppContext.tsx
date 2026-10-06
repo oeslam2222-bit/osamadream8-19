@@ -1135,11 +1135,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   const approveForecastWeek = useCallback(
-    async (monthKey: string, weekIndex: number, repId: string) => {
+    async (monthKey: string, weekIndex: number, repId: string, customerIds?: string[]) => {
       const now = new Date().toISOString();
       const changedRows: CollectionForecastRecord[] = [];
+      const customerIdScope = customerIds ? new Set(customerIds) : null;
       const next = forecasts.map((f) => {
         if (f.monthKey !== monthKey || f.weekIndex !== weekIndex || f.repId !== repId) return f;
+        if (customerIdScope && !customerIdScope.has(f.customerId)) return f;
         const updated = {
           ...f,
           status: 'approved' as const,
