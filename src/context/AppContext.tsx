@@ -1648,7 +1648,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           pushedInvoicesCount = invBatchRes.savedCount;
         }
         if (products.length > 0) {
-          await saveProductsToSupabase(products);
+          const productsResult = await saveProductsToSupabase(products);
+          if (productsResult.success) {
+            await publishNewDataVersion({
+              scope: 'products',
+              updatedBy: currentUser?.name || 'مدير النظام',
+              notes: `مزامنة كتالوج الأصناف (${products.length} صنف)`,
+              productsCount: products.length,
+            });
+          }
         }
         // Sync visits to Supabase
         if (visits.length > 0) {
@@ -2154,7 +2162,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${GLOBAL_VERSION_RECORD_ID}` },
         () => {
           check();
-          checkCustomersContent(true);
+          checkCustomersContent();
         }
       )
       .subscribe();
@@ -2224,42 +2232,46 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         checkAndSyncDataVersion(false).then((syncRes) => {
           if (!syncRes.updated) {
             // Fallback: If version wasn't newer, ensure products and customers are loaded from Supabase if empty
-            fetchProductsFromSupabase().then((pRes) => {
-              if (pRes.success && pRes.products && pRes.products.length > 0) {
-                setProducts((curr) => {
-                  if (curr.length === 0) {
-                    const valid = sanitizeProducts(pRes.products!);
-                    idbSet(STORAGE_KEYS.PRODUCTS, valid).catch(() => {});
-                    return valid;
-                  }
-                  return curr;
-                });
-              }
-            });
-            fetchCustomersFromSupabase(customerFetchScope).then(async (cRes) => {
-              if (cRes.success && cRes.customers && cRes.customers.length > 0) {
-                const linked = linkCustomersToUsers(sanitizeCustomers(cRes.customers!), users);
-                const valid = deduplicateCustomersArray(linked);
-                const queued = await getQueuedMutations();
-                const pendingCustIds = new Set(
-                  queued.filter((m) => m.entity === 'customers' && m.op === 'upsert').map((m) => m.entityId)
-                );
-                setCustomers((curr) => {
-                  const map = new Map<string, Customer>();
-                  valid.forEach((c) => map.set(c.id, c));
-                  // Keep only genuinely pending offline creations
-                  curr.forEach((c) => {
-                    if (pendingCustIds.has(c.id) && !map.has(c.id)) {
-                      map.set(c.id, c);
+            if (products.length === 0) {
+              fetchProductsFromSupabase().then((pRes) => {
+                if (pRes.success && pRes.products && pRes.products.length > 0) {
+                  setProducts((curr) => {
+                    if (curr.length === 0) {
+                      const valid = sanitizeProducts(pRes.products!);
+                      idbSet(STORAGE_KEYS.PRODUCTS, valid).catch(() => {});
+                      return valid;
                     }
+                    return curr;
                   });
-                  const next = Array.from(map.values());
-                  idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
-                  saveLocalCustomersFingerprint(next);
-                  return next;
-                });
-              }
-            });
+                }
+              });
+            }
+            if (customers.length === 0) {
+              fetchCustomersFromSupabase(customerFetchScope).then(async (cRes) => {
+                if (cRes.success && cRes.customers && cRes.customers.length > 0) {
+                  const linked = linkCustomersToUsers(sanitizeCustomers(cRes.customers!), users);
+                  const valid = deduplicateCustomersArray(linked);
+                  const queued = await getQueuedMutations();
+                  const pendingCustIds = new Set(
+                    queued.filter((m) => m.entity === 'customers' && m.op === 'upsert').map((m) => m.entityId)
+                  );
+                  setCustomers((curr) => {
+                    const map = new Map<string, Customer>();
+                    valid.forEach((c) => map.set(c.id, c));
+                    // Keep only genuinely pending offline creations
+                    curr.forEach((c) => {
+                      if (pendingCustIds.has(c.id) && !map.has(c.id)) {
+                        map.set(c.id, c);
+                      }
+                    });
+                    const next = Array.from(map.values());
+                    idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
+                    saveLocalCustomersFingerprint(next);
+                    return next;
+                  });
+                }
+              });
+            }
           }
         });
 
@@ -2325,7 +2337,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
     });
 
-    // Setup Supabase Realtime Subscription for Invoices, Orders (Catalog Sync) & Users
+    // Setup Supabase Realtime subscriptions for data tables.
     try {
       const channel = supabase
         .channel('schema-db-changes')
@@ -2424,30 +2436,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                 safeLocalStorageSet(STORAGE_KEYS.FORECASTS, JSON.stringify(next));
                 return next;
               });
-            }
-          }
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            const raw = payload.new as any;
-            if (raw && (raw.id === GLOBAL_VERSION_RECORD_ID || raw.status === 'global_data_version_stamp')) {
-              console.log('Realtime notification: new global data version detected!', raw);
-              checkAndSyncDataVersion(true);
-            } else if (raw && raw.id === '00000000-0000-0000-0000-000000000001' && raw.items) {
-              const remoteProducts: Product[] = Array.isArray(raw.items)
-                ? raw.items
-                : typeof raw.items === 'string'
-                ? JSON.parse(raw.items)
-                : [];
-              if (remoteProducts.length > 0) {
-                setProducts(sanitizeProducts(remoteProducts));
-              }
-            } else if (raw && (raw.id === 'dream_catalog_manifest' || String(raw.id).startsWith('dream_catalog_chunk_'))) {
-                fetchProductsFromSupabase().then((catalogRes) => {
-                  if (catalogRes.success && catalogRes.products) {
-                    setProducts(sanitizeProducts(catalogRes.products));
-                  }
-                });
             }
           }
         })
@@ -5347,7 +5335,18 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
       idbSet(STORAGE_KEYS.PRODUCTS, updated);
       safeLocalStorageSet(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
-      saveProductsToSupabase(updated).catch((err) => {
+      saveProductsToSupabase(updated).then((result) => {
+        if (!result.success) {
+          console.warn('Supabase image links sync warning:', result.error || 'Product save failed.');
+          return;
+        }
+        publishNewDataVersion({
+          scope: 'products',
+          updatedBy: currentUser?.name || 'مدير النظام',
+          notes: 'تحديث صور كتالوج الأصناف',
+          productsCount: updated.length,
+        }).catch((error) => console.warn('Product image version publish notice:', error));
+      }).catch((err) => {
         console.warn('Supabase image links sync warning:', err);
       });
 
