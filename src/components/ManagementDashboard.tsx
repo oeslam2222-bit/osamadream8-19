@@ -38,6 +38,7 @@ import {
   CartesianGrid,
   Cell,
   Legend,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -96,6 +97,7 @@ const isCanceledInv = (status: string): boolean =>
   status === 'ملغاة' || status === 'مرفوضة / ملغاة';
 
 type ActiveDashboardSubTab = 'overview' | 'matrix' | 'branches' | 'visits_audit';
+type DashboardChartMetric = 'sales' | 'collection' | 'forecast';
 
 export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavigateToTab }) => {
   const {
@@ -128,6 +130,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeSubTab, setActiveSubTab] = useState<ActiveDashboardSubTab>('overview');
   const [sortBy, setSortBy] = useState<'sales' | 'collection' | 'rate' | 'visits'>('sales');
+  const [chartMetric, setChartMetric] = useState<DashboardChartMetric>('sales');
 
   const invoices = getVisibleInvoices();
   const visibleTargets = getVisibleTargets();
@@ -136,7 +139,10 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
   // Determine available years from data
   const availableYears = useMemo(() => {
     const setYears = new Set<number>([2026, 2025]);
-    visibleTargets.forEach((t) => setYears.add(getTargetYear(t)));
+    visibleTargets.forEach((t) => {
+      const year = getTargetYear(t);
+      if (year !== null) setYears.add(year);
+    });
     invoices.forEach((inv) => {
       const y = getYearFromStr(inv.date);
       if (y) setYears.add(y);
@@ -408,6 +414,17 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
       const sAchieved = mTargets.reduce((sum, t) => sum + safeNumber(t.salesAchieved), 0);
       const cTarget = mTargets.reduce((sum, t) => sum + safeNumber(t.collectionTarget), 0);
       const cAchieved = mTargets.reduce((sum, t) => sum + safeNumber(t.collectionAchieved), 0);
+      const mForecasts = fList.filter((forecast) => {
+        if (isMonthForecast(forecast)) return false;
+        const match = forecast.monthKey.match(/^\d{4}-(\d{1,2})$/);
+        return match !== null && Number(match[1]) === mNum;
+      });
+      const forecastSubmitted = mForecasts
+        .filter((forecast) => forecast.status === 'submitted' || forecast.status === 'approved')
+        .reduce((sum, forecast) => sum + safeNumber(forecast.collectionForecast), 0);
+      const forecastNeedsAttentionForMonth = mForecasts
+        .filter((forecast) => forecast.status !== 'submitted' && forecast.status !== 'approved')
+        .reduce((sum, forecast) => sum + safeNumber(forecast.collectionForecast), 0);
 
       const mVisits = vList.filter((v) => {
         if (!v.date) return false;
@@ -424,11 +441,13 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         'المحقق تحصيل': cAchieved,
         'نسبة إنجاز البيع': sTarget > 0 ? Math.round((sAchieved / sTarget) * 100) : 0,
         'نسبة إنجاز التحصيل': cTarget > 0 ? Math.round((cAchieved / cTarget) * 100) : 0,
+        'التوقع الأسبوعي المرسل/المعتمد': forecastSubmitted,
+        'توقع أسبوعي يحتاج متابعة': forecastNeedsAttentionForMonth,
         visitsCount: mVisits.length,
       };
     }).filter((_, idx) => {
       const month = idx + 1;
-      if (selectedMonth !== 'ALL') return month === Number(selectedMonth);
+      if (selectedMonth !== 'ALL' && month !== Number(selectedMonth)) return false;
       if (selectedQuarter === 'Q1') return month >= 1 && month <= 3;
       if (selectedQuarter === 'Q2') return month >= 4 && month <= 6;
       if (selectedQuarter === 'Q3') return month >= 7 && month <= 9;
@@ -610,7 +629,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     // 1. Executive Summary Sheet
     const summaryData = [
       ['تقرير لوحة الإدارة وPower BI التنفيذي - مجموعة الطنطاوي'],
-      [`السنة: ${selectedYear}`, `الفترة: ${selectedMonth !== 'ALL' ? MONTHS_NAMES_AR[Number(selectedMonth) - 1] : selectedQuarter === 'ALL' ? 'العام بأكمله' : selectedQuarter}`, `الفرع: ${selectedBranch}`],
+      [`السنة: ${selectedYear}`, `الفترة: ${selectedPeriodLabel}`, `الفرع: ${selectedBranch}`],
       [''],
       ['المؤشر التنفيذي (KPI)', 'القيمة المحققة', 'الهدف المخطط', 'نسبة الإنجاز %', 'ملاحظات الأداء'],
       ['مبيعات الفترة المختارة', metrics.salesAchieved, metrics.salesTarget, `${metrics.salesRate}%`, metrics.salesRate >= 90 ? 'أداء ممتاز' : 'يحتاج متابعة'],
@@ -655,7 +674,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     // 3. Monthly Trends Sheet
     const monthHeader = [
       ['الاتجاه الشهري للمبيعات والتحصيلات'],
-      ['الشهر', 'هدف البيع', 'المحقق بيع', 'نسبة البيع %', 'هدف التحصيل', 'المحقق تحصيل', 'نسبة التحصيل %', 'عدد الزيارات'],
+      ['الشهر', 'هدف البيع', 'المحقق بيع', 'نسبة البيع %', 'هدف التحصيل', 'المحقق تحصيل', 'نسبة التحصيل %', 'التوقع الأسبوعي المرسل/المعتمد', 'توقع أسبوعي يحتاج متابعة', 'عدد الزيارات'],
     ];
 
     const monthRows = metrics.monthlyTrend.map((m) => [
@@ -666,6 +685,8 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
       m['هدف التحصيل'],
       m['المحقق تحصيل'],
       `${m['نسبة إنجاز التحصيل']}%`,
+      m['التوقع الأسبوعي المرسل/المعتمد'],
+      m['توقع أسبوعي يحتاج متابعة'],
       m.visitsCount,
     ]);
 
@@ -674,6 +695,57 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
 
     XLSX.writeFile(wb, `PowerBI_Executive_Dashboard_${selectedYear}_${Date.now()}.xlsx`);
   };
+
+  const chartConfig = chartMetric === 'sales'
+    ? {
+        title: 'المبيعات',
+        targetKey: 'هدف البيع',
+        actualKey: 'المحقق بيع',
+        targetLabel: 'هدف البيع',
+        actualLabel: 'المحقق بيع',
+        targetValue: metrics.salesTarget,
+        actualValue: metrics.salesAchieved,
+        rate: metrics.salesRate,
+        actualColor: '#059669',
+      }
+    : chartMetric === 'collection'
+    ? {
+        title: 'التحصيل',
+        targetKey: 'هدف التحصيل',
+        actualKey: 'المحقق تحصيل',
+        targetLabel: 'هدف التحصيل',
+        actualLabel: 'المحقق تحصيل',
+        targetValue: metrics.collectionTarget,
+        actualValue: metrics.collectionAchieved,
+        rate: metrics.collectionRate,
+        actualColor: '#0284c7',
+      }
+    : {
+        title: 'التوقع الأسبوعي',
+        targetKey: 'توقع أسبوعي يحتاج متابعة',
+        actualKey: 'التوقع الأسبوعي المرسل/المعتمد',
+        targetLabel: 'يحتاج متابعة',
+        actualLabel: 'مرسل أو معتمد',
+        targetValue: metrics.forecastNeedsAttention,
+        actualValue: metrics.forecastExpected,
+        rate: null,
+        actualColor: '#7c3aed',
+      };
+  const chartHasData = metrics.monthlyTrend.some((month) =>
+    safeNumber(month[chartConfig.targetKey as keyof typeof month]) > 0 ||
+    safeNumber(month[chartConfig.actualKey as keyof typeof month]) > 0
+  );
+  const selectedPeriodLabel = [
+    selectedQuarter !== 'ALL' ? selectedQuarter : null,
+    selectedMonth !== 'ALL' ? MONTHS_NAMES_AR[Number(selectedMonth) - 1] : null,
+  ].filter(Boolean).join(' · ') || 'السنة كاملة';
+  const activeFilterLabels = [
+    `${selectedYear}`,
+    selectedPeriodLabel !== 'السنة كاملة' ? selectedPeriodLabel : null,
+    selectedBranch !== 'ALL' ? selectedBranch : 'كل الفروع',
+    selectedSupervisor !== 'ALL' ? users.find((user) => user.id === selectedSupervisor)?.name : null,
+    selectedRep !== 'ALL' ? users.find((user) => user.id === selectedRep)?.name : null,
+  ].filter((label): label is string => Boolean(label));
 
   return (
     <div className="space-y-5 print:space-y-3" dir="rtl">
@@ -697,7 +769,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               <span className="text-emerald-400 font-mono text-base font-bold">({selectedYear})</span>
             </h1>
             <p className="text-[11px] text-emerald-200 font-bold">
-              الفترة: {selectedMonth !== 'ALL' ? MONTHS_NAMES_AR[Number(selectedMonth) - 1] : selectedQuarter !== 'ALL' ? selectedQuarter : 'السنة كاملة'}
+              الفترة: {selectedPeriodLabel}
               {selectedBranch !== 'ALL' ? ` · ${selectedBranch}` : ' · كل الفروع'}
             </p>
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
@@ -763,10 +835,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
             </label>
             <select
               value={selectedQuarter}
-              onChange={(e) => {
-                setSelectedQuarter(e.target.value);
-                if (e.target.value !== 'ALL') setSelectedMonth('ALL');
-              }}
+              onChange={(e) => setSelectedQuarter(e.target.value)}
               className="w-full bg-slate-800/90 text-white border border-slate-700 rounded-xl px-2.5 py-1.5 font-bold focus:outline-none focus:border-cyan-500 cursor-pointer"
             >
               <option value="ALL" className="bg-slate-900 text-white">كامل السنة (الكل)</option>
@@ -785,10 +854,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
             </label>
             <select
               value={selectedMonth}
-              onChange={(e) => {
-                setSelectedMonth(e.target.value);
-                if (e.target.value !== 'ALL') setSelectedQuarter('ALL');
-              }}
+              onChange={(e) => setSelectedMonth(e.target.value)}
               className="w-full bg-slate-800/90 text-white border border-slate-700 rounded-xl px-2.5 py-1.5 font-bold focus:outline-none focus:border-amber-500 cursor-pointer"
             >
               <option value="ALL" className="bg-slate-900 text-white">كافة الأشهر</option>
@@ -810,9 +876,22 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               value={selectedBranch}
               disabled={isBranchMgr || isSupervisor}
               onChange={(e) => {
-                setSelectedBranch(e.target.value);
-                setSelectedSupervisor('ALL');
-                setSelectedRep('ALL');
+                const nextBranch = e.target.value;
+                setSelectedBranch(nextBranch);
+                const selectedSupervisorUser = users.find((user) => user.id === selectedSupervisor);
+                const selectedRepUser = users.find((user) => user.id === selectedRep);
+                const supervisorStillMatchesBranch =
+                  !selectedSupervisorUser ||
+                  nextBranch === 'ALL' ||
+                  !selectedSupervisorUser.branchName ||
+                  selectedSupervisorUser.branchName === nextBranch;
+                const repStillMatchesBranch =
+                  !selectedRepUser ||
+                  nextBranch === 'ALL' ||
+                  !selectedRepUser.branchName ||
+                  selectedRepUser.branchName === nextBranch;
+                if (!supervisorStillMatchesBranch) setSelectedSupervisor('ALL');
+                if (!repStillMatchesBranch) setSelectedRep('ALL');
               }}
               className="w-full bg-slate-800/90 text-white border border-slate-700 rounded-xl px-2.5 py-1.5 font-bold focus:outline-none focus:border-indigo-500 disabled:opacity-60 cursor-pointer"
             >
@@ -835,8 +914,12 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               value={selectedSupervisor}
               disabled={isSupervisor}
               onChange={(e) => {
-                setSelectedSupervisor(e.target.value);
-                setSelectedRep('ALL');
+                const nextSupervisor = e.target.value;
+                setSelectedSupervisor(nextSupervisor);
+                const selectedRepUser = users.find((user) => user.id === selectedRep);
+                if (selectedRepUser && nextSupervisor !== 'ALL' && selectedRepUser.supervisorId !== nextSupervisor) {
+                  setSelectedRep('ALL');
+                }
               }}
               className="w-full bg-slate-800/90 text-white border border-slate-700 rounded-xl px-2.5 py-1.5 font-bold focus:outline-none focus:border-purple-500 disabled:opacity-60 cursor-pointer"
             >
@@ -868,6 +951,19 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               ))}
             </select>
           </div>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-bold text-slate-400">الفلاتر المطبقة معًا:</span>
+            {activeFilterLabels.map((label, index) => (
+              <span key={`${label}-${index}`} className="rounded-full border border-slate-700 bg-slate-800 px-2.5 py-1 text-[10px] font-bold text-slate-200">
+                {label}
+              </span>
+            ))}
+          </div>
+          <span className="text-[10px] font-bold text-slate-400">
+            {filteredData.targets.length.toLocaleString('ar-EG')} هدف · {filteredData.forecasts.length.toLocaleString('ar-EG')} توقع · {filteredData.visits.length.toLocaleString('ar-EG')} زيارة
+          </span>
         </div>
       </section>
 
@@ -1154,50 +1250,93 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
       {activeSubTab === 'overview' && (
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.8fr)_minmax(320px,1.2fr)]">
           {/* Main Monthly Comparison Chart */}
-          <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <article className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm space-y-4">
+            <div className="flex flex-col gap-3 border-b border-slate-100 pb-4">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black">
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black ${
+                  chartMetric === 'sales' ? 'bg-emerald-100 text-emerald-800' : chartMetric === 'collection' ? 'bg-sky-100 text-sky-800' : 'bg-violet-100 text-violet-800'
+                }`}>
                   <BarChart3 className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="font-black text-sm text-slate-900">
-                    مقارنة المبيعات والتحصيلات (الهدف مقابل المحقق) · {selectedYear}
+                    تحليل {chartConfig.title} · {selectedYear}
                   </h3>
                   <p className="text-[11px] text-slate-500 font-medium">
-                    {selectedMonth !== 'ALL'
-                      ? `الشهر المختار: ${MONTHS_NAMES_AR[Number(selectedMonth) - 1]}`
-                      : selectedQuarter !== 'ALL'
-                      ? `أشهر ${selectedQuarter} فقط`
-                      : 'كافة شهور السنة'} · الأرقام بالجنيه المصري
+                    {selectedPeriodLabel} · مقارنة شهرية حسب الفلاتر المحددة · الأرقام بالجنيه المصري
                   </p>
+                </div>
+              </div>
+              <div role="group" aria-label="اختيار مؤشر الرسم البياني" className="flex w-full sm:w-fit rounded-xl bg-slate-100 p-1 gap-1">
+                {([
+                  ['sales', 'المبيعات'],
+                  ['collection', 'التحصيل'],
+                  ['forecast', 'التوقع الأسبوعي'],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setChartMetric(value)}
+                    aria-pressed={chartMetric === value}
+                    className={`flex-1 sm:flex-none rounded-lg px-3 py-2 text-[11px] font-black transition ${
+                      chartMetric === value
+                        ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 min-w-0">
+                <div className="text-[10px] font-bold text-slate-500">{chartConfig.targetLabel}</div>
+                <div className="mt-1 font-mono text-sm sm:text-base font-black text-slate-800 truncate" title={formatCurrency(chartConfig.targetValue)}>
+                  {formatCurrency(chartConfig.targetValue)}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 p-3 min-w-0" style={{ backgroundColor: `${chartConfig.actualColor}0D` }}>
+                <div className="text-[10px] font-bold text-slate-500">{chartConfig.actualLabel}</div>
+                <div className="mt-1 font-mono text-sm sm:text-base font-black truncate" style={{ color: chartConfig.actualColor }} title={formatCurrency(chartConfig.actualValue)}>
+                  {formatCurrency(chartConfig.actualValue)}
                 </div>
               </div>
             </div>
 
-            <div className="h-64 sm:h-80 w-full" dir="ltr">
-              <ResponsiveContainer width="100%" height="100%" minHeight={200}>
-                <BarChart data={metrics.monthlyTrend} margin={{ top: 12, right: 12, left: 12, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="month" interval="preserveStartEnd" minTickGap={8} tick={{ fontSize: 9, fill: '#64748b' }} />
-                  <YAxis width={42} tick={{ fontSize: 9, fill: '#64748b' }} tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`} />
-                  <Tooltip
-                    formatter={(value, name) => [formatCurrency(Number(value)), String(name)]}
-                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', color: '#fff', fontSize: '12px' }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                  <Bar dataKey="هدف البيع" fill="#94a3b8" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="المحقق بيع" fill="#059669" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="هدف التحصيل" fill="#fbbf24" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="المحقق تحصيل" fill="#0284c7" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="relative h-64 sm:h-80 w-full" dir="ltr">
+              {chartHasData ? (
+                <ResponsiveContainer width="100%" height="100%" minHeight={200}>
+                  <BarChart data={metrics.monthlyTrend} margin={{ top: 16, right: 8, left: 0, bottom: 4 }} barCategoryGap="28%">
+                    <CartesianGrid strokeDasharray="3 6" vertical={false} stroke="#e2e8f0" />
+                    <XAxis dataKey="month" interval="preserveStartEnd" minTickGap={8} tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} />
+                    <YAxis width={48} tickLine={false} axisLine={false} tick={{ fontSize: 9, fill: '#64748b' }} tickFormatter={(val) => `${(val / 1000).toLocaleString('en-US')}k`} />
+                    <Tooltip
+                      formatter={(value, name) => [formatCurrency(Number(value)), String(name)]}
+                      labelStyle={{ color: '#cbd5e1', fontWeight: 700, marginBottom: 5 }}
+                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '14px', color: '#fff', fontSize: '12px', boxShadow: '0 12px 30px rgba(15,23,42,.24)' }}
+                      cursor={{ fill: '#f1f5f9' }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '12px' }} />
+                    <Bar dataKey={chartConfig.targetKey} name={chartConfig.targetLabel} fill={chartMetric === 'forecast' ? '#fbbf24' : '#cbd5e1'} radius={[6, 6, 0, 0]} maxBarSize={34} />
+                    <Bar dataKey={chartConfig.actualKey} name={chartConfig.actualLabel} fill={chartConfig.actualColor} radius={[6, 6, 0, 0]} maxBarSize={34} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 text-center">
+                  <BarChart3 className="w-8 h-8 text-slate-300 mb-2" />
+                  <p className="text-xs font-black text-slate-500">لا توجد بيانات لهذا المؤشر ضمن الفلاتر الحالية</p>
+                  <p className="text-[10px] text-slate-400 mt-1">غيّر الفترة أو الفرع أو المندوب لعرض النتائج</p>
+                </div>
+              )}
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] sm:text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
-              <span className="font-bold">إجمالي مبيعات الفترة: {formatCurrency(metrics.salesAchieved)}</span>
-              <span className="font-bold text-blue-700">إجمالي تحصيلات الفترة: {formatCurrency(metrics.collectionAchieved)}</span>
-              <span className="font-bold text-emerald-700">نسبة التحصيل للبيع: {metrics.salesAchieved > 0 ? Math.round((metrics.collectionAchieved / metrics.salesAchieved) * 100) : 0}%</span>
-            </div>
+            {chartConfig.rate !== null && (
+              <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-900 px-4 py-3 text-white">
+                <span className="text-[11px] font-bold text-slate-300">نسبة تحقيق {chartConfig.title}</span>
+                <span className="font-mono text-lg font-black" style={{ color: chartConfig.actualColor }}>{chartConfig.rate}%</span>
+              </div>
+            )}
           </article>
 
           {/* Side Monthly Efficiency Trend Chart */}
@@ -1230,10 +1369,14 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#64748b' }} />
-                    <YAxis tick={{ fontSize: 10, fill: '#64748b' }} domain={[0, 120]} />
-                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', color: '#fff', fontSize: '11px' }} />
-                    <Area type="monotone" dataKey="نسبة إنجاز البيع" stroke="#059669" fillOpacity={1} fill="url(#colorSalesRate)" strokeWidth={2} />
-                    <Area type="monotone" dataKey="نسبة إنجاز التحصيل" stroke="#0284c7" fillOpacity={1} fill="url(#colorColRate)" strokeWidth={2} />
+                    <YAxis tick={{ fontSize: 10, fill: '#64748b' }} domain={[0, 'auto']} tickFormatter={(value) => `${value}%`} />
+                    <Tooltip
+                      formatter={(value, name) => [`${Number(value)}%`, String(name)]}
+                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', color: '#fff', fontSize: '11px' }}
+                    />
+                    <ReferenceLine y={100} stroke="#f59e0b" strokeDasharray="5 5" label={{ value: 'الهدف 100%', fill: '#b45309', fontSize: 10, position: 'insideTopRight' }} />
+                    <Area type="monotone" dataKey="نسبة إنجاز البيع" stroke="#059669" fillOpacity={1} fill="url(#colorSalesRate)" strokeWidth={3} activeDot={{ r: 5, strokeWidth: 2 }} />
+                    <Area type="monotone" dataKey="نسبة إنجاز التحصيل" stroke="#0284c7" fillOpacity={1} fill="url(#colorColRate)" strokeWidth={3} activeDot={{ r: 5, strokeWidth: 2 }} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -1277,7 +1420,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="بحث باسم المندوب أو الفرع..."
+                  placeholder="بحث بالمصفوفة: مندوب أو فرع..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-48 sm:w-56 text-xs bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 pl-8 focus:outline-none focus:border-indigo-500"
