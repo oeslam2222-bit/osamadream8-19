@@ -1819,7 +1819,23 @@ export default function CollectionForecastView() {
       {selectedCustomerDetail && (() => {
         const c = selectedCustomerDetail;
         const fin = calculateCustomerFinancials(c, 'ALL');
-        const customerVisitsList = c.visitHistory || [];
+        // الزيارات الحديثة محفوظة في جدول الزيارات العام، بينما قديمًا كانت
+        // تُنسخ داخل customer.visitHistory. اعرض المصدرين مع إزالة التكرار
+        // حتى لا يظهر عدّاد الزيارات في الجدول بدون تفاصيل داخل الملف.
+        const customerVisitsList = Array.from(
+          new Map(
+            [
+              ...(c.visitHistory || []),
+              ...(visits || []).filter((v) => {
+                const sameCustomer =
+                  v.customerId === c.id ||
+                  (!!c.code && v.customerCode === c.code) ||
+                  (!!c.name && v.customerName === c.name);
+                return sameCustomer;
+              }),
+            ].map((visit) => [visit.id, visit] as const)
+          ).values()
+        ).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
         const activeVisits = customerVisitsList.filter((v) => !v.isArchived);
         const archivedVisits = customerVisitsList.filter((v) => v.isArchived);
         const relatedComments = (customerComments || []).filter(
