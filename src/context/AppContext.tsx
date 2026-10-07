@@ -2346,6 +2346,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     });
   }, [isLocalDataHydrated, dataEpoch, products.length, customers.length, visits.length, invoices.length]);
 
+  useEffect(() => {
     // Skip Realtime on cellular to save data & battery
     const isCellular = navigator.connection?.type === 'cellular' ||
       navigator.connection?.effectiveType?.includes('2g') ||
@@ -2553,6 +2554,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     // Return empty cleanup for cellular
     return () => {};
+  }, []);
 
   useEffect(() => {
     const handleOnlineSync = () => {
@@ -5655,7 +5657,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       (currentUser.role === 'supervisor' && (assignedRep?.supervisorId === currentUser.id || doesCustomerBelongToSupervisor(customer, currentUser, users))) ||
       (currentUser.role === 'branch_manager' && (assignedRep?.branchName === currentUser.branchName || doesCustomerBelongToBranch(customer, currentUser.branchName, users)));
 
-    if (!allowed) return { success: false, message: 'ل�� تملك صلاحية تسجيل زيارة لهذا العميل' };
+    if (!allowed) return { success: false, message: 'ل�� تملك ص��احية تسجيل زيارة لهذا العميل' };
 
     /**
      * نفس العميل في نفس اليوم — بدل ما نسجّل سطر تاني.
