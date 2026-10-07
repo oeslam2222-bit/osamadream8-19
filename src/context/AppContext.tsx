@@ -1372,7 +1372,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
      * ليها فرع في إعادة الجلب ولا اشتراك realtime — يعني نشر 'all' عشانها
      * ما كانش بيعمل حاجة، كان بيبعت تعريفة وخلاص.
      *
-     * فبنحسب النطاق الحقيقي: نطاق واحد → نطاقه، أكتر من واح�� → 'all'
+     * فبنحسب النطاق الحقيقي: نطاق واحد → نطاقه، أكتر من واح���� → 'all'
      * (سلوك النهارده، وبيحصل نادر — الـ Excel imports ما بتمشيش من الـ queue).
      */
     const resolveFlushScope = (): SyncScope => {
@@ -2345,7 +2345,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
     });
   }, [isLocalDataHydrated, dataEpoch, products.length, customers.length, visits.length, invoices.length]);
-
 
     // Skip Realtime on cellular to save data & battery
     const isCellular = navigator.connection?.type === 'cellular' ||
@@ -4578,7 +4577,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     return {
       success: true,
-      message: `تم اعتماد وصرف الطلبية #${inv.invoiceNumber} وخصم المخزون الفعلي (${inv.totalCartons} كرتونة) من الفرع بنجاح!`,
+      message: `تم اعتماد وصرف الطلبية #${inv.invoiceNumber} وخصم المخزون الفعلي (${inv.totalCartons} كرتونة) من الفرع بنج��ح!`,
     };
   };
 
@@ -4638,7 +4637,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         if (i.id !== invoiceId) return i;
         const updated: Invoice = {
           ...i,
-          status: 'معلقة بانتظار اعتماد الفرع' as OrderStatus,
+          status: 'معلقة بانتظار ��عتماد الفرع' as OrderStatus,
           notes: notes ? `${i.notes ? i.notes + ' | ' : ''}تم التحويل لمدير الفرع: ${notes}` : i.notes,
         };
         saveInvoiceWithQueue(updated).catch((e) => console.warn('Supabase forward update failed:', e));
@@ -5656,7 +5655,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       (currentUser.role === 'supervisor' && (assignedRep?.supervisorId === currentUser.id || doesCustomerBelongToSupervisor(customer, currentUser, users))) ||
       (currentUser.role === 'branch_manager' && (assignedRep?.branchName === currentUser.branchName || doesCustomerBelongToBranch(customer, currentUser.branchName, users)));
 
-    if (!allowed) return { success: false, message: 'لا تملك صلاحية تسجيل زيارة لهذا العميل' };
+    if (!allowed) return { success: false, message: 'ل�� تملك صلاحية تسجيل زيارة لهذا العميل' };
 
     /**
      * نفس العميل في نفس اليوم — بدل ما نسجّل سطر تاني.
