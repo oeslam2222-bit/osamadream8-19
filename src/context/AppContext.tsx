@@ -3206,30 +3206,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const rawTrim = sanitizeIdentifier(identifier);
     const cleanPass = (password || '').trim();
 
-    /**
-     * Supabase Auth (اختياري، بيشتغل لو اتنفّذ migration الـ SQL).
-     *
-     * بنحاوله الأول عشان التحقق يبقى على السيرفر مش في المتصفح. لو رجّع
-     * anything غير 'success' بنكمل عادي في التحقق القديم بالظبط — يعني
-     * قبل ما حد يفعّل الحسابات على السيرفر، الـ login بيشتغل زي ما هو
-     * من غير أي تغيير. لو نجح، بنكمل باقي فحص الحساب (الموافقة، الإيقاف)
-     * بنفس القواعد القديمة بالظبط، فالأدوار مش بتتغير خالص.
-     */
-    let serverAuthUserId: string | null = null;
-    if (isServerAuthEnabled()) {
-      const outcome = await tryServerSignIn(identifier, cleanPass);
-      if (outcome.kind === 'success') {
-        serverAuthUserId = outcome.authUserId;
-        if (outcome.email) {
-          linkAuthUserToProfile(outcome.authUserId, outcome.email).catch(() => {});
-        }
-      }
-      // 'unavailable' و 'no-server-account' و 'wrong-credentials' كلهم
-      // بيروحوا لل(old) تحقق — فالحساب اللي لسه على الوضع القديم
-      // بيفضل يدخل عادي.
-    }
-
-    // 1. Search in local memory first with rich identifier matching
+    // 1. Hybrid Mode: Check local users first (immediate login without server calls)
     let found = users.find(
       (u) =>
         (u.email && sanitizeEmail(u.email) === cleanEmail) ||
@@ -3240,22 +3217,62 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         (u.id && String(u.id).toLowerCase() === cleanId)
     );
 
-    // 2. If not found locally, query Supabase directly (essential for fresh sessions and cloud users)
-    if (!found) {
-      try {
-        const lookupQuery = cleanEmail.includes('@') ? cleanEmail : cleanId;
-        const supRes = await findUserInSupabase(lookupQuery);
-        if (supRes.success && supRes.user) {
-          found = supRes.user;
-          setUsers((prev) => {
-            const map = new Map<string, User>();
-            prev.forEach((u) => map.set(u.id, u));
-            map.set(found!.id, found!);
-            return Array.from(map.values());
-          });
+    let serverAuthUserId: string | null = null;
+
+    // 2. If found locally, verify password locally (no Supabase Auth calls)
+    if (found) {
+      const storedCredential = (found.password || '').trim();
+      if (storedCredential.length > 0) {
+        const check = await verifyPassword(cleanPass, storedCredential);
+        if (!check.valid) {
+          return { success: false, message: 'كلمة المرور غير صحيحة. يرجى التأكد من كتابة كلمة المرور بدقة.' };
         }
-      } catch (e) {
-        console.warn('Direct Supabase login lookup failed:', e);
+        if (check.legacy) {
+          const upgraded = await withHashedCredential(found);
+          found = { ...found, password: upgraded.password };
+          setUsers((prev) => prev.map((u) => (u.id === found!.id ? { ...u, password: upgraded.password } : u)));
+          if (users.find((u) => u.id === found!.id)) {
+            safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(
+              users.map((u) => (u.id === found!.id ? { ...u, password: upgraded.password } : u))
+            ));
+          }
+          saveUserToSupabase(found).catch((e) => console.warn('Password upgrade sync notice:', e));
+        }
+      } else {
+        return {
+          success: false,
+          message: 'لا توجد كلمة مرور مسجلة لهذا الحساب. يرجى مراجعة إدارة النظام لتعيين كلمة المرور قبل تسجيل الدخول.',
+        };
+      }
+    } else {
+      // 3. Not found locally: try Supabase Auth only if email is provided
+      if (isServerAuthEnabled() && cleanEmail.includes('@')) {
+        const outcome = await tryServerSignIn(identifier, cleanPass);
+        if (outcome.kind === 'success') {
+          serverAuthUserId = outcome.authUserId;
+          if (outcome.email) {
+            linkAuthUserToProfile(outcome.authUserId, outcome.email).catch(() => {});
+          }
+        }
+      }
+
+      // 4. If not found locally and Supabase Auth didn't work, query Supabase users table directly
+      if (!found) {
+        try {
+          const lookupQuery = cleanEmail.includes('@') ? cleanEmail : cleanId;
+          const supRes = await findUserInSupabase(lookupQuery);
+          if (supRes.success && supRes.user) {
+            found = supRes.user;
+            setUsers((prev) => {
+              const map = new Map<string, User>();
+              prev.forEach((u) => map.set(u.id, u));
+              map.set(found!.id, found!);
+              return Array.from(map.values());
+            });
+          }
+        } catch (e) {
+          console.warn('Direct Supabase login lookup failed:', e);
+        }
       }
     }
 

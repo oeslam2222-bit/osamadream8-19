@@ -181,7 +181,10 @@ const MAX_VISIT_PAGES = 40;
 /**
  * Supabase REST returns at most 1,000 rows per request by default.
  * Read the table in pages so imports and role-specific counts include the full dataset.
+ * ✅ استعلام خفيف محدد بالأعمدة الأساسية فقط لتقليل حجم النقل وتجنب رفض RLS
  */
+const CUSTOMER_SELECT_COLUMNS = 'id, code, customer_code, name, customer_name, store_name, storeName, phone, mobile, address, region, city, governorate, branch_name, branchName, rep_name, repName, rep_id, repId, tax_number, taxNumber, tier, credit_limit, creditLimit, balance, current_balance, notes, last_visit_date, lastVisitDate, visit_count_2026, visit_history, created_at, sales_2026, sales2026, total_monthly_sales, totalMonthlySales, total_overall_sales, totalOverallSales, collections_2026, collections2026, total_monthly_collections, totalMonthlyCollections, total_overall_collections, totalOverallCollections, monthly_sales_2026, monthlySales2026, monthly_collections_2026, monthlyCollections2026, sales_2025, sales2025, collections_2025, collections2025, overdue_2025, overdue2025, overdue_2026, overdue2026, due_until_period, dueUntilPeriod, opening_balance_2026, openingBalance2026, total_overdue, total_overdue_and_due, overdue_balance, due_balance, deal_eligibility, dealt_2026, dealt_in_2026, has_dealt_in_2026, activity_type, activityType, client_type, clientType, payment_terms, paymentTerms, guarantee_docs, guaranteeDocs, guarantee_amount, guaranteeAmount, region, last_collection_date, lastCollectionDate, last_collection_amount, lastCollectionAmount, updated_at';
+
 async function fetchAllRows(
   table: 'customers' | 'clients',
   scope?: CustomerFetchScope
@@ -191,7 +194,7 @@ async function fetchAllRows(
   const branchFilter = scope?.branchNames?.filter((b) => b && b.trim().length > 0) || [];
 
   for (let from = 0; ; from += pageSize) {
-    let query = supabase.from(table).select('*');
+    let query = supabase.from(table).select(CUSTOMER_SELECT_COLUMNS);
     if (branchFilter.length > 0) {
       query = query.in('branch_name', branchFilter);
     }
@@ -768,13 +771,15 @@ export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Pro
       // بيتقرأ بالدفعات: `select('*')` من غير range بيرجع أول 1,000 صف بس
       // بصمت. جدول المستخدمين كله ~400 صف دلوقتي، بس ده بالظبط الرقم اللي
       // ركبنا عليه، وأول ما يعدّيه التطبيق هيتعطل لعدد مندوبين على manuals.
+      // ✅ استعلام خفيف محدد بالأعمدة الأساسية فقط لتقليل حجم النقل وتجنب رفض RLS
+      const USER_SELECT_COLUMNS = 'id, name, username, user_name, email, password, pass, role, is_admin, branch_name, branchName, supervisor_id, supervisorId, phone, mobile, tel, commission_rate, commissionRate, is_active, approval_status, approvalStatus, created_at';
       const readUserRows = async (table: string): Promise<any[] | null> => {
         const rows: any[] = [];
         for (let page = 0; page < MAX_USER_PAGES; page++) {
           const from = page * USER_PAGE_SIZE;
           const { data, error } = await supabase
             .from(table)
-            .select('*')
+            .select(USER_SELECT_COLUMNS)
             .range(from, from + USER_PAGE_SIZE - 1);
           if (error) return null;
           rows.push(...(data || []));
@@ -1273,10 +1278,12 @@ export async function fetchInvoicesFromSupabase(limit = 150): Promise<{ success:
      * `Promise.allSettled` مش بيعمل فشلش: لو واحد فيهم وقع، التاني بيفضل
      * شغال. وترتيب الاختيار بيفضل زي ما كان — invoices لو فيها صف، غير كده
      * orders.
+     * ✅ استعلام خفيف محدد بالأعمدة الأساسية فقط
      */
+    const INVOICE_SELECT_COLUMNS = 'id, invoice_number, invoiceNumber, customer_code, customerCode, customer_name, customerName, customer_phone, customerPhone, customer_address, customerAddress, customer_tax_number, customerTaxNumber, date, time, created_at, rep_id, repId, rep_name, repName, supervisor_name, supervisorName, branch_name, branchName, items, total_cartons, totalCartons, total_pieces, totalPieces, subtotal, discount_percentage, discount_amount, discountAmount, estimated_grand_total, estimatedGrandTotal, payment_method, paymentMethod, status, notes, synced_to_accounting, has_shortage_split, shortage_invoice_number, is_shortage_invoice, parent_invoice_id, parent_invoice_number, qr_payload, qrPayload';
     const [invoicesRead, ordersRead] = await Promise.allSettled([
-      supabase.from('invoices').select('*').order('created_at', { ascending: false }).limit(limit),
-      supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(limit),
+      supabase.from('invoices').select(INVOICE_SELECT_COLUMNS).order('created_at', { ascending: false }).limit(limit),
+      supabase.from('orders').select(INVOICE_SELECT_COLUMNS).order('created_at', { ascending: false }).limit(limit),
     ]);
 
     const invResult = invoicesRead.status === 'fulfilled' ? invoicesRead.value : null;
@@ -1739,11 +1746,12 @@ export async function fetchVisitsFromSupabase(
      * فالسلوك هنا زي العملاء بالظبط: نرجع للقراءة الكاملة بدل ما نرجع
      * صفحة زيارات فاضية على موبايل المندوب.
      */
+    const VISIT_SELECT_COLUMNS = 'id, customer_id, customerId, customer_name, customerName, customer_code, customerCode, date, time, rep_id, repId, rep_name, repName, branch_name, branchName, supervisor_id, supervisorId, supervisor_name, supervisorName, status, type, outcome, collected_amount, collectedAmount, notes, location, latitude, longitude, check_in_time, checkInTime, check_out_time, checkOutTime, duration_minutes, durationMinutes, store_stock_status, storeStockStatus, competitor_notes, competitorNotes, customer_rating, customerRating, next_visit_date, nextVisitDate, order_created_id, orderCreatedId, order_amount, orderAmount, is_return, isReturn, return_value, returnValue, return_reason, returnReason, return_status, returnStatus, return_handled_by, returnHandledBy, return_handled_at, returnHandledAt, return_note, returnNote, created_at';
     const readPages = async (useScope: boolean) => {
       const rows: any[] = [];
       for (let page = 0; page < MAX_VISIT_PAGES; page++) {
         const from = page * pageSize;
-        let query = supabase.from('visits').select('*').order('created_at', { ascending: false });
+        let query = supabase.from('visits').select(VISIT_SELECT_COLUMNS).order('created_at', { ascending: false });
         if (useScope && branchFilter.length > 0) {
           query = query.in('branch_name', branchFilter);
         }
@@ -2002,16 +2010,21 @@ CREATE TABLE customer_comments (
  * نفس سبب `fetchAllRows`: `select('*')` من غير range بياقص عند 1,000 صف
  * بصمت. الجداول دي مفهومة الحجم (شهر واحد لكل مندوب × 8 فترات)، فالحد
  * الأقصى هنا حماية ضد جدول مش متوقع مش رقم تشغيل.
+ * ✅ استعلام خفيف محدد بالأعمدة الأساسية فقط
  */
+const FORECAST_SELECT_COLUMNS = 'id, month_key, week_index, rep_id, rep_name, branch_name, customer_id, customer_code, customer_name, collection_forecast, sales_forecast, status, submitted_at, approved_by, approved_at, change_request_note, change_requested_by, change_requested_at, updated_by, updated_at';
+const COMMENT_SELECT_COLUMNS = 'id, customer_id, customer_code, customer_name, branch_name, rep_name, kind, body, author_name, created_at, updated_at, is_archived, archived_at, archived_by';
+
 async function fetchAllRowsPaged(
   table: 'collection_forecasts' | 'customer_comments',
   maxPages: number
 ): Promise<{ data: any[]; error: any }> {
   const pageSize = 1000;
   const rows: any[] = [];
+  const selectColumns = table === 'collection_forecasts' ? FORECAST_SELECT_COLUMNS : COMMENT_SELECT_COLUMNS;
   for (let page = 0; page < maxPages; page++) {
     const from = page * pageSize;
-    const { data, error } = await supabase.from(table).select('*').range(from, from + pageSize - 1);
+    const { data, error } = await supabase.from(table).select(selectColumns).range(from, from + pageSize - 1);
     if (error) return { data: rows, error };
     rows.push(...(data || []));
     if (!data || data.length < pageSize) break;
