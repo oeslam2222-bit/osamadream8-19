@@ -1792,9 +1792,14 @@ export async function fetchVisitsFromSupabase(
      */
     const readPages = async (useScope: boolean) => {
       const rows: any[] = [];
-      for (let page = 0; page < MAX_VISIT_PAGES; page++) {
-        const from = page * pageSize;
-        const columns = mobile ? MOBILE_VISIT_COLUMNS : '*';
+      // Mobile reads a fixed column list to save bandwidth, but that
+      // list 400s while a migration that added one of its columns is
+      // still pending on the project. Fall back to '*' once per fetch
+      // so a fresh deploy never breaks visit sync on cellular.
+      let columns = mobile ? MOBILE_VISIT_COLUMNS : '*';
+      let degradedToStar = false;
+
+      const onePage = async (from: number) => {
         let query = supabase.from('visits').select(columns).order('created_at', { ascending: false });
         if (useScope && branchFilter.length > 0) {
           query = query.in('branch_name', branchFilter);
@@ -1802,8 +1807,17 @@ export async function fetchVisitsFromSupabase(
         if (useScope && sinceDate) {
           query = query.gte('date', sinceDate);
         }
-        const { data, error } = await query.range(from, from + pageSize - 1);
+        return query.range(from, from + pageSize - 1);
+      };
 
+      for (let page = 0; page < MAX_VISIT_PAGES; page++) {
+        const from = page * pageSize;
+        let { data, error } = await onePage(from);
+        if (error && !degradedToStar && columns !== '*') {
+          columns = '*';
+          degradedToStar = true;
+          ({ data, error } = await onePage(from));
+        }
         if (error) return { data: rows, error };
         rows.push(...(data || []));
         if (!data || data.length < pageSize) break;
