@@ -160,7 +160,18 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     { id: 'visits', label: 'زيارات العملاء', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'invoices', label: currentUser.role === 'sales_rep' ? 'طلبياتي وفواتيري 📑' : 'الفواتير والطلبيات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
     { id: 'inventory', label: 'إدارة المخزون والاعتمادات', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'excel', label: 'شيتات Google Sheets والإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },
+    {
+      id: 'excel',
+      label: currentUser.role === 'sales_rep'
+        ? 'التوقعات والبيانات 📊'
+        : currentUser.role === 'supervisor'
+        ? 'التوقعات وإدارة البيانات 📊'
+        : currentUser.role === 'branch_manager'
+        ? 'بيانات وتوقعات الفرع 📊'
+        : 'إدارة البيانات والتوقعات 📊',
+      icon: FileSpreadsheet,
+      roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'],
+    },
     { id: 'guide', label: 'دليل دورة العمل 📖', icon: BookOpen, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'users', label: 'فريق الفرع والموظفين', icon: UserCheck, roles: ['admin', 'developer'], badge: pendingApprovalsCount },
   ];

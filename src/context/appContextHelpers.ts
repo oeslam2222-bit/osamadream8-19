@@ -3,7 +3,7 @@ import { inferBranchFromText, normalizeArabicText } from '../services/arabicMatc
 import { deduplicateAndMergeCustomers } from '../services/customerDeduplicationService';
 import { calculateCustomerFinancials, isSummaryOrTotalRow } from '../services/customerFinancialService';
 import { resolveCustomerDuesValue } from '../services/customerDues';
-import { productIdentityKey } from '../services/productIdentity';
+import { productIdentityKey, deduplicateProductArray, normalizeProductCodeKey } from '../services/productIdentity';
 
 export const STORAGE_KEYS = {
   PRODUCTS: 'dream_dist_products_v9',
@@ -233,34 +233,7 @@ export const deduplicateTargetRecords = (records: TargetRecord[]): TargetRecord[
  * التعريف: الصنف = الكود. راجع الملف ده للسبب (قاعدة البيانات عليها
  * `UNIQUE(lower(trim(code)))` على جدول products، فالكود هو الهوية).
  */
-export { productIdentityKey, normalizeProductCodeKey } from '../services/productIdentity';
-
-export const deduplicateProductArray = (list: Product[]): Product[] => {
-  const map = new Map<string, number>();
-  const distinct: Product[] = [];
-  list.forEach((p) => {
-    if (!p) return;
-    const key = productIdentityKey(p);
-    const existingIdx = map.get(key);
-    if (existingIdx === undefined) {
-      map.set(key, distinct.length);
-      distinct.push(p);
-    } else {
-      const existing = distinct[existingIdx];
-      distinct[existingIdx] = {
-        ...existing,
-        ...p,
-        id: existing.id || p.id,
-        branchStockReserved: existing.branchStockReserved,
-        mainWarehouseReserved: existing.mainWarehouseReserved,
-        branchStocks: existing.branchStocks,
-        branchStockActual: existing.branchStockActual,
-        mainWarehouseActual: existing.mainWarehouseActual,
-      };
-    }
-  });
-  return distinct;
-};
+export { productIdentityKey, normalizeProductCodeKey, deduplicateProductArray } from '../services/productIdentity';
 
 export const sanitizeCustomers = (list: Customer[]): Customer[] => {
   if (!Array.isArray(list)) return [];
