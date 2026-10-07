@@ -7,10 +7,12 @@ export interface User {
   name: string;
   username: string;
   email: string;
+  code?: string;                   // كود الموظف (يُستخدم في مطابقة التارجت)
   password?: string;
   role: UserRole;
   branchName: string;
   supervisorId?: string;
+  supervisorName?: string;         // اسم المشرف (نص مكرر لتسهيل المطابقة)
   phone: string;
   avatar?: string;
   isActive: boolean;

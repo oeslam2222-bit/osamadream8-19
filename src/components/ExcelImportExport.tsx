@@ -28,6 +28,7 @@ import {
   Target,
   BadgePercent,
   Calendar,
+  CalendarCheck,
   CreditCard,
   FileCheck,
   Flame,
@@ -1581,7 +1582,7 @@ export const ExcelImportExport: React.FC = () => {
 
               <button
                 type="button"
-                onClick={forcePurgeCacheAndReload}
+                onClick={() => { void forcePurgeCacheAndReload(); }}
                 className="p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-right transition cursor-pointer"
               >
                 <div className="font-black text-sm text-slate-900 mb-1">3. تحديث الكاش ونشر الإصدار</div>
