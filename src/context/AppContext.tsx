@@ -153,9 +153,17 @@ import {
   removeQueuedMutations,
 } from '../services/offlineQueueService';
 
+type NavigatorWithConnection = Navigator & {
+  connection?: {
+    type?: string;
+    effectiveType?: string;
+    saveData?: boolean;
+  };
+};
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AppProvider = ({ children }: { children: React.ReactNode }): React.ReactElement => {
   // Auth and Session Notice
   const [authTerminationNotice, setAuthTerminationNotice] = useState<string | null>(null);
   // فحص اتصال Supabase Auth: بيقول للإدارة هل الـ migration اتنفّذ ولا لأ.
@@ -2346,18 +2354,21 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     });
   }, [isLocalDataHydrated, dataEpoch, products.length, customers.length, visits.length, invoices.length]);
 
+  useEffect(() => {
     // Skip Realtime on cellular to save data & battery
-    const isCellular = navigator.connection?.type === 'cellular' ||
-      navigator.connection?.effectiveType?.includes('2g') ||
-      navigator.connection?.effectiveType?.includes('3g') ||
-      navigator.connection?.saveData === true;
+    const connection = (navigator as NavigatorWithConnection).connection;
+    const isCellular = connection?.type === 'cellular' ||
+      connection?.effectiveType?.includes('2g') ||
+      connection?.effectiveType?.includes('3g') ||
+      connection?.saveData === true;
+    let channel: ReturnType<typeof supabase.channel> | undefined;
 
     if (isCellular) {
       console.log('[Realtime] Disabled on cellular connection to save data');
     } else {
       // Setup Supabase Realtime subscriptions for data tables.
       try {
-        const channel = supabase
+        channel = supabase
         .channel('schema-db-changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, (payload) => {
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
@@ -2542,17 +2553,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           }
         })
         .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
     } catch (e) {
       console.warn('Realtime channel error:', e);
     }
     }
 
-    // Return empty cleanup for cellular
-    return () => {};
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, []);
 
   useEffect(() => {
     const handleOnlineSync = () => {

@@ -179,9 +179,17 @@ export interface VisitFetchScope {
 const MAX_VISIT_PAGES = 40;
 
 // Mobile detection for column optimization
+type NavigatorWithConnection = Navigator & {
+  connection?: {
+    type?: string;
+    effectiveType?: string;
+    saveData?: boolean;
+  };
+};
+
 function isMobileConnection(): boolean {
   if (typeof navigator === 'undefined') return false;
-  const conn = navigator.connection;
+  const conn = (navigator as NavigatorWithConnection).connection;
   return conn?.type === 'cellular' ||
     conn?.effectiveType?.includes('2g') ||
     conn?.effectiveType?.includes('3g') ||
