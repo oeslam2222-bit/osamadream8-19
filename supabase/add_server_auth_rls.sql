@@ -154,10 +154,25 @@ COMMIT;
 --     ببصمة sha256 مش bcrypt، ومش هتنتقل). حد يسأل كل موظف يغيّرها أول
 --     دخول من غير مشكلة.
 --
--- 2) اربط كل uid بالصف بتاعه:
---      UPDATE public.users
---         SET auth_user_id = '<UID>', auth_email = lower(email)
---       WHERE lower(email) = '<الإيميل>';
+-- 2) اربط كل الحسابات بضربة واحدة — الـ SQL Editor بيشتغل بدور postgres
+--    فلو ممكن يقرأ auth.users مباشرة. **متشيلش الـ placeholder يدوي** —
+--    الـ query ده بياخد الـ uid من auth.users بنفسه:
+--
+--      UPDATE public.users u
+--         SET auth_user_id = au.id,
+--             auth_email   = lower(au.email)
+--        FROM auth.users au
+--       WHERE lower(au.email) = lower(u.email)
+--         AND u.email IS NOT NULL
+--         AND trim(u.email) <> '';
+--
+--    تحقق إن الربط نجح (الرقم لازم يساوي عدد الموظفين النشطين):
+--      SELECT count(*) AS linked FROM public.users WHERE auth_user_id IS NOT NULL;
+--
+--    ⛔ لو نفّذت UPDATE باليد وحطت '<UID>' كما هي هتلاقي:
+--       ERROR: 22P02: invalid input syntax for type uuid
+--    ده يعني الـ placeholder ماتبدلش بالـ UID الحقيقي (شكله
+--    a1b2c3d4-5678-...). استخدم الـ query فوق بدل النسخ اليدوي.
 --
 -- 3) اختبر على جهاز واحد في وضع hybrid — التأكد إن الدخول شغال.
 --

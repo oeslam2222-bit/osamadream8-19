@@ -148,11 +148,10 @@ const MainLayout: React.FC = () => {
         </div>
       )}
 
-      {/* Server-auth readiness banner — admin/developer only.
+      {/* Server-auth readiness banner — developer only.
           Shows the exact missing step when VITE_AUTH_MODE=server
           is requested but the Supabase side is not live yet. */}
-      {serverAuthNotice &&
-        (currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+      {serverAuthNotice && currentUser?.role === 'developer' && (
           <div className="bg-rose-700 text-white text-xs py-2 px-4 font-bold flex items-start justify-center gap-2 shadow-inner">
             <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
             <div className="flex-1 max-w-4xl text-center leading-relaxed">
