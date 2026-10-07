@@ -10,7 +10,6 @@ import {
   Download,
   FileSpreadsheet,
   Layers,
-  LayoutDashboard,
   LogOut,
   Receipt,
   RefreshCw,
@@ -135,13 +134,6 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     : 0;
 
   const navItems = [
-    {
-      id: 'dashboard',
-      label: 'لوحة التحكم ⚡',
-      icon: LayoutDashboard,
-      roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'],
-      badge: pendingOrdersCount > 0 ? pendingOrdersCount : undefined,
-    },
     { id: 'catalog', label: 'كتالوج الأصناف والبيع', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'all_customers', label: 'كافة العملاء والتحليل 👥', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     {
