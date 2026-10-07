@@ -154,25 +154,10 @@ COMMIT;
 --     ببصمة sha256 مش bcrypt، ومش هتنتقل). حد يسأل كل موظف يغيّرها أول
 --     دخول من غير مشكلة.
 --
--- 2) اربط كل الحسابات بضربة واحدة — الـ SQL Editor بيشتغل بدور postgres
---    فلو ممكن يقرأ auth.users مباشرة. **متشيلش الـ placeholder يدوي** —
---    الـ query ده بياخد الـ uid من auth.users بنفسه:
---
---      UPDATE public.users u
---         SET auth_user_id = au.id,
---             auth_email   = lower(au.email)
---        FROM auth.users au
---       WHERE lower(au.email) = lower(u.email)
---         AND u.email IS NOT NULL
---         AND trim(u.email) <> '';
---
---    تحقق إن الربط نجح (الرقم لازم يساوي عدد الموظفين النشطين):
---      SELECT count(*) AS linked FROM public.users WHERE auth_user_id IS NOT NULL;
---
---    ⛔ لو نفّذت UPDATE باليد وحطت '<UID>' كما هي هتلاقي:
---       ERROR: 22P02: invalid input syntax for type uuid
---    ده يعني الـ placeholder ماتبدلش بالـ UID الحقيقي (شكله
---    a1b2c3d4-5678-...). استخدم الـ query فوق بدل النسخ اليدوي.
+-- 2) اربط كل uid بالصف بتاعه:
+--      UPDATE public.users
+--         SET auth_user_id = '<UID>', auth_email = lower(email)
+--       WHERE lower(email) = '<الإيميل>';
 --
 -- 3) اختبر على جهاز واحد في وضع hybrid — التأكد إن الدخول شغال.
 --
@@ -260,14 +245,11 @@ COMMIT;
 --   );
 --
 -- ---- 2.4 منع قراءة كلمات المرور ------------------------------------------
--- auth_user_id / auth_email ضمن الأعمدة المقروءة حتى الـ client readiness
--- probe (checkServerAuthReadiness) يقدر يحسب الحسابات المربوطة بالمفتاح
--- العام — العمودين دي مفيهمش سر (الـ uid والإيميل بتاع الدخول).
 -- REVOKE ALL ON public.users FROM anon;
 -- GRANT SELECT (id, name, username, email, role, branch_name, supervisor_id,
 --               phone, commission_rate, is_active, approval_status,
 --               created_at, auth_user_id, auth_email)
---         ON public.users TO anon;
+--       ON public.users TO anon;
 --
 -- ---- 2.5 قفل الكتابة في جداول التوقعات -----------------------------------
 -- دي كانت ناقصة عن قصد في المرحلة الأولى: app_is_privileged() بترجع false
@@ -306,14 +288,12 @@ COMMIT;
 --   USING (public.app_is_privileged())
 --   WITH CHECK (public.app_is_privileged());
 --
--- ---- 2.6 منع قراءة كلمات المرور (نفس قائمة 2.4) -------------------------
--- auth_user_id / auth_email ضمن الأعمدة المقروءة حتى الـ readiness probe
--- يشتغل بالمفتاح العام.
+-- ---- 2.6 منع قراءة كلمات المرور ------------------------------------------
 -- REVOKE ALL ON public.users FROM anon;
 -- GRANT SELECT (id, name, username, email, role, branch_name, supervisor_id,
 --               phone, commission_rate, is_active, approval_status,
 --               created_at, auth_user_id, auth_email)
---         ON public.users TO anon;
+--       ON public.users TO anon;
 --
 -- ---- 2.7 المستخدمون: الإدارة بس هي اللي تكتب ------------------------------
 -- CREATE POLICY users_write_admin ON public.users

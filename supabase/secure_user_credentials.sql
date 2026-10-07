@@ -94,12 +94,8 @@ BEGIN
   ) THEN
     EXECUTE 'REVOKE ALL ON public.users FROM anon';
     EXECUTE 'REVOKE ALL ON public.app_users FROM anon';
-    -- auth_user_id / auth_email are included so the client readiness
-    -- probe (checkServerAuthReadiness) can count linked accounts with
-    -- the anon key. They hold no secret: the uid and the login email.
     EXECUTE 'GRANT SELECT (id, name, username, email, role, branch_name, supervisor_id,
-                          phone, commission_rate, is_active, approval_status, created_at,
-                          auth_user_id, auth_email)
+                          phone, commission_rate, is_active, approval_status, created_at)
               ON public.users TO anon';
     RAISE NOTICE 'anon can no longer read users.password';
   END IF;

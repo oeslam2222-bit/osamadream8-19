@@ -178,29 +178,6 @@ export interface VisitFetchScope {
 /** أربعين ألف صف: حدّ أمان ضد جدول مش متوقع، مش رقم تشغيل. */
 const MAX_VISIT_PAGES = 40;
 
-// Mobile detection for column optimization
-type NavigatorWithConnection = Navigator & {
-  connection?: {
-    type?: string;
-    effectiveType?: string;
-    saveData?: boolean;
-  };
-};
-
-function isMobileConnection(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const conn = (navigator as NavigatorWithConnection).connection;
-  return conn?.type === 'cellular' ||
-    conn?.effectiveType?.includes('2g') ||
-    conn?.effectiveType?.includes('3g') ||
-    conn?.saveData === true;
-}
-
-// Column sets for mobile optimization (minimal columns for list views)
-const MOBILE_CUSTOMER_COLUMNS = 'id,code,name,store_name,phone,address,branch_name,rep_name,sales_rep_name,rep_id,balance,credit_limit,total_overdue_and_due,current_balance,created_at,updated_at';
-const MOBILE_VISIT_COLUMNS = 'id,customer_id,customer_name,customer_code,date,time,rep_id,rep_name,branch_name,supervisor_id,supervisor_name,status,type,outcome,collected_amount,notes,location,check_in_time,check_out_time,duration_minutes,store_stock_status,competitor_notes,customer_rating,next_visit_date,order_created_id,order_amount,is_return,return_value,return_reason,return_status,return_handled_by,return_handled_at,return_note,created_by,created_at,updated_at';
-const MOBILE_PRODUCT_COLUMNS = 'id,code,name,category,unit,price,wholesale_price,stock_quantity,min_stock_level,image_url,branch_name,updated_at,parent_code,is_parent,shabaka_code,color_code,has_variants';
-
 /**
  * Supabase REST returns at most 1,000 rows per request by default.
  * Read the table in pages so imports and role-specific counts include the full dataset.
@@ -212,11 +189,9 @@ async function fetchAllRows(
   const pageSize = 1000;
   const rows: any[] = [];
   const branchFilter = scope?.branchNames?.filter((b) => b && b.trim().length > 0) || [];
-  const mobile = isMobileConnection();
 
   for (let from = 0; ; from += pageSize) {
-    const columns = mobile && table === 'customers' ? MOBILE_CUSTOMER_COLUMNS : '*';
-    let query = supabase.from(table).select(columns);
+    let query = supabase.from(table).select('*');
     if (branchFilter.length > 0) {
       query = query.in('branch_name', branchFilter);
     }
@@ -335,8 +310,6 @@ export async function fetchCustomersFromSupabase(
           lastCollectionAmount: c.last_collection_amount !== undefined && c.last_collection_amount !== null
             ? Number(c.last_collection_amount)
             : (c.lastCollectionAmount !== undefined ? Number(c.lastCollectionAmount) : undefined),
-          // Row timestamp for conflict resolution (newer updated_at wins on sync).
-          updatedAt: c.updated_at || c.updatedAt || undefined,
         };
       });
       return { success: true, customers: mapped, scoped: scopedUsed };
@@ -753,18 +726,6 @@ export function invalidateUsersCache() {
 }
 
 /**
- * Columns the anon key may read on public.users after
- * secure_user_credentials.sql. `select=*` fails there by design
- * (the password column is revoked from anon), so the client
- * read must name the granted columns explicitly.
- */
-const USER_READ_COLUMNS = [
-  'id', 'name', 'username', 'email', 'role', 'branch_name',
-  'supervisor_id', 'phone', 'commission_rate', 'is_active',
-  'approval_status', 'created_at', 'auth_user_id', 'auth_email',
-].join(',');
-
-/**
  * Fetch all users from Supabase (checking 'users', 'app_users', 'profiles' and central snapshot)
  * Optimized with in-memory caching and request deduplication to accelerate loading
  */
@@ -811,16 +772,9 @@ export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Pro
         const rows: any[] = [];
         for (let page = 0; page < MAX_USER_PAGES; page++) {
           const from = page * USER_PAGE_SIZE;
-          // After secure_user_credentials.sql the anon key cannot
-          // read `users` with select('*') — the password column is
-          // revoked, and a star select requests it. Naming the
-          // granted columns keeps the primary read working. The
-          // legacy fallback tables keep '*' (their schemas are
-          // unknown, and they are only read when users is empty).
-          const selectList = table === 'users' ? USER_READ_COLUMNS : '*';
           const { data, error } = await supabase
             .from(table)
-            .select(selectList)
+            .select('*')
             .range(from, from + USER_PAGE_SIZE - 1);
           if (error) return null;
           rows.push(...(data || []));
@@ -1383,8 +1337,6 @@ export async function fetchInvoicesFromSupabase(limit = 150): Promise<{ success:
         parentInvoiceId: i.parent_invoice_id,
         parentInvoiceNumber: i.parent_invoice_number,
         qrPayload: i.qr_payload,
-        // Row timestamp for conflict resolution (newer updated_at wins on sync).
-        updatedAt: i.updated_at || i.updatedAt || undefined,
       }));
       return { success: true, invoices: mapped };
     }
@@ -1697,13 +1649,11 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
     const pageSize = 1000;
     let page = 0;
     const allProdData: any[] = [];
-    const mobile = isMobileConnection();
 
     while (true) {
-      const columns = mobile ? MOBILE_PRODUCT_COLUMNS : '*';
       const { data: chunk, error: pErr } = await supabase
         .from('products')
-        .select(columns)
+        .select('*')
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (pErr || !chunk || chunk.length === 0) break;
@@ -1781,7 +1731,6 @@ export async function fetchVisitsFromSupabase(
     const pageSize = 1000;
     const branchFilter = scope?.branchNames?.filter((b) => b && b.trim().length > 0) || [];
     const sinceDate = scope?.sinceDate?.trim() || '';
-    const mobile = isMobileConnection();
 
     /**
      * بتقرأ جدول الزيارات بالدفعات وتطبّق الـscope على السيرفر.
@@ -1792,32 +1741,17 @@ export async function fetchVisitsFromSupabase(
      */
     const readPages = async (useScope: boolean) => {
       const rows: any[] = [];
-      // Mobile reads a fixed column list to save bandwidth, but that
-      // list 400s while a migration that added one of its columns is
-      // still pending on the project. Fall back to '*' once per fetch
-      // so a fresh deploy never breaks visit sync on cellular.
-      let columns = mobile ? MOBILE_VISIT_COLUMNS : '*';
-      let degradedToStar = false;
-
-      const onePage = async (from: number) => {
-        let query = supabase.from('visits').select(columns).order('created_at', { ascending: false });
+      for (let page = 0; page < MAX_VISIT_PAGES; page++) {
+        const from = page * pageSize;
+        let query = supabase.from('visits').select('*').order('created_at', { ascending: false });
         if (useScope && branchFilter.length > 0) {
           query = query.in('branch_name', branchFilter);
         }
         if (useScope && sinceDate) {
           query = query.gte('date', sinceDate);
         }
-        return query.range(from, from + pageSize - 1);
-      };
+        const { data, error } = await query.range(from, from + pageSize - 1);
 
-      for (let page = 0; page < MAX_VISIT_PAGES; page++) {
-        const from = page * pageSize;
-        let { data, error } = await onePage(from);
-        if (error && !degradedToStar && columns !== '*') {
-          columns = '*';
-          degradedToStar = true;
-          ({ data, error } = await onePage(from));
-        }
         if (error) return { data: rows, error };
         rows.push(...(data || []));
         if (!data || data.length < pageSize) break;

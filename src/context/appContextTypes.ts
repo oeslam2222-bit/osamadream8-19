@@ -1,4 +1,3 @@
-import type { AuthMode, ServerAuthReadiness } from '../services/authService';
 import type { SupabaseSyncStatus } from '../services/supabaseService';
 import type { GlobalDataVersionMeta, SyncScope } from '../services/dataVersionService';
 import type {
@@ -165,17 +164,6 @@ export interface AppContextType {
   assignSupervisor: (repId: string, supervisorId: string) => void;
   authTerminationNotice: string | null;
   clearAuthTerminationNotice: () => void;
-
-  // Server-side auth (VITE_AUTH_MODE=server)
-  /** Result of the last checkServerAuthReadiness probe. */
-  serverAuthReadiness: ServerAuthReadiness | null;
-  /** The mode the app actually runs in right now (server only when live). */
-  effectiveAuthMode: AuthMode;
-  /** Admin-facing explanation of the missing migration step, if any. */
-  serverAuthNotice: string | null;
-  clearServerAuthNotice: () => void;
-  /** Re-run the readiness probe (e.g. after running the SQL migrations). */
-  recheckServerAuth: () => Promise<ServerAuthReadiness>;
 
   // Settings & App Extras
   companyInfo: CompanyInfo;

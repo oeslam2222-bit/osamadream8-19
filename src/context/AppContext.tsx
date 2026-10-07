@@ -123,7 +123,6 @@ import {
   deduplicateCustomersArray,
   deduplicateTargetRecords,
   deduplicateProductArray,
-  mergeServerUsers,
   productIdentityKey,
   sanitizeCustomers,
 } from './appContextHelpers';
@@ -132,17 +131,12 @@ import { resolveCustomerDuesValue } from '../services/customerDues';
 import { hashPassword, verifyPassword, withHashedCredential } from '../services/passwordService';
 import {
   getAuthMode,
-  getEffectiveAuthMode,
   getServerSessionAsync,
   isServerAuthEnabled,
   linkAuthUserToProfile,
-  serverAuthReadinessNotice,
   signOutServer,
   tryServerSignIn,
-  checkServerAuthReadiness,
-  ServerAuthReadiness,
 } from '../services/authService';
-import { resolveRowWinner } from '../services/conflictResolutionService';
 import {
   QueuedMutation,
   enqueueMutation,
@@ -153,17 +147,9 @@ import {
   removeQueuedMutations,
 } from '../services/offlineQueueService';
 
-type NavigatorWithConnection = Navigator & {
-  connection?: {
-    type?: string;
-    effectiveType?: string;
-    saveData?: boolean;
-  };
-};
-
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export const AppProvider = ({ children }: { children: React.ReactNode }): React.ReactElement => {
+export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Auth and Session Notice
   const [authTerminationNotice, setAuthTerminationNotice] = useState<string | null>(null);
   // فحص اتصال Supabase Auth: بيقول للإدارة هل الـ migration اتنفّذ ولا لأ.
@@ -963,37 +949,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }): React.
     };
   }, []);
 
-  // --- Server-side auth readiness (VITE_AUTH_MODE=server) ---
-  // Probed once on boot and refreshed on focus. When the requested mode is
-  // "server" but the Supabase side is not live yet, the app keeps running
-  // in hybrid (legacy verification still works) and the admin gets a banner
-  // naming the exact missing step — a fresh deploy never locks the office out.
-  const [serverAuthReadiness, setServerAuthReadiness] = useState<ServerAuthReadiness | null>(null);
-  const [serverAuthNotice, setServerAuthNotice] = useState<string | null>(null);
-
-  const runServerAuthProbe = async (): Promise<ServerAuthReadiness> => {
-    const result = await checkServerAuthReadiness();
-    setServerAuthReadiness(result);
-    if (getAuthMode() === 'server') {
-      setServerAuthNotice(serverAuthReadinessNotice(result));
-    } else {
-      setServerAuthNotice(null);
-    }
-    return result;
-  };
-
-  useEffect(() => {
-    if (getAuthMode() !== 'server') return;
-    runServerAuthProbe();
-    const recheck = () => { runServerAuthProbe(); };
-    window.addEventListener('focus', recheck);
-    return () => window.removeEventListener('focus', recheck);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const clearServerAuthNotice = () => setServerAuthNotice(null);
-  const effectiveAuthMode = getEffectiveAuthMode(serverAuthReadiness);
-
   // Supabase State & Sync
   const [supabaseStatus, setSupabaseStatus] = useState<SupabaseSyncStatus>({
     connected: false,
@@ -1380,7 +1335,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
      * ليها فرع في إعادة الجلب ولا اشتراك realtime — يعني نشر 'all' عشانها
      * ما كانش بيعمل حاجة، كان بيبعت تعريفة وخلاص.
      *
-     * فبنحسب النطاق الحقيقي: نطاق واحد → نطاقه، أكتر من واح���� → 'all'
+     * فبنحسب النطاق الحقيقي: نطاق واحد → نطاقه، أكتر من واحد → 'all'
      * (سلوك النهارده، وبيحصل نادر — الـ Excel imports ما بتمشيش من الـ queue).
      */
     const resolveFlushScope = (): SyncScope => {
@@ -1646,9 +1601,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         const fetchRes = await fetchUsersFromSupabase();
         if (fetchRes.success && fetchRes.users && fetchRes.users.length > 0) {
           fetchedUsersCount = fetchRes.users.length;
-          // mergeServerUsers keeps the local password digests —
-          // the anon key can no longer read users.password.
-          setUsers(sanitizeAndDeduplicateUsers(mergeServerUsers(users, fetchRes.users)).deduplicated);
+          setUsers(sanitizeAndDeduplicateUsers(fetchRes.users).deduplicated);
         }
 
         const invRes = await fetchInvoicesFromSupabase();
@@ -1920,19 +1873,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           queuedMutations.filter((m) => m.entity === 'customers' && m.op === 'upsert').map((m) => m.entityId)
         );
         setCustomers((prev) => {
-          const localById = new Map(prev.map((c) => [c.id, c]));
           const nextMap = new Map<string, Customer>();
-          remoteCustomers.forEach((remoteRow) => {
-            const localRow = localById.get(remoteRow.id);
-            // Row-level conflict resolution: a local edit stamped newer
-            // than the server snapshot survives the sync instead of being
-            // silently overwritten by the older copy.
-            nextMap.set(
-              remoteRow.id,
-              localRow ? resolveRowWinner(localRow, remoteRow) : remoteRow
-            );
-          });
-          // Only keep local customers that are genuinely pending offline upload
+          remoteCustomers.forEach((c) => nextMap.set(c.id, c));
           prev.forEach((c) => {
             if (pendingCustIds.has(c.id) && !nextMap.has(c.id)) {
               nextMap.set(c.id, c);
@@ -1957,17 +1899,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           ...queuedMutations.filter((m) => m.entity === 'invoices' && m.op === 'upsert').map((m) => m.entityId),
         ]);
         setInvoices((prev) => {
-          const localById = new Map(prev.map((inv) => [inv.id, inv]));
           const nextMap = new Map<string, Invoice>();
-          remoteInvoices.forEach((remoteRow) => {
-            const localRow = localById.get(remoteRow.id);
-            // Same row-level conflict rule as customers: the newer
-            // updated_at wins, so a fresh local edit is not clobbered.
-            nextMap.set(
-              remoteRow.id,
-              localRow ? resolveRowWinner(localRow, remoteRow) : remoteRow
-            );
-          });
+          remoteInvoices.forEach((inv) => nextMap.set(inv.id, inv));
           // Only keep local invoices that are genuinely pending offline upload
           prev.forEach((inv) => {
             if (pendingIds.has(inv.id) && !nextMap.has(inv.id)) {
@@ -1987,21 +1920,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           queuedMutations.filter((m) => m.entity === 'visits' && m.op === 'upsert').map((m) => m.entityId)
         );
         setVisits((prev) => {
-          const localById = new Map(prev.map((v) => [v.id, v]));
           const nextMap = new Map<string, CustomerVisit>();
-          remoteVisits.forEach((remoteRow) => {
-            const localRow = localById.get(remoteRow.id);
-            const winner = localRow
-              ? resolveRowWinner(localRow, remoteRow)
-              : remoteRow;
-            // Rows the server supplied are by definition on the server;
-            // a row that won from the device keeps its own sync status
-            // so the outbox still knows it must upload.
-            nextMap.set(
-              winner.id,
-              winner === remoteRow ? { ...winner, syncStatus: 'synced' } : winner
-            );
-          });
+          remoteVisits.forEach((v) => nextMap.set(v.id, { ...v, syncStatus: 'synced' }));
           prev.forEach((v) => {
             if (pendingVisitIds.has(v.id) && !nextMap.has(v.id)) {
               nextMap.set(v.id, v);
@@ -2257,23 +2177,26 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     };
   }, [users, isLocalDataHydrated, dataEpoch]);
 
-  // Initial Supabase connection check - CACHE FIRST: only fetch if local data is empty
+  // Initial Supabase connection check, fetch users, products, invoices & real-time sync
   useEffect(() => {
-    // Wait for IndexedDB hydration before checking the remote version.
+    // Wait for IndexedDB hydration before checking the remote version. Otherwise a
+    // late hydration can restore the stale snapshot immediately after it is purged.
     if (!isLocalDataHydrated) return;
 
     testSupabaseConnection().then((status) => {
       setSupabaseStatus(status);
       if (status.connected) {
-        // 1. Fetch Users (lightweight, needed for roles)
+        // 1. Fetch Users
         fetchUsersFromSupabase(true).then((res) => {
           if (res.success && res.users && res.users.length > 0) {
             setUsers((prev) => {
-              const dedup = sanitizeAndDeduplicateUsers(mergeServerUsers(prev, res.users!));
+              const dedup = sanitizeAndDeduplicateUsers(res.users!);
+              // If duplicate IDs were detected and cleaned, delete them permanently from Supabase
               if (dedup.removedUserIds.length > 0) {
                 dedup.removedUserIds.forEach((remId) => {
                   deleteUserFromSupabase(remId).catch(() => {});
                 });
+                // Remap customer references
                 setCustomers((prevCusts) => {
                   let changed = false;
                   const updated = prevCusts.map((c) => {
@@ -2285,6 +2208,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                   });
                   return changed ? updated : prevCusts;
                 });
+                // Remap invoice references
                 setInvoices((prevInvs) => {
                   let changed = false;
                   const updated = prevInvs.map((inv) => {
@@ -2302,73 +2226,120 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           }
         });
 
-        // 2. CACHE-FIRST: Only fetch from Supabase if local data is empty
-        // Background sync happens via "Sync" button, Pull-to-Refresh, or periodic checkAndSyncDataVersion
-        if (products.length === 0) {
-          fetchProductsFromSupabase().then((pRes) => {
-            if (pRes.success && pRes.products && pRes.products.length > 0) {
-              setProducts((curr) => curr.length === 0 ? sanitizeProducts(pRes.products!) : curr);
-            }
-          });
-        }
-        if (customers.length === 0) {
-          fetchCustomersFromSupabase(customerFetchScope).then(async (cRes) => {
-            if (cRes.success && cRes.customers && cRes.customers.length > 0) {
-              const linked = linkCustomersToUsers(sanitizeCustomers(cRes.customers!), users);
-              const valid = deduplicateCustomersArray(linked);
-              const queued = await getQueuedMutations();
-              const pendingCustIds = new Set(
-                queued.filter((m) => m.entity === 'customers' && m.op === 'upsert').map((m) => m.entityId)
-              );
-              setCustomers((curr) => {
-                const map = new Map<string, Customer>();
-                valid.forEach((c) => map.set(c.id, c));
-                curr.forEach((c) => {
-                  if (pendingCustIds.has(c.id) && !map.has(c.id)) map.set(c.id, c);
-                });
-                const next = Array.from(map.values());
-                idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
-                saveLocalCustomersFingerprint(next);
-                return next;
+        // 2 & 4. Automatic Data Version Sync & Clean Fetch:
+        // Checks if server has a newer version or if client data is unversioned.
+        // If newer, cleanly purges old cache and loads fresh data without duplicates!
+        checkAndSyncDataVersion(false).then((syncRes) => {
+          if (!syncRes.updated) {
+            // Fallback: If version wasn't newer, ensure products and customers are loaded from Supabase if empty
+            if (products.length === 0) {
+              fetchProductsFromSupabase().then((pRes) => {
+                if (pRes.success && pRes.products && pRes.products.length > 0) {
+                  setProducts((curr) => {
+                    if (curr.length === 0) {
+                      const valid = sanitizeProducts(pRes.products!);
+                      idbSet(STORAGE_KEYS.PRODUCTS, valid).catch(() => {});
+                      return valid;
+                    }
+                    return curr;
+                  });
+                }
               });
             }
-          });
-        }
-        if (visits.length === 0) {
-          fetchVisitsFromSupabase(visitFetchScope).then((vRes) => {
-            if (vRes.success && vRes.visits && vRes.visits.length > 0) {
-              setVisits((curr) => curr.length === 0 ? vRes.visits! : curr);
+            if (customers.length === 0) {
+              fetchCustomersFromSupabase(customerFetchScope).then(async (cRes) => {
+                if (cRes.success && cRes.customers && cRes.customers.length > 0) {
+                  const linked = linkCustomersToUsers(sanitizeCustomers(cRes.customers!), users);
+                  const valid = deduplicateCustomersArray(linked);
+                  const queued = await getQueuedMutations();
+                  const pendingCustIds = new Set(
+                    queued.filter((m) => m.entity === 'customers' && m.op === 'upsert').map((m) => m.entityId)
+                  );
+                  setCustomers((curr) => {
+                    const map = new Map<string, Customer>();
+                    valid.forEach((c) => map.set(c.id, c));
+                    // Keep only genuinely pending offline creations
+                    curr.forEach((c) => {
+                      if (pendingCustIds.has(c.id) && !map.has(c.id)) {
+                        map.set(c.id, c);
+                      }
+                    });
+                    const next = Array.from(map.values());
+                    idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
+                    saveLocalCustomersFingerprint(next);
+                    return next;
+                  });
+                }
+              });
             }
-          });
-        }
-        if (invoices.length === 0) {
-          // invoices loaded via fetchInvoicesFromSupabase if needed
-        }
+          }
+        });
 
-        // 3. Schedule background version check (non-blocking)
-        // Runs after 10s to avoid competing with initial render
-        setTimeout(() => {
-          checkAndSyncDataVersion(false).catch(() => {});
-        }, 10000);
+        // 3. Fetch Invoices from Supabase (source of truth; keeps only genuinely pending offline invoices)
+        const deletedInvoiceIds = getDeletedInvoiceIds();
+        fetchInvoicesFromSupabase(500).then(async (res) => {
+          if (res.success && res.invoices) {
+            const remoteInvoices = res.invoices.filter(
+              (inv) => !deletedInvoiceIds.has(inv.id) && !deletedInvoiceIds.has(inv.invoiceNumber)
+            );
+            const queued = await getQueuedMutations();
+            const pendingMutations = new Set(
+              queued.filter((m) => m.entity === 'invoices' && m.op === 'upsert').map((m) => m.entityId)
+            );
+            const pendingList = (await idbGet<Invoice[]>(STORAGE_KEYS.PENDING_INVOICES)) || [];
+            const pendingIds = new Set([...pendingList.map((i) => i.id), ...pendingMutations]);
+
+            setInvoices((previous) => {
+              const merged = new Map<string, Invoice>();
+              // Start with remote invoices as source of truth
+              remoteInvoices.forEach((inv) => merged.set(inv.id, inv));
+              // Add ONLY local invoices that are genuinely pending offline upload
+              previous.forEach((inv) => {
+                if (pendingIds.has(inv.id) && !merged.has(inv.id) && !deletedInvoiceIds.has(inv.id) && !deletedInvoiceIds.has(inv.invoiceNumber)) {
+                  merged.set(inv.id, inv);
+                }
+              });
+              const next = Array.from(merged.values());
+              idbSet(STORAGE_KEYS.INVOICES, next);
+              safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify(next));
+              return next;
+            });
+          }
+        });
+
+        // 5. Fetch Visits from Supabase (المفروض يكون narrowed بالـscope بتاع الدور)
+        const deletedVisitIds = getDeletedVisitIds();
+        fetchVisitsFromSupabase(visitFetchScope).then(async (res) => {
+          if (res.success && res.visits) {
+            const remoteVisits = res.visits.filter(
+              (v) => !deletedVisitIds.has(v.id)
+            );
+            const queued = await getQueuedMutations();
+            const pendingVisitIds = new Set(
+              queued.filter((m) => m.entity === 'visits' && m.op === 'upsert').map((m) => m.entityId)
+            );
+            setVisits((previous) => {
+              const merged = new Map<string, CustomerVisit>();
+              // Start with remote visits as source of truth
+              remoteVisits.forEach((visit) => merged.set(visit.id, { ...visit, syncStatus: 'synced' }));
+              // Add only local visits that are genuinely pending offline in outbox
+              previous.forEach((visit) => {
+                if (pendingVisitIds.has(visit.id) && !merged.has(visit.id) && !deletedVisitIds.has(visit.id)) {
+                  merged.set(visit.id, visit);
+                }
+              });
+              const next = Array.from(merged.values());
+              persistVisits(next);
+              return next;
+            });
+          }
+        });
       }
     });
-  }, [isLocalDataHydrated, dataEpoch, products.length, customers.length, visits.length, invoices.length]);
 
-  useEffect(() => {
-    // Skip Realtime on cellular to save data & battery
-    const connection = (navigator as NavigatorWithConnection).connection;
-    const isCellular = connection?.type === 'cellular' ||
-      connection?.effectiveType?.includes('2g') ||
-      connection?.effectiveType?.includes('3g') ||
-      connection?.saveData === true;
-    let channel: ReturnType<typeof supabase.channel> | undefined;
-
-    if (isCellular) {
-      console.log('[Realtime] Disabled on cellular connection to save data');
-    } else {
-      // Setup Supabase Realtime subscriptions for data tables.
-      try {
-        channel = supabase
+    // Setup Supabase Realtime subscriptions for data tables.
+    try {
+      const channel = supabase
         .channel('schema-db-changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, (payload) => {
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
@@ -2553,15 +2524,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           }
         })
         .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     } catch (e) {
       console.warn('Realtime channel error:', e);
     }
-    }
-
-    return () => {
-      if (channel) supabase.removeChannel(channel);
-    };
-  }, []);
+  }, [isLocalDataHydrated, dataEpoch]);
 
   useEffect(() => {
     const handleOnlineSync = () => {
@@ -2710,18 +2680,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   };
 
   const updateCustomer = (updatedCust: Customer) => {
-    // Stamp the row so sync conflict resolution can tell a local
-    // edit newer than the server snapshot from a stale one.
-    const stamped: Customer = { ...updatedCust, updatedAt: new Date().toISOString() };
-    setCustomers((prev) => prev.map((c) => (c.id === stamped.id ? stamped : c)));
-    idbSet(STORAGE_KEYS.CUSTOMERS, customers.map((c) => (c.id === stamped.id ? stamped : c)))
+    setCustomers((prev) => prev.map((c) => (c.id === updatedCust.id ? updatedCust : c)));
+    idbSet(STORAGE_KEYS.CUSTOMERS, customers.map((c) => (c.id === updatedCust.id ? updatedCust : c)))
       .catch(() => {});
-    syncOrQueue('customers', 'upsert', stamped.id, stamped, () =>
-      saveCustomersToSupabase([stamped])
+    syncOrQueue('customers', 'upsert', updatedCust.id, updatedCust, () =>
+      saveCustomersToSupabase([updatedCust])
     ).catch((e) => console.warn('Supabase customer update error:', e));
     publishDataVersionUpdate({
       scope: 'customers',
-      notes: `تعديل بيانات العميل ${stamped.name || stamped.code}`,
+      notes: `تعديل بيانات العميل ${updatedCust.name || updatedCust.code}`,
     }).catch(() => {});
   };
 
@@ -3240,58 +3207,16 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const cleanPass = (password || '').trim();
 
     /**
-     * Supabase Auth.
+     * Supabase Auth (اختياري، بيشتغل لو اتنفّذ migration الـ SQL).
      *
-     * الوضع الفعلي بييتحدد من الـ probe (effectiveAuthMode):
-     *  - server  → التحقق على السيرفر بس، بدون رجوع للتحقق المحلي
-     *              (فأي حد يفتح DevTools ومفيش حسابه على السيرفر
-     *              مش هيدخل — ده الفرق الحقيقي بين server و hybrid)
-     *  - hybrid  → بنحاول السيرفر الأول وأي نتيجة غير success
-     *              بترجع للتحقق القديم (فترة الانتقال قبل ما
-     *              الحسابات تتربط)
-     *  - legacy  → التحقق القديم بالظبط
-     *
-     * لو نجح التحقق على السيرفر، بنكمل باقي فحص الحساب (الموافقة،
-     * الإيقاف) بنفس القواعد القديمة بالظبط، فالأدوار مش بتتغير خالص.
+     * بنحاوله الأول عشان التحقق يبقى على السيرفر مش في المتصفح. لو رجّع
+     * anything غير 'success' بنكمل عادي في التحقق القديم بالظبط — يعني
+     * قبل ما حد يفعّل الحسابات على السيرفر، الـ login بيشتغل زي ما هو
+     * من غير أي تغيير. لو نجح، بنكمل باقي فحص الحساب (الموافقة، الإيقاف)
+     * بنفس القواعد القديمة بالظبط، فالأدوار مش بتتغير خالص.
      */
     let serverAuthUserId: string | null = null;
-    let serverAuthBlocked: string | null = null;
-    if (effectiveAuthMode === 'server') {
-      let outcome = await tryServerSignIn(identifier, cleanPass);
-      // Supabase Auth بيقبل الإيميل بس. لو الموظف كتب اسم المستخدم
-      // أو رقمه، نحولّه للإيميل من سجله المحلي ونعيد المحاولة
-      // عشان ما يبقاش طريق للتحايل على التحقق بالكتابة بطريقة تانية.
-      if (
-        outcome.kind === 'unavailable' &&
-        outcome.reason === 'identifier-not-an-email' &&
-        !cleanEmail.includes('@')
-      ) {
-        const resolved = users.find(
-          (u) =>
-            (u.username && sanitizeIdentifier(u.username).toLowerCase() === cleanId) ||
-            (u.name && sanitizeIdentifier(u.name).toLowerCase() === cleanId) ||
-            (u.phone && sanitizeIdentifier(u.phone) === rawTrim) ||
-            (u.id && String(u.id).toLowerCase() === cleanId)
-        );
-        if (resolved?.email) {
-          outcome = await tryServerSignIn(resolved.email.toLowerCase(), cleanPass);
-        }
-      }
-      if (outcome.kind === 'success') {
-        serverAuthUserId = outcome.authUserId;
-        if (outcome.email) {
-          linkAuthUserToProfile(outcome.authUserId, outcome.email).catch(() => {});
-        }
-      } else if (outcome.kind === 'no-server-account') {
-        // الحساب موجود محلياً بس مش موجود على السيرفر — في وضع server
-        // ده رفض صريح، مش رجوع للوضع القديم.
-        serverAuthBlocked = 'هذا الحساب غير مربوط بحساب دخول على السيرفر بعد. يرجى مراجعة الإدارة لإنشاء حساب المصادقة وربطه أولاً.';
-      } else if (outcome.kind === 'wrong-credentials') {
-        serverAuthBlocked = 'كلمة المرور غير صحيحة على السيرفر. يرجى التأكد من كتابة كلمة المرور بدقة.';
-      }
-      // 'unavailable' (انقطاع الشبكة) → بنكمل للتحقق المحلي لأنه
-      // مفيش سيرفر يتحقق منه أصلاً — الدخول أوفلاين لازم يشتغل.
-    } else if (isServerAuthEnabled()) {
+    if (isServerAuthEnabled()) {
       const outcome = await tryServerSignIn(identifier, cleanPass);
       if (outcome.kind === 'success') {
         serverAuthUserId = outcome.authUserId;
@@ -3299,7 +3224,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           linkAuthUserToProfile(outcome.authUserId, outcome.email).catch(() => {});
         }
       }
-      // أي نتيجة تانية بترجع للتحقق القديم — فترة الانتقال.
+      // 'unavailable' و 'no-server-account' و 'wrong-credentials' كلهم
+      // بيروحوا لل(old) تحقق — فالحساب اللي لسه على الوضع القديم
+      // بيفضل يدخل عادي.
     }
 
     // 1. Search in local memory first with rich identifier matching
@@ -3348,14 +3275,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     if (found.approvalStatus === 'rejected' || found.isActive === false) {
       return { success: false, message: 'هذا الحساب موقوف أو تم رفض تفعيله من قبل الإدارة.' };
-    }
-
-    // In server mode the server has already ruled this credential out
-    // (no linked account, or wrong password on the server). Returning
-    // here is what makes server mode real: the local digest check
-    // below must never run as a second chance.
-    if (serverAuthBlocked) {
-      return { success: false, message: serverAuthBlocked };
     }
 
     // Verify the credential.
@@ -4042,7 +3961,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     message?: string;
   } => {
     if (cart.length === 0) {
-      return { success: false, message: 'سلة الطلبية فارغة! ير��ى إضافة أصناف أولاً.' };
+      return { success: false, message: 'سلة الطلبية فارغة! يرجى إضافة أصناف أولاً.' };
     }
 
     // Submitting a request does not check, reserve, transfer, or deduct stock.
@@ -4586,7 +4505,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     return {
       success: true,
-      message: `تم اعتماد وصرف الطلبية #${inv.invoiceNumber} وخصم المخزون الفعلي (${inv.totalCartons} كرتونة) من الفرع بنج��ح!`,
+      message: `تم اعتماد وصرف الطلبية #${inv.invoiceNumber} وخصم المخزون الفعلي (${inv.totalCartons} كرتونة) من الفرع بنجاح!`,
     };
   };
 
@@ -4646,7 +4565,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         if (i.id !== invoiceId) return i;
         const updated: Invoice = {
           ...i,
-          status: 'معلقة بانتظار ��عتماد الفرع' as OrderStatus,
+          status: 'معلقة بانتظار اعتماد الفرع' as OrderStatus,
           notes: notes ? `${i.notes ? i.notes + ' | ' : ''}تم التحويل لمدير الفرع: ${notes}` : i.notes,
         };
         saveInvoiceWithQueue(updated).catch((e) => console.warn('Supabase forward update failed:', e));
@@ -4901,7 +4820,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     return {
       success: true,
-      message: `تم فتح الطلبية #${invoice.invoiceNumber} في السلة بنجاح! يمكنك الآن تع��يل الكميات أو إضافة أصناف جديدة من الكتالوج وإعادة إصدار الفاتورة.`,
+      message: `تم فتح الطلبية #${invoice.invoiceNumber} في السلة بنجاح! يمكنك الآن تعديل الكميات أو إضافة أصناف جديدة من الكتالوج وإعادة إصدار الفاتورة.`,
       customer: matchedCustomer,
     };
   };
@@ -5026,7 +4945,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             branchStockBefore: resBefore,
             branchStockAfter: resBefore + item.cartonCount,
             branchName: inv.branchName,
-            userName: currentUser?.name || 'الم��رف',
+            userName: currentUser?.name || 'المشرف',
             userRole: currentUser?.role || 'supervisor',
             invoiceId: inv.id,
             invoiceNumber: inv.invoiceNumber,
@@ -5664,7 +5583,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       (currentUser.role === 'supervisor' && (assignedRep?.supervisorId === currentUser.id || doesCustomerBelongToSupervisor(customer, currentUser, users))) ||
       (currentUser.role === 'branch_manager' && (assignedRep?.branchName === currentUser.branchName || doesCustomerBelongToBranch(customer, currentUser.branchName, users)));
 
-    if (!allowed) return { success: false, message: 'ل�� تملك صلاحية تسجيل زيارة لهذا العميل' };
+    if (!allowed) return { success: false, message: 'لا تملك صلاحية تسجيل زيارة لهذا العميل' };
 
     /**
      * نفس العميل في نفس اليوم — بدل ما نسجّل سطر تاني.
@@ -6310,11 +6229,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         assignSupervisor,
         authTerminationNotice,
         clearAuthTerminationNotice,
-        serverAuthReadiness,
-        effectiveAuthMode,
-        serverAuthNotice,
-        clearServerAuthNotice,
-        recheckServerAuth: runServerAuthProbe,
         authMode: getAuthMode(),
         serverAuthEnabled: isServerAuthEnabled(),
         serverAuthProbe,

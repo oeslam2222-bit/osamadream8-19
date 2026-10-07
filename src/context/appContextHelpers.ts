@@ -52,42 +52,12 @@ export const getDeletedVisitIds = (): Set<string> => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.DELETED_VISIT_IDS);
     if (!raw) return new Set<string>();
-    try {
-      const parsed = JSON.parse(raw);
-      return new Set<string>(Array.isArray(parsed) ? parsed : []);
-    } catch {
-      return new Set<string>();
-    }
+    const parsed = JSON.parse(raw);
+    return new Set<string>(Array.isArray(parsed) ? parsed : []);
   } catch {
     return new Set<string>();
   }
 };
-
-/**
- * Merge the server user roster into the local one, keeping the
- * local password digests.
- *
- * After secure_user_credentials.sql the anon key can no longer
- * read users.password, so server rows arrive with an empty
- * credential. The salted digest stored on the device stays the
- * authority for offline login verification — overwriting it with
- * an empty string would lock every account out of the local
- * verifier ("لا توجد كلمة مرور مسجلة لهذا الحساب").
- */
-export function mergeServerUsers(local: User[], server: User[]): User[] {
-  const localById = new Map(local.map((u) => [u.id, u]));
-  const localByEmail = new Map<string, User>();
-  local.forEach((u) => {
-    if (u.email) localByEmail.set(u.email.toLowerCase(), u);
-  });
-  return server.map((remote) => {
-    const localMatch =
-      localById.get(remote.id) ||
-      (remote.email ? localByEmail.get(remote.email.toLowerCase()) : undefined);
-    if (!localMatch) return remote;
-    return { ...remote, password: localMatch.password || remote.password };
-  });
-}
 
 export const markVisitAsDeletedInStorage = (visitId: string) => {
   try {

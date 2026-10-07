@@ -9,7 +9,6 @@ import {
   Plus,
   Receipt,
   Server,
-  ShieldAlert,
   ShieldCheck,
   ShoppingCart,
   Users,
@@ -36,6 +35,7 @@ const InventoryStockView = lazy(() => import('./components/InventoryStockView').
 const ExcelImportExport = lazy(() => import('./components/ExcelImportExport').then((m) => ({ default: m.ExcelImportExport })));
 const UserManager = lazy(() => import('./components/UserManager').then((m) => ({ default: m.UserManager })));
 const ManagementDashboard = lazy(() => import('./components/ManagementDashboard').then((m) => ({ default: m.ManagementDashboard })));
+const HomeExecutiveDashboard = lazy(() => import('./components/HomeExecutiveDashboard').then((m) => ({ default: m.HomeExecutiveDashboard })));
 const SystemWorkflowGuide = lazy(() => import('./components/SystemWorkflowGuide').then((m) => ({ default: m.SystemWorkflowGuide })));
 const OrderBuilderModal = lazy(() => import('./components/OrderBuilderModal').then((m) => ({ default: m.OrderBuilderModal })));
 const ElectronicInvoiceModal = lazy(() => import('./components/ElectronicInvoiceModal').then((m) => ({ default: m.ElectronicInvoiceModal })));
@@ -63,7 +63,7 @@ const TabLoadingSkeleton = () => {
 };
 
 const MainLayout: React.FC = () => {
-  const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder, serverAuthNotice, clearServerAuthNotice, recheckServerAuth } = useApp();
+  const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder } = useApp();
 
   // First screen on launch: reps land on their visits, everyone else on the
   // customer database so they start from their core data.
@@ -148,34 +148,6 @@ const MainLayout: React.FC = () => {
         </div>
       )}
 
-      {/* Server-auth readiness banner — developer only.
-          Shows the exact missing step when VITE_AUTH_MODE=server
-          is requested but the Supabase side is not live yet. */}
-      {serverAuthNotice && currentUser?.role === 'developer' && (
-          <div className="bg-rose-700 text-white text-xs py-2 px-4 font-bold flex items-start justify-center gap-2 shadow-inner">
-            <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
-            <div className="flex-1 max-w-4xl text-center leading-relaxed">
-              <span>{serverAuthNotice}</span>
-              <div className="mt-1 flex items-center justify-center gap-3 font-normal">
-                <button
-                  type="button"
-                  onClick={() => { recheckServerAuth(); }}
-                  className="underline underline-offset-2 hover:text-amber-200"
-                >
-                  إعادة الفحص
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { clearServerAuthNotice(); }}
-                  className="underline underline-offset-2 hover:text-amber-200"
-                >
-                  إخفاء التنبيه
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
       {/* Main Responsive Navbar */}
       <Navbar
         activeTab={activeTab}
@@ -200,6 +172,14 @@ const MainLayout: React.FC = () => {
           {(activeTab === 'all_customers' || activeTab === 'customers') && (
             <AllCustomersAnalyticsView
               onOpenNewOrderForCustomer={(cust) => handleOpenOrderForCustomer(cust)}
+            />
+          )}
+
+          {(activeTab === 'home' || activeTab === 'dashboard') && (
+            <HomeExecutiveDashboard
+              onNavigateToTab={(tab) => handleTabChange(tab)}
+              onOpenNewOrder={() => setIsOrderModalOpen(true)}
+              onViewInvoice={(inv) => setViewingInvoice(inv)}
             />
           )}
 

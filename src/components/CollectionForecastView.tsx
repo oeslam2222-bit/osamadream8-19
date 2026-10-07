@@ -166,8 +166,8 @@ export default function CollectionForecastView() {
     forecasts,
     forecastPlans,
     customerComments,
-    getVisibleVisits,
-    getVisibleInvoices,
+    visits,
+    invoices,
     saveForecast,
     saveForecastBatch,
     submitForecastWeek,
@@ -335,16 +335,10 @@ export default function CollectionForecastView() {
     return map;
   }, [customerComments]);
 
-  /* الزيارات والفواتير الظاهرة للمستخدم الحالي بس: الإحصائيات والملفات
-     بتتحسب من نطاق صلاحيته (مندوب = أرقامه، مشرف = مناديبه، مدير فرع = فرعه)
-     مش من السجلات الخام. */
-  const visibleVisitsList = useMemo(() => getVisibleVisits() || [], [getVisibleVisits]);
-  const visibleInvoicesList = useMemo(() => getVisibleInvoices() || [], [getVisibleInvoices]);
-
   /**
    * إحصائيات الزيارات لكل عميل: العدد وآخر تاريخ وآخر تحصيل.
    *
-   * المصدر هو الزيارات الظاهرة للمستخدم مش `customers.visit_count_2026`، لأن العدّاد
+   * المصدر هو سجل الزيارات نفسه مش `customers.visit_count_2026`، لأن العدّاد
    * المخزّن على صف العميل بيتحدّث مع الحفظ وأحياناً يفضل قديم، فبيبقى الرقم
    * اللي في الجدول مخالف للواقع. هنا بنحسب من السجلات مباشرة.
    *
@@ -353,7 +347,7 @@ export default function CollectionForecastView() {
    */
   const visitStatsByCustomer = useMemo(() => {
     const map = new Map<string, { count: number; completed: number; lastDate: string; lastCollected: number }>();
-    (visibleVisitsList || []).forEach((v) => {
+    (visits || []).forEach((v) => {
       const key = v.customerId || v.customerCode || '';
       if (!key) return;
       const prev = map.get(key) || { count: 0, completed: 0, lastDate: '', lastCollected: 0 };
@@ -367,7 +361,7 @@ export default function CollectionForecastView() {
       map.set(key, prev);
     });
     return map;
-  }, [visibleVisitsList]);
+  }, [visits]);
 
   /** آخر تاريخ زيارة — من السجلات، ويرجع لصف العميل لو مفيش سجلات. */
   const lastVisitFor = useCallback(
@@ -381,16 +375,16 @@ export default function CollectionForecastView() {
 
   const lastVisitMap = useMemo(() => {
     const map = new Map<string, string>();
-    (visibleVisitsList || []).forEach((v) => {
+    (visits || []).forEach((v) => {
       const prev = map.get(v.customerId);
       if (!prev || String(v.date) > prev) map.set(v.customerId, String(v.date));
     });
     return map;
-  }, [visibleVisitsList]);
+  }, [visits]);
 
   const returnsByCode = useMemo(() => {
     const map = new Map<string, { count: number; amount: number; lastDate: string }>();
-    (visibleInvoicesList || []).forEach((inv) => {
+    (invoices || []).forEach((inv) => {
       (inv.returnRecords || []).forEach((r) => {
         const code = r.customerCode || inv.customerCode || '';
         if (!code) return;
@@ -402,7 +396,7 @@ export default function CollectionForecastView() {
       });
     });
     return map;
-  }, [visibleInvoicesList]);
+  }, [invoices]);
 
   /* ---------- العملاء: عميل واحد لكل (مندوب، عميل) مرتبط بالصلاحية ---------- */
   const scopedCustomers = useMemo(() => {
@@ -2458,7 +2452,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
           new Map(
             [
               ...(c.visitHistory || []),
-              ...(visibleVisitsList || []).filter((v) => {
+              ...(visits || []).filter((v) => {
                 const sameCustomer =
                   v.customerId === c.id ||
                   (!!c.code && v.customerCode === c.code) ||
