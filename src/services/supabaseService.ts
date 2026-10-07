@@ -178,6 +178,21 @@ export interface VisitFetchScope {
 /** أربعين ألف صف: حدّ أمان ضد جدول مش متوقع، مش رقم تشغيل. */
 const MAX_VISIT_PAGES = 40;
 
+// Mobile detection for column optimization
+function isMobileConnection(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const conn = navigator.connection;
+  return conn?.type === 'cellular' ||
+    conn?.effectiveType?.includes('2g') ||
+    conn?.effectiveType?.includes('3g') ||
+    conn?.saveData === true;
+}
+
+// Column sets for mobile optimization (minimal columns for list views)
+const MOBILE_CUSTOMER_COLUMNS = 'id,code,name,store_name,phone,address,branch_name,rep_name,sales_rep_name,rep_id,balance,credit_limit,total_overdue_and_due,current_balance,created_at,updated_at';
+const MOBILE_VISIT_COLUMNS = 'id,customer_id,customer_name,customer_code,date,time,rep_id,rep_name,branch_name,supervisor_id,supervisor_name,status,type,outcome,collected_amount,notes,location,check_in_time,check_out_time,duration_minutes,store_stock_status,competitor_notes,customer_rating,next_visit_date,order_created_id,order_amount,is_return,return_value,return_reason,return_status,return_handled_by,return_handled_at,return_note,created_by,created_at,updated_at';
+const MOBILE_PRODUCT_COLUMNS = 'id,code,name,category,unit,price,wholesale_price,stock_quantity,min_stock_level,image_url,branch_name,updated_at,parent_code,is_parent,shabaka_code,color_code,has_variants';
+
 /**
  * Supabase REST returns at most 1,000 rows per request by default.
  * Read the table in pages so imports and role-specific counts include the full dataset.
@@ -189,9 +204,11 @@ async function fetchAllRows(
   const pageSize = 1000;
   const rows: any[] = [];
   const branchFilter = scope?.branchNames?.filter((b) => b && b.trim().length > 0) || [];
+  const mobile = isMobileConnection();
 
   for (let from = 0; ; from += pageSize) {
-    let query = supabase.from(table).select('*');
+    const columns = mobile && table === 'customers' ? MOBILE_CUSTOMER_COLUMNS : '*';
+    let query = supabase.from(table).select(columns);
     if (branchFilter.length > 0) {
       query = query.in('branch_name', branchFilter);
     }
@@ -1672,11 +1689,13 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
     const pageSize = 1000;
     let page = 0;
     const allProdData: any[] = [];
+    const mobile = isMobileConnection();
 
     while (true) {
+      const columns = mobile ? MOBILE_PRODUCT_COLUMNS : '*';
       const { data: chunk, error: pErr } = await supabase
         .from('products')
-        .select('*')
+        .select(columns)
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (pErr || !chunk || chunk.length === 0) break;
@@ -1754,6 +1773,7 @@ export async function fetchVisitsFromSupabase(
     const pageSize = 1000;
     const branchFilter = scope?.branchNames?.filter((b) => b && b.trim().length > 0) || [];
     const sinceDate = scope?.sinceDate?.trim() || '';
+    const mobile = isMobileConnection();
 
     /**
      * بتقرأ جدول الزيارات بالدفعات وتطبّق الـscope على السيرفر.
@@ -1766,7 +1786,8 @@ export async function fetchVisitsFromSupabase(
       const rows: any[] = [];
       for (let page = 0; page < MAX_VISIT_PAGES; page++) {
         const from = page * pageSize;
-        let query = supabase.from('visits').select('*').order('created_at', { ascending: false });
+        const columns = mobile ? MOBILE_VISIT_COLUMNS : '*';
+        let query = supabase.from('visits').select(columns).order('created_at', { ascending: false });
         if (useScope && branchFilter.length > 0) {
           query = query.in('branch_name', branchFilter);
         }

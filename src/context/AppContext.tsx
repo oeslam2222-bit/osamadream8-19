@@ -2249,28 +2249,23 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     };
   }, [users, isLocalDataHydrated, dataEpoch]);
 
-  // Initial Supabase connection check, fetch users, products, invoices & real-time sync
+  // Initial Supabase connection check - CACHE FIRST: only fetch if local data is empty
   useEffect(() => {
-    // Wait for IndexedDB hydration before checking the remote version. Otherwise a
-    // late hydration can restore the stale snapshot immediately after it is purged.
+    // Wait for IndexedDB hydration before checking the remote version.
     if (!isLocalDataHydrated) return;
 
     testSupabaseConnection().then((status) => {
       setSupabaseStatus(status);
       if (status.connected) {
-        // 1. Fetch Users
+        // 1. Fetch Users (lightweight, needed for roles)
         fetchUsersFromSupabase(true).then((res) => {
           if (res.success && res.users && res.users.length > 0) {
             setUsers((prev) => {
-              // mergeServerUsers keeps the local password digests —
-              // the anon key can no longer read users.password.
               const dedup = sanitizeAndDeduplicateUsers(mergeServerUsers(prev, res.users!));
-              // If duplicate IDs were detected and cleaned, delete them permanently from Supabase
               if (dedup.removedUserIds.length > 0) {
                 dedup.removedUserIds.forEach((remId) => {
                   deleteUserFromSupabase(remId).catch(() => {});
                 });
-                // Remap customer references
                 setCustomers((prevCusts) => {
                   let changed = false;
                   const updated = prevCusts.map((c) => {
@@ -2282,7 +2277,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                   });
                   return changed ? updated : prevCusts;
                 });
-                // Remap invoice references
                 setInvoices((prevInvs) => {
                   let changed = false;
                   const updated = prevInvs.map((inv) => {
@@ -2300,53 +2294,57 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           }
         });
 
-        // 2 & 4. Automatic Data Version Sync & Clean Fetch:
-        // Checks if server has a newer version or if client data is unversioned.
-        // If newer, cleanly purges old cache and loads fresh data without duplicates!
-        checkAndSyncDataVersion(false).then((syncRes) => {
-          if (!syncRes.updated) {
-            // Fallback: If version wasn't newer, ensure products and customers are loaded from Supabase if empty
-            if (products.length === 0) {
-              fetchProductsFromSupabase().then((pRes) => {
-                if (pRes.success && pRes.products && pRes.products.length > 0) {
-                  setProducts((curr) => {
-                    if (curr.length === 0) {
-                      const valid = sanitizeProducts(pRes.products!);
-                      idbSet(STORAGE_KEYS.PRODUCTS, valid).catch(() => {});
-                      return valid;
-                    }
-                    return curr;
-                  });
-                }
+        // 2. CACHE-FIRST: Only fetch from Supabase if local data is empty
+        // Background sync happens via "Sync" button, Pull-to-Refresh, or periodic checkAndSyncDataVersion
+        if (products.length === 0) {
+          fetchProductsFromSupabase().then((pRes) => {
+            if (pRes.success && pRes.products && pRes.products.length > 0) {
+              setProducts((curr) => curr.length === 0 ? sanitizeProducts(pRes.products!) : curr);
+            }
+          });
+        }
+        if (customers.length === 0) {
+          fetchCustomersFromSupabase(customerFetchScope).then(async (cRes) => {
+            if (cRes.success && cRes.customers && cRes.customers.length > 0) {
+              const linked = linkCustomersToUsers(sanitizeCustomers(cRes.customers!), users);
+              const valid = deduplicateCustomersArray(linked);
+              const queued = await getQueuedMutations();
+              const pendingCustIds = new Set(
+                queued.filter((m) => m.entity === 'customers' && m.op === 'upsert').map((m) => m.entityId)
+              );
+              setCustomers((curr) => {
+                const map = new Map<string, Customer>();
+                valid.forEach((c) => map.set(c.id, c));
+                curr.forEach((c) => {
+                  if (pendingCustIds.has(c.id) && !map.has(c.id)) map.set(c.id, c);
+                });
+                const next = Array.from(map.values());
+                idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
+                saveLocalCustomersFingerprint(next);
+                return next;
               });
             }
-            if (customers.length === 0) {
-              fetchCustomersFromSupabase(customerFetchScope).then(async (cRes) => {
-                if (cRes.success && cRes.customers && cRes.customers.length > 0) {
-                  const linked = linkCustomersToUsers(sanitizeCustomers(cRes.customers!), users);
-                  const valid = deduplicateCustomersArray(linked);
-                  const queued = await getQueuedMutations();
-                  const pendingCustIds = new Set(
-                    queued.filter((m) => m.entity === 'customers' && m.op === 'upsert').map((m) => m.entityId)
-                  );
-                  setCustomers((curr) => {
-                    const map = new Map<string, Customer>();
-                    valid.forEach((c) => map.set(c.id, c));
-                    // Keep only genuinely pending offline creations
-                    curr.forEach((c) => {
-                      if (pendingCustIds.has(c.id) && !map.has(c.id)) {
-                        map.set(c.id, c);
-                      }
-                    });
-                    const next = Array.from(map.values());
-                    idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
-                    saveLocalCustomersFingerprint(next);
-                    return next;
-                  });
-                }
-              });
+          });
+        }
+        if (visits.length === 0) {
+          fetchVisitsFromSupabase(visitFetchScope).then((vRes) => {
+            if (vRes.success && vRes.visits && vRes.visits.length > 0) {
+              setVisits((curr) => curr.length === 0 ? vRes.visits! : curr);
             }
-          }
+          });
+        }
+        if (invoices.length === 0) {
+          // invoices loaded via fetchInvoicesFromSupabase if needed
+        }
+
+        // 3. Schedule background version check (non-blocking)
+        // Runs after 10s to avoid competing with initial render
+        setTimeout(() => {
+          checkAndSyncDataVersion(false).catch(() => {});
+        }, 10000);
+      }
+    });
+  }, [isLocalDataHydrated, dataEpoch, products.length, customers.length, visits.length, invoices.length]);
         });
 
         // 3. Fetch Invoices from Supabase (source of truth; keeps only genuinely pending offline invoices)
@@ -2411,9 +2409,18 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
     });
 
-    // Setup Supabase Realtime subscriptions for data tables.
-    try {
-      const channel = supabase
+    // Skip Realtime on cellular to save data & battery
+    const isCellular = navigator.connection?.type === 'cellular' ||
+      navigator.connection?.effectiveType?.includes('2g') ||
+      navigator.connection?.effectiveType?.includes('3g') ||
+      navigator.connection?.saveData === true;
+
+    if (isCellular) {
+      console.log('[Realtime] Disabled on cellular connection to save data');
+    } else {
+      // Setup Supabase Realtime subscriptions for data tables.
+      try {
+        const channel = supabase
         .channel('schema-db-changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, (payload) => {
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
@@ -2605,7 +2612,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     } catch (e) {
       console.warn('Realtime channel error:', e);
     }
-  }, [isLocalDataHydrated, dataEpoch]);
+    }
+
+    // Return empty cleanup for cellular
+    return () => {};
 
   useEffect(() => {
     const handleOnlineSync = () => {
