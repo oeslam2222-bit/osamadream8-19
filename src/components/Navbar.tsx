@@ -716,18 +716,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
 
       {/* Mobile Bottom Navigation Bar (Smartphones & Small Screens - High Contrast & Large Touch Targets) */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/98 backdrop-blur border-t border-slate-800 flex items-center justify-around py-1.5 px-2 shadow-2xl safe-area-inset-bottom">
-        <button
-          onClick={() => setActiveTab('dashboard')}
-          className={`relative flex flex-col items-center justify-center min-w-[52px] min-h-[52px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
-            activeTab === 'dashboard' || activeTab === 'home' ? 'text-amber-400 font-black' : 'text-slate-300 hover:text-white font-bold'
-          }`}
-        >
-          <LayoutDashboard className={`w-5 h-5 ${activeTab === 'dashboard' || activeTab === 'home' ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
-          <span className="text-[11px] mt-0.5 font-bold">الرئيسية</span>
-          {pendingOrdersCount > 0 && (
-            <span className="absolute top-1.5 right-2 w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
-          )}
-        </button>
+        {/* Removed dashboard/home button - catalog is now the primary tab */}
 
         <button
           onClick={() => setActiveTab('catalog')}
