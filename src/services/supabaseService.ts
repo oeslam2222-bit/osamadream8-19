@@ -32,7 +32,11 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
   auth: {
     persistSession: true,
-    autoRefreshToken: true,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+  },
+  realtime: {
+    timeout: 30000,
   },
 });
 
@@ -177,7 +181,7 @@ const MAX_VISIT_PAGES = 40;
  * Read the table in pages so imports and role-specific counts include the full dataset.
  * ✅ استعلام خفيف محدد بالأعمدة الأساسية فقط (snake_case فقط — الأعمدة الفعلية في قاعدة البيانات)
  */
-const CUSTOMER_SELECT_COLUMNS = 'id, code, customer_code, name, customer_name, store_name, phone, mobile, address, region, city, governorate, branch_name, rep_name, rep_id, tax_number, tier, credit_limit, balance, current_balance, notes, last_visit_date, visit_count_2026, visit_history, created_at, sales_2026, sales2026, total_monthly_sales, totalMonthlySales, total_overall_sales, totalOverallSales, collections_2026, collections2026, total_monthly_collections, totalMonthlyCollections, total_overall_collections, totalOverallCollections, monthly_sales_2026, monthlySales2026, monthly_collections_2026, monthlyCollections2026, sales_2025, sales2025, collections_2025, collections2025, overdue_2025, overdue2025, overdue_2026, overdue2026, due_until_period, dueUntilPeriod, opening_balance_2026, openingBalance2026, total_overdue, total_overdue_and_due, overdue_balance, due_balance, deal_eligibility, dealt_2026, dealt_in_2026, has_dealt_in_2026, activity_type, activityType, client_type, clientType, payment_terms, paymentTerms, guarantee_docs, guaranteeDocs, guarantee_amount, guaranteeAmount, last_collection_date, lastCollectionDate, last_collection_amount, lastCollectionAmount, updated_at';
+const CUSTOMER_SELECT_COLUMNS = '*';
 
 async function fetchAllRows(
   table: 'customers' | 'clients',
@@ -653,7 +657,7 @@ export async function fetchTargetsFromSupabase(): Promise<{ success: boolean; ta
       const from = page * pageSize;
       const { data, error } = await supabase
         .from('targets')
-        .select('id, branch, rep_name, sales_target, sales_achieved, sales_percentage, collection_target, collection_achieved, collection_percentage, target_date, month, year, quarter, remaining_sales, remaining_collection, notes, updated_at')
+        .select('*')
         .order('year', { ascending: false })
         .order('month', { ascending: true })
         .range(from, from + pageSize - 1);
@@ -762,7 +766,7 @@ export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Pro
 
       // 1. Query the primary 'users' table only (no fallback to non-existent tables)
       // ✅ استعلام خفيف محدد بالأعمدة الأساسية فقط (snake_case فقط — الأعمدة الفعلية في قاعدة البيانات)
-      const USER_SELECT_COLUMNS = 'id, name, username, user_name, email, password, pass, role, is_admin, branch_name, supervisor_id, phone, mobile, tel, commission_rate, is_active, approval_status, created_at';
+      const USER_SELECT_COLUMNS = '*';
       const readUserRows = async (table: string): Promise<any[] | null> => {
         const rows: any[] = [];
         for (let page = 0; page < MAX_USER_PAGES; page++) {
@@ -1235,7 +1239,7 @@ export async function fetchInvoicesFromSupabase(limit = 150): Promise<{ success:
      * orders.
      * ✅ استعلام خفيف محدد بالأعمدة الأساسية فقط
      */
-    const INVOICE_SELECT_COLUMNS = 'id, invoice_number, customer_code, customer_name, customer_phone, customer_address, customer_tax_number, date, time, created_at, rep_id, rep_name, supervisor_name, branch_name, items, total_cartons, total_pieces, subtotal, discount_percentage, discount_amount, estimated_grand_total, payment_method, status, notes, synced_to_accounting, has_shortage_split, shortage_invoice_number, is_shortage_invoice, parent_invoice_id, parent_invoice_number, qr_payload';
+    const INVOICE_SELECT_COLUMNS = '*';
     const [invoicesRead, ordersRead] = await Promise.allSettled([
       supabase.from('invoices').select(INVOICE_SELECT_COLUMNS).order('created_at', { ascending: false }).limit(limit),
       supabase.from('orders').select(INVOICE_SELECT_COLUMNS).order('created_at', { ascending: false }).limit(limit),
@@ -1609,7 +1613,7 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
 
     // 3. Fallback: Paginated select from standard products table (overcomes default 1,000 row cap)
     // ✅ استعلام خفيف بأسماء الأعمدة الفعلية (snake_case فقط)
-    const PRODUCT_SELECT_COLUMNS = 'id, code, name, sales_priority, status, carton_quantity, factor, size, color, stock, branch_stock_actual, branch_stock_reserved, main_warehouse_actual, main_warehouse_reserved, item_group, category, department, family_name, classification, piece_price, price, branch_name, image_url, cloudinary_public_id, barcode';
+    const PRODUCT_SELECT_COLUMNS = '*';
     const pageSize = 1000;
     let page = 0;
     const allProdData: any[] = [];
@@ -1703,11 +1707,10 @@ export async function fetchVisitsFromSupabase(
      * فالسلوك هنا زي العملاء بالظبط: نرجع للقراءة الكاملة بدل ما نرجع
      * صفحة زيارات فاضية على موبايل المندوب.
      */
-    const VISIT_SELECT_COLUMNS = 'id, customer_id, customerId, customer_name, customerName, customer_code, customerCode, date, time, rep_id, repId, rep_name, repName, branch_name, branchName, supervisor_id, supervisorId, supervisor_name, supervisorName, status, type, outcome, collected_amount, collectedAmount, notes, location, latitude, longitude, check_in_time, checkInTime, check_out_time, checkOutTime, duration_minutes, durationMinutes, store_stock_status, storeStockStatus, competitor_notes, competitorNotes, customer_rating, customerRating, next_visit_date, nextVisitDate, order_created_id, orderCreatedId, order_amount, orderAmount, is_return, isReturn, return_value, returnValue, return_reason, returnReason, return_status, returnStatus, return_handled_by, returnHandledBy, return_handled_at, returnHandledAt, return_note, returnNote, created_at';
     const readPages = async (useScope: boolean) => {
       const rows: any[] = [];
       for (let page = 0; page < MAX_VISIT_PAGES; page++) {
-    const VISIT_SELECT_COLUMNS = 'id, customer_id, customer_name, customer_code, date, time, rep_id, rep_name, branch_name, supervisor_id, supervisor_name, status, type, outcome, collected_amount, notes, location, latitude, longitude, check_in_time, check_out_time, duration_minutes, store_stock_status, competitor_notes, customer_rating, next_visit_date, order_created_id, order_amount, is_return, return_value, return_reason, return_status, return_handled_by, return_handled_at, return_note, created_at';
+    const VISIT_SELECT_COLUMNS = '*';
         let query = supabase.from('visits').select(VISIT_SELECT_COLUMNS).order('created_at', { ascending: false });
         if (useScope && branchFilter.length > 0) {
           query = query.in('branch_name', branchFilter);
@@ -1969,8 +1972,8 @@ CREATE TABLE customer_comments (
  * الأقصى هنا حماية ضد جدول مش متوقع مش رقم تشغيل.
  * ✅ استعلام خفيف محدد بالأعمدة الأساسية فقط
  */
-const FORECAST_SELECT_COLUMNS = 'id, month_key, week_index, rep_id, rep_name, branch_name, customer_id, customer_code, customer_name, collection_forecast, sales_forecast, status, submitted_at, approved_by, approved_at, change_request_note, change_requested_by, change_requested_at, updated_by, updated_at';
-const COMMENT_SELECT_COLUMNS = 'id, customer_id, customer_code, customer_name, branch_name, rep_name, kind, body, author_name, created_at, updated_at, is_archived, archived_at, archived_by';
+const FORECAST_SELECT_COLUMNS = '*';
+const COMMENT_SELECT_COLUMNS = '*';
 
 async function fetchAllRowsPaged(
   table: 'collection_forecasts' | 'customer_comments',
@@ -2064,7 +2067,7 @@ export async function fetchForecastMonthPlansFromSupabase(): Promise<{ success: 
     const rows: any[] = [];
     for (let page = 0; page < 5; page++) {
       const from = page * pageSize;
-      const { data, error } = await supabase.from('forecast_month_plans').select('id, year, month, month_start, month_end, weeks, is_closed, created_by, created_at, updated_by, updated_at').range(from, from + pageSize - 1);
+      const { data, error } = await supabase.from('forecast_month_plans').select('*').range(from, from + pageSize - 1);
       if (error) return { success: false, error: error.message };
       rows.push(...(data || []));
       if (!data || data.length < pageSize) break;
