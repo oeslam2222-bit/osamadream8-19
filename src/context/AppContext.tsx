@@ -123,6 +123,7 @@ import {
   deduplicateCustomersArray,
   deduplicateTargetRecords,
   deduplicateProductArray,
+  mergeServerUsers,
   productIdentityKey,
   sanitizeCustomers,
 } from './appContextHelpers';
@@ -1637,7 +1638,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         const fetchRes = await fetchUsersFromSupabase();
         if (fetchRes.success && fetchRes.users && fetchRes.users.length > 0) {
           fetchedUsersCount = fetchRes.users.length;
-          setUsers(sanitizeAndDeduplicateUsers(fetchRes.users).deduplicated);
+          // mergeServerUsers keeps the local password digests —
+          // the anon key can no longer read users.password.
+          setUsers(sanitizeAndDeduplicateUsers(mergeServerUsers(users, fetchRes.users)).deduplicated);
         }
 
         const invRes = await fetchInvoicesFromSupabase();
@@ -2259,7 +2262,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         fetchUsersFromSupabase(true).then((res) => {
           if (res.success && res.users && res.users.length > 0) {
             setUsers((prev) => {
-              const dedup = sanitizeAndDeduplicateUsers(res.users!);
+              // mergeServerUsers keeps the local password digests —
+              // the anon key can no longer read users.password.
+              const dedup = sanitizeAndDeduplicateUsers(mergeServerUsers(prev, res.users!));
               // If duplicate IDs were detected and cleaned, delete them permanently from Supabase
               if (dedup.removedUserIds.length > 0) {
                 dedup.removedUserIds.forEach((remId) => {

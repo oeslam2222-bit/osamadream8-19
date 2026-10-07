@@ -728,6 +728,18 @@ export function invalidateUsersCache() {
 }
 
 /**
+ * Columns the anon key may read on public.users after
+ * secure_user_credentials.sql. `select=*` fails there by design
+ * (the password column is revoked from anon), so the client
+ * read must name the granted columns explicitly.
+ */
+const USER_READ_COLUMNS = [
+  'id', 'name', 'username', 'email', 'role', 'branch_name',
+  'supervisor_id', 'phone', 'commission_rate', 'is_active',
+  'approval_status', 'created_at', 'auth_user_id', 'auth_email',
+].join(',');
+
+/**
  * Fetch all users from Supabase (checking 'users', 'app_users', 'profiles' and central snapshot)
  * Optimized with in-memory caching and request deduplication to accelerate loading
  */
@@ -774,9 +786,16 @@ export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Pro
         const rows: any[] = [];
         for (let page = 0; page < MAX_USER_PAGES; page++) {
           const from = page * USER_PAGE_SIZE;
+          // After secure_user_credentials.sql the anon key cannot
+          // read `users` with select('*') — the password column is
+          // revoked, and a star select requests it. Naming the
+          // granted columns keeps the primary read working. The
+          // legacy fallback tables keep '*' (their schemas are
+          // unknown, and they are only read when users is empty).
+          const selectList = table === 'users' ? USER_READ_COLUMNS : '*';
           const { data, error } = await supabase
             .from(table)
-            .select('*')
+            .select(selectList)
             .range(from, from + USER_PAGE_SIZE - 1);
           if (error) return null;
           rows.push(...(data || []));
