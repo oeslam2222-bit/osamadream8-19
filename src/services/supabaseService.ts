@@ -109,12 +109,6 @@ export async function testSupabaseConnection(): Promise<SupabaseSyncStatus> {
     if (usersResult !== null) {
       foundTable += 'users ';
       usersCount = usersResult;
-    } else {
-      const profilesResult = await countTable('profiles');
-      if (profilesResult !== null) {
-        foundTable += 'profiles ';
-        usersCount = profilesResult;
-      }
     }
     if (productsResult !== null) {
       foundTable += 'products ';
@@ -729,7 +723,7 @@ export function invalidateUsersCache() {
 }
 
 /**
- * Fetch all users from Supabase (checking 'users', 'app_users', 'profiles' and central snapshot)
+ * Fetch all users from Supabase (checking 'users' table and central snapshot)
  * Optimized with in-memory caching and request deduplication to accelerate loading
  */
 export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Promise<{ success: boolean; users?: User[]; error?: string }> {
@@ -746,7 +740,6 @@ export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Pro
     try {
       const byId = new Map<string, User>();
       const byEmail = new Map<string, User>();
-      const tableCandidates = ['users', 'app_users', 'profiles'];
 
       const mapUser = (u: any, tbl: string, idx: number): User => {
         const rawEmail = String(u.email || '').trim();
@@ -758,19 +751,16 @@ export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Pro
           email: rawEmail,
           password: String(u.password || u.pass || '').trim(),
           role: normalizeUserRole(u.role, u.is_admin),
-          branchName: u.branch_name || u.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
-          supervisorId: u.supervisor_id || u.supervisorId,
+          branchName: u.branch_name || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+          supervisorId: u.supervisor_id,
           phone: u.phone || u.mobile || u.tel || '',
-          commissionRate: Number(u.commission_rate || u.commissionRate || 2.5),
+          commissionRate: Number(u.commission_rate || 2.5),
           isActive: u.is_active !== undefined ? Boolean(u.is_active) : true,
-          approvalStatus: u.approval_status || u.approvalStatus || 'active',
+          approvalStatus: u.approval_status || 'active',
         };
       };
 
-      // 1. Prioritize querying the primary 'users' table first
-      // بيتقرأ بالدفعات: `select('*')` من غير range بيرجع أول 1,000 صف بس
-      // بصمت. جدول المستخدمين كله ~400 صف دلوقتي، بس ده بالظبط الرقم اللي
-      // ركبنا عليه، وأول ما يعدّيه التطبيق هيتعطل لعدد مندوبين على manuals.
+      // 1. Query the primary 'users' table only (no fallback to non-existent tables)
       // ✅ استعلام خفيف محدد بالأعمدة الأساسية فقط (snake_case فقط — الأعمدة الفعلية في قاعدة البيانات)
       const USER_SELECT_COLUMNS = 'id, name, username, user_name, email, password, pass, role, is_admin, branch_name, supervisor_id, phone, mobile, tel, commission_rate, is_active, approval_status, created_at';
       const readUserRows = async (table: string): Promise<any[] | null> => {
@@ -804,38 +794,20 @@ export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Pro
           });
         }
       } catch {
-        // Continue to secondary tables if needed
+        // Log but continue
       }
 
-      // 2. Only check secondary candidates if primary 'users' table is empty or has very few records
-      if (byId.size === 0) {
-        for (const tbl of ['app_users', 'profiles']) {
-          try {
-            const data = await readUserRows(tbl);
-            if (!data) continue;
-            data.forEach((row: any, idx: number) => {
-              const user = mapUser(row, tbl, idx);
-              const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
-              byId.set(user.id, { ...existing, ...user });
-              if (user.email) byEmail.set(user.email.toLowerCase(), { ...existing, ...user });
-            });
-          } catch {
-            // Continue
-          }
-        }
-
-        // Check central snapshot as fallback
-        try {
-          const { data } = await supabase.from('orders').select('items').eq('id', USER_SYNC_STORE_ID).limit(1);
-          const items = data?.[0]?.items;
-          const snapshot = Array.isArray(items) ? items : typeof items === 'string' ? JSON.parse(items) : [];
-          snapshot.forEach((row: any, idx: number) => {
-            const user = mapUser(row, 'snapshot', idx);
-            if (!byId.has(user.id) && (!user.email || !byEmail.has(user.email.toLowerCase()))) byId.set(user.id, user);
-          });
-        } catch {
-          // snapshot optional
-        }
+      // 2. Check central snapshot as fallback (no app_users/profiles tables)
+      try {
+        const { data } = await supabase.from('orders').select('items').eq('id', USER_SYNC_STORE_ID).limit(1);
+        const items = data?.[0]?.items;
+        const snapshot = Array.isArray(items) ? items : typeof items === 'string' ? JSON.parse(items) : [];
+        snapshot.forEach((row: any, idx: number) => {
+          const user = mapUser(row, 'snapshot', idx);
+          if (!byId.has(user.id) && (!user.email || !byEmail.has(user.email.toLowerCase()))) byId.set(user.id, user);
+        });
+      } catch {
+        // snapshot optional
       }
 
       const users = Array.from(byId.values());
@@ -993,17 +965,6 @@ export async function saveUserToSupabase(user: User, currentUsersList?: User[]):
     // 1. Parallel fast upsert to tables
     const tablePromises: Promise<any>[] = [
       Promise.resolve(supabase.from('users').upsert(userPayload)),
-      Promise.resolve(
-        supabase.from('profiles').upsert({
-          id: user.id,
-          full_name: user.name,
-          username: user.username,
-          email: user.email,
-          role: user.role,
-          branch_name: user.branchName,
-          phone: user.phone,
-        })
-      ),
     ];
 
     // 2. Snapshot store update without blocking
@@ -1037,18 +998,12 @@ export async function saveUserToSupabase(user: User, currentUsersList?: User[]):
 export async function deleteUserFromSupabase(userId: string): Promise<{ success: boolean; error?: string }> {
   try {
     invalidateUsersCache();
-    // 1. Delete directly from tables
+    // 1. Delete directly from users table only
     try {
       await supabase.from('users').delete().eq('id', userId);
     } catch (e) {
       console.warn('Delete from users table notice:', e);
     }
-    try {
-      await supabase.from('profiles').delete().eq('id', userId);
-    } catch (e) {}
-    try {
-      await supabase.from('app_users').delete().eq('id', userId);
-    } catch (e) {}
 
     // 2. Update snapshot store so user doesn't reappear on refresh
     try {

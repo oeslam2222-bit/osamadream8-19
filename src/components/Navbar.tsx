@@ -137,7 +137,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
   const navItems = [
     {
       id: 'dashboard',
-      label: 'الرئيسية وغرفة العمليات ⚡',
+      label: 'لوحة التحكم ⚡',
       icon: LayoutDashboard,
       roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'],
       badge: pendingOrdersCount > 0 ? pendingOrdersCount : undefined,

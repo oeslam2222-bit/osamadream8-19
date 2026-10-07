@@ -307,7 +307,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-400 mt-1">
-                غرفة العمليات المركزية: متابعة المخزون الحرج، اعتماد الطلبيات، ومراقبة زيارات المناديب اللحظية.
+                متابعة المخزون الحرج، اعتماد الطلبيات، ومراقبة زيارات المناديب اللحظية.
               </p>
             </div>
           </div>
