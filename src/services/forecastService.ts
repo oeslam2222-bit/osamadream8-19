@@ -447,7 +447,10 @@ function isRepUnderSupervisor(
     (u) => (repId && u.id === repId) || isArabicNameMatch(u.name, repName)
   );
   if (!repUser) return false;
-  if (!repUser.supervisorId) return true; // غير مسنَد: rely on the branch check
+  if (!repUser.supervisorId) {
+    // مندوب غير مسنَد لمشرف: يجب أن يكون في نفس فرع المشرف
+    return repUser.branchName && supervisor.branchName && repUser.branchName === supervisor.branchName;
+  }
   return repUser.supervisorId === supervisor.id || isArabicNameMatch(repUser.supervisorId, supervisor.id);
 }
 
