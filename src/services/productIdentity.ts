@@ -37,8 +37,8 @@ export const normalizeProductCodeKey = (raw?: string | number | null): string =>
   value = value.replace(/[,_\s\u00a0]/g, '');
   // إكسل بيكتب الأرقام العشرية .0 في آخر الكود.
   value = value.replace(/\.0+$/, '');
-  // البادئة # اللي شيتات التصدير بتضيفها.
-  value = value.replace(/^#/, '');
+  // البادئة أو اللاحقة # اللي شيتات التصدير بتضيفها (مثل 1005741 # أو #1005741).
+  value = value.replace(/^#+/, '').replace(/#+$/, '');
   return value.toLowerCase();
 };
 

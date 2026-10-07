@@ -28,6 +28,54 @@ export function getHighResVariantImageUrl(url?: string, targetWidth = 800): stri
 }
 
 /**
+ * Extracts the base unifying product code from any raw variant code.
+ * Strips variant suffixes like:
+ * - "1005741 #" -> "1005741"
+ * - "1005741 #1", "1005741 #2" -> "1005741"
+ * - "1005741 green", "1005741 red", "1005741 أحمر" -> "1005741"
+ * - "1005741-1", "1005741_02", "6008-01" -> "1005741", "6008"
+ * - "#1005741", "#1005741-1" -> "1005741"
+ * - "DRM-101-1" -> "DRM-101"
+ */
+export function extractBaseProductCode(raw?: string | null): string {
+  if (!raw) return '';
+  let s = String(raw).trim();
+  if (!s) return '';
+
+  // Normalize Arabic digits ٠-٩ to 0-9
+  s = s.replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660));
+
+  // Strip leading hash #
+  s = s.replace(/^#\s*/, '').trim();
+
+  // Pattern 1: Code followed by # or #number or #word (e.g. "1005741 #", "1005741 #1", "1005741 #2")
+  const hashMatch = s.match(/^(.+?)\s*#\s*([0-9]*|[a-zA-Z\u0621-\u064A]*)$/);
+  if (hashMatch && hashMatch[1].trim()) {
+    return hashMatch[1].trim();
+  }
+
+  // Pattern 2: Numeric base code (3+ digits) followed by separator and 1-2 digits (e.g. "1005741-1", "6008-01", "1005741_02", "1005741/3")
+  const numSuffixMatch = s.match(/^([0-9]{3,})[-_/]([0-9]{1,2})$/);
+  if (numSuffixMatch && numSuffixMatch[1].trim()) {
+    return numSuffixMatch[1].trim();
+  }
+
+  // Pattern 2b: Multi-part code with trailing variant number (e.g. "DRM-101-1" => "DRM-101")
+  const multiPartMatch = s.match(/^([A-Za-z0-9]+[-_][0-9]+)[-_/]([0-9]{1,2})$/);
+  if (multiPartMatch && multiPartMatch[1].trim()) {
+    return multiPartMatch[1].trim();
+  }
+
+  // Pattern 3: Number code followed by space and color or word (e.g. "1005741 green", "1005741 red", "1005741 أحمر")
+  const colorMatch = s.match(/^([0-9]{4,})\s+([a-zA-Z\u0621-\u064A]+.*)$/);
+  if (colorMatch && colorMatch[1].trim()) {
+    return colorMatch[1].trim();
+  }
+
+  return s;
+}
+
+/**
  * Detects or extracts window number / variant designation from product attributes
  */
 export function extractWindowInfo(
@@ -37,6 +85,7 @@ export function extractWindowInfo(
   const pName = (product.name || '').trim();
   const pColor = (product.color || '').trim();
   const pCode = (product.code || '').trim();
+  const pUnified = (product.unifiedCode || '').trim();
 
   // 0. Clean and sanitize color value
   let cleanColor = pColor.replace(/\(blank\)/gi, '').replace(/blank/gi, '').trim();
@@ -44,10 +93,26 @@ export function extractWindowInfo(
     cleanColor = '';
   }
 
-  // 1. Look for explicit Arabic "شباك X" in name, color, or notes
+  // If no explicit color on product.color, check if code or unifiedCode has a color suffix
+  // e.g. "1005741 green" or "1005741 أحمر"
+  if (!cleanColor) {
+    const combined = `${pCode} ${pUnified}`;
+    const colorSuffixMatch = combined.match(/\s+([a-zA-Z\u0621-\u064A]{2,})$/);
+    if (colorSuffixMatch && !/^[0-9]+$/.test(colorSuffixMatch[1])) {
+      const candidate = colorSuffixMatch[1].trim();
+      const lowerCandidate = candidate.toLowerCase();
+      const knownColors = ['green', 'red', 'blue', 'yellow', 'black', 'white', 'gold', 'silver', 'brown', 'pink', 'purple', 'orange', 'grey', 'gray', 'أخضر', 'أحمر', 'أزرق', 'أصفر', 'أسود', 'أبيض', 'ذهبي', 'فضي', 'بني', 'وردي', 'رمادي', 'كحلي', 'بيج', 'عسلي'];
+      if (knownColors.includes(lowerCandidate) || knownColors.some((c) => candidate.includes(c))) {
+        cleanColor = candidate;
+      }
+    }
+  }
+
+  // 1. Look for explicit Arabic "شباك X" in name, color, unifiedCode or notes
   const windowRegex = /شباك\s*([0-9\u0660-\u0669]+|[أ-ي]+)/i;
   const matchName = pName.match(windowRegex);
   const matchColor = pColor.match(windowRegex);
+  const matchUnified = pUnified.match(windowRegex);
 
   const arabicNumMap: Record<string, number> = {
     '١': 1, '٢': 2, '٣': 3, '٤': 4, '٥': 5, '٦': 6, '٧': 7, '٨': 8, '٩': 9,
@@ -55,8 +120,9 @@ export function extractWindowInfo(
     'واحد': 1, 'اثنين': 2, 'تلاتة': 3, 'ثلاثة': 3, 'اربعة': 4, 'أربعة': 4, 'خمسة': 5
   };
 
-  if (matchColor) {
-    const rawVal = matchColor[1];
+  const explicitMatch = matchColor || matchName || matchUnified;
+  if (explicitMatch) {
+    const rawVal = explicitMatch[1];
     const num = arabicNumMap[rawVal] || parseInt(rawVal, 10) || (indexInGroup + 1);
     return {
       name: cleanColor ? `شباك ${num} (${cleanColor})` : `شباك ${num}`,
@@ -65,17 +131,19 @@ export function extractWindowInfo(
     };
   }
 
-  if (matchName) {
-    const rawVal = matchName[1];
+  // 2. Check hash with number in code or unified code (e.g. "1005741 #1", "#2", "#1005741 #1")
+  const hashNumMatch = `${pCode} ${pUnified}`.match(/#\s*([0-9\u0660-\u0669]+)/);
+  if (hashNumMatch) {
+    const rawVal = hashNumMatch[1];
     const num = arabicNumMap[rawVal] || parseInt(rawVal, 10) || (indexInGroup + 1);
     return {
-      name: cleanColor ? `شباك ${num} (${cleanColor})` : `شباك ${num}`,
+      name: cleanColor ? `شباك ${num} (${cleanColor})` : `شباك ${num} (#${num})`,
       windowNumber: num,
       color: cleanColor || `شباك ${num}`,
     };
   }
 
-  // 2. Check suffix in product code (e.g. 100061-1, 100061_02, 100061/3)
+  // 3. Check suffix in product code (e.g. 100061-1, 100061_02, 100061/3)
   const codeSuffixMatch = pCode.match(/[-_/]([0-9]{1,2})$/);
   if (codeSuffixMatch) {
     const num = parseInt(codeSuffixMatch[1], 10);
@@ -88,7 +156,7 @@ export function extractWindowInfo(
     }
   }
 
-  // 3. If color is distinct and not generic
+  // 4. If color is distinct and not generic
   if (cleanColor) {
     return {
       name: `لون ${cleanColor}`,
@@ -112,30 +180,24 @@ export function getUnifiedBaseKey(product: Product): { key: string; displayCode:
   const rawCode = (product.code || '').trim();
   const rawUnified = (product.unifiedCode || '').trim();
 
-  // 1. Group primarily by the Base Product Code (e.g. 6008).
-  // A single product code may repeat 10 times in the sheet for different colors,
-  // each having a distinct unifiedCode (#). Grouping by product.code consolidates
-  // all 10 color variants together under code 6008 as requested by the user.
-  if (rawCode) {
-    const cleanWithoutSuffix = rawCode.replace(/[-_/][0-9]{1,2}$/, '').trim();
-    const baseCode = cleanWithoutSuffix || rawCode;
+  // 1. Group primarily by the Base Product Code (e.g. 1005741 from 1005741, 1005741 #, 1005741 green, 1005741 #1).
+  const baseFromCode = extractBaseProductCode(rawCode);
+  if (baseFromCode) {
     return {
-      key: baseCode.toLowerCase(),
-      displayCode: baseCode,
-      unifiedCode: rawUnified || (rawCode.startsWith('#') ? rawCode : undefined),
+      key: baseFromCode.toLowerCase(),
+      displayCode: baseFromCode,
+      unifiedCode: rawUnified || (rawCode !== baseFromCode ? rawCode : undefined),
     };
   }
 
-  // 2. Fallback to unifiedCode if product.code is missing
-  if (rawUnified) {
-    const clean = rawUnified.replace(/^#/, '').trim();
-    if (clean) {
-      return {
-        key: clean.toLowerCase(),
-        displayCode: rawUnified.startsWith('#') ? rawUnified : `#${clean}`,
-        unifiedCode: rawUnified.startsWith('#') ? rawUnified : `#${clean}`,
-      };
-    }
+  // 2. Fallback to unifiedCode if product.code is missing or generic
+  const baseFromUnified = extractBaseProductCode(rawUnified);
+  if (baseFromUnified) {
+    return {
+      key: baseFromUnified.toLowerCase(),
+      displayCode: baseFromUnified,
+      unifiedCode: rawUnified.startsWith('#') ? rawUnified : `#${rawUnified}`,
+    };
   }
 
   // 3. Fallback to product name or ID
