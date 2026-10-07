@@ -203,7 +203,7 @@ export const VisitsDashboard: React.FC = () => {
     d.setDate(d.getDate() - 7);
     return d.toISOString().slice(0, 10);
   }, []);
-  // أول يوم في الشهر الماضي بالتقويم — «الشهر الأخير» بالمعنى التقويمي.
+  // أول يوم في الشهر الماضي بالتقويم — «الشهر الأخير» بال��عنى التقويمي.
   const lastMonthStartStr = useMemo(() => {
     const d = new Date();
     d.setDate(1);
@@ -341,7 +341,7 @@ export const VisitsDashboard: React.FC = () => {
    * وبيعمل سطر زيارة مستقل لكل واحد فيهم — عشان كل عدّاد واعتماد وإكسل في
    * التطبيق يفضل شغال زي ما هو من غير أي موديل بيانات جديد.
    *
-   * استثناء واحد: سبب الزيارة «مرتجع لدي العميل» بيفضل عميل واحد بس، لأن
+   * استثناء واحد: سبب الزيار�� «مرتجع لدي العميل» بيفضل عميل واحد بس، لأن
    * المرتجع مرتبط بصنف وكمية محددين — تكرارهم على 10 عملاء هيبقى رقم غلط.
    */
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
@@ -1316,9 +1316,10 @@ export const VisitsDashboard: React.FC = () => {
       return;
     }
 
+    const savedStatus = quickForm.outcome === 'المحل مغلق' ? 'منفذة' : quickForm.status;
     const res = updateVisit({
       ...quickVisit,
-      status: quickForm.status,
+      status: savedStatus,
       outcome: quickForm.outcome,
       notes: quickForm.notes.trim() || quickVisit.notes,
       collectedAmount: Number(quickForm.collectedAmount) || 0,
@@ -1343,7 +1344,7 @@ export const VisitsDashboard: React.FC = () => {
       setReturnDetails('');
       setIsReturnProductListOpen(false);
       if (selectedVisit && selectedVisit.id === quickVisit.id) {
-        setSelectedVisit({ ...selectedVisit, status: quickForm.status, outcome: quickForm.outcome });
+        setSelectedVisit({ ...selectedVisit, status: savedStatus, outcome: quickForm.outcome });
       }
     } else {
       showToast('error', res.message);
@@ -1369,9 +1370,10 @@ export const VisitsDashboard: React.FC = () => {
     e.preventDefault();
     if (!executingVisit) return;
 
+    const savedStatus = executionForm.outcome === 'المحل مغلق' ? 'منفذة' : executionForm.status;
     const res = updateVisit({
       ...executingVisit,
-      status: executionForm.status,
+      status: savedStatus,
       outcome: executionForm.outcome,
       notes: executionForm.notes,
       collectedAmount: executionForm.outcome === 'تم التحصيل' ? Number(executionForm.collectedAmount) || 0 : Number(executionForm.collectedAmount) || 0,
@@ -1386,7 +1388,7 @@ export const VisitsDashboard: React.FC = () => {
       if (selectedVisit && selectedVisit.id === executingVisit.id) {
         setSelectedVisit({
           ...selectedVisit,
-          status: executionForm.status,
+          status: savedStatus,
           outcome: executionForm.outcome,
           notes: executionForm.notes,
           collectedAmount: executionForm.collectedAmount,
@@ -4320,7 +4322,7 @@ allowSameDaySecondVisit: false,
                   {/* Grid of Key Info */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                      <span className="text-[10px] font-bold text-slate-400 block">المندوب المسؤول</span>
+                      <span className="text-[10px] font-bold text-slate-400 block">الم��دوب المسؤول</span>
                       <span className="text-xs font-black text-slate-800">{selectedVisit.repName}</span>
                     </div>
                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
