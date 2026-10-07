@@ -1372,7 +1372,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
      * ليها فرع في إعادة الجلب ولا اشتراك realtime — يعني نشر 'all' عشانها
      * ما كانش بيعمل حاجة، كان بيبعت تعريفة وخلاص.
      *
-     * فبنحسب النطاق الحقيقي: نطاق واحد → نطاقه، أكتر من واحد → 'all'
+     * فبنحسب النطاق الحقيقي: نطاق واحد → نطاقه، أكتر من واح�� → 'all'
      * (سلوك النهارده، وبيحصل نادر — الـ Excel imports ما بتمشيش من الـ queue).
      */
     const resolveFlushScope = (): SyncScope => {
@@ -2345,69 +2345,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
     });
   }, [isLocalDataHydrated, dataEpoch, products.length, customers.length, visits.length, invoices.length]);
-        });
 
-        // 3. Fetch Invoices from Supabase (source of truth; keeps only genuinely pending offline invoices)
-        const deletedInvoiceIds = getDeletedInvoiceIds();
-        fetchInvoicesFromSupabase(500).then(async (res) => {
-          if (res.success && res.invoices) {
-            const remoteInvoices = res.invoices.filter(
-              (inv) => !deletedInvoiceIds.has(inv.id) && !deletedInvoiceIds.has(inv.invoiceNumber)
-            );
-            const queued = await getQueuedMutations();
-            const pendingMutations = new Set(
-              queued.filter((m) => m.entity === 'invoices' && m.op === 'upsert').map((m) => m.entityId)
-            );
-            const pendingList = (await idbGet<Invoice[]>(STORAGE_KEYS.PENDING_INVOICES)) || [];
-            const pendingIds = new Set([...pendingList.map((i) => i.id), ...pendingMutations]);
-
-            setInvoices((previous) => {
-              const merged = new Map<string, Invoice>();
-              // Start with remote invoices as source of truth
-              remoteInvoices.forEach((inv) => merged.set(inv.id, inv));
-              // Add ONLY local invoices that are genuinely pending offline upload
-              previous.forEach((inv) => {
-                if (pendingIds.has(inv.id) && !merged.has(inv.id) && !deletedInvoiceIds.has(inv.id) && !deletedInvoiceIds.has(inv.invoiceNumber)) {
-                  merged.set(inv.id, inv);
-                }
-              });
-              const next = Array.from(merged.values());
-              idbSet(STORAGE_KEYS.INVOICES, next);
-              safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify(next));
-              return next;
-            });
-          }
-        });
-
-        // 5. Fetch Visits from Supabase (المفروض يكون narrowed بالـscope بتاع الدور)
-        const deletedVisitIds = getDeletedVisitIds();
-        fetchVisitsFromSupabase(visitFetchScope).then(async (res) => {
-          if (res.success && res.visits) {
-            const remoteVisits = res.visits.filter(
-              (v) => !deletedVisitIds.has(v.id)
-            );
-            const queued = await getQueuedMutations();
-            const pendingVisitIds = new Set(
-              queued.filter((m) => m.entity === 'visits' && m.op === 'upsert').map((m) => m.entityId)
-            );
-            setVisits((previous) => {
-              const merged = new Map<string, CustomerVisit>();
-              // Start with remote visits as source of truth
-              remoteVisits.forEach((visit) => merged.set(visit.id, { ...visit, syncStatus: 'synced' }));
-              // Add only local visits that are genuinely pending offline in outbox
-              previous.forEach((visit) => {
-                if (pendingVisitIds.has(visit.id) && !merged.has(visit.id) && !deletedVisitIds.has(visit.id)) {
-                  merged.set(visit.id, visit);
-                }
-              });
-              const next = Array.from(merged.values());
-              persistVisits(next);
-              return next;
-            });
-          }
-        });
-      }
-    });
 
     // Skip Realtime on cellular to save data & battery
     const isCellular = navigator.connection?.type === 'cellular' ||
@@ -4096,7 +4034,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     message?: string;
   } => {
     if (cart.length === 0) {
-      return { success: false, message: 'سلة الطلبية فارغة! يرجى إضافة أصناف أولاً.' };
+      return { success: false, message: 'سلة الطلبية فارغة! ير��ى إضافة أصناف أولاً.' };
     }
 
     // Submitting a request does not check, reserve, transfer, or deduct stock.
@@ -4955,7 +4893,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     return {
       success: true,
-      message: `تم فتح الطلبية #${invoice.invoiceNumber} في السلة بنجاح! يمكنك الآن تعديل الكميات أو إضافة أصناف جديدة من الكتالوج وإعادة إصدار الفاتورة.`,
+      message: `تم فتح الطلبية #${invoice.invoiceNumber} في السلة بنجاح! يمكنك الآن تع��يل الكميات أو إضافة أصناف جديدة من الكتالوج وإعادة إصدار الفاتورة.`,
       customer: matchedCustomer,
     };
   };
@@ -5080,7 +5018,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             branchStockBefore: resBefore,
             branchStockAfter: resBefore + item.cartonCount,
             branchName: inv.branchName,
-            userName: currentUser?.name || 'المشرف',
+            userName: currentUser?.name || 'الم��رف',
             userRole: currentUser?.role || 'supervisor',
             invoiceId: inv.id,
             invoiceNumber: inv.invoiceNumber,
