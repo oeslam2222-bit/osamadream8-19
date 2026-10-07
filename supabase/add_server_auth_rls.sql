@@ -245,11 +245,14 @@ COMMIT;
 --   );
 --
 -- ---- 2.4 منع قراءة كلمات المرور ------------------------------------------
+-- auth_user_id / auth_email ضمن الأعمدة المقروءة حتى الـ client readiness
+-- probe (checkServerAuthReadiness) يقدر يحسب الحسابات المربوطة بالمفتاح
+-- العام — العمودين دي مفيهمش سر (الـ uid والإيميل بتاع الدخول).
 -- REVOKE ALL ON public.users FROM anon;
 -- GRANT SELECT (id, name, username, email, role, branch_name, supervisor_id,
 --               phone, commission_rate, is_active, approval_status,
 --               created_at, auth_user_id, auth_email)
---       ON public.users TO anon;
+--         ON public.users TO anon;
 --
 -- ---- 2.5 قفل الكتابة في جداول التوقعات -----------------------------------
 -- دي كانت ناقصة عن قصد في المرحلة الأولى: app_is_privileged() بترجع false
@@ -288,12 +291,14 @@ COMMIT;
 --   USING (public.app_is_privileged())
 --   WITH CHECK (public.app_is_privileged());
 --
--- ---- 2.6 منع قراءة كلمات المرور ------------------------------------------
+-- ---- 2.6 منع قراءة كلمات المرور (نفس قائمة 2.4) -------------------------
+-- auth_user_id / auth_email ضمن الأعمدة المقروءة حتى الـ readiness probe
+-- يشتغل بالمفتاح العام.
 -- REVOKE ALL ON public.users FROM anon;
 -- GRANT SELECT (id, name, username, email, role, branch_name, supervisor_id,
 --               phone, commission_rate, is_active, approval_status,
 --               created_at, auth_user_id, auth_email)
---       ON public.users TO anon;
+--         ON public.users TO anon;
 --
 -- ---- 2.7 المستخدمون: الإدارة بس هي اللي تكتب ------------------------------
 -- CREATE POLICY users_write_admin ON public.users

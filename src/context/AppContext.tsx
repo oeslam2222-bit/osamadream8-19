@@ -131,12 +131,17 @@ import { resolveCustomerDuesValue } from '../services/customerDues';
 import { hashPassword, verifyPassword, withHashedCredential } from '../services/passwordService';
 import {
   getAuthMode,
+  getEffectiveAuthMode,
   getServerSessionAsync,
   isServerAuthEnabled,
   linkAuthUserToProfile,
+  serverAuthReadinessNotice,
   signOutServer,
   tryServerSignIn,
+  checkServerAuthReadiness,
+  ServerAuthReadiness,
 } from '../services/authService';
+import { resolveRowWinner } from '../services/conflictResolutionService';
 import {
   QueuedMutation,
   enqueueMutation,
@@ -948,6 +953,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isMounted = false;
     };
   }, []);
+
+  // --- Server-side auth readiness (VITE_AUTH_MODE=server) ---
+  // Probed once on boot and refreshed on focus. When the requested mode is
+  // "server" but the Supabase side is not live yet, the app keeps running
+  // in hybrid (legacy verification still works) and the admin gets a banner
+  // naming the exact missing step — a fresh deploy never locks the office out.
+  const [serverAuthReadiness, setServerAuthReadiness] = useState<ServerAuthReadiness | null>(null);
+  const [serverAuthNotice, setServerAuthNotice] = useState<string | null>(null);
+
+  const runServerAuthProbe = async (): Promise<ServerAuthReadiness> => {
+    const result = await checkServerAuthReadiness();
+    setServerAuthReadiness(result);
+    if (getAuthMode() === 'server') {
+      setServerAuthNotice(serverAuthReadinessNotice(result));
+    } else {
+      setServerAuthNotice(null);
+    }
+    return result;
+  };
+
+  useEffect(() => {
+    if (getAuthMode() !== 'server') return;
+    runServerAuthProbe();
+    const recheck = () => { runServerAuthProbe(); };
+    window.addEventListener('focus', recheck);
+    return () => window.removeEventListener('focus', recheck);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const clearServerAuthNotice = () => setServerAuthNotice(null);
+  const effectiveAuthMode = getEffectiveAuthMode(serverAuthReadiness);
 
   // Supabase State & Sync
   const [supabaseStatus, setSupabaseStatus] = useState<SupabaseSyncStatus>({
@@ -1873,8 +1909,19 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           queuedMutations.filter((m) => m.entity === 'customers' && m.op === 'upsert').map((m) => m.entityId)
         );
         setCustomers((prev) => {
+          const localById = new Map(prev.map((c) => [c.id, c]));
           const nextMap = new Map<string, Customer>();
-          remoteCustomers.forEach((c) => nextMap.set(c.id, c));
+          remoteCustomers.forEach((remoteRow) => {
+            const localRow = localById.get(remoteRow.id);
+            // Row-level conflict resolution: a local edit stamped newer
+            // than the server snapshot survives the sync instead of being
+            // silently overwritten by the older copy.
+            nextMap.set(
+              remoteRow.id,
+              localRow ? resolveRowWinner(localRow, remoteRow) : remoteRow
+            );
+          });
+          // Only keep local customers that are genuinely pending offline upload
           prev.forEach((c) => {
             if (pendingCustIds.has(c.id) && !nextMap.has(c.id)) {
               nextMap.set(c.id, c);
@@ -1899,8 +1946,17 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           ...queuedMutations.filter((m) => m.entity === 'invoices' && m.op === 'upsert').map((m) => m.entityId),
         ]);
         setInvoices((prev) => {
+          const localById = new Map(prev.map((inv) => [inv.id, inv]));
           const nextMap = new Map<string, Invoice>();
-          remoteInvoices.forEach((inv) => nextMap.set(inv.id, inv));
+          remoteInvoices.forEach((remoteRow) => {
+            const localRow = localById.get(remoteRow.id);
+            // Same row-level conflict rule as customers: the newer
+            // updated_at wins, so a fresh local edit is not clobbered.
+            nextMap.set(
+              remoteRow.id,
+              localRow ? resolveRowWinner(localRow, remoteRow) : remoteRow
+            );
+          });
           // Only keep local invoices that are genuinely pending offline upload
           prev.forEach((inv) => {
             if (pendingIds.has(inv.id) && !nextMap.has(inv.id)) {
@@ -1920,8 +1976,21 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           queuedMutations.filter((m) => m.entity === 'visits' && m.op === 'upsert').map((m) => m.entityId)
         );
         setVisits((prev) => {
+          const localById = new Map(prev.map((v) => [v.id, v]));
           const nextMap = new Map<string, CustomerVisit>();
-          remoteVisits.forEach((v) => nextMap.set(v.id, { ...v, syncStatus: 'synced' }));
+          remoteVisits.forEach((remoteRow) => {
+            const localRow = localById.get(remoteRow.id);
+            const winner = localRow
+              ? resolveRowWinner(localRow, remoteRow)
+              : remoteRow;
+            // Rows the server supplied are by definition on the server;
+            // a row that won from the device keeps its own sync status
+            // so the outbox still knows it must upload.
+            nextMap.set(
+              winner.id,
+              winner === remoteRow ? { ...winner, syncStatus: 'synced' } : winner
+            );
+          });
           prev.forEach((v) => {
             if (pendingVisitIds.has(v.id) && !nextMap.has(v.id)) {
               nextMap.set(v.id, v);
@@ -2680,15 +2749,18 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   };
 
   const updateCustomer = (updatedCust: Customer) => {
-    setCustomers((prev) => prev.map((c) => (c.id === updatedCust.id ? updatedCust : c)));
-    idbSet(STORAGE_KEYS.CUSTOMERS, customers.map((c) => (c.id === updatedCust.id ? updatedCust : c)))
+    // Stamp the row so sync conflict resolution can tell a local
+    // edit newer than the server snapshot from a stale one.
+    const stamped: Customer = { ...updatedCust, updatedAt: new Date().toISOString() };
+    setCustomers((prev) => prev.map((c) => (c.id === stamped.id ? stamped : c)));
+    idbSet(STORAGE_KEYS.CUSTOMERS, customers.map((c) => (c.id === stamped.id ? stamped : c)))
       .catch(() => {});
-    syncOrQueue('customers', 'upsert', updatedCust.id, updatedCust, () =>
-      saveCustomersToSupabase([updatedCust])
+    syncOrQueue('customers', 'upsert', stamped.id, stamped, () =>
+      saveCustomersToSupabase([stamped])
     ).catch((e) => console.warn('Supabase customer update error:', e));
     publishDataVersionUpdate({
       scope: 'customers',
-      notes: `تعديل بيانات العميل ${updatedCust.name || updatedCust.code}`,
+      notes: `تعديل بيانات العميل ${stamped.name || stamped.code}`,
     }).catch(() => {});
   };
 
@@ -3207,16 +3279,58 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const cleanPass = (password || '').trim();
 
     /**
-     * Supabase Auth (اختياري، بيشتغل لو اتنفّذ migration الـ SQL).
+     * Supabase Auth.
      *
-     * بنحاوله الأول عشان التحقق يبقى على السيرفر مش في المتصفح. لو رجّع
-     * anything غير 'success' بنكمل عادي في التحقق القديم بالظبط — يعني
-     * قبل ما حد يفعّل الحسابات على السيرفر، الـ login بيشتغل زي ما هو
-     * من غير أي تغيير. لو نجح، بنكمل باقي فحص الحساب (الموافقة، الإيقاف)
-     * بنفس القواعد القديمة بالظبط، فالأدوار مش بتتغير خالص.
+     * الوضع الفعلي بييتحدد من الـ probe (effectiveAuthMode):
+     *  - server  → التحقق على السيرفر بس، بدون رجوع للتحقق المحلي
+     *              (فأي حد يفتح DevTools ومفيش حسابه على السيرفر
+     *              مش هيدخل — ده الفرق الحقيقي بين server و hybrid)
+     *  - hybrid  → بنحاول السيرفر الأول وأي نتيجة غير success
+     *              بترجع للتحقق القديم (فترة الانتقال قبل ما
+     *              الحسابات تتربط)
+     *  - legacy  → التحقق القديم بالظبط
+     *
+     * لو نجح التحقق على السيرفر، بنكمل باقي فحص الحساب (الموافقة،
+     * الإيقاف) بنفس القواعد القديمة بالظبط، فالأدوار مش بتتغير خالص.
      */
     let serverAuthUserId: string | null = null;
-    if (isServerAuthEnabled()) {
+    let serverAuthBlocked: string | null = null;
+    if (effectiveAuthMode === 'server') {
+      let outcome = await tryServerSignIn(identifier, cleanPass);
+      // Supabase Auth بيقبل الإيميل بس. لو الموظف كتب اسم المستخدم
+      // أو رقمه، نحولّه للإيميل من سجله المحلي ونعيد المحاولة
+      // عشان ما يبقاش طريق للتحايل على التحقق بالكتابة بطريقة تانية.
+      if (
+        outcome.kind === 'unavailable' &&
+        outcome.reason === 'identifier-not-an-email' &&
+        !cleanEmail.includes('@')
+      ) {
+        const resolved = users.find(
+          (u) =>
+            (u.username && sanitizeIdentifier(u.username).toLowerCase() === cleanId) ||
+            (u.name && sanitizeIdentifier(u.name).toLowerCase() === cleanId) ||
+            (u.phone && sanitizeIdentifier(u.phone) === rawTrim) ||
+            (u.id && String(u.id).toLowerCase() === cleanId)
+        );
+        if (resolved?.email) {
+          outcome = await tryServerSignIn(resolved.email.toLowerCase(), cleanPass);
+        }
+      }
+      if (outcome.kind === 'success') {
+        serverAuthUserId = outcome.authUserId;
+        if (outcome.email) {
+          linkAuthUserToProfile(outcome.authUserId, outcome.email).catch(() => {});
+        }
+      } else if (outcome.kind === 'no-server-account') {
+        // الحساب موجود محلياً بس مش موجود على السيرفر — في وضع server
+        // ده رفض صريح، مش رجوع للوضع القديم.
+        serverAuthBlocked = 'هذا الحساب غير مربوط بحساب دخول على السيرفر بعد. يرجى مراجعة الإدارة لإنشاء حساب المصادقة وربطه أولاً.';
+      } else if (outcome.kind === 'wrong-credentials') {
+        serverAuthBlocked = 'كلمة المرور غير صحيحة على السيرفر. يرجى التأكد من كتابة كلمة المرور بدقة.';
+      }
+      // 'unavailable' (انقطاع الشبكة) → بنكمل للتحقق المحلي لأنه
+      // مفيش سيرفر يتحقق منه أصلاً — الدخول أوفلاين لازم يشتغل.
+    } else if (isServerAuthEnabled()) {
       const outcome = await tryServerSignIn(identifier, cleanPass);
       if (outcome.kind === 'success') {
         serverAuthUserId = outcome.authUserId;
@@ -3224,9 +3338,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           linkAuthUserToProfile(outcome.authUserId, outcome.email).catch(() => {});
         }
       }
-      // 'unavailable' و 'no-server-account' و 'wrong-credentials' كلهم
-      // بيروحوا لل(old) تحقق — فالحساب اللي لسه على الوضع القديم
-      // بيفضل يدخل عادي.
+      // أي نتيجة تانية بترجع للتحقق القديم — فترة الانتقال.
     }
 
     // 1. Search in local memory first with rich identifier matching
@@ -3275,6 +3387,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     if (found.approvalStatus === 'rejected' || found.isActive === false) {
       return { success: false, message: 'هذا الحساب موقوف أو تم رفض تفعيله من قبل الإدارة.' };
+    }
+
+    // In server mode the server has already ruled this credential out
+    // (no linked account, or wrong password on the server). Returning
+    // here is what makes server mode real: the local digest check
+    // below must never run as a second chance.
+    if (serverAuthBlocked) {
+      return { success: false, message: serverAuthBlocked };
     }
 
     // Verify the credential.
@@ -6229,6 +6349,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         assignSupervisor,
         authTerminationNotice,
         clearAuthTerminationNotice,
+        serverAuthReadiness,
+        effectiveAuthMode,
+        serverAuthNotice,
+        clearServerAuthNotice,
+        recheckServerAuth: runServerAuthProbe,
         authMode: getAuthMode(),
         serverAuthEnabled: isServerAuthEnabled(),
         serverAuthProbe,

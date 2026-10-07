@@ -34,7 +34,11 @@ export const AUTH_MODE_STORAGE_KEY = 'dream_dist_auth_mode_v1';
 function readEnvMode(): AuthMode {
   const raw = (import.meta.env.VITE_AUTH_MODE || '').toString().trim().toLowerCase();
   if (raw === 'server' || raw === 'hybrid' || raw === 'legacy') return raw;
-  return 'hybrid';
+  // Default is server-side verification. The runtime probe
+  // (checkServerAuthReadiness) degrades to hybrid automatically until the
+  // Supabase migrations run, so this default is safe to ship before the
+  // database is migrated — it never locks the office out.
+  return 'server';
 }
 
 /**
@@ -158,5 +162,103 @@ export async function linkAuthUserToProfile(authUserId: string, email: string): 
   } catch (e) {
     console.warn('Could not link auth uid to profile:', e);
     return false;
+  }
+}
+
+/* ============================================================
+ * Server-auth readiness probe
+ * ------------------------------------------------------------
+ * Mode "server" is only safe to enforce once the Supabase side
+ * is actually live: phase-1 migration ran (users.auth_user_id
+ * exists) AND accounts are linked. Probing this on boot lets the
+ * app default to server mode without ever locking the office out
+ * of a not-yet-migrated database — it degrades to hybrid and
+ * tells the admin exactly which step is missing.
+ * ============================================================ */
+
+export type ServerAuthReadiness =
+  | { status: 'ready'; linkedAccounts: number }
+  | { status: 'not_configured' }
+  | { status: 'phase1_missing' }
+  | { status: 'accounts_not_linked' }
+  | { status: 'unreachable' };
+
+export function isSupabaseConfigured(): boolean {
+  try {
+    return Boolean(
+      (import.meta.env.VITE_SUPABASE_URL || '').toString().trim() &&
+      (import.meta.env.VITE_SUPABASE_ANON_KEY || '').toString().trim()
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * One cheap query: how many user rows carry a linked auth uid.
+ *
+ * Outcomes:
+ *  - ready              — column exists, at least one account linked
+ *  - phase1_missing     — column unknown or anon not granted to read it
+ *                         (remedy: run the SQL migrations, see the notice)
+ *  - accounts_not_linked— column exists, but zero rows are linked
+ *  - unreachable        — network/offline: cannot tell, treat as hybrid
+ */
+export async function checkServerAuthReadiness(): Promise<ServerAuthReadiness> {
+  if (!isSupabaseConfigured()) return { status: 'not_configured' };
+  try {
+    const { count, error } = await supabase
+      .from('users')
+      .select('auth_user_id', { count: 'exact', head: true })
+      .not('auth_user_id', 'is', null);
+    if (error) {
+      const msg = (error.message || '').toLowerCase();
+      const code = (error as any)?.code || '';
+      // 42703 = undefined column, 42501 = permission denied on the column
+      if (code === '42703' || code === '42501' ||
+          msg.includes('auth_user_id') || msg.includes('does not exist') ||
+          msg.includes('permission denied')) {
+        return { status: 'phase1_missing' };
+      }
+      return { status: 'unreachable' };
+    }
+    const linked = Number(count) || 0;
+    return linked > 0
+      ? { status: 'ready', linkedAccounts: linked }
+      : { status: 'accounts_not_linked' };
+  } catch {
+    return { status: 'unreachable' };
+  }
+}
+
+/**
+ * The mode the app should actually run in right now.
+ *
+ * "server" is honoured only when the probe says the server side is live.
+ * Every other probe outcome degrades to "hybrid" (current behaviour,
+ * legacy verification still works) so a fresh deploy or an unfinished
+ * migration never bricks the office. "unreachable" also degrades:
+ * offline there is no server to verify against, so the local digest
+ * check is the only way in.
+ */
+export function getEffectiveAuthMode(readiness: ServerAuthReadiness | null): AuthMode {
+  if (getAuthMode() !== 'server') return getAuthMode();
+  if (readiness && readiness.status === 'ready') return 'server';
+  return 'hybrid';
+}
+
+/** Arabic, actionable explanation of what the admin must do. */
+export function serverAuthReadinessNotice(readiness: ServerAuthReadiness): string | null {
+  switch (readiness.status) {
+    case 'ready':
+      return null;
+    case 'not_configured':
+      return 'مصادقة السيرفر (server mode) مش مفعّلة: مفيش رابط أو مفتاح Supabase في متغيرات البيئة. التطبيق شغال حالياً بالوضع المختلط (hybrid). اضبط VITE_SUPABASE_URL و VITE_SUPABASE_ANON_KEY عشان يتحقق الدخول على السيرفر.';
+    case 'phase1_missing':
+      return 'مصادقة السيرفر محتاجة خطوة ناقصة: عمود auth_user_id مش موجود أو الأذونات متعدّتش. نفّذ الملفات دي بالترتيب في Supabase SQL Editor: 1) add_server_auth_rls.sql (المرحلة الأولى) 2) secure_user_credentials.sql 3) production-hardening.sql — وبعدين اربط الحسابات.';
+    case 'accounts_not_linked':
+      return 'المرحلة الأولى اتنفّذت بس مفيش حسابات مربوطة بعد. اعمل حساب في Supabase Auth لكل موظف (نفس الإيميل بتاع جدول users)، وبعدين اربط الـ uid بصفه: UPDATE public.users SET auth_user_id = \'<UID>\', auth_email = lower(email) WHERE lower(email) = \'<الإيميل>\';';
+    case 'unreachable':
+      return null; // offline — nothing the admin can fix right now
   }
 }

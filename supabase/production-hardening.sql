@@ -77,45 +77,60 @@ BEGIN
 END $$;
 
 -- Invoice privacy. This requires users to authenticate with Supabase Auth.
+--
+-- ⚠️ CORRECTED POLICY (the original below was broken):
+-- The original matched `rep_id = auth.uid()::text`, but users.id is
+-- free text ('u-1759…') while auth.uid() is a UUID — so the
+-- condition NEVER matched and every authenticated read of invoices
+-- returned zero rows, including admins.
+--
+-- The corrected policies resolve the current user's row through
+-- public.app_user_row() (defined in add_server_auth_rls.sql
+-- phase 1), which maps the Supabase Auth uid to the users row via
+-- users.auth_user_id. ⚠️ RUN ORDER: this file must run AFTER
+-- add_server_auth_rls.sql (phase 1) so app_user_row() exists.
 ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS invoices_select_owner_or_admin ON public.invoices;
 CREATE POLICY invoices_select_owner_or_admin
   ON public.invoices FOR SELECT TO authenticated
   USING (
-    rep_id = auth.uid()::text
-    OR EXISTS (
-      SELECT 1 FROM public.users u
-      WHERE u.id = auth.uid()::text
-        AND u.role IN ('admin', 'developer')
-        AND u.is_active = true
-    )
+    public.app_is_privileged()
+    OR rep_id = (SELECT (public.app_user_row()).id)
   );
 
 DROP POLICY IF EXISTS invoices_insert_owner_or_admin ON public.invoices;
 CREATE POLICY invoices_insert_owner_or_admin
   ON public.invoices FOR INSERT TO authenticated
   WITH CHECK (
-    rep_id = auth.uid()::text
-    OR EXISTS (
-      SELECT 1 FROM public.users u
-      WHERE u.id = auth.uid()::text
-        AND u.role IN ('admin', 'developer')
-        AND u.is_active = true
-    )
+    public.app_is_privileged()
+    OR rep_id = (SELECT (public.app_user_row()).id)
   );
 
 DROP POLICY IF EXISTS invoices_update_owner_or_admin ON public.invoices;
 CREATE POLICY invoices_update_owner_or_admin
   ON public.invoices FOR UPDATE TO authenticated
   USING (
-    rep_id = auth.uid()::text
-    OR EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid()::text AND u.role IN ('admin', 'developer') AND u.is_active = true)
+    public.app_is_privileged()
+    OR rep_id = (SELECT (public.app_user_row()).id)
   )
   WITH CHECK (
-    rep_id = auth.uid()::text
-    OR EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid()::text AND u.role IN ('admin', 'developer') AND u.is_active = true)
+    public.app_is_privileged()
+    OR rep_id = (SELECT (public.app_user_row()).id)
   );
+
+-- ---------------------------------------------------------------------------
+-- ORIGINAL BROKEN POLICIES (kept for reference — do not re-enable):
+--   USING (
+--     rep_id = auth.uid()::text          -- never matches: text id vs UUID
+--     OR EXISTS (
+--       SELECT 1 FROM public.users u
+--       WHERE u.id = auth.uid()::text    -- same mismatch here
+--         AND u.role IN ('admin', 'developer')
+--         AND u.is_active = true
+--     )
+--   );
+-- ---------------------------------------------------------------------------
 
 -- Remove old demo records only if they are explicitly marked as demo.
 -- Review the result before deleting any real business data.

@@ -9,6 +9,7 @@ import {
   Plus,
   Receipt,
   Server,
+  ShieldAlert,
   ShieldCheck,
   ShoppingCart,
   Users,
@@ -62,7 +63,7 @@ const TabLoadingSkeleton = () => {
 };
 
 const MainLayout: React.FC = () => {
-  const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder } = useApp();
+  const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder, serverAuthNotice, clearServerAuthNotice, recheckServerAuth } = useApp();
 
   // First screen on launch: reps land on their visits, everyone else on the
   // customer database so they start from their core data.
@@ -146,6 +147,35 @@ const MainLayout: React.FC = () => {
           <span>أنت دون اتصال: البيانات المحفوظة والأقسام التي سبق فتحها متاحة. التغييرات المدعومة تُحفظ محلياً وتُزامن عند عودة الإنترنت.</span>
         </div>
       )}
+
+      {/* Server-auth readiness banner — admin/developer only.
+          Shows the exact missing step when VITE_AUTH_MODE=server
+          is requested but the Supabase side is not live yet. */}
+      {serverAuthNotice &&
+        (currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+          <div className="bg-rose-700 text-white text-xs py-2 px-4 font-bold flex items-start justify-center gap-2 shadow-inner">
+            <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+            <div className="flex-1 max-w-4xl text-center leading-relaxed">
+              <span>{serverAuthNotice}</span>
+              <div className="mt-1 flex items-center justify-center gap-3 font-normal">
+                <button
+                  type="button"
+                  onClick={() => { recheckServerAuth(); }}
+                  className="underline underline-offset-2 hover:text-amber-200"
+                >
+                  إعادة الفحص
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { clearServerAuthNotice(); }}
+                  className="underline underline-offset-2 hover:text-amber-200"
+                >
+                  إخفاء التنبيه
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       {/* Main Responsive Navbar */}
       <Navbar

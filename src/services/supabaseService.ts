@@ -310,6 +310,8 @@ export async function fetchCustomersFromSupabase(
           lastCollectionAmount: c.last_collection_amount !== undefined && c.last_collection_amount !== null
             ? Number(c.last_collection_amount)
             : (c.lastCollectionAmount !== undefined ? Number(c.lastCollectionAmount) : undefined),
+          // Row timestamp for conflict resolution (newer updated_at wins on sync).
+          updatedAt: c.updated_at || c.updatedAt || undefined,
         };
       });
       return { success: true, customers: mapped, scoped: scopedUsed };
@@ -1337,6 +1339,8 @@ export async function fetchInvoicesFromSupabase(limit = 150): Promise<{ success:
         parentInvoiceId: i.parent_invoice_id,
         parentInvoiceNumber: i.parent_invoice_number,
         qrPayload: i.qr_payload,
+        // Row timestamp for conflict resolution (newer updated_at wins on sync).
+        updatedAt: i.updated_at || i.updatedAt || undefined,
       }));
       return { success: true, invoices: mapped };
     }

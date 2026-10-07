@@ -328,6 +328,7 @@ export interface Customer {
 
   notes?: string;
   createdAt?: string;
+  updatedAt?: string;              // آخر تعديل — يُستخدم في حل التضارب مع السيرفر (الأحدث يفوز)
 }
 
 export interface InstallPromptEvent {
@@ -466,6 +467,7 @@ export interface Invoice {
   date: string;                  // التاريخ
   time: string;
   createdAt?: string;            // تاريخ ووقت الإنشاء الدقيق للتتبع والتعديل
+  updatedAt?: string;            // آخر تعديل — يستخدم في حل التضارب مع السيرفر (الأحدث يفوز)
   timestamp?: string;
   repId: string;
   repName: string;               // اسم المندوب
