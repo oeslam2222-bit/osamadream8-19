@@ -1374,18 +1374,21 @@ export default function CollectionForecastView() {
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={() => {
-                setPasteWeekIndex(String(suggestedPasteWeek || ''));
-                setShowPasteMonthly(true);
-              }}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black shadow-sm transition cursor-pointer"
-              title="لصق ومطابقة أكواد العملاء لتوقع الشهر الحالي أو إحدى فتراته الأسبوعية"
-            >
-              <ClipboardPaste className="w-4 h-4" />
-              <span>نسخ ومطابقة التوقعات</span>
-            </button>
+            {/* نسخ ومطابقة التوقعات — الإدارة والمطور فقط (لصق جماعي بيعدّل على كتير من السجلات) */}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPasteWeekIndex(String(suggestedPasteWeek || ''));
+                  setShowPasteMonthly(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black shadow-sm transition cursor-pointer"
+                title="لصق ومطابقة أكواد العملاء لتوقع الشهر الحالي أو إحدى فتراته الأسبوعية"
+              >
+                <ClipboardPaste className="w-4 h-4" />
+                <span>نسخ ومطابقة التوقعات</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -2344,7 +2347,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
         )}
       </section>
 
-      {showPasteMonthly && (
+        {showPasteMonthly && isAdmin && (
         <>
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3" dir="rtl">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden">
