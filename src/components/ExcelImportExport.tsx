@@ -36,29 +36,11 @@ import {
   ShieldCheck,
   TrendingUp,
   Percent,
-  Wallet,
-  Activity,
-  BarChart3,
-  CheckCheck,
-  Clock,
-  Award
+  Wallet
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
-import * as XLSX from 'xlsx-js-style';
 import { useApp } from '../context/AppContext';
 import { getProductImageUrl } from '../services/cloudinaryService';
-import {
-  isArabicNameMatch,
-  normalizeArabicText,
-  isBranchMatch
-} from '../services/arabicMatchingService';
-import {
-  deduplicateProductArray,
-  countDuplicateProductRows,
-  normalizeProductCodeKey,
-  productIdentityKey
-} from '../services/productIdentity';
-import { deduplicateTargetRecords } from '../context/appContextHelpers';
 import {
   CUSTOMER_SALES_TARGET_COLUMNS,
   exportCustomersToExcel,
@@ -94,11 +76,6 @@ export const ExcelImportExport: React.FC = () => {
     currentUser,
     branches,
     targets,
-    invoices,
-    getVisibleInvoices,
-    getVisibleTargets,
-    getVisibleCustomers,
-    forecasts,
     importProductsList,
     importCustomersList,
     cleanAndDeduplicateCustomers,
@@ -119,12 +96,6 @@ export const ExcelImportExport: React.FC = () => {
     forcePurgeCacheAndReload,
   } = useApp();
 
-  // Role helpers
-  const isSuperAdmin = currentUser?.role === 'admin' || currentUser?.role === 'developer';
-  const isBranchMgr = currentUser?.role === 'branch_manager';
-  const isSupervisor = currentUser?.role === 'supervisor';
-  const isSalesRep = currentUser?.role === 'sales_rep';
-
   // Data Version Sync Release State
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [publishScope, setPublishScope] = useState<'all' | 'products' | 'customers' | 'targets'>('all');
@@ -132,350 +103,15 @@ export const ExcelImportExport: React.FC = () => {
   const [publishForcePurge, setPublishForcePurge] = useState(true);
   const [isPublishingVersion, setIsPublishingVersion] = useState(false);
 
-  // Five Core Tabs
-  const [activeTab, setActiveTab] = useState<'forecast' | 'dedup' | 'products' | 'customers' | 'targets'>('forecast');
+  // Exactly THREE core tabs as requested by user:
+  // 1. رابط الأصناف والرصيد (Products & Inventory)
+  // 2. رابط قاعدة العملاء (Customer Database & Balances)
+  // 3. رابط التارجت والمحققات (Targets & Performance by Rep)
+  const [activeTab, setActiveTab] = useState<'products' | 'customers' | 'targets'>('products');
 
   // Global Notification State
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
-
-  // ----------------------------------------------------
-  // Forecast & Projection States & Computations
-  // ----------------------------------------------------
-  const [forecastBranchFilter, setForecastBranchFilter] = useState('all');
-  const [forecastSupervisorFilter, setForecastSupervisorFilter] = useState('all');
-  const [forecastRepSearch, setForecastRepSearch] = useState('');
-  const [isExportingForecast, setIsExportingForecast] = useState(false);
-
-  // Time metrics
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
-  const currentDay = now.getDate();
-  const daysInCurrentMonth = new Date(currentYear, currentMonth, 0).getDate();
-  const remainingDays = Math.max(0, daysInCurrentMonth - currentDay);
-  const currentMonthKey = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
-  const currentWeekIndex = Math.min(5, Math.ceil(currentDay / 7));
-
-  // Role Scoping for Forecast
-  const effectiveBranch = isBranchMgr && currentUser?.branchName
-    ? currentUser.branchName
-    : isSupervisor && currentUser?.branchName
-    ? currentUser.branchName
-    : isSalesRep && currentUser?.branchName
-    ? currentUser.branchName
-    : forecastBranchFilter;
-
-  const effectiveSupervisorId = isSupervisor
-    ? currentUser.id
-    : isSalesRep
-    ? (currentUser.supervisorId || 'all')
-    : forecastSupervisorFilter;
-
-  // Scoped Reps List (Strict RBAC Hierarchy)
-  const scopedReps = useMemo(() => {
-    return users.filter((u) => {
-      if (!u.isActive || u.role !== 'sales_rep') return false;
-      if (isSalesRep) return u.id === currentUser?.id;
-      if (isSupervisor) return u.supervisorId === currentUser?.id;
-      if (isBranchMgr) return !currentUser?.branchName || isBranchMatch(u.branchName, currentUser.branchName, { allowUnassigned: false });
-      if (effectiveBranch !== 'all' && u.branchName && !isBranchMatch(u.branchName, effectiveBranch, { allowUnassigned: false })) return false;
-      if (effectiveSupervisorId !== 'all' && u.supervisorId && u.supervisorId !== effectiveSupervisorId) return false;
-      if (forecastRepSearch.trim()) {
-        const q = forecastRepSearch.toLowerCase().trim();
-        return u.name.toLowerCase().includes(q) || (u.code && String(u.code).includes(q));
-      }
-      return true;
-    });
-  }, [users, isSalesRep, isSupervisor, isBranchMgr, currentUser, effectiveBranch, effectiveSupervisorId, forecastRepSearch]);
-
-  // Scoped Invoices
-  const scopedInvoices = useMemo(() => {
-    const list = getVisibleInvoices();
-    return list.filter((inv) => {
-      if (!inv.date || !inv.date.startsWith(currentMonthKey)) return false;
-      const st = inv.status;
-      return st !== 'ملغاة' && st !== 'مرفوضة / ملغاة';
-    });
-  }, [getVisibleInvoices, currentMonthKey]);
-
-  // Scoped Targets
-  const scopedTargets = useMemo(() => {
-    const list = getVisibleTargets();
-    return list.filter((t) => {
-      const y = t.year || (t.date ? parseInt(t.date.slice(0, 4), 10) : null);
-      const m = t.month || (t.date ? parseInt(t.date.slice(5, 7), 10) : null);
-      return y === currentYear && m === currentMonth;
-    });
-  }, [getVisibleTargets, currentYear, currentMonth]);
-
-  // Helper for invoice total
-  const getInvoiceTotal = (inv: any): number => {
-    return inv.estimatedGrandTotal || (inv.subtotal - (inv.discountAmount || 0) + (inv.taxAmount || 0)) || 0;
-  };
-
-  // Build Rep Forecast Rows & Computations
-  const repForecastRows = useMemo(() => {
-    return scopedReps.map((rep) => {
-      // Find rep's target
-      const repTarget = scopedTargets.find((t) =>
-        isArabicNameMatch(t.repName, rep.name) ||
-        normalizeArabicText(t.repName) === normalizeArabicText(rep.name) ||
-        (rep.code && String(t.repName).includes(String(rep.code)))
-      );
-      const monthlyTarget = repTarget?.salesTarget || 0;
-      const collectionTarget = repTarget?.collectionTarget || 0;
-
-      // Filter rep's invoices
-      const repInvoices = scopedInvoices.filter((inv) =>
-        inv.repId === rep.id ||
-        (inv.repName && (isArabicNameMatch(inv.repName, rep.name) || normalizeArabicText(inv.repName) === normalizeArabicText(rep.name)))
-      );
-      const actualSales = repInvoices.reduce((acc, inv) => acc + getInvoiceTotal(inv), 0);
-
-      // Run rate & projections
-      const dailyRunRate = currentDay > 0 ? Math.round(actualSales / currentDay) : 0;
-      const projectedMonthEnd = Math.round(actualSales + (dailyRunRate * remainingDays));
-      const projectedRate = monthlyTarget > 0 ? Math.round((projectedMonthEnd / monthlyTarget) * 100) : 0;
-      const variance = projectedMonthEnd - monthlyTarget;
-
-      // 5-Week Breakdown
-      const weeklyBreakdown = [1, 2, 3, 4, 5].map((wIdx) => {
-        const startDay = (wIdx - 1) * 7 + 1;
-        const endDay = wIdx === 5 ? daysInCurrentMonth : Math.min(daysInCurrentMonth, wIdx * 7);
-        const wTarget = Math.round(monthlyTarget / 4.4);
-
-        // Sum invoices in date window
-        const wInvoices = repInvoices.filter((inv) => {
-          const day = parseInt(inv.date.slice(8, 10), 10);
-          return day >= startDay && day <= endDay;
-        });
-        const wActual = wInvoices.reduce((acc, inv) => acc + getInvoiceTotal(inv), 0);
-        const wRate = wTarget > 0 ? Math.round((wActual / wTarget) * 100) : 0;
-        const isCurrent = wIdx === currentWeekIndex;
-        const isPassed = wIdx < currentWeekIndex;
-
-        return {
-          weekIndex: wIdx,
-          label: `الأسبوع ${wIdx}`,
-          dateRange: `${startDay} - ${endDay} ${ARABIC_MONTHS[currentMonth - 1]}`,
-          target: wTarget,
-          actual: wActual,
-          rate: wRate,
-          isCurrent,
-          isPassed,
-        };
-      });
-
-      const currentWeekData = weeklyBreakdown[currentWeekIndex - 1] || weeklyBreakdown[0];
-
-      let status: 'super' | 'on_track' | 'behind' = 'on_track';
-      if (projectedRate >= 100) status = 'super';
-      else if (projectedRate >= 80) status = 'on_track';
-      else status = 'behind';
-
-      return {
-        rep,
-        target: monthlyTarget,
-        collectionTarget,
-        actualSales,
-        dailyRunRate,
-        projectedMonthEnd,
-        projectedRate,
-        variance,
-        currentWeekTarget: currentWeekData.target,
-        currentWeekActual: currentWeekData.actual,
-        weeklyBreakdown,
-        status,
-      };
-    });
-  }, [scopedReps, scopedTargets, scopedInvoices, currentDay, remainingDays, daysInCurrentMonth, currentWeekIndex, currentMonth]);
-
-  // Aggregate Summary Metrics for Forecast Tab
-  const summaryMetrics = useMemo(() => {
-    const totalTarget = repForecastRows.reduce((acc, r) => acc + r.target, 0);
-    const totalActual = repForecastRows.reduce((acc, r) => acc + r.actualSales, 0);
-    const totalProjected = repForecastRows.reduce((acc, r) => acc + r.projectedMonthEnd, 0);
-    const totalVariance = totalProjected - totalTarget;
-    const overallRate = totalTarget > 0 ? Math.round((totalProjected / totalTarget) * 100) : 0;
-    const currentRate = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 0;
-
-    const currentWeekTarget = repForecastRows.reduce((acc, r) => acc + r.currentWeekTarget, 0);
-    const currentWeekActual = repForecastRows.reduce((acc, r) => acc + r.currentWeekActual, 0);
-
-    const dailyRunRate = currentDay > 0 ? Math.round(totalActual / currentDay) : 0;
-    const requiredDailyRate = remainingDays > 0 ? Math.max(0, Math.round((totalTarget - totalActual) / remainingDays)) : 0;
-
-    const totalCollectionTarget = repForecastRows.reduce((acc, r) => acc + r.collectionTarget, 0);
-
-    // Sum customer forecasts submitted for current month
-    const totalCollectionForecast = (forecasts || [])
-      .filter((f) => f.monthKey === currentMonthKey)
-      .reduce((acc, f) => acc + (Number(f.collectionForecast) || 0), 0);
-
-    // Aggregate Weekly Breakdown
-    const weeklyTotals = [1, 2, 3, 4, 5].map((wIdx) => {
-      const wTarget = repForecastRows.reduce((acc, r) => acc + (r.weeklyBreakdown[wIdx - 1]?.target || 0), 0);
-      const wActual = repForecastRows.reduce((acc, r) => acc + (r.weeklyBreakdown[wIdx - 1]?.actual || 0), 0);
-      const wRate = wTarget > 0 ? Math.round((wActual / wTarget) * 100) : 0;
-      const startDay = (wIdx - 1) * 7 + 1;
-      const endDay = wIdx === 5 ? daysInCurrentMonth : Math.min(daysInCurrentMonth, wIdx * 7);
-      return {
-        weekIndex: wIdx,
-        label: `الأسبوع ${wIdx}`,
-        dateRange: `${startDay} - ${endDay} ${ARABIC_MONTHS[currentMonth - 1]}`,
-        target: wTarget,
-        actual: wActual,
-        rate: wRate,
-        isCurrent: wIdx === currentWeekIndex,
-        isPassed: wIdx < currentWeekIndex,
-      };
-    });
-
-    return {
-      totalTarget,
-      totalActual,
-      totalProjected,
-      totalVariance,
-      overallRate,
-      currentRate,
-      currentWeekTarget,
-      currentWeekActual,
-      dailyRunRate,
-      requiredDailyRate,
-      totalCollectionTarget,
-      totalCollectionForecast,
-      weeklyTotals,
-    };
-  }, [repForecastRows, currentDay, remainingDays, currentMonthKey, currentWeekIndex, daysInCurrentMonth, currentMonth, forecasts]);
-
-  // Anti-Duplication Auditor Stats
-  const duplicateProductStats = useMemo(() => {
-    return countDuplicateProductRows(products);
-  }, [products]);
-
-  const duplicateCustomerStats = useMemo(() => {
-    const codeMap = new Map<string, number>();
-    const phoneMap = new Map<string, number>();
-    let dupCodes = 0;
-    let dupPhones = 0;
-    customers.forEach((c) => {
-      const cd = (c.code || '').trim().toLowerCase();
-      if (cd) {
-        if (codeMap.has(cd)) dupCodes++;
-        else codeMap.set(cd, 1);
-      }
-      const ph = (c.phone || '').trim().replace(/\D/g, '');
-      if (ph && ph.length >= 8) {
-        if (phoneMap.has(ph)) dupPhones++;
-        else phoneMap.set(ph, 1);
-      }
-    });
-    return { dupCodes, dupPhones, total: customers.length };
-  }, [customers]);
-
-  const duplicateTargetStats = useMemo(() => {
-    const keyMap = new Map<string, number>();
-    let dupTargets = 0;
-    targets.forEach((t) => {
-      const k = `${normalizeArabicText(t.branch)}__${normalizeArabicText(t.repName)}__${String(t.date || '')}`;
-      if (keyMap.has(k)) dupTargets++;
-      else keyMap.set(k, 1);
-    });
-    return { dupTargets, total: targets.length };
-  }, [targets]);
-
-  const handleRunFullDeduplication = () => {
-    try {
-      cleanAndDeduplicateCustomers();
-      const cleaned = deduplicateProductArray(products);
-      if (cleaned.length !== products.length) {
-        importProductsList(cleaned, 'replace');
-      }
-      showSuccess('تم بنجاح فحص وتطهير كافة البيانات وضمان عدم وجود أي تكرارات في الكتالوج أو العملاء 🛡️');
-    } catch (e: any) {
-      showError('فشل تطهير البيانات: ' + (e?.message || e));
-    }
-  };
-
-  const handleExportForecastReport = () => {
-    try {
-      setIsExportingForecast(true);
-      const wb = XLSX.utils.book_new();
-
-      // Sheet 1: ملخص التوقعات التنفيذية
-      const summaryRows = [
-        ['تقرير التوقعات الأسبوعية والشهرية — مجموعة الطنطاوي (النظام الاحتياطي الميداني)'],
-        [`تاريخ استخراج التقرير: ${new Date().toLocaleDateString('ar-EG')}`, `الشهر: ${ARABIC_MONTHS[currentMonth - 1]} ${currentYear}`, `المستخدم: ${currentUser?.name || 'الإدارة'} (${currentUser?.role || ''})`],
-        [`الفرع: ${effectiveBranch !== 'all' ? effectiveBranch : 'كافة الفروع'}`],
-        [],
-        ['المؤشر التوقعي', 'القيمة بالجنيه المصري', 'ملاحظات المسار البيعي'],
-        ['إجمالي التارجت الشهري المستهدف', summaryMetrics.totalTarget, 'المستهدف الشهري الإجمالي المعتمد'],
-        ['المحقق الفعلي حتى اليوم', summaryMetrics.totalActual, `مبيعات محققة حتى يوم ${currentDay}`],
-        ['التوقع النهائي بنهاية الشهر', summaryMetrics.totalProjected, 'محسوب وفق سرعة البيع اليومية Run-Rate'],
-        ['الفارق المتوقع بنهاية الشهر', summaryMetrics.totalVariance, summaryMetrics.totalVariance >= 0 ? 'فائض بيعي متوقع 🚀' : 'عجز متوقع يستوجب المتابعة ⚠️'],
-        ['نسبة الإنجاز المتوقعة', `${summaryMetrics.overallRate}%`, 'النسبة المئوية المقدرة للمبيعات'],
-        ['متوسط البيع اليومي المحقق', summaryMetrics.dailyRunRate, 'معدل البيع الفعلي لليوم الواحد'],
-        ['المطلوب تحقيقه يومياً للمتبقي', summaryMetrics.requiredDailyRate, `المطلوب يومياً خلال الـ ${remainingDays} يوماً المتبقية`],
-      ];
-      const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
-      XLSX.utils.book_append_sheet(wb, wsSummary, 'الملخص التنفيذي');
-
-      // Sheet 2: أداء وتوقعات المناديب
-      const repHeaders = [
-        'كود المندوب',
-        'اسم المندوب',
-        'الفرع',
-        'المشرف',
-        'تارجت الشهر',
-        'المحقق الفعلي',
-        'سرعة البيع اليومية',
-        'التوقع الأسبوعي الحالي',
-        'المحقق في الأسبوع الحالي',
-        'التوقع النهائي للشهر',
-        'نسبة التوقع %',
-        'الفارق المتوقع',
-        'حالة المسار'
-      ];
-      const repData = repForecastRows.map((r) => [
-        r.rep.code || '---',
-        r.rep.name,
-        r.rep.branchName || 'الفرع الرئيسي',
-        users.find((u) => u.id === r.rep.supervisorId)?.name || 'عام',
-        r.target,
-        r.actualSales,
-        r.dailyRunRate,
-        r.currentWeekTarget,
-        r.currentWeekActual,
-        r.projectedMonthEnd,
-        `${r.projectedRate}%`,
-        r.variance,
-        r.status === 'super' ? 'متفوق ومتقدم' : r.status === 'on_track' ? 'على المسار' : 'يحتاج تسريع',
-      ]);
-      const wsReps = XLSX.utils.aoa_to_sheet([repHeaders, ...repData]);
-      XLSX.utils.book_append_sheet(wb, wsReps, 'توقعات المناديب');
-
-      // Sheet 3: توزيع الأسابيع الخمسة
-      const weekHeaders = ['الأسبوع', 'الفترة الزمنية', 'التارجت الأسبوعي', 'المحقق الفعلي', 'نسبة الإنجاز', 'الحالة'];
-      const weekData = summaryMetrics.weeklyTotals.map((w) => [
-        w.label,
-        w.dateRange,
-        w.target,
-        w.actual,
-        `${w.rate}%`,
-        w.isCurrent ? 'الأسبوع الحالي (جاري)' : w.isPassed ? 'منقضي' : 'قادم',
-      ]);
-      const wsWeeks = XLSX.utils.aoa_to_sheet([weekHeaders, ...weekData]);
-      XLSX.utils.book_append_sheet(wb, wsWeeks, 'توزيع الأسابيع');
-
-      XLSX.writeFile(wb, `تقرير_التوقع_الشهري_والاسبوعي_${currentYear}_${currentMonth}.xlsx`);
-      showSuccess('تم بنجاح استخراج وتصدير تقرير التوقعات الأسبوعية والشهرية للإكسل 📊');
-    } catch (e: any) {
-      showError('فشل تصدير تقرير التوقعات: ' + (e?.message || e));
-    } finally {
-      setIsExportingForecast(false);
-    }
-  };
 
   // ----------------------------------------------------
   // TAB 1: رابط الأصناف والرصيد (Products & Inventory)
@@ -519,8 +155,19 @@ export const ExcelImportExport: React.FC = () => {
   // Strict RBAC: Admin & Developer only
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
-  // RBAC checks for administrative sync operations (Google Sheets live links, system-wide wipe)
-  const canManageCloudSync = isAdminOrDev || isBranchMgr;
+  if (!isAdminOrDev) {
+    return (
+      <div className="bg-white rounded-3xl p-8 border border-slate-200 text-center space-y-4 my-6 shadow-sm max-w-2xl mx-auto">
+        <div className="w-16 h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+          <ShieldAlert className="w-9 h-9" />
+        </div>
+        <h3 className="text-xl font-black text-slate-900">غير مصرح لك بالدخول</h3>
+        <p className="text-sm text-slate-600 leading-relaxed">
+          صلاحية ربط شيتات جوجل ورفع ملفات الإكسل وتحديث البيانات مقتصرة فقط وحصرياً على <strong>المدير العام (Admin)</strong> و<strong>المطور (Developer)</strong>.
+        </p>
+      </div>
+    );
+  }
 
   // Clear notices after 6 seconds
   const showSuccess = (msg: string) => {
@@ -924,17 +571,9 @@ export const ExcelImportExport: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 px-3.5 py-2 rounded-xl self-start md:self-auto border border-slate-200">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-100 px-3.5 py-2 rounded-xl self-start md:self-auto border border-slate-200">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>
-              {isSalesRep
-                ? `نطاق المندوب: بياناتك وتوقعاتك الشخصية فقط (${currentUser?.name || ''})`
-                : isSupervisor
-                ? `نطاق المشرف: فريقك المباشر فقط (${currentUser?.name || ''})`
-                : isBranchMgr
-                ? `نطاق الفرع: بيانات وتوقعات فرع ${currentUser?.branchName || ''}`
-                : 'صلاحية الإدارة: تحكم كامل وتوقعات شاملة لكافة الفروع'}
-            </span>
+            <span>صلاحية حصرية: المدير العام والمطور فقط</span>
           </div>
         </div>
 
@@ -963,635 +602,75 @@ export const ExcelImportExport: React.FC = () => {
           </div>
         </div>
 
-        {/* The 5 Core Tabs: Forecast, Duplication Check, Products, Customers, Targets */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-2 border-t border-slate-100">
-          {/* TAB 1: التوقع الشهري والأسبوعي */}
-          <button
-            onClick={() => setActiveTab('forecast')}
-            className={`p-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-between transition cursor-pointer border ${
-              activeTab === 'forecast'
-                ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-md font-black'
-                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <TrendingUp className={`w-4 h-4 ${activeTab === 'forecast' ? 'text-slate-950' : 'text-amber-600'}`} />
-              <span>التوقع الشهري والأسبوعي</span>
-            </div>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-amber-400/30 text-slate-950">
-              جديد ⚡
-            </span>
-          </button>
-
-          {/* TAB 2: فحص ومنع التكرار */}
-          <button
-            onClick={() => setActiveTab('dedup')}
-            className={`p-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-between transition cursor-pointer border ${
-              activeTab === 'dedup'
-                ? 'bg-indigo-600 text-white border-indigo-700 shadow-md'
-                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <ShieldCheck className={`w-4 h-4 ${activeTab === 'dedup' ? 'text-white' : 'text-indigo-600'}`} />
-              <span>فحص ومنع التكرار</span>
-            </div>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-indigo-100 text-indigo-900">
-              0 تكرار ✓
-            </span>
-          </button>
-
-          {/* TAB 3: رابط الأصناف والرصيد */}
+        {/* The EXACT THREE Tabs / Links requested by user */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-2 border-t border-slate-100">
+          {/* LINK 1: رابط الأصناف والرصيد */}
           <button
             onClick={() => setActiveTab('products')}
-            className={`p-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-between transition cursor-pointer border ${
+            className={`p-3.5 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-between transition cursor-pointer border ${
               activeTab === 'products'
                 ? 'bg-emerald-600 text-white border-emerald-700 shadow-md'
                 : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
             }`}
           >
-            <div className="flex items-center gap-2">
-              <Package className={`w-4 h-4 ${activeTab === 'products' ? 'text-white' : 'text-emerald-600'}`} />
-              <span>رابط الأصناف والرصيد</span>
+            <div className="flex items-center gap-2.5">
+              <Package className={`w-5 h-5 ${activeTab === 'products' ? 'text-white' : 'text-emerald-600'}`} />
+              <span>1. رابط الأصناف والرصيد</span>
             </div>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800">
-              {products.length}
+            <span
+              className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${
+                activeTab === 'products' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+              }`}
+            >
+              {products.length} صنف
             </span>
           </button>
 
-          {/* TAB 4: رابط قاعدة العملاء */}
+          {/* LINK 2: رابط قاعدة العملاء */}
           <button
             onClick={() => setActiveTab('customers')}
-            className={`p-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-between transition cursor-pointer border ${
+            className={`p-3.5 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-between transition cursor-pointer border ${
               activeTab === 'customers'
                 ? 'bg-emerald-600 text-white border-emerald-700 shadow-md'
                 : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
             }`}
           >
-            <div className="flex items-center gap-2">
-              <Users className={`w-4 h-4 ${activeTab === 'customers' ? 'text-white' : 'text-amber-600'}`} />
-              <span>رابط قاعدة العملاء</span>
+            <div className="flex items-center gap-2.5">
+              <Users className={`w-5 h-5 ${activeTab === 'customers' ? 'text-white' : 'text-amber-600'}`} />
+              <span>2. رابط قاعدة العملاء</span>
             </div>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-900">
-              {customers.length}
+            <span
+              className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${
+                activeTab === 'customers' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-900'
+              }`}
+            >
+              {customers.length} عميل
             </span>
           </button>
 
-          {/* TAB 5: رابط التارجت والمحققات */}
+          {/* LINK 3: رابط التارجت والمحققات */}
           <button
             onClick={() => setActiveTab('targets')}
-            className={`p-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-between transition cursor-pointer border ${
+            className={`p-3.5 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-between transition cursor-pointer border ${
               activeTab === 'targets'
                 ? 'bg-emerald-600 text-white border-emerald-700 shadow-md'
                 : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
             }`}
           >
-            <div className="flex items-center gap-2">
-              <Target className={`w-4 h-4 ${activeTab === 'targets' ? 'text-white' : 'text-blue-600'}`} />
-              <span>رابط التارجت والمحققات</span>
+            <div className="flex items-center gap-2.5">
+              <Target className={`w-5 h-5 ${activeTab === 'targets' ? 'text-white' : 'text-blue-600'}`} />
+              <span>3. رابط التارجت والمحققات</span>
             </div>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-blue-100 text-blue-900">
-              {targets.length}
+            <span
+              className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${
+                activeTab === 'targets' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-900'
+              }`}
+            >
+              {targets.length} سجل
             </span>
           </button>
         </div>
       </div>
-
-      {/* ========================================================================= */}
-      {/* TAB: التوقع الشهري والأسبوعي الذكي                                         */}
-      {/* ========================================================================= */}
-      {activeTab === 'forecast' && (
-        <div className="space-y-6">
-          {/* Header & Filter Controls */}
-          <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 text-white rounded-3xl p-5 sm:p-7 shadow-xl border border-slate-800 space-y-5">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <div className="inline-flex items-center gap-2 bg-amber-400/20 text-amber-300 text-xs font-black px-3 py-1 rounded-full border border-amber-400/30 mb-2">
-                  <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
-                  <span>لوحة التوقع الشهري والأسبوعي الذكي (Forecast Engine)</span>
-                </div>
-                <h3 className="text-xl sm:text-2xl font-black text-white">
-                  توقعات المبيعات الأسبوعية والشهرية — {ARABIC_MONTHS[currentMonth - 1]} {currentYear}
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                  تحليل سرعة البيع اليومية (Run-Rate)، التوقع النهائي للشهر، ومتابعة الأداء أسبوعاً بأسبوع وفق الصلاحيات الميدانية لحماية سرية البيانات.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={handleExportForecastReport}
-                  disabled={isExportingForecast}
-                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-md transition cursor-pointer active:scale-95 disabled:opacity-50"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  <span>{isExportingForecast ? 'جاري التصدير...' : 'تصدير تقرير التوقعات Excel 📊'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Scope Badge & Hierarchy Notice */}
-            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800 text-xs font-bold">
-              <span className="text-slate-400 flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>نطاق العرض الحالي:</span>
-              </span>
-              {isSalesRep ? (
-                <span className="bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded-lg border border-emerald-500/30">
-                  🔒 بياناتك وتوقعاتك الشخصية فقط ({currentUser?.name})
-                </span>
-              ) : isSupervisor ? (
-                <span className="bg-indigo-500/20 text-indigo-300 px-2.5 py-1 rounded-lg border border-indigo-500/30">
-                  👥 فريق الإشراف التابع لك فقط ({scopedReps.length} مندوب)
-                </span>
-              ) : isBranchMgr ? (
-                <span className="bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded-lg border border-amber-500/30">
-                  🏢 مناديب ومشرفي فرع {currentUser?.branchName || ''} ({scopedReps.length} مندوب)
-                </span>
-              ) : (
-                <span className="bg-blue-500/20 text-blue-300 px-2.5 py-1 rounded-lg border border-blue-500/30">
-                  🌐 نظرة مركزية شاملة لكافة الفروع ({scopedReps.length} مندوب)
-                </span>
-              )}
-
-              <span className="text-slate-400 mr-auto font-mono text-[11px]">
-                اليوم {currentDay} من {daysInCurrentMonth} • متبقي {remainingDays} يوماً • الأسبوع {currentWeekIndex}
-              </span>
-            </div>
-
-            {/* Slicers for Admin & Branch Manager */}
-            {(isSuperAdmin || (isBranchMgr && !isSupervisor && !isSalesRep)) && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800">
-                {isSuperAdmin && (
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-300">تصفية الفرع:</label>
-                    <select
-                      value={forecastBranchFilter}
-                      onChange={(e) => setForecastBranchFilter(e.target.value)}
-                      className="w-full bg-slate-800 text-white border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-2 focus:ring-amber-400 cursor-pointer"
-                    >
-                      <option value="all">كافة الفروع</option>
-                      {branches
-                        .filter((b) => !b.isMainWarehouse && !b.name.includes('المخزن المركزي'))
-                        .map((b) => (
-                          <option key={b.id} value={b.name}>{b.name}</option>
-                        ))}
-                    </select>
-                  </div>
-                )}
-
-                {isSuperAdmin && (
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-300">مشرف الفريق:</label>
-                    <select
-                      value={forecastSupervisorFilter}
-                      onChange={(e) => setForecastSupervisorFilter(e.target.value)}
-                      className="w-full bg-slate-800 text-white border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-2 focus:ring-amber-400 cursor-pointer"
-                    >
-                      <option value="all">كافة المشرفين</option>
-                      {users
-                        .filter((u) => u.role === 'supervisor')
-                        .map((u) => (
-                          <option key={u.id} value={u.id}>{u.name} ({u.branchName || 'عام'})</option>
-                        ))}
-                    </select>
-                  </div>
-                )}
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-300">بحث عن مندوب:</label>
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      value={forecastRepSearch}
-                      onChange={(e) => setForecastRepSearch(e.target.value)}
-                      placeholder="اسم أو كود المندوب..."
-                      className="w-full bg-slate-800 text-white border border-slate-700 rounded-xl pr-9 pl-3 py-1.5 text-xs font-bold focus:ring-2 focus:ring-amber-400"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* 4 Executive KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Card 1: التوقع الشهري الإجمالي */}
-            <div className="bg-white rounded-3xl p-5 border-2 border-slate-200 hover:border-amber-400 shadow-sm transition space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">التوقع الشهري الإجمالي</span>
-                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black">
-                  <Target className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <div className="text-2xl font-black text-slate-900 font-mono">
-                  {formatCurrency(summaryMetrics.totalProjected)}
-                </div>
-                <div className="flex items-center gap-1.5 text-xs font-bold mt-1">
-                  <span className="text-slate-500">التارجت:</span>
-                  <span className="text-slate-800 font-mono">{formatCurrency(summaryMetrics.totalTarget)}</span>
-                </div>
-              </div>
-              <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] font-bold">
-                  <span className="text-slate-600">نسبة التوقع للإنجاز:</span>
-                  <span className={`font-black ${summaryMetrics.overallRate >= 100 ? 'text-emerald-600' : summaryMetrics.overallRate >= 80 ? 'text-amber-600' : 'text-rose-600'}`}>
-                    {summaryMetrics.overallRate}%
-                  </span>
-                </div>
-                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      summaryMetrics.overallRate >= 100 ? 'bg-emerald-500' : summaryMetrics.overallRate >= 80 ? 'bg-amber-500' : 'bg-rose-500'
-                    }`}
-                    style={{ width: `${Math.min(100, summaryMetrics.overallRate)}%` }}
-                  />
-                </div>
-                <div className="text-[10px] font-bold text-slate-500 text-left">
-                  الفارق: <strong className={summaryMetrics.totalVariance >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
-                    {summaryMetrics.totalVariance >= 0 ? '+' : ''}{formatCurrency(summaryMetrics.totalVariance)}
-                  </strong>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 2: التوقع الأسبوعي الحالي */}
-            <div className="bg-white rounded-3xl p-5 border-2 border-slate-200 hover:border-amber-400 shadow-sm transition space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">التوقع الأسبوعي الحالي (W{currentWeekIndex})</span>
-                <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-black">
-                  <Calendar className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <div className="text-2xl font-black text-blue-900 font-mono">
-                  {formatCurrency(summaryMetrics.currentWeekActual)}
-                </div>
-                <div className="flex items-center gap-1.5 text-xs font-bold mt-1">
-                  <span className="text-slate-500">تارجت الأسبوع:</span>
-                  <span className="text-slate-800 font-mono">{formatCurrency(summaryMetrics.currentWeekTarget)}</span>
-                </div>
-              </div>
-              <div className="pt-2 border-t border-slate-100">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black bg-blue-50 text-blue-800 border border-blue-200">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>الأسبوع {currentWeekIndex} جاري الآن</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 3: سرعة البيع اليومية */}
-            <div className="bg-white rounded-3xl p-5 border-2 border-slate-200 hover:border-amber-400 shadow-sm transition space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">سرعة البيع اليومية (Run-Rate)</span>
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black">
-                  <Activity className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <div className="text-2xl font-black text-emerald-800 font-mono">
-                  {formatCurrency(summaryMetrics.dailyRunRate)}
-                </div>
-                <div className="text-[11px] text-slate-500 font-bold mt-0.5">متوسط المبيعات اليومية المحققة</div>
-              </div>
-              <div className="pt-2 border-t border-slate-100 text-[11px] font-bold text-slate-600">
-                المطلوب يومياً للمتبقي ({remainingDays} يوماً):
-                <div className="text-sm font-black text-slate-900 font-mono mt-0.5">
-                  {formatCurrency(summaryMetrics.requiredDailyRate)} / يوم
-                </div>
-              </div>
-            </div>
-
-            {/* Card 4: توقعات التحصيل المالي */}
-            <div className="bg-white rounded-3xl p-5 border-2 border-slate-200 hover:border-amber-400 shadow-sm transition space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">توقعات التحصيل المالي</span>
-                <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-black">
-                  <Wallet className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <div className="text-2xl font-black text-purple-900 font-mono">
-                  {formatCurrency(summaryMetrics.totalCollectionForecast > 0 ? summaryMetrics.totalCollectionForecast : summaryMetrics.totalCollectionTarget)}
-                </div>
-                <div className="flex items-center gap-1.5 text-xs font-bold mt-1">
-                  <span className="text-slate-500">تارجت التحصيل:</span>
-                  <span className="text-slate-800 font-mono">{formatCurrency(summaryMetrics.totalCollectionTarget)}</span>
-                </div>
-              </div>
-              <div className="pt-2 border-t border-slate-100 text-[11px] font-bold text-purple-700">
-                مبني على مستحقات العملاء المسجلة وتوقعات المناديب
-              </div>
-            </div>
-          </div>
-
-          {/* Five-Week Milestone Timeline */}
-          <div className="bg-white rounded-3xl p-5 sm:p-6 border-2 border-slate-200 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-              <div>
-                <h4 className="text-base font-black text-slate-900 flex items-center gap-2">
-                  <CalendarCheck className="w-5 h-5 text-amber-500" />
-                  <span>المسار الزمني لتوزيع الأسابيع الخمسة ({ARABIC_MONTHS[currentMonth - 1]})</span>
-                </h4>
-                <p className="text-xs text-slate-500">متابعة دقيقة لمستهدف ومحقق كل أسبوع لضبط الإيقاع البيعي ومنع المفاجآت بنهاية الشهر</p>
-              </div>
-              <span className="text-xs font-black text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-xl">
-                نحن الآن في الأسبوع {currentWeekIndex}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-              {summaryMetrics.weeklyTotals.map((w) => (
-                <div
-                  key={w.weekIndex}
-                  className={`p-4 rounded-2xl border-2 transition ${
-                    w.isCurrent
-                      ? 'bg-amber-50/70 border-amber-400 shadow-md ring-2 ring-amber-400/40'
-                      : w.isPassed
-                      ? 'bg-slate-50 border-slate-200'
-                      : 'bg-white border-slate-200 opacity-80'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-black text-xs text-slate-900">{w.label}</span>
-                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                      w.isCurrent ? 'bg-amber-400 text-slate-950 animate-pulse' : w.isPassed ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {w.isCurrent ? 'جاري الآن ⚡' : w.isPassed ? 'منقضي' : 'قادم'}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-slate-500 font-bold mb-2">{w.dateRange}</div>
-                  
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500">المحقق:</span>
-                      <strong className="text-slate-900 font-mono">{formatCurrency(w.actual)}</strong>
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500">التارجت:</span>
-                      <span className="text-slate-600 font-mono text-[11px]">{formatCurrency(w.target)}</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-2.5 pt-2 border-t border-slate-200/80">
-                    <div className="flex items-center justify-between text-[11px] font-bold">
-                      <span className="text-slate-600">نسبة الإنجاز:</span>
-                      <span className={`font-mono font-black ${w.rate >= 100 ? 'text-emerald-700' : w.rate >= 80 ? 'text-amber-700' : 'text-slate-700'}`}>
-                        {w.rate}%
-                      </span>
-                    </div>
-                    <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1">
-                      <div
-                        className={`h-full rounded-full ${w.rate >= 100 ? 'bg-emerald-500' : w.rate >= 80 ? 'bg-amber-500' : 'bg-slate-400'}`}
-                        style={{ width: `${Math.min(100, w.rate)}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Reps Forecast & Performance Matrix */}
-          <div className="bg-white rounded-3xl p-5 sm:p-6 border-2 border-slate-200 shadow-sm space-y-4 overflow-hidden">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-              <div>
-                <h4 className="text-base font-black text-slate-900 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-indigo-600" />
-                  <span>جدول أداء وتوقعات المناديب الميدانية ({repForecastRows.length} مندوب)</span>
-                </h4>
-                <p className="text-xs text-slate-500">مصفوفة التوقع المحسوبة تلقائياً وفق سرعة البيع الميداني للمندوب</p>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto rounded-2xl border border-slate-200">
-              <table className="w-full text-right text-xs">
-                <thead className="bg-slate-900 text-white font-black text-[11px]">
-                  <tr>
-                    <th className="p-3">المندوب</th>
-                    <th className="p-3">الفرع / المشرف</th>
-                    <th className="p-3 text-center">تارجت الشهر</th>
-                    <th className="p-3 text-center">المحقق الفعلي</th>
-                    <th className="p-3 text-center">البيع اليومي</th>
-                    <th className="p-3 text-center">توقع الأسبوع الحالي</th>
-                    <th className="p-3 text-center">التوقع الشهري</th>
-                    <th className="p-3 text-center">نسبة التوقع %</th>
-                    <th className="p-3 text-center">الفارق المتوقع</th>
-                    <th className="p-3 text-center">حالة المسار</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
-                  {repForecastRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="p-8 text-center text-slate-400 font-bold">
-                        لا يوجد مناديب مسجلين ضمن نطاق البحث والصلاحية المحددة.
-                      </td>
-                    </tr>
-                  ) : (
-                    repForecastRows.map((row) => (
-                      <tr key={row.rep.id} className="hover:bg-amber-50/40 transition">
-                        <td className="p-3">
-                          <div className="font-black text-slate-900">{row.rep.name}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">كود: {row.rep.code || row.rep.username || '---'}</div>
-                        </td>
-                        <td className="p-3">
-                          <div className="font-bold text-slate-700">{row.rep.branchName || 'الفرع الرئيسي'}</div>
-                          <div className="text-[10px] text-slate-400">
-                            مشرف: {users.find((u) => u.id === row.rep.supervisorId)?.name || '---'}
-                          </div>
-                        </td>
-                        <td className="p-3 text-center font-bold font-mono text-slate-800">
-                          {formatCurrency(row.target)}
-                        </td>
-                        <td className="p-3 text-center font-black font-mono text-slate-900">
-                          {formatCurrency(row.actualSales)}
-                        </td>
-                        <td className="p-3 text-center font-bold font-mono text-emerald-800">
-                          {formatCurrency(row.dailyRunRate)}/يوم
-                        </td>
-                        <td className="p-3 text-center font-bold font-mono text-blue-900">
-                          {formatCurrency(row.currentWeekActual)}
-                          <span className="text-[9px] text-slate-400 block font-normal">من {formatCurrency(row.currentWeekTarget)}</span>
-                        </td>
-                        <td className="p-3 text-center font-black font-mono text-amber-900 text-sm">
-                          {formatCurrency(row.projectedMonthEnd)}
-                        </td>
-                        <td className="p-3 text-center">
-                          <span className={`px-2 py-0.5 rounded-lg text-xs font-black font-mono ${
-                            row.projectedRate >= 100 ? 'bg-emerald-100 text-emerald-800' : row.projectedRate >= 80 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
-                          }`}>
-                            {row.projectedRate}%
-                          </span>
-                        </td>
-                        <td className="p-3 text-center font-bold font-mono">
-                          <span className={row.variance >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
-                            {row.variance >= 0 ? '+' : ''}{formatCurrency(row.variance)}
-                          </span>
-                        </td>
-                        <td className="p-3 text-center">
-                          {row.status === 'super' ? (
-                            <span className="px-2 py-1 rounded-xl text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-300 inline-flex items-center gap-1">
-                              <Sparkles className="w-3 h-3" />
-                              <span>متفوق 🚀</span>
-                            </span>
-                          ) : row.status === 'on_track' ? (
-                            <span className="px-2 py-1 rounded-xl text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-300 inline-flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3" />
-                              <span>على المسار ⚡</span>
-                            </span>
-                          ) : (
-                            <span className="px-2 py-1 rounded-xl text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-300 inline-flex items-center gap-1">
-                              <AlertCircle className="w-3 h-3" />
-                              <span>يحتاج تسريع ⚠️</span>
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB: فحص ومنع تكرار البيانات (Anti-Duplication Auditor)                  */}
-      {/* ========================================================================= */}
-      {activeTab === 'dedup' && (
-        <div className="space-y-6">
-          <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-900 text-white rounded-3xl p-6 sm:p-7 shadow-xl border border-indigo-800/40 space-y-5">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <div className="inline-flex items-center gap-2 bg-indigo-500/20 text-indigo-300 text-xs font-black px-3 py-1 rounded-full border border-indigo-500/30 mb-2">
-                  <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>محرك سلامة ونزاهة البيانات (Zero Duplicates Engine)</span>
-                </div>
-                <h3 className="text-xl sm:text-2xl font-black text-white">
-                  فحص ومنع تكرار البيانات في كافة الجداول
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                  فحص فوري لقاعدة البيانات يضمن عدم تكرار كود أي صنف، أو عميل، أو تارجت، أو فاتورة؛ ودمج الصفوف المتطابقة تلقائياً للحفاظ على دقة الأرقام.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleRunFullDeduplication}
-                className="bg-indigo-500 hover:bg-indigo-400 text-white font-black px-5 py-3 rounded-2xl text-xs sm:text-sm flex items-center gap-2 shadow-lg transition cursor-pointer active:scale-95"
-              >
-                <CheckCheck className="w-4 h-4" />
-                <span>تنفيذ فحص وتطهير شامل الآن 🛡️</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Audit Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white rounded-3xl p-5 border-2 border-slate-200 shadow-sm space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">أصناف الكتالوج</span>
-                <Package className="w-5 h-5 text-emerald-600" />
-              </div>
-              <div className="text-2xl font-black text-slate-900 font-mono">
-                {duplicateProductStats.uniqueCount} صنف فريد
-              </div>
-              <div className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
-                <Check className="w-3.5 h-3.5" />
-                <span>التكرارات: {duplicateProductStats.duplicateRows} (مدمجة بالكامل)</span>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-3xl p-5 border-2 border-slate-200 shadow-sm space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">قاعدة العملاء</span>
-                <Users className="w-5 h-5 text-amber-600" />
-              </div>
-              <div className="text-2xl font-black text-slate-900 font-mono">
-                {duplicateCustomerStats.total} عميل
-              </div>
-              <div className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
-                <Check className="w-3.5 h-3.5" />
-                <span>أكواد مكررة: {duplicateCustomerStats.dupCodes} • هواتف مكررة: {duplicateCustomerStats.dupPhones}</span>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-3xl p-5 border-2 border-slate-200 shadow-sm space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">سجلات التارجت</span>
-                <Target className="w-5 h-5 text-blue-600" />
-              </div>
-              <div className="text-2xl font-black text-slate-900 font-mono">
-                {duplicateTargetStats.total} سجل
-              </div>
-              <div className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
-                <Check className="w-3.5 h-3.5" />
-                <span>أهداف مكررة: {duplicateTargetStats.dupTargets} (تمت التنقية)</span>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-3xl p-5 border-2 border-slate-200 shadow-sm space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">الفواتير والطلبيات</span>
-                <FileCheck className="w-5 h-5 text-purple-600" />
-              </div>
-              <div className="text-2xl font-black text-slate-900 font-mono">
-                {invoices.length} فاتورة
-              </div>
-              <div className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
-                <Check className="w-3.5 h-3.5" />
-                <span>أرقام الفواتير فريدة 100% دون أي ازدواج</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Hygiene Tools */}
-          <div className="bg-white rounded-3xl p-6 border-2 border-slate-200 shadow-sm space-y-4">
-            <h4 className="text-base font-black text-slate-900">أدوات التنقية والمزامنة السريعة</h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  cleanAndDeduplicateCustomers();
-                  showSuccess('تمت تنقية ودمج العملاء المكررين بنجاح!');
-                }}
-                className="p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-right transition cursor-pointer"
-              >
-                <div className="font-black text-sm text-slate-900 mb-1">1. تنقية وتوحيد العملاء</div>
-                <div className="text-xs text-slate-500">دمج أي عميلين بنفس الكود أو الهاتف في سجل واحد محدث مع حفظ المديونية</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const cleaned = deduplicateProductArray(products);
-                  if (cleaned.length !== products.length) {
-                    importProductsList(cleaned, 'replace');
-                  }
-                  showSuccess('تمت تنقية الكتالوج بنجاح دون أي تكرار!');
-                }}
-                className="p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-right transition cursor-pointer"
-              >
-                <div className="font-black text-sm text-slate-900 mb-1">2. تنقية وتوحيد الأصناف</div>
-                <div className="text-xs text-slate-500">توحيد الأكواد المكررة ودمج الشبابيك والألوان في كود أساسي واحد نظيف</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={forcePurgeCacheAndReload}
-                className="p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-right transition cursor-pointer"
-              >
-                <div className="font-black text-sm text-slate-900 mb-1">3. تحديث الكاش ونشر الإصدار</div>
-                <div className="text-xs text-slate-500">تحديث فوري لذاكرة الأجهزة الميدانية لمنع قراءة بيانات قديمة</div>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ========================================================================= */}
       {/* TAB 1 CONTENT: رابط الأصناف والرصيد                                     */}

@@ -174,6 +174,13 @@ const MainLayout: React.FC = () => {
             />
           )}
 
+          {activeTab === 'dashboard' && (
+            <SupervisorDashboard
+              onOpenNewOrder={() => setIsOrderModalOpen(true)}
+              onViewInvoice={(inv) => setViewingInvoice(inv)}
+            />
+          )}
+
           {activeTab === 'management' &&
             (currentUser.role === 'admin' ||
               currentUser.role === 'branch_manager' ||

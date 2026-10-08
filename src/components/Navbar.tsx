@@ -10,6 +10,7 @@ import {
   Download,
   FileSpreadsheet,
   Layers,
+  LayoutDashboard,
   LogOut,
   Receipt,
   RefreshCw,
@@ -134,8 +135,6 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     : 0;
 
   const navItems = [
-    { id: 'catalog', label: 'كتالوج الأصناف والبيع', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'all_customers', label: 'كافة العملاء والتحليل 👥', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     {
       id: 'management',
       label:
@@ -147,23 +146,15 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
       icon: BarChart3,
       roles: ['admin', 'branch_manager', 'supervisor', 'developer'],
     },
+    { id: 'catalog', label: 'كتالوج الأصناف والبيع', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'all_customers', label: currentUser.role === 'sales_rep' ? 'كافة العملاء والتحليل 👥' : 'كافة العملاء والتحليل 👥', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'dashboard', label: currentUser.role === 'sales_rep' ? 'متابعة طلبياتي 📊' : currentUser.role === 'admin' ? 'متابعة الطلبات' : 'لوحة المشرف والمتابعة 📊', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'targets', label: currentUser.role === 'sales_rep' ? 'هدفي والتارجت' : 'تارجت المبيعات والتحصيل', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'forecast', label: 'توقعات التحصيل', icon: TrendingUp, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'visits', label: 'زيارات العملاء', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'invoices', label: currentUser.role === 'sales_rep' ? 'طلبياتي وفواتيري 📑' : 'الفواتير والطلبيات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
     { id: 'inventory', label: 'إدارة المخزون والاعتمادات', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    {
-      id: 'excel',
-      label: currentUser.role === 'sales_rep'
-        ? 'التوقعات والبيانات 📊'
-        : currentUser.role === 'supervisor'
-        ? 'التوقعات وإدارة البيانات 📊'
-        : currentUser.role === 'branch_manager'
-        ? 'بيانات وتوقعات الفرع 📊'
-        : 'إدارة البيانات والتوقعات 📊',
-      icon: FileSpreadsheet,
-      roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'],
-    },
+    { id: 'excel', label: 'شيتات Google Sheets والإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },
     { id: 'guide', label: 'دليل دورة العمل 📖', icon: BookOpen, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'users', label: 'فريق الفرع والموظفين', icon: UserCheck, roles: ['admin', 'developer'], badge: pendingApprovalsCount },
   ];
@@ -716,8 +707,6 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
 
       {/* Mobile Bottom Navigation Bar (Smartphones & Small Screens - High Contrast & Large Touch Targets) */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/98 backdrop-blur border-t border-slate-800 flex items-center justify-around py-1.5 px-2 shadow-2xl safe-area-inset-bottom">
-        {/* Removed dashboard/home button - catalog is now the primary tab */}
-
         <button
           onClick={() => setActiveTab('catalog')}
           className={`flex flex-col items-center justify-center min-w-[52px] min-h-[52px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
@@ -726,6 +715,16 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
         >
           <Boxes className={`w-5 h-5 ${activeTab === 'catalog' ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
           <span className="text-[11px] mt-0.5 font-bold">الكتالوج</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`relative flex flex-col items-center justify-center min-w-[52px] min-h-[52px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
+            activeTab === 'dashboard' ? 'text-amber-400 font-black' : 'text-slate-300 hover:text-white font-bold'
+          }`}
+        >
+          <LayoutDashboard className={`w-5 h-5 ${activeTab === 'dashboard' ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
+          <span className="text-[11px] mt-0.5 font-bold">المتابعة</span>
         </button>
 
         {/* Center Cart Trigger (High Prominence & Large Touch Area) */}

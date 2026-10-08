@@ -44,10 +44,9 @@ import {
   ChevronsRight,
   ChevronsLeft,
   Clock,
-  Maximize2,
-  ArrowUp
+  Maximize2
 } from 'lucide-react';
-import React, { useMemo, useState, useEffect, useDeferredValue, useCallback, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useDeferredValue } from 'react';
 import { useApp } from '../context/AppContext';
 import { ProductImage } from './ProductImage';
 import {
@@ -339,38 +338,22 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     }
   };
 
-  /**
-   * المنتجات الظاهرة للصلاحية الحالية — memoized.
-   *
-   * `getVisibleProducts()` بتعمل `products.map(...)` وبترجّع **أوبجكت جديد لكل
-   * صنف**. من غير memoization الـ array بياخد هوية جديدة في كل render،
-   * فكل useMemo شايلها (subCategories, stock summaries, filteredProducts)
-   * كان بيتحسب تاني من الصفر في كل ضغطة زر — وده سبب تقيل الصفحة.
-   *
-   * المدخلات الحقيقية هي الـ products وهوية المستخدم، فالثبات مضمون.
-   */
-  const visibleProducts = useMemo(
-    () => getVisibleProducts(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [products, currentUser?.id, currentUser?.role, currentUser?.branchName]
-  );
-
-  // Dynamic Arabic Item Groups list derived directly from visibleProducts
+  // Dynamic Arabic Item Groups list derived directly from products
   const dynamicItemGroups = useMemo(() => {
     const set = new Set<string>();
-    visibleProducts.forEach((p) => {
+    products.forEach((p) => {
       const g = (p.itemGroup || p.department || p.category || '').trim();
       if (g) set.add(g);
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
-  }, [visibleProducts]);
+  }, [products]);
 
   // Extract unique subcategories / families (العائلات / الفئات التابعة للمجموعة المختارة أو للكل)
   const subCategories = useMemo(() => {
     const set = new Set<string>();
     const filteredByDept = selectedOfficialDept === 'الكل'
-      ? visibleProducts
-      : visibleProducts.filter((p) => {
+      ? products
+      : products.filter((p) => {
           const g = (p.itemGroup || p.department || p.category || '').trim().toLowerCase();
           return g === selectedOfficialDept.trim().toLowerCase();
         });
@@ -384,7 +367,25 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       }
     });
     return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ar'));
-  }, [visibleProducts, selectedOfficialDept, dynamicItemGroups]);
+  }, [products, selectedOfficialDept, dynamicItemGroups]);
+
+  /**
+   * المنتجات الظاهرة للصلاحية الحالية — memoized.
+   *
+   * `getVisibleProducts()` بتعمل `products.map(...)` وبترجّع **أوبجكت جديد لكل
+   * صنف**. من غير memoization الـ array بياخد هوية جديدة في كل render،
+   * فكل useMemo شايلها (subCategories, stock summaries, filteredProducts)
+   * كان بيتحسب تاني من الصفر في كل ضغطة زر — وده سبب تقيل الصفحة.
+   *
+   * المدخلات الحقيقية هي الـ products وهوية المستخدم، فالثبات مضمون.
+   * ملاحظة: getVisibleProducts نفسها مش في الـ deps عن قصد — هي function
+   * جديدة كل render، وحطّها كانت هتكسر الـ memoization.
+   */
+  const visibleProducts = useMemo(
+    () => getVisibleProducts(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [products, currentUser?.id, currentUser?.role, currentUser?.branchName]
+  );
 
   // Active branch context for stock resolution: specific user's branch for reps/supervisors, or global filter for admin
   const currentActiveBranch = useMemo(() => {
@@ -700,12 +701,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
   // Group all visible products into Parent Products with Variants / Windows (~3,444 products from 5,444 items)
   const parentProducts = useMemo(() => {
-    return groupProductsIntoParents(visibleProducts);
-  }, [visibleProducts]);
+    return groupProductsIntoParents(products);
+  }, [products]);
 
   // Department / Item Group item count helper - synced with parent products consolidation
   const deptCounts = useMemo(() => {
-    const listToCount = isParentGroupingEnabled ? parentProducts : visibleProducts;
+    const listToCount = isParentGroupingEnabled ? parentProducts : products;
     const counts: Record<string, number> = { 'الكل': listToCount.length };
     dynamicItemGroups.forEach((dept) => {
       counts[dept] = 0;
@@ -719,7 +720,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     });
 
     return counts;
-  }, [visibleProducts, parentProducts, dynamicItemGroups, isParentGroupingEnabled]);
+  }, [products, parentProducts, dynamicItemGroups, isParentGroupingEnabled]);
 
   // Filtered & Sorted Parent Products (Consolidated 3,444 products)
   const filteredParentProducts = useMemo(() => {
@@ -943,77 +944,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     const startIndex = (currentPage - 1) * effectiveItemsPerPage;
     return filteredParentProducts.slice(startIndex, startIndex + effectiveItemsPerPage);
   }, [filteredParentProducts, currentPage, effectiveItemsPerPage, isParentGroupingEnabled]);
-
-  // --- Progressive Virtual Windowing / Infinite Scroll Engine ---
-  // Renders an initial batch (16 cards) for instant paint (<30ms) on low-end mobile phones,
-  // then progressively mounts further items via IntersectionObserver as the user scrolls down.
-  const VIRTUAL_BATCH_SIZE = 16;
-  const [virtualBatchCount, setVirtualBatchCount] = useState<number>(VIRTUAL_BATCH_SIZE);
-  const [showScrollTopButton, setShowScrollTopButton] = useState<boolean>(false);
-  const virtualSentinelRef = useRef<HTMLDivElement | null>(null);
-
-  // Reset virtual window batch whenever search, department, subcategory, filter, sort or page changes
-  useEffect(() => {
-    setVirtualBatchCount(VIRTUAL_BATCH_SIZE);
-  }, [
-    searchTerm,
-    selectedOfficialDept,
-    selectedSubCategory,
-    selectedPriority,
-    selectedStatus,
-    stockAvailabilityFilter,
-    sortBy,
-    currentPage,
-    itemsPerPage,
-  ]);
-
-  // Track window scroll for Scroll-to-Top floating button
-  useEffect(() => {
-    const handleScroll = () => {
-      setShowScrollTopButton(window.scrollY > 450);
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  const totalCurrentPageItems = isParentGroupingEnabled
-    ? displayedParentProducts.length
-    : displayedProducts.length;
-
-  const hasMoreVirtualItems = virtualBatchCount < totalCurrentPageItems;
-
-  const loadMoreVirtualBatch = useCallback(() => {
-    setVirtualBatchCount((prev) => Math.min(prev + VIRTUAL_BATCH_SIZE, totalCurrentPageItems));
-  }, [totalCurrentPageItems]);
-
-  // Observer on sentinel element to progressively mount more cards
-  useEffect(() => {
-    if (!hasMoreVirtualItems) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          loadMoreVirtualBatch();
-        }
-      },
-      { rootMargin: '350px' }
-    );
-    const el = virtualSentinelRef.current;
-    if (el) observer.observe(el);
-    return () => {
-      if (el) observer.unobserve(el);
-    };
-  }, [hasMoreVirtualItems, loadMoreVirtualBatch]);
-
-  // Items actually rendered into DOM (prevents lag & memory pressure on budget mobile devices)
-  const virtuallyRenderedParentProducts = useMemo(() => {
-    if (!isParentGroupingEnabled) return [];
-    return displayedParentProducts.slice(0, virtualBatchCount);
-  }, [displayedParentProducts, virtualBatchCount, isParentGroupingEnabled]);
-
-  const virtuallyRenderedProducts = useMemo(() => {
-    if (isParentGroupingEnabled) return [];
-    return displayedProducts.slice(0, virtualBatchCount);
-  }, [displayedProducts, virtualBatchCount, isParentGroupingEnabled]);
 
   // Filter-First Condition: hide products unless explicitly searched/filtered or user requests to view all
   const isFiltered = Boolean(
@@ -1421,23 +1351,23 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             )}
           </div>
 
-          {/* Unified Products Active Badge (Consolidated Catalog with all Windows embedded) - responsive on mobile & desktop */}
+          {/* Unified Products Active Badge (Consolidated Catalog with all Windows embedded) - visible on tablet/desktop, streamlined on mobile to prevent duplicate counts */}
           <div
-            className="flex items-center bg-slate-800/90 px-2.5 sm:px-3 py-1 rounded-xl border border-slate-700 h-10 sm:h-11 shrink-0 gap-2 sm:gap-2.5"
-            title={`نظام توفير المساحة الذكي: إجمالي ${products.length.toLocaleString()} شباك ولون مدمجة داخل ${parentProducts.length.toLocaleString()} كود أساسي دون أي تكرار أو صنف مفقود`}
+            className="hidden sm:flex items-center bg-slate-800/90 px-3 py-1 rounded-xl border border-slate-700 h-11 shrink-0 gap-2.5"
+            title={`نظام توفير المساحة الذكي: إجمالي ${products.length.toLocaleString()} شباك ولون مدمجة داخل ${parentProducts.length.toLocaleString()} كود أساسي دون أي صنف مفقود`}
           >
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0">
-              <Boxes className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <div className="w-7 h-7 rounded-lg bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0">
+              <Boxes className="w-4 h-4" />
             </div>
             <div className="text-right">
-              <div className="text-[11px] sm:text-xs font-black text-amber-300 flex items-center gap-1.5 leading-tight">
-                <span>{parentProducts.length.toLocaleString()} صنف أساسي</span>
-                <span className="text-[9px] sm:text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded font-mono font-black border border-emerald-500/30">
-                  بدون تكرار ✓
+              <div className="text-xs font-black text-amber-300 flex items-center gap-1.5 leading-tight">
+                <span>{parentProducts.length.toLocaleString()} كود أساسي</span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded font-mono font-black border border-emerald-500/30">
+                  تضم {products.length.toLocaleString()} شباك ولون
                 </span>
               </div>
-              <div className="text-[9px] text-slate-400 hidden sm:block">
-                مدمج بها {products.length.toLocaleString()} شباك ولون لسرعة التصفح
+              <div className="text-[9.5px] text-slate-400 hidden md:block">
+                تجميع ذكي لتوفير المساحة: كل كود أساسي يضم كافة ألوانه وأكواده الموحدة
               </div>
             </div>
           </div>
@@ -1508,7 +1438,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           >
             <span>كل الأصناف</span>
             <span className="mr-1 text-[10px] opacity-75">
-              ({isParentGroupingEnabled ? parentProducts.length : visibleProducts.length})
+              ({isParentGroupingEnabled ? parentProducts.length : products.length})
             </span>
           </button>
 
@@ -1866,7 +1796,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           }
         >
           {isParentGroupingEnabled ? (
-            virtuallyRenderedParentProducts.map((parent, idx) => {
+            displayedParentProducts.map((parent, idx) => {
               const activeVariant = getParentActiveVariant(parent);
               const rawProd = activeVariant.rawProduct;
               const isPromo = Boolean(activeVariant.promoPrice && activeVariant.promoPrice > 0);
@@ -2206,7 +2136,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               );
             })
           ) : (
-            virtuallyRenderedProducts.map((product, idx) => {
+            displayedProducts.map((product, idx) => {
             const isPromo = product.promoPrice && product.promoPrice > 0;
             const dynamicBranchStock = getProductBranchStock(product);
             const hasBranchStock = dynamicBranchStock > 0;
@@ -2474,7 +2404,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isParentGroupingEnabled ? (
-                  virtuallyRenderedParentProducts.map((parent) => {
+                  displayedParentProducts.map((parent) => {
                     const activeVariant = getParentActiveVariant(parent);
                     const rawProd = activeVariant.rawProduct;
                     const branchCartons = getProductBranchStock(rawProd);
@@ -2566,7 +2496,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     );
                   })
                 ) : (
-                  virtuallyRenderedProducts.map((product) => {
+                  displayedProducts.map((product) => {
                   const branchCartons = getProductBranchStock(product);
                   const mainWhCartons = typeof product.mainWarehouseReserved === 'number'
                     ? product.mainWarehouseReserved
@@ -2677,35 +2607,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             </table>
           </div>
         </div>
-      )}
-
-      {/* Virtual Infinite Scroll Sentinel & Batch Loading Indicator */}
-      <div ref={virtualSentinelRef} className="py-2 flex flex-col items-center justify-center">
-        {hasMoreVirtualItems ? (
-          <div className="flex items-center gap-2 py-2.5 px-4 rounded-2xl bg-slate-900/90 text-amber-300 text-xs font-bold shadow-md animate-pulse">
-            <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
-            <span>
-              جاري تحميل باقي الأصناف تلقائياً ({isParentGroupingEnabled ? virtuallyRenderedParentProducts.length : virtuallyRenderedProducts.length} من {totalCurrentPageItems})...
-            </span>
-          </div>
-        ) : totalCurrentPageItems > VIRTUAL_BATCH_SIZE ? (
-          <div className="text-[11px] text-slate-400 font-bold py-1">
-            ✓ تم تحميل وعرض كافة أصناف هذه الصفحة ({totalCurrentPageItems} صنف)
-          </div>
-        ) : null}
-      </div>
-
-      {/* Floating Scroll To Top Button */}
-      {showScrollTopButton && (
-        <button
-          type="button"
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="fixed bottom-24 left-4 z-40 bg-slate-900/95 hover:bg-slate-800 text-amber-400 p-3 rounded-2xl shadow-2xl border border-amber-400/50 flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
-          title="العودة لأعلى الصفحة"
-        >
-          <ArrowUp className="w-4 h-4 stroke-[2.5]" />
-          <span className="text-xs font-black hidden sm:inline">للأعلى ⬆️</span>
-        </button>
       )}
 
       {/* Pagination & Progressive Loading Controller */}
