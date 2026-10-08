@@ -32,6 +32,7 @@ import {
   ZapOff,
   Eye,
   EyeOff,
+  Home,
   Lock,
   Menu
 } from 'lucide-react';
@@ -138,6 +139,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     : 0;
 
   const navItems = [
+    { id: 'rep_home', label: 'الرئيسية', icon: Home, roles: ['sales_rep'] },
     {
       id: 'management',
       label:

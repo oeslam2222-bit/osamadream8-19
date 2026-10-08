@@ -10,6 +10,8 @@ export interface User {
   password?: string;
   role: UserRole;
   branchName: string;
+  code?: string;
+  supervisorName?: string;
   supervisorId?: string;
   phone: string;
   avatar?: string;

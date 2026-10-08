@@ -37,6 +37,7 @@ const UserManager = lazy(() => import('./components/UserManager').then((m) => ({
 const ManagementDashboard = lazy(() => import('./components/ManagementDashboard').then((m) => ({ default: m.ManagementDashboard })));
 const HomeExecutiveDashboard = lazy(() => import('./components/HomeExecutiveDashboard').then((m) => ({ default: m.HomeExecutiveDashboard })));
 const SystemWorkflowGuide = lazy(() => import('./components/SystemWorkflowGuide').then((m) => ({ default: m.SystemWorkflowGuide })));
+const MobileRepDashboard = lazy(() => import('./components/MobileRepDashboard').then((m) => ({ default: m.MobileRepDashboard })));
 const OrderBuilderModal = lazy(() => import('./components/OrderBuilderModal').then((m) => ({ default: m.OrderBuilderModal })));
 const ElectronicInvoiceModal = lazy(() => import('./components/ElectronicInvoiceModal').then((m) => ({ default: m.ElectronicInvoiceModal })));
 
@@ -70,9 +71,9 @@ const MainLayout: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>(() => {
     try {
       const saved = localStorage.getItem('dream8_landing_tab');
-      if (saved === 'visits' || saved === 'all_customers' || saved === 'catalog') return saved;
+      if (saved === 'visits' || saved === 'all_customers' || saved === 'catalog' || saved === 'rep_home') return saved;
     } catch { /* ignore */ }
-    return currentUser?.role === 'admin' ? 'management' : 'all_customers';
+    return currentUser?.role === 'admin' ? 'management' : currentUser?.role === 'sales_rep' ? 'rep_home' : 'all_customers';
   });
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
@@ -86,7 +87,7 @@ const MainLayout: React.FC = () => {
   useEffect(() => {
     try {
       const saved = localStorage.getItem('dream8_landing_tab');
-      const desired = saved === 'catalog' ? 'catalog' : (isRep ? 'visits' : currentUser?.role === 'admin' ? 'management' : 'all_customers');
+      const desired = saved === 'catalog' ? 'catalog' : (isRep ? 'rep_home' : currentUser?.role === 'admin' ? 'management' : 'all_customers');
       setActiveTab((cur) => (cur === 'catalog' ? desired : cur));
     } catch { /* ignore */ }
   }, [isRep, currentUser?.role]);
@@ -119,7 +120,7 @@ const MainLayout: React.FC = () => {
   // Remember the section the user works in, so the app reopens on it next time.
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
-    if (tab === 'visits' || tab === 'all_customers' || tab === 'catalog') {
+    if (tab === 'visits' || tab === 'all_customers' || tab === 'catalog' || tab === 'rep_home') {
       try { localStorage.setItem('dream8_landing_tab', tab); } catch { /* ignore */ }
     }
   };
@@ -158,6 +159,15 @@ const MainLayout: React.FC = () => {
       {/* Content Container with optimal tight padding for mobile and standard padding for desktop */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-2 sm:px-4 md:px-6 py-2.5 sm:py-5 pb-24 md:pb-8">
         <Suspense fallback={<TabLoadingSkeleton />}>
+          {/* Rep home: icon-grid launcher. Role decides the screen, not
+              the device — a rep on desktop gets the same launcher. */}
+          {activeTab === 'rep_home' && currentUser.role === 'sales_rep' && (
+            <MobileRepDashboard
+              onNavigate={handleTabChange}
+              onNewInvoice={() => setIsOrderModalOpen(true)}
+            />
+          )}
+
           {activeTab === 'catalog' && (
             <ProductCatalog
               onOpenCart={() => setIsOrderModalOpen(true)}
