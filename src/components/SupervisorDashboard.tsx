@@ -380,18 +380,56 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     };
   }, [products]);
 
-  // List of unique reps in accessible invoices (Strict branch privacy)
+  // 1. Base visible invoices before local rep filtering
+  const baseInvoices = useMemo(() => {
+    return getVisibleInvoices();
+  }, [getVisibleInvoices, invoices, currentUser, users, branches]);
+
+  // List of unique reps in accessible scope (Strict supervisor / branch privacy)
   const repsList = useMemo(() => {
     const set = new Set<string>();
-    accessibleInvoices.forEach((i) => i.repName && set.add(i.repName));
-    return ['الكل', ...Array.from(set)];
-  }, [accessibleInvoices]);
+    // If supervisor, add all reps reporting to this supervisor
+    if (currentUser?.role === 'supervisor') {
+      users.filter((u) => u.role === 'sales_rep' && u.supervisorId === currentUser.id).forEach((u) => set.add(u.name));
+    } else if (currentUser?.role === 'branch_manager' && currentUser.branchName) {
+      users.filter((u) => u.role === 'sales_rep' && isBranchMatch(u.branchName, currentUser.branchName, { allowUnassigned: false })).forEach((u) => set.add(u.name));
+    }
+    baseInvoices.forEach((i) => {
+      if (i.repName) set.add(i.repName);
+    });
+    return ['الكل', ...Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'))];
+  }, [baseInvoices, users, currentUser]);
 
-  // Reps Performance Table
+  // Reps Performance Table calculated from baseInvoices so all team reps are shown
   const repPerformance = useMemo(() => {
-    const map = new Map<string, { name: string; branch: string; orders: number; revenue: number; cartons: number; delivered: number; returned: number }>();
-    
-    accessibleInvoices.forEach((inv) => {
+    const map = new Map<string, {
+      name: string;
+      branch: string;
+      orders: number;
+      revenue: number;
+      cartons: number;
+      delivered: number;
+      returned: number;
+      pending: number;
+    }>();
+
+    // Initialize with all supervised reps if supervisor
+    if (currentUser?.role === 'supervisor') {
+      users.filter((u) => u.role === 'sales_rep' && u.supervisorId === currentUser.id).forEach((u) => {
+        map.set(u.name, {
+          name: u.name,
+          branch: u.branchName || currentUser.branchName || 'الفرع',
+          orders: 0,
+          revenue: 0,
+          cartons: 0,
+          delivered: 0,
+          returned: 0,
+          pending: 0,
+        });
+      });
+    }
+
+    baseInvoices.forEach((inv) => {
       const repKey = inv.repName || 'غير محدد';
       const existing = map.get(repKey) || {
         name: repKey,
@@ -401,6 +439,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         cartons: 0,
         delivered: 0,
         returned: 0,
+        pending: 0,
       };
 
       existing.orders += 1;
@@ -408,14 +447,21 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         existing.revenue += inv.estimatedGrandTotal || 0;
         existing.cartons += inv.totalCartons || 0;
       }
-      if (inv.status === 'تم التسليم') existing.delivered += 1;
-      if (inv.status === 'مرتجع') existing.returned += 1;
+      if (inv.status === 'تم التسليم' || inv.status === 'إغلاق الطلبية') {
+        existing.delivered += 1;
+      }
+      if (inv.status === 'مرتجع') {
+        existing.returned += 1;
+      }
+      if (inv.status === 'قيد مراجعة المشرف' || inv.status === 'معلقة بانتظار اعتماد الفرع' || inv.status === 'قيد المراجعة') {
+        existing.pending += 1;
+      }
 
       map.set(repKey, existing);
     });
 
-    return Array.from(map.values());
-  }, [accessibleInvoices]);
+    return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue);
+  }, [baseInvoices, users, currentUser]);
 
   // Handlers for Delivery / Return Status Changes
   const handleSetDelivered = (invoice: Invoice) => {
@@ -773,6 +819,117 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                 </button>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Team Reps Performance Table (Dedicated for Supervisor, Branch Manager, & Admin) */}
+      {(currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer') && repPerformance.length > 0 && (
+        <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold">
+                <Users className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-black text-sm sm:text-base text-slate-900">
+                  {currentUser?.role === 'supervisor'
+                    ? 'أداء وأرقام مناديب فريقك (المشرف المباشر)'
+                    : currentUser?.role === 'branch_manager'
+                    ? `أداء وأرقام مناديب فرعك (${currentUser.branchName})`
+                    : 'أداء وأرقام مناديب المبيعات'}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  مبيعات كل مندوب، الكراتين، الطلبيات المسلمة والمعلقة، مع إمكانية التصفية المباشرة
+                </p>
+              </div>
+            </div>
+
+            {selectedRepFilter !== 'الكل' && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-xl">
+                  محدد: {selectedRepFilter}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRepFilter('الكل')}
+                  className="text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-xl transition cursor-pointer"
+                >
+                  عرض كل المناديب ✕
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-right text-xs">
+              <thead className="bg-slate-50 text-slate-700 font-black border-b border-slate-200">
+                <tr>
+                  <th className="p-3">اسم المندوب</th>
+                  <th className="p-3">الفرع</th>
+                  <th className="p-3">عدد الطلبيات</th>
+                  <th className="p-3">إجمالي المبيعات</th>
+                  <th className="p-3">عدد الكراتين</th>
+                  <th className="p-3">تم التسليم</th>
+                  <th className="p-3">قيد المراجعة</th>
+                  <th className="p-3 text-center">إجراء</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {repPerformance.map((rep) => {
+                  const isRepActive = selectedRepFilter === rep.name;
+                  return (
+                    <tr
+                      key={rep.name}
+                      className={`hover:bg-slate-50 transition ${
+                        isRepActive ? 'bg-amber-50/70 font-bold' : ''
+                      }`}
+                    >
+                      <td className="p-3 font-bold text-slate-900 flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px] font-black">
+                          {rep.name.slice(0, 1)}
+                        </div>
+                        <span>{rep.name}</span>
+                        {isRepActive && (
+                          <span className="bg-amber-400 text-slate-950 text-[10px] px-1.5 py-0.2 rounded font-black">
+                            مُختار
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3 text-slate-600">{rep.branch}</td>
+                      <td className="p-3 font-mono font-bold text-slate-800">{rep.orders}</td>
+                      <td className="p-3 font-mono font-black text-amber-950">
+                        {formatCurrency(rep.revenue)}
+                      </td>
+                      <td className="p-3 font-mono text-emerald-800 font-bold">{rep.cartons} كرتونة</td>
+                      <td className="p-3 font-mono text-teal-700 font-bold">{rep.delivered}</td>
+                      <td className="p-3 font-mono">
+                        {rep.pending > 0 ? (
+                          <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-bold">
+                            {rep.pending} معلقة
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">0</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRepFilter(isRepActive ? 'الكل' : rep.name)}
+                          className={`px-3 py-1 rounded-xl text-[11px] font-bold transition cursor-pointer ${
+                            isRepActive
+                              ? 'bg-amber-500 text-slate-950 font-black'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          {isRepActive ? 'إلغاء التصفية' : 'تصفية الطلبيات 🔍'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

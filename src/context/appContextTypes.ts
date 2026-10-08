@@ -53,6 +53,8 @@ export interface AppContextType {
   supabaseStatus: SupabaseSyncStatus;
   isSupabaseSyncing: boolean;
   syncWithSupabase: (direction?: 'fetch' | 'push' | 'both') => Promise<{ success: boolean; message: string }>;
+  checkDatabaseConnection: () => Promise<SupabaseSyncStatus>;
+  loginAs: (userId: string) => void;
 
   // Privacy & Confidentiality Mode (سرية البيانات)
   isPrivacyMode: boolean;
@@ -206,7 +208,6 @@ export interface AppContextType {
   getCustomerVisitSummary: (customerId: string, month?: string) => { total: number; completed: number; scheduled: number; lastVisit?: string; nextVisit?: string };
   getSupervisorsInBranch: (branchName?: string) => User[];
   getSalesRepsForSupervisor: (supervisorId: string) => User[];
-  loginAs: (userId: string) => void;
 
   // Targets & KPIs Dashboard
   targets: TargetRecord[];

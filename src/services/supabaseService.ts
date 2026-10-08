@@ -43,6 +43,9 @@ export interface SupabaseSyncStatus {
   productsCount?: number;
   invoicesCount?: number;
   customersCount?: number;
+  visitsCount?: number;
+  targetsCount?: number;
+  pingMs?: number;
   /**
    * حالة جدول الفواتير نفسه.
    *
@@ -79,12 +82,15 @@ function resolveInvoicesTableState(
  * Test connectivity with Supabase project and check available tables
  */
 export async function testSupabaseConnection(): Promise<SupabaseSyncStatus> {
+  const startTime = Date.now();
   try {
     let foundTable = '';
     let usersCount = 0;
     let productsCount = 0;
     let invoicesCount = 0;
     let customersCount = 0;
+    let visitsCount = 0;
+    let targetsCount = 0;
 
     const countTable = async (table: string): Promise<number | null> => {
       try {
@@ -96,18 +102,21 @@ export async function testSupabaseConnection(): Promise<SupabaseSyncStatus> {
       }
     };
 
-    // These independent head-only count requests can run together instead of
-    // making app startup wait for each network round trip in sequence.
-    const [usersResult, productsResult, invoicesResult, customersResult, ordersResult] = await Promise.all([
+    // Run count queries in parallel for instant ping feedback
+    const [usersResult, productsResult, invoicesResult, customersResult, ordersResult, visitsResult, targetsResult] = await Promise.all([
       countTable('users'),
       countTable('products'),
       countTable('invoices'),
       countTable('customers'),
       countTable('orders'),
+      countTable('visits'),
+      countTable('targets'),
     ]);
 
+    const pingMs = Math.max(1, Date.now() - startTime);
+
     if (usersResult !== null) {
-      foundTable += 'users ';
+      foundTable += 'المستخدمين ';
       usersCount = usersResult;
     } else {
       const profilesResult = await countTable('profiles');
@@ -117,31 +126,43 @@ export async function testSupabaseConnection(): Promise<SupabaseSyncStatus> {
       }
     }
     if (productsResult !== null) {
-      foundTable += 'products ';
+      foundTable += 'الأصناف ';
       productsCount = productsResult;
     }
-    if (invoicesResult !== null) {
-      foundTable += 'invoices ';
-      invoicesCount = invoicesResult;
+    if (invoicesResult !== null || ordersResult !== null) {
+      foundTable += 'الطلبيات ';
+      invoicesCount = (invoicesResult || 0) + (ordersResult || 0);
     }
     if (customersResult !== null) {
-      foundTable += 'customers ';
+      foundTable += 'العملاء ';
       customersCount = customersResult;
+    }
+    if (visitsResult !== null) {
+      foundTable += 'الزيارات ';
+      visitsCount = visitsResult;
+    }
+    if (targetsResult !== null) {
+      foundTable += 'الأهداف ';
+      targetsCount = targetsResult;
     }
 
     return {
       connected: true,
-      tableFound: foundTable.trim() || 'متصل بنجاح بقاعدة البيانات السحابية (Supabase)',
+      tableFound: foundTable.trim() ? `متصل بنجاح بالسيرفر السحابي (${foundTable.trim()})` : 'متصل بنجاح بقاعدة البيانات السحابية (Supabase PostgreSQL)',
       usersCount,
       productsCount,
       invoicesCount,
       customersCount,
+      visitsCount,
+      targetsCount,
+      pingMs,
       invoicesTableState: resolveInvoicesTableState(invoicesResult, ordersResult),
       lastSyncTime: new Date().toLocaleTimeString('ar-EG'),
     };
   } catch (err: any) {
     return {
       connected: false,
+      pingMs: Date.now() - startTime,
       error: err?.message || 'فشل الاتصال بقاعدة بيانات Supabase',
     };
   }

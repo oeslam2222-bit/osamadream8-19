@@ -35,6 +35,7 @@ const InventoryStockView = lazy(() => import('./components/InventoryStockView').
 const ExcelImportExport = lazy(() => import('./components/ExcelImportExport').then((m) => ({ default: m.ExcelImportExport })));
 const UserManager = lazy(() => import('./components/UserManager').then((m) => ({ default: m.UserManager })));
 const ManagementDashboard = lazy(() => import('./components/ManagementDashboard').then((m) => ({ default: m.ManagementDashboard })));
+const HomeExecutiveDashboard = lazy(() => import('./components/HomeExecutiveDashboard').then((m) => ({ default: m.HomeExecutiveDashboard })));
 const SystemWorkflowGuide = lazy(() => import('./components/SystemWorkflowGuide').then((m) => ({ default: m.SystemWorkflowGuide })));
 const OrderBuilderModal = lazy(() => import('./components/OrderBuilderModal').then((m) => ({ default: m.OrderBuilderModal })));
 const ElectronicInvoiceModal = lazy(() => import('./components/ElectronicInvoiceModal').then((m) => ({ default: m.ElectronicInvoiceModal })));
@@ -174,8 +175,9 @@ const MainLayout: React.FC = () => {
             />
           )}
 
-          {activeTab === 'dashboard' && (
-            <SupervisorDashboard
+          {(activeTab === 'home' || activeTab === 'dashboard') && (
+            <HomeExecutiveDashboard
+              onNavigateToTab={(tab) => handleTabChange(tab)}
               onOpenNewOrder={() => setIsOrderModalOpen(true)}
               onViewInvoice={(inv) => setViewingInvoice(inv)}
             />

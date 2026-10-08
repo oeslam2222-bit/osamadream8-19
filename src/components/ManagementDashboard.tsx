@@ -49,7 +49,14 @@ import { useApp } from '../context/AppContext';
 import { calculateCustomerFinancials } from '../services/customerFinancialService';
 import { resolveCustomerDuesValue } from '../services/customerDues';
 import { formatCurrency } from '../services/invoiceService';
-import { isArabicNameMatch, normalizeArabicText } from '../services/arabicMatchingService';
+import {
+  isArabicNameMatch,
+  normalizeArabicText,
+  isBranchMatch,
+  doesCustomerBelongToRep,
+  doesCustomerBelongToBranch,
+  doesCustomerBelongToSupervisor
+} from '../services/arabicMatchingService';
 import { isMonthForecast } from '../services/forecastService';
 import { TargetRecord } from '../types';
 
@@ -115,22 +122,42 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
   const isSuperAdmin = currentUser?.role === 'admin' || currentUser?.role === 'developer';
   const isBranchMgr = currentUser?.role === 'branch_manager';
   const isSupervisor = currentUser?.role === 'supervisor';
+  const isSalesRep = currentUser?.role === 'sales_rep';
 
   // Filters State
   const [selectedYear, setSelectedYear] = useState<number>(2026);
   const [selectedQuarter, setSelectedQuarter] = useState<string>('ALL'); // 'ALL' | 'Q1' | 'Q2' | 'Q3' | 'Q4'
   const [selectedMonth, setSelectedMonth] = useState<string>('ALL'); // 'ALL' | '1' .. '12'
   const [selectedBranch, setSelectedBranch] = useState<string>(
-    isBranchMgr && currentUser?.branchName ? currentUser.branchName : isSupervisor && currentUser?.branchName ? currentUser.branchName : 'ALL'
+    isBranchMgr && currentUser?.branchName ? currentUser.branchName : isSupervisor && currentUser?.branchName ? currentUser.branchName : isSalesRep && currentUser?.branchName ? currentUser.branchName : 'ALL'
   );
   const [selectedSupervisor, setSelectedSupervisor] = useState<string>(
-    isSupervisor ? currentUser.id : 'ALL'
+    isSupervisor ? currentUser.id : isSalesRep ? (currentUser.supervisorId || 'ALL') : 'ALL'
   );
-  const [selectedRep, setSelectedRep] = useState<string>('ALL');
+  const [selectedRep, setSelectedRep] = useState<string>(
+    isSalesRep ? currentUser.id : 'ALL'
+  );
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeSubTab, setActiveSubTab] = useState<ActiveDashboardSubTab>('overview');
   const [sortBy, setSortBy] = useState<'sales' | 'collection' | 'rate' | 'visits'>('sales');
   const [chartMetric, setChartMetric] = useState<DashboardChartMetric>('sales');
+
+  // Strict enforcement variables guaranteeing no leakage regardless of client state
+  const effectiveBranch = isBranchMgr && currentUser?.branchName
+    ? currentUser.branchName
+    : isSupervisor && currentUser?.branchName
+    ? currentUser.branchName
+    : isSalesRep && currentUser?.branchName
+    ? currentUser.branchName
+    : selectedBranch;
+
+  const effectiveSupervisor = isSupervisor
+    ? currentUser.id
+    : isSalesRep
+    ? (currentUser.supervisorId || 'ALL')
+    : selectedSupervisor;
+
+  const effectiveRep = isSalesRep ? currentUser.id : selectedRep;
 
   const invoices = getVisibleInvoices();
   const visibleTargets = getVisibleTargets();
@@ -154,26 +181,15 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     return Array.from(setYears).sort((a, b) => b - a);
   }, [visibleTargets, invoices, visits]);
 
-  /**
-   * أسماء الفروع المتاحة للفلترة.
-   *
-   * لازم ترجع أسماء (`string`) مش كائنات `Branch`، لأن:
-   * 1. `<select>` بيرسل `value` نص، فأي كائن هيتحول لـ "[object Object]" ومفتاح
-   *    الفلترة `selectedBranch !== 'ALL'` مش هيلاقي أي فرع مطابق.
-   * 2. كل المقارنات في `filteredData` بتقارن `selectedBranch` (نص) بـ
-   *    `t.branch` / `c.branchName` (نص)، فلو رجعنا كائنات الفلتر كله بيبقى ميّت.
-   * 3. الـfallback جواه أصلاً بيبني Set من أسماء، فالخليط بين النوعين كان
-   *    مصدر خطأ React #31 (render كائن كـchild).
-   *
-   * الأسماء بتتجيب من `branches` لو موجود، وإلا من الفروع الفعلية اللي ظهرت
-   * في التارجتات والعملاء، عشان الفلتر يشتغل حتى قبل ماBranches تتزامن.
-   */
   const branchList = useMemo(() => {
+    if (!isSuperAdmin) {
+      return currentUser?.branchName ? [currentUser.branchName] : [];
+    }
     const names = new Set<string>();
     if (branches && branches.length > 0) {
       branches.forEach((b) => {
         const name = (b?.name || '').trim();
-        if (name) names.add(name);
+        if (name && !name.includes('المخزن المركزي') && !b.isMainWarehouse) names.add(name);
       });
     }
     visibleTargets.forEach((t) => {
@@ -183,26 +199,57 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
       if (c.branchName) names.add(c.branchName);
     });
     return Array.from(names).filter(Boolean);
-  }, [branches, visibleTargets, customers]);
+  }, [branches, visibleTargets, customers, currentUser, isSuperAdmin]);
 
-  // Supervisors list matching branch selection
+  // Supervisors list matching branch selection and role constraints (Zero-Leakage RBAC)
   const supervisorList = useMemo(() => {
+    if (isSupervisor) {
+      return users.filter((u) => u.id === currentUser.id);
+    }
+    if (isSalesRep) {
+      return currentUser.supervisorId ? users.filter((u) => u.id === currentUser.supervisorId) : [];
+    }
+    if (isBranchMgr) {
+      return users.filter((u) => {
+        if (!u.isActive || u.role !== 'supervisor') return false;
+        return isBranchMatch(u.branchName, currentUser.branchName, { allowUnassigned: false });
+      });
+    }
     return users.filter((u) => {
       if (!u.isActive || u.role !== 'supervisor') return false;
-      if (selectedBranch !== 'ALL' && u.branchName && u.branchName !== selectedBranch) return false;
+      if (effectiveBranch !== 'ALL' && u.branchName && !isBranchMatch(u.branchName, effectiveBranch, { allowUnassigned: false })) return false;
       return true;
     });
-  }, [users, selectedBranch]);
+  }, [users, isSupervisor, isSalesRep, isBranchMgr, currentUser, effectiveBranch]);
 
-  // Sales reps list matching branch and supervisor selections
+  // Sales reps list matching branch and supervisor selections with strict hierarchy
   const repList = useMemo(() => {
+    if (isSalesRep) {
+      return users.filter((u) => u.id === currentUser.id);
+    }
+    if (isSupervisor) {
+      return users.filter(
+        (u) =>
+          u.isActive &&
+          u.role === 'sales_rep' &&
+          (u.supervisorId === currentUser.id || isArabicNameMatch(u.supervisorName || '', currentUser.name))
+      );
+    }
+    if (isBranchMgr) {
+      return users.filter((u) => {
+        if (!u.isActive || u.role !== 'sales_rep') return false;
+        if (!isBranchMatch(u.branchName, currentUser.branchName, { allowUnassigned: false })) return false;
+        if (effectiveSupervisor !== 'ALL' && u.supervisorId && u.supervisorId !== effectiveSupervisor) return false;
+        return true;
+      });
+    }
     return users.filter((u) => {
       if (!u.isActive || u.role !== 'sales_rep') return false;
-      if (selectedBranch !== 'ALL' && u.branchName && u.branchName !== selectedBranch) return false;
-      if (selectedSupervisor !== 'ALL' && u.supervisorId && u.supervisorId !== selectedSupervisor) return false;
+      if (effectiveBranch !== 'ALL' && u.branchName && !isBranchMatch(u.branchName, effectiveBranch, { allowUnassigned: false })) return false;
+      if (effectiveSupervisor !== 'ALL' && u.supervisorId && u.supervisorId !== effectiveSupervisor) return false;
       return true;
     });
-  }, [users, selectedBranch, selectedSupervisor]);
+  }, [users, isSalesRep, isSupervisor, isBranchMgr, currentUser, effectiveBranch, effectiveSupervisor]);
 
   // Filtered Core Dataset by Slicers
   const filteredData = useMemo(() => {
@@ -225,13 +272,46 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     const matchesTarget = (t: TargetRecord) => {
       if (getTargetYear(t) !== selectedYear) return false;
       if (!Number.isInteger(t.month) || t.month < 1 || t.month > 12 || !matchesMonth(t.month)) return false;
-      if (selectedBranch !== 'ALL' && (!t.branch || t.branch !== selectedBranch)) return false;
-      if (selectedSupervisor !== 'ALL') {
-        const repUser = users.find((u) => isArabicNameMatch(u.name, t.repName));
-        if (!repUser || repUser.supervisorId !== selectedSupervisor) return false;
+
+      // Sales rep: STRICT PRIVACY - ONLY his own targets
+      if (isSalesRep) {
+        const isSelf =
+          isArabicNameMatch(currentUser.name, t.repName) ||
+          normalizeArabicText(currentUser.name) === normalizeArabicText(t.repName) ||
+          (currentUser.code && String(t.repName).includes(String(currentUser.code)));
+        return isSelf;
       }
-      if (selectedRep !== 'ALL') {
-        const repUser = users.find((u) => u.id === selectedRep);
+
+      // Supervisor: STRICT PRIVACY - ONLY supervised reps + supervisor self
+      if (isSupervisor) {
+        const isSupSelf = isArabicNameMatch(currentUser.name, t.repName);
+        const repUser = users.find((u) => isArabicNameMatch(u.name, t.repName));
+        const isSupervised =
+          repUser &&
+          (repUser.supervisorId === currentUser.id ||
+            isArabicNameMatch(repUser.supervisorName || '', currentUser.name));
+        if (!isSupSelf && !isSupervised) return false;
+      }
+
+      // Branch Manager: STRICT ISOLATION - ONLY own branch
+      if (isBranchMgr) {
+        if (!isBranchMatch(t.branch, currentUser.branchName, { allowUnassigned: false })) return false;
+      } else if (effectiveBranch !== 'ALL' && (!t.branch || !isBranchMatch(t.branch, effectiveBranch, { allowUnassigned: false }))) {
+        return false;
+      }
+
+      if (effectiveSupervisor !== 'ALL') {
+        const repUser = users.find((u) => isArabicNameMatch(u.name, t.repName));
+        if (!repUser) {
+          const isSupSelf = currentUser && isArabicNameMatch(currentUser.name, t.repName);
+          if (!isSupSelf) return false;
+        } else {
+          const matches = repUser.supervisorId === effectiveSupervisor || repUser.id === effectiveSupervisor;
+          if (!matches) return false;
+        }
+      }
+      if (effectiveRep !== 'ALL') {
+        const repUser = users.find((u) => u.id === effectiveRep);
         if (!repUser || !isArabicNameMatch(repUser.name, t.repName)) return false;
       }
       return true;
@@ -239,63 +319,177 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
 
     const periodTargets = visibleTargets.filter(matchesTarget);
 
-    // Invoices matching filters
+    // Invoices matching filters with strict isolation
     const periodInvoices = invoices.filter((inv) => {
       const invYear = getYearFromStr(inv.date);
       const invMonth = getMonthFromStr(inv.date);
       if (invYear !== selectedYear || invMonth === null || !matchesMonth(invMonth)) return false;
-      if (selectedBranch !== 'ALL' && (!inv.branchName || inv.branchName !== selectedBranch)) return false;
-      if (selectedSupervisor !== 'ALL') {
-        const repUser = users.find((u) => u.id === inv.repId || isArabicNameMatch(u.name, inv.repName || ''));
-        if (!repUser || repUser.supervisorId !== selectedSupervisor) return false;
+
+      // Sales rep: STRICT PRIVACY - ONLY his own orders
+      if (isSalesRep) {
+        const isSelf =
+          inv.repId === currentUser.id ||
+          (currentUser.username && inv.repId?.toLowerCase() === currentUser.username.toLowerCase()) ||
+          (!inv.repId && inv.repName && isArabicNameMatch(inv.repName, currentUser.name));
+        return isSelf;
       }
-      if (selectedRep !== 'ALL' && inv.repId !== selectedRep) {
-        const repUser = users.find((u) => u.id === selectedRep);
-        if (!repUser || !isArabicNameMatch(repUser.name, inv.repName || '')) return false;
+
+      // Supervisor: STRICT PRIVACY - ONLY his supervised reps
+      if (isSupervisor) {
+        const isSupSelf =
+          inv.repId === currentUser.id ||
+          (inv.repName && isArabicNameMatch(inv.repName, currentUser.name));
+        const repUser = users.find((u) => u.id === inv.repId || isArabicNameMatch(u.name, inv.repName || ''));
+        const isSupervised =
+          repUser &&
+          (repUser.supervisorId === currentUser.id ||
+            isArabicNameMatch(repUser.supervisorName || '', currentUser.name));
+        if (!isSupSelf && !isSupervised) return false;
+      }
+
+      // Branch Manager: STRICT ISOLATION - ONLY own branch
+      if (isBranchMgr) {
+        if (!isBranchMatch(inv.branchName, currentUser.branchName, { allowUnassigned: false })) return false;
+      } else if (effectiveBranch !== 'ALL' && (!inv.branchName || !isBranchMatch(inv.branchName, effectiveBranch, { allowUnassigned: false }))) {
+        return false;
+      }
+
+      if (effectiveSupervisor !== 'ALL') {
+        const repUser = users.find((u) => u.id === inv.repId || isArabicNameMatch(u.name, inv.repName || ''));
+        if (!repUser) {
+          const isSelf = inv.repId === effectiveSupervisor || (inv.repName && currentUser && isArabicNameMatch(currentUser.name, inv.repName));
+          if (!isSelf) return false;
+        } else {
+          const matches = repUser.supervisorId === effectiveSupervisor || repUser.id === effectiveSupervisor;
+          if (!matches) return false;
+        }
+      }
+      if (effectiveRep !== 'ALL') {
+        if (inv.repId !== effectiveRep) {
+          const repUser = users.find((u) => u.id === effectiveRep);
+          if (!repUser || !isArabicNameMatch(repUser.name, inv.repName || '')) return false;
+        }
       }
       return true;
     });
 
-    // Visits matching filters
+    // Visits matching filters with strict isolation
     const periodVisits = visits.filter((v) => {
       const vYear = getYearFromStr(v.date);
       const visitMonth = getMonthFromStr(v.date);
       if (vYear !== selectedYear || visitMonth === null || !matchesMonth(visitMonth)) return false;
-      if (selectedBranch !== 'ALL' && (!v.branchName || v.branchName !== selectedBranch)) return false;
-      if (selectedSupervisor !== 'ALL') {
-        const repUser = users.find((u) => u.id === v.repId || isArabicNameMatch(u.name, v.repName || ''));
-        if (!repUser || repUser.supervisorId !== selectedSupervisor) return false;
+
+      // Sales rep: STRICT PRIVACY - ONLY his own visits
+      if (isSalesRep) {
+        const isSelf =
+          v.repId === currentUser.id ||
+          (currentUser.username && v.repId?.toLowerCase() === currentUser.username.toLowerCase()) ||
+          (v.repName && isArabicNameMatch(v.repName, currentUser.name)) ||
+          v.createdBy === currentUser.id;
+        return isSelf;
       }
-      if (selectedRep !== 'ALL' && v.repId !== selectedRep) {
-        const repUser = users.find((u) => u.id === selectedRep);
-        if (!repUser || !isArabicNameMatch(repUser.name, v.repName || '')) return false;
+
+      // Supervisor: STRICT PRIVACY - ONLY his supervised reps
+      if (isSupervisor) {
+        const isSupSelf =
+          v.repId === currentUser.id ||
+          (v.repName && isArabicNameMatch(v.repName, currentUser.name)) ||
+          v.createdBy === currentUser.id;
+        const repUser = users.find((u) => u.id === v.repId || isArabicNameMatch(u.name, v.repName || ''));
+        const isSupervised =
+          repUser &&
+          (repUser.supervisorId === currentUser.id ||
+            isArabicNameMatch(repUser.supervisorName || '', currentUser.name));
+        if (!isSupSelf && !isSupervised) return false;
+      }
+
+      // Branch Manager: STRICT ISOLATION - ONLY own branch
+      if (isBranchMgr) {
+        if (!isBranchMatch(v.branchName, currentUser.branchName, { allowUnassigned: false })) return false;
+      } else if (effectiveBranch !== 'ALL' && (!v.branchName || !isBranchMatch(v.branchName, effectiveBranch, { allowUnassigned: false }))) {
+        return false;
+      }
+
+      if (effectiveSupervisor !== 'ALL') {
+        const repUser = users.find((u) => u.id === v.repId || isArabicNameMatch(u.name, v.repName || ''));
+        if (!repUser) {
+          const isSelf = v.repId === effectiveSupervisor || (v.repName && currentUser && isArabicNameMatch(currentUser.name, v.repName));
+          if (!isSelf) return false;
+        } else {
+          const matches = repUser.supervisorId === effectiveSupervisor || repUser.id === effectiveSupervisor;
+          if (!matches) return false;
+        }
+      }
+      if (effectiveRep !== 'ALL') {
+        if (v.repId !== effectiveRep) {
+          const repUser = users.find((u) => u.id === effectiveRep);
+          if (!repUser || !isArabicNameMatch(repUser.name, v.repName || '')) return false;
+        }
       }
       return true;
     });
 
-    // Forecasts matching filters
+    // Forecasts matching filters with strict isolation
     const periodForecasts = (forecasts || []).filter((f) => {
       const monthKeyMatch = f.monthKey?.match(/^((?:19|20)\d{2})-(0?[1-9]|1[0-2])$/);
       if (!monthKeyMatch || Number(monthKeyMatch[1]) !== selectedYear || !matchesMonth(Number(monthKeyMatch[2]))) return false;
-      if (selectedBranch !== 'ALL' && (!f.branchName || f.branchName !== selectedBranch)) return false;
-      if (selectedSupervisor !== 'ALL') {
-        const repUser = users.find((u) => u.id === f.repId);
-        if (!repUser || repUser.supervisorId !== selectedSupervisor) return false;
+
+      // Sales rep: STRICT PRIVACY
+      if (isSalesRep) {
+        return f.repId === currentUser.id;
       }
-      if (selectedRep !== 'ALL' && f.repId !== selectedRep) return false;
+
+      // Supervisor: STRICT PRIVACY
+      if (isSupervisor) {
+        const isSupSelf = f.repId === currentUser.id;
+        const repUser = users.find((u) => u.id === f.repId);
+        const isSupervised =
+          repUser &&
+          (repUser.supervisorId === currentUser.id ||
+            isArabicNameMatch(repUser.supervisorName || '', currentUser.name));
+        if (!isSupSelf && !isSupervised) return false;
+      }
+
+      // Branch Manager: STRICT ISOLATION
+      if (isBranchMgr) {
+        if (!isBranchMatch(f.branchName, currentUser.branchName, { allowUnassigned: false })) return false;
+      } else if (effectiveBranch !== 'ALL' && (!f.branchName || !isBranchMatch(f.branchName, effectiveBranch, { allowUnassigned: false }))) {
+        return false;
+      }
+
+      if (effectiveSupervisor !== 'ALL') {
+        const repUser = users.find((u) => u.id === f.repId);
+        if (!repUser) {
+          if (f.repId !== effectiveSupervisor) return false;
+        } else {
+          if (repUser.supervisorId !== effectiveSupervisor && repUser.id !== effectiveSupervisor) return false;
+        }
+      }
+      if (effectiveRep !== 'ALL' && f.repId !== effectiveRep) return false;
       return true;
     });
 
-    // Customers in scope
+    // Customers in scope (Strict Privacy Enforcement)
     const scopedCustomers = customers.filter((c) => {
-      if (selectedBranch !== 'ALL' && (!c.branchName || c.branchName !== selectedBranch)) return false;
-      if (selectedSupervisor !== 'ALL') {
-        const repUser = users.find((u) => u.id === c.repId || isArabicNameMatch(u.name, c.repName || c.salesRepName || ''));
-        if (!repUser || repUser.supervisorId !== selectedSupervisor) return false;
+      if (isSalesRep) {
+        return doesCustomerBelongToRep(c, currentUser);
       }
-      if (selectedRep !== 'ALL') {
-        const repUser = users.find((u) => u.id === selectedRep);
-        if (c.repId !== selectedRep && (!repUser || !isArabicNameMatch(repUser.name, c.repName || c.salesRepName || ''))) {
+      if (isSupervisor) {
+        return doesCustomerBelongToSupervisor(c, currentUser, users);
+      }
+      if (isBranchMgr) {
+        return doesCustomerBelongToBranch(c, currentUser.branchName, users);
+      }
+      if (effectiveBranch !== 'ALL' && (!c.branchName || !isBranchMatch(c.branchName, effectiveBranch, { allowUnassigned: false }))) return false;
+      if (effectiveSupervisor !== 'ALL') {
+        const repUser = users.find((u) => u.id === c.repId || isArabicNameMatch(u.name, c.repName || c.salesRepName || ''));
+        const matchesSupName = c.supervisorName && currentUser && (isArabicNameMatch(c.supervisorName, currentUser.name) || normalizeArabicText(c.supervisorName) === normalizeArabicText(currentUser.name));
+        if (!repUser && !matchesSupName) return false;
+        if (repUser && repUser.supervisorId !== effectiveSupervisor && repUser.id !== effectiveSupervisor && !matchesSupName) return false;
+      }
+      if (effectiveRep !== 'ALL') {
+        const repUser = users.find((u) => u.id === effectiveRep);
+        if (c.repId !== effectiveRep && (!repUser || !isArabicNameMatch(repUser.name, c.repName || c.salesRepName || ''))) {
           return false;
         }
       }
@@ -873,8 +1067,8 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               <span>الفرع</span>
             </label>
             <select
-              value={selectedBranch}
-              disabled={isBranchMgr || isSupervisor}
+              value={effectiveBranch}
+              disabled={isBranchMgr || isSupervisor || isSalesRep}
               onChange={(e) => {
                 const nextBranch = e.target.value;
                 setSelectedBranch(nextBranch);
@@ -890,12 +1084,14 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                   nextBranch === 'ALL' ||
                   !selectedRepUser.branchName ||
                   selectedRepUser.branchName === nextBranch;
-                if (!supervisorStillMatchesBranch) setSelectedSupervisor('ALL');
-                if (!repStillMatchesBranch) setSelectedRep('ALL');
+                if (!supervisorStillMatchesBranch) setSelectedSupervisor(isSupervisor ? currentUser.id : 'ALL');
+                if (!repStillMatchesBranch) setSelectedRep(isSalesRep ? currentUser.id : 'ALL');
               }}
               className="w-full bg-slate-800/90 text-white border border-slate-700 rounded-xl px-2.5 py-1.5 font-bold focus:outline-none focus:border-indigo-500 disabled:opacity-60 cursor-pointer"
             >
-              <option value="ALL" className="bg-slate-900 text-white">كافة الفروع</option>
+              {!isBranchMgr && !isSupervisor && !isSalesRep && (
+                <option value="ALL" className="bg-slate-900 text-white">كافة الفروع</option>
+              )}
               {branchList.map((b) => (
                 <option key={b} value={b} className="bg-slate-900 text-white">
                   {b}
@@ -911,8 +1107,8 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               <span>مشرف الفريق</span>
             </label>
             <select
-              value={selectedSupervisor}
-              disabled={isSupervisor}
+              value={effectiveSupervisor}
+              disabled={isSupervisor || isSalesRep}
               onChange={(e) => {
                 const nextSupervisor = e.target.value;
                 setSelectedSupervisor(nextSupervisor);
@@ -923,10 +1119,12 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               }}
               className="w-full bg-slate-800/90 text-white border border-slate-700 rounded-xl px-2.5 py-1.5 font-bold focus:outline-none focus:border-purple-500 disabled:opacity-60 cursor-pointer"
             >
-              <option value="ALL" className="bg-slate-900 text-white">كافة المشرفين</option>
+              {!isSupervisor && !isSalesRep && (
+                <option value="ALL" className="bg-slate-900 text-white">كافة المشرفين</option>
+              )}
               {supervisorList.map((sup) => (
                 <option key={sup.id} value={sup.id} className="bg-slate-900 text-white">
-                  {sup.name}
+                  {sup.name} {isSupervisor ? '(فريقي فقط)' : ''}
                 </option>
               ))}
             </select>
@@ -939,11 +1137,16 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               <span>المندوب الميداني</span>
             </label>
             <select
-              value={selectedRep}
+              value={effectiveRep}
+              disabled={isSalesRep}
               onChange={(e) => setSelectedRep(e.target.value)}
-              className="w-full bg-slate-800/90 text-white border border-slate-700 rounded-xl px-2.5 py-1.5 font-bold focus:outline-none focus:border-rose-500 cursor-pointer"
+              className="w-full bg-slate-800/90 text-white border border-slate-700 rounded-xl px-2.5 py-1.5 font-bold focus:outline-none focus:border-rose-500 disabled:opacity-60 cursor-pointer"
             >
-              <option value="ALL" className="bg-slate-900 text-white">كافة المناديب</option>
+              {!isSalesRep && (
+                <option value="ALL" className="bg-slate-900 text-white">
+                  {isSupervisor ? `كافة مناديبي المباشرين (${repList.length})` : 'كافة المناديب'}
+                </option>
+              )}
               {repList.map((rep) => (
                 <option key={rep.id} value={rep.id} className="bg-slate-900 text-white">
                   {rep.name}
@@ -1211,21 +1414,25 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           <span className="sm:hidden">الفريق ({metrics.repMatrixList.length})</span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('branches')}
-          role="tab"
-          aria-selected={activeSubTab === 'branches'}
-          className={`px-4 py-2 rounded-xl transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-            activeSubTab === 'branches'
-              ? 'bg-white text-slate-900 shadow-xs'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <Building2 className="w-4 h-4 text-purple-600" />
-          <span className="hidden sm:inline">مقارنة الفروع ({metrics.branchBreakdownList.length})</span>
-          <span className="sm:hidden">الفروع ({metrics.branchBreakdownList.length})</span>
-        </button>
+        {(isSuperAdmin || isBranchMgr) && (
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('branches')}
+            role="tab"
+            aria-selected={activeSubTab === 'branches'}
+            className={`px-4 py-2 rounded-xl transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+              activeSubTab === 'branches'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Building2 className="w-4 h-4 text-purple-600" />
+            <span className="hidden sm:inline">
+              {isBranchMgr ? 'ملخص أداء الفرع' : `مقارنة الفروع (${metrics.branchBreakdownList.length})`}
+            </span>
+            <span className="sm:hidden">{isBranchMgr ? 'الفرع' : `الفروع (${metrics.branchBreakdownList.length})`}</span>
+          </button>
+        )}
 
         <button
           type="button"

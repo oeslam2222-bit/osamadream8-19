@@ -1378,6 +1378,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     if (visitUpserts.length > 0) {
       const res = await saveVisitsToSupabase(visitUpserts.map((i) => i.payload as CustomerVisit));
       (res.success ? done : failed).push(...visitUpserts.map((i) => i.id));
+      if (res.success) {
+        const syncedIds = new Set(visitUpserts.map((i) => i.entityId));
+        setVisits((prev) => {
+          const next = prev.map((v) => syncedIds.has(v.id) ? { ...v, syncStatus: 'synced' as const } : v);
+          persistVisits(next);
+          return next;
+        });
+      }
     }
 
     const customerDeletes = group('customers', 'delete');
@@ -1578,6 +1586,12 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     since.setMonth(since.getMonth() - 18);
     return { branchNames: scope.branchNames, sinceDate: since.toISOString().slice(0, 10) };
   }, [currentUser?.id, currentUser?.branchName, currentUser?.role, customerFetchScope]);
+
+  const checkDatabaseConnection = useCallback(async (): Promise<SupabaseSyncStatus> => {
+    const conn = await testSupabaseConnection();
+    setSupabaseStatus(conn);
+    return conn;
+  }, []);
 
   // Sync with Supabase (Direction: fetch, push, or both)
   const syncWithSupabase = async (
@@ -5456,10 +5470,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           Boolean(currentUser.username && i.repId.toLowerCase() === currentUser.username.toLowerCase())
         );
 
-        // 2. Fallback: if repId is absent on legacy records, exact normalized name AND exact branch match
-        const isDirectNameMatch = !i.repId && Boolean(i.repName) &&
-          normalizeArabicText(i.repName) === normalizeArabicText(currentUser.name) &&
-          Boolean(currentUser.branchName && i.branchName && isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false }));
+        // 2. Arabic Name match with branch isolation
+        const isDirectNameMatch = Boolean(i.repName) && (
+          normalizeArabicText(i.repName) === normalizeArabicText(currentUser.name) ||
+          isArabicNameMatch(i.repName, currentUser.name)
+        );
 
         if (!isDirectIdMatch && !isDirectNameMatch) return false;
 
@@ -5615,6 +5630,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     }
 
     const newVisitId = `visit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const isOnlineNow = typeof navigator !== 'undefined' && navigator.onLine;
     const newVisitObj: CustomerVisit = {
       ...visit,
       id: newVisitId,
@@ -5632,7 +5648,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       reviewedAt: undefined,
       createdBy: currentUser.id,
       createdAt: new Date().toISOString(),
-      syncStatus: 'synced',
+      syncStatus: isOnlineNow ? 'synced' : 'pending_sync',
     };
 
     // 1. Double Immediate Local Persistence (State + IndexedDB + localStorage)
@@ -5647,7 +5663,21 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     // without a signal is delivered as soon as the device reconnects.
     syncOrQueue('visits', 'upsert', newVisitId, newVisitObj, () =>
       saveVisitsToSupabase([newVisitObj])
-    ).catch((e) => {
+    ).then((delivered) => {
+      if (delivered) {
+        setVisits((prev) => {
+          const next = prev.map((v) => (v.id === newVisitId ? { ...v, syncStatus: 'synced' as const } : v));
+          persistVisits(next);
+          return next;
+        });
+      } else {
+        setVisits((prev) => {
+          const next = prev.map((v) => (v.id === newVisitId ? { ...v, syncStatus: 'pending_sync' as const } : v));
+          persistVisits(next);
+          return next;
+        });
+      }
+    }).catch((e) => {
       console.warn('Supabase visit background save note:', e);
     });
 
@@ -6109,26 +6139,28 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   };
 
   const getVisibleProducts = (): Product[] => {
-  // Admin/developer can audit every warehouse. Other roles receive only their branch stock;
-  // never expose another branch's balances or the central warehouse balance to the client view.
-  if (!currentUser || currentUser.role === 'admin' || currentUser.role === 'developer') {
-  return products;
-  }
+    // Admin/developer can audit every warehouse. Other roles receive only their branch stock;
+    // never expose another branch's balances to the client view.
+    if (!currentUser || currentUser.role === 'admin' || currentUser.role === 'developer') {
+      return products;
+    }
 
-  const branchName = currentUser.branchName;
-  if (!branchName) return [];
+    const branchName = currentUser.branchName;
+    if (!branchName) return [];
 
-  return products.map((product) => {
-  const branchStock = getBranchStockForProduct(product, branchName);
-  return {
-  ...product,
-  branchStockActual: branchStock,
-  branchStockReserved: branchStock,
-  mainWarehouseActual: 0,
-  mainWarehouseReserved: 0,
-  branchStocks: branchName ? { [branchName]: branchStock } : {},
-  };
-  });
+    const isRep = currentUser.role === 'sales_rep';
+
+    return products.map((product) => {
+      const branchStock = getBranchStockForProduct(product, branchName);
+      return {
+        ...product,
+        branchStockActual: branchStock,
+        branchStockReserved: typeof product.branchStockReserved === 'number' ? product.branchStockReserved : branchStock,
+        mainWarehouseActual: isRep ? 0 : (product.mainWarehouseActual || 0),
+        mainWarehouseReserved: isRep ? 0 : (product.mainWarehouseReserved || 0),
+        branchStocks: branchName ? { [branchName]: branchStock } : {},
+      };
+    });
   };
 
   const getSupervisorsInBranch = (branchName?: string): User[] => {
@@ -6184,6 +6216,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         supabaseStatus,
         isSupabaseSyncing,
         syncWithSupabase,
+        checkDatabaseConnection,
         addCustomer,
         updateCustomer,
         deleteCustomer,

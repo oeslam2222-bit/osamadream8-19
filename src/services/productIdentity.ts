@@ -84,3 +84,31 @@ export function countDuplicateProductRows(products: Product[]): {
   });
   return { duplicateRows, uniqueCount: seen.size };
 }
+
+export const deduplicateProductArray = (list: Product[]): Product[] => {
+  if (!Array.isArray(list)) return [];
+  const map = new Map<string, number>();
+  const distinct: Product[] = [];
+  list.forEach((p) => {
+    if (!p) return;
+    const key = productIdentityKey(p);
+    const existingIdx = map.get(key);
+    if (existingIdx === undefined) {
+      map.set(key, distinct.length);
+      distinct.push(p);
+    } else {
+      const existing = distinct[existingIdx];
+      distinct[existingIdx] = {
+        ...existing,
+        ...p,
+        id: existing.id || p.id,
+        branchStockReserved: existing.branchStockReserved,
+        mainWarehouseReserved: existing.mainWarehouseReserved,
+        branchStocks: existing.branchStocks,
+        branchStockActual: existing.branchStockActual,
+        mainWarehouseActual: existing.mainWarehouseActual,
+      };
+    }
+  });
+  return distinct;
+};

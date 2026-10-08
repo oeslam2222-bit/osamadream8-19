@@ -1,11 +1,17 @@
 import {
   AlertCircle,
+  Database,
   Eye,
   EyeOff,
   Lock,
   LogIn,
+  Server,
   ShieldCheck,
   User as UserIcon,
+  UserCheck,
+  Building2,
+  Users,
+  Briefcase
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -15,7 +21,15 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
-  const { login, authTerminationNotice, clearAuthTerminationNotice } = useApp();
+  const {
+    login,
+    loginAs,
+    users,
+    supabaseStatus,
+    isOffline,
+    authTerminationNotice,
+    clearAuthTerminationNotice
+  } = useApp();
 
   // --- Login State ---
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -23,6 +37,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [showQuickRoles, setShowQuickRoles] = useState(false);
+
+  // Available sample users for instant role verification
+  const repUser = users.find((u) => u.role === 'sales_rep' && u.name) || users.find((u) => u.role === 'sales_rep');
+  const supervisorUser = users.find((u) => u.role === 'supervisor' && u.name) || users.find((u) => u.role === 'supervisor');
+  const managerUser = users.find((u) => u.role === 'branch_manager' && u.name) || users.find((u) => u.role === 'branch_manager');
+  const adminUser = users.find((u) => (u.role === 'admin' || u.role === 'developer') && u.name) || users[0];
+
+  const handleQuickLogin = (userId: string) => {
+    loginAs(userId);
+    if (onSuccess) onSuccess();
+  };
 
   // Submit Login
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -174,10 +200,111 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
             </button>
 
             {/* Note that accounts are managed by Admin/Developer only */}
-            <div className="pt-3 border-t border-slate-800 text-center">
+            <div className="pt-3 border-t border-slate-800 text-center space-y-3">
               <p className="text-[11px] text-slate-400 leading-relaxed">
                 يتم إنشاء وتفعيل حسابات الموظفين والصلاحيات حصرياً من قِبل إدارة النظام (الآدمن والمطور).
               </p>
+
+              {/* Toggle Quick Role Preview */}
+              <button
+                type="button"
+                onClick={() => setShowQuickRoles(!showQuickRoles)}
+                className="text-xs font-bold text-amber-400 hover:text-amber-300 underline cursor-pointer"
+              >
+                {showQuickRoles ? '▲ إخفاء فحص واختبار الأدوار والصلاحيات' : '▼ فحص واختبار أدوار المنظومة (مندوب / مشرف / مدير فرع / إدارة)'}
+              </button>
+
+              {showQuickRoles && (
+                <div className="space-y-2 pt-2 animate-in fade-in duration-200 text-right">
+                  <div className="text-[10px] text-slate-400 font-bold mb-1">
+                    انقر على أي دور للمعاينة والتحقق فوراً من عزل البيانات والصلاحيات:
+                  </div>
+
+                  {repUser && (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickLogin(repUser.id)}
+                      className="w-full bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-500/40 p-2.5 rounded-xl text-xs flex items-center justify-between text-emerald-200 transition cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <UserIcon className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <div>
+                          <div className="font-bold text-white">دخول كمندوب: {repUser.name}</div>
+                          <div className="text-[10px] text-emerald-300/80">{repUser.branchName || 'فرعه'} • يرى أرقامه وعملاءه ومخزنه فقط</div>
+                        </div>
+                      </div>
+                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-black">مندوب</span>
+                    </button>
+                  )}
+
+                  {supervisorUser && (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickLogin(supervisorUser.id)}
+                      className="w-full bg-blue-950/60 hover:bg-blue-900 border border-blue-500/40 p-2.5 rounded-xl text-xs flex items-center justify-between text-blue-200 transition cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Users className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        <div>
+                          <div className="font-bold text-white">دخول كمشرف: {supervisorUser.name}</div>
+                          <div className="text-[10px] text-blue-300/80">{supervisorUser.branchName || 'فرعه'} • يرى مناديبه وأرقامهم بالكامل</div>
+                        </div>
+                      </div>
+                      <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded font-black">مشرف</span>
+                    </button>
+                  )}
+
+                  {managerUser && (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickLogin(managerUser.id)}
+                      className="w-full bg-purple-950/60 hover:bg-purple-900 border border-purple-500/40 p-2.5 rounded-xl text-xs flex items-center justify-between text-purple-200 transition cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                        <div>
+                          <div className="font-bold text-white">دخول كمدير فرع: {managerUser.name}</div>
+                          <div className="text-[10px] text-purple-300/80">{managerUser.branchName || 'الفرع'} • يرى أرقام الفرع ومخزونه كاملاً</div>
+                        </div>
+                      </div>
+                      <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded font-black">مدير فرع</span>
+                    </button>
+                  )}
+
+                  {adminUser && (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickLogin(adminUser.id)}
+                      className="w-full bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 p-2.5 rounded-xl text-xs flex items-center justify-between text-rose-200 transition cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                        <div>
+                          <div className="font-bold text-white">دخول كإدارة عليا: {adminUser.name}</div>
+                          <div className="text-[10px] text-rose-300/80">صلاحية شاملة على كافة الفروع الـ 7 والشركة</div>
+                        </div>
+                      </div>
+                      <span className="text-[10px] bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded font-black">إدارة</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Database Live Connectivity Badge */}
+              <div className="pt-2 flex items-center justify-center gap-2 text-[11px] text-slate-300">
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border ${
+                  !isOffline && supabaseStatus.connected !== false
+                    ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300'
+                    : 'bg-amber-950/80 border-amber-500/50 text-amber-300'
+                }`}>
+                  <Database className="w-3 h-3 text-emerald-400" />
+                  <span>
+                    {!isOffline && supabaseStatus.connected !== false
+                      ? `قاعدة البيانات السحابية متصلة بنجاح 🟢 (${supabaseStatus.pingMs || 30}ms)`
+                      : 'وضع العمل أوفلاين (الحفظ محلي دون إنترنت) 🟡'}
+                  </span>
+                </span>
+              </div>
             </div>
           </form>
 

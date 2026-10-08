@@ -42,7 +42,8 @@ import {
   PackageCheck,
   Target,
   Archive,
-  ArchiveRestore
+  ArchiveRestore,
+  WifiOff
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
@@ -147,7 +148,11 @@ export const VisitsDashboard: React.FC = () => {
     reviewVisit,
     deleteVisit,
     syncVisitsWithDatabase,
-    toggleArchiveVisit
+    toggleArchiveVisit,
+    isOffline,
+    offlineQueueCount,
+    flushOfflineQueue,
+    supabaseStatus,
   } = useApp();
 
   /**
@@ -1493,6 +1498,21 @@ export const VisitsDashboard: React.FC = () => {
 
     if (result.success) {
       setShowForm(false);
+      const isOnline = typeof navigator !== 'undefined' && navigator.onLine;
+      const syncNote = isOnline
+        ? 'ومزامنتها سحابياً فوراً 🟢'
+        : 'وحفظها أوفلاين على هاتفك 📱 (ستُرفع للمشرف فور توفر النت)';
+      showToast('success', `تم تسجيل ${okCount} زيارة بنجاح ${syncNote}`);
+      // Ensure the visit appears right now in the list
+      setExactDate('');
+      setSearchQuery('');
+      setStatusFilter('الكل');
+      setReviewFilter('all');
+      setReturnFilter('all');
+      setExecutionFilter('all');
+      setRep('الكل');
+      setTimePreset((curr) => (curr === 'last30' || curr === 'today' || curr === 'all' ? curr : 'last30'));
+      setRenderedVisitCount((prev) => Math.max(prev, VISIT_CHUNK_SIZE));
       setForm({
         customerId: '',
         repId: currentUser?.role === 'sales_rep' ? currentUser.id : '',
@@ -3281,10 +3301,17 @@ allowSameDaySecondVisit: false,
                     </td>
                     <td className="p-3" onClick={(e) => e.stopPropagation()}>
                       <div className="space-y-1">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300">
-                          <Database className="w-3 h-3 text-emerald-600" />
-                          <span>قاعدة البيانات ✅</span>
-                        </span>
+                        {v.syncStatus === 'pending_sync' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-400 animate-pulse" title="محفوظة أوفلاين على الهاتف - ستُرفع تلقائياً فور توفر الإنترنت">
+                            <WifiOff className="w-3 h-3 text-amber-700" />
+                            <span>محفوظة أوفلاين ⏳</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300" title="متزامنة بنجاح مع قاعدة البيانات السحابية">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>متزامنة سحابياً 🟢</span>
+                          </span>
+                        )}
                         {v.customerRating && (
                           <div className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
                             <Star className="w-3 h-3 fill-amber-400 text-amber-500" />
@@ -3443,10 +3470,17 @@ allowSameDaySecondVisit: false,
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap pt-1">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300">
-                    <Database className="w-3 h-3 text-emerald-600" />
-                    <span>قاعدة البيانات ✅</span>
-                  </span>
+                  {v.syncStatus === 'pending_sync' ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-400 animate-pulse" title="محفوظة أوفلاين على الهاتف - ستُرفع تلقائياً فور توفر الإنترنت">
+                      <WifiOff className="w-3 h-3 text-amber-700" />
+                      <span>محفوظة أوفلاين ⏳</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300" title="متزامنة بنجاح مع قاعدة البيانات السحابية">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      <span>متزامنة سحابياً 🟢</span>
+                    </span>
+                  )}
                   {v.collectedAmount ? (
                     <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
                       تحصيل: {formatCurrency(v.collectedAmount)}
