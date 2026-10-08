@@ -2064,6 +2064,60 @@ export async function fetchForecastsFromSupabase(): Promise<{ success: boolean; 
   }
 }
 
+/**
+ * توقعات شهر واحد فقط — الفلترة على السيرفر بدل تحميل كل الشهور
+ * (اللي كان بيصل لـ 50 ألف سطر في 50 طلب متتالي). شهر واحد =
+ * مناديب × فترات، فحد 10 صفحات (10 آلاف سطر) أكتر من اللازم.
+ */
+const MAX_MONTH_FORECAST_PAGES = 10;
+
+export async function fetchForecastsByMonthFromSupabase(monthKey: string): Promise<{ success: boolean; forecasts?: any[]; error?: string }> {
+  try {
+    const pageSize = 1000;
+    const rows: any[] = [];
+    for (let page = 0; page < MAX_MONTH_FORECAST_PAGES; page++) {
+      const from = page * pageSize;
+      const { data, error } = await supabase
+        .from('collection_forecasts')
+        .select('*')
+        .eq('month_key', monthKey)
+        .range(from, from + pageSize - 1);
+      if (error) return { success: false, error: error.message };
+      rows.push(...(data || []));
+      if (!data || data.length < pageSize) break;
+    }
+    return { success: true, forecasts: rows };
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'فشل تحميل توقعات الشهر' };
+  }
+}
+
+/**
+ * توقعات سنة كاملة (لوحة الإدارة). month_key نص 'YYYY-MM' فالـ
+ * gte/lt بيقارنوا نصياً وبيعملوا نطاق سنة كامل على السيرفر.
+ */
+export async function fetchForecastsByYearFromSupabase(year: number): Promise<{ success: boolean; forecasts?: any[]; error?: string }> {
+  try {
+    const pageSize = 1000;
+    const rows: any[] = [];
+    for (let page = 0; page < MAX_FORECAST_PAGES; page++) {
+      const from = page * pageSize;
+      const { data, error } = await supabase
+        .from('collection_forecasts')
+        .select('*')
+        .gte('month_key', `${year}-01`)
+        .lt('month_key', `${year + 1}-01`)
+        .range(from, from + pageSize - 1);
+      if (error) return { success: false, error: error.message };
+      rows.push(...(data || []));
+      if (!data || data.length < pageSize) break;
+    }
+    return { success: true, forecasts: rows };
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'فشل تحميل توقعات السنة' };
+  }
+}
+
 export async function saveForecastsToSupabase(forecasts: any[]): Promise<{ success: boolean; error?: string }> {
   try {
     const payload = forecasts.map((f) => ({

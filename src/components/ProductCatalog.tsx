@@ -48,6 +48,7 @@ import {
   ArrowUp
 } from 'lucide-react';
 import React, { useMemo, useState, useEffect, useDeferredValue, useCallback, useRef } from 'react';
+import { jsPDF } from 'jspdf';
 import { useApp } from '../context/AppContext';
 import { ProductImage } from './ProductImage';
 import {
@@ -1041,6 +1042,132 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     return getCartSummary ? getCartSummary() : { totalCartons: 0, totalPieces: 0, grandTotal: 0, subtotal: 0, discountAmount: 0 };
   }, [getCartSummary, cart]);
 
+  const catalogExportItems = useMemo(() => {
+    const source = isParentGroupingEnabled ? filteredParentProducts : filteredProducts;
+
+    return source
+      .map((item) => {
+        if (isParentGroupingEnabled) {
+          const variant = item.defaultVariant || item.variants[0];
+          const imageUrl = variant?.imageUrl || item.imageUrl || item.variants.find((v) => Boolean(v.imageUrl))?.imageUrl;
+          return {
+            id: item.id,
+            name: item.name,
+            imageUrl: imageUrl || '',
+          };
+        }
+
+        const imageUrl = item.imageUrl || '';
+        return {
+          id: item.id,
+          name: item.name,
+          imageUrl,
+        };
+      })
+      .filter((item) => {
+        const normalized = (item.imageUrl || '').trim();
+        return Boolean(normalized) && normalized !== 'null' && !normalized.includes('placeholder');
+      });
+  }, [isParentGroupingEnabled, filteredParentProducts, filteredProducts]);
+
+  const handleExportClientCatalog = async () => {
+    if (!catalogExportItems.length) {
+      alert('لا توجد صور صالحة في النتائج الحالية لتصدير كتالوج العميل.');
+      return;
+    }
+
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const marginX = 12;
+    const marginY = 18;
+    const gap = 6;
+    const columns = 2;
+    const cellWidth = (pageWidth - (marginX * 2) - (gap * (columns - 1))) / columns;
+    const cellHeight = 112;
+    const title = 'تصدير كتالوج للعميل | مجموعة الطنطاوي';
+
+    pdf.setFillColor(255, 249, 236);
+    pdf.rect(0, 0, pageWidth, 20, 'F');
+    pdf.setTextColor(58, 42, 21);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(16);
+    pdf.text(title, marginX, 12, { maxWidth: pageWidth - marginX * 2 });
+
+    const loadImage = (src: string) => new Promise<string>((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxW = 420;
+        const maxH = 420;
+        const ratio = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+        canvas.width = Math.max(1, Math.round(img.naturalWidth * ratio));
+        canvas.height = Math.max(1, Math.round(img.naturalHeight * ratio));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Canvas unavailable'));
+          return;
+        }
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.onerror = () => reject(new Error('Image load failed'));
+      img.src = src;
+    });
+
+    let pageIndex = 0;
+    let anyFailure = false;
+
+    for (let idx = 0; idx < catalogExportItems.length; idx += 1) {
+      if (idx > 0 && idx % (columns * 10) === 0) {
+        pdf.addPage();
+        pageIndex += 1;
+      }
+
+      const item = catalogExportItems[idx];
+      const row = Math.floor((idx % (columns * 10)) / columns);
+      const column = idx % columns;
+      const x = marginX + column * (cellWidth + gap);
+      const y = marginY + (pageIndex * 0) + row * (cellHeight + gap);
+
+      pdf.setDrawColor(229, 231, 235);
+      pdf.setFillColor(255, 255, 255);
+      pdf.roundedRect(x, y, cellWidth, cellHeight, 4, 4, 'FD');
+
+      try {
+        const imageData = await loadImage(item.imageUrl);
+        const imageHeight = 62;
+        const imageWidth = cellWidth - 10;
+        pdf.addImage(imageData, 'JPEG', x + 5, y + 8, imageWidth, imageHeight, undefined, 'FAST');
+      } catch {
+        anyFailure = true;
+        pdf.setFillColor(248, 250, 252);
+        pdf.rect(x + 5, y + 8, cellWidth - 10, 62, 'F');
+        pdf.setTextColor(148, 163, 184);
+        pdf.setFontSize(10);
+        pdf.text('لا توجد صورة متاحة', x + (cellWidth / 2), y + 40, { align: 'center' });
+      }
+
+      pdf.setTextColor(15, 23, 42);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10);
+      const productName = item.name.length > 34 ? `${item.name.slice(0, 34)}...` : item.name;
+      const lines = pdf.splitTextToSize(productName, cellWidth - 8);
+      pdf.text(lines, x + 4, y + 80, { maxWidth: cellWidth - 8 });
+
+      if (anyFailure && idx === catalogExportItems.length - 1) {
+        pdf.setTextColor(51, 65, 85);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(8);
+        pdf.text('تم تصدير المتاح فقط من الصور المفعلة في الكتالوج', pageWidth / 2, pageHeight - 10, { align: 'center' });
+      }
+    }
+
+    pdf.save(`catalog_${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
   // Card quantity & type handler
   const getCardState = (productId: string) => {
     return cardOrderState[productId] || { type: 'carton', quantity: 1 };
@@ -1572,22 +1699,34 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         )}
 
         {/* Active Filter Count & Reset Button */}
-        {(searchTerm || selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل') && (
-          <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-xs">
-            <span className="text-slate-300 font-bold">
-              معروض <strong className="text-amber-300 font-black">{activeTotalItems}</strong> صنف
-              {searchTerm && <span className="text-slate-400 text-[11px] mr-1">لبحث &quot;{searchTerm}&quot;</span>}
-            </span>
+        <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-xs gap-3">
+          <span className="text-slate-300 font-bold">
+            معروض <strong className="text-amber-300 font-black">{activeTotalItems}</strong> صنف
+            {searchTerm && <span className="text-slate-400 text-[11px] mr-1">لبحث &quot;{searchTerm}&quot;</span>}
+          </span>
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={resetAllFilters}
-              className="text-amber-400 hover:text-amber-300 font-bold text-xs flex items-center gap-1 cursor-pointer"
+              onClick={handleExportClientCatalog}
+              disabled={catalogExportItems.length === 0}
+              className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-black text-[11px] px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-md transition"
+              title="تصدير كتالوج للعميل بصيغة PDF"
             >
-              <X className="w-3.5 h-3.5" />
-              <span>إلغاء والعودة للكل</span>
+              <Download className="w-3.5 h-3.5" />
+              <span>تصدير كتالوج للعميل</span>
             </button>
+            {(searchTerm || selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل') && (
+              <button
+                type="button"
+                onClick={resetAllFilters}
+                className="text-amber-400 hover:text-amber-300 font-bold text-xs flex items-center gap-1 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>إلغاء والعودة للكل</span>
+              </button>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Main Responsive Grid: Product Catalog (Cols 1-8) + Sticky POS Cashier Sidebar (Cols 9-12 on Desktop) */}

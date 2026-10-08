@@ -212,6 +212,8 @@ export interface AppContextType {
   // Targets & KPIs Dashboard
   targets: TargetRecord[];
   forecasts: CollectionForecastRecord[];
+  loadForecastsForMonth: (monthKey: string) => Promise<void>;
+  loadForecastsForYear: (year: number) => Promise<void>;
   forecastPlans: ForecastMonthPlan[];
   customerComments: CustomerCommentRecord[];
   saveForecast: (record: CollectionForecastRecord) => Promise<void>;

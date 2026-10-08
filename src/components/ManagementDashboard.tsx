@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -113,6 +113,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     customers,
     branches,
     forecasts,
+    loadForecastsForYear,
     getVisibleInvoices,
     getVisibleTargets,
     getVisibleVisits,
@@ -128,6 +129,12 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
   const [selectedYear, setSelectedYear] = useState<number>(2026);
   const [selectedQuarter, setSelectedQuarter] = useState<string>('ALL'); // 'ALL' | 'Q1' | 'Q2' | 'Q3' | 'Q4'
   const [selectedMonth, setSelectedMonth] = useState<string>('ALL'); // 'ALL' | '1' .. '12'
+
+  // توقعات السنة المختارة بتتحمل من السيرفر لما
+  // تتغير السنة — مش كل السنين من أول ما تفتح اللوحة.
+  useEffect(() => {
+    loadForecastsForYear(selectedYear);
+  }, [selectedYear, loadForecastsForYear]);
   const [selectedBranch, setSelectedBranch] = useState<string>(
     isBranchMgr && currentUser?.branchName ? currentUser.branchName : isSupervisor && currentUser?.branchName ? currentUser.branchName : isSalesRep && currentUser?.branchName ? currentUser.branchName : 'ALL'
   );

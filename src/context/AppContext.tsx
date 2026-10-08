@@ -32,7 +32,8 @@ import {
   fetchVisitsFromSupabase,
   saveTargetsToSupabase,
   saveVisitsToSupabase,
-  fetchForecastsFromSupabase,
+  fetchForecastsByMonthFromSupabase,
+  fetchForecastsByYearFromSupabase,
   saveForecastsToSupabase,
   fetchForecastMonthPlansFromSupabase,
   saveForecastMonthPlanToSupabase,
@@ -58,6 +59,7 @@ import {
   testSupabaseConnection,
   USER_SYNC_STORE_ID,
 } from '../services/supabaseService';
+import { currentMonthKey } from '../services/forecastService';
 import { sendOrderToMicrosoft365 } from '../services/microsoftSyncService';
 import { sendInvoiceToPowerAutomate } from '../services/powerAutomateService';
 import {
@@ -146,6 +148,32 @@ import {
   markQueuedMutationFailure,
   removeQueuedMutations,
 } from '../services/offlineQueueService';
+
+/** سطور السيرفر → سجلات التوقعات (نفس الخريطة للبوت وللتحميل حسب الطلب). */
+function mapForecastRows(rows: any[]): CollectionForecastRecord[] {
+  return rows.map((r: any) => ({
+    id: r.id,
+    monthKey: r.month_key ?? r.monthKey,
+    weekIndex: Number(r.week_index ?? r.weekIndex ?? 1),
+    repId: r.rep_id ?? r.repId ?? '',
+    repName: r.rep_name ?? r.repName ?? '',
+    branchName: r.branch_name ?? r.branchName ?? '',
+    customerId: r.customer_id ?? r.customerId ?? '',
+    customerCode: r.customer_code ?? r.customerCode ?? '',
+    customerName: r.customer_name ?? r.customerName ?? '',
+    collectionForecast: Number(r.collection_forecast ?? r.collectionForecast ?? 0),
+    salesForecast: Number(r.sales_forecast ?? r.salesForecast ?? 0),
+    status: (r.status ?? 'draft') as CollectionForecastRecord['status'],
+    submittedAt: r.submitted_at ?? r.submittedAt ?? undefined,
+    approvedBy: r.approved_by ?? r.approvedBy ?? undefined,
+    approvedAt: r.approved_at ?? r.approvedAt ?? undefined,
+    changeRequestNote: r.change_request_note ?? r.changeRequestNote ?? undefined,
+    changeRequestedBy: r.change_requested_by ?? r.changeRequestedBy ?? undefined,
+    changeRequestedAt: r.change_requested_at ?? r.changeRequestedAt ?? undefined,
+    updatedBy: r.updated_by ?? r.updatedBy ?? undefined,
+    updatedAt: r.updated_at ?? r.updatedAt ?? undefined,
+  }));
+}
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -315,6 +343,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  /**
+   * الشهور اللي اتحملت فعلاً. التوقعات مش بتتحمل كلها من البوت
+   * (كان بيصل لـ 50 ألف سطر) — الشهر الحالي بس، وباقي الشهور
+   * بتتحمل لما المستخدم يفتحها. الكاش المحلي بيكون بذرة للشهور
+   * اللي اتحملت قبل كده عشان الأوفلاين.
+   */
+  const loadedForecastMonthsRef = useRef<Set<string> | null>(null);
+  if (loadedForecastMonthsRef.current === null) {
+    loadedForecastMonthsRef.current = new Set<string>();
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.FORECASTS);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) {
+        parsed.forEach((f: any) => {
+          const key = f?.monthKey ?? f?.month_key;
+          if (typeof key === 'string' && key) loadedForecastMonthsRef.current!.add(key);
+        });
+      }
+    } catch { /* ignore */ }
+  }
+
   const [forecastPlans, setForecastPlans] = useState<ForecastMonthPlan[]>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.FORECAST_PLANS);
@@ -360,39 +409,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [customerComments]);
 
   // Load the shared copy so every device and every role sees the same numbers.
+  // التوقعات: الشهر الحالي بس من السيرفر — الجلب الكامل كان
+  // بيصل لـ 50 ألف سطر في 50 طلب متتالي. باقي الشهور بتتحمل
+  // لما المستخدم يفتحها (loadForecastsForMonth).
   useEffect(() => {
     let cancelled = false;
+    const bootMonth = currentMonthKey();
+    loadedForecastMonthsRef.current?.add(bootMonth);
     (async () => {
       const [fRes, pRes, cRes] = await Promise.all([
-        fetchForecastsFromSupabase(),
+        fetchForecastsByMonthFromSupabase(bootMonth),
         fetchForecastMonthPlansFromSupabase(),
         fetchCustomerCommentsFromSupabase(),
       ]);
       if (cancelled) return;
-      if (fRes.success && fRes.forecasts) {
-        const mapped: CollectionForecastRecord[] = fRes.forecasts.map((r: any) => ({
-          id: r.id,
-          monthKey: r.month_key ?? r.monthKey,
-          weekIndex: Number(r.week_index ?? r.weekIndex ?? 1),
-          repId: r.rep_id ?? r.repId ?? '',
-          repName: r.rep_name ?? r.repName ?? '',
-          branchName: r.branch_name ?? r.branchName ?? '',
-          customerId: r.customer_id ?? r.customerId ?? '',
-          customerCode: r.customer_code ?? r.customerCode ?? '',
-          customerName: r.customer_name ?? r.customerName ?? '',
-          collectionForecast: Number(r.collection_forecast ?? r.collectionForecast ?? 0),
-          salesForecast: Number(r.sales_forecast ?? r.salesForecast ?? 0),
-          status: (r.status ?? 'draft') as CollectionForecastRecord['status'],
-          submittedAt: r.submitted_at ?? r.submittedAt ?? undefined,
-          approvedBy: r.approved_by ?? r.approvedBy ?? undefined,
-          approvedAt: r.approved_at ?? r.approvedAt ?? undefined,
-          changeRequestNote: r.change_request_note ?? r.changeRequestNote ?? undefined,
-          changeRequestedBy: r.change_requested_by ?? r.changeRequestedBy ?? undefined,
-          changeRequestedAt: r.change_requested_at ?? r.changeRequestedAt ?? undefined,
-          updatedBy: r.updated_by ?? r.updatedBy ?? undefined,
-          updatedAt: r.updated_at ?? r.updatedAt ?? undefined,
-        }));
-        setForecasts(mapped);
+      if (fRes.success) {
+        const mapped = mapForecastRows(fRes.forecasts || []);
+        // استبدال صفوف الشهر الحالي بس — الشهور المحفوظة محلياً
+        // بتفضل مكانها (أوفلاين) لحد ما تُفتح من السيرفر.
+        setForecasts((prev) => [
+          ...prev.filter((f) => f.monthKey !== bootMonth),
+          ...mapped,
+        ]);
       }
       if (pRes.success && pRes.plans) {
         const mappedPlans: ForecastMonthPlan[] = pRes.plans.map((r: any) => ({
@@ -439,6 +477,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  /**
+   * تحميل توقعات شهر من السيرفر ودمجها في الحالة. الشهر
+   * اللي اتحمل قبل كده ميتعاودش — ده اللي بيخلي الفتح
+   * خفيف بدل تحميل كل الشهور من أول ما التطبيق يشتغل.
+   */
+  const loadForecastsForMonth = useCallback(async (monthKey: string) => {
+    if (!monthKey || loadedForecastMonthsRef.current?.has(monthKey)) return;
+    const res = await fetchForecastsByMonthFromSupabase(monthKey);
+    if (!res.success) return;
+    loadedForecastMonthsRef.current?.add(monthKey);
+    const mapped = mapForecastRows(res.forecasts || []);
+    setForecasts((prev) => [
+      ...prev.filter((f) => f.monthKey !== monthKey),
+      ...mapped,
+    ]);
+  }, []);
+
+  /**
+   * توقعات سنة كاملة (لوحة الإدارة). السيرفر بيرجع السنة
+   * كلها في نطاق واحد، فكل شهورها بتتحدّث محلياً وتتعمل
+   * loaded — حتى الشهور الفاضية عشان ما تُعاد جلبتها.
+   */
+  const loadForecastsForYear = useCallback(async (year: number) => {
+    if (!year) return;
+    const res = await fetchForecastsByYearFromSupabase(year);
+    if (!res.success) return;
+    const mapped = mapForecastRows(res.forecasts || []);
+    const prefix = `${year}-`;
+    const loaded = loadedForecastMonthsRef.current;
+    if (loaded) {
+      for (let m = 1; m <= 12; m++) loaded.add(`${year}-${String(m).padStart(2, '0')}`);
+    }
+    setForecasts((prev) => [
+      ...prev.filter((f) => !f.monthKey?.startsWith(prefix)),
+      ...mapped,
+    ]);
   }, []);
 
 
@@ -1782,63 +1858,55 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       let freshInvoices: Invoice[] | null = null;
       let freshVisits: CustomerVisit[] | null = null;
 
-      // 1. Refresh products if in scope
-      if (inScope('products')) {
-        const prodRes = await fetchProductsFromSupabase();
-        if (prodRes.success) {
-          freshProducts = sanitizeProducts(prodRes.products || []);
-        }
+      // الجلبات الخمسة دي مستقلة عن بعض — بتنزل
+      // متوازية عشان الإقلاع يستنى أطول جلب بس
+      // بدل مجموع الأوقات (الكتالوج والعملاء والفواتير
+      // والزيارات كانت بتنزل ورا بعض متسلسلة).
+      const [prodRes, custRes, trgRes, invRes, visRes] = await Promise.all([
+        inScope('products') ? fetchProductsFromSupabase() : Promise.resolve(null),
+        inScope('customers') ? fetchCustomersFromSupabase(customerFetchScope) : Promise.resolve(null),
+        inScope('targets') ? fetchTargetsFromSupabase() : Promise.resolve(null),
+        inScope('invoices') ? fetchInvoicesFromSupabase(500) : Promise.resolve(null),
+        inScope('visits') ? fetchVisitsFromSupabase(visitFetchScope) : Promise.resolve(null),
+      ]);
+
+      if (prodRes?.success) {
+        freshProducts = sanitizeProducts(prodRes.products || []);
       }
 
-      // 2. Refresh customers if in scope
-      if (inScope('customers')) {
-        const custRes = await fetchCustomersFromSupabase(customerFetchScope);
-        if (custRes.success) {
-          const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers || []), users);
-          freshCustomers = deduplicateCustomersArray(linked);
-        }
+      if (custRes?.success) {
+        const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers || []), users);
+        freshCustomers = deduplicateCustomersArray(linked);
       }
 
-      // 3. Refresh targets if in scope
-      if (inScope('targets')) {
-        const trgRes = await fetchTargetsFromSupabase();
-        if (trgRes.success) {
-          freshTargets = (trgRes.targets || []).map((row: any) => ({
-            id: String(row.id),
-            branch: resolveBranchName(row.branch) || row.branch || '',
-            repName: row.rep_name || '',
-            salesTarget: Number(row.sales_target || 0),
-            salesAchieved: Number(row.sales_achieved || 0),
-            salesPercentage: Number(row.sales_percentage || 0),
-            collectionTarget: Number(row.collection_target || 0),
-            collectionAchieved: Number(row.collection_achieved || 0),
-            collectionPercentage: Number(row.collection_percentage || 0),
-            date: row.target_date || '',
-            month: Number(row.month),
-            year: Number(row.year),
-            quarter: row.quarter,
-            remainingSales: Number(row.remaining_sales || 0),
-            remainingCollection: Number(row.remaining_collection || 0),
-            updatedAt: row.updated_at,
-            notes: row.notes || undefined,
-          }));
-        }
+      if (trgRes?.success) {
+        freshTargets = (trgRes.targets || []).map((row: any) => ({
+          id: String(row.id),
+          branch: resolveBranchName(row.branch) || row.branch || '',
+          repName: row.rep_name || '',
+          salesTarget: Number(row.sales_target || 0),
+          salesAchieved: Number(row.sales_achieved || 0),
+          salesPercentage: Number(row.sales_percentage || 0),
+          collectionTarget: Number(row.collection_target || 0),
+          collectionAchieved: Number(row.collection_achieved || 0),
+          collectionPercentage: Number(row.collection_percentage || 0),
+          date: row.target_date || '',
+          month: Number(row.month),
+          year: Number(row.year),
+          quarter: row.quarter,
+          remainingSales: Number(row.remaining_sales || 0),
+          remainingCollection: Number(row.remaining_collection || 0),
+          updatedAt: row.updated_at,
+          notes: row.notes || undefined,
+        }));
       }
 
-      // 4. Refresh invoices if in scope (source of truth from Supabase; removes deleted invoices across all users)
-      if (inScope('invoices')) {
-        const invRes = await fetchInvoicesFromSupabase(500);
-        if (invRes.success && invRes.invoices) {
-          freshInvoices = invRes.invoices;
-        }
+      if (invRes?.success && invRes.invoices) {
+        freshInvoices = invRes.invoices;
       }
 
-      // 5. Refresh visits if in scope (source of truth from Supabase; removes deleted visits across all users)
-      if (inScope('visits')) {
-        const visRes = await fetchVisitsFromSupabase(visitFetchScope);
-        if (visRes.success && visRes.visits) {
-          freshVisits = visRes.visits;
-        }
+      if (visRes?.success && visRes.visits) {
+        freshVisits = visRes.visits;
       }
 
       /**
@@ -6306,6 +6374,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         loginAs,
         targets,
         forecasts,
+        loadForecastsForMonth,
+        loadForecastsForYear,
         forecastPlans,
         customerComments,
         saveForecast,
