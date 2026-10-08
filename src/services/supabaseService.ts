@@ -1281,12 +1281,30 @@ export async function saveInvoicesToSupabase(
  * ما كل الحسابات تتربط بـ Supabase Auth. قبل كده سيبها ميت أحسن من إنها
  * تفتح وتكشف بيانات.
  */
-export async function fetchInvoicesFromSupabase(limit = 150): Promise<{ success: boolean; invoices?: Invoice[]; error?: string }> {
+/**
+ * نطاق جلب الفواتير بالدور — كل جهاز بيحمل فواتيره هو
+ * بس بدل فواتير كل الفروع (اللي كانت 500 سطر × جدولين
+ * في كل إقلاع). المندوب بيحمل فواتيره، المشرف فواتير
+ * مناديبه، مدير الفرع فواتير فرعه، والإدارة الكل.
+ */
+export interface InvoiceFetchScope {
+  repIds?: string[];
+  limit?: number;
+}
+
+export async function fetchInvoicesFromSupabase(limitOrScope: number | InvoiceFetchScope = 150): Promise<{ success: boolean; invoices?: Invoice[]; error?: string }> {
   try {
+    const scope: InvoiceFetchScope =
+      typeof limitOrScope === 'number' ? { limit: limitOrScope } : limitOrScope || {};
+    const limit = Math.max(1, Math.min(1000, scope.limit ?? 150));
+    const repIds = (scope.repIds || [])
+      .map((r) => String(r).trim())
+      .filter(Boolean);
+
     /**
      * الاتنين بيتقرؤوا **مع بعض** مش واحد ورا التاني.
      *
-     * المنطق زي ما كان بالظبط (جدول invoices الأول، و orders fallback لو
+     * المنطق زي ما كان بالظبط (جدول invoices الأول و orders fallback لو
      * رجع فاضي)، بس الكود كان مستني invoices يخلص ثم يطلب orders، يعني
      * كل قراءة فاتورتين ورا بعض. ده بيتكرر عند 5 مواضع في الإقلاع والمزامنة،
      * وكل واحد منهم = طلب زائد على الشبكة.
@@ -1295,9 +1313,21 @@ export async function fetchInvoicesFromSupabase(limit = 150): Promise<{ success:
      * شغال. وترتيب الاختيار بيفضل زي ما كان — invoices لو فيها صف، غير كده
      * orders.
      */
+    const buildQuery = (table: 'invoices' | 'orders') => {
+      let query = supabase
+        .from(table)
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit) as any;
+      if (repIds.length > 0) {
+        query = query.in('rep_id', repIds);
+      }
+      return query;
+    };
+
     const [invoicesRead, ordersRead] = await Promise.allSettled([
-      supabase.from('invoices').select('*').order('created_at', { ascending: false }).limit(limit),
-      supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(limit),
+      buildQuery('invoices'),
+      buildQuery('orders'),
     ]);
 
     const invResult = invoicesRead.status === 'fulfilled' ? invoicesRead.value : null;

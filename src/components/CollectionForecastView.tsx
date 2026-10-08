@@ -167,6 +167,7 @@ export default function CollectionForecastView() {
     loadForecastsForMonth,
     forecastPlans,
     customerComments,
+    loadCustomerComments,
     visits,
     invoices,
     saveForecast,
@@ -250,9 +251,11 @@ export default function CollectionForecastView() {
 
   // التوقعات بتتحمل من السيرفر شهر بشهر — الشهر اللي
   // بتفتحه دلوقتي هو اللي يتحمل، مش كل الشهور.
+  // كومنتات العملاء كمان بتتحمل هنا مش في الإقلاع.
   useEffect(() => {
     loadForecastsForMonth(monthKey);
-  }, [monthKey, loadForecastsForMonth]);
+    loadCustomerComments();
+  }, [monthKey, loadForecastsForMonth, loadCustomerComments]);
 
   /* ---------- خطة الشهر: تقسيم الفترات (اختياري) ---------- */
   const plan: ForecastMonthPlan = useMemo(() => {

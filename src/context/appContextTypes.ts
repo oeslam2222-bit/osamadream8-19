@@ -216,6 +216,7 @@ export interface AppContextType {
   loadForecastsForYear: (year: number) => Promise<void>;
   forecastPlans: ForecastMonthPlan[];
   customerComments: CustomerCommentRecord[];
+  loadCustomerComments: () => Promise<void>;
   saveForecast: (record: CollectionForecastRecord) => Promise<void>;
   saveForecastBatch: (records: CollectionForecastRecord[]) => Promise<void>;
   deleteForecast: (id: string) => Promise<void>;

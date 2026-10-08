@@ -34,6 +34,7 @@ import {
   saveVisitsToSupabase,
   fetchForecastsByMonthFromSupabase,
   fetchForecastsByYearFromSupabase,
+  InvoiceFetchScope,
   saveForecastsToSupabase,
   fetchForecastMonthPlansFromSupabase,
   saveForecastMonthPlanToSupabase,
@@ -175,7 +176,58 @@ function mapForecastRows(rows: any[]): CollectionForecastRecord[] {
   }));
 }
 
+/** سطور السيرفر → سجلات كومنتات العملاء. */
+function mapCommentRows(rows: any[]): CustomerCommentRecord[] {
+  return rows.map((r: any) => ({
+    id: r.id,
+    customerId: r.customer_id ?? r.customerId ?? '',
+    customerCode: r.customer_code ?? r.customerCode ?? '',
+    customerName: r.customer_name ?? r.customerName ?? '',
+    branchName: r.branch_name ?? r.branchName ?? '',
+    repName: r.rep_name ?? r.repName ?? '',
+    kind: (r.kind ?? 'note') as CustomerCommentRecord['kind'],
+    body: r.body ?? '',
+    authorName: r.author_name ?? r.authorName ?? '',
+    createdAt: r.created_at ?? r.createdAt ?? new Date().toISOString(),
+    updatedAt: r.updated_at ?? r.updatedAt ?? undefined,
+    // حالة الأرشفة بتقرأ من السيرفر. قبل كده كانت مش متقراش، فأي
+    // تعليق مش مهم كان بيتنهض من الأرشيف أول ما السيرفر يردّ على أي
+    // عميل جديد (لأن القراءة كانت بتبني سجل جديد من الصفحة).
+    // الأعمدة دي محتاجة supabase/fix_forecast_rls.sql — من غيرها
+    // undefined بيرجّع false وده سلوك الـfallback الطبيعي.
+    isArchived: !!(r.is_archived ?? r.isArchived),
+    archivedAt: r.archived_at ?? r.archivedAt ?? undefined,
+    archivedBy: r.archived_by ?? r.archivedBy ?? undefined,
+  }));
+}
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
+
+/**
+ * نطاق جلب الفواتير حسب الدور. كل جهاز بيحمل
+ * فواتيره هو بس بدل فواتير كل الفروع — ده
+ * أكبر بند في نقل البيانات (500 سطر × جدولين
+ * في كل إقلاع على كل جهاز).
+ */
+function buildInvoiceFetchScope(currentUser: User | null, users: User[]): InvoiceFetchScope {
+  if (!currentUser) return { limit: 150 };
+  if (currentUser.role === 'sales_rep') {
+    return { repIds: [currentUser.id], limit: 150 };
+  }
+  if (currentUser.role === 'supervisor') {
+    const repIds = users
+      .filter((u) => u.id === currentUser.id || u.supervisorId === currentUser.id)
+      .map((u) => u.id);
+    return { repIds: repIds.length > 0 ? repIds : undefined, limit: 300 };
+  }
+  if (currentUser.role === 'branch_manager') {
+    const repIds = users
+      .filter((u) => u.branchName === currentUser.branchName)
+      .map((u) => u.id);
+    return { repIds: repIds.length > 0 ? repIds : undefined, limit: 300 };
+  }
+  return { limit: 500 };
+}
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Auth and Session Notice
@@ -412,15 +464,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // التوقعات: الشهر الحالي بس من السيرفر — الجلب الكامل كان
   // بيصل لـ 50 ألف سطر في 50 طلب متتالي. باقي الشهور بتتحمل
   // لما المستخدم يفتحها (loadForecastsForMonth).
+  // كومنتات العملاء (حتى 20 ألف سطر) مش بتتحمل هنا —
+  // بتتحمل لما الفيوهات اللي بتستخدمها تفتح (loadCustomerComments).
   useEffect(() => {
     let cancelled = false;
     const bootMonth = currentMonthKey();
     loadedForecastMonthsRef.current?.add(bootMonth);
     (async () => {
-      const [fRes, pRes, cRes] = await Promise.all([
+      const [fRes, pRes] = await Promise.all([
         fetchForecastsByMonthFromSupabase(bootMonth),
         fetchForecastMonthPlansFromSupabase(),
-        fetchCustomerCommentsFromSupabase(),
       ]);
       if (cancelled) return;
       if (fRes.success) {
@@ -447,31 +500,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           updatedAt: r.updated_at ?? r.updatedAt ?? undefined,
         }));
         setForecastPlans(mappedPlans);
-      }
-      if (cRes.success && cRes.comments) {
-        setCustomerComments(
-          cRes.comments.map((r: any) => ({
-            id: r.id,
-            customerId: r.customer_id ?? r.customerId ?? '',
-            customerCode: r.customer_code ?? r.customerCode ?? '',
-            customerName: r.customer_name ?? r.customerName ?? '',
-            branchName: r.branch_name ?? r.branchName ?? '',
-            repName: r.rep_name ?? r.repName ?? '',
-            kind: (r.kind ?? 'note') as CustomerCommentRecord['kind'],
-            body: r.body ?? '',
-            authorName: r.author_name ?? r.authorName ?? '',
-            createdAt: r.created_at ?? r.createdAt ?? new Date().toISOString(),
-            updatedAt: r.updated_at ?? r.updatedAt ?? undefined,
-            // حالة الأرشفة بتقرأ من السيرفر. قبل كده كانت مش متقراش، فأي
-            // تعليق مش مهم كان بيتنهض من الأرشيف أول ما السيرفر يردّ على أي
-            // عميل جديد (لأن القراءة كانت بتبني سجل جديد من الصف��).
-            // الأعمدة دي محتاجة supabase/fix_forecast_rls.sql — من غيرها
-            // undefined بيرجّع false وده سلوك الـfallback الطبيعي.
-            isArchived: !!(r.is_archived ?? r.isArchived),
-            archivedAt: r.archived_at ?? r.archivedAt ?? undefined,
-            archivedBy: r.archived_by ?? r.archivedBy ?? undefined,
-          }))
-        );
       }
     })();
     return () => {
@@ -515,6 +543,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...prev.filter((f) => !f.monthKey?.startsWith(prefix)),
       ...mapped,
     ]);
+  }, []);
+
+  /**
+   * كومنتات العملاء (حتى 20 ألف سطر) مش بتتحمل
+   * في الإقلاع — بتتحمل مرة واحدة لما الفيوهات
+   * اللي بتستخدمها تفتح. الكاش المحلي بيكون
+   * بذرة عشان الأوفلاين.
+   */
+  const customerCommentsLoadedRef = useRef<boolean | null>(null);
+  if (customerCommentsLoadedRef.current === null) {
+    customerCommentsLoadedRef.current = false;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.CUSTOMER_COMMENTS);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        customerCommentsLoadedRef.current = true;
+      }
+    } catch { /* ignore */ }
+  }
+
+  const loadCustomerComments = useCallback(async () => {
+    if (customerCommentsLoadedRef.current) return;
+    customerCommentsLoadedRef.current = true;
+    const res = await fetchCustomerCommentsFromSupabase();
+    if (!res.success) {
+      // فشل الشبكة — نسمح بإعادة المحاولة عند الفتح التالي
+      customerCommentsLoadedRef.current = false;
+      return;
+    }
+    setCustomerComments(mapCommentRows(res.comments || []));
   }, []);
 
 
@@ -1694,7 +1752,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           setUsers(sanitizeAndDeduplicateUsers(fetchRes.users).deduplicated);
         }
 
-        const invRes = await fetchInvoicesFromSupabase();
+        const invRes = await fetchInvoicesFromSupabase(
+          buildInvoiceFetchScope(currentUser, users)
+        );
         if (invRes.success && invRes.invoices) {
           const remoteInvoices = invRes.invoices;
           fetchedInvoicesCount = remoteInvoices.length;
@@ -1866,7 +1926,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         inScope('products') ? fetchProductsFromSupabase() : Promise.resolve(null),
         inScope('customers') ? fetchCustomersFromSupabase(customerFetchScope) : Promise.resolve(null),
         inScope('targets') ? fetchTargetsFromSupabase() : Promise.resolve(null),
-        inScope('invoices') ? fetchInvoicesFromSupabase(500) : Promise.resolve(null),
+        inScope('invoices') ? fetchInvoicesFromSupabase(buildInvoiceFetchScope(currentUser, users)) : Promise.resolve(null),
         inScope('visits') ? fetchVisitsFromSupabase(visitFetchScope) : Promise.resolve(null),
       ]);
 
@@ -2359,7 +2419,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
         // 3. Fetch Invoices from Supabase (source of truth; keeps only genuinely pending offline invoices)
         const deletedInvoiceIds = getDeletedInvoiceIds();
-        fetchInvoicesFromSupabase(500).then(async (res) => {
+        fetchInvoicesFromSupabase(buildInvoiceFetchScope(currentUser, users)).then(async (res) => {
           if (res.success && res.invoices) {
             const remoteInvoices = res.invoices.filter(
               (inv) => !deletedInvoiceIds.has(inv.id) && !deletedInvoiceIds.has(inv.invoiceNumber)
@@ -2423,7 +2483,22 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     try {
       const channel = supabase
         .channel('schema-db-changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, (payload) => {
+        // Realtime بيبث كل فاتورة جديدة/معدّلة لكل جهاز
+        // موصول — ده من أكبر أسباب نقل البيانات. المندوب
+        // (الأغلبية) بيستقبل فواتيره بس عبر فلتر على
+        // السيرفر، وباقي الأدوار محتاجة كل الفواتير
+        // للموافقات والمتابعة فبيستقبلوا الكل.
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'invoices',
+            ...(currentUser?.role === 'sales_rep' && currentUser.id
+              ? { filter: `rep_id=eq.${currentUser.id}` }
+              : {}),
+          },
+          (payload) => {
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             const raw = payload.new as any;
             if (raw && raw.id) {
@@ -2672,9 +2747,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       lastSyncTimestamp = now;
 
       try {
-        const result = await fetchInvoicesFromSupabase(30);
-        if (cancelled || !result.success || !result.invoices) return;
-        setInvoices((prev) => {
+        const result = await fetchInvoicesFromSupabase(
+          buildInvoiceFetchScope(currentUser, users)
+        );
+        if (cancelled || !result.success || !result.invoices) return;        setInvoices((prev) => {
           const remoteById = new Map<string, Invoice>();
           result.invoices!.forEach((inv) => {
             remoteById.set(inv.id, inv);
@@ -2722,7 +2798,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
       lastManualRefreshRef.current = now;
 
-      const result = await fetchInvoicesFromSupabase(50);
+      const result = await fetchInvoicesFromSupabase(
+        buildInvoiceFetchScope(currentUser, users)
+      );
       if (!result.success || !result.invoices) {
         return { success: false, count: 0, message: result.error || 'تعذر الاتصال بقاعدة البيانات لجلب الفواتير' };
       }
@@ -6378,6 +6456,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         loadForecastsForYear,
         forecastPlans,
         customerComments,
+        loadCustomerComments,
         saveForecast,
         saveForecastBatch,
         deleteForecast,

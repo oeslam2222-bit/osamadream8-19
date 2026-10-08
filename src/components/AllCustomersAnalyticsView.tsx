@@ -270,7 +270,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     cleanAndDeduplicateCustomers,
     toggleArchiveVisit,
     customerComments = [],
-    toggleArchiveCustomerComment
+    toggleArchiveCustomerComment,
+    loadCustomerComments
   } = useApp();
 
   // Roles
@@ -281,6 +282,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   // Branch deficits report: the branch manager works their own branch, the
   // supervisor works every rep they supervise, and the admin sees everything.
   const canSeeDeficits = isBranchManager || isSupervisor || isAdminOrDev;
+
+  // كومنتات العملاء بتتحمل لما الشاشة دي تفتح
+  // (مش في الإقلاع — حتى 20 ألف سطر في كل جهاز).
+  useEffect(() => {
+    loadCustomerComments();
+  }, [loadCustomerComments]);
 
   // --- Branch deficits (نواقص أكتوبر) filters ---
   const [deficitDateMode, setDeficitDateMode] = useState<'today' | 'date' | 'range'>('today');
