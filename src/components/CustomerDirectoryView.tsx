@@ -1495,7 +1495,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                         {debt > 0 ? (
                           <div className="text-[10px] text-rose-500 font-bold">مستحق السداد</div>
                         ) : (
-                          <div className="text-[10px] text-emerald-600 font-bold">0 ج.م</div>
+                          <div className="text-[10px] text-emerald-600 font-bold">{formatCurrency(0)}</div>
                         )}
                       </td>
 

@@ -43,7 +43,9 @@ import {
   Target,
   Archive,
   ArchiveRestore,
-  WifiOff
+  WifiOff,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
@@ -350,6 +352,7 @@ export const VisitsDashboard: React.FC = () => {
    * المرتجع مرتبط بصنف وكمية محددين — تكرارهم على 10 عملاء هيبقى رقم غلط.
    */
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
+  const [showEvaluationDetails, setShowEvaluationDetails] = useState(false);
   const [returnProductQuery, setReturnProductQuery] = useState('');
   const [selectedReturnProductId, setSelectedReturnProductId] = useState('');
   const [returnQuantity, setReturnQuantity] = useState(1);
@@ -1539,6 +1542,7 @@ allowSameDaySecondVisit: false,
       });
       setModalCustomerSearch('');
       setSelectedCustomerIds([]);
+      setShowEvaluationDetails(false);
       setReturnProductQuery('');
       setSelectedReturnProductId('');
       setReturnQuantity(1);
@@ -3970,28 +3974,58 @@ allowSameDaySecondVisit: false,
                     </div>
                   </div>
                 ) : form.outcome === 'تم التحصيل' ? (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">المبلغ المحصل (ج.م)</label>
+                  <div className="space-y-1 bg-emerald-50/70 p-3 rounded-2xl border border-emerald-200">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-black text-slate-800">المبلغ المحصل (ج.م)</label>
+                      {Number(form.collectedAmount) > 0 ? (
+                        <span className="text-xs font-mono font-black text-emerald-800 bg-white px-2 py-0.5 rounded-lg border border-emerald-300">
+                          {formatCurrency(Number(form.collectedAmount))}
+                        </span>
+                      ) : null}
+                    </div>
                     <input
                       type="number"
                       min="0"
+                      step="0.01"
+                      inputMode="decimal"
                       value={form.collectedAmount || ''}
                       onChange={(e) => setForm({ ...form, collectedAmount: parseFloat(e.target.value) || 0 })}
                       placeholder="0.00"
-                      className="w-full border border-emerald-300 rounded-xl p-2.5 text-xs font-bold text-emerald-900 bg-emerald-50 focus:bg-white focus:outline-none"
+                      className="w-full border border-emerald-300 rounded-xl p-2.5 text-xs font-black text-emerald-950 bg-white focus:bg-white focus:outline-none focus:border-emerald-600 font-mono"
                     />
+                    <div className="text-[10.5px] text-emerald-900 font-bold flex items-center justify-between">
+                      <span>المبلغ بالتنسيق المالي العشري:</span>
+                      <span className="font-mono font-black text-xs text-emerald-950">
+                        {formatCurrency(Number(form.collectedAmount) || 0)}
+                      </span>
+                    </div>
                   </div>
                 ) : form.outcome === 'تم عمل طلبية' ? (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">قيمة الطلبية المنشأة (ج.م)</label>
+                  <div className="space-y-1 bg-blue-50/70 p-3 rounded-2xl border border-blue-200">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-black text-slate-800">قيمة الطلبية المنشأة (ج.م)</label>
+                      {Number(form.orderAmount) > 0 ? (
+                        <span className="text-xs font-mono font-black text-blue-800 bg-white px-2 py-0.5 rounded-lg border border-blue-300">
+                          {formatCurrency(Number(form.orderAmount))}
+                        </span>
+                      ) : null}
+                    </div>
                     <input
                       type="number"
                       min="0"
+                      step="0.01"
+                      inputMode="decimal"
                       value={form.orderAmount || ''}
                       onChange={(e) => setForm({ ...form, orderAmount: parseFloat(e.target.value) || 0 })}
-                      placeholder="0.00"
-                      className="w-full border border-blue-300 rounded-xl p-2.5 text-xs font-bold text-blue-900 bg-blue-50 focus:bg-white focus:outline-none"
+                      placeholder="0"
+                      className="w-full border border-blue-300 rounded-xl p-2.5 text-xs font-black text-blue-950 bg-white focus:bg-white focus:outline-none focus:border-blue-600 font-mono"
                     />
+                    <div className="text-[10.5px] text-blue-900 font-bold flex items-center justify-between">
+                      <span>القيمة بالتنسيق المالي:</span>
+                      <span className="font-mono font-black text-xs text-blue-950">
+                        {formatCurrency(Number(form.orderAmount) || 0)}
+                      </span>
+                    </div>
                   </div>
                 ) : (
                   <div>
@@ -4006,68 +4040,94 @@ allowSameDaySecondVisit: false,
                 )}
               </div>
 
-              {/* Store stock condition & Customer rating */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">حالة المخزون بمتجر العميل</label>
-                  <select
-                    value={form.storeStockStatus}
-                    onChange={(e) => setForm({ ...form, storeStockStatus: e.target.value as any })}
-                    className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none"
-                  >
-                    <option value="متوفر بكثرة">متوفر بكثرة (مخزون وافر)</option>
-                    <option value="متوسط">متوسط (بحاجة لتنشيط قريباً)</option>
-                    <option value="منخفض">منخفض (أوشك على النفاد ⚠️)</option>
-                    <option value="منعدم (نفاد مخزون)">منعدم (نفاد مخزون تام ⛔)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">تقييم تجاوب ورضا العميل</label>
-                  <div className="flex items-center gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-xl">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={() => setForm({ ...form, customerRating: star as any })}
-                        className="p-1 hover:scale-125 transition cursor-pointer"
-                      >
-                        <Star className={`w-4 h-4 ${star <= form.customerRating ? 'fill-amber-400 text-amber-500' : 'text-slate-300'}`} />
-                      </button>
-                    ))}
-                    <span className="text-xs font-bold text-slate-700 mr-2">{form.customerRating} من 5 نجوم</span>
+              {/* Collapsible Accordion: Store condition, customer rating & notes (optional) */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/50">
+                <button
+                  type="button"
+                  onClick={() => setShowEvaluationDetails((prev) => !prev)}
+                  className="w-full flex items-center justify-between p-3 text-right hover:bg-slate-100/70 transition cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-slate-700">تقييم المتجر والملاحظات الإضافية</span>
+                    <span className="text-[10px] font-bold text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded-full">
+                      اختياري
+                    </span>
                   </div>
-                </div>
-              </div>
+                  <div className="flex items-center gap-1.5 text-slate-500 text-xs">
+                    <span className="text-[11px] font-bold text-slate-500">
+                      {showEvaluationDetails ? 'إخفاء' : 'عرض التفاصيل'}
+                    </span>
+                    {showEvaluationDetails ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </div>
+                </button>
 
-              {/* Competitor Intel */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">رصد المنافسين (أسعار، عروض، منتجات جديدة بالمتجر)</label>
-                <input
-                  type="text"
-                  placeholder="سجل أي عروض أو أسعار للشركات المنافسة لاحظتها في المتجر..."
-                  value={form.competitorNotes}
-                  onChange={(e) => setForm({ ...form, competitorNotes: e.target.value })}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-slate-50 focus:bg-white focus:outline-none"
-                />
-              </div>
+                {showEvaluationDetails && (
+                  <div className="p-3.5 pt-0 space-y-3 border-t border-slate-200 bg-white animate-in fade-in duration-150">
+                    {/* Store stock condition & Customer rating */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">حالة المخزون بمتجر العميل</label>
+                        <select
+                          value={form.storeStockStatus}
+                          onChange={(e) => setForm({ ...form, storeStockStatus: e.target.value as any })}
+                          className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none"
+                        >
+                          <option value="متوفر بكثرة">متوفر بكثرة (مخزون وافر)</option>
+                          <option value="متوسط">متوسط (بحاجة لتنشيط قريباً)</option>
+                          <option value="منخفض">منخفض (أوشك على النفاد ⚠️)</option>
+                          <option value="منعدم (نفاد مخزون)">منعدم (نفاد مخزون تام ⛔)</option>
+                        </select>
+                      </div>
 
-              {/* Notes */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">ملاحظات وتوجيهات الزيارة</label>
-                <textarea
-                  placeholder="سجل أهداف الزيارة، النواقص، أو أي تعليمات خاصة..."
-                  value={form.notes}
-                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:border-emerald-500 min-h-16"
-                />
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">تقييم تجاوب ورضا العميل</label>
+                        <div className="flex items-center gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-xl">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => setForm({ ...form, customerRating: star as any })}
+                              className="p-1 hover:scale-125 transition cursor-pointer"
+                            >
+                              <Star className={`w-4 h-4 ${star <= form.customerRating ? 'fill-amber-400 text-amber-500' : 'text-slate-300'}`} />
+                            </button>
+                          ))}
+                          <span className="text-xs font-bold text-slate-700 mr-2">{form.customerRating} من 5 نجوم</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Competitor Intel */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">رصد المنافسين (أسعار أو عروض)</label>
+                      <input
+                        type="text"
+                        placeholder="سجل أي عروض أو أسعار للشركات المنافسة لاحظتها..."
+                        value={form.competitorNotes}
+                        onChange={(e) => setForm({ ...form, competitorNotes: e.target.value })}
+                        className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-slate-50 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Notes */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">ملاحظات إضافية</label>
+                      <textarea
+                        placeholder="سجل أي تعليمات خاصة أو متطلبات للمتابعة..."
+                        value={form.notes}
+                        onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                        className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:border-emerald-500 min-h-14"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Database Guarantee Notice */}
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-[11px] text-emerald-900 font-bold">
-                <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
+              <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-[11px] text-emerald-900 font-bold">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>
-                  تأكيد الحفظ: يتم تثبيت وحفظ هذه الزيارة تلقائياً بقاعدة البيانات السحابية (Supabase) والتخزين المحلي، وتحديث سجل العميل فوراً.
+                  تأكيد الحفظ: يتم تثبيت وحفظ هذه الزيارة تلقائياً في قاعدة البيانات السحابية والمحلية وتحديث الحساب فوراً.
                 </span>
               </div>
             </div>
@@ -4169,19 +4229,33 @@ allowSameDaySecondVisit: false,
 
             {/* المبلغ — بيظهر مع التحصيل بس */}
             {quickForm.outcome === 'تم التحصيل' && (
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">المبلغ المحصل</label>
+              <div className="space-y-1.5 bg-emerald-50/70 p-3 rounded-2xl border border-emerald-200">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-black text-emerald-950">المبلغ المحصل (ج.م)</label>
+                  {Number(quickForm.collectedAmount) > 0 ? (
+                    <span className="text-xs font-mono font-black text-emerald-800 bg-white px-2 py-0.5 rounded-lg border border-emerald-300">
+                      {formatCurrency(Number(quickForm.collectedAmount))}
+                    </span>
+                  ) : null}
+                </div>
                 <input
                   type="number"
                   min="0"
-                  step="any"
+                  step="0.01"
                   inputMode="decimal"
+                  placeholder="0"
                   value={quickForm.collectedAmount || ''}
                   onChange={(e) =>
-                    setQuickForm({ ...quickForm, collectedAmount: Number(e.target.value) || 0 })
+                    setQuickForm({ ...quickForm, collectedAmount: parseFloat(e.target.value) || 0 })
                   }
-                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-black text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:border-emerald-500"
+                  className="w-full border border-emerald-300 rounded-xl p-2.5 text-xs font-black text-slate-900 bg-white focus:bg-white focus:outline-none focus:border-emerald-600 font-mono"
                 />
+                <div className="text-[10.5px] text-emerald-900 font-bold flex items-center justify-between">
+                  <span>المبلغ بالتنسيق المالي:</span>
+                  <span className="font-mono font-black text-xs text-emerald-950">
+                    {formatCurrency(Number(quickForm.collectedAmount) || 0)}
+                  </span>
+                </div>
               </div>
             )}
 

@@ -533,7 +533,7 @@ ${
                       <span>الحد الائتماني المعتمد للعميل</span>
                     </td>
                     <td className="p-3.5 font-mono font-black text-center text-blue-950 text-sm">
-                      {hasNoCredit ? '0 ج.م' : `${creditLimit.toLocaleString()} ج.م`}
+                      {formatCurrency(hasNoCredit ? 0 : creditLimit)}
                     </td>
                     <td className="p-3.5 text-blue-800">
                       {hasNoCredit ? 'لا يوجد حد ائتماني مسجل للعميل (سداد نقدي فوري)' : 'أقصى سقف ائتماني مسموح به لهذا العميل'}

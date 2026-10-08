@@ -2,18 +2,32 @@ import { COMPANY_INFO } from '../data/mockData';
 import { Invoice } from '../types';
 
 /**
- * Format Egyptian Pound currency. Shows decimals only when the amount has a
- * fractional part, otherwise prints a clean integer (e.g. 84,000,000 ج.م or
- * 31,958.50 ج.م).
+ * Format Egyptian Pound currency as standard monetary amount.
+ * Whole numbers display cleanly with thousand commas (e.g. 50,000 ج.م),
+ * while numbers with fractions display 2 decimal places (e.g. 50,000.50 ج.م).
  */
 export function formatCurrency(amount: number | undefined): string {
   if (amount === undefined || isNaN(amount)) return '0 ج.م';
   const rounded = Math.round(amount * 100) / 100;
-  const hasFraction = Math.abs(rounded - Math.floor(rounded)) > 0.001;
-  const formatted = hasFraction
-    ? rounded.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : Math.floor(rounded).toLocaleString('en-US');
+  const hasFraction = Math.abs(rounded % 1) > 0.001;
+  const formatted = rounded.toLocaleString('en-US', {
+    minimumFractionDigits: hasFraction ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
   return `${formatted} ج.م`;
+}
+
+/**
+ * Format number with comma separators without currency suffix (e.g. 50,000 or 50,000.50).
+ */
+export function formatDecimalAmount(amount: number | undefined): string {
+  if (amount === undefined || isNaN(amount)) return '0';
+  const rounded = Math.round(amount * 100) / 100;
+  const hasFraction = Math.abs(rounded % 1) > 0.001;
+  return rounded.toLocaleString('en-US', {
+    minimumFractionDigits: hasFraction ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
 }
 
 /**

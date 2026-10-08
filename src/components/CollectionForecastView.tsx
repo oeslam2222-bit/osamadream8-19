@@ -1832,12 +1832,12 @@ const visitStats = visitStatsByCustomer.get(c.id);
 
                     {/* Current Balance */}
                     <td className="p-3 font-mono font-black text-rose-700 whitespace-nowrap">
-                      {balance > 0 ? formatCurrency(balance) : '0 ج.م'}
+                      {formatCurrency(balance || 0)}
                     </td>
 
                     {/* Total Dues */}
                     <td className="p-3 font-mono font-black text-amber-800 whitespace-nowrap">
-                      {dues > 0 ? formatCurrency(dues) : '0 ج.م'}
+                      {formatCurrency(dues || 0)}
                     </td>
 
                     {/* التصنيف — خانة واحدة بس: قابل / غير، زي ما الشيت مكتوب.
@@ -1901,30 +1901,39 @@ const visitStats = visitStatsByCustomer.get(c.id);
 
                       return (
                         <td key={w.index} className="p-2 text-center whitespace-nowrap">
-                          <div className="inline-flex items-center gap-1">
-                            <input
-                              type="number"
-                              min={0}
-                              disabled={!editable || locked}
-                              value={currentVal}
-                              placeholder="0"
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setDraft((prev) => ({ ...prev, [recKey]: val }));
-                              }}
-                              onBlur={(e) => {
-                                commitCell(c, w.index, e.target.value);
-                              }}
-                              title={locked ? 'معتمد ومثبت من المشرف' : `تسجيل متوقع أسبوع ${w.index}`}
-                              className={`w-20 px-2 py-1 rounded-xl text-center font-mono font-black text-xs border transition ${
-                                locked
-                                  ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
-                                  : Number(currentVal) > 0
-                                  ? 'bg-emerald-50 text-emerald-900 border-emerald-400'
-                                  : 'bg-white text-slate-800 border-slate-300 focus:border-emerald-500 focus:outline-none'
-                              }`}
-                            />
-                            <span className="text-[9px] font-black text-slate-500">ج.م</span>
+                          <div className="inline-flex flex-col items-center gap-0.5">
+                            <div className="inline-flex items-center gap-1">
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                inputMode="decimal"
+                                disabled={!editable || locked}
+                                value={currentVal}
+                                placeholder="0"
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setDraft((prev) => ({ ...prev, [recKey]: val }));
+                                }}
+                                onBlur={(e) => {
+                                  commitCell(c, w.index, e.target.value);
+                                }}
+                                title={locked ? 'معتمد ومثبت من المشرف' : `تسجيل متوقع أسبوع ${w.index}`}
+                                className={`w-24 px-2 py-1 rounded-xl text-center font-mono font-black text-xs border transition ${
+                                  locked
+                                    ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
+                                    : Number(currentVal) > 0
+                                    ? 'bg-emerald-50 text-emerald-900 border-emerald-400'
+                                    : 'bg-white text-slate-800 border-slate-300 focus:border-emerald-500 focus:outline-none'
+                                }`}
+                              />
+                              <span className="text-[9px] font-black text-slate-500">ج.م</span>
+                            </div>
+                            {Number(currentVal) > 0 && (
+                              <span className="block text-[9.5px] font-mono font-black text-emerald-700">
+                                {formatCurrency(Number(currentVal))}
+                              </span>
+                            )}
                           </div>
                         </td>
                       );
@@ -1945,36 +1954,44 @@ const visitStats = visitStatsByCustomer.get(c.id);
 
                       return (
                         <td className="p-2 text-center whitespace-nowrap bg-teal-50/30">
-                          <div className="inline-flex items-center gap-1">
-                            <input
-                              type="number"
-                              min={0}
-                              disabled={!editable || locked}
-                              value={currentVal}
-                              placeholder={weekSum > 0 ? String(weekSum) : 'لم يُكتب'}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setDraft((prev) => ({ ...prev, [recKey]: val }));
-                              }}
-                              onBlur={(e) => {
-                                commitMonthCell(c, e.target.value);
-                              }}
-                              title={locked ? 'معتمد ومثبت من المشرف' : 'التوقع الشهري — رقم مستقل عن الأسابيع'}
-                              className={`w-28 px-2 py-1 rounded-xl text-center font-mono font-black text-xs border transition ${
-                                locked
-                                  ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
-                                  : isDerived
-                                  ? 'bg-teal-50 text-teal-900 border-teal-300 border-dashed'
-                                  : 'bg-teal-100 text-teal-950 border-teal-400 focus:outline-none'
-                              }`}
-                            />
-                            <span className="text-[9px] font-black text-teal-700">ج.م</span>
+                          <div className="inline-flex flex-col items-center gap-0.5">
+                            <div className="inline-flex items-center gap-1">
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                inputMode="decimal"
+                                disabled={!editable || locked}
+                                value={currentVal}
+                                placeholder={weekSum > 0 ? String(weekSum) : '0'}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setDraft((prev) => ({ ...prev, [recKey]: val }));
+                                }}
+                                onBlur={(e) => {
+                                  commitMonthCell(c, e.target.value);
+                                }}
+                                title={locked ? 'معتمد ومثبت من المشرف' : 'التوقع الشهري — رقم مستقل عن الأسابيع'}
+                                className={`w-28 px-2 py-1 rounded-xl text-center font-mono font-black text-xs border transition ${
+                                  locked
+                                    ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
+                                    : isDerived
+                                    ? 'bg-teal-50 text-teal-900 border-teal-300 border-dashed'
+                                    : 'bg-teal-100 text-teal-950 border-teal-400 focus:outline-none'
+                                }`}
+                              />
+                              <span className="text-[9px] font-black text-teal-700">ج.م</span>
+                            </div>
+                            {Number(currentVal) > 0 ? (
+                              <span className="block text-[9.5px] font-mono font-black text-teal-800">
+                                {formatCurrency(Number(currentVal))}
+                              </span>
+                            ) : isDerived ? (
+                              <span className="block text-[9px] font-bold text-teal-600 mt-0.5" title="لسه مجموع الأسابيع — اكتب رقمك المستقل">
+                                محسوب: {formatCurrency(weekSum)}
+                              </span>
+                            ) : null}
                           </div>
-                          {isDerived && (
-                            <span className="block text-[9px] font-bold text-teal-600 mt-0.5" title="لسه مجموع الأسابيع — اكتب رقمك المستقل">
-                              محسوب من الأسابيع
-                            </span>
-                          )}
                         </td>
                       );
                     })()}
