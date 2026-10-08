@@ -1,6 +1,6 @@
 // Service Worker for Tantawy Group - Official PWA & Offline Image Caching
-const CACHE_NAME = 'tantawy-group-pwa-v6';
-const ASSET_CACHE_NAME = 'tantawy-group-assets-v6';
+const CACHE_NAME = 'tantawy-group-pwa-v7';
+const ASSET_CACHE_NAME = 'tantawy-group-assets-v7';
 const IMAGE_CACHE_NAME = 'tantawy-group-images-v5';
 
 const PRECACHE_ASSETS = [
