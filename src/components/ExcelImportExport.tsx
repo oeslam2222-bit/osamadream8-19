@@ -28,7 +28,6 @@ import {
   Target,
   BadgePercent,
   Calendar,
-  CalendarCheck,
   CreditCard,
   FileCheck,
   Flame,
