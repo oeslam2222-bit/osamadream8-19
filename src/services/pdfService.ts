@@ -4,6 +4,7 @@ import { Invoice } from '../types';
 import { COMPANY_INFO } from '../data/mockData';
 import { resolveCustomerFinancials } from './arabicMatchingService';
 import { resolveSafeCustomerCode } from './excelService';
+import { optimizeImageUrl } from './cloudinaryService';
 
 /**
  * Render and construct pixel-perfect jsPDF Document for Dream Distribution
@@ -388,4 +389,191 @@ export async function generateInvoicePDFBase64(invoice: Invoice, customCompanyIn
   const pdf = await createInvoicePDFDocument(invoice, customCompanyInfo);
   const dataUri = pdf.output('datauristring');
   return dataUri.includes(',') ? dataUri.split(',')[1] : dataUri;
+}
+
+/* ============================================================
+   كتالوج العميل — صورة + اسم الصنف فقط، بهوية مجموعة الطنطاوي
+   ============================================================ */
+
+export interface ClientCatalogProduct {
+  id: string;
+  name: string;
+  imageUrl?: string;
+}
+
+export interface ClientCatalogExportResult {
+  pdf: jsPDF;
+  exportedCount: number;
+  failedImageCount: number;
+  filename: string;
+}
+
+/**
+ * تحميل صورة الصنف وتحويلها لـ dataURL مضغوط.
+ * روابط Google Drive/Cloudinary بتتحول لروابط مضغوطة
+ * بتدعم CORS عشان الـ canvas متتلوثش. الصور اللي
+ * سيرفرها مش بيدعم CORS مبتنفعش للـ PDF (بيترجع null).
+ */
+const preloadCatalogImage = (rawSrc: string, timeoutMs = 8000): Promise<string | null> => {
+  return new Promise((resolve) => {
+    const src = optimizeImageUrl(rawSrc, 550);
+    if (!src) {
+      resolve(null);
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const timer = window.setTimeout(() => {
+      img.onload = img.onerror = null;
+      resolve(null);
+    }, timeoutMs);
+    img.onload = () => {
+      window.clearTimeout(timer);
+      try {
+        const maxW = 420;
+        const maxH = 420;
+        const ratio = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.naturalWidth * ratio));
+        canvas.height = Math.max(1, Math.round(img.naturalHeight * ratio));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => {
+      window.clearTimeout(timer);
+      resolve(null);
+    };
+    img.src = src;
+  });
+};
+
+/**
+ * بناء PDF كتالوج العميل: صفحة A4 فيها 6 أصناف (عمودان × 3 صفوف)،
+ * كل صنف = صورته + اسمه فقط. الهيدر "مجموعة الطنطاوي" والفوتر
+ * "دريم طنطاوي". النص العربي بيترسم بالـ html2canvas عشان jsPDF
+ * لوحده مش بيدعم الخطوط العربية.
+ */
+export async function buildClientCatalogPDF(
+  products: ClientCatalogProduct[],
+  options?: { categoryName?: string }
+): Promise<ClientCatalogExportResult> {
+  // تحميل الصور على دفعات (12 معاً) عشان مفيش فيض طلبات
+  const ready: Array<{ product: ClientCatalogProduct; dataUrl: string }> = [];
+  let failedImageCount = 0;
+  for (let i = 0; i < products.length; i += 12) {
+    const batch = products.slice(i, i + 12);
+    const results = await Promise.all(
+      batch.map(async (p) => ({
+        product: p,
+        dataUrl: p.imageUrl ? await preloadCatalogImage(p.imageUrl) : null,
+      }))
+    );
+    results.forEach((r) => {
+      if (r.dataUrl) ready.push({ product: r.product, dataUrl: r.dataUrl });
+      else failedImageCount += 1;
+    });
+  }
+
+  if (ready.length === 0) {
+    throw new Error('no-images');
+  }
+
+  const PAGE_W_PX = 794;
+  const PAGE_H_PX = 1123;
+  const PER_PAGE = 6;
+  const CARD_W_PX = 370;
+  const CARD_H_PX = 300;
+  const totalPages = Math.ceil(ready.length / PER_PAGE);
+  const categoryName = (options?.categoryName || '').trim() || 'كل الأصناف';
+  const safeCategory = categoryName
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  const filename = `كتالوج_الطنطاوي_${new Date().toISOString().slice(0, 10)}.pdf`;
+
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+
+  for (let page = 0; page < totalPages; page++) {
+    const pageItems = ready.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
+
+    const cardsHtml = pageItems
+      .map(({ product, dataUrl }) => {
+        const safeName = (product.name || 'صنف')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        return `
+          <div style="width:${CARD_W_PX}px;height:${CARD_H_PX}px;border:1px solid #e2e8f0;border-radius:14px;background:#ffffff;padding:10px;display:flex;flex-direction:column;align-items:center;box-sizing:border-box;">
+            <div style="width:100%;height:228px;display:flex;align-items:center;justify-content:center;background:#f8fafc;border-radius:10px;overflow:hidden;">
+              <img src="${dataUrl}" alt="${safeName}" style="max-width:100%;max-height:100%;object-fit:contain;" />
+            </div>
+            <div style="margin-top:10px;width:100%;flex:1;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#0f172a;text-align:center;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${safeName}</div>
+          </div>`;
+      })
+      .join('');
+
+    const container = document.createElement('div');
+    container.style.cssText = `position:fixed;left:0;top:0;width:${PAGE_W_PX}px;min-width:${PAGE_W_PX}px;height:${PAGE_H_PX}px;background:#ffffff;direction:rtl;font-family:Cairo,Tajawal,"Segoe UI",Tahoma,Arial,sans-serif;z-index:9999999;pointer-events:none;opacity:1;box-sizing:border-box;padding:18px 20px;`;
+    container.innerHTML = `
+      <div style="background:#0f172a;border-radius:14px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;">
+        <div style="text-align:right;">
+          <div style="font-size:24px;font-weight:900;color:#ffffff;">مجموعة الطنطاوي</div>
+          <div style="font-size:12px;font-weight:700;color:#fbbf24;margin-top:3px;">كتالوج المنتجات${categoryName !== 'كل الأصناف' ? ` • ${safeCategory}` : ''}</div>
+        </div>
+        <div style="width:44px;height:44px;border-radius:12px;background:#f59e0b;color:#0f172a;font-weight:900;font-size:22px;display:flex;align-items:center;justify-content:center;">D</div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:16px;">
+        ${cardsHtml}
+      </div>
+      <div style="position:absolute;bottom:14px;left:20px;right:20px;border-top:1px dashed #cbd5e1;padding-top:8px;display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-size:12px;font-weight:800;color:#64748b;">دريم طنطاوي — شركة دريم للتجارة والتوزيع</div>
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;">صفحة ${page + 1} من ${totalPages}</div>
+      </div>`;
+    document.body.appendChild(container);
+
+    let imgData: string;
+    try {
+      if (document.fonts?.ready) {
+        try {
+          await document.fonts.ready;
+        } catch {
+          // ignore font loading error
+        }
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, 120));
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        logging: false,
+        backgroundColor: '#ffffff',
+        width: PAGE_W_PX,
+        height: PAGE_H_PX,
+        windowWidth: PAGE_W_PX,
+        windowHeight: PAGE_H_PX,
+      });
+      imgData = canvas.toDataURL('image/jpeg', 0.85);
+    } finally {
+      if (document.body.contains(container)) {
+        document.body.removeChild(container);
+      }
+    }
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    if (page > 0) {
+      pdf.addPage();
+    }
+    pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, pageHeight);
+  }
+
+  return { pdf, exportedCount: ready.length, failedImageCount, filename };
 }

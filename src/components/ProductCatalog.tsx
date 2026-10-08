@@ -48,7 +48,7 @@ import {
   ArrowUp
 } from 'lucide-react';
 import React, { useMemo, useState, useEffect, useDeferredValue, useCallback, useRef } from 'react';
-import { jsPDF } from 'jspdf';
+import { buildClientCatalogPDF } from '../services/pdfService';
 import { useApp } from '../context/AppContext';
 import { ProductImage } from './ProductImage';
 import {
@@ -1070,102 +1070,77 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       });
   }, [isParentGroupingEnabled, filteredParentProducts, filteredProducts]);
 
+  const [isExportingClientCatalog, setIsExportingClientCatalog] = useState(false);
+
   const handleExportClientCatalog = async () => {
     if (!catalogExportItems.length) {
       alert('لا توجد صور صالحة في النتائج الحالية لتصدير كتالوج العميل.');
       return;
     }
 
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const marginX = 12;
-    const marginY = 18;
-    const gap = 6;
-    const columns = 2;
-    const cellWidth = (pageWidth - (marginX * 2) - (gap * (columns - 1))) / columns;
-    const cellHeight = 112;
-    const title = 'تصدير كتالوج للعميل | مجموعة الطنطاوي';
+    setIsExportingClientCatalog(true);
+    try {
+      const categoryName =
+        selectedSubCategory !== 'الكل'
+          ? selectedSubCategory
+          : selectedOfficialDept !== 'الكل'
+            ? selectedOfficialDept
+            : 'كل الأصناف';
 
-    pdf.setFillColor(255, 249, 236);
-    pdf.rect(0, 0, pageWidth, 20, 'F');
-    pdf.setTextColor(58, 42, 21);
-    pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(16);
-    pdf.text(title, marginX, 12, { maxWidth: pageWidth - marginX * 2 });
+      const { pdf, exportedCount, failedImageCount, filename } =
+        await buildClientCatalogPDF(catalogExportItems, { categoryName });
 
-    const loadImage = (src: string) => new Promise<string>((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const maxW = 420;
-        const maxH = 420;
-        const ratio = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
-        canvas.width = Math.max(1, Math.round(img.naturalWidth * ratio));
-        canvas.height = Math.max(1, Math.round(img.naturalHeight * ratio));
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Canvas unavailable'));
-          return;
-        }
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', 0.82));
-      };
-      img.onerror = () => reject(new Error('Image load failed'));
-      img.src = src;
-    });
+      const blob = pdf.output('blob');
+      const blobUrl = URL.createObjectURL(blob);
+      const file = new File([blob], filename, { type: 'application/pdf' });
 
-    let pageIndex = 0;
-    let anyFailure = false;
-
-    for (let idx = 0; idx < catalogExportItems.length; idx += 1) {
-      if (idx > 0 && idx % (columns * 10) === 0) {
-        pdf.addPage();
-        pageIndex += 1;
-      }
-
-      const item = catalogExportItems[idx];
-      const row = Math.floor((idx % (columns * 10)) / columns);
-      const column = idx % columns;
-      const x = marginX + column * (cellWidth + gap);
-      const y = marginY + (pageIndex * 0) + row * (cellHeight + gap);
-
-      pdf.setDrawColor(229, 231, 235);
-      pdf.setFillColor(255, 255, 255);
-      pdf.roundedRect(x, y, cellWidth, cellHeight, 4, 4, 'FD');
-
+      // على الموبايل: فتح شاشة المشاركة مباشرة (واتساب...)
+      let shared = false;
       try {
-        const imageData = await loadImage(item.imageUrl);
-        const imageHeight = 62;
-        const imageWidth = cellWidth - 10;
-        pdf.addImage(imageData, 'JPEG', x + 5, y + 8, imageWidth, imageHeight, undefined, 'FAST');
-      } catch {
-        anyFailure = true;
-        pdf.setFillColor(248, 250, 252);
-        pdf.rect(x + 5, y + 8, cellWidth - 10, 62, 'F');
-        pdf.setTextColor(148, 163, 184);
-        pdf.setFontSize(10);
-        pdf.text('لا توجد صورة متاحة', x + (cellWidth / 2), y + 40, { align: 'center' });
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: 'كتالوج مجموعة الطنطاوي',
+            text: 'كتالوج المنتجات من مجموعة الطنطاوي',
+          });
+          shared = true;
+        }
+      } catch (shareErr: any) {
+        // المستخدم غلق شاشة المشاركة — مينزلش الملف تاني
+        if (shareErr?.name === 'AbortError') {
+          shared = true;
+        }
       }
 
-      pdf.setTextColor(15, 23, 42);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(10);
-      const productName = item.name.length > 34 ? `${item.name.slice(0, 34)}...` : item.name;
-      const lines = pdf.splitTextToSize(productName, cellWidth - 8);
-      pdf.text(lines, x + 4, y + 80, { maxWidth: cellWidth - 8 });
-
-      if (anyFailure && idx === catalogExportItems.length - 1) {
-        pdf.setTextColor(51, 65, 85);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(8);
-        pdf.text('تم تصدير المتاح فقط من الصور المفعلة في الكتالوج', pageWidth / 2, pageHeight - 10, { align: 'center' });
+      if (!shared) {
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          if (document.body.contains(link)) {
+            document.body.removeChild(link);
+          }
+          URL.revokeObjectURL(blobUrl);
+        }, 2500);
+      } else {
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
       }
+
+      if (failedImageCount > 0) {
+        alert(
+          `تم تصدير ${exportedCount} صنفًا بصور. ${failedImageCount} صنفًا لم يُصدر لأن صورته غير متاحة أو بطيئة التحميل.`
+        );
+      }
+    } catch (err: any) {
+      if (err?.message !== 'no-images') {
+        alert('تعذر إنشاء كتالوج العميل، حاول مرة أخرى.');
+      }
+    } finally {
+      setIsExportingClientCatalog(false);
     }
-
-    pdf.save(`catalog_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
   // Card quantity & type handler
@@ -1708,12 +1683,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             <button
               type="button"
               onClick={handleExportClientCatalog}
-              disabled={catalogExportItems.length === 0}
+              disabled={catalogExportItems.length === 0 || isExportingClientCatalog}
               className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-black text-[11px] px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-md transition"
-              title="تصدير كتالوج للعميل بصيغة PDF"
+              title="تصدير الأصناف المعروضة (بصور فقط) كتالوج PDF للعميل"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>تصدير كتالوج للعميل</span>
+              <span>{isExportingClientCatalog ? 'جاري تجهيز الكتالوج...' : 'تصدير كتالوج للعميل'}</span>
+              <span className="bg-emerald-800 text-white text-[10px] px-1.5 py-0.5 rounded-full font-mono">
+                {catalogExportItems.length}
+              </span>
             </button>
             {(searchTerm || selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل') && (
               <button
