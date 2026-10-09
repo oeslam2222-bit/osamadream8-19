@@ -1,0 +1,40 @@
+{
+  "id": "/",
+  "name": "مجموعة الطنطاوي للتجارة والتوزيع | TANTAWY GROUP",
+  "short_name": "الطنطاوي",
+  "description": "منظومة المبيعات وإدارة المخزون والكتالوج والفواتير لمجموعة الطنطاوي للتجارة والتوزيع",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "dir": "rtl",
+  "lang": "ar",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": [
+    "business",
+    "productivity",
+    "shopping"
+  ]
+}
