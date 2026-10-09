@@ -38,6 +38,7 @@ const ManagementDashboard = lazy(() => import('./components/ManagementDashboard'
 const HomeExecutiveDashboard = lazy(() => import('./components/HomeExecutiveDashboard').then((m) => ({ default: m.HomeExecutiveDashboard })));
 const SystemWorkflowGuide = lazy(() => import('./components/SystemWorkflowGuide').then((m) => ({ default: m.SystemWorkflowGuide })));
 const MobileRepDashboard = lazy(() => import('./components/MobileRepDashboard').then((m) => ({ default: m.MobileRepDashboard })));
+const RoleCommandCenter = lazy(() => import('./components/RoleCommandCenter').then((m) => ({ default: m.RoleCommandCenter })));
 const OrderBuilderModal = lazy(() => import('./components/OrderBuilderModal').then((m) => ({ default: m.OrderBuilderModal })));
 const ElectronicInvoiceModal = lazy(() => import('./components/ElectronicInvoiceModal').then((m) => ({ default: m.ElectronicInvoiceModal })));
 
@@ -66,28 +67,36 @@ const TabLoadingSkeleton = () => {
 const MainLayout: React.FC = () => {
   const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder } = useApp();
 
-  // First screen on launch: reps land on their visits, everyone else on the
-  // customer database so they start from their core data.
+  // First screen on launch: reps land on their visits, managers/supervisors
+  // land on their analytics dashboard, admin on management.
   const [activeTab, setActiveTab] = useState<string>(() => {
     try {
       const saved = localStorage.getItem('dream8_landing_tab');
-      if (saved === 'visits' || saved === 'all_customers' || saved === 'catalog' || saved === 'rep_home') return saved;
+      if (saved === 'visits' || saved === 'all_customers' || saved === 'catalog' || saved === 'rep_home' || saved === 'management' || saved === 'supervisor' || saved === 'command') return saved;
     } catch { /* ignore */ }
-    return currentUser?.role === 'admin' ? 'management' : currentUser?.role === 'sales_rep' ? 'rep_home' : 'all_customers';
+    return currentUser?.role === 'admin' ? 'command'
+      : currentUser?.role === 'developer' ? 'command'
+      : currentUser?.role === 'branch_manager' ? 'command'
+      : currentUser?.role === 'supervisor' ? 'command'
+      : currentUser?.role === 'sales_rep' ? 'rep_home' : 'all_customers';
   });
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
 
-  // Reps open on Visits; supervisors, branch managers, admin and dev open on
-  // the customer database. Re-evaluated once the user is known.
-  // `isRep` must be derived safely here: the early return for the login page
-  // below happens after this effect, so currentUser can still be null.
+  // Reps open on rep_home; supervisors, branch managers, admin and dev open
+  // on their dedicated dashboards. Re-evaluated once the user is known.
   const isRep = currentUser?.role === 'sales_rep';
   useEffect(() => {
     try {
       const saved = localStorage.getItem('dream8_landing_tab');
-      const desired = saved === 'catalog' ? 'catalog' : (isRep ? 'rep_home' : currentUser?.role === 'admin' ? 'management' : 'all_customers');
+      const desired = saved === 'catalog' ? 'catalog'
+        : isRep ? 'rep_home'
+        : currentUser?.role === 'admin' ? 'command'
+        : currentUser?.role === 'developer' ? 'command'
+        : currentUser?.role === 'branch_manager' ? 'command'
+        : currentUser?.role === 'supervisor' ? 'command'
+        : 'all_customers';
       setActiveTab((cur) => (cur === 'catalog' ? desired : cur));
     } catch { /* ignore */ }
   }, [isRep, currentUser?.role]);
@@ -193,12 +202,29 @@ const MainLayout: React.FC = () => {
             />
           )}
 
+          {/* Role command center: analytics + approvals + reports for
+              admin, developer, branch manager and supervisor. */}
+          {activeTab === 'command' &&
+            (currentUser.role === 'admin' ||
+              currentUser.role === 'developer' ||
+              currentUser.role === 'branch_manager' ||
+              currentUser.role === 'supervisor') && (
+            <RoleCommandCenter
+              onNavigateToTab={handleTabChange}
+              onOpenNewOrder={() => setIsOrderModalOpen(true)}
+            />
+          )}
+
           {activeTab === 'management' &&
             (currentUser.role === 'admin' ||
-              currentUser.role === 'branch_manager' ||
-              currentUser.role === 'supervisor' ||
-              currentUser.role === 'developer') && (
+              currentUser.role === 'developer' ||
+              currentUser.role === 'branch_manager') && (
             <ManagementDashboard onNavigateToTab={setActiveTab} />
+          )}
+
+          {(activeTab === 'management' || activeTab === 'supervisor') &&
+            currentUser.role === 'supervisor' && (
+            <SupervisorDashboard onNavigateToTab={setActiveTab} />
           )}
 
           {activeTab === 'targets' && <TargetPerformanceDashboard />}
