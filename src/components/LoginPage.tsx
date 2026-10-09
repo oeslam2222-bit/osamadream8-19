@@ -99,10 +99,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
             <img src="/tantawy-brand-logo.svg?v=3.1" alt="Tantawy Group - مجموعة الطنطاوي" className="w-full h-full object-contain rounded-full" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center justify-center gap-2">
-            <span>مجموعة الطنطاوي للتجارة والتوزيع</span>
+            <span>طنطاوي دريم جروب</span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-sm mx-auto font-medium">
-            TANTAWY GROUP • منظومة إدارة المبيعات والفروع والمخازن المركزية
+            مجموعة الطنطاوي للتجارة والتوزيع • TANTAWY DREAM GROUP
+          </p>
+          <p className="text-[10px] text-amber-400/90 mt-1.5 font-bold">
+            منظومة إدارة المبيعات والفروع والمخازن المركزية
           </p>
         </div>
 
@@ -306,10 +309,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                 </span>
               </div>
             </div>
-          </form>
+           </form>
 
-        </div>
-      </div>
-    </div>
-  );
-};
+         </div>
+
+         {/* Footer — البراندينج والمطور */}
+         <div className="text-center mt-5">
+           <p className="text-[11px] font-bold text-slate-400">
+             طنطاوي دريم جروب • TANTAWY DREAM GROUP
+           </p>
+           <p className="text-[10px] text-slate-500 mt-1">
+             برمجة وتطوير: <span className="text-amber-400 font-black">اسامة اسلام محمود</span>
+           </p>
+         </div>
+       </div>
+     </div>
+   );
+ };

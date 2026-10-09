@@ -1807,7 +1807,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 <h4 className="font-black text-slate-900 text-xs sm:text-sm">
                   توزيع العملاء والمديونيات على حسابات المناديب المسجلة:
                 </h4>
-                <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-56 overflow-y-auto">
+                <div className="border border-slate-200 rounded-2xl overflow-x-auto max-h-56 overflow-y-auto">
                   <table className="w-full text-right text-xs">
                     <thead className="bg-slate-100 text-slate-700 font-black sticky top-0">
                       <tr>

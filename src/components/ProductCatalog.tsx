@@ -48,7 +48,7 @@ import {
   ArrowUp
 } from 'lucide-react';
 import React, { useMemo, useState, useEffect, useDeferredValue, useCallback, useRef } from 'react';
-import { buildClientCatalogPDF } from '../services/pdfService';
+import { buildClientCatalogPDF, type CatalogExportProgress } from '../services/pdfService';
 import { useApp } from '../context/AppContext';
 import { ProductImage } from './ProductImage';
 import {
@@ -124,6 +124,25 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     });
   };
 
+  // Fast Catalog Mode — نصي فقط بدون صور للاتصال البطيء (أسرع من dataSaverMode)
+  const [fastCatalogMode, setFastCatalogMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('catalog_fast_mode') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleFastCatalogMode = () => {
+    setFastCatalogMode((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('catalog_fast_mode', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   // Auto-open mobile cashier drawer when customer is selected so user sees their financial details immediately
   useEffect(() => {
     if (selectedCustomer && typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -154,6 +173,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   // Modals & UI States
   const [selectedProductForModal, setSelectedProductForModal] = useState<Product | null>(null);
   const [selectedParentForModal, setSelectedParentForModal] = useState<ParentProduct | null>(null);
+  const [zoomedProduct, setZoomedProduct] = useState<Product | null>(null);
+
+  // اختصار Esc لإغلاق عدسة تكبير الصورة بجودة عالية
+  useEffect(() => {
+    if (!zoomedProduct) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setZoomedProduct(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [zoomedProduct]);
   const [isParentGroupingEnabled, setIsParentGroupingEnabled] = useState<boolean>(true);
   const [addedItemToast, setAddedItemToast] = useState<{ name: string; count: string } | null>(null);
   const [stockErrorToast, setStockErrorToast] = useState<string | null>(null);
@@ -1071,6 +1099,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   }, [isParentGroupingEnabled, filteredParentProducts, filteredProducts]);
 
   const [isExportingClientCatalog, setIsExportingClientCatalog] = useState(false);
+  const [exportProgress, setExportProgress] = useState<CatalogExportProgress | null>(null);
 
   const handleExportClientCatalog = async () => {
     if (!catalogExportItems.length) {
@@ -1079,6 +1108,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     }
 
     setIsExportingClientCatalog(true);
+    setExportProgress({ phase: 'images', current: 0, total: catalogExportItems.length, loadedImages: 0, totalImages: catalogExportItems.length, failedImages: 0, percent: 0 });
     try {
       const categoryName =
         selectedSubCategory !== 'الكل'
@@ -1088,7 +1118,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             : 'كل الأصناف';
 
       const { pdf, exportedCount, failedImageCount, filename } =
-        await buildClientCatalogPDF(catalogExportItems, { categoryName });
+        await buildClientCatalogPDF(catalogExportItems, {
+          categoryName,
+          onProgress: (p) => setExportProgress(p),
+        });
 
       const blob = pdf.output('blob');
       const blobUrl = URL.createObjectURL(blob);
@@ -1140,6 +1173,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       }
     } finally {
       setIsExportingClientCatalog(false);
+      setExportProgress(null);
     }
   };
 
@@ -1682,6 +1716,21 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={toggleFastCatalogMode}
+              className={`font-black text-[11px] px-3 py-1.5 rounded-xl flex items-center gap-1.5 border transition cursor-pointer active:scale-95 ${
+                fastCatalogMode
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md'
+                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+              }`}
+              title="وضع الصور السريعة — صور أصغر حجمًا وأسرع تحميلًا على الإنترنت البطيء (الصور تظهر دائمًا)"
+              aria-pressed={fastCatalogMode}
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">صور سريعة</span>
+              <span className="sm:hidden">سريع</span>
+            </button>
+            <button
+              type="button"
               onClick={handleExportClientCatalog}
               disabled={catalogExportItems.length === 0 || isExportingClientCatalog}
               className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-black text-[11px] px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-md transition"
@@ -1706,6 +1755,52 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           </div>
         </div>
       </div>
+
+      {/* تصدير الكتالوج — شريط تقدم بالنسبة وعدد الصور */}
+      {exportProgress && (
+        <div
+          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-5 w-full max-w-sm">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <Download className="w-5 h-5" />
+              </span>
+              <div className="min-w-0">
+                <div className="text-[13px] font-black text-slate-800">
+                  جاري تجهيز الكتالوج...
+                </div>
+                <div className="text-[10px] font-bold text-slate-500">
+                  {exportProgress.phase === 'images'
+                    ? 'تحميل الصور وتحويلها'
+                    : 'تجميع صفحات الـ PDF'}
+                </div>
+              </div>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden mb-2">
+              <div
+                className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                style={{ width: `${exportProgress.percent}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
+              <span className="font-mono">{exportProgress.percent}%</span>
+              <span>
+                {exportProgress.phase === 'images'
+                  ? `صورة ${exportProgress.loadedImages} من ${exportProgress.totalImages}`
+                  : `صفحة ${exportProgress.current} من ${exportProgress.total}`}
+              </span>
+            </div>
+            {exportProgress.failedImages > 0 && (
+              <div className="mt-2 text-[10px] font-bold text-amber-600">
+                {exportProgress.failedImages} صورة غير متاحة أو بطيئة
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Main Responsive Grid: Product Catalog (Cols 1-8) + Sticky POS Cashier Sidebar (Cols 9-12 on Desktop) */}
       <div className="lg:grid lg:grid-cols-12 lg:gap-5 items-start mt-4">
@@ -2015,7 +2110,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     <ProductImage
                       product={rawProd}
                       cloudinaryConfig={cloudinaryConfig}
-                      targetSize={isComfortable ? 600 : 400}
+                      targetSize={fastCatalogMode ? 240 : isComfortable ? 600 : 400}
                       sizeVariant="card"
                       priority={idx < 4}
                       containerClassName="w-full h-full"
@@ -2348,11 +2443,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   } bg-gradient-to-br from-slate-100 via-slate-50 to-amber-50/20 overflow-hidden cursor-pointer flex items-center justify-center border-b border-slate-100`}
                   onClick={() => setSelectedProductForModal(product)}
                 >
-                  {/* Image with quick lazy/eager loading */}
+                  {/* صورة الصنف — دايماً ظاهرة، بحجم مُحسّن للسرعة على الموبايل */}
                   <ProductImage
                     product={product}
                     cloudinaryConfig={cloudinaryConfig}
-                    targetSize={isComfortable ? 550 : 380}
+                    targetSize={fastCatalogMode ? 240 : isComfortable ? 550 : 380}
                     sizeVariant="card"
                     priority={idx < 4}
                     containerClassName="w-full h-full"
@@ -3176,7 +3271,17 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     sizeVariant="modal"
                     containerClassName="w-full h-full bg-slate-50"
                     className="w-full h-full object-contain"
+                    onClick={() => setZoomedProduct(selectedProductForModal)}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setZoomedProduct(selectedProductForModal)}
+                    className="absolute top-3 left-3 z-10 bg-slate-950/80 hover:bg-slate-900 active:scale-95 text-white p-1.5 rounded-xl shadow-md cursor-pointer flex items-center gap-1 text-[11px] font-bold"
+                    title="تكبير الصورة بجودة عالية"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">تكبير</span>
+                  </button>
                   {selectedProductForModal.promoPrice && (
                     <div className="absolute top-3 right-3 bg-purple-600 text-white font-bold text-xs px-2.5 py-1 rounded-xl shadow z-10">
                       عرض ترويجي نشط 🎁
@@ -3488,6 +3593,48 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         onOpenCart={onOpenCart}
         isConfidentialMode={isConfidentialMode}
       />
+
+      {/* عدسة تكبير الصورة بجودة عالية (كامل الشاشة) */}
+      {zoomedProduct && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/95 flex flex-col items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200"
+          onClick={() => setZoomedProduct(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <button
+            type="button"
+            onClick={() => setZoomedProduct(null)}
+            className="absolute top-4 right-4 z-20 text-white/85 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full cursor-pointer"
+            title="إغلاق (Esc)"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <div className="text-white text-center mb-3 px-8 max-w-full">
+            <div className="font-black text-sm sm:text-base line-clamp-2">{zoomedProduct.name}</div>
+            <div className="text-amber-300 text-[11px] sm:text-xs font-mono mt-0.5">
+              كود: {zoomedProduct.code}
+              {zoomedProduct.unifiedCode ? ` • موحد: ${zoomedProduct.unifiedCode.replace(/^#/, '')}` : ''}
+            </div>
+          </div>
+          <div
+            className="w-full flex-1 min-h-0 flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ProductImage
+              product={zoomedProduct}
+              cloudinaryConfig={cloudinaryConfig}
+              targetSize={1600}
+              sizeVariant="full"
+              fitMode="contain"
+              priority
+              containerClassName="w-full h-full bg-transparent"
+              className="w-full h-full object-contain max-h-[75vh] select-none"
+            />
+          </div>
+          <div className="text-white/55 text-[11px] mt-3">اضغط في أي مكان للإغلاق</div>
+        </div>
+      )}
 
       {/* Bottom Floating Cart Bar (Amazon / Noon Style) - Mobile & Tablet quick checkout */}
       {cart.length > 0 && onOpenCart && (

@@ -408,6 +408,16 @@ export interface ClientCatalogExportResult {
   filename: string;
 }
 
+export interface CatalogExportProgress {
+  phase: 'images' | 'pages';
+  current: number;
+  total: number;
+  loadedImages: number;
+  totalImages: number;
+  failedImages: number;
+  percent: number;
+}
+
 /**
  * تحميل صورة الصنف وتحويلها لـ dataURL مضغوط.
  * روابط Google Drive/Cloudinary بتتحول لروابط مضغوطة
@@ -463,11 +473,33 @@ const preloadCatalogImage = (rawSrc: string, timeoutMs = 8000): Promise<string |
  */
 export async function buildClientCatalogPDF(
   products: ClientCatalogProduct[],
-  options?: { categoryName?: string }
+  options?: { categoryName?: string; onProgress?: (progress: CatalogExportProgress) => void }
 ): Promise<ClientCatalogExportResult> {
+  const reportProgress = (
+    phase: 'images' | 'pages',
+    current: number,
+    total: number,
+    loadedImages: number,
+    totalImages: number,
+    failedImages: number
+  ) => {
+    if (!options?.onProgress) return;
+    const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+    options.onProgress({
+      phase,
+      current,
+      total,
+      loadedImages,
+      totalImages,
+      failedImages,
+      percent,
+    });
+  };
+
   // تحميل الصور على دفعات (12 معاً) عشان مفيش فيض طلبات
   const ready: Array<{ product: ClientCatalogProduct; dataUrl: string }> = [];
   let failedImageCount = 0;
+  const totalImages = products.length;
   for (let i = 0; i < products.length; i += 12) {
     const batch = products.slice(i, i + 12);
     const results = await Promise.all(
@@ -480,6 +512,7 @@ export async function buildClientCatalogPDF(
       if (r.dataUrl) ready.push({ product: r.product, dataUrl: r.dataUrl });
       else failedImageCount += 1;
     });
+    reportProgress('images', Math.min(i + batch.length, products.length), totalImages, ready.length, totalImages, failedImageCount);
   }
 
   if (ready.length === 0) {
@@ -573,6 +606,7 @@ export async function buildClientCatalogPDF(
       pdf.addPage();
     }
     pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, pageHeight);
+    reportProgress('pages', page + 1, totalPages, ready.length, totalImages, failedImageCount);
   }
 
   return { pdf, exportedCount: ready.length, failedImageCount, filename };

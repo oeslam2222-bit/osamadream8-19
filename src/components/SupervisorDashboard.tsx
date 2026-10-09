@@ -46,11 +46,13 @@ import { OrderReturnModal } from './OrderReturnModal';
 interface SupervisorDashboardProps {
   onOpenNewOrder?: () => void;
   onViewInvoice?: (invoice: Invoice) => void;
+  onNavigateToTab?: (tab: string) => void;
 }
 
 export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   onOpenNewOrder,
   onViewInvoice,
+  onNavigateToTab,
 }) => {
   const {
     invoices,

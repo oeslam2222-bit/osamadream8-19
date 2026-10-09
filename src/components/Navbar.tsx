@@ -10,6 +10,7 @@ import {
   Database,
   Download,
   FileSpreadsheet,
+  Gauge,
   Layers,
   LayoutDashboard,
   LogOut,
@@ -43,6 +44,8 @@ import { UserRole } from '../types';
 import { CompanySettingsModal } from './CompanySettingsModal';
 import { InstallAppModal } from './InstallAppModal';
 import { DatabaseConnectionModal } from './DatabaseConnectionModal';
+import { InternalNotificationCenter } from './InternalNotificationCenter';
+import { SyncStatusIndicator } from './SyncStatusIndicator';
 
 interface NavbarProps {
   activeTab: string;
@@ -140,6 +143,12 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
 
   const navItems = [
     { id: 'rep_home', label: 'الرئيسية', icon: Home, roles: ['sales_rep'] },
+    {
+      id: 'command',
+      label: 'لوحة القيادة 🎯',
+      icon: Gauge,
+      roles: ['admin', 'branch_manager', 'supervisor', 'developer'],
+    },
     {
       id: 'management',
       label:
@@ -259,7 +268,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
           </div>
 
           {/* Status Indicators, User Info, & Actions */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 overflow-x-auto flex-nowrap scrollbar-none">
             
             {/* PWA Install Button (Clear and Prominent on Mobile & Desktop) */}
             <button
@@ -297,6 +306,12 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                 </>
               )}
             </button>
+
+            {/* Internal Notification Center */}
+            <InternalNotificationCenter onNavigateToTab={setActiveTab} />
+
+            {/* Sync / Offline Status Indicator */}
+            <SyncStatusIndicator />
 
             {/* Global Data Version Sync Button & Status Badge */}
             <button

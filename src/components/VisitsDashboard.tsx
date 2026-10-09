@@ -4935,7 +4935,7 @@ allowSameDaySecondVisit: false,
                   </div>
 
                   {dossierCustomerVisits.length > 0 ? (
-                    <div className="max-h-72 overflow-y-auto">
+                    <div className="max-h-72 overflow-x-auto overflow-y-auto">
                       <table className="w-full text-right text-[10.5px] border-collapse">
                         <thead className="bg-slate-100 text-slate-600 font-black sticky top-0">
                           <tr>
