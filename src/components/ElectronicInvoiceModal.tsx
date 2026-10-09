@@ -608,7 +608,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
           />
 
           {/* Items Table */}
-          <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+          <div className="border border-slate-200 rounded-2xl overflow-x-auto shadow-xs">
             <table className="w-full text-right text-xs">
               <thead className="bg-slate-900 text-white font-bold">
                 <tr>
