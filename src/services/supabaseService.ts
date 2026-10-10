@@ -3,9 +3,51 @@ import { Branch, Customer, Invoice, Product, User, UserRole, CustomerVisit } fro
 import { withHashedCredential } from './passwordService';
 import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from './customerDues';
 
-export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://rxthpgmlcsfckstpqhqf.supabase.co';
-export const SUPABASE_ANON_KEY =
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+export const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+export const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+
+export const SUPABASE_CONFIG_ERROR =
+  'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.';
+
+export function isSupabaseConfigured(): boolean {
+  const url = SUPABASE_URL.trim();
+  const key = SUPABASE_ANON_KEY.trim();
+  return Boolean(
+    url &&
+      key &&
+      !url.includes('YOUR-') &&
+      !url.includes('example.invalid') &&
+      !key.includes('YOUR-') &&
+      key !== '******'
+  );
+}
+
+if (!isSupabaseConfigured()) {
+  const nativeFetch = globalThis.fetch?.bind(globalThis);
+  if (nativeFetch) {
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      writable: true,
+      value: (...args: Parameters<typeof fetch>) => {
+        const requestUrl =
+          typeof args[0] === 'string'
+            ? args[0]
+            : args[0] instanceof URL
+              ? args[0].toString()
+              : args[0] instanceof Request
+                ? args[0].url
+                : String(args[0]);
+
+        if (requestUrl.includes('supabase.co')) {
+          return Promise.reject(new Error(SUPABASE_CONFIG_ERROR));
+        }
+
+        return nativeFetch(...args);
+      },
+    });
+  }
+}
+
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4dGhwZ21sY3NmY2tzdHBxaHFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2NDIwMzgsImV4cCI6MjEwMzIxODAzOH0.2v4eRUKQjLM0xDomaE9HAiy_qTJ6NoijNuwC3JV1ZUA';
 
 // Helper to normalize Supabase role strings to supported UserRole
