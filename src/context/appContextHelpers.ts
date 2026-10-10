@@ -171,10 +171,10 @@ export const sanitizeProducts = (list: Product[]): Product[] => {
   if (!Array.isArray(list)) return [];
   const usedIds = new Set<string>();
 
-// Product code is the stable business key. Repeated imports must update the
-// existing row instead of creating another catalog item.
-const uniqueList = deduplicateProductArray(list.filter(Boolean));
-return uniqueList.map((rawProduct, index) => {
+  // Product code is the stable business key. Repeated imports must update the
+  // existing row instead of creating another catalog item.
+  const uniqueList = deduplicateProductArray(list.filter(Boolean));
+  return uniqueList.map((rawProduct, index) => {
     const p = { ...rawProduct };
     const originalId = String(p.id || '').trim();
     let rowId = originalId || `product-row-${index + 1}`;
@@ -182,20 +182,33 @@ return uniqueList.map((rawProduct, index) => {
       rowId = `${rowId}-${index + 1}`;
     }
     usedIds.add(rowId);
-    return { ...p, id: rowId };
-  }).map((p) => {
-    const cartonQty = p.cartonQuantity && p.cartonQuantity > 0 ? p.cartonQuantity : 1;
+
+    const cartonQty = Math.max(1, Number(p.cartonQuantity || p.factor) || 1);
     const savedCartonPrice = typeof p.cartonPrice === 'number' ? p.cartonPrice : 0;
     const savedPiecePrice = Number(p.piecePrice || p.salesPrice || 0);
-    const piecePrice = savedPiecePrice > 0
-      ? savedPiecePrice
-      : (savedCartonPrice > 0 ? Math.round((savedCartonPrice / cartonQty) * 100) / 100 : 0);
+
+    let piecePrice = savedPiecePrice;
+    let cartonPrice = savedCartonPrice;
+
+    // حساب إجمالي الكرتونة = سعر القطعة × شدة الكرتونة دائماً
+    if (piecePrice > 0) {
+      cartonPrice = Math.round(piecePrice * cartonQty * 100) / 100;
+    } else if (cartonPrice > 0) {
+      piecePrice = Math.round((cartonPrice / cartonQty) * 100) / 100;
+    }
+
+    const rawPromo = Number(p.promoPrice || p.offerPrice || 0);
+    // سعر العرض سارٍ فقط إذا كان أكبر من سعر القطعة الفردية وأقل من سعر الكرتونة
+    const cleanPromo = rawPromo > piecePrice && rawPromo < cartonPrice ? rawPromo : undefined;
 
     return {
       ...p,
+      id: rowId,
       cartonQuantity: cartonQty,
-      cartonPrice: Math.round(piecePrice * cartonQty * 100) / 100,
+      cartonPrice,
       piecePrice,
+      promoPrice: cleanPromo,
+      offerPrice: cleanPromo,
     };
   });
 };

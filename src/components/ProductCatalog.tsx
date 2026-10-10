@@ -1081,6 +1081,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           return {
             id: item.id,
             name: item.name,
+            code: item.primaryCode || variant?.code || '',
             imageUrl: imageUrl || '',
           };
         }
@@ -1089,6 +1090,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         return {
           id: item.id,
           name: item.name,
+          code: item.code || '',
           imageUrl,
         };
       })
@@ -1162,15 +1164,19 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
       }
 
-      if (failedImageCount > 0) {
-        alert(
-          `تم تصدير ${exportedCount} صنفًا بصور. ${failedImageCount} صنفًا لم يُصدر لأن صورته غير متاحة أو بطيئة التحميل.`
-        );
+      setExportProgress((prev) => (prev ? { ...prev, percent: 100 } : null));
+      await new Promise((resolve) => setTimeout(resolve, 350));
+
+      if (failedImageCount > 0 && exportedCount > 0) {
+        setCacheProgressText(`تم تصدير الكتالوج بنجاح (${exportedCount} صنف بصورة). تم تضمين باقي الأصناف بكودها.`);
+        setTimeout(() => setCacheProgressText(''), 4500);
+      } else if (exportedCount > 0) {
+        setCacheProgressText(`تم تصدير كتالوج العميل بنجاح (${exportedCount} صنف) 📄✨`);
+        setTimeout(() => setCacheProgressText(''), 4500);
       }
     } catch (err: any) {
-      if (err?.message !== 'no-images') {
-        alert('تعذر إنشاء كتالوج العميل، حاول مرة أخرى.');
-      }
+      console.warn('Catalog export error:', err);
+      alert('تعذر استكمال إنشاء الكتالوج. يرجى التأكد من اختيار الأصناف والمحاولة مجدداً.');
     } finally {
       setIsExportingClientCatalog(false);
       setExportProgress(null);
@@ -1355,57 +1361,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           <span>{wipeSuccessText}</span>
         </div>
       )}
-
-      {/* Offline Image Cache & Data-Saver Bar (Works 100% Offline with Zero Data Consumption) */}
-      <div className="bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-slate-100 border border-amber-300/60 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-xs">
-            <Download className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h4 className="text-xs sm:text-sm font-black text-slate-900">
-                العمل بدون إنترنت (توفير الباقة وسرعة العرض للمناديب)
-              </h4>
-              <span className="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                Offline Mode ⚡
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-600 mt-0.5">
-              اضغط زر التحميل لحفظ صور الأصناف بضغط فائق (حجم خفيف جداً) لعرضها على العملاء في أي مكان بدون شبكة وبدون استهلاك باقة الإنترنت.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-between sm:justify-end">
-          <div className="text-right sm:text-left text-[11px] font-bold text-slate-700">
-            <span>المحفوظ بالجهاز: </span>
-            <strong className="text-emerald-700 font-black">{cacheStats.count} صورة</strong>
-            {cacheStats.estimatedSizeMB > 0 && (
-              <span className="text-[10px] text-slate-500 block sm:inline"> (~{cacheStats.estimatedSizeMB} ميجابايت فقط)</span>
-            )}
-          </div>
-
-          <button
-            onClick={handleCacheAllImages}
-            disabled={isCaching || products.length === 0}
-            className="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-amber-300 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow transition cursor-pointer active:scale-95"
-            title="تحميل وضغط كل صور الأصناف للعمل بدون إنترنت"
-          >
-            {isCaching ? (
-              <>
-                <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
-                <span>جاري الحفظ ({products.length})...</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-3.5 h-3.5 text-amber-400" />
-                <span>تحميل الصور أوفلاين 📲</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
 
       {/* Cache Progress Notification */}
       {cacheProgressText && (
@@ -2081,7 +2036,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             virtuallyRenderedParentProducts.map((parent, idx) => {
               const activeVariant = getParentActiveVariant(parent);
               const rawProd = activeVariant.rawProduct;
-              const isPromo = Boolean(activeVariant.promoPrice && activeVariant.promoPrice > 0);
               const dynamicBranchStock = getProductBranchStock(rawProd);
               const octoberAvail =
                 typeof rawProd.mainWarehouseReserved === 'number'
@@ -2090,10 +2044,25 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               const totalCartonsAvailable = dynamicBranchStock + octoberAvail;
               const orderState = getCardState(rawProd.id);
               const isComfortable = gridDensity === 'comfortable';
-              const appliedPrice = activeVariant.promoPrice && activeVariant.promoPrice > 0
-                ? activeVariant.promoPrice
-                : activeVariant.cartonPrice;
-              const appliedPiecePrice = activeVariant.piecePrice || (activeVariant.cartonQuantity ? Math.round((appliedPrice / activeVariant.cartonQuantity) * 100) / 100 : appliedPrice);
+              const vCartonQty = Math.max(1, Number(activeVariant.cartonQuantity || rawProd.cartonQuantity || 1));
+              let vPiecePrice = Number(activeVariant.piecePrice || rawProd.piecePrice || rawProd.salesPrice || 0);
+              let vCartonPrice = Number(activeVariant.cartonPrice || rawProd.cartonPrice || 0);
+
+              // سعر الكرتونة دائماً = سعر القطعة × شدة الكرتونة
+              if (vPiecePrice > 0) {
+                vCartonPrice = Math.round(vPiecePrice * vCartonQty * 100) / 100;
+              } else if (vCartonPrice > 0) {
+                vPiecePrice = Math.round((vCartonPrice / vCartonQty) * 100) / 100;
+              }
+
+              // سعر العرض يكون سارياً فقط إذا كان أكبر من سعر القطعة الفردية وأقل من سعر الكرتونة العادي
+              const rawPromo = Number(activeVariant.promoPrice || rawProd.promoPrice || 0);
+              const isPromo = Boolean(rawPromo > vPiecePrice && rawPromo < vCartonPrice);
+
+              const appliedPrice = isPromo ? rawPromo : vCartonPrice;
+              const appliedPiecePrice = vPiecePrice > 0
+                ? vPiecePrice
+                : (vCartonQty > 0 ? Math.round((appliedPrice / vCartonQty) * 100) / 100 : appliedPrice);
 
               return (
                 <div
@@ -2533,38 +2502,56 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     </div>
 
                     {/* Pricing — single row */}
-                    <div className="flex items-baseline justify-between bg-slate-50 rounded-xl px-2.5 py-1.5 border border-slate-100">
-                      <div>
-                        <span className="text-[11px] text-slate-500 font-medium block">الكرتونة</span>
-                        <span className="text-sm font-black text-slate-950">
-                          {isConfidentialMode ? (
-                            <span className="font-mono text-slate-400 text-xs tracking-widest bg-slate-200/60 px-1.5 py-0.5 rounded">••••••</span>
-                          ) : (
-                            formatCurrency(product.cartonPrice)
-                          )}
-                        </span>
-                      </div>
-                      <div className="text-left">
-                        <span className="text-[11px] text-slate-500 font-medium block">القطعة</span>
-                        <span className="text-xs font-black text-slate-700">
-                          {isConfidentialMode ? (
-                            <span className="font-mono text-slate-400 text-xs tracking-widest bg-slate-200/60 px-1.5 py-0.5 rounded">••••••</span>
-                          ) : (
-                            formatCurrency(product.piecePrice)
-                          )}
-                        </span>
-                      </div>
-                      {product.promoPrice ? (
-                        <span className="text-xs font-black text-rose-600 flex items-center gap-0.5">
-                          <Flame className="w-3 h-3" />
-                          {isConfidentialMode ? (
-                            <span className="font-mono text-rose-400 text-xs tracking-widest">•••</span>
-                          ) : (
-                            formatCurrency(product.promoPrice)
-                          )}
-                        </span>
-                      ) : null}
-                    </div>
+                    {(() => {
+                      const pCartonQty = Math.max(1, Number(product.cartonQuantity || product.factor) || 1);
+                      let pPiecePrice = Number(product.piecePrice || product.salesPrice || 0);
+                      let pCartonPrice = Number(product.cartonPrice || 0);
+
+                      if (pPiecePrice > 0) {
+                        pCartonPrice = Math.round(pPiecePrice * pCartonQty * 100) / 100;
+                      } else if (pCartonPrice > 0) {
+                        pPiecePrice = Math.round((pCartonPrice / pCartonQty) * 100) / 100;
+                      }
+
+                      return (
+                        <div className="flex items-baseline justify-between bg-slate-50 rounded-xl px-2.5 py-1.5 border border-slate-100">
+                          <div>
+                            <span className="text-[11px] text-slate-500 font-medium block">الكرتونة</span>
+                            <span className="text-sm font-black text-slate-950">
+                              {isConfidentialMode ? (
+                                <span className="font-mono text-slate-400 text-xs tracking-widest bg-slate-200/60 px-1.5 py-0.5 rounded">••••••</span>
+                              ) : (
+                                formatCurrency(pCartonPrice)
+                              )}
+                            </span>
+                          </div>
+                          <div className="text-left">
+                            <span className="text-[11px] text-slate-500 font-medium block">القطعة</span>
+                            <span className="text-xs font-black text-slate-700">
+                              {isConfidentialMode ? (
+                                <span className="font-mono text-slate-400 text-xs tracking-widest bg-slate-200/60 px-1.5 py-0.5 rounded">••••••</span>
+                              ) : (
+                                formatCurrency(pPiecePrice)
+                              )}
+                            </span>
+                          </div>
+                          {(() => {
+                            const rawPromo = Number(product.promoPrice || 0);
+                            const isValidPromo = rawPromo > pPiecePrice && rawPromo < pCartonPrice;
+                            return isValidPromo ? (
+                              <span className="text-xs font-black text-rose-600 flex items-center gap-0.5">
+                                <Flame className="w-3 h-3" />
+                                {isConfidentialMode ? (
+                                  <span className="font-mono text-rose-400 text-xs tracking-widest">•••</span>
+                                ) : (
+                                  formatCurrency(rawPromo)
+                                )}
+                              </span>
+                            ) : null;
+                          })()}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Order Controls Section: 2 Clean Rows (Relieves crowding and makes Add prominent) */}
@@ -3456,27 +3443,46 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   );
                 })()}
 
-                {/* Pricing Box (Carton Price Only) */}
-                <div className="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 space-y-2">
-                  <div className="flex items-baseline justify-between">
-                    <div>
-                      <div className="text-xs text-amber-950 font-black">سعر الكرتونة بالجملة (المعتمد):</div>
-                      <div className="text-xl font-black text-amber-950">
-                        {isConfidentialMode ? (
-                          <span className="font-mono text-slate-400 text-sm tracking-widest bg-amber-100 px-2.5 py-1 rounded-xl">•••••• ج.م (محمي 🔒)</span>
-                        ) : (
-                          formatCurrency(selectedProductForModal.cartonPrice)
-                        )}
+                {/* Pricing Box (Carton Price and Piece Price) */}
+                {(() => {
+                  const mCartonQty = Math.max(1, Number(selectedProductForModal.cartonQuantity || selectedProductForModal.factor) || 1);
+                  let mPiecePrice = Number(selectedProductForModal.piecePrice || selectedProductForModal.salesPrice || 0);
+                  let mCartonPrice = Number(selectedProductForModal.cartonPrice || 0);
+
+                  if (mPiecePrice > 0) {
+                    mCartonPrice = Math.round(mPiecePrice * mCartonQty * 100) / 100;
+                  } else if (mCartonPrice > 0) {
+                    mPiecePrice = Math.round((mCartonPrice / mCartonQty) * 100) / 100;
+                  }
+
+                  return (
+                    <div className="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 space-y-2">
+                      <div className="flex items-baseline justify-between">
+                        <div>
+                          <div className="text-xs text-amber-950 font-black">سعر الكرتونة بالجملة (المعتمد):</div>
+                          <div className="text-xl font-black text-amber-950 font-mono">
+                            {isConfidentialMode ? (
+                              <span className="font-mono text-slate-400 text-sm tracking-widest bg-amber-100 px-2.5 py-1 rounded-xl">•••••• ج.م (محمي 🔒)</span>
+                            ) : (
+                              formatCurrency(mCartonPrice)
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-left">
+                          <div className="text-[10px] text-slate-500 font-bold">شدة الكرتونة:</div>
+                          <div className="text-xs font-black bg-amber-200/80 text-amber-950 px-2 py-0.5 rounded-lg">
+                            {mCartonQty} قطعة
+                          </div>
+                          {mPiecePrice > 0 && (
+                            <div className="text-[11px] font-bold text-slate-700 mt-1 font-mono">
+                              سعر القطعة: {formatCurrency(mPiecePrice)}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <div className="text-left">
-                      <div className="text-[10px] text-slate-500 font-bold">شدة الكرتونة:</div>
-                      <div className="text-xs font-black bg-amber-200/80 text-amber-950 px-2 py-0.5 rounded-lg">
-                        {selectedProductForModal.cartonQuantity} قطعة
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* Additional Attributes */}
                 <div className="grid grid-cols-2 gap-2 text-slate-600">

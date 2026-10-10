@@ -3737,8 +3737,22 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       };
     }
 
-    const appliedCartonPrice = latestProd.promoPrice && latestProd.promoPrice > 0 ? latestProd.promoPrice : latestProd.cartonPrice;
-    const piecePrice = latestProd.piecePrice && latestProd.piecePrice > 0 ? latestProd.piecePrice : (cartonQty > 0 ? Math.round((appliedCartonPrice / cartonQty) * 100) / 100 : appliedCartonPrice);
+    const effectivePiecePrice = Number(latestProd.piecePrice || latestProd.salesPrice || 0);
+    let calculatedCartonPrice = Number(latestProd.cartonPrice || 0);
+    if (effectivePiecePrice > 0) {
+      calculatedCartonPrice = Math.round(effectivePiecePrice * cartonQty * 100) / 100;
+    }
+
+    const hasValidPromo = Boolean(
+      latestProd.promoPrice &&
+      Number(latestProd.promoPrice) > effectivePiecePrice &&
+      Number(latestProd.promoPrice) < calculatedCartonPrice
+    );
+
+    const appliedCartonPrice = hasValidPromo ? Number(latestProd.promoPrice) : calculatedCartonPrice;
+    const piecePrice = effectivePiecePrice > 0
+      ? effectivePiecePrice
+      : (cartonQty > 0 ? Math.round((appliedCartonPrice / cartonQty) * 100) / 100 : appliedCartonPrice);
 
     setCart((prev) => {
       const existingInCart = prev.find((item) => item.product.id === latestProd.id);

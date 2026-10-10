@@ -745,15 +745,20 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const promoPricePieceRaw = getNum(colMap.promoPiecePrice, 0);
 
     // Price in sheet is per piece (سعر القطعة) and is multiplied by carton pack (شدة الكرتونة) to get carton price:
-    // e.g. 480 EGP per piece * 4 pieces in carton = 1,920 EGP carton price
+    // e.g. 500 EGP per piece * 30 pieces in carton = 15,000 EGP carton price
     const baseRawPrice = rawSalesPrice > 0 ? rawSalesPrice : rawCartonPrice;
     let piecePrice = baseRawPrice;
     let cartonPrice = Math.round(piecePrice * cartonQuantity * 100) / 100;
 
-    // If both salesPrice and cartonPrice columns exist and cartonPrice is already scaled (> piecePrice)
-    if (rawSalesPrice > 0 && rawCartonPrice > rawSalesPrice) {
+    // If both salesPrice and cartonPrice columns exist
+    if (rawSalesPrice > 0) {
       piecePrice = rawSalesPrice;
+      cartonPrice = rawCartonPrice > rawSalesPrice
+        ? rawCartonPrice
+        : Math.round(piecePrice * cartonQuantity * 100) / 100;
+    } else if (rawCartonPrice > 0 && cartonQuantity > 0) {
       cartonPrice = rawCartonPrice;
+      piecePrice = Math.round((rawCartonPrice / cartonQuantity) * 100) / 100;
     }
 
     // Offer / Promo prices for carton and piece

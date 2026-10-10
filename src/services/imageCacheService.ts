@@ -1,6 +1,7 @@
 // Offline Image Caching and Data Saver Utility for Sales Reps
 
-const CACHE_NAME = 'dream-tantawy-images-v1';
+export const IMAGE_CACHE_NAME = 'tantawy-group-images-v5';
+const CACHE_NAME = IMAGE_CACHE_NAME;
 
 /**
  * Check if Cache API is supported in browser

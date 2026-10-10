@@ -398,6 +398,7 @@ export async function generateInvoicePDFBase64(invoice: Invoice, customCompanyIn
 export interface ClientCatalogProduct {
   id: string;
   name: string;
+  code?: string;
   imageUrl?: string;
 }
 
@@ -424,28 +425,81 @@ export interface CatalogExportProgress {
  * بتدعم CORS عشان الـ canvas متتلوثش. الصور اللي
  * سيرفرها مش بيدعم CORS مبتنفعش للـ PDF (بيترجع null).
  */
-const preloadCatalogImage = (rawSrc: string, timeoutMs = 8000): Promise<string | null> => {
-  return new Promise((resolve) => {
-    const src = optimizeImageUrl(rawSrc, 550);
-    if (!src) {
-      resolve(null);
-      return;
+/**
+ * تحميل وتحويل صورة الصنف إلى dataUrl (base64) للـ PDF.
+ * تفحص أولاً ذاكرة التخزين المحلية (CacheStorage) لتعمل أوفلاين 100%
+ * بدون الحاجة لإنترنت أو استهلاك أي باقة.
+ */
+const preloadCatalogImage = async (rawSrc: string, timeoutMs = 6000): Promise<string | null> => {
+  if (!rawSrc) return null;
+  const src = optimizeImageUrl(rawSrc, 550);
+  if (!src) return null;
+
+  // 1. فحص كاش الأوفلاين بالجهاز أولاً (CacheStorage)
+  if (typeof window !== 'undefined' && 'caches' in window) {
+    try {
+      const cacheNames = ['tantawy-group-images-v5', 'dream-tantawy-images-v1'];
+      for (const cName of cacheNames) {
+        const cache = await caches.open(cName);
+        const match = (await cache.match(src)) || (await cache.match(rawSrc));
+        if (match) {
+          const blob = await match.blob();
+          if (blob && blob.size > 0) {
+            return await new Promise<string | null>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+              reader.onerror = () => resolve(null);
+              reader.readAsDataURL(blob);
+            });
+          }
+        }
+      }
+    } catch {
+      // استمرار للمحاولات الأخرى
     }
+  }
+
+  // 2. محاولة fetch كـ Blob مع CORS
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(src, { mode: 'cors', signal: controller.signal }).catch(() => null);
+    clearTimeout(timer);
+    if (res && res.ok) {
+      const blob = await res.blob();
+      if (blob && blob.size > 0) {
+        return await new Promise<string | null>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(blob);
+        });
+      }
+    }
+  } catch {
+    // استمرار
+  }
+
+  // 3. المحاولة عبر Image Element و Canvas
+  return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     const timer = window.setTimeout(() => {
       img.onload = img.onerror = null;
       resolve(null);
     }, timeoutMs);
+
     img.onload = () => {
       window.clearTimeout(timer);
       try {
         const maxW = 420;
         const maxH = 420;
-        const ratio = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+        const naturalW = img.naturalWidth || 300;
+        const naturalH = img.naturalHeight || 300;
+        const ratio = Math.min(maxW / naturalW, maxH / naturalH, 1);
         const canvas = document.createElement('canvas');
-        canvas.width = Math.max(1, Math.round(img.naturalWidth * ratio));
-        canvas.height = Math.max(1, Math.round(img.naturalHeight * ratio));
+        canvas.width = Math.max(1, Math.round(naturalW * ratio));
+        canvas.height = Math.max(1, Math.round(naturalH * ratio));
         const ctx = canvas.getContext('2d');
         if (!ctx) {
           resolve(null);
@@ -457,10 +511,12 @@ const preloadCatalogImage = (rawSrc: string, timeoutMs = 8000): Promise<string |
         resolve(null);
       }
     };
+
     img.onerror = () => {
       window.clearTimeout(timer);
       resolve(null);
     };
+
     img.src = src;
   });
 };
@@ -484,7 +540,11 @@ export async function buildClientCatalogPDF(
     failedImages: number
   ) => {
     if (!options?.onProgress) return;
-    const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+    const basePct = phase === 'images' ? 0 : 50;
+    const weight = phase === 'images' ? 50 : 50;
+    const stepPct = total > 0 ? (current / total) * weight : 0;
+    const percent = Math.min(100, Math.round(basePct + stepPct));
+
     options.onProgress({
       phase,
       current,
@@ -496,27 +556,37 @@ export async function buildClientCatalogPDF(
     });
   };
 
-  // تحميل الصور على دفعات (12 معاً) عشان مفيش فيض طلبات
-  const ready: Array<{ product: ClientCatalogProduct; dataUrl: string }> = [];
+  if (!products || products.length === 0) {
+    throw new Error('no-items');
+  }
+
+  // تحميل الصور على دفعات (8 معاً لضمان خفة الموبايل وسرعة التحديث)
+  const ready: Array<{ product: ClientCatalogProduct; dataUrl: string | null }> = [];
+  let loadedImageCount = 0;
   let failedImageCount = 0;
   const totalImages = products.length;
-  for (let i = 0; i < products.length; i += 12) {
-    const batch = products.slice(i, i + 12);
+
+  for (let i = 0; i < products.length; i += 8) {
+    const batch = products.slice(i, i + 8);
     const results = await Promise.all(
       batch.map(async (p) => ({
         product: p,
         dataUrl: p.imageUrl ? await preloadCatalogImage(p.imageUrl) : null,
       }))
     );
-    results.forEach((r) => {
-      if (r.dataUrl) ready.push({ product: r.product, dataUrl: r.dataUrl });
-      else failedImageCount += 1;
-    });
-    reportProgress('images', Math.min(i + batch.length, products.length), totalImages, ready.length, totalImages, failedImageCount);
-  }
 
-  if (ready.length === 0) {
-    throw new Error('no-images');
+    results.forEach((r) => {
+      if (r.dataUrl) {
+        loadedImageCount += 1;
+      } else {
+        failedImageCount += 1;
+      }
+      ready.push({ product: r.product, dataUrl: r.dataUrl });
+    });
+
+    reportProgress('images', Math.min(i + batch.length, products.length), totalImages, loadedImageCount, totalImages, failedImageCount);
+    // إعطاء فرصة لـ React لتحديث شريط التقدم على الموبايل
+    await new Promise((resolve) => setTimeout(resolve, 30));
   }
 
   const PAGE_W_PX = 794;
@@ -543,10 +613,19 @@ export async function buildClientCatalogPDF(
           .replace(/&/g, '&amp;')
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;');
+        const safeCode = (product.code || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+
+        const imgBlock = dataUrl
+          ? `<img src="${dataUrl}" alt="${safeName}" style="max-width:100%;max-height:100%;object-fit:contain;" />`
+          : `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#64748b;text-align:center;"><span style="font-size:36px;margin-bottom:6px;">📦</span><span style="font-size:12px;font-weight:800;color:#94a3b8;">${safeCode || 'صنف'}</span></div>`;
+
         return `
           <div style="width:${CARD_W_PX}px;height:${CARD_H_PX}px;border:1px solid #e2e8f0;border-radius:14px;background:#ffffff;padding:10px;display:flex;flex-direction:column;align-items:center;box-sizing:border-box;">
             <div style="width:100%;height:228px;display:flex;align-items:center;justify-content:center;background:#f8fafc;border-radius:10px;overflow:hidden;">
-              <img src="${dataUrl}" alt="${safeName}" style="max-width:100%;max-height:100%;object-fit:contain;" />
+              ${imgBlock}
             </div>
             <div style="margin-top:10px;width:100%;flex:1;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#0f172a;text-align:center;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${safeName}</div>
           </div>`;

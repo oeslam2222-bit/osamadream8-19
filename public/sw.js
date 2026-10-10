@@ -52,23 +52,42 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
-  // 1. Navigation requests (App Shell - Network first with Cache fallback for Chrome installability check)
+  // 1. Navigation requests (App Shell - Fast cache-fallback with offline instant-load)
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
-        .then((networkResponse) => {
+      (async () => {
+        // If device is offline, respond from cache immediately (0ms wait)
+        if (typeof self.navigator !== 'undefined' && self.navigator.onLine === false) {
+          const cached = (await caches.match(request)) || (await caches.match('/index.html')) || (await caches.match('/'));
+          if (cached) return cached;
+        }
+
+        // Try network with a 1.5s timeout on mobile so weak connection never hangs
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 1500);
+          const networkResponse = await fetch(request, { signal: controller.signal });
+          clearTimeout(timer);
           if (networkResponse && networkResponse.status === 200) {
             const copy = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});
+            return networkResponse;
           }
-          return networkResponse;
-        })
-        .catch(async () => {
-          const cachedResponse = await caches.match(request);
-          if (cachedResponse) return cachedResponse;
-          const fallback = (await caches.match('/index.html')) || (await caches.match('/'));
-          return fallback || new Response('Offline', { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-        })
+        } catch (e) {
+          // Network failed, aborted, or offline: serve immediately from cache
+        }
+
+        const cachedResponse =
+          (await caches.match(request)) ||
+          (await caches.match('/index.html')) ||
+          (await caches.match('/'));
+        if (cachedResponse) return cachedResponse;
+
+        return new Response('Offline', {
+          status: 200,
+          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        });
+      })()
     );
     return;
   }

@@ -267,6 +267,20 @@ export function groupProductsIntoParents(products: Product[]): ParentProduct[] {
       const windowInfo = extractWindowInfo(prod, idx);
       const highResImg = getHighResVariantImageUrl(prod.imageUrl, 900);
 
+      const vCartonQty = Math.max(1, Number(prod.cartonQuantity || prod.factor) || 1);
+      let vPiecePrice = Number(prod.piecePrice || prod.salesPrice || 0);
+      let vCartonPrice = Number(prod.cartonPrice || 0);
+
+      // حساب إجمالي الكرتونة = سعر القطعة × شدة الكرتونة دائماً
+      if (vPiecePrice > 0) {
+        vCartonPrice = Math.round(vPiecePrice * vCartonQty * 100) / 100;
+      } else if (vCartonPrice > 0) {
+        vPiecePrice = Math.round((vCartonPrice / vCartonQty) * 100) / 100;
+      }
+
+      const rawPromo = Number(prod.promoPrice || prod.offerPrice || 0);
+      const cleanPromo = rawPromo > vPiecePrice && rawPromo < vCartonPrice ? rawPromo : undefined;
+
       return {
         id: prod.id || `var_${prod.code}_${idx}`,
         productId: key,
@@ -280,14 +294,21 @@ export function groupProductsIntoParents(products: Product[]): ParentProduct[] {
         branchStockReserved: prod.branchStockReserved || 0,
         mainWarehouseActual: prod.mainWarehouseActual || 0,
         mainWarehouseReserved: prod.mainWarehouseReserved || 0,
-        cartonQuantity: prod.cartonQuantity || prod.factor || 1,
-        piecePrice: prod.piecePrice || prod.salesPrice || 0,
-        cartonPrice: prod.cartonPrice || 0,
-        promoPrice: prod.promoPrice,
-        promoPiecePrice: prod.promoPiecePrice,
+        cartonQuantity: vCartonQty,
+        piecePrice: vPiecePrice,
+        cartonPrice: vCartonPrice,
+        promoPrice: cleanPromo,
+        promoPiecePrice: cleanPromo ? Math.round((cleanPromo / vCartonQty) * 100) / 100 : undefined,
         status: prod.status || 'متاح',
         barcode: prod.barcode,
-        rawProduct: prod,
+        rawProduct: {
+          ...prod,
+          cartonQuantity: vCartonQty,
+          piecePrice: vPiecePrice,
+          cartonPrice: vCartonPrice,
+          promoPrice: cleanPromo,
+          offerPrice: cleanPromo,
+        },
       };
     });
 

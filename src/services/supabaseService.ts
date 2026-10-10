@@ -1728,7 +1728,15 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
     if (allProdData.length > 0) {
       const mapped: Product[] = allProdData.map((p: any) => {
         const cartonQuantity = Math.max(1, Number(p.carton_quantity ?? p.cartonQuantity ?? p.factor) || 1);
-        const piecePrice = Number(p.piece_price ?? p.price ?? 0);
+        const rawPiecePrice = Number(p.piece_price ?? p.price ?? 0);
+        let cartonPrice = Math.round(rawPiecePrice * cartonQuantity * 100) / 100;
+        let piecePrice = rawPiecePrice;
+
+        if (piecePrice === 0 && Number(p.carton_price ?? p.cartonPrice ?? 0) > 0) {
+          cartonPrice = Number(p.carton_price ?? p.cartonPrice);
+          piecePrice = Math.round((cartonPrice / cartonQuantity) * 100) / 100;
+        }
+
         return {
           id: p.id,
           code: p.code || p.name?.slice(0, 8) || 'PRD',
@@ -1749,7 +1757,7 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
           familyName: p.family_name || p.familyName || p.classification || 'أصناف عامة',
           classification: p.classification || 'أصناف عامة',
           piecePrice,
-          cartonPrice: Math.round(piecePrice * cartonQuantity * 100) / 100,
+          cartonPrice,
           branchName: p.branch_name || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
           imageUrl: p.image_url || undefined,
           cloudinaryPublicId: p.cloudinary_public_id || undefined,
