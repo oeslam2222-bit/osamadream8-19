@@ -184,8 +184,24 @@ export const sanitizeProducts = (list: Product[]): Product[] => {
     usedIds.add(rowId);
 
     const cartonQty = Math.max(1, Number(p.cartonQuantity || p.factor) || 1);
-    const savedCartonPrice = typeof p.cartonPrice === 'number' ? p.cartonPrice : 0;
-    const savedPiecePrice = Number(p.piecePrice || p.salesPrice || 0);
+    const savedCartonPrice = Number(
+      p.cartonPrice ??
+      (p as any).carton_price ??
+      (p as any)['سعر الكرتونة'] ??
+      (p as any)['سعر الكرتونه'] ??
+      0
+    );
+    const savedPiecePrice = Number(
+      p.piecePrice ??
+      p.salesPrice ??
+      p.price ??
+      (p as any).piece_price ??
+      (p as any).sales_price ??
+      (p as any)['سعر القطعة'] ??
+      (p as any)['سعر القطعه'] ??
+      (p as any)['سعر البيع'] ??
+      0
+    );
 
     let piecePrice = savedPiecePrice;
     let cartonPrice = savedCartonPrice;

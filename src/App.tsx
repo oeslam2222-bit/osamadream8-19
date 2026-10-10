@@ -52,12 +52,10 @@ const TabLoadingSkeleton = () => {
       </div>
       <div className="text-center">
         <h3 className="font-black text-slate-800 text-sm">
-          {isOffline ? 'جاري فتح ملفات القسم المحفوظة على الجهاز...' : 'جاري تجهيز ملفات القسم...'}
+          {isOffline ? 'جاري فتح القسم من الذاكرة المحلية...' : 'جاري فتح القسم...'}
         </h3>
         <p className="text-xs text-slate-400 mt-1">
-          {isOffline
-            ? 'الأقسام التي سبق فتحها أثناء الاتصال يمكن فتحها دون إنترنت.'
-            : 'يتم تحميل واجهة القسم؛ لا يعني ذلك إعادة تحميل كل بياناتك من السيرفر.'}
+          يتم تجهيز الواجهة؛ بعد فتح القسم لأول مرة سيعمل مباشرة في 0 ثانية بدون أي انتظار.
         </p>
       </div>
     </div>
@@ -80,9 +78,29 @@ const MainLayout: React.FC = () => {
       : currentUser?.role === 'supervisor' ? 'command'
       : currentUser?.role === 'sales_rep' ? 'rep_home' : 'all_customers';
   });
+  const [visitedTabs, setVisitedTabs] = useState<Record<string, boolean>>(() => ({
+    [activeTab]: true,
+  }));
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+
+  // Preload primary user tabs immediately in background so they are ready before the user clicks
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      import('./components/ProductCatalog');
+      import('./components/MobileRepDashboard');
+      import('./components/AllCustomersAnalyticsView');
+      import('./components/InvoicesManager');
+      import('./components/OrderBuilderModal');
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Track visited tabs so visited screens remain alive in DOM and switch in 0ms without re-triggering Suspense
+  useEffect(() => {
+    setVisitedTabs((prev) => (prev[activeTab] ? prev : { ...prev, [activeTab]: true }));
+  }, [activeTab]);
 
   // Reps open on rep_home; supervisors, branch managers, admin and dev open
   // on their dedicated dashboards. Re-evaluated once the user is known.
@@ -168,88 +186,128 @@ const MainLayout: React.FC = () => {
       {/* Content Container with optimal tight padding for mobile and standard padding for desktop */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-2 sm:px-4 md:px-6 py-2.5 sm:py-5 pb-24 md:pb-8">
         <Suspense fallback={<TabLoadingSkeleton />}>
-          {/* Rep home: icon-grid launcher. Role decides the screen, not
-              the device — a rep on desktop gets the same launcher. */}
-          {activeTab === 'rep_home' && currentUser.role === 'sales_rep' && (
-            <MobileRepDashboard
-              onNavigate={handleTabChange}
-              onNewInvoice={() => setIsOrderModalOpen(true)}
-            />
+          {/* Rep home: icon-grid launcher */}
+          {currentUser.role === 'sales_rep' && visitedTabs['rep_home'] && (
+            <div className={activeTab === 'rep_home' ? 'block' : 'hidden'}>
+              <MobileRepDashboard
+                onNavigate={handleTabChange}
+                onNewInvoice={() => setIsOrderModalOpen(true)}
+              />
+            </div>
           )}
 
-          {activeTab === 'catalog' && (
-            <ProductCatalog
-              onOpenCart={() => setIsOrderModalOpen(true)}
-              selectedCustomer={orderInitialCustomer}
-              onClearSelectedCustomer={() => setOrderInitialCustomer(null)}
-              onNavigateToInvoices={(inv) => {
-                setActiveTab('invoices');
-              }}
-            />
+          {visitedTabs['catalog'] && (
+            <div className={activeTab === 'catalog' ? 'block' : 'hidden'}>
+              <ProductCatalog
+                onOpenCart={() => setIsOrderModalOpen(true)}
+                selectedCustomer={orderInitialCustomer}
+                onClearSelectedCustomer={() => setOrderInitialCustomer(null)}
+                onNavigateToInvoices={(inv) => {
+                  setActiveTab('invoices');
+                }}
+              />
+            </div>
           )}
 
-          {(activeTab === 'all_customers' || activeTab === 'customers') && (
-            <AllCustomersAnalyticsView
-              onOpenNewOrderForCustomer={(cust) => handleOpenOrderForCustomer(cust)}
-            />
+          {(visitedTabs['all_customers'] || visitedTabs['customers']) && (
+            <div className={(activeTab === 'all_customers' || activeTab === 'customers') ? 'block' : 'hidden'}>
+              <AllCustomersAnalyticsView
+                onOpenNewOrderForCustomer={(cust) => handleOpenOrderForCustomer(cust)}
+              />
+            </div>
           )}
 
-          {(activeTab === 'home' || activeTab === 'dashboard') && (
-            <HomeExecutiveDashboard
-              onNavigateToTab={(tab) => handleTabChange(tab)}
-              onOpenNewOrder={() => setIsOrderModalOpen(true)}
-              onViewInvoice={(inv) => setViewingInvoice(inv)}
-            />
+          {(visitedTabs['home'] || visitedTabs['dashboard']) && (
+            <div className={(activeTab === 'home' || activeTab === 'dashboard') ? 'block' : 'hidden'}>
+              <HomeExecutiveDashboard
+                onNavigateToTab={(tab) => handleTabChange(tab)}
+                onOpenNewOrder={() => setIsOrderModalOpen(true)}
+                onViewInvoice={(inv) => setViewingInvoice(inv)}
+              />
+            </div>
           )}
 
-          {/* Role command center: analytics + approvals + reports for
-              admin, developer, branch manager and supervisor. */}
-          {activeTab === 'command' &&
+          {/* Role command center */}
+          {visitedTabs['command'] &&
             (currentUser.role === 'admin' ||
               currentUser.role === 'developer' ||
               currentUser.role === 'branch_manager' ||
               currentUser.role === 'supervisor') && (
-            <RoleCommandCenter
-              onNavigateToTab={handleTabChange}
-              onOpenNewOrder={() => setIsOrderModalOpen(true)}
-            />
+            <div className={activeTab === 'command' ? 'block' : 'hidden'}>
+              <RoleCommandCenter
+                onNavigateToTab={handleTabChange}
+                onOpenNewOrder={() => setIsOrderModalOpen(true)}
+              />
+            </div>
           )}
 
-          {activeTab === 'management' &&
+          {visitedTabs['management'] &&
             (currentUser.role === 'admin' ||
               currentUser.role === 'developer' ||
               currentUser.role === 'branch_manager') && (
-            <ManagementDashboard onNavigateToTab={setActiveTab} />
+            <div className={activeTab === 'management' ? 'block' : 'hidden'}>
+              <ManagementDashboard onNavigateToTab={setActiveTab} />
+            </div>
           )}
 
-          {(activeTab === 'management' || activeTab === 'supervisor') &&
+          {(visitedTabs['management'] || visitedTabs['supervisor']) &&
             currentUser.role === 'supervisor' && (
-            <SupervisorDashboard onNavigateToTab={setActiveTab} />
+            <div className={(activeTab === 'management' || activeTab === 'supervisor') ? 'block' : 'hidden'}>
+              <SupervisorDashboard onNavigateToTab={setActiveTab} />
+            </div>
           )}
 
-          {activeTab === 'targets' && <TargetPerformanceDashboard />}
-
-          {activeTab === 'forecast' && <CollectionForecastView />}
-
-          {activeTab === 'visits' && <VisitsDashboard />}
-
-          {activeTab === 'invoices' && (
-            <InvoicesManager
-              onOpenNewOrder={() => setIsOrderModalOpen(true)}
-              onViewInvoice={(inv) => setViewingInvoice(inv)}
-              onEditInvoice={handleEditInvoice}
-            />
+          {visitedTabs['targets'] && (
+            <div className={activeTab === 'targets' ? 'block' : 'hidden'}>
+              <TargetPerformanceDashboard />
+            </div>
           )}
 
-          {activeTab === 'inventory' && <InventoryStockView />}
+          {visitedTabs['forecast'] && (
+            <div className={activeTab === 'forecast' ? 'block' : 'hidden'}>
+              <CollectionForecastView />
+            </div>
+          )}
 
-          {activeTab === 'excel' && <ExcelImportExport />}
+          {visitedTabs['visits'] && (
+            <div className={activeTab === 'visits' ? 'block' : 'hidden'}>
+              <VisitsDashboard />
+            </div>
+          )}
 
-          {activeTab === 'users' &&
-            (currentUser.role === 'admin' || currentUser.role === 'developer') && <UserManager />}
+          {visitedTabs['invoices'] && (
+            <div className={activeTab === 'invoices' ? 'block' : 'hidden'}>
+              <InvoicesManager
+                onOpenNewOrder={() => setIsOrderModalOpen(true)}
+                onViewInvoice={(inv) => setViewingInvoice(inv)}
+                onEditInvoice={handleEditInvoice}
+              />
+            </div>
+          )}
 
-          {activeTab === 'guide' && (
-            <SystemWorkflowGuide onNavigateToTab={(tab) => setActiveTab(tab)} />
+          {visitedTabs['inventory'] && (
+            <div className={activeTab === 'inventory' ? 'block' : 'hidden'}>
+              <InventoryStockView />
+            </div>
+          )}
+
+          {visitedTabs['excel'] && (
+            <div className={activeTab === 'excel' ? 'block' : 'hidden'}>
+              <ExcelImportExport />
+            </div>
+          )}
+
+          {visitedTabs['users'] &&
+            (currentUser.role === 'admin' || currentUser.role === 'developer') && (
+            <div className={activeTab === 'users' ? 'block' : 'hidden'}>
+              <UserManager />
+            </div>
+          )}
+
+          {visitedTabs['guide'] && (
+            <div className={activeTab === 'guide' ? 'block' : 'hidden'}>
+              <SystemWorkflowGuide onNavigateToTab={(tab) => setActiveTab(tab)} />
+            </div>
           )}
 
         </Suspense>

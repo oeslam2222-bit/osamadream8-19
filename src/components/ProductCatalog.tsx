@@ -48,7 +48,7 @@ import {
   ArrowUp
 } from 'lucide-react';
 import React, { useMemo, useState, useEffect, useDeferredValue, useCallback, useRef } from 'react';
-import { buildClientCatalogPDF, type CatalogExportProgress } from '../services/pdfService';
+import type { CatalogExportProgress } from '../services/pdfService';
 import { useApp } from '../context/AppContext';
 import { ProductImage } from './ProductImage';
 import {
@@ -60,7 +60,6 @@ import {
 } from '../services/cloudinaryService';
 import { formatCurrency } from '../services/invoiceService';
 import { cacheProductImages, getCachedImagesStats, clearCachedImages } from '../services/imageCacheService';
-import { parseExcelProducts, fetchAndParseGoogleSheet, generateSampleExcelTemplate } from '../services/excelService';
 import { countDuplicateProductRows } from '../services/productIdentity';
 import { Customer, ItemStatus, Product, SalesPriority, ParentProduct, ProductVariant } from '../types';
 import { DepartmentCategorySlicer } from './DepartmentCategorySlicer';
@@ -318,6 +317,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setUploadSuccess(null);
 
     try {
+      const { parseExcelProducts } = await import('../services/excelService');
       const res = await parseExcelProducts(file);
       if (res.products.length === 0) {
         setUploadError(res.errors.join(' | ') || 'لم يتم العثور على أي أصناف في الملف.');
@@ -350,6 +350,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setUploadSuccess(null);
 
     try {
+      const { fetchAndParseGoogleSheet } = await import('../services/excelService');
       const res = await fetchAndParseGoogleSheet(googleSheetInput);
       if (res.products.length === 0) {
         setUploadError(res.errors.join(' | ') || 'لم يتم العثور على أصناف داخل الشيت.');
@@ -1119,6 +1120,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             ? selectedOfficialDept
             : 'كل الأصناف';
 
+      const { buildClientCatalogPDF } = await import('../services/pdfService');
       const { pdf, exportedCount, failedImageCount, filename } =
         await buildClientCatalogPDF(catalogExportItems, {
           categoryName,

@@ -228,8 +228,13 @@ export function cleanParentProductName(name: string): string {
 /**
  * Groups a flat array of 5,444 products into ~3,444 consolidated Parent Products with Variants/Windows
  */
+// ذاكرة تخزين مؤقت فائقة السرعة لمنع تكرار معالجة 5,000+ صنف عند التنقل بين الصفحات
+const parentGroupCache = new WeakMap<Product[], ParentProduct[]>();
+
 export function groupProductsIntoParents(products: Product[]): ParentProduct[] {
   if (!Array.isArray(products) || products.length === 0) return [];
+  const cached = parentGroupCache.get(products);
+  if (cached) return cached;
 
   const groupMap = new Map<string, {
     key: string;
@@ -268,8 +273,24 @@ export function groupProductsIntoParents(products: Product[]): ParentProduct[] {
       const highResImg = getHighResVariantImageUrl(prod.imageUrl, 900);
 
       const vCartonQty = Math.max(1, Number(prod.cartonQuantity || prod.factor) || 1);
-      let vPiecePrice = Number(prod.piecePrice || prod.salesPrice || 0);
-      let vCartonPrice = Number(prod.cartonPrice || 0);
+      let vPiecePrice = Number(
+        prod.piecePrice ??
+        prod.salesPrice ??
+        prod.price ??
+        (prod as any).piece_price ??
+        (prod as any).sales_price ??
+        (prod as any)['سعر القطعة'] ??
+        (prod as any)['سعر القطعه'] ??
+        (prod as any)['سعر البيع'] ??
+        0
+      );
+      let vCartonPrice = Number(
+        prod.cartonPrice ??
+        (prod as any).carton_price ??
+        (prod as any)['سعر الكرتونة'] ??
+        (prod as any)['سعر الكرتونه'] ??
+        0
+      );
 
       // حساب إجمالي الكرتونة = سعر القطعة × شدة الكرتونة دائماً
       if (vPiecePrice > 0) {
@@ -373,5 +394,6 @@ export function groupProductsIntoParents(products: Product[]): ParentProduct[] {
     parentProducts.push(parent);
   });
 
+  parentGroupCache.set(products, parentProducts);
   return parentProducts;
 }

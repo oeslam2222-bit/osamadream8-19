@@ -1728,7 +1728,7 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
     if (allProdData.length > 0) {
       const mapped: Product[] = allProdData.map((p: any) => {
         const cartonQuantity = Math.max(1, Number(p.carton_quantity ?? p.cartonQuantity ?? p.factor) || 1);
-        const rawPiecePrice = Number(p.piece_price ?? p.price ?? 0);
+        const rawPiecePrice = Number(p.piece_price ?? p.sales_price ?? p.salesPrice ?? p.piecePrice ?? p.price ?? 0);
         let cartonPrice = Math.round(rawPiecePrice * cartonQuantity * 100) / 100;
         let piecePrice = rawPiecePrice;
 

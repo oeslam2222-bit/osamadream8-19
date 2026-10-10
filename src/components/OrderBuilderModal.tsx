@@ -756,7 +756,11 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                                 </span>
                               )}
                               <span className="text-slate-400">
-                                ({formatCurrency(p.cartonPrice)})
+                                ({formatCurrency(
+                                  p.piecePrice && p.piecePrice > 0
+                                    ? Math.round(p.piecePrice * (p.cartonQuantity || 1) * 100) / 100
+                                    : p.cartonPrice
+                                )})
                               </span>
                             </div>
                             <div className="text-[10px] text-slate-400 mt-0.5">

@@ -60,7 +60,7 @@ const priorityDot: Record<AppNotification['priority'], string> = {
   low: 'bg-slate-400',
 };
 
-const STORAGE_KEY = 'tantawy_notif_last_seen_v1';
+const STORAGE_KEY = 'tantawy_notifications_read_v3';
 
 export const InternalNotificationCenter: React.FC<InternalNotificationCenterProps> = ({
   onNavigateToTab,
@@ -80,11 +80,13 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
   } = useApp();
 
   const [isOpen, setIsOpen] = useState(false);
-  const [lastSeen, setLastSeen] = useState<string>(() => {
+  const [filterMode, setFilterMode] = useState<'unread' | 'all'>('unread');
+  const [readNotifMap, setReadNotifMap] = useState<Record<string, boolean>>(() => {
     try {
-      return localStorage.getItem(STORAGE_KEY) || '';
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
     } catch {
-      return '';
+      return {};
     }
   });
 
@@ -256,55 +258,90 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
     getVisibleTargets, getVisibleProducts,
   ]);
 
-  // بصمة البيانات الحالية — تتغير لما تظهر تنبيهات جديدة
-  const signature = useMemo(
-    () => notifications.map((n) => `${n.id}:${n.title}`).join('|'),
-    [notifications]
-  );
-  const hasUnread = signature !== '' && signature !== lastSeen;
+  // تحديد الإشعارات غير المقروءة بدقة استناداً للذاكرة المحلية
+  const isNotificationRead = (n: AppNotification): boolean => {
+    return Boolean(readNotifMap[`${n.id}__${n.title}`] || readNotifMap[n.id]);
+  };
 
+  const unreadNotifications = useMemo(
+    () => notifications.filter((n) => !isNotificationRead(n)),
+    [notifications, readNotifMap]
+  );
+
+  const unreadCount = unreadNotifications.length;
+  const highUnreadCount = unreadNotifications.filter((n) => n.priority === 'high').length;
+  const hasUnread = unreadCount > 0;
+
+  // تعيين كافة الإشعارات الحالية كمقروءة (زي الفيسبوك — يختفي الرقم والإشعارات من غير المقروءة)
   const markAllRead = () => {
-    setLastSeen(signature);
-    try {
-      localStorage.setItem(STORAGE_KEY, signature);
-    } catch {
-      /* ignore */
-    }
+    setReadNotifMap((prev) => {
+      const updated = { ...prev };
+      notifications.forEach((n) => {
+        updated[`${n.id}__${n.title}`] = true;
+        updated[n.id] = true;
+      });
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      } catch {
+        /* ignore */
+      }
+      return updated;
+    });
+  };
+
+  // تعيين إشعار فردي محدد كمقروء
+  const markSingleRead = (n: AppNotification) => {
+    setReadNotifMap((prev) => {
+      const updated = {
+        ...prev,
+        [`${n.id}__${n.title}`]: true,
+        [n.id]: true,
+      };
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      } catch {
+        /* ignore */
+      }
+      return updated;
+    });
   };
 
   const handleOpen = () => {
     setIsOpen((v) => !v);
   };
 
-  const handleAction = (tab: string) => {
+  const handleAction = (tab: string, n?: AppNotification) => {
+    if (n) {
+      markSingleRead(n);
+    }
     setIsOpen(false);
     onNavigateToTab?.(tab);
   };
 
-  const highCount = notifications.filter((n) => n.priority === 'high').length;
+  const displayedNotifications = filterMode === 'unread' ? unreadNotifications : notifications;
 
   return (
     <div className="relative">
-      {/* زر الجرس */}
+      {/* زر الجرس — مثل فيسبوك: يظهر الرقم فقط إذا كانت هناك إشعارات غير مقروءة، ويختفي تماماً عند القراءة */}
       <button
         type="button"
         onClick={handleOpen}
         aria-label="الإشعارات"
         aria-expanded={isOpen}
-        className="relative w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer transition active:scale-95"
+        className="relative w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer transition active:scale-95"
       >
         {hasUnread ? (
-          <BellRing className="w-4 h-4" />
+          <BellRing className="w-4 h-4 text-amber-600 animate-pulse" />
         ) : (
-          <Bell className="w-4 h-4" />
+          <Bell className="w-4 h-4 text-slate-500" />
         )}
-        {notifications.length > 0 && (
+        {hasUnread && (
           <span
-            className={`absolute -top-1 -left-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center shadow ${
-              highCount > 0 ? 'bg-rose-500' : 'bg-amber-500'
+            className={`absolute -top-1 -left-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center shadow-md animate-in zoom-in ${
+              highUnreadCount > 0 ? 'bg-rose-500 ring-2 ring-white' : 'bg-amber-500 ring-2 ring-white'
             }`}
           >
-            {notifications.length}
+            {unreadCount}
           </span>
         )}
       </button>
@@ -321,59 +358,119 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
           <div
             role="dialog"
             aria-label="مركز الإشعارات"
-            className="fixed z-50 inset-x-2 top-16 max-h-[70vh] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col md:inset-x-auto md:right-0 md:top-12 md:w-[380px]"
+            className="fixed z-50 inset-x-2 top-16 max-h-[75vh] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col md:inset-x-auto md:right-0 md:top-12 md:w-[410px] animate-in fade-in zoom-in-95"
           >
-            {/* الترويسة */}
-            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100 bg-slate-50/60">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center shrink-0">
-                  <BellRing className="w-4 h-4" />
-                </span>
-                <div className="min-w-0">
-                  <div className="text-[13px] font-black text-slate-800">مركز الإشعارات</div>
-                  <div className="text-[10px] font-bold text-slate-500">
-                    {notifications.length} تنبيه نشط • {currentUser?.branchName || 'كل الفروع'}
+            {/* الترويسة الرئيسية */}
+            <div className="p-3 border-b border-slate-100 bg-slate-50/80 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center shrink-0 shadow-xs">
+                    <BellRing className="w-4 h-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-black text-slate-800">مركز الإشعارات والتنبيهات</div>
+                    <div className="text-[10px] font-bold text-slate-500">
+                      {hasUnread ? `${unreadCount} تنبيه جديد غير مقروء` : 'جميع التنبيهات مقروءة بالكامل'}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                {hasUnread && (
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {hasUnread && (
+                    <button
+                      type="button"
+                      onClick={markAllRead}
+                      className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10.5px] font-black px-2.5 py-1.5 rounded-xl cursor-pointer transition shadow-xs active:scale-95"
+                      title="تعيين كافة الإشعارات كمقروءة وإخفاء علامة التنبيه"
+                    >
+                      <CheckCheck className="w-3.5 h-3.5" />
+                      <span>تم قراءة الكل</span>
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={markAllRead}
-                    className="flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-black px-2 py-1.5 rounded-lg cursor-pointer transition"
-                    title="تعيين الكل كمقروء"
+                    onClick={() => setIsOpen(false)}
+                    className="w-7 h-7 rounded-lg hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer transition"
+                    aria-label="إغلاق"
                   >
-                    <CheckCheck className="w-3.5 h-3.5" />
-                    مقروء
+                    <X className="w-4 h-4" />
                   </button>
+                </div>
+              </div>
+
+              {/* تبويبات الفرز على طريقة فيسبوك: غير المقروءة والكل */}
+              <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-200/60">
+                <div className="flex items-center gap-1 bg-slate-200/70 p-0.5 rounded-xl text-[10.5px] font-black flex-1">
+                  <button
+                    type="button"
+                    onClick={() => setFilterMode('unread')}
+                    className={`flex-1 py-1 rounded-lg transition text-center cursor-pointer ${
+                      filterMode === 'unread'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    غير المقروءة ({unreadCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterMode('all')}
+                    className={`flex-1 py-1 rounded-lg transition text-center cursor-pointer ${
+                      filterMode === 'all'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    كل الإشعارات ({notifications.length})
+                  </button>
+                </div>
+
+                {hasUnread && (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200/60 shrink-0">
+                    ⚡ مباشر
+                  </span>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="w-7 h-7 rounded-lg hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer transition"
-                  aria-label="إغلاق"
-                >
-                  <X className="w-4 h-4" />
-                </button>
               </div>
             </div>
 
-            {/* القائمة */}
+            {/* قائمة الإشعارات */}
             <div className="flex-1 overflow-y-auto p-2.5 space-y-2">
-              {notifications.length === 0 ? (
-                <div className="text-center py-10">
-                  <CheckCheck className="w-10 h-10 text-emerald-300 mx-auto mb-2" />
-                  <div className="text-[12px] font-black text-slate-600">لا توجد تنبيهات نشطة</div>
-                  <p className="text-[10px] text-slate-400 mt-1">كل شيء تحت السيطرة</p>
+              {displayedNotifications.length === 0 ? (
+                <div className="text-center py-12 px-4 space-y-2">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-xs">
+                    <CheckCheck className="w-6 h-6 stroke-[2.5]" />
+                  </div>
+                  <div className="text-sm font-black text-slate-800">
+                    {filterMode === 'unread' ? 'تمت قراءة جميع الإشعارات بنجاح ✅' : 'لا توجد تنبيهات حالياً'}
+                  </div>
+                  <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+                    {filterMode === 'unread'
+                      ? 'مثل فيسبوك تماماً؛ تم تفريغ الإشعارات المقروءة ولن يظهر الرقم على الجرس حتى وصول أي تنبيه جديد.'
+                      : 'كافة أمور الحسابات والمخزون والزيارات منتظمة تماماً.'}
+                  </p>
+                  {filterMode === 'unread' && notifications.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setFilterMode('all')}
+                      className="text-xs font-bold text-indigo-600 hover:text-indigo-800 underline underline-offset-4 pt-1 cursor-pointer block mx-auto"
+                    >
+                      استعراض الإشعارات السابقة ({notifications.length})
+                    </button>
+                  )}
                 </div>
               ) : (
-                notifications.map((n) => {
+                displayedNotifications.map((n) => {
                   const Icon = n.icon;
+                  const isRead = isNotificationRead(n);
+
                   return (
                     <div
                       key={n.id}
-                      className={`rounded-xl border p-3 ${priorityStyles[n.priority]}`}
+                      className={`rounded-xl border p-3 transition relative group ${
+                        isRead
+                          ? 'border-slate-200 bg-slate-50/70 opacity-75'
+                          : priorityStyles[n.priority]
+                      }`}
                     >
                       <div className="flex items-start gap-2.5">
                         <span
@@ -382,25 +479,53 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                           <Icon className="w-4 h-4" />
                         </span>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${priorityDot[n.priority]}`} />
-                            <span className="text-[12px] font-black text-slate-800 leading-tight">
-                              {n.title}
-                            </span>
+                          <div className="flex items-center justify-between gap-1">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              {!isRead ? (
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${priorityDot[n.priority]} ring-2 ring-white`} title="غير مقروء" />
+                              ) : (
+                                <span className="text-[10px] font-bold text-slate-400 shrink-0">✓</span>
+                              )}
+                              <span className="text-[12px] font-black text-slate-800 leading-tight truncate">
+                                {n.title}
+                              </span>
+                            </div>
+
+                            {/* زر تم القراءة الفردي مثل فيسبوك */}
+                            {!isRead && (
+                              <button
+                                type="button"
+                                onClick={() => markSingleRead(n)}
+                                className="text-[10px] font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg shrink-0 cursor-pointer transition active:scale-95"
+                                title="تحديد هذا الإشعار كمقروء"
+                              >
+                                تم القراءة ✓
+                              </button>
+                            )}
                           </div>
+
                           <p className="text-[11px] font-medium text-slate-600 mt-1 leading-snug">
                             {n.detail}
                           </p>
-                          {n.actionTab && n.actionLabel && (
-                            <button
-                              type="button"
-                              onClick={() => handleAction(n.actionTab as string)}
-                              className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-black text-amber-700 underline underline-offset-2 cursor-pointer"
-                            >
-                              {n.actionLabel}
-                              <ChevronDown className="w-3 h-3 -rotate-90" />
-                            </button>
-                          )}
+
+                          <div className="flex items-center justify-between gap-2 mt-2 pt-1 border-t border-slate-100/80">
+                            {n.actionTab && n.actionLabel ? (
+                              <button
+                                type="button"
+                                onClick={() => handleAction(n.actionTab as string, n)}
+                                className="inline-flex items-center gap-1 text-[10.5px] font-black text-amber-800 hover:text-amber-900 underline underline-offset-2 cursor-pointer"
+                              >
+                                {n.actionLabel}
+                                <ChevronDown className="w-3 h-3 -rotate-90" />
+                              </button>
+                            ) : <span />}
+
+                            {isRead && (
+                              <span className="text-[9.5px] font-bold text-slate-400 bg-slate-200/60 px-1.5 py-0.5 rounded">
+                                مقروء
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -410,13 +535,13 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
             </div>
 
             {/* التذييل */}
-            <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between gap-2">
-              <span className="text-[9px] font-bold text-slate-400 truncate">
-                طنطاوي دريم جروب • إشعارات داخية خفيفة
+            <div className="px-4 py-2 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between gap-2">
+              <span className="text-[9.5px] font-bold text-slate-400 truncate">
+                طنطاوي دريم جروب • إشعارات ذكية
               </span>
-              <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400 shrink-0">
+              <span className="flex items-center gap-1 text-[9.5px] font-bold text-slate-400 shrink-0">
                 <TrendingUp className="w-3 h-3" />
-                بدون صور • استهلاك منخفض
+                تحفظ القراءة محلياً
               </span>
             </div>
           </div>

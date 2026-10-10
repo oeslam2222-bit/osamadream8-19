@@ -179,11 +179,29 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
     }
   };
 
-  const appliedPrice = activeVariant?.promoPrice && activeVariant.promoPrice > 0
-    ? activeVariant.promoPrice
-    : (activeVariant?.cartonPrice || 0);
+  let vPiecePrice = Number(
+    activeVariant?.piecePrice ??
+    rawProd?.piecePrice ??
+    rawProd?.salesPrice ??
+    rawProd?.price ??
+    0
+  );
+  let vCartonPrice = Number(activeVariant?.cartonPrice ?? rawProd?.cartonPrice ?? 0);
 
-  const currentPiecePrice = activeVariant?.piecePrice || (cartonQty > 0 ? Math.round((appliedPrice / cartonQty) * 100) / 100 : appliedPrice);
+  // حساب إجمالي الكرتونة = سعر القطعة × شدة الكرتونة دائماً
+  if (vPiecePrice > 0) {
+    vCartonPrice = Math.round(vPiecePrice * cartonQty * 100) / 100;
+  } else if (vCartonPrice > 0) {
+    vPiecePrice = Math.round((vCartonPrice / cartonQty) * 100) / 100;
+  }
+
+  const rawPromo = Number(activeVariant?.promoPrice || rawProd?.promoPrice || 0);
+  const isPromo = Boolean(rawPromo > vPiecePrice && rawPromo < vCartonPrice);
+
+  const appliedPrice = isPromo ? rawPromo : vCartonPrice;
+  const currentPiecePrice = vPiecePrice > 0
+    ? vPiecePrice
+    : (cartonQty > 0 ? Math.round((appliedPrice / cartonQty) * 100) / 100 : appliedPrice);
 
   // Safe to bail out only now — all hooks above have already run this render.
   if (!isOpen || !parentProduct || !activeVariant) {
@@ -873,7 +891,13 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                             {v.mainWarehouseActual || 0} ك
                           </td>
                           <td className="p-2.5 text-left font-bold text-slate-900">
-                            {isConfidentialMode ? '••••' : formatCurrency(v.cartonPrice)}
+                            {isConfidentialMode
+                              ? '••••'
+                              : formatCurrency(
+                                  v.piecePrice > 0
+                                    ? Math.round(v.piecePrice * (v.cartonQuantity || cartonQty) * 100) / 100
+                                    : v.cartonPrice
+                                )}
                           </td>
                           <td className="p-2.5 text-center">
                             {inCart ? (
