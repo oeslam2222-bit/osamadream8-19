@@ -2,25 +2,32 @@ import {
   Bell,
   BellRing,
   Boxes,
+  CalendarCheck,
   CalendarClock,
+  Check,
   CheckCheck,
   ChevronDown,
+  Database,
+  Eye,
+  EyeOff,
   Flame,
   Package,
+  RefreshCw,
   ShieldAlert,
   Target,
+  Trash2,
   TrendingUp,
   Wallet,
   X,
 } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import type { LucideIcon } from 'lucide-react';
 
 interface AppNotification {
   id: string;
-  kind: 'target' | 'visit' | 'customer' | 'product';
+  kind: 'target' | 'visit' | 'customer' | 'product' | 'system';
   priority: 'high' | 'medium' | 'low';
   title: string;
   detail: string;
@@ -49,9 +56,9 @@ const priorityOrder: Record<AppNotification['priority'], number> = {
 };
 
 const priorityStyles: Record<AppNotification['priority'], string> = {
-  high: 'border-rose-200 bg-rose-50',
-  medium: 'border-amber-200 bg-amber-50',
-  low: 'border-slate-200 bg-white',
+  high: 'border-rose-200 bg-rose-50/70 hover:bg-rose-50',
+  medium: 'border-amber-200 bg-amber-50/70 hover:bg-amber-50',
+  low: 'border-slate-200 bg-white hover:bg-slate-50',
 };
 
 const priorityDot: Record<AppNotification['priority'], string> = {
@@ -60,7 +67,8 @@ const priorityDot: Record<AppNotification['priority'], string> = {
   low: 'bg-slate-400',
 };
 
-const STORAGE_KEY = 'tantawy_notifications_read_v3';
+const BASE_READ_STORAGE_KEY = 'tantawy_notifications_read_v4';
+const BASE_DISMISSED_STORAGE_KEY = 'tantawy_notifications_dismissed_v4';
 
 export const InternalNotificationCenter: React.FC<InternalNotificationCenterProps> = ({
   onNavigateToTab,
@@ -79,18 +87,46 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
     getVisibleProducts,
   } = useApp();
 
+  const userSuffix = currentUser?.id || currentUser?.username || 'user';
+  const readStorageKey = `${BASE_READ_STORAGE_KEY}_${userSuffix}`;
+  const dismissedStorageKey = `${BASE_DISMISSED_STORAGE_KEY}_${userSuffix}`;
+
   const [isOpen, setIsOpen] = useState(false);
   const [filterMode, setFilterMode] = useState<'unread' | 'all'>('unread');
+  
+  // خريطة الإشعارات المقروءة
   const [readNotifMap, setReadNotifMap] = useState<Record<string, boolean>>(() => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(readStorageKey) || localStorage.getItem('tantawy_notifications_read_v3');
       return raw ? JSON.parse(raw) : {};
     } catch {
       return {};
     }
   });
 
-  const notifications = useMemo<AppNotification[]>(() => {
+  // خريطة الإشعارات المخفية/المحذوفة نهائياً (مثل إخفاء الإشعار في فيسبوك)
+  const [dismissedMap, setDismissedMap] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem(dismissedStorageKey);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // تحديث الخرائط عند تبديل المستخدم
+  useEffect(() => {
+    try {
+      const rawRead = localStorage.getItem(readStorageKey);
+      if (rawRead) setReadNotifMap(JSON.parse(rawRead));
+      const rawDismissed = localStorage.getItem(dismissedStorageKey);
+      if (rawDismissed) setDismissedMap(JSON.parse(rawDismissed));
+    } catch {
+      /* ignore */
+    }
+  }, [readStorageKey, dismissedStorageKey]);
+
+  const rawNotifications = useMemo<AppNotification[]>(() => {
     const list: AppNotification[] = [];
     const visibleInvoices = getVisibleInvoices ? getVisibleInvoices() : invoices;
     const visibleVisits = getVisibleVisits ? getVisibleVisits() : visits;
@@ -130,7 +166,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
       });
     }
 
-    // ===== زيارات مجدولة غير منفذة (متأخرة + اليوم) =====
+    // ===== زيارات مجدولة غير منفذة (متأخرة + اليوم) للمندوب =====
     const overdueVisits = visibleVisits.filter(
       (v) => v.status === 'مجدولة' && (v.date || '') < today
     );
@@ -156,7 +192,93 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
       });
     }
 
-    // ===== عملاء تجاوزوا حد الائتمان =====
+    // ===== الزيارات المنفذة حديثاً تصل للمشرف ومدير الفرع والإدارة للمتابعة السريعة =====
+    const isSupervisorOrManager =
+      currentUser?.role === 'supervisor' ||
+      currentUser?.role === 'branch_manager' ||
+      currentUser?.role === 'admin' ||
+      currentUser?.role === 'developer';
+
+    if (isSupervisorOrManager) {
+      const completedTodayVisits = visibleVisits.filter(
+        (v) => (v.status === 'منفذة' || v.status === 'لم تتم') && v.date === today
+      );
+      if (completedTodayVisits.length > 0) {
+        const collectedToday = completedTodayVisits.reduce(
+          (sum, v) => sum + (Number(v.collectedAmount) || 0),
+          0
+        );
+        list.push({
+          id: `completed-visits-today-${today}`,
+          kind: 'visit',
+          priority: 'medium',
+          title: `تم تنفيذ ${completedTodayVisits.length} زيارة ميدانية اليوم 🚗`,
+          detail: `زيارات مسجلة من المناديب • تحصيلات مسجلة بالزيارات: ${formatCurrency(collectedToday)}`,
+          icon: CalendarCheck,
+          accent: 'text-teal-700',
+          iconBg: 'bg-teal-100 text-teal-700',
+          actionTab: 'visits',
+          actionLabel: 'مراجعة الزيارات',
+        });
+      }
+    }
+
+    // ===== إشعارات تحديث قاعدة البيانات والتارجت والأصناف =====
+    // إشعار صغير فوري يؤكد حدوث التحديث مع إمكانية التعليم كمقروء
+    try {
+      const dbLastSync = localStorage.getItem('tantawy_db_last_sync_time');
+      const targetLastSync = localStorage.getItem('tantawy_targets_last_sync_time');
+      const catalogLastSync = localStorage.getItem('tantawy_catalog_last_sync_time');
+      
+      if (dbLastSync) {
+        list.push({
+          id: `db-sync-notice-${dbLastSync.slice(0, 13)}`,
+          kind: 'system',
+          priority: 'low',
+          title: 'تم تحديث قاعدة البيانات والمزامنة بنجاح ⚡',
+          detail: 'تم استقبال أحدث البيانات من الخادم ومزامنة السجلات المحلية.',
+          icon: Database,
+          accent: 'text-sky-700',
+          iconBg: 'bg-sky-100 text-sky-700',
+          actionTab: 'command',
+          actionLabel: 'اللوحة',
+        });
+      }
+
+      if (targetLastSync) {
+        list.push({
+          id: `target-sync-notice-${targetLastSync.slice(0, 13)}`,
+          kind: 'target',
+          priority: 'low',
+          title: 'تم تحديث تارجت المبيعات والتحصيل 🎯',
+          detail: 'تم اعتماد وتحديث أهداف المبيعات والتحصيل للفترة الحالية.',
+          icon: Target,
+          accent: 'text-lime-700',
+          iconBg: 'bg-lime-100 text-lime-700',
+          actionTab: 'targets',
+          actionLabel: 'التارجت',
+        });
+      }
+
+      if (catalogLastSync) {
+        list.push({
+          id: `catalog-sync-notice-${catalogLastSync.slice(0, 13)}`,
+          kind: 'product',
+          priority: 'low',
+          title: 'تم تحديث قائمة الأصناف والأسعار 📦',
+          detail: 'كتالوج المنتجات والأسعار محدث بأحدث بيانات المخزون والتسعير.',
+          icon: Package,
+          accent: 'text-emerald-700',
+          iconBg: 'bg-emerald-100 text-emerald-700',
+          actionTab: 'catalog',
+          actionLabel: 'الكتالوج',
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+
+    // ===== عملاء تجاوزوا حد الائتمان (تنبيه حرج للمراجعة قبل إنشاء طلبيات جديدة) =====
     const overLimit = visibleCustomers.filter((c) => {
       const bal = Number(c.currentBalance ?? c.balance ?? 0);
       const limit = Number(c.creditLimit ?? 0);
@@ -168,33 +290,10 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
         kind: 'customer',
         priority: 'high',
         title: `${overLimit.length} عميل تجاوز حد الائتمان`,
-        detail: 'راجع كشوف حسابهم قبل إنشاء طلبيات جديدة',
+        detail: 'تجاوز حدود السحب الائتماني — راجع الكشف قبل اعتماد طلبيات جديدة',
         icon: ShieldAlert,
         accent: 'text-rose-700',
         iconBg: 'bg-rose-100 text-rose-700',
-        actionTab: 'all_customers',
-        actionLabel: 'العملاء',
-      });
-    }
-
-    // ===== إجمالي المديونيات =====
-    const totalDebt = visibleCustomers.reduce(
-      (s, c) => s + Number(c.currentBalance ?? c.balance ?? 0),
-      0
-    );
-    const debtorsCount = visibleCustomers.filter(
-      (c) => Number(c.currentBalance ?? c.balance ?? 0) > 0
-    ).length;
-    if (totalDebt > 0) {
-      list.push({
-        id: 'total-debt',
-        kind: 'customer',
-        priority: 'low',
-        title: `إجمالي المديونيات: ${formatCurrency(totalDebt)}`,
-        detail: `${debtorsCount} عميل عليه رصيد مستحق`,
-        icon: Wallet,
-        accent: 'text-indigo-700',
-        iconBg: 'bg-indigo-100 text-indigo-700',
         actionTab: 'all_customers',
         actionLabel: 'العملاء',
       });
@@ -258,9 +357,19 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
     getVisibleTargets, getVisibleProducts,
   ]);
 
-  // تحديد الإشعارات غير المقروءة بدقة استناداً للذاكرة المحلية
+  // استبعاد الإشعارات التي تم إخفاؤها نهائياً (Dismissed like Facebook)
+  const isNotificationDismissed = (n: AppNotification): boolean => {
+    return Boolean(dismissedMap[n.id] || dismissedMap[`${n.id}__${n.title}`]);
+  };
+
+  const notifications = useMemo(
+    () => rawNotifications.filter((n) => !isNotificationDismissed(n)),
+    [rawNotifications, dismissedMap]
+  );
+
+  // فحص هل الإشعار مقروء
   const isNotificationRead = (n: AppNotification): boolean => {
-    return Boolean(readNotifMap[`${n.id}__${n.title}`] || readNotifMap[n.id]);
+    return Boolean(readNotifMap[n.id] || readNotifMap[`${n.id}__${n.title}`]);
   };
 
   const unreadNotifications = useMemo(
@@ -272,16 +381,16 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
   const highUnreadCount = unreadNotifications.filter((n) => n.priority === 'high').length;
   const hasUnread = unreadCount > 0;
 
-  // تعيين كافة الإشعارات الحالية كمقروءة (زي الفيسبوك — يختفي الرقم والإشعارات من غير المقروءة)
+  // تعيين كافة الإشعارات الحالية كمقروءة (زي الفيسبوك — يختفي الرقم والإشعارات من غير المقروءة فوراً)
   const markAllRead = () => {
     setReadNotifMap((prev) => {
       const updated = { ...prev };
       notifications.forEach((n) => {
-        updated[`${n.id}__${n.title}`] = true;
         updated[n.id] = true;
+        updated[`${n.id}__${n.title}`] = true;
       });
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        localStorage.setItem(readStorageKey, JSON.stringify(updated));
       } catch {
         /* ignore */
       }
@@ -289,16 +398,17 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
     });
   };
 
-  // تعيين إشعار فردي محدد كمقروء
-  const markSingleRead = (n: AppNotification) => {
+  // تعيين إشعار فردي محدد كمقروء فوراً وحفظه بالذاكرة
+  const markSingleRead = (n: AppNotification, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     setReadNotifMap((prev) => {
       const updated = {
         ...prev,
-        [`${n.id}__${n.title}`]: true,
         [n.id]: true,
+        [`${n.id}__${n.title}`]: true,
       };
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        localStorage.setItem(readStorageKey, JSON.stringify(updated));
       } catch {
         /* ignore */
       }
@@ -306,16 +416,52 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
     });
   };
 
-  const handleOpen = () => {
-    setIsOpen((v) => !v);
+  // إخفاء الإشعار تماماً (Dismiss / Remove Notification مثل خيار إخفاء الإشعار في فيسبوك)
+  const dismissNotification = (n: AppNotification, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    // نعتبره مقروءاً ومخفياً
+    markSingleRead(n);
+    setDismissedMap((prev) => {
+      const updated = {
+        ...prev,
+        [n.id]: true,
+        [`${n.id}__${n.title}`]: true,
+      };
+      try {
+        localStorage.setItem(dismissedStorageKey, JSON.stringify(updated));
+      } catch {
+        /* ignore */
+      }
+      return updated;
+    });
   };
 
-  const handleAction = (tab: string, n?: AppNotification) => {
-    if (n) {
-      markSingleRead(n);
+  // مسح / إخفاء جميع الإشعارات المقروءة لإبقاء القائمة نظيفة
+  const clearAllRead = () => {
+    setDismissedMap((prev) => {
+      const updated = { ...prev };
+      notifications.forEach((n) => {
+        if (isNotificationRead(n)) {
+          updated[n.id] = true;
+          updated[`${n.id}__${n.title}`] = true;
+        }
+      });
+      try {
+        localStorage.setItem(dismissedStorageKey, JSON.stringify(updated));
+      } catch {
+        /* ignore */
+      }
+      return updated;
+    });
+  };
+
+  // عند النقر على كارت الإشعار بأكمله (مثل فيسبوك): يتم قراءته فوراً والانتقال للقسم المعني
+  const handleCardClick = (n: AppNotification) => {
+    markSingleRead(n);
+    if (n.actionTab) {
+      setIsOpen(false);
+      onNavigateToTab?.(n.actionTab);
     }
-    setIsOpen(false);
-    onNavigateToTab?.(tab);
   };
 
   const displayedNotifications = filterMode === 'unread' ? unreadNotifications : notifications;
@@ -325,15 +471,16 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
       {/* زر الجرس — مثل فيسبوك: يظهر الرقم فقط إذا كانت هناك إشعارات غير مقروءة، ويختفي تماماً عند القراءة */}
       <button
         type="button"
-        onClick={handleOpen}
+        onClick={() => setIsOpen((v) => !v)}
         aria-label="الإشعارات"
         aria-expanded={isOpen}
-        className="relative w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer transition active:scale-95"
+        className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer transition active:scale-95 shadow-xs"
+        title={hasUnread ? `${unreadCount} إشعار جديد غير مقروء` : 'الإشعارات (جميعها مقروءة)'}
       >
         {hasUnread ? (
-          <BellRing className="w-4 h-4 text-amber-600 animate-pulse" />
+          <BellRing className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-600 animate-pulse" />
         ) : (
-          <Bell className="w-4 h-4 text-slate-500" />
+          <Bell className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-slate-500" />
         )}
         {hasUnread && (
           <span
@@ -349,7 +496,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
       {/* اللوحة */}
       {isOpen && (
         <>
-          {/* خلفية للإغلاق */}
+          {/* خلفية شفافة للإغلاق عند النقر بالخارج */}
           <div
             className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-[2px]"
             onClick={() => setIsOpen(false)}
@@ -358,13 +505,13 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
           <div
             role="dialog"
             aria-label="مركز الإشعارات"
-            className="fixed z-50 inset-x-2 top-16 max-h-[75vh] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col md:inset-x-auto md:right-0 md:top-12 md:w-[410px] animate-in fade-in zoom-in-95"
+            className="fixed z-50 inset-x-2 top-16 max-h-[82vh] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col md:inset-x-auto md:right-0 md:top-14 md:w-[420px] animate-in fade-in zoom-in-95"
           >
             {/* الترويسة الرئيسية */}
-            <div className="p-3 border-b border-slate-100 bg-slate-50/80 space-y-2.5">
+            <div className="p-3 border-b border-slate-100 bg-slate-50/90 space-y-2.5">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center shrink-0 shadow-xs">
+                  <span className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center shrink-0 shadow-xs font-black">
                     <BellRing className="w-4 h-4" />
                   </span>
                   <div className="min-w-0">
@@ -381,7 +528,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                       type="button"
                       onClick={markAllRead}
                       className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10.5px] font-black px-2.5 py-1.5 rounded-xl cursor-pointer transition shadow-xs active:scale-95"
-                      title="تعيين كافة الإشعارات كمقروءة وإخفاء علامة التنبيه"
+                      title="تعيين كافة الإشعارات كمقروءة وإخفاء علامة التنبيه (زي فيسبوك)"
                     >
                       <CheckCheck className="w-3.5 h-3.5" />
                       <span>تم قراءة الكل</span>
@@ -425,18 +572,23 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                   </button>
                 </div>
 
-                {hasUnread && (
-                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200/60 shrink-0">
-                    ⚡ مباشر
-                  </span>
+                {filterMode === 'all' && notifications.some((n) => isNotificationRead(n)) && (
+                  <button
+                    type="button"
+                    onClick={clearAllRead}
+                    className="text-[10px] font-bold text-slate-500 hover:text-rose-600 px-2 py-1 rounded-lg hover:bg-slate-200/60 transition cursor-pointer shrink-0"
+                    title="مسح الإشعارات المقروءة من القائمة"
+                  >
+                    مسح المقروء
+                  </button>
                 )}
               </div>
             </div>
 
             {/* قائمة الإشعارات */}
-            <div className="flex-1 overflow-y-auto p-2.5 space-y-2">
+            <div className="flex-1 overflow-y-auto p-2.5 space-y-2 max-h-[60vh]">
               {displayedNotifications.length === 0 ? (
-                <div className="text-center py-12 px-4 space-y-2">
+                <div className="text-center py-10 px-4 space-y-2">
                   <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-xs">
                     <CheckCheck className="w-6 h-6 stroke-[2.5]" />
                   </div>
@@ -445,7 +597,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                   </div>
                   <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
                     {filterMode === 'unread'
-                      ? 'مثل فيسبوك تماماً؛ تم تفريغ الإشعارات المقروءة ولن يظهر الرقم على الجرس حتى وصول أي تنبيه جديد.'
+                      ? 'مثل فيسبوك تماماً؛ تم تفريغ الإشعارات المقروءة واختفى الرقم من على الجرس ولن يزعجك ثانية.'
                       : 'كافة أمور الحسابات والمخزون والزيارات منتظمة تماماً.'}
                   </p>
                   {filterMode === 'unread' && notifications.length > 0 && (
@@ -466,9 +618,10 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                   return (
                     <div
                       key={n.id}
-                      className={`rounded-xl border p-3 transition relative group ${
+                      onClick={() => handleCardClick(n)}
+                      className={`rounded-xl border p-3 transition relative group cursor-pointer active:scale-[0.99] select-none ${
                         isRead
-                          ? 'border-slate-200 bg-slate-50/70 opacity-75'
+                          ? 'border-slate-200 bg-slate-50/70 opacity-70 hover:opacity-100 hover:bg-slate-100/70'
                           : priorityStyles[n.priority]
                       }`}
                     >
@@ -478,30 +631,52 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                         >
                           <Icon className="w-4 h-4" />
                         </span>
+
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-1">
                             <div className="flex items-center gap-1.5 min-w-0">
                               {!isRead ? (
-                                <span className={`w-2 h-2 rounded-full shrink-0 ${priorityDot[n.priority]} ring-2 ring-white`} title="غير مقروء" />
+                                <span
+                                  className={`w-2 h-2 rounded-full shrink-0 ${priorityDot[n.priority]} ring-2 ring-white`}
+                                  title="غير مقروء"
+                                />
                               ) : (
-                                <span className="text-[10px] font-bold text-slate-400 shrink-0">✓</span>
+                                <span className="text-[10px] font-bold text-slate-400 shrink-0" title="تمت القراءة">
+                                  ✓
+                                </span>
                               )}
                               <span className="text-[12px] font-black text-slate-800 leading-tight truncate">
                                 {n.title}
                               </span>
                             </div>
 
-                            {/* زر تم القراءة الفردي مثل فيسبوك */}
-                            {!isRead && (
+                            {/* أزرار الإجراءات الفردية مثل فيسبوك */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              {!isRead ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => markSingleRead(n, e)}
+                                  className="text-[10px] font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg shrink-0 cursor-pointer transition active:scale-95 shadow-2xs"
+                                  title="تحديد هذا الإشعار كمقروء وإخفاؤه من التنبيهات"
+                                >
+                                  تم القراءة ✓
+                                </button>
+                              ) : (
+                                <span className="text-[9.5px] font-bold text-slate-400 bg-slate-200/60 px-1.5 py-0.5 rounded">
+                                  مقروء
+                                </span>
+                              )}
+
+                              {/* زر إخفاء الإشعار نهائياً (زي فيسبوك: Hide this notification) */}
                               <button
                                 type="button"
-                                onClick={() => markSingleRead(n)}
-                                className="text-[10px] font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg shrink-0 cursor-pointer transition active:scale-95"
-                                title="تحديد هذا الإشعار كمقروء"
+                                onClick={(e) => dismissNotification(n, e)}
+                                className="w-5 h-5 rounded-md hover:bg-slate-200 text-slate-400 hover:text-rose-600 flex items-center justify-center transition cursor-pointer"
+                                title="إخفاء هذا الإشعار تماماً"
                               >
-                                تم القراءة ✓
+                                <X className="w-3.5 h-3.5" />
                               </button>
-                            )}
+                            </div>
                           </div>
 
                           <p className="text-[11px] font-medium text-slate-600 mt-1 leading-snug">
@@ -510,21 +685,17 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
 
                           <div className="flex items-center justify-between gap-2 mt-2 pt-1 border-t border-slate-100/80">
                             {n.actionTab && n.actionLabel ? (
-                              <button
-                                type="button"
-                                onClick={() => handleAction(n.actionTab as string, n)}
-                                className="inline-flex items-center gap-1 text-[10.5px] font-black text-amber-800 hover:text-amber-900 underline underline-offset-2 cursor-pointer"
-                              >
+                              <span className="inline-flex items-center gap-1 text-[10.5px] font-black text-amber-800 hover:text-amber-900 underline underline-offset-2">
                                 {n.actionLabel}
                                 <ChevronDown className="w-3 h-3 -rotate-90" />
-                              </button>
-                            ) : <span />}
-
-                            {isRead && (
-                              <span className="text-[9.5px] font-bold text-slate-400 bg-slate-200/60 px-1.5 py-0.5 rounded">
-                                مقروء
                               </span>
+                            ) : (
+                              <span />
                             )}
+
+                            <span className="text-[9px] text-slate-400 font-medium">
+                              انقر للانتقال مباشرة 👈
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -535,13 +706,13 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
             </div>
 
             {/* التذييل */}
-            <div className="px-4 py-2 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between gap-2">
-              <span className="text-[9.5px] font-bold text-slate-400 truncate">
+            <div className="px-4 py-2 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between gap-2 text-[9.5px] font-bold text-slate-400">
+              <span className="truncate">
                 طنطاوي دريم جروب • إشعارات ذكية
               </span>
-              <span className="flex items-center gap-1 text-[9.5px] font-bold text-slate-400 shrink-0">
-                <TrendingUp className="w-3 h-3" />
-                تحفظ القراءة محلياً
+              <span className="flex items-center gap-1 shrink-0">
+                <TrendingUp className="w-3 h-3 text-emerald-500" />
+                تحفظ القراءة والإخفاء فورياً
               </span>
             </div>
           </div>

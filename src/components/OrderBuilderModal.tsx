@@ -606,49 +606,59 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                             </div>
 
                             {/* Carton & Piece Controls */}
-                            <div className="flex items-center gap-3">
-                              {/* Cartons Counter */}
-                              <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
-                                <span className="text-[10px] text-amber-400 font-bold px-1">كرتونة:</span>
-                                <button
-                                  type="button"
-                                  onClick={() => updateCartItem(item.product.id, { cartonCount: Math.max(0, item.cartonCount - 1) })}
-                                  className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-black cursor-pointer"
-                                >
-                                  -
-                                </button>
-                                <span className="w-7 text-center font-black text-amber-300 font-mono text-xs">
-                                  {item.cartonCount}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => updateCartItem(item.product.id, { cartonCount: item.cartonCount + 1 })}
-                                  className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-black cursor-pointer"
-                                >
-                                  +
-                                </button>
-                              </div>
+                            <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap justify-between w-full sm:w-auto">
+                              <div className="flex items-center gap-2">
+                                {/* Cartons Counter */}
+                                <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+                                  <span className="text-[10px] text-amber-400 font-bold px-1">كرتونة:</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateCartItem(item.product.id, { cartonCount: Math.max(0, item.cartonCount - 1) })}
+                                    className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-90 text-white flex items-center justify-center font-black text-sm cursor-pointer"
+                                  >
+                                    -
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={item.cartonCount}
+                                    onChange={(e) => updateCartItem(item.product.id, { cartonCount: Math.max(0, parseInt(e.target.value) || 0) })}
+                                    className="w-10 sm:w-11 text-center font-black text-amber-300 font-mono text-xs sm:text-sm bg-slate-955 border border-slate-750 rounded py-1 outline-none focus:ring-1 focus:ring-amber-400"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => updateCartItem(item.product.id, { cartonCount: item.cartonCount + 1 })}
+                                    className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-90 text-white flex items-center justify-center font-black text-sm cursor-pointer"
+                                  >
+                                    +
+                                  </button>
+                                </div>
 
-                              {/* Pieces Counter */}
-                              <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
-                                <span className="text-[10px] text-sky-400 font-bold px-1">قطعة:</span>
-                                <button
-                                  type="button"
-                                  onClick={() => updateCartItem(item.product.id, { pieceCount: Math.max(0, item.pieceCount - 1) })}
-                                  className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-black cursor-pointer"
-                                >
-                                  -
-                                </button>
-                                <span className="w-7 text-center font-black text-sky-300 font-mono text-xs">
-                                  {item.pieceCount}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => updateCartItem(item.product.id, { pieceCount: item.pieceCount + 1 })}
-                                  className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-black cursor-pointer"
-                                >
-                                  +
-                                </button>
+                                {/* Pieces Counter */}
+                                <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+                                  <span className="text-[10px] text-sky-400 font-bold px-1">قطعة:</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateCartItem(item.product.id, { pieceCount: Math.max(0, item.pieceCount - 1) })}
+                                    className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-90 text-white flex items-center justify-center font-black text-sm cursor-pointer"
+                                  >
+                                    -
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={item.pieceCount}
+                                    onChange={(e) => updateCartItem(item.product.id, { pieceCount: Math.max(0, parseInt(e.target.value) || 0) })}
+                                    className="w-10 sm:w-11 text-center font-black text-sky-300 font-mono text-xs sm:text-sm bg-slate-955 border border-slate-750 rounded py-1 outline-none focus:ring-1 focus:ring-sky-400"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => updateCartItem(item.product.id, { pieceCount: item.pieceCount + 1 })}
+                                    className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-90 text-white flex items-center justify-center font-black text-sm cursor-pointer"
+                                  >
+                                    +
+                                  </button>
+                                </div>
                               </div>
 
                               {/* Line Total */}
@@ -660,6 +670,25 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                         </div>
                       );
                     })}
+                  </div>
+
+                  {/* Sticky Mobile/Desktop Step 1 Next Button */}
+                  <div className="sticky bottom-0 z-20 bg-slate-950/95 backdrop-blur border-t border-slate-800 p-3 rounded-2xl flex items-center justify-between gap-3 shadow-2xl">
+                    <div>
+                      <div className="text-[11px] text-slate-400">إجمالي الفاتورة:</div>
+                      <div className="text-sm sm:text-base font-black text-amber-400 font-mono">
+                        {formatCurrency(summary.grandTotal)} <span className="text-xs text-slate-400 font-normal">({summary.totalCartons} كرتونة)</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentStep(2)}
+                      className="bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs sm:text-sm shadow-lg transition flex items-center gap-2 cursor-pointer active:scale-95"
+                    >
+                      <span>متابعة: العميل والماليات (2/3)</span>
+                      <ArrowRight className="w-4 h-4 rotate-180" />
+                    </button>
                   </div>
                 </div>
               )}

@@ -60,6 +60,7 @@ import {
   COMMENT_KIND_COLORS,
   buildDefaultMonthPlan,
   buildForecastExportRows,
+  buildSaturdayToThursdayWeeks,
   buildBlockWeeks,
   buildEvenWeeks,
   buildProgress,
@@ -817,12 +818,12 @@ export default function CollectionForecastView() {
     setShowPlanEditor(true);
   };
 
-  /** تقسيم افتراضي: كتل 7 أيام داخل مدى الشهر اللي الأدمن حدده. */
+  /** تقسيم افتراضي: دورة العمل التجارية من السبت إلى الخميس داخل مدى الشهر. */
   const applySuggestedSplit = () => {
     if (!planDraft) return;
-    // بنقسّم المدى اللي الأدمن حدده (مش الشهر التقويمي) عشان لو عمل الشهر
-    // من يوم 25، التقسيم يفضل جواه ومحدش يفقد يوم.
-    const suggested = buildBlockWeeks(planDraft.monthStart, planDraft.monthEnd, 7).slice(
+    const pYear = planDraft.year || Number(planDraft.id.split('-')[0]) || new Date().getFullYear();
+    const pMonth = planDraft.month || Number(planDraft.id.split('-')[1]) || (new Date().getMonth() + 1);
+    const suggested = buildSaturdayToThursdayWeeks(pYear, pMonth).slice(
       0,
       MAX_WEEKS_PER_MONTH
     );

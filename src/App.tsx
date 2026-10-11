@@ -26,6 +26,7 @@ import { Customer, Invoice } from './types';
 // analytics and Excel engines before they open them.
 const ProductCatalog = lazy(() => import('./components/ProductCatalog').then((m) => ({ default: m.ProductCatalog })));
 const AllCustomersAnalyticsView = lazy(() => import('./components/AllCustomersAnalyticsView').then((m) => ({ default: m.AllCustomersAnalyticsView })));
+const UnifiedOperationsDashboard = lazy(() => import('./components/UnifiedOperationsDashboard').then((m) => ({ default: m.UnifiedOperationsDashboard })));
 const SupervisorDashboard = lazy(() => import('./components/SupervisorDashboard').then((m) => ({ default: m.SupervisorDashboard })));
 const TargetPerformanceDashboard = lazy(() => import('./components/TargetPerformanceDashboard').then((m) => ({ default: m.TargetPerformanceDashboard })));
 const CollectionForecastView = lazy(() => import('./components/CollectionForecastView'));
@@ -217,43 +218,48 @@ const MainLayout: React.FC = () => {
             </div>
           )}
 
-          {(visitedTabs['home'] || visitedTabs['dashboard']) && (
-            <div className={(activeTab === 'home' || activeTab === 'dashboard') ? 'block' : 'hidden'}>
-              <HomeExecutiveDashboard
-                onNavigateToTab={(tab) => handleTabChange(tab)}
+          {/* Merged Unified Operations Dashboard (لوحة القيادة الموحدة: القيادة، الإدارة وPower BI، إشراف المشرف ومتابعة الطلبيات) */}
+          {(visitedTabs['command'] || visitedTabs['management'] || visitedTabs['supervisor'] || visitedTabs['dashboard'] || visitedTabs['home']) &&
+            (currentUser.role === 'admin' ||
+              currentUser.role === 'developer' ||
+              currentUser.role === 'branch_manager' ||
+              currentUser.role === 'supervisor') && (
+            <div
+              className={
+                activeTab === 'command' ||
+                activeTab === 'management' ||
+                activeTab === 'supervisor' ||
+                activeTab === 'dashboard' ||
+                activeTab === 'home'
+                  ? 'block'
+                  : 'hidden'
+              }
+            >
+              <UnifiedOperationsDashboard
+                initialSubTab={
+                  activeTab === 'management'
+                    ? 'management'
+                    : activeTab === 'supervisor'
+                    ? 'supervisor'
+                    : activeTab === 'home'
+                    ? 'executive'
+                    : 'unified'
+                }
+                onNavigateToTab={handleTabChange}
                 onOpenNewOrder={() => setIsOrderModalOpen(true)}
                 onViewInvoice={(inv) => setViewingInvoice(inv)}
               />
             </div>
           )}
 
-          {/* Role command center */}
-          {visitedTabs['command'] &&
-            (currentUser.role === 'admin' ||
-              currentUser.role === 'developer' ||
-              currentUser.role === 'branch_manager' ||
-              currentUser.role === 'supervisor') && (
-            <div className={activeTab === 'command' ? 'block' : 'hidden'}>
-              <RoleCommandCenter
-                onNavigateToTab={handleTabChange}
+          {/* Fallback for reps clicking dashboard/home */}
+          {currentUser.role === 'sales_rep' && (visitedTabs['home'] || visitedTabs['dashboard']) && (
+            <div className={(activeTab === 'home' || activeTab === 'dashboard') ? 'block' : 'hidden'}>
+              <HomeExecutiveDashboard
+                onNavigateToTab={(tab) => handleTabChange(tab)}
                 onOpenNewOrder={() => setIsOrderModalOpen(true)}
+                onViewInvoice={(inv) => setViewingInvoice(inv)}
               />
-            </div>
-          )}
-
-          {visitedTabs['management'] &&
-            (currentUser.role === 'admin' ||
-              currentUser.role === 'developer' ||
-              currentUser.role === 'branch_manager') && (
-            <div className={activeTab === 'management' ? 'block' : 'hidden'}>
-              <ManagementDashboard onNavigateToTab={setActiveTab} />
-            </div>
-          )}
-
-          {(visitedTabs['management'] || visitedTabs['supervisor']) &&
-            currentUser.role === 'supervisor' && (
-            <div className={(activeTab === 'management' || activeTab === 'supervisor') ? 'block' : 'hidden'}>
-              <SupervisorDashboard onNavigateToTab={setActiveTab} />
             </div>
           )}
 

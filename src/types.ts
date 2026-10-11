@@ -90,6 +90,7 @@ export interface Product {
   discountPercentage?: number;       // نسبة الخصم
   piecePrice?: number;               // سعر القطعة (Sales Price)
   salesPrice?: number;               // سعر القطعة (Sales Price)
+  price?: number;                    // السعر العام / سعر القطعة (مرادف اختياري للتوافق)
   cartonPrice: number;               // سعر الكرتونة (Factor * Sales Price)
   branchName: string;                // اسم الفرع
   imageUrl?: string;                 // رابط الصورة المباشر
@@ -146,6 +147,25 @@ export interface ParentProduct {
   variantsCount: number;             // عدد الشبابيك والألوان المتوفرة
   hasMultipleVariants: boolean;      // هل يحتوي على أكثر من شباك/لون
   defaultVariant: ProductVariant;    // الشباك الافتراضي (الأول أو المتوفر)
+}
+
+export interface PromotionOffer {
+  id: string;
+  title: string;
+  productCode: string;               // كود الصنف
+  unifiedCode?: string;              // الكود الموحد (#)
+  productName: string;               // اسم المنتج
+  category?: string;                 // التصنيف
+  discountPercentage: number;        // نسبة الخصم %
+  promoPrice?: number;               // سعر العرض للكرتونة
+  originalPrice?: number;            // السعر الأصلي للكرتونة
+  startDate?: string;                // تاريخ البداية
+  endDate?: string;                  // تاريخ النهاية
+  branchName?: string;               // الفرع المشمول أو 'كل الفروع'
+  status: 'نشط' | 'منتهي' | 'مجدول';
+  notes?: string;                    // تفاصيل وشروط العرض
+  createdAt?: string;
+  sourceSheet?: string;              // اسم الشيت المستورد منه
 }
 
 export type CustomerTier = 'مميز' | 'راقي' | 'متوسط' | 'عادي';

@@ -118,29 +118,69 @@ export function suggestedWeekCount(year: number, month: number): number {
 }
 
 /**
- * تقسيم مقترح للـ ISO: كل أسبوع 7 أيام وال之日نقسمو بالتساوي.
- * الإدارة تقدر تعدّل أي بداية/نهاية بعد كده.
+ * تقسيم أسبوعي عملي يبدأ من يوم السبت وينتهي يوم الخميس (مع مراعاة أسبوع العمل التجاري).
+ * أول أسبوع يمتد من بداية الشهر حتى أول خميس، والأسابيع التالية من السبت للخميس،
+ * ونهاية الشهر تقفل في آخر يوم من الشهر.
  */
-export function buildSuggestedWeeks(year: number, month: number): ForecastWeek[] {
-  const last = daysInMonth(year, month);
-
-  // Weeks are 7-day blocks, so day 1→7 is week 1 and day 8→14 is week 2.
-  // A 30-day month ends with a short 3-day week 5; a 31-day month a 4-day one.
-  // The admin can still move any boundary afterwards.
+export function buildSaturdayToThursdayWeeks(year: number, month: number): ForecastWeek[] {
+  const lastDay = daysInMonth(year, month);
   const weeks: ForecastWeek[] = [];
   let cursor = 1;
   let index = 1;
-  while (cursor <= last) {
-    const end = Math.min(last, cursor + 6);
+
+  while (cursor <= lastDay) {
+    const curDate = new Date(year, month - 1, cursor);
+    const dayOfWeek = curDate.getDay(); // 0: Sun, 1: Mon, 2: Tue, 3: Wed, 4: Thu, 5: Fri, 6: Sat
+    
+    // الأسبوع ينتهي يوم الخميس (4) أو في آخر يوم بالشهر
+    // نحسب عدد الأيام المتبقية حتى أقرب خميس
+    // إذا كان اليوم سبت (6) -> حتى الخميس القادم (5 أيام: السبت والأحد والاثنين والثلاثاء والأربعاء والخميس)
+    // إذا كان اليوم خميس (4) -> ينتهي اليوم نفسه
+    let daysUntilThursday = 0;
+    if (dayOfWeek === 4) {
+      daysUntilThursday = 0;
+    } else if (dayOfWeek === 5) {
+      // الجمعة (يوم عطلة - نضمه مع السبت أو نعتبر نهاية الأسبوع القادم)
+      daysUntilThursday = 6;
+    } else if (dayOfWeek === 6) {
+      // السبت -> حتى الخميس = 5 أيام
+      daysUntilThursday = 5;
+    } else {
+      // الأحد (0) -> 4 أيام (حتى الخميس)
+      // الاثنين (1) -> 3 أيام
+      // الثلاثاء (2) -> 2 يوم
+      // الأربعاء (3) -> 1 يوم
+      daysUntilThursday = 4 - dayOfWeek;
+    }
+
+    const endDay = Math.min(lastDay, cursor + daysUntilThursday);
     weeks.push({
       index,
+      label: `أسبوع ${index} (السبت - الخميس)`,
       start: toISODate(year, month, cursor),
-      end: toISODate(year, month, end),
+      end: toISODate(year, month, endDay),
     });
-    cursor = end + 1;
+
+    cursor = endDay + 1;
+    // إذا كان اليوم التالي جمعة (5)، نقفز مباشرة للسبت ليكون الأسبوع الجديد من السبت للخميس
+    if (cursor <= lastDay) {
+      const nextDate = new Date(year, month - 1, cursor);
+      if (nextDate.getDay() === 5 && cursor < lastDay) {
+        cursor += 1; // تخطي الجمعة لتبدأ الفترة من السبت
+      }
+    }
     index++;
   }
+
   return weeks;
+}
+
+/**
+ * تقسيم مقترح للـ ISO: يعتمد دورة العمل التجارية (من السبت إلى الخميس).
+ * الإدارة تقدر تعدّل أي بداية/نهاية بعد كده.
+ */
+export function buildSuggestedWeeks(year: number, month: number): ForecastWeek[] {
+  return buildSaturdayToThursdayWeeks(year, month);
 }
 
 export function buildDefaultMonthPlan(year: number, month: number, createdBy?: string): ForecastMonthPlan {
