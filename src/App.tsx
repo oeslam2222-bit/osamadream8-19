@@ -40,6 +40,7 @@ const HomeExecutiveDashboard = lazy(() => import('./components/HomeExecutiveDash
 const SystemWorkflowGuide = lazy(() => import('./components/SystemWorkflowGuide').then((m) => ({ default: m.SystemWorkflowGuide })));
 const MobileRepDashboard = lazy(() => import('./components/MobileRepDashboard').then((m) => ({ default: m.MobileRepDashboard })));
 const RoleCommandCenter = lazy(() => import('./components/RoleCommandCenter').then((m) => ({ default: m.RoleCommandCenter })));
+const PromotionsOffersView = lazy(() => import('./components/PromotionsOffersView').then((m) => ({ default: m.PromotionsOffersView })));
 const OrderBuilderModal = lazy(() => import('./components/OrderBuilderModal').then((m) => ({ default: m.OrderBuilderModal })));
 const ElectronicInvoiceModal = lazy(() => import('./components/ElectronicInvoiceModal').then((m) => ({ default: m.ElectronicInvoiceModal })));
 
@@ -184,8 +185,8 @@ const MainLayout: React.FC = () => {
         onOpenCart={() => setIsOrderModalOpen(true)}
       />
 
-      {/* Content Container with optimal tight padding for mobile and standard padding for desktop */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-2 sm:px-4 md:px-6 py-2.5 sm:py-5 pb-24 md:pb-8">
+      {/* Content Container - Wide, responsive across mobile, tablet, and ultra-wide screens */}
+      <main className="flex-1 max-w-[1600px] w-full mx-auto px-2 sm:px-4 lg:px-6 xl:px-8 py-2.5 sm:py-5 pb-24 md:pb-8">
         <Suspense fallback={<TabLoadingSkeleton />}>
           {/* Rep home: icon-grid launcher */}
           {currentUser.role === 'sales_rep' && visitedTabs['rep_home'] && (
@@ -294,6 +295,12 @@ const MainLayout: React.FC = () => {
           {visitedTabs['inventory'] && (
             <div className={activeTab === 'inventory' ? 'block' : 'hidden'}>
               <InventoryStockView />
+            </div>
+          )}
+
+          {visitedTabs['offers'] && (
+            <div className={activeTab === 'offers' ? 'block' : 'hidden'}>
+              <PromotionsOffersView />
             </div>
           )}
 

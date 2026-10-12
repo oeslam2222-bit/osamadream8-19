@@ -146,6 +146,9 @@ export interface AppContextType {
   editPendingOrder: (invoice: Invoice) => { success: boolean; message: string; customer?: Customer | null };
   cancelPendingOrderByRep: (invoiceId: string, reason?: string) => { success: boolean; message: string };
   updateOrderStatus: (invoiceId: string, status: OrderStatus, reason?: string) => { success: boolean; message: string };
+  requestOctoberSupplyForInvoice: (invoiceId: string) => { success: boolean; message: string };
+  dispatchOctoberSupplyForInvoice: (invoiceId: string) => { success: boolean; message: string };
+  bulkDispatchOctoberSupply: (invoiceIds: string[]) => { success: boolean; message: string; count: number };
   processOrderReturn: (
     invoiceId: string,
     returnedItems: ReturnedItem[],

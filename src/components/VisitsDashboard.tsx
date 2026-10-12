@@ -45,7 +45,8 @@ import {
   ArchiveRestore,
   WifiOff,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Info
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
@@ -2344,6 +2345,148 @@ allowSameDaySecondVisit: false,
         </div>
       )}
 
+      {/* دليل ومصفوفة اعتمادات الزيارات الميدانية وتوضيح الأدوار */}
+      <section className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-lg text-xs space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black shrink-0">
+              <Info className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="font-black text-white text-xs sm:text-sm flex items-center gap-2">
+                <span>دليل ومؤشر اعتمادات الزيارات الميدانية 🧭</span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  دورك الحالي: {currentUser?.role === 'admin' ? 'مدير عام 👑' : currentUser?.role === 'developer' ? 'مطور 💻' : currentUser?.role === 'branch_manager' ? 'مدير فرع 🏢' : currentUser?.role === 'supervisor' ? 'مشرف 📋' : 'مندوب مبيعات 💼'} ({currentUser?.name})
+                </span>
+              </h2>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                توضيح رسمي لحالة كل زيارة: ما الذي يعتبر «معتمداً» وما الذي «بانتظار المراجعة» وتوزيع صلاحيات كل دور.
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Filter Buttons for Approval Status */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] text-slate-400 font-bold ml-1">تصفية سريعة:</span>
+            <button
+              type="button"
+              onClick={() => setReviewFilter('all')}
+              className={`px-2.5 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
+                reviewFilter === 'all'
+                  ? 'bg-slate-700 text-white shadow-xs'
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-750'
+              }`}
+            >
+              الكل ({periodVisits.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setReviewFilter('approved')}
+              className={`px-2.5 py-1 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1 ${
+                reviewFilter === 'approved'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-emerald-950/60 text-emerald-300 border border-emerald-800/60 hover:bg-emerald-900/40'
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>معتمدة فقط ✅</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setReviewFilter('pending')}
+              className={`px-2.5 py-1 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1 ${
+                reviewFilter === 'pending'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'bg-amber-950/60 text-amber-300 border border-amber-800/60 hover:bg-amber-900/40'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>بانتظار المشرف ⏳</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setReviewFilter('needs_fix')}
+              className={`px-2.5 py-1 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1 ${
+                reviewFilter === 'needs_fix'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-rose-950/60 text-rose-300 border border-rose-800/60 hover:bg-rose-900/40'
+              }`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span>مطلوب تعديل ⚠️</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Roles Explanation Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {/* Rep Card */}
+          <div className="p-3 rounded-2xl bg-slate-950/70 border border-slate-800 text-[11px] space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="font-black text-emerald-400">💼 المندوب (Sales Rep):</span>
+              <span className="text-[9px] bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-800 font-bold">تسجيل وتوثيق</span>
+            </div>
+            <p className="text-slate-300 leading-relaxed text-[10.5px]">
+              يسجل الزيارة ويوثق التحصيل والطلبية وموقع العميل. تظل الزيارة بحالة <strong className="text-amber-300">«بانتظار المشرف»</strong> حتى يفحصها المشرف ويعتمدها.
+            </p>
+          </div>
+
+          {/* Supervisor Card */}
+          <div className="p-3 rounded-2xl bg-slate-950/70 border border-slate-800 text-[11px] space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="font-black text-blue-400">📋 المشرف (Supervisor):</span>
+              <span className="text-[9px] bg-blue-950 text-blue-300 px-1.5 py-0.5 rounded border border-blue-800 font-bold">فحص واعتماد</span>
+            </div>
+            <p className="text-slate-300 leading-relaxed text-[10.5px]">
+              يراجع دقة الزيارات اليومية لمناديبه؛ يضغط <strong className="text-emerald-400">«اعتماد الزيارة ✅»</strong> لتتحول لمعتمدة رسمياً، أو يطلب تعديل من المندوب إذا كانت هناك ملاحظة.
+            </p>
+          </div>
+
+          {/* Branch Manager Card */}
+          <div className="p-3 rounded-2xl bg-slate-950/70 border border-slate-800 text-[11px] space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="font-black text-purple-400">🏢 مدير الفرع (Manager):</span>
+              <span className="text-[9px] bg-purple-950 text-purple-300 px-1.5 py-0.5 rounded border border-purple-800 font-bold">متابعة الفرع ككل</span>
+            </div>
+            <p className="text-slate-300 leading-relaxed text-[10.5px]">
+              يتابع إجمالي الزيارات المعتمدة والمنفذة على مستوى الفرع، ونسب التحصيل الفعلي، واعتماد تحويل المرتجعات لمخزن الفرع.
+            </p>
+          </div>
+
+          {/* Admin & Developer Card */}
+          <div className="p-3 rounded-2xl bg-slate-950/70 border border-slate-800 text-[11px] space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="font-black text-amber-400">👑 الإدارة والمطور:</span>
+              <span className="text-[9px] bg-amber-950 text-amber-300 px-1.5 py-0.5 rounded border border-amber-800 font-bold">رقابة شاملة 7 فروع</span>
+            </div>
+            <p className="text-slate-300 leading-relaxed text-[10.5px]">
+              رؤية مركزية لكافة فروع الجمهورية السبعة، تدقيق الزيارات وسجل التعديلات، ومزامنة السحابة والتقارير الإجمالية للإدارة العليا.
+            </p>
+          </div>
+        </div>
+
+        {/* Legend Status Strip */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
+          <span className="font-bold text-slate-400">دلالات العلامات:</span>
+          <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+            <span>معتمدة رسمياً: راجعها المشرف أو المدير واعتمد صحة تفاصيلها المالية والميدانية.</span>
+          </span>
+          <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold flex items-center gap-1">
+            <Clock className="w-3 h-3 text-amber-400" />
+            <span>بانتظار المشرف: نفذها المندوب ولكن لم تُراجع وتُعتمد بعد من المشرف.</span>
+          </span>
+          <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3 text-rose-400" />
+            <span>مطلوب تعديل: رجعها المشرف للمندوب لتصحيح النتيجة أو المبلغ.</span>
+          </span>
+          <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/40 font-bold flex items-center gap-1">
+            <RotateCcw className="w-3 h-3 text-blue-400" />
+            <span>مرتجع بالمخزن: زيارة مرفق بها مرتجع بضاعة تم تحويله لأمين المخزن.</span>
+          </span>
+        </div>
+      </section>
+
       {/* Advanced Filter Bar with Quick Presets */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3.5">
         {/* Quick Date Range Selector */}
@@ -3151,6 +3294,84 @@ allowSameDaySecondVisit: false,
             </div>
           </div>
         )}
+      </div>
+
+      {/* Approval Status Explanatory Guide & Quick Filter Strip */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 text-white shadow-md space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-black text-white flex items-center gap-2">
+                <span>دليل وتوضيح حالات الاعتماد في الزيارات الميدانية</span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  {currentUser.role === 'sales_rep' ? 'دورك: مندوب مبيعات 💼' : currentUser.role === 'supervisor' ? 'دورك: مشرف معتمد 📋' : 'دورك: إدارة وفرع 🏢'}
+                </span>
+              </h4>
+              <p className="text-[11px] text-slate-400">
+                الزيارة تبدأ كمسودة قيد المراجعة فور تسجيلها بواسطة المندوب، ثم يقوم المشرف بتدقيقها واعتمادها رسمياً، وفي حال وجود مرتجع يتم تسليمه واعتماده بالمخزن.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Filter Buttons for Approval Status */}
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-[11px] font-bold text-slate-400">تصفية سريعة بالاعتماد:</span>
+          
+          <button
+            type="button"
+            onClick={() => setReviewFilter('all')}
+            className={`px-3 py-1.5 rounded-xl font-black text-[11px] transition cursor-pointer ${
+              reviewFilter === 'all'
+                ? 'bg-amber-400 text-slate-950 shadow-sm'
+                : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-750'
+            }`}
+          >
+            كافة الزيارات
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setReviewFilter('approved')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-[11px] transition cursor-pointer ${
+              reviewFilter === 'approved'
+                ? 'bg-emerald-500 text-white shadow-sm'
+                : 'bg-emerald-950/60 text-emerald-300 border border-emerald-800/80 hover:bg-emerald-900/80'
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>معتمدة من المشرف ✅</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setReviewFilter('pending')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-[11px] transition cursor-pointer ${
+              reviewFilter === 'pending'
+                ? 'bg-sky-500 text-white shadow-sm'
+                : 'bg-sky-950/60 text-sky-300 border border-sky-800/80 hover:bg-sky-900/80'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5 text-sky-400" />
+            <span>بانتظار اعتماد المشرف ⏳</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setReviewFilter('needs_fix')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-[11px] transition cursor-pointer ${
+              reviewFilter === 'needs_fix'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'bg-amber-950/60 text-amber-300 border border-amber-800/80 hover:bg-amber-900/80'
+            }`}
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+            <span>تحتاج مراجعة وتعديل ⚠️</span>
+          </button>
+        </div>
       </div>
 
       {/* Visits Table and Responsive List */}

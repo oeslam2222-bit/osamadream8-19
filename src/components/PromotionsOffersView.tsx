@@ -49,6 +49,52 @@ export const PromotionsOffersView: React.FC = () => {
   const [editingPromo, setEditingPromo] = useState<PromotionOffer | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [activeOffersTab, setActiveOffersTab] = useState<'promotions' | 'announcements'>('promotions');
+  const [googleSheetUrl, setGoogleSheetUrl] = useState('');
+  const [isFetchingSheet, setIsFetchingSheet] = useState(false);
+
+  // New Announcement Modal State
+  const [showAddAnnouncementModal, setShowAddAnnouncementModal] = useState(false);
+  const [announcementForm, setAnnouncementForm] = useState({
+    title: '',
+    content: '',
+    priority: 'عاجل' as 'عاجل' | 'هام' | 'عادي'
+  });
+
+  const [announcements, setAnnouncements] = useState<Array<{
+    id: string;
+    title: string;
+    content: string;
+    author: string;
+    role: string;
+    date: string;
+    priority: 'عاجل' | 'هام' | 'عادي';
+  }>>(() => {
+    try {
+      const saved = localStorage.getItem('tantawy_announcements_v1');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [
+      {
+        id: 'ann-1',
+        title: '📢 تعميم هام: عروض الأسبوع وتطبيق الخصومات الفورية',
+        content: 'تم تفعيل خصومات وعروض ترويجية تصل إلى 20% على أصناف البسكويت والويفر، يرجى من جميع المناديب تطبيق العروض لعملائهم لتحقيق التارجت.',
+        author: 'الإدارة العامة',
+        role: 'admin',
+        date: new Date().toISOString().slice(0, 10),
+        priority: 'عاجل'
+      },
+      {
+        id: 'ann-2',
+        title: '📦 تنبيه: مسحوبات ونواقص مخزن 6 أكتوبر المركزي',
+        content: 'أصناف العجز المطلوبة في الفواتير أصبحت متاحة للسحب المباشر من صفحة المخزون وتوريدها للفرع بضغطة زر واحدة.',
+        author: 'إدارة المخازن واللوجستيات',
+        role: 'branch_manager',
+        date: new Date().toISOString().slice(0, 10),
+        priority: 'هام'
+      }
+    ];
+  });
 
   // File input ref
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -137,10 +183,15 @@ export const PromotionsOffersView: React.FC = () => {
       setPromotions(updatedList);
       savePromotions(updatedList);
 
-      // Automatically apply discounts to products in memory
-      const { updatedCount } = applyPromotionsToProducts(products, updatedList);
+      // Automatically apply discounts to products in memory and AppContext
+      const { updatedProducts, updatedCount } = applyPromotionsToProducts(products, updatedList);
+      updatedProducts.forEach((p) => {
+        if (p.promoPrice || p.offerPrice) {
+          updateProduct(p);
+        }
+      });
 
-      showToast(`تم استيراد ${result.matchedCount} عرض بنجاح، وتطبيق الخصومات الترويجية على ${updatedCount} صنف في الكتالوج! 🎉`);
+      showToast(`تم استيراد ${result.matchedCount} عرض بنجاح، وتطبيق الخصومات الترويجية على ${updatedCount} صنف في الكتالوج ونظام الفواتير! 🎉`);
       setIsUploadModalOpen(false);
     } catch (err: any) {
       alert(`خطأ أثناء قراءة شيت العروض: ${err?.message || ''}`);
@@ -150,13 +201,91 @@ export const PromotionsOffersView: React.FC = () => {
     }
   };
 
+  // Handle Google Sheet URL Fetch
+  const handleFetchGoogleSheet = async () => {
+    if (!googleSheetUrl.trim()) {
+      alert('يرجى إدخال رابط شيت جوجل (Google Sheets URL)');
+      return;
+    }
+    setIsFetchingSheet(true);
+    try {
+      let fetchUrl = googleSheetUrl.trim();
+      const match = fetchUrl.match(/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      if (match && match[1]) {
+        fetchUrl = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv`;
+      }
+
+      const response = await fetch(fetchUrl);
+      if (!response.ok) throw new Error('تعذر تحميل البيانات من الرابط المحدد. تأكد من ضبط إذن الوصول للشيت إلى (أي شخص لديه الرابط).');
+      const buffer = await response.arrayBuffer();
+      const result = await parsePromotionsFromExcelBuffer(buffer);
+
+      const updatedList = [...promotions];
+      result.promotions.forEach((newP) => {
+        const existingIdx = updatedList.findIndex(
+          (p) => (p.productCode && p.productCode === newP.productCode) ||
+                 (p.unifiedCode && newP.unifiedCode && p.unifiedCode === newP.unifiedCode)
+        );
+        if (existingIdx >= 0) {
+          updatedList[existingIdx] = { ...updatedList[existingIdx], ...newP };
+        } else {
+          updatedList.unshift(newP);
+        }
+      });
+
+      setPromotions(updatedList);
+      savePromotions(updatedList);
+      const { updatedProducts, updatedCount } = applyPromotionsToProducts(products, updatedList);
+      updatedProducts.forEach((p) => {
+        if (p.promoPrice || p.offerPrice) {
+          updateProduct(p);
+        }
+      });
+      showToast(`تم بنجاح جلب ${result.matchedCount} عرض من شيت جوجل وتطبيق الخصم على ${updatedCount} صنف في الكتالوج والفواتير! ⚡`);
+      setIsUploadModalOpen(false);
+      setGoogleSheetUrl('');
+    } catch (err: any) {
+      alert(`خطأ أثناء جلب شيت جوجل: ${err?.message || ''}`);
+    } finally {
+      setIsFetchingSheet(false);
+    }
+  };
+
+  const handleSaveAnnouncement = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!announcementForm.title.trim() || !announcementForm.content.trim()) return;
+    const newAnn = {
+      id: `ann-${Date.now()}`,
+      title: announcementForm.title.trim(),
+      content: announcementForm.content.trim(),
+      priority: announcementForm.priority,
+      author: currentUser?.name || 'الإدارة',
+      role: currentUser?.role || 'admin',
+      date: new Date().toISOString().slice(0, 10),
+    };
+    const next = [newAnn, ...announcements];
+    setAnnouncements(next);
+    try { localStorage.setItem('tantawy_announcements_v1', JSON.stringify(next)); } catch {}
+    setShowAddAnnouncementModal(false);
+    setAnnouncementForm({ title: '', content: '', priority: 'عاجل' });
+    showToast('تم نشر التعميم والإشعار الإداري لجميع مناديب وفروع الشركة بنجاح 📢');
+  };
+
+  const handleDeleteAnnouncement = (id: string) => {
+    const next = announcements.filter((a) => a.id !== id);
+    setAnnouncements(next);
+    try { localStorage.setItem('tantawy_announcements_v1', JSON.stringify(next)); } catch {}
+    showToast('تم حذف التعميم الإداري.');
+  };
+
   // Re-apply discounts to catalog
   const handleApplyDiscountsToCatalog = () => {
     const { updatedProducts, updatedCount } = applyPromotionsToProducts(products, promotions);
     // Trigger update for each matched product
     updatedProducts.forEach((p) => {
       if (p.status === 'عرض ترويجي') {
-        updateProduct(p.id, {
+        updateProduct({
+          ...p,
           promoPrice: p.promoPrice,
           promoPiecePrice: p.promoPiecePrice,
           offerPrice: p.promoPrice,
@@ -221,7 +350,8 @@ export const PromotionsOffersView: React.FC = () => {
 
     // Apply to product if matched
     if (matchedProduct) {
-      updateProduct(matchedProduct.id, {
+      updateProduct({
+        ...matchedProduct,
         promoPrice,
         discountPercent: discount,
         discountPercentage: discount,

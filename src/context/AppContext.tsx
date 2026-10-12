@@ -4161,25 +4161,23 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const isDirectManager = currentUser?.role === 'admin' || currentUser?.role === 'branch_manager';
     const initialStatus: OrderStatus = isDirectManager ? 'معتمدة ومصروفة من المخزن' : 'قيد مراجعة المشرف';
 
-    // Check if user requested shortage backorder split or has main warehouse fulfilled items
-    const hasWarehouseItems = cart.some((c) => c.fulfillFromMainWarehouse);
-    const shouldSplit = (orderData.splitShortagesToBackorder || hasWarehouseItems) && cart.some(c => !c.fulfillFromMainWarehouse) && hasWarehouseItems;
+    // Resolved order branch (e.g. فرع ديمشلت or employee's assigned branch)
+    const defaultBranch = currentUser?.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)';
+    const orderBranch = orderData.branchName || currentUser?.branchName || defaultBranch;
 
+    // Single unified invoice policy: Never split into two invoices!
+    const shouldSplit = false;
     let primaryCartItems = cart;
     let shortageCartItems: typeof cart = [];
-
-    if (shouldSplit) {
-      primaryCartItems = cart.filter((c) => !c.fulfillFromMainWarehouse);
-      shortageCartItems = cart.filter((c) => c.fulfillFromMainWarehouse);
-    }
 
     const orderDiscountPercent = typeof orderData.discountPercentage === 'number' ? Math.max(0, orderData.discountPercentage) : 0;
 
     const buildInvoiceItems = (items: typeof cart) => {
       return items.map((item) => {
-        const cartonQty = item.product.cartonQuantity || 1;
-        const appliedCartonPrice = item.product.promoPrice && item.product.promoPrice > 0 ? item.product.promoPrice : item.product.cartonPrice;
-        const piecePrice = item.product.piecePrice && item.product.piecePrice > 0 ? item.product.piecePrice : (cartonQty > 0 ? Math.round((appliedCartonPrice / cartonQty) * 100) / 100 : appliedCartonPrice);
+        const currentProd = products.find((p) => p.id === item.product.id) || item.product;
+        const cartonQty = currentProd.cartonQuantity || item.product.cartonQuantity || 1;
+        const appliedCartonPrice = currentProd.promoPrice && currentProd.promoPrice > 0 ? currentProd.promoPrice : currentProd.cartonPrice;
+        const piecePrice = currentProd.piecePrice && currentProd.piecePrice > 0 ? currentProd.piecePrice : (cartonQty > 0 ? Math.round((appliedCartonPrice / cartonQty) * 100) / 100 : appliedCartonPrice);
         
         const cCount = item.cartonCount || 0;
         const pCount = item.pieceCount || 0;
@@ -4188,6 +4186,16 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         const itemTax = 0;
         const totalUnits = (cCount * cartonQty) + pCount;
 
+        // Stock availability in active branch vs. October central warehouse
+        const bStock = getBranchStockForProduct(currentProd, orderBranch);
+        const oStock = currentProd.mainWarehouseActual || 0;
+        const isShortage = cCount > bStock;
+        const shortageCartons = isShortage ? Math.max(0, cCount - Math.max(0, bStock)) : 0;
+        const needsOctoberSupply = isShortage;
+        const octoberSupplyStatus = isShortage
+          ? (oStock > 0 ? 'مطلوب توريده من أكتوبر' : 'عجز بالمخازن')
+          : 'متوفر بالفرع';
+
         const smartDesc = cCount > 0 && pCount > 0 
           ? `${cCount} كرتونة و ${pCount} قطعة` 
           : cCount > 0 
@@ -4195,24 +4203,32 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           : `${pCount} قطعة`;
 
         return {
-          productId: item.product.id,
-          productCode: item.product.code,
-          unifiedCode: item.unifiedCode || item.product.unifiedCode,
-          color: item.product.color,
-          productName: item.product.name,
+          productId: currentProd.id,
+          productCode: currentProd.code,
+          unifiedCode: item.unifiedCode || currentProd.unifiedCode,
+          color: currentProd.color,
+          productName: currentProd.name,
           cartonCount: cCount,
           pieceCount: pCount,
           cartonQuantity: cartonQty,
           totalUnits,
           quantityDescription: smartDesc,
           pricePerPiece: piecePrice,
-          pricePerCarton: item.product.cartonPrice,
+          pricePerCarton: currentProd.cartonPrice,
           appliedPrice: appliedCartonPrice,
           totalBeforeTax: itemSubtotal,
           discountAmount: itemDiscount,
           taxAmount: itemTax,
           netTotal: itemSubtotal - itemDiscount,
-          fulfilledFrom: (item.fulfillFromMainWarehouse ? 'main_warehouse' : 'branch') as 'branch' | 'main_warehouse',
+          fulfilledFrom: (isShortage ? (bStock > 0 ? 'mixed' : 'main_warehouse') : 'branch') as 'branch' | 'main_warehouse' | 'mixed',
+          branchStockAtOrder: bStock,
+          octoberStockAtOrder: oStock,
+          branchName: orderBranch,
+          isShortage,
+          shortageCartons,
+          shortagePieces: 0,
+          needsOctoberSupply,
+          octoberSupplyStatus: octoberSupplyStatus as any,
         };
       });
     };
@@ -4348,8 +4364,12 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       status: initialStatus,
       notes: orderFinalNotes,
       syncedToAccounting: false,
-      hasShortageSplit: shouldSplit,
-      shortageInvoiceNumber: shouldSplit ? `${newInvoiceNumber}-NQ` : undefined,
+      hasShortageSplit: false,
+      shortageInvoiceNumber: undefined,
+      hasOctoberShortages: primaryItems.some((it) => it.isShortage),
+      shortageItemsCount: primaryItems.filter((it) => it.isShortage).length,
+      shortageCartonsCount: primaryItems.reduce((acc, it) => acc + (it.shortageCartons || 0), 0),
+      octoberSupplyRequested: false,
       customerBalanceBefore: custBalanceBefore,
       customerCreditLimit: custCreditLimit,
       customerBalanceAfter: custBalanceAfter,
@@ -4361,53 +4381,21 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     let createdShortageInvoice: Invoice | undefined = undefined;
 
-    if (shouldSplit && shortageCartItems.length > 0) {
-      const shortageItems = buildInvoiceItems(shortageCartItems);
-      const shortageTotals = calculateTotals(shortageItems);
-      const shortageInvoiceNumber = `${newInvoiceNumber}-NQ`;
-      const shortageBalanceAfter = custBalanceBefore + shortageTotals.estimatedGrandTotal;
-      const shortageCreditExceeded = custCreditLimit > 0 && shortageBalanceAfter > custCreditLimit;
-      const shortageReqPayment = shortageCreditExceeded ? Math.max(0, shortageBalanceAfter - custCreditLimit) : 0;
-
-      createdShortageInvoice = {
-        id: `inv-${Date.now() + 1}`,
-        invoiceNumber: shortageInvoiceNumber,
-        customerId: orderData.customerId || (matchedCustomer ? matchedCustomer.id : undefined),
-        customerName: orderData.customerName || (matchedCustomer ? matchedCustomer.name : 'عميل تجزئة عام'),
-        customerCode: orderData.customerCode || (matchedCustomer ? matchedCustomer.code : undefined),
-        customerPhone: orderData.customerPhone || (matchedCustomer ? matchedCustomer.phone : ''),
-        customerAddress: orderData.customerAddress || (matchedCustomer ? matchedCustomer.address : ''),
-        customerTaxNumber: orderData.customerTaxNumber || (matchedCustomer ? matchedCustomer.taxNumber : ''),
-        date: formattedDate,
-        time: formattedTime,
-        repId: assignedRepId,
-        repName: assignedRepName,
-        supervisorName: assignedSupervisorName,
-        branchName: orderBranch,
-        items: shortageItems,
-        totalCartons: shortageTotals.totalCartons,
-        totalPieces: shortageTotals.totalPieces,
-        subtotal: shortageTotals.subtotal,
-        discountPercentage: orderDiscountPercent,
-        discountAmount: shortageTotals.discountAmount,
-        taxPercentage: 0,
-        taxAmount: 0,
-        estimatedGrandTotal: shortageTotals.estimatedGrandTotal,
-        paymentMethod: orderData.paymentMethod || 'نقدي (كاش)',
-        status: 'قيد مراجعة المشرف',
-        notes: `فاتورة تحويل نواقص من المخزن المركزي (6 أكتوبر) تابعة للفاتورة الأساسية #${newInvoiceNumber}`,
-        syncedToAccounting: false,
-        customerBalanceBefore: custBalanceBefore,
-        customerCreditLimit: custCreditLimit,
-        customerBalanceAfter: shortageBalanceAfter,
-        customerOverdueBalance: custOverdue,
-        creditLimitExceeded: shortageCreditExceeded,
-        requiredDownPayment: shortageReqPayment,
-        isShortageInvoice: true,
-        parentInvoiceId: primaryInvoice.id,
-        parentInvoiceNumber: primaryInvoice.invoiceNumber,
-        qrPayload: `DREAM-EINV-${shortageInvoiceNumber}|${orderData.customerTaxNumber || 'GEN'}|${shortageTotals.estimatedGrandTotal.toFixed(2)}|${shortageTotals.taxAmount.toFixed(2)}|${formattedDate}`,
-      };
+    // Send instant notification for supervisor & branch manager if invoice contains October shortages
+    if (primaryInvoice.hasOctoberShortages) {
+      try {
+        const existingAnnouncements = JSON.parse(localStorage.getItem('tantawy_announcements_v1') || '[]');
+        const shortageAnn = {
+          id: `ann-shortage-${Date.now()}`,
+          title: `🔔 تنبيه نواقص: فاتورة #${newInvoiceNumber} (${orderBranch})`,
+          content: `سجل المندوب (${assignedRepName}) فاتورة للعميل (${primaryInvoice.customerName}) بـ (${orderBranch}) بها (${primaryInvoice.shortageItemsCount} أصناف نواقص بإجمالي ${primaryInvoice.shortageCartonsCount} كرتونة) بانتظار اعتماد المشرف وسحبها من مخزن 6 أكتوبر المركزي.`,
+          author: assignedRepName,
+          role: currentUser?.role || 'sales_rep',
+          date: formattedDate,
+          priority: 'عاجل' as const,
+        };
+        localStorage.setItem('tantawy_announcements_v1', JSON.stringify([shortageAnn, ...existingAnnouncements]));
+      } catch {}
     }
 
     // Reserve stock immediately to prevent double-booking by multiple sales reps.
@@ -5191,6 +5179,130 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     }
 
     return { success: true, message };
+  };
+
+  const requestOctoberSupplyForInvoice = (invoiceId: string): { success: boolean; message: string } => {
+    const inv = invoices.find((i) => i.id === invoiceId);
+    if (!inv) return { success: false, message: 'الفاتورة غير موجودة' };
+
+    const now = new Date();
+    const timeStr = `${now.toISOString().slice(0, 10)} ${now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}`;
+
+    const updatedItems = (inv.items || []).map((it) => {
+      if (it.isShortage) {
+        return { ...it, octoberSupplyStatus: 'تم طلب التوريد' as const };
+      }
+      return it;
+    });
+
+    const updatedInvoice: Invoice = {
+      ...inv,
+      items: updatedItems,
+      octoberSupplyRequested: true,
+      octoberSupplyRequestedAt: timeStr,
+      octoberSupplyRequestedBy: currentUser?.name || 'المشرف',
+    };
+
+    setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? updatedInvoice : i)));
+    saveInvoiceWithQueue(updatedInvoice).catch((e) => console.warn('Supabase invoice update failed:', e));
+
+    recordAuditLog({
+      userId: currentUser?.id || 'supervisor',
+      userName: currentUser?.name || 'المشرف',
+      userRole: currentUser?.role || 'supervisor',
+      branchName: inv.branchName,
+      action: 'update_invoice_status',
+      actionTitle: `اعتماد وطلب توريد نواقص الفاتورة #${inv.invoiceNumber} من مخزن أكتوبر`,
+      details: `تم اعتماد طلب التوريد للنواقص (${inv.shortageItemsCount || 0} صنف) من مخزن 6 أكتوبر المركزي لصالح فرع ${inv.branchName}`,
+      invoiceId: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      badgeType: 'info',
+    });
+
+    return {
+      success: true,
+      message: `تم بنجاح اعتماد وطلب توريد نواقص الفاتورة #${inv.invoiceNumber} من مخزن 6 أكتوبر المركزي 🚚`,
+    };
+  };
+
+  const dispatchOctoberSupplyForInvoice = (invoiceId: string): { success: boolean; message: string } => {
+    const inv = invoices.find((i) => i.id === invoiceId);
+    if (!inv) return { success: false, message: 'الفاتورة غير موجودة' };
+
+    let transferredCount = 0;
+    let totalCartons = 0;
+
+    (inv.items || []).forEach((it) => {
+      if (it.isShortage && it.shortageCartons && it.shortageCartons > 0) {
+        const prod = products.find((p) => p.id === it.productId || p.code === it.productCode);
+        if (prod) {
+          const pullQty = Math.min(it.shortageCartons, Math.max(0, prod.mainWarehouseActual || 0));
+          if (pullQty > 0) {
+            adjustStock(
+              prod.id,
+              pullQty,
+              -pullQty,
+              `سحب وتوريد نواقص الفاتورة #${inv.invoiceNumber} من مخزن أكتوبر لصالح ${inv.branchName}`
+            );
+            transferredCount++;
+            totalCartons += pullQty;
+          }
+        }
+      }
+    });
+
+    const now = new Date();
+    const timeStr = `${now.toISOString().slice(0, 10)} ${now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}`;
+
+    const updatedItems = (inv.items || []).map((it) => {
+      if (it.isShortage) {
+        return { ...it, octoberSupplyStatus: 'تم السحب والتوريد' as const };
+      }
+      return it;
+    });
+
+    const updatedInvoice: Invoice = {
+      ...inv,
+      items: updatedItems,
+      octoberSupplyRequested: true,
+      octoberSupplyDispatched: true,
+      octoberSupplyDispatchedAt: timeStr,
+      octoberSupplyDispatchedBy: currentUser?.name || 'مدير الفرع / المشرف',
+    };
+
+    setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? updatedInvoice : i)));
+    saveInvoiceWithQueue(updatedInvoice).catch((e) => console.warn('Supabase invoice update failed:', e));
+
+    recordAuditLog({
+      userId: currentUser?.id || 'supervisor',
+      userName: currentUser?.name || 'المشرف',
+      userRole: currentUser?.role || 'supervisor',
+      branchName: inv.branchName,
+      action: 'update_invoice_status',
+      actionTitle: `سحب وتوريد نواقص الفاتورة #${inv.invoiceNumber} من مخزن أكتوبر`,
+      details: `تم سحب ${totalCartons} كرتونة من مخزن 6 أكتوبر وتوريدها لرصيد فرع ${inv.branchName}`,
+      invoiceId: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      badgeType: 'success',
+    });
+
+    return {
+      success: true,
+      message: `تم بنجاح سحب وتوريد ${totalCartons} كرتونة (${transferredCount} أصناف) من مخزن أكتوبر لرصيد فرع ${inv.branchName}! 🚚📦`,
+    };
+  };
+
+  const bulkDispatchOctoberSupply = (invoiceIds: string[]): { success: boolean; message: string; count: number } => {
+    let count = 0;
+    invoiceIds.forEach((id) => {
+      const res = dispatchOctoberSupplyForInvoice(id);
+      if (res.success) count++;
+    });
+    return {
+      success: true,
+      count,
+      message: `تم بنجاح سحب وتوريد نواقص ${count} فواتير من مخزن أكتوبر وتحديث الأرصدة! ⚡🎉`,
+    };
   };
 
   const processOrderReturn = (
@@ -6409,6 +6521,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         editPendingOrder,
         cancelPendingOrderByRep,
         updateOrderStatus,
+        requestOctoberSupplyForInvoice,
+        dispatchOctoberSupplyForInvoice,
+        bulkDispatchOctoberSupply,
         processOrderReturn,
         deleteInvoice,
         syncToAccounting,

@@ -594,15 +594,34 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
                           {/* Stocks Info & Quantity Modifiers */}
                           <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-855/80 text-xs">
-                            {/* Stock Display */}
-                            <div className="flex items-center gap-2 text-[10.5px]">
-                              <span className="text-slate-400">
-                                الفرع: <strong className={branchStock > 0 ? 'text-emerald-400' : 'text-rose-400'}>{branchStock} ك</strong>
-                              </span>
-                              <span className="text-slate-500">•</span>
-                              <span className="text-slate-400">
-                                أكتوبر: <strong className="text-amber-300">{octoberStock} ك</strong>
-                              </span>
+                            {/* Stock Display & October Supply Badge */}
+                            <div className="flex items-center gap-2 flex-wrap text-[10.5px]">
+                              {branchStock >= (item.cartonCount || 0) && (item.cartonCount || 0) > 0 ? (
+                                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                                  <Check className="w-3 h-3 text-emerald-400" />
+                                  <span>متوفر بـ ({activeBranch}): {branchStock} كرتونة</span>
+                                </span>
+                              ) : (item.cartonCount || 0) > branchStock ? (
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[10px] font-bold text-rose-300 bg-rose-950/60 border border-rose-800/80 px-2 py-0.5 rounded-lg">
+                                    عجز بالفرع ({activeBranch}): متبقي {Math.max(0, branchStock)} ك
+                                  </span>
+                                  {octoberStock > 0 ? (
+                                    <span className="text-[10px] font-black text-amber-300 bg-amber-950/80 border border-amber-500/80 px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-xs animate-pulse">
+                                      <Truck className="w-3 h-3 text-amber-400" />
+                                      <span>متوفر بمخزن 6 أكتوبر ({octoberStock} ك) — 🏷️ طلب توريد من المخزن</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold text-slate-400 bg-slate-900 border border-slate-750 px-2 py-0.5 rounded-lg">
+                                      غير متوفر بأكتوبر
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400">
+                                  رصيد {activeBranch}: <strong className="text-slate-200">{branchStock} ك</strong> • أكتوبر: <strong className="text-amber-300">{octoberStock} ك</strong>
+                                </span>
+                              )}
                             </div>
 
                             {/* Carton & Piece Controls */}
@@ -1107,27 +1126,61 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                 </div>
 
                 {/* Items Compact Recap */}
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-[11px] text-slate-400">
                     <span>أصناف الطلبية ({cart.length} أصناف):</span>
                     <span className="text-amber-400 font-bold">{summary.totalCartons} كرتونة • {summary.totalPieces} قطعة</span>
                   </div>
-                  <div className="max-h-36 overflow-y-auto divide-y divide-slate-850 bg-slate-900 rounded-xl p-2 border border-slate-800/80">
-                    {cart.map((item, i) => (
-                      <div key={i} className="py-1.5 flex items-center justify-between text-xs">
-                        <div className="truncate flex-1">
-                          <span className="font-bold text-white">{item.product.name}</span>
-                          <span className="text-[10px] text-slate-400 mr-2 font-mono">({item.product.code})</span>
-                        </div>
-                        <div className="text-slate-300 text-center font-bold px-2 shrink-0">
-                          {item.cartonCount > 0 && <span className="text-amber-300">{item.cartonCount} ك </span>}
-                          {item.pieceCount > 0 && <span className="text-sky-300">{item.pieceCount} ق</span>}
-                        </div>
-                        <div className="font-black text-amber-400 font-mono text-left w-20 shrink-0">
-                          {formatCurrency(item.totalPrice)}
-                        </div>
+
+                  {/* Single Unified Invoice & Shortage Notice */}
+                  {cart.some((it) => (it.cartonCount || 0) > getBranchStockForProduct(it.product, activeBranch)) && (
+                    <div className="bg-amber-950/60 border border-amber-500/50 p-2.5 rounded-xl flex items-start gap-2 text-xs text-amber-200">
+                      <Truck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      <div className="text-[11px] leading-relaxed">
+                        <strong className="text-amber-300 font-bold block mb-0.5">بيان التوريد والنواقص (فاتورة واحدة موحدة):</strong>
+                        الأصناف غير المتوفرة بـ <strong className="text-white">{activeBranch}</strong> مسجلة في نفس الفاتورة كـ <span className="text-amber-300 font-bold underline">«طلب توريد من مخزن 6 أكتوبر»</span> وسيصل إشعار فوري للمشرف ومدير الفرع بها للاعتماد والسحب.
                       </div>
-                    ))}
+                    </div>
+                  )}
+
+                  <div className="max-h-44 overflow-y-auto divide-y divide-slate-850 bg-slate-900 rounded-xl p-2 border border-slate-800/80">
+                    {cart.map((item, i) => {
+                      const bStock = getBranchStockForProduct(item.product, activeBranch);
+                      const oStock = item.product.mainWarehouseActual || 0;
+                      const isShortage = (item.cartonCount || 0) > bStock;
+                      const shortageQty = isShortage ? (item.cartonCount || 0) - Math.max(0, bStock) : 0;
+
+                      return (
+                        <div key={i} className="py-2 flex items-center justify-between gap-2 text-xs">
+                          <div className="truncate flex-1 min-w-0">
+                            <div className="font-bold text-white truncate">{item.product.name}</div>
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono mt-0.5">
+                              <span>كود: {item.product.code}</span>
+                              {item.product.unifiedCode && (
+                                <span className="text-indigo-300">#{item.product.unifiedCode.replace('#', '')}</span>
+                              )}
+                              {isShortage ? (
+                                <span className="text-[10px] font-black text-amber-300 bg-amber-950/80 border border-amber-600/70 px-1.5 py-0.2 rounded font-sans flex items-center gap-0.5">
+                                  <span>🏷️ طلب توريد أكتوبر</span>
+                                  <span>({shortageQty} ك)</span>
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-1.5 py-0.2 rounded font-sans">
+                                  ✓ متوفر بالفرع
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-slate-300 text-center font-bold px-2 shrink-0">
+                            {item.cartonCount > 0 && <span className="text-amber-300">{item.cartonCount} ك </span>}
+                            {item.pieceCount > 0 && <span className="text-sky-300">{item.pieceCount} ق</span>}
+                          </div>
+                          <div className="font-black text-amber-400 font-mono text-left w-20 shrink-0">
+                            {formatCurrency(item.totalPrice)}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

@@ -160,7 +160,10 @@ const normalizeKey = (value: string): string =>
 const isShortageInvoice = (invoice: Invoice): boolean =>
   Boolean(
     invoice.isShortageInvoice ||
-      (invoice.invoiceNumber && invoice.invoiceNumber.endsWith('-NQ'))
+      (invoice.invoiceNumber && invoice.invoiceNumber.endsWith('-NQ')) ||
+      invoice.hasOctoberShortages ||
+      (invoice.shortageItemsCount && invoice.shortageItemsCount > 0) ||
+      (invoice.items && invoice.items.some((it) => it.isShortage || it.needsOctoberSupply || it.fulfilledFrom === 'main_warehouse' || Boolean(it.fulfillFromMainWarehouse)))
   );
 
 const isOpenShortage = (invoice: Invoice): boolean =>
@@ -169,10 +172,13 @@ const isOpenShortage = (invoice: Invoice): boolean =>
 const isApprovedOrExecuted = (invoice: Invoice): boolean =>
   APPROVED_AND_EXECUTED_INVOICE_STATUSES.includes(invoice.status);
 
-/** A line the central warehouse has to supply, whether it came from a -NQ invoice or is
- *  flagged per line on an ordinary order. */
+/** A line the central warehouse has to supply, whether from an ordinary unified invoice or flagged per line. */
 const isShortageLine = (item: InvoiceItem): boolean =>
-  Boolean(item.fulfillFromMainWarehouse) || item.fulfilledFrom === 'main_warehouse';
+  Boolean(item.fulfillFromMainWarehouse) ||
+  item.fulfilledFrom === 'main_warehouse' ||
+  Boolean(item.isShortage) ||
+  Boolean(item.needsOctoberSupply) ||
+  Boolean(item.shortageCartons && item.shortageCartons > 0);
 
 const itemCartonFactor = (item: InvoiceItem): number =>
   toNumber(item.cartonQuantity || item.product?.cartonQuantity || item.product?.factor) || 1;

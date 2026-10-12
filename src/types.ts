@@ -472,6 +472,16 @@ export interface InvoiceItem {
   fulfilledFrom: 'branch' | 'main_warehouse' | 'mixed';
   fulfillFromMainWarehouse?: boolean; // حجز من المخزن الرئيسي بأكتوبر
   notes?: string;
+
+  // Availability & October Shortage Tracking (فاتورة واحدة مع بيان التوفر ونواقص أكتوبر)
+  branchStockAtOrder?: number;       // رصيد فرع المندوب عند الطلب
+  octoberStockAtOrder?: number;      // رصيد مخزن 6 أكتوبر عند الطلب
+  branchName?: string;               // اسم الفرع (مثلاً فرع ديمشلت)
+  isShortage?: boolean;              // هل الصنف به عجز بالفرع؟
+  shortageCartons?: number;          // عدد الكراتين الناقصة بالفرع
+  shortagePieces?: number;           // عدد القطع الناقصة بالفرع
+  needsOctoberSupply?: boolean;      // مطلوب توريده من مخزن أكتوبر
+  octoberSupplyStatus?: 'متوفر بالفرع' | 'مطلوب توريده من أكتوبر' | 'تم طلب التوريد' | 'تم السحب والتوريد';
 }
 
 export interface Invoice {
@@ -521,6 +531,17 @@ export interface Invoice {
   parentInvoiceNumber?: string;
   hasShortageSplit?: boolean;
   shortageInvoiceNumber?: string;
+
+  // October Shortage & Supply Dispatch Tracking (متابعة وسحب فواتير النواقص)
+  hasOctoberShortages?: boolean;     // هل الفاتورة بها نواقص مطلوب توريدها من أكتوبر؟
+  shortageItemsCount?: number;       // عدد الأصناف الناقصة
+  shortageCartonsCount?: number;     // إجمالي كراتين النواقص
+  octoberSupplyRequested?: boolean;  // هل المشرف/المدير اعتمد وطلب التوريد؟
+  octoberSupplyRequestedAt?: string; // تاريخ ووقت طلب التوريد
+  octoberSupplyRequestedBy?: string; // اسم من طلب التوريد (المشرف أو مدير الفرع)
+  octoberSupplyDispatched?: boolean; // هل تم سحب وتوريد النواقص من مخزن أكتوبر؟
+  octoberSupplyDispatchedAt?: string;
+  octoberSupplyDispatchedBy?: string;
 
   // Cancellation & Restitution Details
   cancellationReason?: string;

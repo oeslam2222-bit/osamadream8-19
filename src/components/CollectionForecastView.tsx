@@ -1447,6 +1447,92 @@ export default function CollectionForecastView() {
         )}
       </section>
 
+      {/* Role Approval Matrix & Status Guide Banner */}
+      <section className="bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-md text-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black">
+              <Info className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-black text-white text-xs sm:text-sm flex items-center gap-2">
+                <span>دليل دورة اعتماد التوقعات ومصفوفة الأدوار</span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  دورك الحالي: {currentUser.role === 'admin' ? 'مدير عام 👑' : currentUser.role === 'developer' ? 'مطور 💻' : currentUser.role === 'branch_manager' ? 'مدير فرع 🏢' : currentUser.role === 'supervisor' ? 'مشرف 📋' : 'مندوب مبيعات 💼'} ({currentUser.name})
+                </span>
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                يوضح هذا الدليل صلاحيات المندوب والمشرف ومدير الفرع والإدارة، ومعنى كل حالة اعتماد للأرقام.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* 4 Roles Columns */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {/* Rep */}
+          <div className="p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-[11px] space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="font-black text-emerald-400">💼 المندوب (Sales Rep):</span>
+              <span className="text-[9px] bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-800">بياناته فقط</span>
+            </div>
+            <p className="text-slate-300 leading-relaxed text-[10.5px]">
+              يرى ويعدل عملاء خط سيره فقط. يسجل المبالغ المتوقعة (حالة: مسودة 📝). بعد الانتهاء يضغط "إرسال للمشرف 📤".
+            </p>
+          </div>
+
+          {/* Supervisor */}
+          <div className="p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-[11px] space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="font-black text-blue-400">📋 المشرف (Supervisor):</span>
+              <span className="text-[9px] bg-blue-950 text-blue-300 px-1.5 py-0.5 rounded border border-blue-800">فريق الفرع</span>
+            </div>
+            <p className="text-slate-300 leading-relaxed text-[10.5px]">
+              يراجع توقعات مناديب فريقه بالفرع. يضغط "اعتماد التوقع 🔒" لقفل الأرقام نهائياً، أو "طلب تعديل ↩️" لكتابة ملاحظة تصحيح.
+            </p>
+          </div>
+
+          {/* Branch Manager */}
+          <div className="p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-[11px] space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="font-black text-purple-400">🏢 مدير الفرع (Manager):</span>
+              <span className="text-[9px] bg-purple-950 text-purple-300 px-1.5 py-0.5 rounded border border-purple-800">الفرع كاملاً</span>
+            </div>
+            <p className="text-slate-300 leading-relaxed text-[10.5px]">
+              يشرف على إجمالي تحصيلات ومستهدفات الفرع ككل، ونسبة التغطية مقابل التارجت، ومتابعة اعتماد المشرفين.
+            </p>
+          </div>
+
+          {/* Admin & Dev */}
+          <div className="p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-[11px] space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="font-black text-amber-400">👑 الإدارة والمطور:</span>
+              <span className="text-[9px] bg-amber-950 text-amber-300 px-1.5 py-0.5 rounded border border-amber-800">كل الفروع الـ 7</span>
+            </div>
+            <p className="text-slate-300 leading-relaxed text-[10.5px]">
+              رؤية مركزية شاملة لكافة الفروع الـ 7، قفل الشهر بالكامل، تقسيم الفترات، واعتماد جماعي وتصدير شيتات الإكسل.
+            </p>
+          </div>
+        </div>
+
+        {/* Status Legend Pills */}
+        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-800/80 text-[10.5px]">
+          <span className="font-bold text-slate-400">معاني الحالات:</span>
+          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">
+            🟢 معتمد: تم تدقيقه واعتماده رسمياً وقفل أرقامه من التعديل العشوائي
+          </span>
+          <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold">
+            🔵 مُرسل للمشرف: أرسله المندوب وبانتظار اعتماد المشرف
+          </span>
+          <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-bold">
+            ⚪ مسودة: قيد الكتابة بواسطة المندوب ولم تُرسل بعد
+          </span>
+          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
+            🟠 مطلوب تعديل: أرجعه المشرف لوجود ملاحظة يلزم تصحيحها
+          </span>
+        </div>
+      </section>
+
       {/* Notification Toast */}
       {savedFlash && (
         <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-emerald-100 text-emerald-950 border border-emerald-300 text-xs font-black shadow-sm animate-in fade-in">

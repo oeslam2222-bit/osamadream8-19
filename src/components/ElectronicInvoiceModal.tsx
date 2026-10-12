@@ -24,7 +24,8 @@ import {
   X,
   XCircle,
   ArrowLeft,
-  ExternalLink
+  ExternalLink,
+  Truck
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -478,53 +479,23 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             </p>
           </div>
 
-          {/* Shortage Invoice Banner */}
-          {currentInv.isShortageInvoice && (
-            <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs">
-              <div className="flex items-start gap-2.5">
-                <span className="text-2xl">🚚</span>
-                <div>
-                  <div className="font-black text-indigo-950 text-sm">فاتورة نواقص محولة للصرف من المخزن المركزي (6 أكتوبر)</div>
-                  <div className="text-indigo-800 text-[11px] mt-0.5">
-                    هذه الفاتورة تمثل الأصناف المحولة تلقائياً للتوريد من المخزن المركزي بأكتوبر لعدم توفرها برصيد الفرع.
-                  </div>
+          {/* Unified Invoice & October Supply Notice Banner */}
+          {currentInv.hasOctoberShortages && (
+            <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-3 sm:p-3.5 space-y-1.5 text-xs shadow-xs">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🚚</span>
+                  <span className="font-black text-amber-950 text-xs sm:text-sm">
+                    فاتورة مبيعات موحدة (تتضمن أصنافاً مطلوب توريدها من مخزن 6 أكتوبر المركزي)
+                  </span>
                 </div>
+                <span className="bg-amber-200 text-amber-950 font-black px-2.5 py-0.5 rounded-full text-[11px]">
+                  {currentInv.shortageItemsCount || 0} أصناف نواقص ({currentInv.shortageCartonsCount || 0} كرتونة)
+                </span>
               </div>
-              {linkedParentInvoice && (
-                <button
-                  type="button"
-                  onClick={() => setActiveInvoice(linkedParentInvoice)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 shrink-0 cursor-pointer shadow-xs"
-                >
-                  <span>عرض فاتورة المتوفر الأصلية (#{linkedParentInvoice.invoiceNumber})</span>
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Available Items (Split) Banner */}
-          {currentInv.hasShortageSplit && (
-            <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs">
-              <div className="flex items-start gap-2.5">
-                <span className="text-2xl">📦</span>
-                <div>
-                  <div className="font-black text-amber-950 text-sm">فاتورة الأصناف المتوفرة بالفرع (تم فصل النواقص)</div>
-                  <div className="text-amber-900 text-[11px] mt-0.5">
-                    تتضمن هذه الفاتورة الأصناف المتوفرة بمخزن الفرع. تم إصدار فاتورة نواقص منفصلة رقم <strong className="font-mono">{currentInv.shortageInvoiceNumber}</strong> للتوريد من المخزن المركزي بأكتوبر.
-                  </div>
-                </div>
-              </div>
-              {linkedShortageInvoice && (
-                <button
-                  type="button"
-                  onClick={() => setActiveInvoice(linkedShortageInvoice)}
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 shrink-0 cursor-pointer shadow-xs"
-                >
-                  <span>عرض فاتورة النواقص (#{linkedShortageInvoice.invoiceNumber})</span>
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                </button>
-              )}
+              <p className="text-[11px] text-amber-900 leading-relaxed">
+                تم تثبيت الطلبية كـ <strong>فاتورة واحدة معتمدة</strong> للعميل؛ الأصناف المتوفرة بـ <strong>{currentInv.branchName}</strong> تصرف مباشرة، والأصناف الموضحة بالجدول أدناه كـ <strong>«طلب توريد من المخزن»</strong> تم رفع إشعار توريدها لمشرف المندوب ومدير الفرع لسحبها من مخزن 6 أكتوبر المركزي.
+              </p>
             </div>
           )}
 

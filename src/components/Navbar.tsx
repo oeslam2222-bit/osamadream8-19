@@ -35,7 +35,8 @@ import {
   EyeOff,
   Home,
   Lock,
-  Menu
+  Menu,
+  Sparkles
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
@@ -46,6 +47,7 @@ import { InstallAppModal } from './InstallAppModal';
 import { DatabaseConnectionModal } from './DatabaseConnectionModal';
 import { InternalNotificationCenter } from './InternalNotificationCenter';
 import { SyncStatusIndicator } from './SyncStatusIndicator';
+import { RoleSwitchModal } from './RoleSwitchModal';
 
 interface NavbarProps {
   activeTab: string;
@@ -85,6 +87,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
   } = useApp();
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [isRoleSwitchModalOpen, setIsRoleSwitchModalOpen] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
   const [isDatabaseModalOpen, setIsDatabaseModalOpen] = useState(false);
@@ -156,6 +159,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     { id: 'visits', label: 'زيارات العملاء', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'invoices', label: currentUser.role === 'sales_rep' ? 'طلبياتي وفواتيري 📑' : 'الفواتير والطلبيات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
     { id: 'inventory', label: 'إدارة المخزون والاعتمادات', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'offers', label: 'العروض والإشعارات 🎁🔔', icon: Sparkles, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'excel', label: 'شيتات Google Sheets والإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },
     { id: 'guide', label: 'دليل دورة العمل 📖', icon: BookOpen, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'users', label: 'فريق الفرع والموظفين', icon: UserCheck, roles: ['admin', 'developer'], badge: pendingApprovalsCount },
@@ -220,8 +224,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
           </div>
         )}
 
-        {/* Top Banner - Compact on mobile with large touch controls */}
-        <div className="max-w-7xl mx-auto px-2 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2">
+        {/* Top Banner - Wide, responsive & well spaced across mobile, tablet, and wide screens */}
+        <div className="max-w-[1600px] w-full mx-auto px-2 sm:px-4 lg:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2">
           
           {/* Brand & Logo with Mobile Hamburger Menu */}
           <div className="flex items-center gap-2 sm:gap-3">
@@ -419,6 +423,18 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
               </button>
             )}
 
+            {/* Quick Switch Account & Roles Button (Dev, Admin, Branch Manager, Supervisor, Rep) */}
+            <button
+              type="button"
+              onClick={() => setIsRoleSwitchModalOpen(true)}
+              className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-500/20 via-amber-400/25 to-amber-500/20 hover:from-amber-500/35 hover:to-amber-400/35 text-amber-300 border border-amber-400/60 px-2 sm:px-2.5 h-9 sm:h-10 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 shrink-0"
+              title="التبديل الفوري بين حسابات المطور، الإدارة، الفروع، المشرفين، والمناديب"
+            >
+              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
+              <span className="hidden sm:inline font-black text-amber-300 text-xs">تبديل الأدوار 🔄</span>
+              <span className="sm:hidden text-[10px] font-black text-amber-300">أدوار 🔄</span>
+            </button>
+
             {/* User Profile Menu with Logout */}
             <div className="relative">
               <button
@@ -458,6 +474,18 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                       </div>
                     </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      setIsRoleSwitchModalOpen(true);
+                    }}
+                    className="w-full bg-gradient-to-r from-amber-500/20 to-amber-400/20 hover:from-amber-500/30 hover:to-amber-400/30 text-amber-300 border border-amber-400/50 font-black py-2 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[40px] mb-2"
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <span>🔄 التبديل السريع بين الأدوار والحسابات</span>
+                  </button>
 
                   <div className="space-y-1.5 py-1 text-[11px] text-slate-300 border-b border-slate-800 pb-2.5">
                     <div className="flex justify-between">
@@ -554,8 +582,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
         </div>
 
         {/* Navigation Tabs Bar (Desktop and Tablets Only - Hidden on Mobile to prevent overcrowding) */}
-        <div className="hidden md:block bg-slate-950/60 border-t border-slate-800/80 px-2 sm:px-6 overflow-x-auto no-scrollbar">
-          <div className="max-w-7xl mx-auto flex items-center gap-1 sm:gap-2 py-1.5">
+        <div className="hidden md:block bg-slate-950/60 border-t border-slate-800/80 px-2 sm:px-4 lg:px-6 overflow-x-auto no-scrollbar">
+          <div className="max-w-[1600px] w-full mx-auto flex items-center gap-1 sm:gap-2 py-1.5">
             {filteredNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -620,6 +648,21 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                 title="إغلاق القائمة"
               >
                 <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Role & Account Switch in Mobile Drawer */}
+            <div className="px-3 py-2 bg-slate-900/60 border-b border-slate-850">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileDrawerOpen(false);
+                  setIsRoleSwitchModalOpen(true);
+                }}
+                className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 shadow-md transition active:scale-95 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>تبديل الحساب والأدوار (المطور / المشرف / المندوب) 🔄</span>
               </button>
             </div>
 
@@ -804,6 +847,12 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
           onClose={() => setIsCompanyModalOpen(false)}
         />
       )}
+
+      {/* Fast User & Role Switch Modal (Developer, Admin, Branch Manager, Supervisor, Rep) */}
+      <RoleSwitchModal
+        isOpen={isRoleSwitchModalOpen}
+        onClose={() => setIsRoleSwitchModalOpen(false)}
+      />
 
       {/* Database & Cloud Connection Status Modal */}
       <DatabaseConnectionModal
