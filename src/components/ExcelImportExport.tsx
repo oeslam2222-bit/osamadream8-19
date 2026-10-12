@@ -133,7 +133,7 @@ export const ExcelImportExport: React.FC = () => {
   const [isPublishingVersion, setIsPublishingVersion] = useState(false);
 
   // Five Core Tabs
-  const [activeTab, setActiveTab] = useState<'forecast' | 'dedup' | 'products' | 'customers' | 'targets'>('forecast');
+  const [activeTab, setActiveTab] = useState<'forecast' | 'dedup' | 'products' | 'customers' | 'targets'>('dedup');
 
   // Global Notification State
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
@@ -964,11 +964,13 @@ export const ExcelImportExport: React.FC = () => {
         </div>
 
         {/* The 5 Core Tabs: Forecast, Duplication Check, Products, Customers, Targets */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-2 border-t border-slate-100">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-2 border-t border-slate-100">
           {/* TAB 1: التوقع الشهري والأسبوعي */}
           <button
+            aria-hidden="true"
+            tabIndex={-1}
             onClick={() => setActiveTab('forecast')}
-            className={`p-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-between transition cursor-pointer border ${
+            className={`hidden p-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-between transition cursor-pointer border ${
               activeTab === 'forecast'
                 ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-md font-black'
                 : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
