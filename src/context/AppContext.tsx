@@ -397,7 +397,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   /**
    * الشهور اللي اتحملت فعلاً. التوقعات مش بتتحمل كلها من البوت
-   * (كان بيصل لـ 50 ألف سطر) — الشهر الحالي بس، وباقي الشهور
+   * (كان بيصل لـ 50 ألف سطر) — الشهر الحالي بس، وباقي ��لشهور
    * بتتحمل لما المستخدم يفتحها. الكاش المحلي بيكون بذرة للشهور
    * اللي اتحملت قبل كده عشان الأوفلاين.
    */
@@ -2145,7 +2145,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
    * إصلاح اشتراك الـrealtime بعد الرجوع بالـBack-Forward Cache.
    *
    * المشكلة: لما كروم يدخّل الصفحة في الـBFCache بيقفل الـWebSocket عشان
-   * provides resources، بس الصفحة بترجع وجواها الكانال لسه فاكر نفسه «متوصّل».
+   * provides resources، بس الصفحة بترجع وجواها الكانال لسه فا��ر نفسه «متوصّل».
    * قناة phoenix بتعمل rejoin تلقائياً بس لما الكانال يكون في حالة error،
    * فكان بيفضل ميت صامت والبيانات بتتحدّث بس لما الـfocus يضرب (وبنقرّب بده).
    *
@@ -4165,10 +4165,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const defaultBranch = currentUser?.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)';
     const orderBranch = orderData.branchName || currentUser?.branchName || defaultBranch;
 
-    // Single unified invoice policy: Never split into two invoices!
-    const shouldSplit = false;
-    let primaryCartItems = cart;
-    let shortageCartItems: typeof cart = [];
+    // Single unified invoice policy: shortages stay on the same invoice.
+    const primaryCartItems = cart;
+
 
     const orderDiscountPercent = typeof orderData.discountPercentage === 'number' ? Math.max(0, orderData.discountPercentage) : 0;
 
@@ -4299,12 +4298,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     }
 
     const orderFinalNotes = [orderData.notes, creatorAuditNote].filter(Boolean).join('\n');
-    const defaultBranch = currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
-    const orderBranch = currentUser?.role === 'admin' || currentUser?.role === 'developer'
-      ? (orderData.branchName || defaultBranch)
-      : defaultBranch;
 
     // Match customer for credit limit & debt validation using intelligent matcher
+
     const matchedCustomer = findCustomerMatch(customers, {
       customerId: orderData.customerId,
       customerCode: orderData.customerCode,
@@ -4379,9 +4375,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       qrPayload: `DREAM-EINV-${newInvoiceNumber}|${orderData.customerTaxNumber || 'GEN'}|${primaryTotals.estimatedGrandTotal.toFixed(2)}|${primaryTotals.taxAmount.toFixed(2)}|${formattedDate}`,
     };
 
-    let createdShortageInvoice: Invoice | undefined = undefined;
-
     // Send instant notification for supervisor & branch manager if invoice contains October shortages
+
     if (primaryInvoice.hasOctoberShortages) {
       try {
         const existingAnnouncements = JSON.parse(localStorage.getItem('tantawy_announcements_v1') || '[]');
@@ -4974,7 +4969,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       branchName: invoice.branchName,
       action: 'update_invoice_status',
       actionTitle: `إعادة فتح وتعديل الطلبية #${invoice.invoiceNumber}`,
-      details: `تم إعادة فتح أصناف الطلبية #${invoice.invoiceNumber} للعميل (${invoice.customerName}) في السلة لإتاحة إضافة أو حذف أصناف أو تعديل الكميات والأسعار قبل الاعتماد.`,
+      details: `تم إعادة فتح أصناف الطلبية #${invoice.invoiceNumber} للعميل (${invoice.customerName}) في السلة لإتاحة إضافة أو حذف أصناف أو تعديل الك��يات والأسعار قبل الاعتماد.`,
       invoiceId: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
       badgeType: 'info',
@@ -6226,7 +6221,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     return {
       success: true,
       message: isArchived
-        ? 'تم أرشفة الزيارة بنجاح وحفظها في سجل الأرشيف 🗄️'
+        ? 'تم أرشفة الزيارة بنجاح وحفظها في سجل ا��أرشيف 🗄️'
         : 'تم استعادة الزيارة من الأرشيف بنجاح إلى السجل النشط 🔄',
     };
   };
