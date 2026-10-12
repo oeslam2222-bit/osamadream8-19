@@ -17,6 +17,7 @@ import {
   Target,
   Trash2,
   TrendingUp,
+  Truck,
   Wallet,
   X,
 } from 'lucide-react';
@@ -299,6 +300,23 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
       });
     }
 
+    // ===== نواقص فواتير الفرع =====
+    const shortageInvoices = visibleInvoices.filter((invoice) => invoice.hasOctoberShortages && invoice.status !== 'ملغاة');
+    shortageInvoices.slice(0, 20).forEach((invoice) => {
+      list.push({
+        id: `invoice-shortage-${invoice.id}`,
+        kind: 'system',
+        priority: 'high',
+        title: `طلب توريد من مخزن أكتوبر — فاتورة #${invoice.invoiceNumber}`,
+        detail: `${invoice.branchName} • ${invoice.shortageItemsCount || 0} أصناف ناقصة • مطلوب مراجعة المشرف ومدير الفرع`,
+        icon: Truck,
+        accent: 'text-rose-700',
+        iconBg: 'bg-rose-100 text-rose-700',
+        actionTab: 'invoices',
+        actionLabel: 'الفواتير',
+      });
+    });
+
     // ===== أصناف ناقصة =====
     const shortage = visibleProducts.filter((p) => p.status === 'نواقص');
     if (shortage.length > 0) {
@@ -419,7 +437,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
   // إخفاء الإشعار تماماً (Dismiss / Remove Notification مثل خيار إخفاء الإشعار في فيسبوك)
   const dismissNotification = (n: AppNotification, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    // نعتبره مقروءاً ومخفياً
+    // نعتبره م��روءاً ومخفياً
     markSingleRead(n);
     setDismissedMap((prev) => {
       const updated = {
