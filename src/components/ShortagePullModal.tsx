@@ -24,7 +24,8 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { Invoice, InvoiceItem, Product, User } from '../types';
-import { cleanProductCode, isBranchMatch } from '../services/excelService';
+import { cleanProductCode } from '../services/excelService';
+import { isBranchMatch } from '../services/arabicMatchingService';
 import { formatCurrency, formatArabicDate } from '../services/invoiceService';
 import { buildDispatchReport, downloadDispatchReport } from '../services/dispatchReportService';
 

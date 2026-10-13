@@ -12,6 +12,7 @@ export type PublishedDataSources = {
   customers: PublishedDataSource;
   products: PublishedDataSource;
   targets: PublishedDataSource;
+  offers: PublishedDataSource;
 };
 
 const STORAGE_KEY = 'dream_dist_published_data_sources_v1';
@@ -34,6 +35,13 @@ const defaultSources: PublishedDataSources = {
   targets: {
     kind: 'google_sheets',
     label: 'شيت أهداف ومبيعات وتحصيلات المناديب (Google Sheets)',
+    url: '',
+    enabled: false,
+    updatedAt: '',
+  },
+  offers: {
+    kind: 'google_sheets',
+    label: 'شيت العروض الترويجية والخصومات وجدول العروض (Google Sheets)',
     url: '',
     enabled: false,
     updatedAt: '',
@@ -62,6 +70,11 @@ export function getPublishedDataSources(): PublishedDataSources {
         ...(parsed.targets || {}),
         kind: 'google_sheets',
       },
+      offers: {
+        ...defaultSources.offers,
+        ...(parsed.offers || {}),
+        kind: 'google_sheets',
+      },
     };
   } catch {
     return defaultSources;
@@ -75,6 +88,7 @@ export function savePublishedDataSources(sources: PublishedDataSources): void {
     customers: { ...sources.customers, kind: 'google_sheets' },
     products: { ...sources.products, kind: 'google_sheets' },
     targets: { ...sources.targets, kind: 'google_sheets' },
+    offers: { ...(sources.offers || defaultSources.offers), kind: 'google_sheets' },
   };
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
 }

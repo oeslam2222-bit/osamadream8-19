@@ -394,6 +394,36 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                 title="الموقف المالي والائتماني للعميل (Financial Audit)"
               />
 
+              {/* Unified Invoice & Shortage Notice Banner */}
+              {invoice.hasOctoberShortages || invoice.items.some((it) => it.isShortage || it.needsOctoberSupply || (it.shortageCartons && it.shortageCartons > 0)) ? (
+                <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-3.5 space-y-1.5 text-xs shadow-xs">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🚚</span>
+                      <span className="font-black text-amber-950 text-sm">
+                        فاتورة مبيعات موحدة (تتضمن أصنافاً مطلوب توريدها من مخزن 6 أكتوبر المركزي)
+                      </span>
+                    </div>
+                    <span className="bg-amber-200 text-amber-950 font-black px-2.5 py-0.5 rounded-full text-xs">
+                      إشعار فوري للمشرف ومدير الفرع ⚠️
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-900 leading-relaxed font-medium">
+                    فرع الصرف المسجل بالفاتورة: <strong>{invoice.branchName || 'فرع ديمشلت'}</strong> • الأصناف المتوفرة بالفرع تصرف فوراً، والأصناف التي بها عجز موضح أمامها <strong>«متوفر في مخزن أكتوبر»</strong> وبجانبها <strong>«طلب توريد من المخزن»</strong> تم رفع إشعار توريدها للمشرف ومدير الفرع لسحبها من مخزن 6 أكتوبر المركزي وإرسالها للسيستم.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-2.5 px-3.5 text-xs text-emerald-950 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">✅</span>
+                    <span className="font-black text-emerald-900">
+                      فاتورة مبيعات موحدة مكتملة - كافة الأصناف متوفرة بمخزن {invoice.branchName || 'الفرع'}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-emerald-800 font-bold">جاهزة للصرف الفوري</span>
+                </div>
+              )}
+
               {/* Items Section: Responsive Mobile Cards for Phones, Full Spreadsheet Table for Desktop */}
               
               {/* Mobile View: Cards (phones & narrow screens) */}
@@ -411,7 +441,10 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                   const totalUnits = item.totalUnits || (cCount * cartonQty + pCount);
                   const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round((item.pricePerCarton || item.appliedPrice) / cartonQty) : 0);
                   const unified = item.unifiedCode || (item.product as any)?.unifiedCode;
-                  const fulfillment = item.fulfilledFrom === 'main_warehouse' ? 'مخزن 6 أكتوبر' : (invoice.branchName || 'مخزن الفرع');
+                  const bStock = typeof item.branchStockAtOrder === 'number' ? item.branchStockAtOrder : ((item.product as any)?.branchStockActual ?? 0);
+                  const oStock = typeof item.octoberStockAtOrder === 'number' ? item.octoberStockAtOrder : ((item.product as any)?.mainWarehouseActual ?? 0);
+                  const isShortage = item.isShortage || item.needsOctoberSupply || cCount > bStock;
+                  const shortageC = item.shortageCartons && item.shortageCartons > 0 ? item.shortageCartons : Math.max(0, cCount - Math.max(0, bStock));
 
                   return (
                     <div
@@ -463,11 +496,45 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                         </div>
                       </div>
 
-                      {/* Pricing & Source */}
+                      {/* Branch & October Availability Details */}
+                      <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-[11px] space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500 font-bold">{invoice.branchName || 'فرع ديمشلت'}:</span>
+                          {!isShortage ? (
+                            <span className="text-emerald-700 font-black bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded">
+                              متوفر بالفرع ({bStock} ك) ✓
+                            </span>
+                          ) : (
+                            <span className="text-rose-700 font-black bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded">
+                              غير متوفر بالفرع (عجز {shortageC} ك)
+                            </span>
+                          )}
+                        </div>
+                        {isShortage && (
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-200/80">
+                            <span className="text-slate-500 font-bold">مخزن 6 أكتوبر:</span>
+                            {oStock > 0 ? (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-blue-900 font-black bg-blue-50 border border-blue-200 px-1.5 py-0.2 rounded font-sans">
+                                  متوفر في مخزن أكتوبر ({oStock} ك)
+                                </span>
+                                <span className="text-amber-950 font-black bg-amber-200 border border-amber-300 px-1.5 py-0.2 rounded shadow-2xs">
+                                  🏷️ طلب توريد من المخزن
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-rose-800 font-black bg-rose-100 px-1.5 py-0.2 rounded">
+                                عجز بالمخازن
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Pricing */}
                       <div className="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
                         <span>سعر الكرتونة: <strong className="text-slate-700">{formatCurrency(item.appliedPrice)}</strong></span>
                         <span>سعر القطعة: <strong className="text-slate-700">{formatCurrency(pieceP)}</strong></span>
-                        <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-bold">{fulfillment}</span>
                       </div>
                     </div>
                   );
@@ -493,7 +560,8 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                       <th className="p-2.5 text-center border-l border-slate-700">الإجمالي</th>
                       <th className="p-2.5 text-center border-l border-slate-700 text-emerald-300">الخصم</th>
                       <th className="p-2.5 text-center border-l border-slate-700 bg-amber-800/80 text-amber-200">الصافي</th>
-                      <th className="p-2.5 text-center">مصدر الصرف</th>
+                      <th className="p-2.5 text-center border-l border-slate-700">التوفر بـ {invoice.branchName || 'الفرع'}</th>
+                      <th className="p-2.5 text-center bg-blue-950 text-blue-200">مخزن 6 أكتوبر وتوريد النواقص</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -504,7 +572,10 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                       const totalUnits = item.totalUnits || (cCount * cartonQty + pCount);
                       const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round((item.pricePerCarton || item.appliedPrice) / cartonQty) : 0);
                       const unified = item.unifiedCode || (item.product as any)?.unifiedCode || '---';
-                      const fulfillment = item.fulfilledFrom === 'main_warehouse' ? 'مخزن 6 أكتوبر (نواقص)' : (invoice.branchName || 'مخزن الفرع');
+                      const bStock = typeof item.branchStockAtOrder === 'number' ? item.branchStockAtOrder : ((item.product as any)?.branchStockActual ?? 0);
+                      const oStock = typeof item.octoberStockAtOrder === 'number' ? item.octoberStockAtOrder : ((item.product as any)?.mainWarehouseActual ?? 0);
+                      const isShortage = item.isShortage || item.needsOctoberSupply || cCount > bStock;
+                      const shortageC = item.shortageCartons && item.shortageCartons > 0 ? item.shortageCartons : Math.max(0, cCount - Math.max(0, bStock));
 
                       return (
                         <tr
@@ -525,7 +596,35 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                           <td className="p-2 text-center border-l border-slate-200 text-slate-800">{formatCurrency(item.totalBeforeTax)}</td>
                           <td className="p-2 text-center border-l border-slate-200 text-emerald-700 font-bold">{item.discountAmount > 0 ? `-${formatCurrency(item.discountAmount)}` : '0'}</td>
                           <td className="p-2 text-center border-l border-slate-200 font-black text-slate-950 bg-amber-50/90">{formatCurrency(item.netTotal)}</td>
-                          <td className="p-2 text-center text-[11px] text-slate-600">{fulfillment}</td>
+                          <td className="p-2 text-center border-l border-slate-200 text-[11px]">
+                            {!isShortage ? (
+                              <span className="text-emerald-700 font-black bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                                متوفر بالفرع ({bStock} ك)
+                              </span>
+                            ) : (
+                              <span className="text-rose-700 font-bold bg-rose-50 border border-rose-200 px-2 py-0.5 rounded">
+                                غير متوفر (عجز {shortageC} ك)
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2 text-center text-[11px]">
+                            {!isShortage ? (
+                              <span className="text-slate-400 text-[10px]">صرف فوري من الفرع</span>
+                            ) : oStock > 0 ? (
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className="text-blue-900 font-black bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded text-[10px]">
+                                  متوفر في مخزن أكتوبر ({oStock} ك)
+                                </span>
+                                <span className="text-amber-950 font-black bg-amber-200 border border-amber-300 px-1.5 py-0.2 rounded text-[9px] shadow-2xs">
+                                  🏷️ طلب توريد من المخزن
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-rose-700 font-black bg-rose-50 px-1.5 py-0.5 rounded text-[10px]">
+                                عجز بالمخازن
+                              </span>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}

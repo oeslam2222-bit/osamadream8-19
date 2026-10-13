@@ -124,7 +124,7 @@ const parseAmount = (rawAmount: string) => {
  */
 const STATUS_LABEL: Record<string, string> = {
   draft: 'مسودة',
-  submitted: 'مُرسل للمشرف',
+  submitted: 'في انتظار اعتماد المشرف',
   approved: 'معتمد',
   change_requested: 'مطلوب تعديل',
 };
@@ -637,6 +637,10 @@ export default function CollectionForecastView() {
     ).length,
     [approvalScope, approvalSlot]
   );
+  const totalPendingApprovalCount = useMemo(
+    () => approvalScope.scopedForecasts.filter((forecast) => forecast.status === 'submitted').length,
+    [approvalScope]
+  );
 
   /* ---------- كتابة وتعديل أرقام التوقع (Cell Commit) ---------- */
   const recordFor = useCallback(
@@ -713,11 +717,13 @@ export default function CollectionForecastView() {
         return false;
       }
 
-      const nextStatus = base.status === 'approved' && canApprove ? 'approved' : base.status;
+      const nextStatus = canApprove ? 'approved' : 'submitted';
       await saveForecast({
         ...base,
         collectionForecast: value,
         status: nextStatus,
+        approvedBy: canApprove ? (currentUser?.name || 'مشرف المناديب') : base.approvedBy,
+        approvedAt: canApprove ? new Date().toISOString() : base.approvedAt,
         changeRequestNote: undefined,
       });
 
@@ -727,7 +733,11 @@ export default function CollectionForecastView() {
         return next;
       });
       if (notify) {
-        setSavedFlash(`تم حفظ توقع أسبوع ${week} لـ ${customer.name} ✅`);
+        setSavedFlash(
+          canApprove
+            ? `تم تسجيل واعتماد توقع أسبوع ${week} لـ ${customer.name} فورياً ✅`
+            : `تم حفظ توقع أسبوع ${week} لـ ${customer.name} (في انتظار اعتماد المشرف) 📋`
+        );
         setTimeout(() => setSavedFlash(''), 3000);
       }
       return true;
@@ -756,10 +766,13 @@ export default function CollectionForecastView() {
         return false;
       }
 
+      const nextStatus = canApprove ? 'approved' : 'submitted';
       await saveForecast({
         ...base,
         collectionForecast: value,
-        status: base.status === 'approved' && canApprove ? 'approved' : base.status,
+        status: nextStatus,
+        approvedBy: canApprove ? (currentUser?.name || 'مشرف المناديب') : base.approvedBy,
+        approvedAt: canApprove ? new Date().toISOString() : base.approvedAt,
         changeRequestNote: undefined,
       });
 
@@ -1132,6 +1145,53 @@ export default function CollectionForecastView() {
     }
   };
 
+  /**
+   * اعتماد الكل بنقرة واحدة — للمشرف ومدير الفرع والأدمن:
+   * يعتمد كافة توقعات المناديب المسجلة (المُرسلة) بضغطة واحدة مباشرة بدون تعقيد
+   */
+  const handleApproveAllPending = async () => {
+    if (isApprovingScope || approvingSlot || !canApprove || !progress.length) return;
+    const approvalGroups = new Map<string, { repId: string; weekIndex: number; customerIds: Set<string> }>();
+    approvalScope.scopedForecasts.forEach((forecast) => {
+      if (forecast.status !== 'submitted') return;
+      const key = `${forecast.repId}::${forecast.weekIndex}`;
+      const group = approvalGroups.get(key) || {
+        repId: forecast.repId,
+        weekIndex: forecast.weekIndex,
+        customerIds: new Set<string>(),
+      };
+      group.customerIds.add(forecast.customerId);
+      approvalGroups.set(key, group);
+    });
+    const approvals = Array.from(approvalGroups.values()).map((group) => ({
+      repId: group.repId,
+      weekIndex: group.weekIndex,
+      customerIds: Array.from(group.customerIds),
+    }));
+    if (!approvals.length) {
+      setSavedFlash('لا توجد توقعات بانتظار الاعتماد حالياً — كافة توقعات المناديب معتمدة بالكامل ✅');
+      setTimeout(() => setSavedFlash(''), 4000);
+      return;
+    }
+
+    setIsApprovingScope(true);
+    try {
+      const approvedRows = await approveForecastBatch(monthKey, approvals);
+      setSavedFlash(
+        approvedRows > 0
+          ? `تم اعتماد الكل بنجاح (${approvedRows} توقع في انتظار اعتماد المشرف) بضغطة واحدة! ✅🔒`
+          : 'لم يتم اعتماد أي توقع — راجع الصلاحيات'
+      );
+      setTimeout(() => setSavedFlash(''), 5000);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'خطأ غير معروف';
+      setSavedFlash(`تعذر إكمال اعتماد الكل: ${message}`);
+      setTimeout(() => setSavedFlash(''), 6000);
+    } finally {
+      setIsApprovingScope(false);
+    }
+  };
+
   const handleRequestChange = async () => {
     if (!changeNoteTarget || !changeNote.trim()) return;
     const { repId, weekIndex } = changeNoteTarget;
@@ -1261,10 +1321,13 @@ export default function CollectionForecastView() {
           ? recordFor(customer, selectedPasteWeek)
           : monthRecordFor(customer);
         if (isLockedForEditing(base, currentUser) || !canWriteOwnForecast(currentUser, base, users)) continue;
+        const nextStatus = canApprove ? 'approved' : 'submitted';
         batch.push({
           ...base,
           collectionForecast: row.amount,
-          status: base.status === 'approved' && canApprove ? 'approved' : base.status,
+          status: nextStatus,
+          approvedBy: canApprove ? (currentUser?.name || 'مشرف المناديب') : base.approvedBy,
+          approvedAt: canApprove ? new Date().toISOString() : base.approvedAt,
           changeRequestNote: undefined,
         });
         draftKeys.push(`${customer.id}::${pasteFrequency === 'weekly' ? selectedPasteWeek : MONTH_FORECAST_INDEX}`);
@@ -1409,6 +1472,20 @@ export default function CollectionForecastView() {
               <FileSpreadsheet className="w-4 h-4" />
               <span>تصدير Excel 📥</span>
             </button>
+
+            {/* One-Click Approve All Button for Supervisor / Admin */}
+            {canApprove && (
+              <button
+                type="button"
+                onClick={handleApproveAllPending}
+                disabled={isApprovingScope || !!approvingSlot || planLocked || totalPendingApprovalCount === 0}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs shadow-md transition cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                title="اعتماد كافة توقعات المناديب لهذا الشهر بنقرة واحدة مباشرة دون خطوات إضافية"
+              >
+                {isApprovingScope ? <LoaderCircle className="w-4 h-4 animate-spin text-slate-950" /> : <CheckCircle2 className="w-4 h-4 text-slate-950" />}
+                <span>{isApprovingScope ? 'جاري الاعتماد...' : `اعتماد الكل (${totalPendingApprovalCount}) ⚡`}</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -2239,29 +2316,43 @@ const visitStats = visitStatsByCustomer.get(c.id);
                 الاعتماد الجماعي يشمل التوقعات المُرسلة فقط وللعملاء المطابقين للفلاتر الحالية. أرقام الحالة عدد الفترات، والشرائح داخل الفترة عدد العملاء.
               </p>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <select
-                value={approvalSlot}
-                onChange={(e) => setApprovalSlot(e.target.value)}
-                disabled={isApprovingScope || !!approvingSlot}
-                aria-label="الفترة المطلوب اعتمادها"
-                className="min-w-[175px] rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-60"
-              >
-                <option value="ALL">كل الفترات والشهري</option>
-                <option value={MONTH_FORECAST_INDEX}>التوقع الشهري فقط</option>
-                {weeks.map((week) => (
-                  <option key={week.index} value={week.index}>{weekLabel(week)} فقط</option>
-                ))}
-              </select>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
+              {/* زر اعتماد الكل المباشر بضغطة واحدة */}
               <button
                 type="button"
-                onClick={handleApproveFilteredScope}
-                disabled={isApprovingScope || !!approvingSlot || planLocked || !submittedForecastCount}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={handleApproveAllPending}
+                disabled={isApprovingScope || !!approvingSlot || planLocked || totalPendingApprovalCount === 0}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 px-5 py-2.5 text-xs font-black text-white shadow-md transition cursor-pointer active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                title="اعتماد كافة التوقعات المُرسلة للمشرف بنقرة واحدة مباشرة"
               >
                 {isApprovingScope ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" />}
-                {isApprovingScope ? 'جاري اعتماد النطاق...' : `اعتماد التوقعات المُرسلة (${submittedForecastCount})`}
+                <span>{isApprovingScope ? 'جاري الاعتماد...' : `⚡ زر اعتماد الكل (${totalPendingApprovalCount})`}</span>
               </button>
+
+              <div className="flex items-center gap-1.5 border-r border-slate-200 pr-2 mr-1">
+                <select
+                  value={approvalSlot}
+                  onChange={(e) => setApprovalSlot(e.target.value)}
+                  disabled={isApprovingScope || !!approvingSlot}
+                  aria-label="الفترة المطلوب اعتمادها"
+                  className="rounded-xl border border-slate-300 bg-white px-2.5 py-2 text-xs font-bold text-slate-700 disabled:opacity-60"
+                >
+                  <option value="ALL">فترة محددة: الكل</option>
+                  <option value={MONTH_FORECAST_INDEX}>التوقع الشهري فقط</option>
+                  {weeks.map((week) => (
+                    <option key={week.index} value={week.index}>{weekLabel(week)} فقط</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleApproveFilteredScope}
+                  disabled={isApprovingScope || !!approvingSlot || planLocked || !submittedForecastCount}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                  title="اعتماد الفترة المحددة في القائمة المنسدلة فقط"
+                >
+                  <span>اعتماد الفترة ({submittedForecastCount})</span>
+                </button>
+              </div>
             </div>
           </div>
         )}

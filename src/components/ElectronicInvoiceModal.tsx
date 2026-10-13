@@ -593,6 +593,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                   <th className="p-2.5 text-left">سعر القطعة</th>
                   <th className="p-2.5 text-left">سعر الكرتونة</th>
                   <th className="p-2.5 text-left">المبلغ الصافي</th>
+                  <th className="p-2.5 text-center">التوفر بـ {currentInv.branchName || 'الفرع'} ومخزن أكتوبر</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -600,6 +601,10 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                   const unified = item.unifiedCode || (item.product as any)?.unifiedCode;
                   const cQty = item.cartonQuantity || 1;
                   const pPrice = item.pricePerPiece || (cQty > 0 ? Math.round((item.pricePerCarton / cQty) * 100) / 100 : item.pricePerCarton);
+                  const bStock = typeof item.branchStockAtOrder === 'number' ? item.branchStockAtOrder : ((item.product as any)?.branchStockActual ?? 0);
+                  const oStock = typeof item.octoberStockAtOrder === 'number' ? item.octoberStockAtOrder : ((item.product as any)?.mainWarehouseActual ?? 0);
+                  const isShortage = item.isShortage || item.needsOctoberSupply || (item.cartonCount || 0) > bStock;
+                  const shortageC = item.shortageCartons && item.shortageCartons > 0 ? item.shortageCartons : Math.max(0, (item.cartonCount || 0) - Math.max(0, bStock));
 
                   return (
                     <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>
@@ -623,11 +628,6 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                             </span>
                           )}
                         </div>
-                        {item.fulfilledFrom === 'main_warehouse' && (
-                          <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded font-bold border border-amber-200 inline-block mt-0.5">
-                            سحب مركزي (أكتوبر)
-                          </span>
-                        )}
                       </td>
                       <td className="p-2.5 text-center text-slate-600 font-bold">{cQty} ق</td>
                       <td className="p-2.5 text-center font-black text-amber-950 bg-amber-50/60">
@@ -651,6 +651,26 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                       </td>
                       <td className="p-2.5 text-left font-black text-slate-950 font-mono bg-emerald-50/30">
                         {formatCurrency(item.netTotal)}
+                      </td>
+                      <td className="p-2.5 text-center text-[11px]">
+                        {!isShortage ? (
+                          <span className="text-[10px] text-emerald-800 font-black bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            متوفر بالفرع ✓
+                          </span>
+                        ) : oStock > 0 ? (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="text-[10px] text-blue-900 font-black bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                              متوفر في مخزن أكتوبر ({oStock} ك)
+                            </span>
+                            <span className="text-[9px] text-amber-950 font-black bg-amber-200 px-1.5 py-0.2 rounded border border-amber-300 shadow-2xs">
+                              🏷️ طلب توريد من المخزن ({shortageC} ك)
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-rose-800 font-black bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                            عجز بالمخازن
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );

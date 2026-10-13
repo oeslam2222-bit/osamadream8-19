@@ -41,7 +41,8 @@ import {
   BarChart3,
   CheckCheck,
   Clock,
-  Award
+  Award,
+  Gift
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import * as XLSX from 'xlsx-js-style';
@@ -84,7 +85,13 @@ import {
 } from '../services/targetService';
 import { formatCurrency } from '../services/invoiceService';
 import { resolveCollectionsMagnitude } from '../services/customerFinancialService';
-import { Customer, Product, TargetRecord } from '../types';
+import { Customer, Product, TargetRecord, PromotionOffer } from '../types';
+import {
+  getSavedPromotions,
+  savePromotions,
+  parsePromotionsFromExcelBuffer,
+  applyPromotionsToProducts,
+} from '../services/promotionService';
 
 export const ExcelImportExport: React.FC = () => {
   const {
@@ -133,11 +140,71 @@ export const ExcelImportExport: React.FC = () => {
   const [isPublishingVersion, setIsPublishingVersion] = useState(false);
 
   // Five Core Tabs
-  const [activeTab, setActiveTab] = useState<'forecast' | 'dedup' | 'products' | 'customers' | 'targets'>('dedup');
+  const [activeTab, setActiveTab] = useState<'offers' | 'dedup' | 'products' | 'customers' | 'targets'>('offers');
 
   // Global Notification State
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
+
+  // ----------------------------------------------------
+  // Offers & Promotions Google Sheet & Table State
+  // ----------------------------------------------------
+  const [offersSheetUrl, setOffersSheetUrl] = useState(() => getSavedSourceUrl('offers') || '');
+  const [promotionsList, setPromotionsList] = useState<PromotionOffer[]>(() => getSavedPromotions());
+  const [isSyncingOffers, setIsSyncingOffers] = useState(false);
+  const [offersSearchTerm, setOffersSearchTerm] = useState('');
+
+  const handleSyncOffersGoogleSheet = async () => {
+    if (!offersSheetUrl.trim()) {
+      setErrorNotice('يرجى إدخال رابط شيت جوجل للعروض أولاً.');
+      setTimeout(() => setErrorNotice(null), 4000);
+      return;
+    }
+    setIsSyncingOffers(true);
+    try {
+      saveSingleSourceUrl('offers', offersSheetUrl.trim(), true);
+      let fetchUrl = offersSheetUrl.trim();
+      const match = fetchUrl.match(/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      if (match && match[1]) {
+        fetchUrl = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv`;
+      }
+      const response = await fetch(fetchUrl);
+      if (!response.ok) {
+        throw new Error('تعذر تحميل بيانات العروض من الرابط. تأكد من تفعيل خاصية (Anyone with the link can view).');
+      }
+      const buffer = await response.arrayBuffer();
+      const result = await parsePromotionsFromExcelBuffer(buffer);
+      const updatedList = [...promotionsList];
+      result.promotions.forEach((newP) => {
+        const idx = updatedList.findIndex(
+          (p) => (p.productCode && p.productCode === newP.productCode) ||
+                 (p.unifiedCode && newP.unifiedCode && p.unifiedCode === newP.unifiedCode)
+        );
+        if (idx >= 0) {
+          updatedList[idx] = { ...updatedList[idx], ...newP };
+        } else {
+          updatedList.unshift(newP);
+        }
+      });
+      setPromotionsList(updatedList);
+      savePromotions(updatedList);
+      const { updatedCount } = applyPromotionsToProducts(products, updatedList);
+      setSuccessNotice(`تم بنجاح جلب ${result.matchedCount} عرض من شيت جوجل وتطبيق الخصومات الترويجية على ${updatedCount} صنف في الكتالوج! 🎉`);
+      setTimeout(() => setSuccessNotice(null), 5000);
+    } catch (err: any) {
+      setErrorNotice(`خطأ أثناء قراءة شيت العروض: ${err?.message || ''}`);
+      setTimeout(() => setErrorNotice(null), 5000);
+    } finally {
+      setIsSyncingOffers(false);
+    }
+  };
+
+  const handleSaveOffersUrlOnly = () => {
+    if (!offersSheetUrl.trim()) return;
+    saveSingleSourceUrl('offers', offersSheetUrl.trim(), true);
+    setSuccessNotice('تم حفظ رابط شيت العروض بنجاح 💾');
+    setTimeout(() => setSuccessNotice(null), 4000);
+  };
 
   // ----------------------------------------------------
   // Forecast & Projection States & Computations
@@ -963,25 +1030,23 @@ export const ExcelImportExport: React.FC = () => {
           </div>
         </div>
 
-        {/* The 5 Core Tabs: Forecast, Duplication Check, Products, Customers, Targets */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-2 border-t border-slate-100">
-          {/* TAB 1: التوقع الشهري والأسبوعي */}
+        {/* The 5 Core Tabs: Offers, Duplication Check, Products, Customers, Targets */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-2 border-t border-slate-100">
+          {/* TAB 1: رابط العروض وجدول العروض */}
           <button
-            aria-hidden="true"
-            tabIndex={-1}
-            onClick={() => setActiveTab('forecast')}
-            className={`hidden p-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-between transition cursor-pointer border ${
-              activeTab === 'forecast'
-                ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-md font-black'
+            onClick={() => setActiveTab('offers')}
+            className={`p-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-between transition cursor-pointer border ${
+              activeTab === 'offers'
+                ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white border-amber-600 shadow-md font-black'
                 : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
             }`}
           >
             <div className="flex items-center gap-2">
-              <TrendingUp className={`w-4 h-4 ${activeTab === 'forecast' ? 'text-slate-950' : 'text-amber-600'}`} />
-              <span>التوقع الشهري والأسبوعي</span>
+              <Gift className={`w-4 h-4 ${activeTab === 'offers' ? 'text-white' : 'text-rose-600'}`} />
+              <span>رابط العروض (جدول العروض)</span>
             </div>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-amber-400/30 text-slate-950">
-              جديد ⚡
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-rose-100 text-rose-900">
+              {promotionsList.length} عرض 🎁
             </span>
           </button>
 
@@ -1060,403 +1125,234 @@ export const ExcelImportExport: React.FC = () => {
       </div>
 
       {/* ========================================================================= */}
-      {/* TAB: التوقع الشهري والأسبوعي الذكي                                         */}
+      {/* TAB: رابط العروض وجدول العروض الترويجية والخصومات (Google Sheets)           */}
       {/* ========================================================================= */}
-      {activeTab === 'forecast' && (
+      {activeTab === 'offers' && (
         <div className="space-y-6">
-          {/* Header & Filter Controls */}
-          <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 text-white rounded-3xl p-5 sm:p-7 shadow-xl border border-slate-800 space-y-5">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-br from-rose-950 via-slate-900 to-amber-950 text-white rounded-3xl p-5 sm:p-7 shadow-xl border border-rose-800/40 space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <div className="inline-flex items-center gap-2 bg-amber-400/20 text-amber-300 text-xs font-black px-3 py-1 rounded-full border border-amber-400/30 mb-2">
-                  <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
-                  <span>لوحة التوقع الشهري والأسبوعي الذكي (Forecast Engine)</span>
+                <div className="inline-flex items-center gap-2 bg-rose-500/20 text-rose-300 text-xs font-black px-3 py-1 rounded-full border border-rose-500/30 mb-2">
+                  <Gift className="w-3.5 h-3.5 text-rose-400" />
+                  <span>مركز ربط العروض الترويجية وجدول الخصومات (Google Sheets)</span>
                 </div>
                 <h3 className="text-xl sm:text-2xl font-black text-white">
-                  توقعات المبيعات الأسبوعية والشهرية — {ARABIC_MONTHS[currentMonth - 1]} {currentYear}
+                  جدول العروض والخصومات وتحديث الأسعار الترويجية 🎁
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                  تحليل سرعة البيع اليومية (Run-Rate)، التوقع النهائي للشهر، ومتابعة الأداء أسبوعاً بأسبوع وفق الصلاحيات الميدانية لحماية سرية البيانات.
+                  ربط شيت العروض بجوجل شيتس السحابي • قراءة وتطبيق الخصومات الفورية تلقائياً بكود الصنف والكود الموحد (#) في كتالوج المنتجات وكاشير الفواتير.
                 </p>
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
-                  onClick={handleExportForecastReport}
-                  disabled={isExportingForecast}
-                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-md transition cursor-pointer active:scale-95 disabled:opacity-50"
+                  onClick={handleSyncOffersGoogleSheet}
+                  disabled={isSyncingOffers}
+                  className="bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-md transition cursor-pointer active:scale-95 disabled:opacity-50"
+                  title="سحب وتحديث العروض فوراً من شيت جوجل"
                 >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  <span>{isExportingForecast ? 'جاري التصدير...' : 'تصدير تقرير التوقعات Excel 📊'}</span>
+                  <RefreshCw className={`w-4 h-4 text-slate-950 ${isSyncingOffers ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingOffers ? 'جاري مزامنة العروض...' : 'مزامنة العروض من Google Sheets ⚡'}</span>
                 </button>
               </div>
             </div>
 
-            {/* Scope Badge & Hierarchy Notice */}
-            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800 text-xs font-bold">
-              <span className="text-slate-400 flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>نطاق العرض الحالي:</span>
-              </span>
-              {isSalesRep ? (
-                <span className="bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded-lg border border-emerald-500/30">
-                  🔒 بياناتك وتوقعاتك الشخصية فقط ({currentUser?.name})
-                </span>
-              ) : isSupervisor ? (
-                <span className="bg-indigo-500/20 text-indigo-300 px-2.5 py-1 rounded-lg border border-indigo-500/30">
-                  👥 فريق الإشراف التابع لك فقط ({scopedReps.length} مندوب)
-                </span>
-              ) : isBranchMgr ? (
-                <span className="bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded-lg border border-amber-500/30">
-                  🏢 مناديب ومشرفي فرع {currentUser?.branchName || ''} ({scopedReps.length} مندوب)
-                </span>
-              ) : (
-                <span className="bg-blue-500/20 text-blue-300 px-2.5 py-1 rounded-lg border border-blue-500/30">
-                  🌐 نظرة مركزية شاملة لكافة الفروع ({scopedReps.length} مندوب)
-                </span>
-              )}
+            {/* Clarification note on forecast vs offers */}
+            <div className="p-3 rounded-2xl bg-white/10 border border-white/15 flex items-start gap-2.5 text-xs text-amber-200">
+              <span className="text-base shrink-0">💡</span>
+              <div className="leading-relaxed">
+                <strong className="text-white block mb-0.5">توضيح بخصوص التوقعات:</strong>
+                التوقع الشهري والأسبوعي للتحصيلات موجود ومتاح بالكامل ومباشرةً داخل تبويب <strong>«توقعات التحصيل»</strong> في الشريط الرئيسي بدون الحاجة لشيتات خارجية، حيث يسجل المندوب وتظهر في انتظار اعتماد المشرف، أو يضيفها المشرف وتُعتمد فورياً مع إمكانية اعتماد الكل بنقرة واحدة، بينما خُصص هذا التبويب هنا لربط <strong>«شيت وجدول العروض»</strong>.
+              </div>
+            </div>
+          </div>
 
-              <span className="text-slate-400 mr-auto font-mono text-[11px]">
-                اليوم {currentDay} من {daysInCurrentMonth} • متبقي {remainingDays} يوماً • الأسبوع {currentWeekIndex}
-              </span>
+          {/* Google Sheet URL Setup Card */}
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+                  <Link className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-slate-900">رابط شيت العروض (Google Sheets URL)</h4>
+                  <p className="text-xs text-slate-500">رابط ملف جوجل شيتس الذي يحتوي على جدول العروض والخصومات</p>
+                </div>
+              </div>
+
+              {offersSheetUrl && (
+                <a
+                  href={offersSheetUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200 transition"
+                >
+                  <span>فتح في Google Sheets</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
             </div>
 
-            {/* Slicers for Admin & Branch Manager */}
-            {(isSuperAdmin || (isBranchMgr && !isSupervisor && !isSalesRep)) && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800">
-                {isSuperAdmin && (
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-300">تصفية الفرع:</label>
-                    <select
-                      value={forecastBranchFilter}
-                      onChange={(e) => setForecastBranchFilter(e.target.value)}
-                      className="w-full bg-slate-800 text-white border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-2 focus:ring-amber-400 cursor-pointer"
-                    >
-                      <option value="all">كافة الفروع</option>
-                      {branches
-                        .filter((b) => !b.isMainWarehouse && !b.name.includes('المخزن المركزي'))
-                        .map((b) => (
-                          <option key={b.id} value={b.name}>{b.name}</option>
-                        ))}
-                    </select>
-                  </div>
-                )}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <input
+                type="url"
+                value={offersSheetUrl}
+                onChange={(e) => setOffersSheetUrl(e.target.value)}
+                placeholder="https://docs.google.com/spreadsheets/d/1.../edit?usp=sharing"
+                className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500 font-mono"
+                dir="ltr"
+              />
+              <button
+                type="button"
+                onClick={handleSaveOffersUrlOnly}
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+              >
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span>حفظ الرابط 💾</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleSyncOffersGoogleSheet}
+                disabled={isSyncingOffers}
+                className="bg-rose-600 hover:bg-rose-500 text-white font-black px-4 py-2.5 rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50"
+              >
+                <RefreshCw className={} />
+                <span>جلب وتطبيق العروض ⚡</span>
+              </button>
+            </div>
+          </div>
 
-                {isSuperAdmin && (
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-300">مشرف الفريق:</label>
-                    <select
-                      value={forecastSupervisorFilter}
-                      onChange={(e) => setForecastSupervisorFilter(e.target.value)}
-                      className="w-full bg-slate-800 text-white border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-2 focus:ring-amber-400 cursor-pointer"
-                    >
-                      <option value="all">كافة المشرفين</option>
-                      {users
-                        .filter((u) => u.role === 'supervisor')
-                        .map((u) => (
-                          <option key={u.id} value={u.id}>{u.name} ({u.branchName || 'عام'})</option>
-                        ))}
-                    </select>
-                  </div>
-                )}
+          {/* Quick Stats Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-400 block">إجمالي العروض في الجدول:</span>
+              <strong className="text-xl font-black text-rose-600 mt-1 block">{promotionsList.length} عرض</strong>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-400 block">العروض النشطة الحالية:</span>
+              <strong className="text-xl font-black text-emerald-600 mt-1 block">
+                {promotionsList.filter((p) => p.status === 'نشط').length} نشط
+              </strong>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-400 block">متوسط الخصم الترويجي:</span>
+              <strong className="text-xl font-black text-amber-600 mt-1 block">
+                {promotionsList.length > 0
+                  ? Math.round(promotionsList.reduce((acc, p) => acc + (p.discountPercentage || 0), 0) / promotionsList.length)
+                  : 0}%
+              </strong>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-400 block">الأصناف المشمولة بالخصم:</span>
+              <strong className="text-xl font-black text-blue-600 mt-1 block">
+                {products.filter((p) => Boolean(p.promoPrice || p.offerPrice)).length} صنف
+              </strong>
+            </div>
+          </div>
 
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-300">بحث عن مندوب:</label>
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      value={forecastRepSearch}
-                      onChange={(e) => setForecastRepSearch(e.target.value)}
-                      placeholder="اسم أو كود المندوب..."
-                      className="w-full bg-slate-800 text-white border border-slate-700 rounded-xl pr-9 pl-3 py-1.5 text-xs font-bold focus:ring-2 focus:ring-amber-400"
-                    />
-                  </div>
-                </div>
+          {/* Active Offers Table (جدول العروض) */}
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-3 p-4 sm:p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-amber-500" />
+                <h4 className="text-sm sm:text-base font-black text-slate-900">
+                  جدول العروض والخصومات المعتمدة ({promotionsList.length})
+                </h4>
+              </div>
+
+              {/* Search filter */}
+              <div className="relative w-full sm:w-64">
+                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={offersSearchTerm}
+                  onChange={(e) => setOffersSearchTerm(e.target.value)}
+                  placeholder="بحث بكود الصنف أو الاسم أو #..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-9 pl-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-400"
+                />
+              </div>
+            </div>
+
+            {promotionsList.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 space-y-2">
+                <Gift className="w-10 h-10 text-slate-300 mx-auto" />
+                <p className="text-sm font-bold text-slate-600">لا توجد عروض مضافة في الجدول حالياً</p>
+                <p className="text-xs text-slate-400">
+                  ضع رابط شيت جوجل للعروض واضغط (مزامنة العروض من Google Sheets) لجلب جدول العروض وتطبيقه تلقائياً.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                <table className="w-full text-right text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-900 text-white font-bold border-b border-slate-800">
+                      <th className="p-3 text-center w-12">م</th>
+                      <th className="p-3">كود الصنف</th>
+                      <th className="p-3">الكود الموحد</th>
+                      <th className="p-3 min-w-[180px]">اسم الصنف والبيان</th>
+                      <th className="p-3">القسم</th>
+                      <th className="p-3 text-center">السعر قبل العرض</th>
+                      <th className="p-3 text-center text-amber-300">سعر العرض</th>
+                      <th className="p-3 text-center text-emerald-300">نسبة الخصم</th>
+                      <th className="p-3 text-center">سريان العرض</th>
+                      <th className="p-3 text-center">الحالة</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {promotionsList
+                      .filter((p) => {
+                        if (!offersSearchTerm.trim()) return true;
+                        const q = offersSearchTerm.toLowerCase().trim();
+                        return (
+                          (p.productCode && p.productCode.toLowerCase().includes(q)) ||
+                          (p.unifiedCode && p.unifiedCode.toLowerCase().includes(q)) ||
+                          (p.productName && p.productName.toLowerCase().includes(q)) ||
+                          (p.title && p.title.toLowerCase().includes(q))
+                        );
+                      })
+                      .map((promo, idx) => (
+                        <tr key={promo.id || idx} className="hover:bg-rose-50/40 transition">
+                          <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
+                          <td className="p-3 font-mono font-bold text-slate-900 bg-slate-50/70">{promo.productCode}</td>
+                          <td className="p-3 font-mono font-bold text-indigo-700">
+                            {promo.unifiedCode ?  : '---'}
+                          </td>
+                          <td className="p-3">
+                            <strong className="text-slate-900 block font-black">{promo.productName}</strong>
+                            {promo.title && promo.title !== promo.productName && (
+                              <span className="text-[10px] text-slate-500 block">{promo.title}</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-slate-600 font-medium">{promo.category || 'عام'}</td>
+                          <td className="p-3 text-center font-mono text-slate-500 line-through">
+                            {promo.originalPrice ?  : '---'}
+                          </td>
+                          <td className="p-3 text-center font-mono font-black text-rose-700 bg-rose-50/60">
+                            {promo.promoPrice ?  : '---'}
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="bg-emerald-100 text-emerald-800 font-black px-2 py-0.5 rounded-full text-[11px]">
+                              %{promo.discountPercentage || 0}
+                            </span>
+                          </td>
+                          <td className="p-3 text-center text-[10px] text-slate-500 font-medium">
+                            {promo.startDate ? promo.startDate : 'فوري'} {promo.endDate ?  : ''}
+                          </td>
+                          <td className="p-3 text-center">
+                            <span
+                              className={}
+                            >
+                              {promo.status || 'نشط'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
               </div>
             )}
-          </div>
-
-          {/* 4 Executive KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Card 1: التوقع الشهري الإجمالي */}
-            <div className="bg-white rounded-3xl p-5 border-2 border-slate-200 hover:border-amber-400 shadow-sm transition space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">التوقع الشهري الإجمالي</span>
-                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black">
-                  <Target className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <div className="text-2xl font-black text-slate-900 font-mono">
-                  {formatCurrency(summaryMetrics.totalProjected)}
-                </div>
-                <div className="flex items-center gap-1.5 text-xs font-bold mt-1">
-                  <span className="text-slate-500">التارجت:</span>
-                  <span className="text-slate-800 font-mono">{formatCurrency(summaryMetrics.totalTarget)}</span>
-                </div>
-              </div>
-              <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] font-bold">
-                  <span className="text-slate-600">نسبة التوقع للإنجاز:</span>
-                  <span className={`font-black ${summaryMetrics.overallRate >= 100 ? 'text-emerald-600' : summaryMetrics.overallRate >= 80 ? 'text-amber-600' : 'text-rose-600'}`}>
-                    {summaryMetrics.overallRate}%
-                  </span>
-                </div>
-                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      summaryMetrics.overallRate >= 100 ? 'bg-emerald-500' : summaryMetrics.overallRate >= 80 ? 'bg-amber-500' : 'bg-rose-500'
-                    }`}
-                    style={{ width: `${Math.min(100, summaryMetrics.overallRate)}%` }}
-                  />
-                </div>
-                <div className="text-[10px] font-bold text-slate-500 text-left">
-                  الفارق: <strong className={summaryMetrics.totalVariance >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
-                    {summaryMetrics.totalVariance >= 0 ? '+' : ''}{formatCurrency(summaryMetrics.totalVariance)}
-                  </strong>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 2: التوقع الأسبوعي الحالي */}
-            <div className="bg-white rounded-3xl p-5 border-2 border-slate-200 hover:border-amber-400 shadow-sm transition space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">التوقع الأسبوعي الحالي (W{currentWeekIndex})</span>
-                <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-black">
-                  <Calendar className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <div className="text-2xl font-black text-blue-900 font-mono">
-                  {formatCurrency(summaryMetrics.currentWeekActual)}
-                </div>
-                <div className="flex items-center gap-1.5 text-xs font-bold mt-1">
-                  <span className="text-slate-500">تارجت الأسبوع:</span>
-                  <span className="text-slate-800 font-mono">{formatCurrency(summaryMetrics.currentWeekTarget)}</span>
-                </div>
-              </div>
-              <div className="pt-2 border-t border-slate-100">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black bg-blue-50 text-blue-800 border border-blue-200">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>الأسبوع {currentWeekIndex} جاري الآن</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 3: سرعة البيع اليومية */}
-            <div className="bg-white rounded-3xl p-5 border-2 border-slate-200 hover:border-amber-400 shadow-sm transition space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">سرعة البيع اليومية (Run-Rate)</span>
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black">
-                  <Activity className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <div className="text-2xl font-black text-emerald-800 font-mono">
-                  {formatCurrency(summaryMetrics.dailyRunRate)}
-                </div>
-                <div className="text-[11px] text-slate-500 font-bold mt-0.5">متوسط المبيعات اليومية المحققة</div>
-              </div>
-              <div className="pt-2 border-t border-slate-100 text-[11px] font-bold text-slate-600">
-                المطلوب يومياً للمتبقي ({remainingDays} يوماً):
-                <div className="text-sm font-black text-slate-900 font-mono mt-0.5">
-                  {formatCurrency(summaryMetrics.requiredDailyRate)} / يوم
-                </div>
-              </div>
-            </div>
-
-            {/* Card 4: توقعات التحصيل المالي */}
-            <div className="bg-white rounded-3xl p-5 border-2 border-slate-200 hover:border-amber-400 shadow-sm transition space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">توقعات التحصيل المالي</span>
-                <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-black">
-                  <Wallet className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <div className="text-2xl font-black text-purple-900 font-mono">
-                  {formatCurrency(summaryMetrics.totalCollectionForecast > 0 ? summaryMetrics.totalCollectionForecast : summaryMetrics.totalCollectionTarget)}
-                </div>
-                <div className="flex items-center gap-1.5 text-xs font-bold mt-1">
-                  <span className="text-slate-500">تارجت التحصيل:</span>
-                  <span className="text-slate-800 font-mono">{formatCurrency(summaryMetrics.totalCollectionTarget)}</span>
-                </div>
-              </div>
-              <div className="pt-2 border-t border-slate-100 text-[11px] font-bold text-purple-700">
-                مبني على مستحقات العملاء المسجلة وتوقعات المناديب
-              </div>
-            </div>
-          </div>
-
-          {/* Five-Week Milestone Timeline */}
-          <div className="bg-white rounded-3xl p-5 sm:p-6 border-2 border-slate-200 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-              <div>
-                <h4 className="text-base font-black text-slate-900 flex items-center gap-2">
-                  <CalendarCheck className="w-5 h-5 text-amber-500" />
-                  <span>المسار الزمني لتوزيع الأسابيع الخمسة ({ARABIC_MONTHS[currentMonth - 1]})</span>
-                </h4>
-                <p className="text-xs text-slate-500">متابعة دقيقة لمستهدف ومحقق كل أسبوع لضبط الإيقاع البيعي ومنع المفاجآت بنهاية الشهر</p>
-              </div>
-              <span className="text-xs font-black text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-xl">
-                نحن الآن في الأسبوع {currentWeekIndex}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-              {summaryMetrics.weeklyTotals.map((w) => (
-                <div
-                  key={w.weekIndex}
-                  className={`p-4 rounded-2xl border-2 transition ${
-                    w.isCurrent
-                      ? 'bg-amber-50/70 border-amber-400 shadow-md ring-2 ring-amber-400/40'
-                      : w.isPassed
-                      ? 'bg-slate-50 border-slate-200'
-                      : 'bg-white border-slate-200 opacity-80'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-black text-xs text-slate-900">{w.label}</span>
-                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                      w.isCurrent ? 'bg-amber-400 text-slate-950 animate-pulse' : w.isPassed ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {w.isCurrent ? 'جاري الآن ⚡' : w.isPassed ? 'منقضي' : 'قادم'}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-slate-500 font-bold mb-2">{w.dateRange}</div>
-                  
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500">المحقق:</span>
-                      <strong className="text-slate-900 font-mono">{formatCurrency(w.actual)}</strong>
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500">التارجت:</span>
-                      <span className="text-slate-600 font-mono text-[11px]">{formatCurrency(w.target)}</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-2.5 pt-2 border-t border-slate-200/80">
-                    <div className="flex items-center justify-between text-[11px] font-bold">
-                      <span className="text-slate-600">نسبة الإنجاز:</span>
-                      <span className={`font-mono font-black ${w.rate >= 100 ? 'text-emerald-700' : w.rate >= 80 ? 'text-amber-700' : 'text-slate-700'}`}>
-                        {w.rate}%
-                      </span>
-                    </div>
-                    <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1">
-                      <div
-                        className={`h-full rounded-full ${w.rate >= 100 ? 'bg-emerald-500' : w.rate >= 80 ? 'bg-amber-500' : 'bg-slate-400'}`}
-                        style={{ width: `${Math.min(100, w.rate)}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Reps Forecast & Performance Matrix */}
-          <div className="bg-white rounded-3xl p-5 sm:p-6 border-2 border-slate-200 shadow-sm space-y-4 overflow-hidden">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-              <div>
-                <h4 className="text-base font-black text-slate-900 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-indigo-600" />
-                  <span>جدول أداء وتوقعات المناديب الميدانية ({repForecastRows.length} مندوب)</span>
-                </h4>
-                <p className="text-xs text-slate-500">مصفوفة التوقع المحسوبة تلقائياً وفق سرعة البيع الميداني للمندوب</p>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto rounded-2xl border border-slate-200">
-              <table className="w-full text-right text-xs">
-                <thead className="bg-slate-900 text-white font-black text-[11px]">
-                  <tr>
-                    <th className="p-3">المندوب</th>
-                    <th className="p-3">الفرع / المشرف</th>
-                    <th className="p-3 text-center">تارجت الشهر</th>
-                    <th className="p-3 text-center">المحقق الفعلي</th>
-                    <th className="p-3 text-center">البيع اليومي</th>
-                    <th className="p-3 text-center">توقع الأسبوع الحالي</th>
-                    <th className="p-3 text-center">التوقع الشهري</th>
-                    <th className="p-3 text-center">نسبة التوقع %</th>
-                    <th className="p-3 text-center">الفارق المتوقع</th>
-                    <th className="p-3 text-center">حالة المسار</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
-                  {repForecastRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="p-8 text-center text-slate-400 font-bold">
-                        لا يوجد مناديب مسجلين ضمن نطاق البحث والصلاحية المحددة.
-                      </td>
-                    </tr>
-                  ) : (
-                    repForecastRows.map((row) => (
-                      <tr key={row.rep.id} className="hover:bg-amber-50/40 transition">
-                        <td className="p-3">
-                          <div className="font-black text-slate-900">{row.rep.name}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">كود: {row.rep.code || row.rep.username || '---'}</div>
-                        </td>
-                        <td className="p-3">
-                          <div className="font-bold text-slate-700">{row.rep.branchName || 'الفرع الرئيسي'}</div>
-                          <div className="text-[10px] text-slate-400">
-                            مشرف: {users.find((u) => u.id === row.rep.supervisorId)?.name || '---'}
-                          </div>
-                        </td>
-                        <td className="p-3 text-center font-bold font-mono text-slate-800">
-                          {formatCurrency(row.target)}
-                        </td>
-                        <td className="p-3 text-center font-black font-mono text-slate-900">
-                          {formatCurrency(row.actualSales)}
-                        </td>
-                        <td className="p-3 text-center font-bold font-mono text-emerald-800">
-                          {formatCurrency(row.dailyRunRate)}/يوم
-                        </td>
-                        <td className="p-3 text-center font-bold font-mono text-blue-900">
-                          {formatCurrency(row.currentWeekActual)}
-                          <span className="text-[9px] text-slate-400 block font-normal">من {formatCurrency(row.currentWeekTarget)}</span>
-                        </td>
-                        <td className="p-3 text-center font-black font-mono text-amber-900 text-sm">
-                          {formatCurrency(row.projectedMonthEnd)}
-                        </td>
-                        <td className="p-3 text-center">
-                          <span className={`px-2 py-0.5 rounded-lg text-xs font-black font-mono ${
-                            row.projectedRate >= 100 ? 'bg-emerald-100 text-emerald-800' : row.projectedRate >= 80 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
-                          }`}>
-                            {row.projectedRate}%
-                          </span>
-                        </td>
-                        <td className="p-3 text-center font-bold font-mono">
-                          <span className={row.variance >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
-                            {row.variance >= 0 ? '+' : ''}{formatCurrency(row.variance)}
-                          </span>
-                        </td>
-                        <td className="p-3 text-center">
-                          {row.status === 'super' ? (
-                            <span className="px-2 py-1 rounded-xl text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-300 inline-flex items-center gap-1">
-                              <Sparkles className="w-3 h-3" />
-                              <span>متفوق 🚀</span>
-                            </span>
-                          ) : row.status === 'on_track' ? (
-                            <span className="px-2 py-1 rounded-xl text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-300 inline-flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3" />
-                              <span>على المسار ⚡</span>
-                            </span>
-                          ) : (
-                            <span className="px-2 py-1 rounded-xl text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-300 inline-flex items-center gap-1">
-                              <AlertCircle className="w-3 h-3" />
-                              <span>يحتاج تسريع ⚠️</span>
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
           </div>
         </div>
       )}

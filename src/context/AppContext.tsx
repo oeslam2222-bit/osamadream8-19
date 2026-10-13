@@ -4478,13 +4478,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       });
     });
 
-    setInvoices((prev) => {
-      const updated = [primaryInvoice, ...prev];
-      if (createdShortageInvoice) {
-        updated.unshift(createdShortageInvoice);
-      }
-      return updated;
-    });
+    setInvoices((prev) => [primaryInvoice, ...prev]);
 
     // Auto-detect and register new customer or link to representative
     if (orderData.customerName && orderData.customerName.trim() !== 'عميل تجزئة عام') {
@@ -4520,9 +4514,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     // Auto push to Supabase Cloud Database
     saveInvoiceWithQueue(primaryInvoice).catch((e) => console.warn('Supabase invoice save failed:', e));
-    if (createdShortageInvoice) {
-      saveInvoiceWithQueue(createdShortageInvoice).catch((e) => console.warn('Supabase shortage invoice save failed:', e));
-    }
 
     clearCart();
 
@@ -4533,7 +4524,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       branchName: primaryInvoice.branchName,
       action: 'create_invoice',
       actionTitle: `تسجيل فاتورة مبيعات جديدة #${primaryInvoice.invoiceNumber}`,
-      details: `العميل: ${primaryInvoice.customerName} • ${primaryInvoice.totalCartons} كرتونة • القيمة: ${primaryInvoice.estimatedGrandTotal.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م • الحالة: ${primaryInvoice.status}${shouldSplit ? ` • تم تجزئة نواقص لفاتورة #${createdShortageInvoice?.invoiceNumber}` : ''}`,
+      details: `العميل: ${primaryInvoice.customerName} • ${primaryInvoice.totalCartons} كرتونة • القيمة: ${primaryInvoice.estimatedGrandTotal.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م • الحالة: ${primaryInvoice.status}${primaryInvoice.hasOctoberShortages ? ' • تتضمن أصناف نواقص مطلوب توريدها من أكتوبر' : ''}`,
       invoiceId: primaryInvoice.id,
       invoiceNumber: primaryInvoice.invoiceNumber,
       badgeType: 'warning',
@@ -4542,9 +4533,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     return {
       success: true,
       invoice: primaryInvoice,
-      shortageInvoice: createdShortageInvoice,
-      message: createdShortageInvoice
-        ? `تم إصدار الفاتورة الأساسية #${primaryInvoice.invoiceNumber} وفاتورة النواقص المحولة #${createdShortageInvoice.invoiceNumber} بنجاح!`
+      message: primaryInvoice.hasOctoberShortages
+        ? `تم تسجيل الفاتورة الموحدة #${primaryInvoice.invoiceNumber} مع إشعار توريد النواقص لمخزن أكتوبر!`
         : `تم تسجيل الطلبية #${primaryInvoice.invoiceNumber} وإرسالها للمراجعة والاعتماد!`
     };
   };
@@ -5908,11 +5898,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       repName: effectiveRepName,
       branchName: effectiveBranch,
       supervisorId: visit.supervisorId || assignedRep?.supervisorId,
-      status: visit.status || 'مجدولة',
-      reviewStatus: visit.status === 'منفذة' || visit.status === 'لم تتم' ? 'pending' : undefined,
-      reviewedByName: undefined,
-      reviewNote: undefined,
-      reviewedAt: undefined,
+      status: visit.status || 'منفذة',
+      reviewStatus: 'approved',
+      reviewedByName: currentUser.name || 'معتمدة مباشرة',
+      reviewNote: 'زيارة مباشرة معتمدة تلقائياً',
+      reviewedAt: new Date().toISOString(),
       createdBy: currentUser.id,
       createdAt: new Date().toISOString(),
       syncStatus: isOnlineNow ? 'synced' : 'pending_sync',

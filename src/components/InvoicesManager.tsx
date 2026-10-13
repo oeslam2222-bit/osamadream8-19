@@ -30,7 +30,8 @@ import {
   PlusCircle,
   ExternalLink,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  Truck
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -48,6 +49,7 @@ import { CreditStatusBadge } from './CreditStatusBadge';
 import { OrderReturnModal } from './OrderReturnModal';
 import { ExcelInvoicePreviewModal } from './ExcelInvoicePreviewModal';
 import { ConsolidatedInvoiceModal } from './ConsolidatedInvoiceModal';
+import { ShortagePullModal } from './ShortagePullModal';
 
 interface InvoicesManagerProps {
   onOpenNewOrder: () => void;
@@ -75,7 +77,8 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     branches,
     selectedBranchFilter,
     setSelectedBranchFilter,
-    refreshInvoicesNow
+    refreshInvoicesNow,
+    bulkDispatchOctoberSupply
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -99,6 +102,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   // Multi-selection for Consolidating Invoices & October Supply Analysis (دمج الفواتير وتحليل توريد أكتوبر)
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
   const [isConsolidatedModalOpen, setIsConsolidatedModalOpen] = useState<boolean>(false);
+  const [isShortagePullModalOpen, setIsShortagePullModalOpen] = useState<boolean>(false);
 
   // The dispatch pack is a daily document, so the period defaults to today and the
   // scope defaults to both halves: the warehouse request plus the approved orders.
@@ -236,8 +240,22 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     }
     return {
       all: base.length,
-      available: base.filter((i) => !i.isShortageInvoice && !(i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))).length,
-      shortage: base.filter((i) => i.isShortageInvoice || (i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))).length,
+      available: base.filter(
+        (i) =>
+          !i.hasOctoberShortages &&
+          !Boolean(i.shortageItemsCount && i.shortageItemsCount > 0) &&
+          !i.items.some((it) => it.isShortage || it.needsOctoberSupply) &&
+          !i.isShortageInvoice &&
+          !(i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))
+      ).length,
+      shortage: base.filter(
+        (i) =>
+          i.hasOctoberShortages ||
+          Boolean(i.shortageItemsCount && i.shortageItemsCount > 0) ||
+          i.items.some((it) => it.isShortage || it.needsOctoberSupply) ||
+          i.isShortageInvoice ||
+          (i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))
+      ).length,
       pending: base.filter(
         (i) => i.status === 'قيد مراجعة المشرف' || i.status === 'معلقة بانتظار اعتماد الفرع' || i.status === 'قيد المراجعة'
       ).length,
@@ -264,10 +282,16 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
       // 3. Status filter
       if (selectedStatus !== 'الكل') {
+        const hasShortages = inv.hasOctoberShortages ||
+          Boolean(inv.shortageItemsCount && inv.shortageItemsCount > 0) ||
+          inv.items.some((it) => it.isShortage || it.needsOctoberSupply) ||
+          inv.isShortageInvoice ||
+          (inv.invoiceNumber && inv.invoiceNumber.endsWith('-NQ'));
+
         if (selectedStatus === 'فواتير الأصناف المتوفرة') {
-          if (inv.isShortageInvoice || (inv.invoiceNumber && inv.invoiceNumber.endsWith('-NQ'))) return false;
+          if (hasShortages) return false;
         } else if (selectedStatus === 'فواتير النواقص') {
-          if (!inv.isShortageInvoice && !(inv.invoiceNumber && inv.invoiceNumber.endsWith('-NQ'))) return false;
+          if (!hasShortages) return false;
         } else if (selectedStatus === 'قيد مراجعة المشرف') {
           if (inv.status !== 'قيد مراجعة المشرف' && inv.status !== 'معلقة بانتظار اعتماد الفرع' && inv.status !== 'قيد المراجعة') {
             return false;
@@ -518,6 +542,21 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               <span>{isRefreshing ? 'جاري التحديث...' : 'تحديث من السيرفر'}</span>
             </button>
 
+            {/* زر سحب ومتابعة فواتير النواقص لمخزن 6 أكتوبر المركزي */}
+            <button
+              onClick={() => setIsShortagePullModalOpen(true)}
+              className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black px-3.5 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95 cursor-pointer"
+              title="سحب فواتير النواقص لمخزن 6 أكتوبر المركزي وإرسال الميل الرسمي للسيستم"
+            >
+              <Truck className="w-4 h-4 text-slate-950" />
+              <span>سحب فواتير النواقص 🚚</span>
+              {tabCounts.shortage > 0 && (
+                <span className="bg-slate-950 text-amber-300 text-[10px] font-mono px-1.5 py-0.2 rounded-full font-black">
+                  {tabCounts.shortage}
+                </span>
+              )}
+            </button>
+
             <button
               onClick={onOpenNewOrder}
               className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95 cursor-pointer"
@@ -597,9 +636,9 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 ? 'bg-teal-700 text-white shadow-sm'
                 : 'bg-teal-50 text-teal-800 hover:bg-teal-100'
             }`}
-            title="عرض فواتير البضاعة المتوفرة بالفرع فقط"
+            title="عرض فواتير البضاعة المتوفرة بالفرع بالكامل"
           >
-            فواتير المتوفر 📦 ({tabCounts.available})
+            فواتير مكتملة بالفرع 📦 ({tabCounts.available})
           </button>
 
           <button
@@ -609,9 +648,9 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 ? 'bg-indigo-700 text-white shadow-sm'
                 : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100'
             }`}
-            title="عرض فواتير النواقص المحولة للمخزن المركزي بأكتوبر"
+            title="عرض فواتير الطلبيات التي بها نواقص مطلوب توريدها من مخزن 6 أكتوبر"
           >
-            فواتير النواقص (-NQ) 🚚 ({tabCounts.shortage})
+            فواتير بها نواقص توريد من أكتوبر 🚚 ({tabCounts.shortage})
           </button>
 
           <button
@@ -669,8 +708,8 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer w-full"
             >
               <option value="الكل">كل الفواتير</option>
-              <option value="فواتير الأصناف المتوفرة">فواتير الأصناف المتوفرة فقط 📦</option>
-              <option value="فواتير النواقص">فواتير النواقص فقط (-NQ) 🚚</option>
+              <option value="فواتير الأصناف المتوفرة">فواتير مكتملة بالفرع 📦</option>
+              <option value="فواتير النواقص">فواتير بها نواقص توريد من أكتوبر 🚚</option>
               <option value="قيد مراجعة المشرف">قيد مراجعة المشرف</option>
               <option value="معلقة بانتظار اعتماد الفرع">بانتظار مدير الفرع</option>
               <option value="معتمدة ومصروفة من المخزن">معتمدة ومصروفة</option>
@@ -975,53 +1014,25 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           <span className="bg-slate-100 px-2 py-1 rounded-md text-amber-900 border border-slate-200 font-bold">
                             {invoice.invoiceNumber}
                           </span>
-                          {invoice.isShortageInvoice && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (invoice.parentInvoiceNumber) setSearchTerm(invoice.parentInvoiceNumber);
-                              }}
-                              className="bg-purple-50 hover:bg-purple-100 text-purple-950 px-2 py-1 rounded-md text-[10px] font-black border border-purple-300 flex flex-col gap-0.5 transition cursor-pointer text-right shadow-2xs group"
-                              title="فاتورة نواقص محولة لمخزن أكتوبر المركزي - انقر للبحث عن الفاتورة الأساسية"
-                            >
-                              <div className="flex items-center gap-1 text-purple-900 font-black">
-                                <span>🚚 فاتورة نواقص (مخزن أكتوبر)</span>
-                              </div>
-                              {invoice.parentInvoiceNumber && (
-                                <div className="flex items-center gap-1 text-[9px] text-purple-700 font-mono">
-                                  <span>الأصلية:</span>
-                                  <span className="font-bold underline">#{invoice.parentInvoiceNumber}</span>
-                                  <ExternalLink className="w-2.5 h-2.5 shrink-0 text-purple-600" />
-                                </div>
+                          {(invoice.hasOctoberShortages || invoice.items.some((it) => it.isShortage || it.needsOctoberSupply) || invoice.isShortageInvoice) ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="bg-amber-100 text-amber-950 px-2 py-0.5 rounded-md text-[10px] font-black border border-amber-300 flex items-center gap-1 shadow-2xs">
+                                <span>🚚 فاتورة موحدة بها نواقص توريد</span>
+                                <span>({invoice.shortageItemsCount || invoice.items.filter((it) => it.isShortage || it.needsOctoberSupply).length} صنف)</span>
+                              </span>
+                              {invoice.octoberSupplyRequested ? (
+                                <span className="text-[9px] text-emerald-800 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                  ✓ تم طلب التوريد من أكتوبر ({invoice.octoberSupplyRequestedBy || 'المشرف'})
+                                </span>
+                              ) : (
+                                <span className="text-[9px] text-amber-900 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                  ⏳ مطلوب سحب النواقص من أكتوبر
+                                </span>
                               )}
-                            </button>
-                          )}
-                          {invoice.hasShortageSplit && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (invoice.shortageInvoiceNumber) setSearchTerm(invoice.shortageInvoiceNumber);
-                              }}
-                              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-950 px-2 py-1 rounded-md text-[10px] font-black border border-emerald-300 flex flex-col gap-0.5 transition cursor-pointer text-right shadow-2xs group"
-                              title="فاتورة الأصناف المتوفرة بالمخزن - تم فصل النواقص - انقر للبحث عن فاتورة النواقص"
-                            >
-                              <div className="flex items-center gap-1 text-emerald-900 font-black">
-                                <span>📦 أصناف متوفرة (بالمخزن)</span>
-                              </div>
-                              {invoice.shortageInvoiceNumber && (
-                                <div className="flex items-center gap-1 text-[9px] text-emerald-700 font-mono">
-                                  <span>نواقص:</span>
-                                  <span className="font-bold underline">#{invoice.shortageInvoiceNumber}</span>
-                                  <ExternalLink className="w-2.5 h-2.5 shrink-0 text-emerald-600" />
-                                </div>
-                              )}
-                            </button>
-                          )}
-                          {!invoice.isShortageInvoice && !invoice.hasShortageSplit && (
-                            <span className="bg-emerald-50 text-emerald-900 px-2 py-1 rounded-md text-[10px] font-black border border-emerald-300 flex items-center gap-1 shadow-2xs">
-                              <span>✅ فاتورة مكتملة متوفرة بالمخزن</span>
+                            </div>
+                          ) : (
+                            <span className="bg-emerald-50 text-emerald-900 px-2 py-0.5 rounded-md text-[10px] font-black border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                              <span>✅ كافة الأصناف متوفرة بـ {invoice.branchName || 'الفرع'}</span>
                             </span>
                           )}
                         </div>
@@ -1550,6 +1561,20 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         selectedInvoices={selectedInvoicesList.length > 0 ? selectedInvoicesList : accessibleInvoices}
         products={products}
         currentBranch={selectedBranchFilter !== 'الكل' ? selectedBranchFilter : currentUser?.branchName}
+      />
+
+      {/* Shortage Invoices Pulling Modal (سحب فواتير النواقص لمخزن 6 أكتوبر المركزي) */}
+      <ShortagePullModal
+        isOpen={isShortagePullModalOpen}
+        onClose={() => setIsShortagePullModalOpen(false)}
+        invoices={userVisibleInvoices}
+        products={products}
+        currentUser={currentUser}
+        onConfirmDispatch={(invoiceIds) => {
+          const res = bulkDispatchOctoberSupply(invoiceIds);
+          setSuccessToast(res.message || `تم بنجاح اعتماد وتأكيد طلب توريد النواقص لـ ${invoiceIds.length} فاتورة في السيستم! ⚡`);
+          setTimeout(() => setSuccessToast(null), 5000);
+        }}
       />
 
     </div>

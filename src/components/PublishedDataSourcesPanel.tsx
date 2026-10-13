@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { BarChart3, CheckCircle2, ExternalLink, FileSpreadsheet, Globe2, Info, Link2, Save, Users, X, Lock, ShieldAlert } from 'lucide-react';
+import { BarChart3, CheckCircle2, ExternalLink, FileSpreadsheet, Globe2, Info, Link2, Save, Users, X, Lock, ShieldAlert, Gift } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
   defaultSources,
@@ -30,6 +30,12 @@ const sourceMeta: Record<SourceKey, { icon: React.ReactNode; title: string; desc
     title: 'شيت الأهداف والتحصيل (Google Sheets)',
     description: 'تارجت المناديب، ومحققات المبيعات، والتحصيلات الشهرية',
     help: 'ضع رابط Google Sheet الخاص بالأهداف والمبيعات لعرضه ومزامنته مباشرة داخل لوحة الأهداف والمتابعة.',
+  },
+  offers: {
+    icon: <Gift className="w-5 h-5" />,
+    title: 'شيت العروض وجدول الخصومات (Google Sheets)',
+    description: 'عروض المنتجات الترويجية، الأسعار المخفضة، وجدول العروض والخصومات الفورية',
+    help: 'ضع رابط Google Sheet الخاص بجدول العروض والخصومات لتحديث أسعار العروض وتطبيقها تلقائياً بالكتالوج والفواتير.',
   },
 };
 
