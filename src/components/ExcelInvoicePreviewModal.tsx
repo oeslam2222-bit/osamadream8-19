@@ -13,8 +13,10 @@ import {
   Calendar,
   CreditCard,
   Hash,
-  ShoppingBag
+  ShoppingBag,
+  BarChart3
 } from 'lucide-react';
+import { useApp } from '../context/AppContext';
 import { Invoice } from '../types';
 import { exportElectronicInvoiceToExcel, exportInvoiceForERP, cleanProductCode, resolveSafeCustomerCode } from '../services/excelService';
 import { downloadInvoicePDF } from '../services/pdfService';
@@ -22,6 +24,7 @@ import { formatCurrency } from '../services/invoiceService';
 import { COMPANY_INFO } from '../data/mockData';
 import { resolveCustomerFinancials } from '../services/arabicMatchingService';
 import { CustomerFinancialSummaryCard } from './CustomerFinancialSummaryCard';
+import { CustomerOrderAnalyticsModal } from './CustomerOrderAnalyticsModal';
 
 interface ExcelInvoicePreviewModalProps {
   invoice: Invoice | null;
@@ -34,12 +37,14 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
   isOpen,
   onClose
 }) => {
+  const { invoices } = useApp();
   const [activeTab, setActiveTab] = useState<'standard' | 'erp' | 'credit'>('standard');
   const [isDownloadingExcel, setIsDownloadingExcel] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isDownloadingBoth, setIsDownloadingBoth] = useState(false);
   const [copiedToast, setCopiedToast] = useState(false);
   const [downloadSuccessToast, setDownloadSuccessToast] = useState<string | null>(null);
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
 
   if (!isOpen || !invoice) return null;
 
@@ -233,6 +238,16 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
             >
               <Download className="w-4 h-4" />
               <span>تحميل PDF 📄</span>
+            </button>
+
+            {/* Customer Item Analytics */}
+            <button
+              onClick={() => setIsAnalyticsOpen(true)}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              title="تحليل مسحوبات العميل ونسب الأصناف في الطلبية"
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-indigo-200" />
+              <span>تحليل الأصناف 📊</span>
             </button>
 
             {/* Copy Table */}
@@ -877,6 +892,14 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
         </div>
 
       </div>
+
+      {/* Customer Item Analytics Modal */}
+      <CustomerOrderAnalyticsModal
+        invoice={invoice}
+        allInvoices={invoices}
+        isOpen={isAnalyticsOpen}
+        onClose={() => setIsAnalyticsOpen(false)}
+      />
     </div>
   );
 };

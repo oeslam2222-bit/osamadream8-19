@@ -31,7 +31,8 @@ import {
   ExternalLink,
   RefreshCw,
   Sparkles,
-  Truck
+  Truck,
+  BarChart3
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -50,6 +51,7 @@ import { OrderReturnModal } from './OrderReturnModal';
 import { ExcelInvoicePreviewModal } from './ExcelInvoicePreviewModal';
 import { ConsolidatedInvoiceModal } from './ConsolidatedInvoiceModal';
 import { ShortagePullModal } from './ShortagePullModal';
+import { CustomerOrderAnalyticsModal } from './CustomerOrderAnalyticsModal';
 
 interface InvoicesManagerProps {
   onOpenNewOrder: () => void;
@@ -146,13 +148,14 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     });
   };
 
+  const [isExportingApproved, setIsExportingApproved] = useState(false);
+  const [analyticsInvoice, setAnalyticsInvoice] = useState<Invoice | null>(null);
+  const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
+
   /**
    * Exports the dispatch pack: the shortage request for the October warehouse and the
    * approved orders for the local store, both for one chosen day and both in the ERP
    * column layout their system already accepts.
-   *
-   * `userVisibleInvoices` is already role-scoped, so a supervisor's file holds his own
-   * reps and a branch manager's holds only their branch without extra rules here.
    */
   const handleExportShortage = async () => {
     setIsExportingShortage(true);
@@ -180,6 +183,70 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       setTimeout(() => setSuccessToast(null), 4000);
     } finally {
       setIsExportingShortage(false);
+    }
+  };
+
+  /**
+   * تصدير فوري لطلبية النواقص فقط (مخزن 6 أكتوبر المركزي) بصيغة ERP
+   */
+  const handleExportShortageOnly = async () => {
+    setIsExportingShortage(true);
+    try {
+      const report = buildDispatchReport(userVisibleInvoices, products, {
+        from: dispatchDay,
+        to: dispatchDay,
+        scope: 'shortage',
+        scopeLabel: selectedBranchFilter === 'الكل' ? 'الكل' : selectedBranchFilter,
+      });
+
+      if (report.shortageLines.length === 0) {
+        setSuccessToast(`لا توجد فواتير بها نواقص توريد بتاريخ ${formatArabicDay(dispatchDay)}.`);
+        setTimeout(() => setSuccessToast(null), 4000);
+        return;
+      }
+
+      await downloadDispatchReport(report);
+      setSuccessToast(
+        `تم تصدير طلبية النواقص بنجاح: ${report.shortageInvoiceCount} فاتورة (${report.totalCartons} كرتونة) لمخزن 6 أكتوبر 🚚`
+      );
+      setTimeout(() => setSuccessToast(null), 5000);
+    } catch (err: any) {
+      setSuccessToast(`تعذر تصدير طلبية النواقص: ${err?.message || 'خطأ غير معروف'}`);
+      setTimeout(() => setSuccessToast(null), 4000);
+    } finally {
+      setIsExportingShortage(false);
+    }
+  };
+
+  /**
+   * تصدير فوري للفواتير المكتملة المتوفرة بالفرع فقط بصيغة ERP المعتمدة
+   */
+  const handleExportApprovedOnly = async () => {
+    setIsExportingApproved(true);
+    try {
+      const report = buildDispatchReport(userVisibleInvoices, products, {
+        from: dispatchDay,
+        to: dispatchDay,
+        scope: 'approved',
+        scopeLabel: selectedBranchFilter === 'الكل' ? 'الكل' : selectedBranchFilter,
+      });
+
+      if (report.approvedLines.length === 0) {
+        setSuccessToast(`لا توجد فواتير مكتملة معتمدة بتاريخ ${formatArabicDay(dispatchDay)}.`);
+        setTimeout(() => setSuccessToast(null), 4000);
+        return;
+      }
+
+      await downloadDispatchReport(report);
+      setSuccessToast(
+        `تم تصدير شيت الفواتير المكتملة بنجاح: ${report.approvedInvoiceCount} فاتورة جاهزة لرفعها على السيستم (ERP) 📥`
+      );
+      setTimeout(() => setSuccessToast(null), 5000);
+    } catch (err: any) {
+      setSuccessToast(`تعذر تصدير الفواتير المكتملة: ${err?.message || 'خطأ غير معروف'}`);
+      setTimeout(() => setSuccessToast(null), 4000);
+    } finally {
+      setIsExportingApproved(false);
     }
   };
 
@@ -501,60 +568,68 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={dispatchDay}
-              max={new Date().toISOString().slice(0, 10)}
-              onChange={(e) => setDispatchDay(e.target.value)}
-              className="bg-white border border-slate-200 rounded-xl px-2.5 py-2.5 text-xs font-bold text-slate-700 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-none"
-              title="يوم التصدير: يحدد الفواتير المعتمدة لهذا اليوم فقط"
-            />
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1">
+              <span className="text-[11px] font-bold text-slate-500">تاريخ:</span>
+              <input
+                type="date"
+                value={dispatchDay}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setDispatchDay(e.target.value)}
+                className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 focus:border-amber-400 focus:ring-1 focus:ring-amber-200 outline-none cursor-pointer"
+                title="يوم التصدير: يحدد الفواتير المعتمدة لهذا اليوم فقط"
+              />
+            </div>
 
-            <select
-              value={dispatchScope}
-              onChange={(e) => setDispatchScope(e.target.value as DispatchScope)}
-              className="bg-white border border-slate-200 rounded-xl px-2.5 py-2.5 text-xs font-bold text-slate-700 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-none cursor-pointer"
-              title="نطاق التصدير: النواقص المرسلة للمخزن، أو الطلبيات المعتمدة، أو كليهما"
-            >
-              <option value="both">النواقص + الطلبيات</option>
-              <option value="shortage">النواقص فقط</option>
-              <option value="approved">الطلبيات المعتمدة فقط</option>
-            </select>
-
+            {/* زر تصدير طلبية النواقص لمخزن 6 أكتوبر */}
             <button
-              onClick={handleExportShortage}
+              onClick={handleExportShortageOnly}
               disabled={isExportingShortage}
-              className="flex items-center justify-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold px-3 py-2.5 rounded-xl text-xs border border-amber-200 transition active:scale-95 cursor-pointer disabled:opacity-50"
-              title="تصدير حزمة الإرسال اليومية للمخزن الرئيسي (ملخص + تفاصيل + ملخص المناديب)"
+              className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black px-3.5 py-2.5 rounded-xl text-xs shadow-sm transition active:scale-95 cursor-pointer disabled:opacity-50"
+              title="تصدير شيت إكسيل ERP منسق بطلبية نواقص مخزن 6 أكتوبر المركزي فقط"
             >
-              <FileSpreadsheet className={`w-3.5 h-3.5 ${isExportingShortage ? 'animate-pulse text-amber-600' : 'text-amber-600'}`} />
-              <span>{isExportingShortage ? 'جاري التصدير...' : 'طلب النواقص Excel'}</span>
+              <FileSpreadsheet className={`w-3.5 h-3.5 ${isExportingShortage ? 'animate-pulse text-white' : 'text-amber-200'}`} />
+              <span>{isExportingShortage ? 'جاري التصدير...' : 'طلبية النواقص (6 أكتوبر) Excel 🚚'}</span>
+              {tabCounts.shortage > 0 && (
+                <span className="bg-amber-900/80 text-amber-200 text-[10px] font-mono px-1.5 py-0.5 rounded-full font-black">
+                  {tabCounts.shortage}
+                </span>
+              )}
             </button>
 
+            {/* زر تصدير الفواتير المكتملة للسيستم */}
             <button
-              onClick={handleManualRefresh}
-              disabled={isRefreshing}
-              className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-2.5 rounded-xl text-xs border border-slate-200 transition active:scale-95 cursor-pointer disabled:opacity-50"
-              title="تحديث ومزامنة الفواتير مباشرة من قاعدة بيانات السيرفر"
+              onClick={handleExportApprovedOnly}
+              disabled={isExportingApproved}
+              className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-teal-600 to-emerald-700 hover:from-teal-500 hover:to-emerald-600 text-white font-black px-3.5 py-2.5 rounded-xl text-xs shadow-sm transition active:scale-95 cursor-pointer disabled:opacity-50"
+              title="تصدير شيت إكسيل ERP منسق للفواتير المكتملة المعتمدة بالفرع الجاهزة للرفع المالي"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-amber-600' : 'text-slate-500'}`} />
-              <span>{isRefreshing ? 'جاري التحديث...' : 'تحديث من السيرفر'}</span>
+              <Download className={`w-3.5 h-3.5 ${isExportingApproved ? 'animate-pulse text-white' : 'text-emerald-200'}`} />
+              <span>{isExportingApproved ? 'جاري التصدير...' : 'الفواتير المكتملة (ERP) 📥'}</span>
+              {tabCounts.available > 0 && (
+                <span className="bg-emerald-950/80 text-emerald-200 text-[10px] font-mono px-1.5 py-0.5 rounded-full font-black">
+                  {tabCounts.available}
+                </span>
+              )}
             </button>
 
             {/* زر سحب ومتابعة فواتير النواقص لمخزن 6 أكتوبر المركزي */}
             <button
               onClick={() => setIsShortagePullModalOpen(true)}
-              className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black px-3.5 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95 cursor-pointer"
+              className="flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-amber-300 font-black px-3.5 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95 cursor-pointer border border-amber-400/30"
               title="سحب فواتير النواقص لمخزن 6 أكتوبر المركزي وإرسال الميل الرسمي للسيستم"
             >
-              <Truck className="w-4 h-4 text-slate-950" />
-              <span>سحب فواتير النواقص 🚚</span>
-              {tabCounts.shortage > 0 && (
-                <span className="bg-slate-950 text-amber-300 text-[10px] font-mono px-1.5 py-0.2 rounded-full font-black">
-                  {tabCounts.shortage}
-                </span>
-              )}
+              <Truck className="w-4 h-4 text-amber-400" />
+              <span>سحب فواتير النواقص</span>
+            </button>
+
+            <button
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs border border-slate-200 transition active:scale-95 cursor-pointer disabled:opacity-50"
+              title="تحديث ومزامنة الفواتير مباشرة من قاعدة بيانات السيرفر"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-amber-600' : 'text-slate-500'}`} />
             </button>
 
             <button
@@ -562,7 +637,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>إنشاء فاتورة / طلبية جديدة</span>
+              <span>فاتورة / طلبية جديدة</span>
             </button>
           </div>
         </div>
@@ -1201,6 +1276,19 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             <span>عرض</span>
                           </button>
 
+                          {/* Item Analysis & Customer Affinity */}
+                          <button
+                            onClick={() => {
+                              setAnalyticsInvoice(invoice);
+                              setIsAnalyticsModalOpen(true);
+                            }}
+                            className="bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 px-2 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                            title="تحليل مسحوبات العميل ونسب الأصناف في الطلبية"
+                          >
+                            <BarChart3 className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>تحليل الأصناف 📊</span>
+                          </button>
+
                           {['admin', 'developer', 'branch_manager', 'supervisor'].includes(currentUser?.role || '') &&
                             ['معتمدة ومصروفة من المخزن', 'معتمدة'].includes(invoice.status) && (
                             <button
@@ -1574,6 +1662,17 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
           const res = bulkDispatchOctoberSupply(invoiceIds);
           setSuccessToast(res.message || `تم بنجاح اعتماد وتأكيد طلب توريد النواقص لـ ${invoiceIds.length} فاتورة في السيستم! ⚡`);
           setTimeout(() => setSuccessToast(null), 5000);
+        }}
+      />
+
+      {/* Customer Order Item Analytics Modal (تحليل مسحوبات العميل ونسب الأصناف) */}
+      <CustomerOrderAnalyticsModal
+        invoice={analyticsInvoice}
+        allInvoices={invoices}
+        isOpen={isAnalyticsModalOpen}
+        onClose={() => {
+          setIsAnalyticsModalOpen(false);
+          setAnalyticsInvoice(null);
         }}
       />
 

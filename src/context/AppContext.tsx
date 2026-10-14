@@ -1056,7 +1056,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           (currentVisits || []).forEach((v) => {
             if (v && v.id && !allVisitsMap.has(v.id)) allVisitsMap.set(v.id, v);
           });
-          const merged = Array.from(allVisitsMap.values());
+          const merged = Array.from(allVisitsMap.values()).map((v) => ({
+            ...v,
+            status: v.status || 'منفذة',
+            reviewStatus: 'approved' as const,
+            reviewedByName: v.reviewedByName || 'معتمدة مباشرة',
+            reviewNote: v.reviewNote || 'زيارة مباشرة معتمدة تلقائياً',
+          }));
           // دلوقتي المرآة القديمة اتدمجت في IndexedDB — امسحها عشان ما تفضل
           // متخزّنة. المسح بعد الدمج مش قبله، عشان ما نضيّعش زيارات قديمة.
           if (merged.length > 0) {
@@ -6012,6 +6018,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         customerId: customer.id,
         customerName: customer.name,
         customerCode: customer.code,
+        status: visit.status || 'منفذة',
+        reviewStatus: 'approved',
+        reviewedByName: currentUser.name || 'معتمدة مباشرة',
+        reviewNote: 'زيارة مباشرة معتمدة تلقائياً',
+        reviewedAt: new Date().toISOString(),
         createdBy: currentUser.id,
         createdAt: new Date().toISOString(),
         syncStatus: 'pending_sync',
@@ -6122,17 +6133,13 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     if (currentUser.role === 'sales_rep' && existingVisit?.reviewStatus === 'approved') {
       return { success: false, message: 'لا يمكن تعديل زيارة تم اعتمادها من المشرف' };
     }
-    const isExecutionComplete = visit.status === 'منفذة' || visit.status === 'لم تتم';
-    const shouldResubmit = isExecutionComplete && (
-      existingVisit?.status === 'مجدولة' ||
-      (currentUser.role === 'sales_rep' && existingVisit?.reviewStatus === 'needs_fix')
-    );
     const updatedVisit: CustomerVisit = {
       ...visit,
-      reviewStatus: shouldResubmit ? 'pending' : existingVisit?.reviewStatus,
-      reviewedByName: shouldResubmit ? undefined : existingVisit?.reviewedByName,
-      reviewNote: shouldResubmit ? undefined : existingVisit?.reviewNote,
-      reviewedAt: shouldResubmit ? undefined : existingVisit?.reviewedAt,
+      status: visit.status || 'منفذة',
+      reviewStatus: 'approved',
+      reviewedByName: existingVisit?.reviewedByName || currentUser.name || 'معتمدة مباشرة',
+      reviewNote: existingVisit?.reviewNote || 'زيارة مباشرة معتمدة تلقائياً',
+      reviewedAt: existingVisit?.reviewedAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       syncStatus: 'synced',
     };
@@ -6164,7 +6171,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         })
       );
     }
-    return { success: true, message: shouldResubmit ? 'تم تحديث التقرير وإرساله للمشرف للمراجعة' : 'تم تحديث الزيارة وحفظها بقاعدة البيانات بنجاح ✅' };
+    return { success: true, message: 'تم تحديث الزيارة وحفظها بقاعدة البيانات بنجاح ✅' };
   };
 
   const toggleArchiveVisit = async (visitId: string, isArchived: boolean): Promise<{ success: boolean; message: string }> => {

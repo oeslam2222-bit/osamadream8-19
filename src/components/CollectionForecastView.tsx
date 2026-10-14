@@ -638,8 +638,8 @@ export default function CollectionForecastView() {
     [approvalScope, approvalSlot]
   );
   const totalPendingApprovalCount = useMemo(
-    () => approvalScope.scopedForecasts.filter((forecast) => forecast.status === 'submitted').length,
-    [approvalScope]
+    () => visibleForecasts.filter((forecast) => forecast.status === 'submitted').length,
+    [visibleForecasts]
   );
 
   /* ---------- كتابة وتعديل أرقام التوقع (Cell Commit) ---------- */
@@ -782,7 +782,11 @@ export default function CollectionForecastView() {
         return next;
       });
       if (notify) {
-        setSavedFlash(`تم حفظ التوقع الشهري لـ ${customer.name} ✅`);
+        setSavedFlash(
+          canApprove
+            ? `تم تسجيل واعتماد التوقع الشهري لـ ${customer.name} فورياً بواسطة المشرف ✅`
+            : `تم حفظ التوقع الشهري لـ ${customer.name} (في انتظار اعتماد المشرف) 📋`
+        );
         setTimeout(() => setSavedFlash(''), 3000);
       }
       return true;
@@ -1150,9 +1154,9 @@ export default function CollectionForecastView() {
    * يعتمد كافة توقعات المناديب المسجلة (المُرسلة) بضغطة واحدة مباشرة بدون تعقيد
    */
   const handleApproveAllPending = async () => {
-    if (isApprovingScope || approvingSlot || !canApprove || !progress.length) return;
+    if (isApprovingScope || approvingSlot || !canApprove) return;
     const approvalGroups = new Map<string, { repId: string; weekIndex: number; customerIds: Set<string> }>();
-    approvalScope.scopedForecasts.forEach((forecast) => {
+    visibleForecasts.forEach((forecast) => {
       if (forecast.status !== 'submitted') return;
       const key = `${forecast.repId}::${forecast.weekIndex}`;
       const group = approvalGroups.get(key) || {

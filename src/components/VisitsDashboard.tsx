@@ -458,16 +458,10 @@ export const VisitsDashboard: React.FC = () => {
   };
 
   const getReviewStatusInfo = (visit: CustomerVisit) => {
-    if (visit.reviewStatus === 'approved') {
-      return { text: `تم الاعتماد بواسطة ${visit.reviewedByName || 'المشرف'}`, className: 'text-emerald-800 bg-emerald-50 border-emerald-200' };
-    }
     if (visit.reviewStatus === 'needs_fix') {
-      return { text: `مطلوب تعديل: ${visit.reviewNote || 'راجع ملاحظة المشرف'}`, className: 'text-amber-900 bg-amber-50 border-amber-200' };
+      return { text: `مطلوب تعديل: ${visit.reviewNote || 'راجع الملاحظة'}`, className: 'text-amber-900 bg-amber-50 border-amber-200' };
     }
-    if (visit.reviewStatus === 'pending') {
-      return { text: 'بانتظار اعتماد المشرف', className: 'text-sky-800 bg-sky-50 border-sky-200' };
-    }
-    return null;
+    return { text: 'زيارة مباشرة معتمدة ✅', className: 'text-emerald-800 bg-emerald-50 border-emerald-200' };
   };
 
   // Branches available

@@ -206,6 +206,57 @@ export const ExcelImportExport: React.FC = () => {
     setTimeout(() => setSuccessNotice(null), 4000);
   };
 
+  const handleDownloadOffersTemplate = () => {
+    const wb = XLSX.utils.book_new();
+    const templateRows = [
+      ['كود الصنف', 'الكود الموحد', 'اسم الصنف', 'السعر الأصلي', 'سعر العرض', 'نسبة الخصم %', 'تاريخ البداية', 'تاريخ النهاية', 'ملاحظات'],
+      ['P001', '1001', 'شيبسي عائلي بالجبنة', 120, 100, 16.6, '2026-10-01', '2026-10-31', 'عرض خاص لفترة محدودة'],
+      ['P002', '1002', 'عصير جهينة مانجو 1 لتر', 240, 210, 12.5, '2026-10-01', '2026-10-31', 'خصم فوري للكرتونة'],
+      ['P003', '1003', 'بسكويت شوكولاتة فاخر', 180, 150, 16.6, '2026-10-01', '2026-10-31', 'عرض ترويجي للمحلات'],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(templateRows);
+    ws['!views'] = [{ RTL: true }];
+    ws['!sheetView'] = [{ rightToLeft: true }];
+    ws['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 25 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'جدول_العروض');
+    XLSX.writeFile(wb, 'قالب_شيت_العروض_والخصومات.xlsx');
+    setSuccessNotice('تم تنزيل قالب شيت العروض بنجاح! املأه بالبيانات وارفعه مباشرة 📄');
+    setTimeout(() => setSuccessNotice(null), 4000);
+  };
+
+  const handleFileUploadOffers = async (file: File) => {
+    try {
+      setIsSyncingOffers(true);
+      const buffer = await file.arrayBuffer();
+      const result = await parsePromotionsFromExcelBuffer(buffer);
+      const updatedList = [...promotionsList];
+      result.promotions.forEach((newP) => {
+        const idx = updatedList.findIndex(
+          (p) =>
+            (p.productCode && p.productCode === newP.productCode) ||
+            (p.unifiedCode && newP.unifiedCode && p.unifiedCode === newP.unifiedCode)
+        );
+        if (idx >= 0) {
+          updatedList[idx] = { ...updatedList[idx], ...newP };
+        } else {
+          updatedList.unshift(newP);
+        }
+      });
+      setPromotionsList(updatedList);
+      savePromotions(updatedList);
+      const { updatedCount } = applyPromotionsToProducts(products, updatedList);
+      setSuccessNotice(
+        `تم بنجاح رفع شيت العروض (${file.name}): قراءة ${result.matchedCount} عرض وتطبيق الخصومات الترويجية على ${updatedCount} صنف في الكتالوج وفواتير البيع! 🎉`
+      );
+      setTimeout(() => setSuccessNotice(null), 5000);
+    } catch (err: any) {
+      setErrorNotice(`خطأ أثناء قراءة ملف شيت العروض: ${err?.message || ''}`);
+      setTimeout(() => setErrorNotice(null), 5000);
+    } finally {
+      setIsSyncingOffers(false);
+    }
+  };
+
   // ----------------------------------------------------
   // Forecast & Projection States & Computations
   // ----------------------------------------------------
@@ -1218,9 +1269,76 @@ export const ExcelImportExport: React.FC = () => {
                 disabled={isSyncingOffers}
                 className="bg-rose-600 hover:bg-rose-500 text-white font-black px-4 py-2.5 rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50"
               >
-                <RefreshCw className={} />
+                <RefreshCw className={`w-4 h-4 ${isSyncingOffers ? 'animate-spin' : ''}`} />
                 <span>جلب وتطبيق العروض ⚡</span>
               </button>
+            </div>
+          </div>
+
+          {/* Direct File Upload Tool & Template Card for Offers */}
+          <div className="bg-gradient-to-br from-rose-50/60 via-white to-amber-50/60 rounded-3xl border border-rose-200 shadow-sm p-4 sm:p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-rose-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+                  <Upload className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-slate-900">أداة رفع شيت العروض المباشر (Excel / CSV)</h4>
+                  <p className="text-xs text-slate-500">ارفع ملف إكسيل يحتوي على جدول العروض والخصومات لتطبيقه فوراً</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleDownloadOffersTemplate}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-white px-3 py-1.5 rounded-xl border border-slate-300 hover:bg-slate-50 transition shadow-2xs cursor-pointer"
+                title="تحميل ملف إكسيل فارغ منسق بالأعمدة الصحيحة لملء العروض ورفعها"
+              >
+                <Download className="w-3.5 h-3.5 text-rose-600" />
+                <span>تحميل قالب شيت العروض (Excel) 📄</span>
+              </button>
+            </div>
+
+            {/* Dropzone */}
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                  handleFileUploadOffers(e.dataTransfer.files[0]);
+                }
+              }}
+              className="border-2 border-dashed border-rose-300 hover:border-rose-500 rounded-2xl p-6 text-center bg-white/80 hover:bg-rose-50/40 transition cursor-pointer flex flex-col items-center justify-center gap-2 relative group"
+            >
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    handleFileUploadOffers(e.target.files[0]);
+                  }
+                }}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              />
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center font-black group-hover:scale-105 transition shadow-xs">
+                <FileSpreadsheet className="w-6 h-6" />
+              </div>
+              <div>
+                <strong className="text-sm font-black text-slate-900 block">
+                  اسحب وأفلت شيت العروض هنا، أو اضغط لاختيار ملف إكسيل
+                </strong>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  يدعم صيغ (.xlsx, .xls, .csv) • يقرأ كود الصنف، الكود الموحد (#)، السعر الأصلي، سعر العرض، ونسبة الخصم
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-900 text-amber-300 text-xs font-bold mt-1 shadow-xs">
+                <Upload className="w-3.5 h-3.5 text-amber-400" />
+                <span>اختيار ملف العروض من جهازك 📂</span>
+              </span>
             </div>
           </div>
 
@@ -1317,7 +1435,7 @@ export const ExcelImportExport: React.FC = () => {
                           <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
                           <td className="p-3 font-mono font-bold text-slate-900 bg-slate-50/70">{promo.productCode}</td>
                           <td className="p-3 font-mono font-bold text-indigo-700">
-                            {promo.unifiedCode ?  : '---'}
+                            {promo.unifiedCode ? `#${promo.unifiedCode}` : '---'}
                           </td>
                           <td className="p-3">
                             <strong className="text-slate-900 block font-black">{promo.productName}</strong>
@@ -1327,10 +1445,10 @@ export const ExcelImportExport: React.FC = () => {
                           </td>
                           <td className="p-3 text-slate-600 font-medium">{promo.category || 'عام'}</td>
                           <td className="p-3 text-center font-mono text-slate-500 line-through">
-                            {promo.originalPrice ?  : '---'}
+                            {promo.originalPrice ? `${promo.originalPrice} ج.م` : '---'}
                           </td>
                           <td className="p-3 text-center font-mono font-black text-rose-700 bg-rose-50/60">
-                            {promo.promoPrice ?  : '---'}
+                            {promo.promoPrice ? `${promo.promoPrice} ج.م` : '---'}
                           </td>
                           <td className="p-3 text-center">
                             <span className="bg-emerald-100 text-emerald-800 font-black px-2 py-0.5 rounded-full text-[11px]">
@@ -1338,11 +1456,11 @@ export const ExcelImportExport: React.FC = () => {
                             </span>
                           </td>
                           <td className="p-3 text-center text-[10px] text-slate-500 font-medium">
-                            {promo.startDate ? promo.startDate : 'فوري'} {promo.endDate ?  : ''}
+                            {promo.startDate ? promo.startDate : 'فوري'} {promo.endDate ? `إلى ${promo.endDate}` : ''}
                           </td>
                           <td className="p-3 text-center">
                             <span
-                              className={}
+                              className={`text-[11px] font-black px-2 py-0.5 rounded-full ${promo.status === 'منتهي' ? 'bg-slate-100 text-slate-500' : 'bg-rose-100 text-rose-800'}`}
                             >
                               {promo.status || 'نشط'}
                             </span>
