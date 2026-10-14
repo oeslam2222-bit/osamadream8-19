@@ -373,7 +373,13 @@ export const ExcelImportExport: React.FC = () => {
 
   // Helper for invoice total
   const getInvoiceTotal = (inv: any): number => {
-    return inv.estimatedGrandTotal || (inv.subtotal - (inv.discountAmount || 0) + (inv.taxAmount || 0)) || 0;
+    const estimatedTotal = Number(inv.estimatedGrandTotal);
+    if (Number.isFinite(estimatedTotal)) return estimatedTotal;
+
+    const subtotal = Number(inv.subtotal) || 0;
+    const discount = Number(inv.discountAmount) || 0;
+    const tax = Number(inv.taxAmount) || 0;
+    return subtotal - discount + tax;
   };
 
   // Build Rep Forecast Rows & Computations
@@ -572,7 +578,7 @@ export const ExcelImportExport: React.FC = () => {
         [`الفرع: ${effectiveBranch !== 'all' ? effectiveBranch : 'كافة الفروع'}`],
         [],
         ['المؤشر التوقعي', 'القيمة بالجنيه المصري', 'ملاحظات المسار البيعي'],
-        ['إجمالي التارجت الشهري المستهدف', summaryMetrics.totalTarget, 'المستهدف الشهري الإجمالي المعتمد'],
+        ['إجمالي التارجت الشهري المستهدف', summaryMetrics.totalTarget, 'المستهد�� الشهري الإجمالي المعتمد'],
         ['المحقق الفعلي حتى اليوم', summaryMetrics.totalActual, `مبيعات محققة حتى يوم ${currentDay}`],
         ['التوقع النهائي بنهاية الشهر', summaryMetrics.totalProjected, 'محسوب وفق سرعة البيع اليومية Run-Rate'],
         ['الفارق المتوقع بنهاية الشهر', summaryMetrics.totalVariance, summaryMetrics.totalVariance >= 0 ? 'فائض بيعي متوقع 🚀' : 'عجز متوقع يستوجب المتابعة ⚠️'],
@@ -1373,7 +1379,7 @@ export const ExcelImportExport: React.FC = () => {
               </div>
               <div>
                 <strong className="text-sm font-black text-slate-900 block">
-                  اسحب وأفلت شيت العروض هنا، أو اضغط لاختيار ملف إكسيل
+                  اسحب وأفلت شي�� العروض هنا، أو اضغط لاختيار ملف إكسيل
                 </strong>
                 <p className="text-xs text-slate-500 mt-0.5">
                   يدعم صيغ (.xlsx, .xls, .csv) • يقرأ كود الصنف، الكود الموحد (#)، السعر الأصلي، سعر العرض، ونسبة الخصم
@@ -2510,7 +2516,7 @@ export const ExcelImportExport: React.FC = () => {
             <div className="space-y-4 pt-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-sm font-black text-slate-900">سجل أهداف ومحققات المناديب</h4>
+                  <h4 className="text-sm font-black text-slate-900">سج�� أهداف ومحققات المناديب</h4>
                   <span className="text-xs text-slate-500 font-bold">({filteredTargets.length} سجل مطابق)</span>
                 </div>
 

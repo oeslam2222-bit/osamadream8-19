@@ -470,7 +470,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                     onClick={() => setShowProfileMenu(false)}
                   />
 
-                  <div className="absolute left-0 mt-2.5 w-80 sm:w-84 max-w-[calc(100vw-24px)] bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl p-3.5 z-50 animate-in fade-in slide-in-from-top-2 text-xs max-h-[calc(100vh-80px)] overflow-y-auto">
+                  <div className="fixed right-3 left-3 top-16 sm:absolute sm:right-auto sm:left-0 sm:top-auto sm:mt-2.5 sm:w-80 sm:max-w-[calc(100vw-24px)] bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl p-3.5 z-50 animate-in fade-in slide-in-from-top-2 text-xs max-h-[calc(100vh-80px)] overflow-y-auto">
                     {/* Header with avatar & close button */}
                     <div className="flex items-center justify-between gap-2 p-2.5 bg-slate-950/90 rounded-xl border border-slate-800 mb-2.5">
                       <div className="flex items-center gap-2.5 min-w-0">
