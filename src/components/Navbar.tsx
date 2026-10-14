@@ -423,23 +423,27 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
               </button>
             )}
 
-            {/* Quick Switch Account & Roles Button (Dev, Admin, Branch Manager, Supervisor, Rep) */}
-            <button
-              type="button"
-              onClick={() => setIsRoleSwitchModalOpen(true)}
-              className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-500/20 via-amber-400/25 to-amber-500/20 hover:from-amber-500/35 hover:to-amber-400/35 text-amber-300 border border-amber-400/60 px-2 sm:px-2.5 h-9 sm:h-10 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 shrink-0"
-              title="التبديل الفوري بين حسابات المطور، الإدارة، الفروع، المشرفين، والمناديب"
-            >
-              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
-              <span className="hidden sm:inline font-black text-amber-300 text-xs">تبديل الأدوار 🔄</span>
-              <span className="sm:hidden text-[10px] font-black text-amber-300">أدوار 🔄</span>
-            </button>
+            {/* Quick Switch Account & Roles Button - Strictly for Admin & Developer ONLY */}
+            {(currentUser.role === 'admin' || currentUser.role === 'developer') && (
+              <button
+                type="button"
+                onClick={() => setIsRoleSwitchModalOpen(true)}
+                className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-500/20 via-amber-400/25 to-amber-500/20 hover:from-amber-500/35 hover:to-amber-400/35 text-amber-300 border border-amber-400/60 px-2 sm:px-2.5 h-9 sm:h-10 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 shrink-0"
+                title="التبديل الفوري بين حسابات المطور والإدارة (خاص بالإدارة والمطور فقط)"
+              >
+                <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
+                <span className="hidden sm:inline font-black text-amber-300 text-xs">تبديل الأدوار 🔄</span>
+                <span className="sm:hidden text-[10px] font-black text-amber-300">أدوار 🔄</span>
+              </button>
+            )}
 
             {/* User Profile Menu with Logout */}
             <div className="relative">
               <button
+                type="button"
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 active:bg-slate-700 px-2.5 h-9 sm:h-10 rounded-xl border border-slate-700 transition cursor-pointer"
+                className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 active:bg-slate-700 px-2.5 h-9 sm:h-10 rounded-xl border border-slate-700 transition cursor-pointer shadow-2xs"
+                title="الملف الشخصي وتسجيل الخروج"
               >
                 <img
                   src={currentUser.avatar || '/pwa-192x192.png'}
@@ -459,103 +463,127 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
 
               {/* Profile Popup Menu */}
               {showProfileMenu && (
-                <div className="absolute left-0 sm:right-0 mt-2 w-80 bg-slate-900 border border-slate-750 rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in slide-in-from-top-2 text-xs">
-                  <div className="flex items-center gap-3 p-2 bg-slate-950 rounded-xl border border-slate-800 mb-2.5">
-                    <img
-                      src={currentUser.avatar || '/pwa-192x192.png'}
-                      alt={currentUser.name}
-                      className="w-10 h-10 rounded-full object-cover border-2 border-amber-400"
-                    />
-                    <div>
-                      <div className="font-bold text-sm text-white">{currentUser.name}</div>
-                      <div className="text-[11px] text-slate-400">{currentUser.email}</div>
-                      <div className={`mt-1 inline-block text-[10px] px-2 py-0.5 rounded-md border font-bold ${roleNames[currentUser.role]?.bg || 'bg-slate-700/40 border-slate-600'} ${roleNames[currentUser.role]?.text || 'text-slate-300'}`}>
-                        {roleNames[currentUser.role]?.label || currentUser.role || 'مستخدم'}
-                      </div>
-                    </div>
-                  </div>
+                <>
+                  {/* Backdrop to close on tap outside */}
+                  <div
+                    className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[2px]"
+                    onClick={() => setShowProfileMenu(false)}
+                  />
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowProfileMenu(false);
-                      setIsRoleSwitchModalOpen(true);
-                    }}
-                    className="w-full bg-gradient-to-r from-amber-500/20 to-amber-400/20 hover:from-amber-500/30 hover:to-amber-400/30 text-amber-300 border border-amber-400/50 font-black py-2 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[40px] mb-2"
-                  >
-                    <Sparkles className="w-4 h-4 text-amber-400" />
-                    <span>🔄 التبديل السريع بين الأدوار والحسابات</span>
-                  </button>
-
-                  <div className="space-y-1.5 py-1 text-[11px] text-slate-300 border-b border-slate-800 pb-2.5">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">الفرع المخصص:</span>
-                      <span className="font-semibold text-amber-300">{currentUser.branchName}</span>
-                    </div>
-                    {supervisorName && (
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">المشرف المباشر:</span>
-                        <span className="font-semibold text-blue-300">{supervisorName}</span>
+                  <div className="absolute left-0 mt-2.5 w-80 sm:w-84 max-w-[calc(100vw-24px)] bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl p-3.5 z-50 animate-in fade-in slide-in-from-top-2 text-xs max-h-[calc(100vh-80px)] overflow-y-auto">
+                    {/* Header with avatar & close button */}
+                    <div className="flex items-center justify-between gap-2 p-2.5 bg-slate-950/90 rounded-xl border border-slate-800 mb-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <img
+                          src={currentUser.avatar || '/pwa-192x192.png'}
+                          alt={currentUser.name}
+                          className="w-10 h-10 rounded-full object-cover border-2 border-amber-400 shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="font-black text-sm text-white truncate">{currentUser.name}</div>
+                          <div className="text-[11px] text-slate-400 truncate">{currentUser.email}</div>
+                          <div className={`mt-1 inline-block text-[10px] px-2 py-0.5 rounded-md border font-bold ${roleNames[currentUser.role]?.bg || 'bg-slate-700/40 border-slate-600'} ${roleNames[currentUser.role]?.text || 'text-slate-300'}`}>
+                            {roleNames[currentUser.role]?.label || currentUser.role || 'مستخدم'}
+                          </div>
+                        </div>
                       </div>
-                    )}
-                    {currentUser.role === 'supervisor' && (
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">عدد المناديب التابعين:</span>
-                        <span className="font-semibold text-emerald-300">{supervisedRepsCount} مندوب مبيعات</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">حالة الحساب:</span>
-                      <span className="text-emerald-400 font-bold flex items-center gap-1">
-                        <ShieldCheck className="w-3 h-3" /> مفعّل ونشط
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowProfileMenu(false)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0"
+                        title="إغلاق"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
-                  </div>
 
-                  <div className="space-y-1.5 pt-2">
-                    {/* Edit Company Info & Header Details */}
-                    {['admin', 'developer', 'branch_manager', 'supervisor'].includes(currentUser.role) && (
+                    {/* Quick switch button - Admin & Developer ONLY */}
+                    {(currentUser.role === 'admin' || currentUser.role === 'developer') && (
                       <button
                         type="button"
                         onClick={() => {
                           setShowProfileMenu(false);
-                          setIsCompanyModalOpen(true);
+                          setIsRoleSwitchModalOpen(true);
                         }}
-                        className="w-full bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[40px]"
+                        className="w-full bg-gradient-to-r from-amber-500/20 to-amber-400/20 hover:from-amber-500/30 hover:to-amber-400/30 text-amber-300 border border-amber-400/50 font-black py-2 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[38px] mb-2 shadow-2xs"
                       >
-                        <Building2 className="w-4 h-4 text-amber-400" />
-                        <span>
-                          {currentUser.role === 'admin' || currentUser.role === 'developer'
-                            ? '🏢 إعدادات بيانات الفاتورة (الشركة / الفروع)'
-                            : `🏢 إعدادات بيانات الفاتورة (${currentUser.branchName})`}
-                        </span>
+                        <Sparkles className="w-4 h-4 text-amber-400" />
+                        <span>🔄 التبديل السريع بين الأدوار والحسابات</span>
                       </button>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        setActiveTab('guide');
-                      }}
-                      className="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[40px]"
-                    >
-                      <BookOpen className="w-4 h-4" />
-                      <span>📖 دليل دورة العمل والتشغيل</span>
-                    </button>
+                    <div className="space-y-1.5 py-2 px-1 text-[11px] text-slate-300 border-b border-slate-800/80 mb-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400">الفرع المخصص:</span>
+                        <span className="font-semibold text-amber-300">{currentUser.branchName || 'غير محدد'}</span>
+                      </div>
+                      {supervisorName && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-400">المشرف المباشر:</span>
+                          <span className="font-semibold text-blue-300">{supervisorName}</span>
+                        </div>
+                      )}
+                      {currentUser.role === 'supervisor' && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-400">عدد المناديب التابعين:</span>
+                          <span className="font-semibold text-emerald-300">{supervisedRepsCount} مندوب مبيعات</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400">حالة الحساب:</span>
+                        <span className="text-emerald-400 font-bold flex items-center gap-1">
+                          <ShieldCheck className="w-3.5 h-3.5" /> مفعّل ونشط
+                        </span>
+                      </div>
+                    </div>
 
-                    <button
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        logout();
-                      }}
-                      className="w-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-2 cursor-pointer min-h-[40px]"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      <span>تسجيل الخروج الآمن</span>
-                    </button>
+                    <div className="space-y-2 pt-1">
+                      {/* Edit Company Info & Header Details */}
+                      {['admin', 'developer', 'branch_manager', 'supervisor'].includes(currentUser.role) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowProfileMenu(false);
+                            setIsCompanyModalOpen(true);
+                          }}
+                          className="w-full bg-slate-800 hover:bg-slate-750 text-amber-300 border border-amber-500/30 font-bold py-2 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[38px]"
+                        >
+                          <Building2 className="w-4 h-4 text-amber-400" />
+                          <span>
+                            {currentUser.role === 'admin' || currentUser.role === 'developer'
+                              ? '🏢 إعدادات بيانات الفاتورة (الشركة / الفروع)'
+                              : `🏢 إعدادات بيانات الفاتورة (${currentUser.branchName})`}
+                          </span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          setActiveTab('guide');
+                        }}
+                        className="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold py-2 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[38px]"
+                      >
+                        <BookOpen className="w-4 h-4" />
+                        <span>📖 دليل دورة العمل والتشغيل</span>
+                      </button>
+
+                      {/* Prominent High-Contrast Safe Logout Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          logout();
+                        }}
+                        className="w-full mt-2 bg-gradient-to-r from-rose-600 via-rose-500 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black py-2.5 px-3 rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-rose-950/50 active:scale-[0.98] border border-rose-400/40"
+                      >
+                        <LogOut className="w-4 h-4 text-white" />
+                        <span className="font-black text-white text-xs">تسجيل الخروج الآمن من المنظومة</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
+                </>
               )}
             </div>
 
@@ -651,20 +679,22 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
               </button>
             </div>
 
-            {/* Quick Role & Account Switch in Mobile Drawer */}
-            <div className="px-3 py-2 bg-slate-900/60 border-b border-slate-850">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsMobileDrawerOpen(false);
-                  setIsRoleSwitchModalOpen(true);
-                }}
-                className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 shadow-md transition active:scale-95 cursor-pointer"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>تبديل الحساب والأدوار (المطور / المشرف / المندوب) 🔄</span>
-              </button>
-            </div>
+            {/* Quick Role & Account Switch in Mobile Drawer - Admin & Developer ONLY */}
+            {(currentUser.role === 'admin' || currentUser.role === 'developer') && (
+              <div className="px-3 py-2 bg-slate-900/60 border-b border-slate-850">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileDrawerOpen(false);
+                    setIsRoleSwitchModalOpen(true);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 shadow-md transition active:scale-95 cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>تبديل الحساب والأدوار (خاص بالإدارة والمطور) 🔄</span>
+                </button>
+              </div>
+            )}
 
             {/* Nav Items List */}
             <div className="flex-1 overflow-y-auto p-3 space-y-1">

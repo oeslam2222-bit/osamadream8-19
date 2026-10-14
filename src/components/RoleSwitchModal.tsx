@@ -26,6 +26,7 @@ export const RoleSwitchModal: React.FC<RoleSwitchModalProps> = ({ isOpen, onClos
   const [selectedBranch, setSelectedBranch] = useState<string>('الكل');
 
   if (!isOpen || !currentUser) return null;
+  if (currentUser.role !== 'admin' && currentUser.role !== 'developer') return null;
 
   // Group sample users by role for quick 1-click switching
   const adminUser = users.find((u) => u.role === 'admin') || users[0];
