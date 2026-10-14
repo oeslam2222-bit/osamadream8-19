@@ -96,6 +96,7 @@ import {
 export const ExcelImportExport: React.FC = () => {
   const {
     products,
+    updateProduct,
     customers,
     users,
     currentUser,
@@ -188,7 +189,12 @@ export const ExcelImportExport: React.FC = () => {
       });
       setPromotionsList(updatedList);
       savePromotions(updatedList);
-      const { updatedCount } = applyPromotionsToProducts(products, updatedList);
+      const { updatedProducts, updatedCount } = applyPromotionsToProducts(products, updatedList);
+      const changed = updatedProducts.filter((p, i) => {
+        const orig = products[i];
+        return orig && (orig.promoPrice !== p.promoPrice || orig.status !== p.status || orig.offerPrice !== p.offerPrice);
+      });
+      changed.forEach((p) => updateProduct(p));
       setSuccessNotice(`تم بنجاح جلب ${result.matchedCount} عرض من شيت جوجل وتطبيق الخصومات الترويجية على ${updatedCount} صنف في الكتالوج! 🎉`);
       setTimeout(() => setSuccessNotice(null), 5000);
     } catch (err: any) {
@@ -203,6 +209,39 @@ export const ExcelImportExport: React.FC = () => {
     if (!offersSheetUrl.trim()) return;
     saveSingleSourceUrl('offers', offersSheetUrl.trim(), true);
     setSuccessNotice('تم حفظ رابط شيت العروض بنجاح 💾');
+    setTimeout(() => setSuccessNotice(null), 4000);
+  };
+
+  const handleClearAllPromotions = () => {
+    if (!window.confirm('هل أنت متأكد من مسح كافة العروض والخصومات المعتمدة وإرجاع أسعار الأصناف لحالتها الطبيعية؟')) return;
+    setPromotionsList([]);
+    savePromotions([]);
+    const { updatedProducts, revertedCount } = applyPromotionsToProducts(products, []);
+    const changed = updatedProducts.filter((p, i) => {
+      const orig = products[i];
+      return orig && (orig.promoPrice !== p.promoPrice || orig.status !== p.status || orig.offerPrice !== p.offerPrice);
+    });
+    changed.forEach((p) => updateProduct(p));
+    setSuccessNotice(`تم مسح جميع العروض بنجاح وإرجاع أسعار ${revertedCount} صنف لوضعها الطبيعي ✅`);
+    setTimeout(() => setSuccessNotice(null), 4000);
+  };
+
+  const handleDeleteSingleOffer = (promoId?: string, prodCode?: string, prodName?: string) => {
+    if (!window.confirm(`هل أنت متأكد من حذف العرض الترويجي للصنف (${prodName || prodCode || ''})؟`)) return;
+    const updated = promotionsList.filter((p) => {
+      if (promoId && p.id === promoId) return false;
+      if (!promoId && prodCode && p.productCode === prodCode) return false;
+      return true;
+    });
+    setPromotionsList(updated);
+    savePromotions(updated);
+    const { updatedProducts } = applyPromotionsToProducts(products, updated);
+    const changed = updatedProducts.filter((p, i) => {
+      const orig = products[i];
+      return orig && (orig.promoPrice !== p.promoPrice || orig.status !== p.status || orig.offerPrice !== p.offerPrice);
+    });
+    changed.forEach((p) => updateProduct(p));
+    setSuccessNotice(`تم حذف العرض الترويجي للصنف (${prodName || prodCode || ''}) بنجاح وإعادة ضبط سعره ✅`);
     setTimeout(() => setSuccessNotice(null), 4000);
   };
 
@@ -244,7 +283,12 @@ export const ExcelImportExport: React.FC = () => {
       });
       setPromotionsList(updatedList);
       savePromotions(updatedList);
-      const { updatedCount } = applyPromotionsToProducts(products, updatedList);
+      const { updatedProducts, updatedCount } = applyPromotionsToProducts(products, updatedList);
+      const changed = updatedProducts.filter((p, i) => {
+        const orig = products[i];
+        return orig && (orig.promoPrice !== p.promoPrice || orig.status !== p.status || orig.offerPrice !== p.offerPrice);
+      });
+      changed.forEach((p) => updateProduct(p));
       setSuccessNotice(
         `تم بنجاح رفع شيت العروض (${file.name}): قراءة ${result.matchedCount} عرض وتطبيق الخصومات الترويجية على ${updatedCount} صنف في الكتالوج وفواتير البيع! 🎉`
       );
@@ -1373,11 +1417,22 @@ export const ExcelImportExport: React.FC = () => {
           {/* Active Offers Table (جدول العروض) */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-3 p-4 sm:p-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Sparkles className="w-5 h-5 text-amber-500" />
                 <h4 className="text-sm sm:text-base font-black text-slate-900">
                   جدول العروض والخصومات المعتمدة ({promotionsList.length})
                 </h4>
+                {promotionsList.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearAllPromotions}
+                    className="mr-2 inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-black transition cursor-pointer active:scale-95 shadow-2xs"
+                    title="حذف جميع العروض والخصومات وإعادة أسعار الأصناف لحالتها الطبيعية"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                    <span>مسح كافة العروض</span>
+                  </button>
+                )}
               </div>
 
               {/* Search filter */}
@@ -1398,7 +1453,7 @@ export const ExcelImportExport: React.FC = () => {
                 <Gift className="w-10 h-10 text-slate-300 mx-auto" />
                 <p className="text-sm font-bold text-slate-600">لا توجد عروض مضافة في الجدول حالياً</p>
                 <p className="text-xs text-slate-400">
-                  ضع رابط شيت جوجل للعروض واضغط (مزامنة العروض من Google Sheets) لجلب جدول العروض وتطبيقه تلقائياً.
+                  ضع رابط شيت جوجل للعروض واضغط (مزامنة العروض من Google Sheets) أو ارفع ملف إكسل لجلب جدول العروض الحقيقي وتطبيقه تلقائياً.
                 </p>
               </div>
             ) : (
@@ -1416,6 +1471,7 @@ export const ExcelImportExport: React.FC = () => {
                       <th className="p-3 text-center text-emerald-300">نسبة الخصم</th>
                       <th className="p-3 text-center">سريان العرض</th>
                       <th className="p-3 text-center">الحالة</th>
+                      <th className="p-3 text-center w-14">حذف</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -1464,6 +1520,16 @@ export const ExcelImportExport: React.FC = () => {
                             >
                               {promo.status || 'نشط'}
                             </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSingleOffer(promo.id, promo.productCode, promo.productName)}
+                              title="حذف هذا العرض وإلغاء الخصم عن الصنف"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer inline-flex items-center justify-center"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </td>
                         </tr>
                       ))}

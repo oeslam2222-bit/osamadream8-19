@@ -5,62 +5,10 @@ import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
 
 const PROMOTIONS_STORAGE_KEY = 'tantawy_promotions_offers_v1';
 
-export const INITIAL_PROMOTIONS: PromotionOffer[] = [
-  {
-    id: 'promo-1',
-    title: 'عرض الموسم على كرانشي سوبر A 🔥',
-    productCode: '1001',
-    unifiedCode: '1001',
-    productName: 'كرانشي بالجبنة المتبلة سوبر A',
-    category: 'سناكس ومقرمشات',
-    discountPercentage: 15,
-    originalPrice: 240,
-    promoPrice: 204,
-    startDate: new Date().toISOString().slice(0, 10),
-    endDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-    branchName: 'كل الفروع',
-    status: 'نشط',
-    notes: 'خصم فوري 15% على كرتونة كرانشي سوبر A لكافة العملاء والمناديب.',
-    createdAt: new Date().toISOString(),
-    sourceSheet: 'شيت_عروض_الشركة_المركزي',
-  },
-  {
-    id: 'promo-2',
-    title: 'تخفيضات العيد على ويفر الشوكولاتة الفاخر 🍫',
-    productCode: '1005',
-    unifiedCode: '1005',
-    productName: 'ويفر شوكولاتة كريمة البندق 24 قطعة',
-    category: 'بسكويت وويفر',
-    discountPercentage: 20,
-    originalPrice: 280,
-    promoPrice: 224,
-    startDate: new Date().toISOString().slice(0, 10),
-    endDate: new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10),
-    branchName: 'كل الفروع',
-    status: 'نشط',
-    notes: 'عرض خاص للكميات - خصم 20% ساري لجميع العملاء المسجلين.',
-    createdAt: new Date().toISOString(),
-    sourceSheet: 'شيت_عروض_الشركة_المركزي',
-  },
-  {
-    id: 'promo-3',
-    title: 'خصم الكرتونة الذهبي على بسكويت سادة عائلي 🍪',
-    productCode: '1012',
-    unifiedCode: '1012',
-    productName: 'بسكويت شاي سادة عائلي شدة 24',
-    category: 'بسكويت وويفر',
-    discountPercentage: 10,
-    originalPrice: 190,
-    promoPrice: 171,
-    startDate: new Date().toISOString().slice(0, 10),
-    endDate: new Date(Date.now() + 45 * 86400000).toISOString().slice(0, 10),
-    branchName: 'كل الفروع',
-    status: 'نشط',
-    notes: 'عرض ترويجي لتنشيط مبيعات بسكويت الشاي السادة.',
-    createdAt: new Date().toISOString(),
-    sourceSheet: 'شيت_عروض_الشركة_المركزي',
-  },
-];
+export const INITIAL_PROMOTIONS: PromotionOffer[] = [];
+
+// Known dummy / mock promotional items to purge from storage
+const DUMMY_PROMO_IDS = new Set(['promo-1', 'promo-2', 'promo-3']);
 
 /**
  * Load saved promotion offers from localStorage
@@ -69,13 +17,45 @@ export function getSavedPromotions(): PromotionOffer[] {
   try {
     const raw = localStorage.getItem(PROMOTIONS_STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(PROMOTIONS_STORAGE_KEY, JSON.stringify(INITIAL_PROMOTIONS));
-      return INITIAL_PROMOTIONS;
+      return [];
     }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_PROMOTIONS;
+    if (!Array.isArray(parsed)) return [];
+
+    // Auto-clean any legacy dummy promotions (mock items 1001, 1005, 1012)
+    const cleaned = parsed.filter((p: PromotionOffer) => {
+      if (p.id && DUMMY_PROMO_IDS.has(p.id)) return false;
+      if (p.sourceSheet === 'شيت_عروض_الشركة_المركزي') return false;
+      const pName = (p.productName || '').trim();
+      if (
+        pName.includes('كرانشي بالجبنة المتبلة') ||
+        pName.includes('ويفر شوكولاتة كريمة البندق') ||
+        pName.includes('بسكويت شاي سادة عائلي شدة 24')
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+    // If cleaned list differs, overwrite localStorage to purge dummy data permanently
+    if (cleaned.length !== parsed.length) {
+      localStorage.setItem(PROMOTIONS_STORAGE_KEY, JSON.stringify(cleaned));
+    }
+
+    return cleaned;
   } catch {
-    return INITIAL_PROMOTIONS;
+    return [];
+  }
+}
+
+/**
+ * Clear all promotions from localStorage
+ */
+export function clearAllPromotions(): void {
+  try {
+    localStorage.removeItem(PROMOTIONS_STORAGE_KEY);
+  } catch (err) {
+    console.error('Failed to clear promotions from localStorage', err);
   }
 }
 
@@ -193,13 +173,12 @@ export async function parsePromotionsFromExcelBuffer(
 export function applyPromotionsToProducts(
   products: Product[],
   promotions: PromotionOffer[]
-): { updatedProducts: Product[]; updatedCount: number } {
+): { updatedProducts: Product[]; updatedCount: number; revertedCount: number } {
   const activePromos = promotions.filter((p) => p.status === 'نشط');
-  if (activePromos.length === 0) {
-    return { updatedProducts: products, updatedCount: 0 };
-  }
 
-  let count = 0;
+  let updatedCount = 0;
+  let revertedCount = 0;
+
   const updatedProducts = products.map((prod) => {
     const prodCode = cleanProductCode(prod.code).toLowerCase();
     const prodUnified = (prod.unifiedCode || '').replace(/^#/, '').toLowerCase().trim();
@@ -213,9 +192,31 @@ export function applyPromotionsToProducts(
       return false;
     });
 
-    if (!matchedPromo) return prod;
+    if (!matchedPromo) {
+      // Revert any leftover promotional fields if product has no matching active promotion
+      if (
+        prod.promoPrice !== undefined ||
+        prod.offerPrice !== undefined ||
+        prod.discountPercent !== undefined ||
+        prod.discountPercentage !== undefined ||
+        prod.status === 'عرض ترويجي'
+      ) {
+        revertedCount++;
+        const nextProd = { ...prod };
+        delete (nextProd as any).promoPrice;
+        delete (nextProd as any).promoPiecePrice;
+        delete (nextProd as any).offerPrice;
+        delete (nextProd as any).discountPercent;
+        delete (nextProd as any).discountPercentage;
+        if (nextProd.status === 'عرض ترويجي') {
+          nextProd.status = 'متاح';
+        }
+        return nextProd;
+      }
+      return prod;
+    }
 
-    count++;
+    updatedCount++;
     const factor = prod.cartonQuantity || 24;
     const originalCartonPrice = prod.cartonPrice || (prod.piecePrice ? prod.piecePrice * factor : 200);
 
@@ -242,7 +243,7 @@ export function applyPromotionsToProducts(
     };
   });
 
-  return { updatedProducts, updatedCount: count };
+  return { updatedProducts, updatedCount, revertedCount };
 }
 
 /**

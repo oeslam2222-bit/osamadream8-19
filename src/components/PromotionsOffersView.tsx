@@ -363,13 +363,33 @@ export const PromotionsOffersView: React.FC = () => {
     setEditingPromo(null);
   };
 
+  // Clear all offers
+  const handleClearAllOffers = () => {
+    if (!window.confirm('هل أنت متأكد من مسح كافة العروض والخصومات المعتمدة وإرجاع أسعار الأصناف لحالتها الطبيعية؟')) return;
+    setPromotions([]);
+    savePromotions([]);
+    const { updatedProducts, revertedCount } = applyPromotionsToProducts(products, []);
+    const changed = updatedProducts.filter((p, i) => {
+      const orig = products[i];
+      return orig && (orig.promoPrice !== p.promoPrice || orig.status !== p.status || orig.offerPrice !== p.offerPrice);
+    });
+    changed.forEach((p) => updateProduct(p));
+    showToast(`تم مسح كافة العروض بنجاح وإرجاع أسعار ${revertedCount} صنف لوضعها الطبيعي ✅`);
+  };
+
   // Delete offer
   const handleDeleteOffer = (id: string) => {
-    if (!window.confirm('هل أنت متأكد من حذف هذا العرض الترويجي؟')) return;
+    if (!window.confirm('هل أنت متأكد من حذف هذا العرض الترويجي وإلغاء الخصم عن الصنف؟')) return;
     const updated = promotions.filter((p) => p.id !== id);
     setPromotions(updated);
     savePromotions(updated);
-    showToast('تم حذف العرض الترويجي بنجاح.');
+    const { updatedProducts } = applyPromotionsToProducts(products, updated);
+    const changed = updatedProducts.filter((p, i) => {
+      const orig = products[i];
+      return orig && (orig.promoPrice !== p.promoPrice || orig.status !== p.status || orig.offerPrice !== p.offerPrice);
+    });
+    changed.forEach((p) => updateProduct(p));
+    showToast('تم حذف العرض الترويجي بنجاح وإرجاع سعر الصنف لوضعه الطبيعي.');
   };
 
   return (
@@ -412,6 +432,19 @@ export const PromotionsOffersView: React.FC = () => {
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2 flex-wrap shrink-0">
+            {/* Clear All Offers Button */}
+            {['admin', 'developer', 'branch_manager'].includes(currentUser?.role || '') && promotions.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearAllOffers}
+                className="bg-rose-600/90 hover:bg-rose-600 text-white font-bold px-3 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-md"
+                title="مسح كافة العروض وإلغاء الخصومات عن كافة الأصناف"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>مسح كافة العروض</span>
+              </button>
+            )}
+
             {/* Upload Excel */}
             {['admin', 'developer', 'branch_manager'].includes(currentUser?.role || '') && (
               <button
@@ -788,7 +821,7 @@ export const PromotionsOffersView: React.FC = () => {
                   required
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="مثال: عرض الصيف على كرانشي سوبر A 🔥"
+                  placeholder="مثال: خصم 15% على كرتونة بسكويت شاي 🍪"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-bold focus:ring-2 focus:ring-amber-400"
                 />
               </div>
