@@ -28,6 +28,13 @@ export function getMicrosoftWebhookUrl(): string {
   } catch {
     // ignore localStorage error
   }
+
+  // Use the company-configured Vite variable when this device has no local override.
+  // This keeps the webhook available to all authorized users without requiring
+  // every device to be configured manually.
+  const configured = import.meta.env.VITE_POWER_AUTOMATE_URL?.trim();
+  if (configured && configured.startsWith('http') && configured.includes('sig=')) return configured;
+
   return '';
 }
 
