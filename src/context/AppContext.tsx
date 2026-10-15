@@ -4638,10 +4638,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     );
 
     saveInvoiceWithQueue(updatedInv).catch((e) => console.warn('Supabase invoice update failed:', e));
-    // Direct non-blocking dispatch to Microsoft 365 Power Automate (Outside React state updater to prevent duplicate dispatches)
-    sendInvoiceToPowerAutomate(updatedInv, currentUser?.name, branches, companyInfo.email).catch((e) =>
-      console.warn('[Power Automate] Approved invoice email notification failed:', e)
-    );
+    // Automatic email sending has been permanently disabled per user request in favor of Microsoft Dynamics 365 direct integration
 
     recordAuditLog({
       userId: currentUser?.id || 'supervisor',
@@ -4679,24 +4676,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       return { success: false, message: 'لا يمكنك إعادة إرسال فاتورة تابعة لفرع آخر.' };
     }
 
-    try {
-      await sendInvoiceToPowerAutomate(invoice, currentUser?.name, branches, companyInfo.email, { force: true });
-      recordAuditLog({
-        userId: currentUser.id,
-        userName: currentUser.name,
-        userRole: currentUser.role,
-        branchName: invoice.branchName,
-        action: 'update_invoice_status',
-        actionTitle: `إعادة إرسال الفاتورة #${invoice.invoiceNumber} بالبريد`,
-        details: 'تم إرسال PDF وExcel إلى Power Automate بطلب يدوي.',
-        invoiceId: invoice.id,
-        invoiceNumber: invoice.invoiceNumber,
-        badgeType: 'info',
-      });
-      return { success: true, message: `تم إعادة إرسال الفاتورة #${invoice.invoiceNumber} بالبريد مع PDF وExcel.` };
-    } catch (error: any) {
-      return { success: false, message: `تعذر إرسال الفاتورة: ${error?.message || 'تحقق من إعداد Power Automate.'}` };
-    }
+    return {
+      success: true,
+      message: 'تم إلغاء إرسال الفواتير بالبريد الإلكتروني نهائياً بناءً على طلب الإدارة، واستبدالها بنظام الربط المباشر مع Microsoft Dynamics 365.'
+    };
   };
 
   // Supervisor escalates / forwards to Branch Manager

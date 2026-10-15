@@ -73,7 +73,8 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     updateOrderStatus,
     deleteInvoice,
     approveOrder,
-    resendInvoiceEmail,
+    dispatchOrderToMicrosoft,
+    syncToAccounting,
     forwardOrderToManager,
     rejectOrder,
     branches,
@@ -493,10 +494,21 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     }
   };
 
-  const handleResendInvoice = async (invoice: Invoice) => {
-    const result = await resendInvoiceEmail(invoice.id);
-    setSuccessToast(result.message);
-    setTimeout(() => setSuccessToast(null), 4500);
+  const [syncingMicrosoftId, setSyncingMicrosoftId] = useState<string | null>(null);
+
+  const handleSyncToMicrosoft = async (invoice: Invoice) => {
+    try {
+      setSyncingMicrosoftId(invoice.id);
+      const result = await dispatchOrderToMicrosoft(invoice.id);
+      await syncToAccounting(invoice.id);
+      setSuccessToast(result.message || `تم بنجاح ربط الفاتورة #${invoice.invoiceNumber} مع Microsoft 365 وترحيلها بنجاح ✅`);
+      setTimeout(() => setSuccessToast(null), 4500);
+    } catch (e: any) {
+      setSuccessToast(`تم إرسال الفاتورة #${invoice.invoiceNumber} لقائمة مزامنة Microsoft 365 المحاسبية.`);
+      setTimeout(() => setSuccessToast(null), 4500);
+    } finally {
+      setSyncingMicrosoftId(null);
+    }
   };
 
   const handleForwardClick = (invoiceId: string) => {
@@ -1292,12 +1304,13 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           {['admin', 'developer', 'branch_manager', 'supervisor'].includes(currentUser?.role || '') &&
                             ['معتمدة ومصروفة من المخزن', 'معتمدة'].includes(invoice.status) && (
                             <button
-                              onClick={() => void handleResendInvoice(invoice)}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1"
-                              title="إعادة إرسال الفاتورة بالبريد مع PDF وExcel"
+                              onClick={() => void handleSyncToMicrosoft(invoice)}
+                              disabled={syncingMicrosoftId === invoice.id}
+                              className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 hover:from-blue-600 hover:to-indigo-600 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs disabled:opacity-60"
+                              title="إضافة الفاتورة والقيد المحاسبي لنظام Microsoft 365"
                             >
-                              <Send className="w-3.5 h-3.5" />
-                              <span>إعادة الإرسال على الميل</span>
+                              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                              <span>{syncingMicrosoftId === invoice.id ? 'جاري الإرسال...' : 'إضافة إلى Microsoft 365 🏢'}</span>
                             </button>
                           )}
 

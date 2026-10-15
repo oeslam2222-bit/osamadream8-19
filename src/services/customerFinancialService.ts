@@ -106,20 +106,33 @@ export function isSummaryOrTotalRow(
     'المجموع',
     'المجموعالكلي',
     'المجموعالعام',
+    'مجموعكلي',
+    'مجموععام',
     'اجماليالمبيعات',
+    'إجماليالمبيعات',
     'اجماليالتحصيلات',
+    'إجماليالتحصيلات',
     'اجماليالعملاء',
+    'إجماليالعملاء',
     'اجماليالفروع',
+    'إجماليالفروع',
     'اجماليعام',
     'إجماليعام',
     'كلالعملاء',
     'العددالكلي',
     'اجماليالحسابات',
-    'مجموععام',
+    'إجماليالحسابات',
+    'اجماليالمديونية',
+    'إجماليالمديونية',
+    'اجماليالمديونيه',
+    'إجماليالمديونيه',
     'مجموعالفروع',
   ];
 
-  if (totalKeywords.includes(normName) || totalKeywords.includes(normCode)) {
+  const strippedName = normName.replace(/\s+/g, '');
+  const strippedCode = normCode.replace(/\s+/g, '');
+
+  if (totalKeywords.includes(strippedName) || totalKeywords.includes(strippedCode)) {
     return true;
   }
 
@@ -136,13 +149,13 @@ export function isSummaryOrTotalRow(
     return true;
   }
 
-  // 3. Name starts with summary words and has no individual code/rep
+  // 3. Name starts with summary words and has no individual code/rep or contains generic aggregate terms
   if (
     normName.startsWith('اجمالي') ||
     normName.startsWith('إجمالي') ||
     normName.startsWith('مجموع')
   ) {
-    if (!rawCode || normCode.startsWith('اجمالي') || normCode === 'total' || !rep) {
+    if (!rawCode || rawCode.startsWith('CUST-') || normCode.startsWith('اجمالي') || normCode === 'total' || !rep || normName.includes('عام') || normName.includes('كلي') || normName.includes('مبيع') || normName.includes('تحصيل') || normName.includes('مديون')) {
       return true;
     }
   }
@@ -183,20 +196,20 @@ export function sumNetCollections(monthly?: Record<number, number> | undefined):
   if (!monthly) return 0;
   let sum = 0;
   for (let m = 1; m <= 12; m++) {
-    sum += Math.abs(parseCleanNumber(monthly[m]));
+    sum += parseCleanNumber(monthly[m]);
   }
   return sum;
 }
 
 /**
- * Canonical collections for one customer: sums all collected amounts whether entered
- * as positive or negative, prioritizing the sheet's explicit total column first,
+ * Canonical collections for one customer: sums the column values algebraically
+ * (positive and negative entries alike), prioritizing the sheet's explicit total column first,
  * then falling back to the sum of monthly collections.
  */
 export function resolveNetCollections(c: Partial<Customer> | undefined | null): number {
   if (!c) return 0;
   const explicit = [c.collections2026, c.totalMonthlyCollections, c.totalOverallCollections]
-    .map((v) => (v === undefined || v === null ? undefined : Math.abs(parseCleanNumber(v))))
+    .map((v) => (v === undefined || v === null ? undefined : parseCleanNumber(v)))
     .find((v): v is number => v !== undefined && v !== 0 && isFinite(v));
   if (explicit !== undefined) return explicit;
   return sumNetCollections(c.monthlyCollections2026);
@@ -206,7 +219,7 @@ export function resolveNetCollections(c: Partial<Customer> | undefined | null): 
  * Display magnitude of a customer's collections.
  */
 export function resolveCollectionsMagnitude(c: Partial<Customer> | undefined | null): number {
-  return resolveNetCollections(c);
+  return Math.abs(resolveNetCollections(c));
 }
 
 /**
@@ -217,7 +230,7 @@ export function calculateCustomerFinancials(
   c: Customer,
   selectedMonth: number | 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'ALL' = 'ALL'
 ): CustomerFinancials {
-  // 1. Monthly Maps (1 to 12) — sums all collection amounts (positive and negative)
+  // 1. Monthly Maps (1 to 12) — sums all collection amounts (positive and negative algebraically)
   const monthlySales: Record<number, number> = {};
   const monthlyCollections: Record<number, number> = {};
   let monthlySalesSum = 0;
@@ -225,28 +238,28 @@ export function calculateCustomerFinancials(
 
   for (let m = 1; m <= 12; m++) {
     const sVal = parseCleanNumber(c.monthlySales2026?.[m]);
-    const cVal = Math.abs(parseCleanNumber(c.monthlyCollections2026?.[m]));
+    const cVal = parseCleanNumber(c.monthlyCollections2026?.[m]);
     monthlySales[m] = sVal;
     monthlyCollections[m] = cVal;
     monthlySalesSum += sVal;
     monthlyColsSum += cVal;
   }
 
-  // 2. Sales 2026: Single Source of Truth with strict priority order (NO Math.max)
+  // 2. Sales 2026: Single Source of Truth with strict priority order
   let sales2026 = 0;
-  if (c.sales2026 !== undefined && c.sales2026 !== null && !isNaN(Number(c.sales2026)) && Number(c.sales2026) > 0) {
+  if (c.sales2026 !== undefined && c.sales2026 !== null && !isNaN(Number(c.sales2026)) && Number(c.sales2026) !== 0) {
     sales2026 = Number(c.sales2026);
-  } else if (c.totalMonthlySales !== undefined && c.totalMonthlySales !== null && !isNaN(Number(c.totalMonthlySales)) && Number(c.totalMonthlySales) > 0) {
+  } else if (c.totalMonthlySales !== undefined && c.totalMonthlySales !== null && !isNaN(Number(c.totalMonthlySales)) && Number(c.totalMonthlySales) !== 0) {
     sales2026 = Number(c.totalMonthlySales);
-  } else if (monthlySalesSum > 0) {
+  } else if (monthlySalesSum !== 0) {
     sales2026 = monthlySalesSum;
-  } else if (c.totalOverallSales !== undefined && c.totalOverallSales !== null && !isNaN(Number(c.totalOverallSales)) && Number(c.totalOverallSales) > 0) {
+  } else if (c.totalOverallSales !== undefined && c.totalOverallSales !== null && !isNaN(Number(c.totalOverallSales)) && Number(c.totalOverallSales) !== 0) {
     sales2026 = Number(c.totalOverallSales);
   }
 
-  // 3. Collections 2026: Mirrors sheet collections accurately (all collected amounts counted)
+  // 3. Collections 2026: Mirrors sheet collections accurately
   let collections2026 = resolveNetCollections(c);
-  if (collections2026 === 0 && monthlyColsSum > 0) {
+  if (collections2026 === 0 && monthlyColsSum !== 0) {
     collections2026 = monthlyColsSum;
   }
 

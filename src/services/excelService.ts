@@ -2502,7 +2502,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
           : (dynamicMonthlyCollectionsSum !== 0
               ? dynamicMonthlyCollectionsSum
               : (parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : 0)));
-    const resolvedCollections2026 = Math.abs(rawResolvedCollections);
+    const resolvedCollections2026 = rawResolvedCollections;
     const finalTotalMonthlyCollections = resolvedCollections2026;
 
     const finalCreditLimit = parsedCredit !== undefined ? parsedCredit : 0;

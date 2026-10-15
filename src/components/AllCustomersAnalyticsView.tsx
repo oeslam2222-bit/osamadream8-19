@@ -114,10 +114,10 @@ const signedCustomerCollections = (
         : period === 'Q2' ? [4, 5, 6]
           : period === 'Q3' ? [7, 8, 9]
             : [10, 11, 12];
-    return months.reduce((sum, month) => sum + Math.abs(parseCleanNumber(customer.monthlyCollections2026?.[month])), 0);
+    return months.reduce((sum, month) => sum + parseCleanNumber(customer.monthlyCollections2026?.[month]), 0);
   }
 
-  return resolveCollectionsMagnitude(customer);
+  return resolveNetCollections(customer);
 };
 
 /**
@@ -1388,7 +1388,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       }
       if (c.monthlyCollections2026) {
         for (let mon = 1; mon <= 12; mon++) {
-          monthlyCollectionTotals[mon] += Math.abs(parseCleanNumber(c.monthlyCollections2026[mon]));
+          monthlyCollectionTotals[mon] += parseCleanNumber(c.monthlyCollections2026[mon]);
         }
       }
     });

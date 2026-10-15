@@ -25,7 +25,11 @@ import {
   XCircle,
   ArrowLeft,
   ExternalLink,
-  Truck
+  Truck,
+  CloudUpload,
+  Loader2,
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -34,6 +38,7 @@ import { formatArabicDate, formatCurrency } from '../services/invoiceService';
 import { downloadInvoicePDF } from '../services/pdfService';
 import { isArabicNameMatch, resolveCustomerFinancials } from '../services/arabicMatchingService';
 import { Invoice } from '../types';
+import { supabase } from '../services/supabaseService';
 import { CompanySettingsModal } from './CompanySettingsModal';
 import { CreditAuditModal } from './CreditAuditModal';
 import { OrderReturnModal } from './OrderReturnModal';
@@ -76,6 +81,141 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   const [isDownloadingBoth, setIsDownloadingBoth] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnSuccessMsg, setReturnSuccessMsg] = useState<string | null>(null);
+
+  // Microsoft Dynamics 365 Order Integration State
+  const [profileRole, setProfileRole] = useState<string | null>(null);
+  const [dynamicsStatus, setDynamicsStatus] = useState<'pending' | 'sending' | 'sent' | 'failed' | string>('pending');
+  const [dynamicsOrderNo, setDynamicsOrderNo] = useState<string | null>(null);
+  const [dynamicsError, setDynamicsError] = useState<string | null>(null);
+  const [isSendingDynamics, setIsSendingDynamics] = useState<boolean>(false);
+  const [dynamicsSuccessToast, setDynamicsSuccessToast] = useState<string | null>(null);
+  const [dynamicsErrorToast, setDynamicsErrorToast] = useState<string | null>(null);
+
+  // Strictly check logged-in user's role in the `profiles` table ('admin' or 'developer')
+  useEffect(() => {
+    let isMounted = true;
+    async function checkUserProfileRole() {
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        const userId = authData?.user?.id || currentUser?.id;
+        if (userId) {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', userId)
+            .maybeSingle();
+
+          if (!error && data?.role && isMounted) {
+            setProfileRole(String(data.role).toLowerCase().trim());
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to query profiles table for role:', err);
+      }
+      if (isMounted) {
+        setProfileRole(currentUser?.role ? String(currentUser.role).toLowerCase().trim() : null);
+      }
+    }
+    checkUserProfileRole();
+    return () => { isMounted = false; };
+  }, [currentUser]);
+
+  const isAuthorizedRole = profileRole === 'admin' || profileRole === 'developer';
+
+  // Fetch dynamics status, order number, and error from orders table
+  const fetchOrderDynamicsState = async () => {
+    if (!currentInv?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('dynamics_status, dynamics_order_no, dynamics_error')
+        .eq('id', currentInv.id)
+        .maybeSingle();
+
+      if (!error && data) {
+        if (data.dynamics_status) {
+          setDynamicsStatus(data.dynamics_status);
+        }
+        if (data.dynamics_order_no) {
+          setDynamicsOrderNo(data.dynamics_order_no);
+        }
+        if (data.dynamics_error) {
+          setDynamicsError(data.dynamics_error);
+        }
+      }
+    } catch (err) {
+      console.warn('Could not read dynamics state from orders table:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrderDynamicsState();
+  }, [currentInv?.id]);
+
+  const handleSendToDynamics = async () => {
+    if (!currentInv?.id || isSendingDynamics) return;
+
+    const confirmed = window.confirm('إرسال الأمر إلى Dynamics؟');
+    if (!confirmed) return;
+
+    setIsSendingDynamics(true);
+    setDynamicsStatus('sending');
+    setDynamicsErrorToast(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('send-order-to-dynamics', {
+        body: { order_id: currentInv.id },
+      });
+
+      if (error) {
+        const msg = error.message || 'فشل الاتصال بدالة Dynamics';
+        setDynamicsStatus('failed');
+        setDynamicsError(msg);
+        setDynamicsErrorToast(`حدث خطأ أثناء إرسال الأمر إلى Dynamics: ${msg}`);
+        setTimeout(() => setDynamicsErrorToast(null), 7000);
+        return;
+      }
+
+      if (data && data.error) {
+        const msg = data.error || 'فشل إرسال الطلبية إلى Dynamics';
+        setDynamicsStatus('failed');
+        setDynamicsError(msg);
+        setDynamicsErrorToast(`فشل إرسال الأمر: ${msg}`);
+        setTimeout(() => setDynamicsErrorToast(null), 7000);
+        return;
+      }
+
+      const returnedOrderNo =
+        data?.dynamics_order_no ||
+        data?.order_no ||
+        data?.dynamicsOrderNo ||
+        '';
+
+      setDynamicsStatus('sent');
+      if (returnedOrderNo) {
+        setDynamicsOrderNo(returnedOrderNo);
+      }
+      setDynamicsError(null);
+      setDynamicsSuccessToast(
+        returnedOrderNo
+          ? `تم إرسال الطلبية إلى Dynamics بنجاح! رقم الطلب: ${returnedOrderNo} ✅`
+          : 'تم إرسال الطلبية إلى Dynamics بنجاح! ✅'
+      );
+      setTimeout(() => setDynamicsSuccessToast(null), 7000);
+
+      // Refresh order record
+      await fetchOrderDynamicsState();
+    } catch (err: any) {
+      const msg = err?.message || 'حدث خطأ غير متوقع أثناء إرسال الأمر إلى Dynamics';
+      setDynamicsStatus('failed');
+      setDynamicsError(msg);
+      setDynamicsErrorToast(msg);
+      setTimeout(() => setDynamicsErrorToast(null), 7000);
+    } finally {
+      setIsSendingDynamics(false);
+    }
+  };
 
   if (!isOpen || !currentInv) return null;
 
@@ -357,6 +497,114 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
           </div>
         </div>
 
+        {/* Dynamics 365 Integration Status & Action Bar (Hidden in Print) */}
+        <div className="bg-slate-900 border-t border-slate-800 px-3.5 sm:px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs print:hidden">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="text-slate-400 font-bold flex items-center gap-1.5">
+              <Server className="w-3.5 h-3.5 text-blue-400" />
+              <span>حالة ربط Dynamics:</span>
+            </span>
+
+            {/* Status Badge:
+                pending = رمادي "لم يُرسل"
+                sending = أصفر "جاري الإرسال"
+                sent = أخضر "تم الإرسال" + dynamics_order_no
+                failed = أحمر "فشل" (error text visible to admin/developer only) */}
+            {dynamicsStatus === 'sent' && (
+              <span className="inline-flex items-center gap-1.5 bg-emerald-950/90 text-emerald-300 border border-emerald-500/50 px-2.5 py-1 rounded-lg text-xs font-black shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>تم الإرسال</span>
+                {dynamicsOrderNo && (
+                  <span className="font-mono bg-emerald-900/80 text-emerald-200 px-1.5 py-0.5 rounded text-[11px] border border-emerald-500/40">
+                    #{dynamicsOrderNo}
+                  </span>
+                )}
+              </span>
+            )}
+
+            {dynamicsStatus === 'sending' && (
+              <span className="inline-flex items-center gap-1.5 bg-amber-950/90 text-amber-300 border border-amber-500/50 px-2.5 py-1 rounded-lg text-xs font-black shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                <span>جاري الإرسال</span>
+              </span>
+            )}
+
+            {dynamicsStatus === 'failed' && (
+              <span className="inline-flex items-center gap-1.5 bg-rose-950/90 text-rose-300 border border-rose-500/50 px-2.5 py-1 rounded-lg text-xs font-black shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-rose-400"></span>
+                <span>فشل</span>
+                {isAuthorizedRole && dynamicsError && (
+                  <span className="text-[11px] font-normal text-rose-300 max-w-sm truncate" title={dynamicsError}>
+                    ({dynamicsError})
+                  </span>
+                )}
+              </span>
+            )}
+
+            {dynamicsStatus !== 'sent' && dynamicsStatus !== 'sending' && dynamicsStatus !== 'failed' && (
+              <span className="inline-flex items-center gap-1.5 bg-slate-800 text-slate-300 border border-slate-700 px-2.5 py-1 rounded-lg text-xs font-bold">
+                <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                <span>لم يُرسل</span>
+              </span>
+            )}
+          </div>
+
+          {/* Button: Show ONLY if logged-in user role is admin or developer AND dynamics_status is pending or failed */}
+          {isAuthorizedRole && (dynamicsStatus === 'pending' || dynamicsStatus === 'failed') && (
+            <button
+              type="button"
+              onClick={handleSendToDynamics}
+              disabled={isSendingDynamics}
+              className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black px-3.5 py-1.5 rounded-xl text-xs transition shadow-md shadow-blue-950/50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 shrink-0 border border-blue-400/40"
+              title="إرسال الطلبية إلى نظام Microsoft Dynamics"
+            >
+              {isSendingDynamics ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                  <span>جاري الإرسال...</span>
+                </>
+              ) : (
+                <>
+                  <CloudUpload className="w-3.5 h-3.5 text-white" />
+                  <span>إرسال لـ Dynamics 🚀</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* Dynamics Success Toast */}
+        {dynamicsSuccessToast && (
+          <div className="bg-emerald-600 text-white px-4 py-2.5 text-xs sm:text-sm font-black flex items-center justify-between shadow-md animate-fade-in print:hidden">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{dynamicsSuccessToast}</span>
+            </div>
+            <button
+              onClick={() => setDynamicsSuccessToast(null)}
+              className="text-emerald-200 hover:text-white text-xs underline cursor-pointer"
+            >
+              إغلاق
+            </button>
+          </div>
+        )}
+
+        {/* Dynamics Error Toast */}
+        {dynamicsErrorToast && (
+          <div className="bg-rose-600 text-white px-4 py-2.5 text-xs sm:text-sm font-black flex items-center justify-between shadow-md animate-fade-in print:hidden">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{dynamicsErrorToast}</span>
+            </div>
+            <button
+              onClick={() => setDynamicsErrorToast(null)}
+              className="text-rose-200 hover:text-white text-xs underline cursor-pointer"
+            >
+              إغلاق
+            </button>
+          </div>
+        )}
+
         {/* Download Notice Notification */}
         {downloadNotice && (
           <div className="bg-emerald-600 text-white px-4 py-2.5 text-xs sm:text-sm font-black flex items-center justify-between shadow-sm animate-fade-in print:hidden">
@@ -556,6 +804,37 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               <span className="inline-block bg-slate-200 text-slate-900 px-2 py-0.5 rounded-md font-black text-[10px] mt-0.5">
                 {currentInv.paymentMethod}
               </span>
+            </div>
+
+            <div className="pt-2 border-t border-slate-200/80">
+              <span className="text-slate-400 block text-[10px] font-bold">حالة ربط Dynamics:</span>
+              <div className="mt-0.5">
+                {dynamicsStatus === 'sent' ? (
+                  <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-300 px-2 py-0.5 rounded text-[11px] font-black">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    <span>تم الإرسال</span>
+                    {dynamicsOrderNo && <span className="font-mono text-[10px]">({dynamicsOrderNo})</span>}
+                  </span>
+                ) : dynamicsStatus === 'sending' ? (
+                  <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-300 px-2 py-0.5 rounded text-[11px] font-black">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                    <span>جاري الإرسال</span>
+                  </span>
+                ) : dynamicsStatus === 'failed' ? (
+                  <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-300 px-2 py-0.5 rounded text-[11px] font-black">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                    <span>فشل</span>
+                    {isAuthorizedRole && dynamicsError && (
+                      <span className="text-[10px] text-rose-600 font-normal">({dynamicsError})</span>
+                    )}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                    <span>لم يُرسل</span>
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
