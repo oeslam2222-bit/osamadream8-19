@@ -3370,7 +3370,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const cleanId = sanitizeIdentifier(identifier).toLowerCase();
     const cleanEmail = sanitizeEmail(identifier);
     const rawTrim = sanitizeIdentifier(identifier);
-    const cleanPass = (password || '').trim();
+    const asciiDigits = identifier.replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString()).trim();
+    const cleanPass = (password || '').replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString()).trim();
+    const normInput = normalizeArabicText(identifier).replace(/\s+/g, '');
 
     /**
      * Supabase Auth (اختياري، بيشتغل لو اتنفّذ migration الـ SQL).
@@ -3401,15 +3403,17 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         (u.email && sanitizeEmail(u.email) === cleanEmail) ||
         (u.email && u.email.toLowerCase().startsWith(cleanId)) ||
         (u.username && sanitizeIdentifier(u.username).toLowerCase() === cleanId) ||
+        (u.username && normalizeArabicText(u.username).replace(/\s+/g, '') === normInput) ||
         (u.name && sanitizeIdentifier(u.name).toLowerCase() === cleanId) ||
-        (u.phone && sanitizeIdentifier(u.phone) === rawTrim) ||
+        (u.name && normalizeArabicText(u.name).replace(/\s+/g, '') === normInput) ||
+        (u.phone && (sanitizeIdentifier(u.phone) === rawTrim || sanitizeIdentifier(u.phone) === asciiDigits)) ||
         (u.id && String(u.id).toLowerCase() === cleanId)
     );
 
     // 2. If not found locally, query Supabase directly (essential for fresh sessions and cloud users)
     if (!found) {
       try {
-        const lookupQuery = cleanEmail.includes('@') ? cleanEmail : cleanId;
+        const lookupQuery = cleanEmail.includes('@') ? cleanEmail : (normInput || cleanId);
         const supRes = await findUserInSupabase(lookupQuery);
         if (supRes.success && supRes.user) {
           found = supRes.user;
@@ -5539,7 +5543,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     setUsers(nextUsers);
     safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(nextUsers));
     idbSet(STORAGE_KEYS.USERS, nextUsers);
-    syncOrQueue('users', 'upsert', secured.id, secured, () => saveUserToSupabase(secured))
+    syncOrQueue('users', 'upsert', secured.id, secured, () => saveUserToSupabase(secured, nextUsers))
       .then(() => publishDataVersionUpdate({ scope: 'all', notes: `إضافة مستخدم ${secured.name || secured.username}` }))
       .catch((e) => console.warn('Supabase save user failed:', e));
     setTimeout(() => {
@@ -5569,7 +5573,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
       setCurrentUser(secured);
     }
-    syncOrQueue('users', 'upsert', secured.id, secured, () => saveUserToSupabase(secured))
+    syncOrQueue('users', 'upsert', secured.id, secured, () => saveUserToSupabase(secured, nextUsers))
       .then(() => publishDataVersionUpdate({ scope: 'all', notes: `تعديل مستخدم ${secured.name || secured.username}` }))
       .catch((e) => console.warn('Supabase update user failed:', e));
     setTimeout(() => {

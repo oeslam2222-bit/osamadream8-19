@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Branch, Customer, Invoice, Product, User, UserRole, CustomerVisit } from '../types';
 import { withHashedCredential } from './passwordService';
 import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from './customerDues';
+import { normalizeArabicText } from './arabicMatchingService';
 
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://rxthpgmlcsfckstpqhqf.supabase.co';
 export const SUPABASE_ANON_KEY =
@@ -891,8 +892,10 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
     const rawClean = sanitizeIdentifier(identifier);
     const cleanLower = rawClean.toLowerCase();
     const cleanEmail = sanitizeEmail(identifier);
+    const asciiDigits = identifier.replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString()).trim();
+    const normInput = normalizeArabicText(identifier).replace(/\s+/g, '');
 
-    if (!rawClean) {
+    if (!rawClean && !normInput) {
       return { success: false, error: 'المعرف فارغ' };
     }
 
@@ -902,9 +905,13 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
       const found = remoteRes.users.find(
         (u) =>
           (u.email && sanitizeEmail(u.email) === cleanEmail) ||
+          (u.email && u.email.toLowerCase().startsWith(cleanLower)) ||
           (u.username && sanitizeIdentifier(u.username).toLowerCase() === cleanLower) ||
-          (u.phone && sanitizeIdentifier(u.phone) === rawClean) ||
-          (u.name && sanitizeIdentifier(u.name).toLowerCase() === cleanLower)
+          (u.username && normalizeArabicText(u.username).replace(/\s+/g, '') === normInput) ||
+          (u.name && sanitizeIdentifier(u.name).toLowerCase() === cleanLower) ||
+          (u.name && normalizeArabicText(u.name).replace(/\s+/g, '') === normInput) ||
+          (u.phone && (sanitizeIdentifier(u.phone) === rawClean || sanitizeIdentifier(u.phone) === asciiDigits)) ||
+          (u.id && String(u.id).toLowerCase() === cleanLower)
       );
       if (found) {
         return { success: true, user: found };

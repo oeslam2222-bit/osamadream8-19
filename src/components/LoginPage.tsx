@@ -151,10 +151,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                   placeholder="مثال: osama@dream.com أو osama"
                   required
                   autoComplete="username"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
                   className="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none transition pr-10 font-mono"
                 />
                 <UserIcon className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
               </div>
+              <p className="text-[10px] text-slate-400 mt-1 text-right">
+                💡 يمكنك الدخول بالبريد الإلكتروني، اسم المستخدم، أو الاسم المسجل.
+              </p>
             </div>
 
             {/* Password */}
@@ -170,6 +176,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                   placeholder="أدخل كلمة المرور المسجلة بقاعدة البيانات"
                   required
                   autoComplete="current-password"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
                   className="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none transition pr-10 pl-10"
                 />
                 <Lock className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />

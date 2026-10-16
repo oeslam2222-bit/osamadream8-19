@@ -543,6 +543,11 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     setUserFormError(null);
     if (!formData.name?.trim() || !isSuperAdminOrDev) return;
 
+    if (!editingUser && !formData.password?.trim()) {
+      setUserFormError('يرجى كتابة كلمة مرور للموظف الجديد ليتمكن من تسجيل الدخول إلى حسابه.');
+      return;
+    }
+
     const requestedUsername = formData.username?.trim().toLowerCase() || '';
     const fallbackUsername = normalizeArabicText(formData.name).replace(/\s+/g, '') || `user_${Date.now()}`;
     const cleanUsername = requestedUsername || fallbackUsername;
@@ -612,7 +617,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
 الصفة: ${roleConfigs[user.role]?.label || user.role}
 الفرع: ${user.branchName}
 البريد الإلكتروني لتسجيل الدخول: ${user.email}
-كلمة المرور: (تُحدَّد عند التفعيل — غير معروضة هنا)
+اسم المستخدم: ${user.username}
+رقم الهاتف: ${user.phone || 'غير مسجل'}
+كلمة المرور: (الكلمة المحددة عند الإنشاء)
 رابط المنظومة: ${window.location.origin}`;
 
     navigator.clipboard.writeText(credText);
