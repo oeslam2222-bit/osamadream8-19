@@ -42,8 +42,27 @@ export const normalizeProductCodeKey = (raw?: string | number | null): string =>
   return value.toLowerCase();
 };
 
+/**
+ * مفتاح الكود الفرعي كما يأتي من الشيت، مع الحفاظ على علامة المتغير (#).
+ *
+ * مهم: `1000` و`1000#` ليسا نفس الصنف. الأول كود أساسي، والثاني متغير
+ * تابع له. إزالة # هنا كانت تدمج المتغيرات الخمسة في صف واحد قبل أن تصل
+ * لمرحلة التجميع، فتضيع الألوان والمقاسات والرصيد الخاص بكل متغير.
+ */
+const normalizeVariantCodeKey = (raw?: string | number | null): string => {
+  if (raw === undefined || raw === null) return '';
+  let value = String(raw).trim();
+  if (!value) return '';
+  value = value.replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660));
+  value = value.replace(/[,_\s\u00a0]/g, '');
+  value = value.replace(/\.0+$/, '');
+  return value.toLowerCase();
+};
+
 export const productIdentityKey = (p: Product): string => {
-  const code = normalizeProductCodeKey(p.code);
+  // الكود الفرعي هو هوية الصف. نحافظ على # و -1 و _02 حتى تظل كل
+  // المتغيرات مستقلة، بينما groupProductsIntoParents يجمعها تحت الكود الأساسي.
+  const code = normalizeVariantCodeKey(p.code);
   if (code) return `code:${code}`;
 
   // مفيش كود: نرجع للمفتاح المركّب (الاسم/الكود الموحد/الباركود/اللون/الحجم)
