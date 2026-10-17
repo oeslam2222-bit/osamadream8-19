@@ -1425,27 +1425,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                             </span>
                           )}
 
-                          {/* General Actions: View, Excel, PDF */}
-  {['admin', 'developer', 'branch_manager', 'supervisor'].includes(currentUser?.role || '') &&
-  ['معتمدة ومصروفة من المخزن', 'معتمدة'].includes(inv.status) && (
-  <button
-    onClick={async () => {
-      try {
-        const result = await dispatchOrderToMicrosoft(inv.id);
-        await syncToAccounting(inv.id);
-        setSuccessToast(result.message || `تم بنجاح ربط الفاتورة #${inv.invoiceNumber} مع Microsoft 365 ✅`);
-      } catch {
-        setSuccessToast(`تم إرسال الفاتورة #${inv.invoiceNumber} إلى Microsoft 365.`);
-      }
-      setTimeout(() => setSuccessToast(null), 4500);
-    }}
-    className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 hover:from-blue-600 hover:to-indigo-600 text-white font-bold px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-    title="إضافة الفاتورة والقيد المحاسبي لنظام Microsoft 365"
-  >
-    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-    <span>إضافة إلى Microsoft 365 🏢</span>
-  </button>
-  )}
+
 
   {onViewInvoice && (
   <button

@@ -1301,18 +1301,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             <span>تحليل الأصناف 📊</span>
                           </button>
 
-                          {['admin', 'developer', 'branch_manager', 'supervisor'].includes(currentUser?.role || '') &&
-                            ['معتمدة ومصروفة من المخزن', 'معتمدة'].includes(invoice.status) && (
-                            <button
-                              onClick={() => void handleSyncToMicrosoft(invoice)}
-                              disabled={syncingMicrosoftId === invoice.id}
-                              className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 hover:from-blue-600 hover:to-indigo-600 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs disabled:opacity-60"
-                              title="إضافة الفاتورة والقيد المحاسبي لنظام Microsoft 365"
-                            >
-                              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                              <span>{syncingMicrosoftId === invoice.id ? 'جاري الإرسال...' : 'إضافة إلى Microsoft 365 🏢'}</span>
-                            </button>
-                          )}
+
 
                           {/* Download Both (PDF + Excel) directly to device */}
                           <button

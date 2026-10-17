@@ -43,6 +43,9 @@ const RoleCommandCenter = lazy(() => import('./components/RoleCommandCenter').th
 const PromotionsOffersView = lazy(() => import('./components/PromotionsOffersView').then((m) => ({ default: m.PromotionsOffersView })));
 const OrderBuilderModal = lazy(() => import('./components/OrderBuilderModal').then((m) => ({ default: m.OrderBuilderModal })));
 const ElectronicInvoiceModal = lazy(() => import('./components/ElectronicInvoiceModal').then((m) => ({ default: m.ElectronicInvoiceModal })));
+const AccountingSyncView = lazy(() => import('./components/AccountingSyncView').then((m) => ({ default: m.AccountingSyncView })));
+const UnifiedTargetsHub = lazy(() => import('./components/UnifiedTargetsHub').then((m) => ({ default: m.UnifiedTargetsHub })));
+const UnifiedSystemAdminHub = lazy(() => import('./components/UnifiedSystemAdminHub').then((m) => ({ default: m.UnifiedSystemAdminHub })));
 
 // Suspense here waits for the screen's lazy-loaded JavaScript, not its server data.
 const TabLoadingSkeleton = () => {
@@ -123,9 +126,8 @@ const MainLayout: React.FC = () => {
 
   useEffect(() => {
     if (
-      activeTab === 'users' &&
-      currentUser?.role !== 'admin' &&
-      currentUser?.role !== 'developer'
+      (activeTab === 'users' && currentUser?.role !== 'admin' && currentUser?.role !== 'developer') ||
+      (activeTab === 'developer_console' && currentUser?.role !== 'developer')
     ) {
       setActiveTab('all_customers');
     }
@@ -242,9 +244,7 @@ const MainLayout: React.FC = () => {
                     ? 'management'
                     : activeTab === 'supervisor'
                     ? 'supervisor'
-                    : activeTab === 'home'
-                    ? 'executive'
-                    : 'unified'
+                    : 'command'
                 }
                 onNavigateToTab={handleTabChange}
                 onOpenNewOrder={() => setIsOrderModalOpen(true)}
@@ -264,15 +264,10 @@ const MainLayout: React.FC = () => {
             </div>
           )}
 
-          {visitedTabs['targets'] && (
-            <div className={activeTab === 'targets' ? 'block' : 'hidden'}>
-              <TargetPerformanceDashboard />
-            </div>
-          )}
-
-          {visitedTabs['forecast'] && (
-            <div className={activeTab === 'forecast' ? 'block' : 'hidden'}>
-              <CollectionForecastView />
+          {/* Unified Targets & Collection Forecasts Hub (توحيد الأهداف وتوقعات التحصيل في شاشة موحدة) */}
+          {(visitedTabs['targets'] || visitedTabs['forecast']) && (
+            <div className={(activeTab === 'targets' || activeTab === 'forecast') ? 'block' : 'hidden'}>
+              <UnifiedTargetsHub initialSubTab={activeTab === 'forecast' ? 'forecast' : 'targets'} />
             </div>
           )}
 
@@ -304,22 +299,22 @@ const MainLayout: React.FC = () => {
             </div>
           )}
 
-          {visitedTabs['excel'] && (
-            <div className={activeTab === 'excel' ? 'block' : 'hidden'}>
-              <ExcelImportExport />
-            </div>
-          )}
-
-          {visitedTabs['users'] &&
+          {/* Unified System Administration Hub (توحيد إدارة الموظفين، شيتات جوجل، دليل العمل، وصفحة المطور) */}
+          {(visitedTabs['admin_hub'] || visitedTabs['users'] || visitedTabs['excel'] || visitedTabs['guide'] || visitedTabs['developer_console'] || visitedTabs['developer']) &&
             (currentUser.role === 'admin' || currentUser.role === 'developer') && (
-            <div className={activeTab === 'users' ? 'block' : 'hidden'}>
-              <UserManager />
-            </div>
-          )}
-
-          {visitedTabs['guide'] && (
-            <div className={activeTab === 'guide' ? 'block' : 'hidden'}>
-              <SystemWorkflowGuide onNavigateToTab={(tab) => setActiveTab(tab)} />
+            <div className={['admin_hub', 'users', 'excel', 'guide', 'developer_console', 'developer'].includes(activeTab) ? 'block' : 'hidden'}>
+              <UnifiedSystemAdminHub
+                initialSubTab={
+                  activeTab === 'excel'
+                    ? 'excel'
+                    : activeTab === 'guide'
+                    ? 'guide'
+                    : activeTab === 'developer_console' || activeTab === 'developer'
+                    ? 'developer'
+                    : 'users'
+                }
+                onNavigateToTab={handleTabChange}
+              />
             </div>
           )}
 

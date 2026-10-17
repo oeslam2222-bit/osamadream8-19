@@ -824,35 +824,56 @@ export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Pro
         // Continue to secondary tables if needed
       }
 
-      // 2. Only check secondary candidates if primary 'users' table is empty or has very few records
-      if (byId.size === 0) {
-        for (const tbl of ['app_users', 'profiles']) {
-          try {
-            const data = await readUserRows(tbl);
-            if (!data) continue;
-            data.forEach((row: any, idx: number) => {
-              const user = mapUser(row, tbl, idx);
-              const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
-              byId.set(user.id, { ...existing, ...user });
-              if (user.email) byEmail.set(user.email.toLowerCase(), { ...existing, ...user });
-            });
-          } catch {
-            // Continue
-          }
-        }
-
-        // Check central snapshot as fallback
+      // 2. Always query and merge records from 'app_users' and 'profiles' safely
+      for (const tbl of ['app_users', 'profiles']) {
         try {
-          const { data } = await supabase.from('orders').select('items').eq('id', USER_SYNC_STORE_ID).limit(1);
-          const items = data?.[0]?.items;
-          const snapshot = Array.isArray(items) ? items : typeof items === 'string' ? JSON.parse(items) : [];
-          snapshot.forEach((row: any, idx: number) => {
-            const user = mapUser(row, 'snapshot', idx);
-            if (!byId.has(user.id) && (!user.email || !byEmail.has(user.email.toLowerCase()))) byId.set(user.id, user);
+          const data = await readUserRows(tbl);
+          if (!data) continue;
+          data.forEach((row: any, idx: number) => {
+            const user = mapUser(row, tbl, idx);
+            const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
+            
+            // CRITICAL: NEVER overwrite an existing non-empty password with an empty one!
+            const mergedPassword = (user.password && user.password.trim().length > 0)
+              ? user.password.trim()
+              : (existing?.password || '');
+            const mergedPhone = (user.phone && user.phone.trim().length > 0)
+              ? user.phone.trim()
+              : (existing?.phone || '');
+            const mergedUser: User = {
+              ...existing,
+              ...user,
+              password: mergedPassword,
+              phone: mergedPhone,
+              branchName: (user.branchName && user.branchName.trim().length > 0)
+                ? user.branchName
+                : (existing?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)'),
+            };
+            byId.set(mergedUser.id, mergedUser);
+            if (mergedUser.email) byEmail.set(mergedUser.email.toLowerCase(), mergedUser);
           });
         } catch {
-          // snapshot optional
+          // Continue
         }
+      }
+
+      // 3. Check central snapshot as fallback if needed
+      try {
+        const { data } = await supabase.from('orders').select('items').eq('id', USER_SYNC_STORE_ID).limit(1);
+        const items = data?.[0]?.items;
+        const snapshot = Array.isArray(items) ? items : typeof items === 'string' ? JSON.parse(items) : [];
+        snapshot.forEach((row: any, idx: number) => {
+          const user = mapUser(row, 'snapshot', idx);
+          const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
+          if (!existing) {
+            byId.set(user.id, user);
+            if (user.email) byEmail.set(user.email.toLowerCase(), user);
+          } else if ((!existing.password || existing.password.trim().length === 0) && user.password && user.password.trim().length > 0) {
+            existing.password = user.password.trim();
+          }
+        });
+      } catch {
+        // snapshot optional
       }
 
       const users = Array.from(byId.values());
@@ -860,7 +881,7 @@ export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Pro
         cachedUsersResponse = { data: users, timestamp: Date.now() };
         return { success: true, users };
       }
-      return { success: false, error: 'لم يتم العثور على مستخدمين' };
+      return { success: false, error: 'لم يتم العثور على مستخدمين في أي من الجداول' };
     } catch (err: any) {
       return { success: false, error: err?.message || 'خطأ في جلب المستخدمين من Supabase' };
     } finally {
@@ -885,42 +906,113 @@ export function sanitizeEmail(raw: string): string {
 }
 
 /**
- * Find a specific user in Supabase by email, username, or phone safely
+ * Find a specific user in Supabase by email, username, name, or phone safely
+ * Checks both freshly fetched cache and direct queries against 'app_users', 'users', and 'profiles'
  */
 export async function findUserInSupabase(identifier: string): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
     const rawClean = sanitizeIdentifier(identifier);
     const cleanLower = rawClean.toLowerCase();
     const cleanEmail = sanitizeEmail(identifier);
-    const asciiDigits = identifier.replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString()).trim();
+    const asciiDigits = identifier.replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString()).replace(/\D/g, '').trim();
     const normInput = normalizeArabicText(identifier).replace(/\s+/g, '');
 
-    if (!rawClean && !normInput) {
+    if (!rawClean && !normInput && !asciiDigits) {
       return { success: false, error: 'المعرف فارغ' };
     }
 
-    // Fetch remote users and match accurately in memory without fragile PostgREST URL syntax errors
-    const remoteRes = await fetchUsersFromSupabase();
+    // 1. Force fresh fetch from Supabase to catch newly created employees across devices
+    const remoteRes = await fetchUsersFromSupabase(true);
     if (remoteRes.success && remoteRes.users && remoteRes.users.length > 0) {
-      const found = remoteRes.users.find(
-        (u) =>
-          (u.email && sanitizeEmail(u.email) === cleanEmail) ||
-          (u.email && u.email.toLowerCase().startsWith(cleanLower)) ||
-          (u.username && sanitizeIdentifier(u.username).toLowerCase() === cleanLower) ||
-          (u.username && normalizeArabicText(u.username).replace(/\s+/g, '') === normInput) ||
-          (u.name && sanitizeIdentifier(u.name).toLowerCase() === cleanLower) ||
-          (u.name && normalizeArabicText(u.name).replace(/\s+/g, '') === normInput) ||
-          (u.phone && (sanitizeIdentifier(u.phone) === rawClean || sanitizeIdentifier(u.phone) === asciiDigits)) ||
-          (u.id && String(u.id).toLowerCase() === cleanLower)
-      );
+      const found = remoteRes.users.find((u) => {
+        const uEmail = sanitizeEmail(u.email || '');
+        const uUser = sanitizeIdentifier(u.username || '').toLowerCase();
+        const uName = sanitizeIdentifier(u.name || '').toLowerCase();
+        const uNameNorm = normalizeArabicText(u.name || '').replace(/\s+/g, '');
+        const uPhoneDigits = (u.phone || '').replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString()).replace(/\D/g, '').trim();
+
+        // Email match
+        if (cleanEmail && (uEmail === cleanEmail || uEmail.startsWith(cleanLower) || (cleanEmail.includes('@') && uEmail === cleanEmail))) return true;
+        if (!cleanEmail.includes('@') && uEmail === `${cleanLower}@dream.com`) return true;
+
+        // Username match
+        if (cleanLower && (uUser === cleanLower || normalizeArabicText(u.username || '').replace(/\s+/g, '') === normInput)) return true;
+
+        // Full Name match
+        if (cleanLower && (uName === cleanLower || uNameNorm === normInput)) return true;
+        if (normInput.length >= 3 && (uNameNorm.includes(normInput) || normInput.includes(uNameNorm))) return true;
+
+        // Phone match
+        if (asciiDigits.length >= 7 && uPhoneDigits.length >= 7) {
+          if (uPhoneDigits === asciiDigits || uPhoneDigits.endsWith(asciiDigits) || asciiDigits.endsWith(uPhoneDigits)) return true;
+        }
+
+        // ID match
+        if (cleanLower && String(u.id).toLowerCase() === cleanLower) return true;
+
+        return false;
+      });
+
       if (found) {
         return { success: true, user: found };
       }
     }
 
-    return { success: false, error: 'لم يتم العثور على المستخدم' };
+    // 2. Direct database query fallback for exact matches on 'users' and 'app_users' first
+    const targetTables = ['users', 'app_users', 'profiles'];
+    for (const tbl of targetTables) {
+      try {
+        const queryTerm = cleanEmail.includes('@') ? cleanEmail : cleanLower;
+        let queryBuilder = supabase.from(tbl).select('*');
+
+        if (cleanEmail.includes('@')) {
+          queryBuilder = queryBuilder.eq('email', cleanEmail);
+        } else if (asciiDigits.length >= 8) {
+          queryBuilder = queryBuilder.eq('phone', asciiDigits);
+        } else {
+          queryBuilder = queryBuilder.or(`username.ilike.${cleanLower},email.ilike.${cleanLower}%`);
+        }
+
+        const { data: rows, error: qErr } = await queryBuilder.limit(1);
+
+        if (!qErr && rows && rows.length > 0) {
+          const rawRow = rows[0];
+          const rawEmail = String(rawRow.email || '').trim();
+          const emailPrefix = rawEmail ? rawEmail.split('@')[0] : '';
+          let password = String(rawRow.password || rawRow.pass || '').trim();
+
+          // If profiles was matched and has no password, attempt immediate lookup from users/app_users
+          if (!password && tbl === 'profiles' && rawRow.id) {
+            try {
+              const { data: uRows } = await supabase.from('users').select('password').eq('id', rawRow.id).limit(1);
+              if (uRows?.[0]?.password) password = String(uRows[0].password).trim();
+            } catch {}
+          }
+
+          const user: User = {
+            id: String(rawRow.id || `sup-${tbl}-1`),
+            name: rawRow.name || rawRow.full_name || rawRow.display_name || emailPrefix || 'مستخدم',
+            username: String(rawRow.username || rawRow.user_name || emailPrefix || 'user').trim().toLowerCase(),
+            email: rawEmail,
+            password,
+            role: normalizeUserRole(rawRow.role, rawRow.is_admin),
+            branchName: rawRow.branch_name || rawRow.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+            supervisorId: rawRow.supervisor_id || rawRow.supervisorId,
+            phone: rawRow.phone || rawRow.mobile || rawRow.tel || '',
+            commissionRate: Number(rawRow.commission_rate || rawRow.commissionRate || 2.5),
+            isActive: rawRow.is_active !== undefined ? Boolean(rawRow.is_active) : true,
+            approvalStatus: rawRow.approval_status || rawRow.approvalStatus || 'active',
+          };
+          return { success: true, user };
+        }
+      } catch {
+        // try next table
+      }
+    }
+
+    return { success: false, error: 'لم يتم العثور على المستخدم في أي جدول بقاعدة البيانات' };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'تعذر البحث عن المستخدم في السحابة' };
+    return { success: false, error: err?.message || 'تعذر الاتصال بقاعدة البيانات السحابية' };
   }
 }
 
@@ -1013,20 +1105,37 @@ export async function saveUserToSupabase(user: User, currentUsersList?: User[]):
       created_at: user.registrationDate || new Date().toISOString(),
     };
 
-    // 1. Parallel fast upsert to tables
+    // 1. Parallel fast upsert to tables (users, app_users, profiles)
     const tablePromises: Promise<any>[] = [
-      Promise.resolve(supabase.from('users').upsert(userPayload)),
-      Promise.resolve(
-        supabase.from('profiles').upsert({
-          id: user.id,
-          full_name: user.name,
-          username: user.username,
-          email: user.email,
-          role: user.role,
-          branch_name: user.branchName,
-          phone: user.phone,
-        })
-      ),
+      (async () => {
+        try {
+          await supabase.from('users').upsert(userPayload);
+        } catch (e) {
+          console.warn('users upsert notice:', e);
+        }
+      })(),
+      (async () => {
+        try {
+          await supabase.from('app_users').upsert(userPayload);
+        } catch (e) {
+          console.warn('app_users upsert notice:', e);
+        }
+      })(),
+      (async () => {
+        try {
+          await supabase.from('profiles').upsert({
+            id: user.id,
+            full_name: user.name,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            branch_name: user.branchName,
+            phone: user.phone,
+          });
+        } catch (e) {
+          console.warn('profiles upsert notice:', e);
+        }
+      })(),
     ];
 
     // 2. Snapshot store update without blocking

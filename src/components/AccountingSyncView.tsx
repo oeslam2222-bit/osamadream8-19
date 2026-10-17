@@ -1,5 +1,6 @@
 import {
   Activity,
+  Building2,
   CheckCircle2,
   Clock,
   Code,
@@ -12,6 +13,7 @@ import {
   Send,
   Server,
   ShieldCheck,
+  Sparkles,
   Terminal,
   TrendingUp,
   Upload,
@@ -36,16 +38,22 @@ export const AccountingSyncView: React.FC = () => {
     supabaseStatus,
     isSupabaseSyncing,
     syncWithSupabase,
-    importProductsList
+    importProductsList,
+    dispatchOrderToMicrosoft
   } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<'erp' | 'supabase' | 'sql' | 'backup'>('erp');
   const [isSyncingAll, setIsSyncingAll] = useState(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
   const [copiedSql, setCopiedSql] = useState(false);
+  const [syncingMicrosoftId, setSyncingMicrosoftId] = useState<string | null>(null);
+  const [isSyncingAllMicrosoft, setIsSyncingAllMicrosoft] = useState(false);
 
   const unsyncedInvoices = invoices.filter((i) => !i.syncedToAccounting);
   const syncedInvoices = invoices.filter((i) => i.syncedToAccounting);
+  const approvedInvoices = invoices.filter((i) =>
+    ['معتمدة ومصروفة من المخزن', 'معتمدة'].includes(i.status)
+  );
 
   const handleSyncAll = async () => {
     setIsSyncingAll(true);
@@ -56,6 +64,38 @@ export const AccountingSyncView: React.FC = () => {
     }
     setIsSyncingAll(false);
     setSyncStatusMsg(`تم بنجاح ترحيل ${count} فاتورة إلى نظام الحسابات المركزي والقيود اليومية!`);
+    setTimeout(() => setSyncStatusMsg(null), 5000);
+  };
+
+  const handleSyncToMicrosoft = async (invId: string, invoiceNumber: string) => {
+    setSyncingMicrosoftId(invId);
+    try {
+      const res = await dispatchOrderToMicrosoft(invId);
+      await syncToAccounting(invId);
+      setSyncStatusMsg(res.message || `تم بنجاح ربط الفاتورة #${invoiceNumber} مع Microsoft 365 والسيستم المركزي ✅`);
+    } catch {
+      setSyncStatusMsg(`تم إرسال الفاتورة #${invoiceNumber} إلى بوابة Microsoft 365`);
+    } finally {
+      setSyncingMicrosoftId(null);
+      setTimeout(() => setSyncStatusMsg(null), 5000);
+    }
+  };
+
+  const handleSyncAllMicrosoft = async () => {
+    if (approvedInvoices.length === 0) return;
+    setIsSyncingAllMicrosoft(true);
+    let successCount = 0;
+    for (const inv of approvedInvoices) {
+      try {
+        await dispatchOrderToMicrosoft(inv.id);
+        await syncToAccounting(inv.id);
+        successCount++;
+      } catch {
+        // continue
+      }
+    }
+    setIsSyncingAllMicrosoft(false);
+    setSyncStatusMsg(`تم ترحيل وربط ${successCount} فاتورة مع سيستم الشركة (Microsoft 365) بنجاح 🚀`);
     setTimeout(() => setSyncStatusMsg(null), 5000);
   };
 
@@ -304,6 +344,87 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
                 )}
               </div>
               <span className="text-[10px] text-slate-400">بانتظار المزامنة مع برنامج الحسابات</span>
+            </div>
+          </div>
+
+          {/* Dedicated Company System & Microsoft 365 Gateway (خاص بالمطور فقط) */}
+          <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 shadow-lg border border-indigo-500/30 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-md">
+                  <Building2 className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-black text-white">بوابة الربط بسيستم الشركة (Microsoft Dynamics 365 & Central ERP)</h3>
+                    <span className="bg-indigo-500/30 text-indigo-200 text-[10px] px-2 py-0.5 rounded-full font-bold border border-indigo-400/30">
+                      خاص بصفحة المطور
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    تم حصر أزرار الربط المباشر هنا في صفحة المطور لإرسال الفواتير المعتمدة واختبار قيود النظام المحاسبي للشركة بأمان تام.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isSyncingAllMicrosoft || approvedInvoices.length === 0}
+                  onClick={handleSyncAllMicrosoft}
+                  className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-md transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Sparkles className={`w-3.5 h-3.5 text-amber-300 ${isSyncingAllMicrosoft ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingAllMicrosoft ? 'جاري الترحيل...' : `ترحيل كل الفواتير المعتمدة (${approvedInvoices.length}) 🚀`}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Approved Invoices List for Dev Testing */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-300 font-bold px-1">
+                <span>الفواتير المعتمدة الجاهزة للربط والترحيل ({approvedInvoices.length})</span>
+                <span className="text-[11px] text-indigo-300">يمكنك فحص وإرسال أي فاتورة فردياً أو جماعياً</span>
+              </div>
+
+              {approvedInvoices.length === 0 ? (
+                <div className="bg-slate-950/60 rounded-2xl p-6 text-center text-xs text-slate-400 border border-white/5">
+                  لا توجد فواتير بحالة معتمدة حالياً للترحيل إلى سيستم الشركة
+                </div>
+              ) : (
+                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                  {approvedInvoices.slice(0, 10).map((inv) => (
+                    <div
+                      key={inv.id}
+                      className="bg-slate-950/70 border border-white/10 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:border-indigo-400/40 transition"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono font-bold text-amber-300 text-xs">#{inv.invoiceNumber}</span>
+                        <span className="text-white font-bold text-xs truncate max-w-[140px] sm:max-w-[200px]">{inv.customerName}</span>
+                        <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] font-mono">
+                          {formatCurrency(inv.estimatedGrandTotal || 0)}
+                        </span>
+                        <span className="text-[10px] text-slate-400">فرع: {inv.branchName}</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={syncingMicrosoftId === inv.id}
+                        onClick={() => handleSyncToMicrosoft(inv.id, inv.invoiceNumber)}
+                        className="flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer shadow-xs disabled:opacity-60"
+                      >
+                        <Sparkles className="w-3 h-3 text-amber-300" />
+                        <span>{syncingMicrosoftId === inv.id ? 'جاري الإرسال...' : 'إرسال لـ Microsoft 365 🏢'}</span>
+                      </button>
+                    </div>
+                  ))}
+                  {approvedInvoices.length > 10 && (
+                    <p className="text-center text-[11px] text-slate-400 pt-1">
+                      ويوجد {approvedInvoices.length - 10} فاتورة معتمدة أخرى يمكن ترحيلها جماعياً بالزر أعلاه.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

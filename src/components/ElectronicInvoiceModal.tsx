@@ -122,6 +122,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   }, [currentUser]);
 
   const isAuthorizedRole = profileRole === 'admin' || profileRole === 'developer';
+  const isDeveloperRole = profileRole === 'developer' || currentUser?.role === 'developer';
 
   // Fetch dynamics status, order number, and error from orders table
   const fetchOrderDynamicsState = async () => {
@@ -497,81 +498,83 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
           </div>
         </div>
 
-        {/* Dynamics 365 Integration Status & Action Bar (Hidden in Print) */}
-        <div className="bg-slate-900 border-t border-slate-800 px-3.5 sm:px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs print:hidden">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="text-slate-400 font-bold flex items-center gap-1.5">
-              <Server className="w-3.5 h-3.5 text-blue-400" />
-              <span>حالة ربط Dynamics:</span>
-            </span>
+        {/* Dynamics 365 Integration Status & Action Bar (Hidden for all except Developer) */}
+        {isDeveloperRole && (
+          <div className="bg-slate-900 border-t border-slate-800 px-3.5 sm:px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs print:hidden">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                <Server className="w-3.5 h-3.5 text-blue-400" />
+                <span>حالة ربط Dynamics:</span>
+              </span>
 
-            {/* Status Badge:
-                pending = رمادي "لم يُرسل"
-                sending = أصفر "جاري الإرسال"
-                sent = أخضر "تم الإرسال" + dynamics_order_no
-                failed = أحمر "فشل" (error text visible to admin/developer only) */}
-            {dynamicsStatus === 'sent' && (
-              <span className="inline-flex items-center gap-1.5 bg-emerald-950/90 text-emerald-300 border border-emerald-500/50 px-2.5 py-1 rounded-lg text-xs font-black shadow-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>تم الإرسال</span>
-                {dynamicsOrderNo && (
-                  <span className="font-mono bg-emerald-900/80 text-emerald-200 px-1.5 py-0.5 rounded text-[11px] border border-emerald-500/40">
-                    #{dynamicsOrderNo}
-                  </span>
+              {/* Status Badge:
+                  pending = رمادي "لم يُرسل"
+                  sending = أصفر "جاري الإرسال"
+                  sent = أخضر "تم الإرسال" + dynamics_order_no
+                  failed = أحمر "فشل" (error text visible to developer only) */}
+              {dynamicsStatus === 'sent' && (
+                <span className="inline-flex items-center gap-1.5 bg-emerald-950/90 text-emerald-300 border border-emerald-500/50 px-2.5 py-1 rounded-lg text-xs font-black shadow-xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>تم الإرسال</span>
+                  {dynamicsOrderNo && (
+                    <span className="font-mono bg-emerald-900/80 text-emerald-200 px-1.5 py-0.5 rounded text-[11px] border border-emerald-500/40">
+                      #{dynamicsOrderNo}
+                    </span>
+                  )}
+                </span>
+              )}
+
+              {dynamicsStatus === 'sending' && (
+                <span className="inline-flex items-center gap-1.5 bg-amber-950/90 text-amber-300 border border-amber-500/50 px-2.5 py-1 rounded-lg text-xs font-black shadow-xs">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                  <span>جاري الإرسال</span>
+                </span>
+              )}
+
+              {dynamicsStatus === 'failed' && (
+                <span className="inline-flex items-center gap-1.5 bg-rose-950/90 text-rose-300 border border-rose-500/50 px-2.5 py-1 rounded-lg text-xs font-black shadow-xs">
+                  <span className="w-2 h-2 rounded-full bg-rose-400"></span>
+                  <span>فشل</span>
+                  {dynamicsError && (
+                    <span className="text-[11px] font-normal text-rose-300 max-w-sm truncate" title={dynamicsError}>
+                      ({dynamicsError})
+                    </span>
+                  )}
+                </span>
+              )}
+
+              {dynamicsStatus !== 'sent' && dynamicsStatus !== 'sending' && dynamicsStatus !== 'failed' && (
+                <span className="inline-flex items-center gap-1.5 bg-slate-800 text-slate-300 border border-slate-700 px-2.5 py-1 rounded-lg text-xs font-bold">
+                  <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                  <span>لم يُرسل</span>
+                </span>
+              )}
+            </div>
+
+            {/* Button: Show ONLY for developer role when dynamics_status is pending or failed */}
+            {(dynamicsStatus === 'pending' || dynamicsStatus === 'failed') && (
+              <button
+                type="button"
+                onClick={handleSendToDynamics}
+                disabled={isSendingDynamics}
+                className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black px-3.5 py-1.5 rounded-xl text-xs transition shadow-md shadow-blue-950/50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 shrink-0 border border-blue-400/40"
+                title="إرسال الطلبية إلى نظام Microsoft Dynamics (مخصص للمطور فقط)"
+              >
+                {isSendingDynamics ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                    <span>جاري الإرسال...</span>
+                  </>
+                ) : (
+                  <>
+                    <CloudUpload className="w-3.5 h-3.5 text-white" />
+                    <span>إرسال لـ Dynamics 🚀</span>
+                  </>
                 )}
-              </span>
-            )}
-
-            {dynamicsStatus === 'sending' && (
-              <span className="inline-flex items-center gap-1.5 bg-amber-950/90 text-amber-300 border border-amber-500/50 px-2.5 py-1 rounded-lg text-xs font-black shadow-xs">
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                <span>جاري الإرسال</span>
-              </span>
-            )}
-
-            {dynamicsStatus === 'failed' && (
-              <span className="inline-flex items-center gap-1.5 bg-rose-950/90 text-rose-300 border border-rose-500/50 px-2.5 py-1 rounded-lg text-xs font-black shadow-xs">
-                <span className="w-2 h-2 rounded-full bg-rose-400"></span>
-                <span>فشل</span>
-                {isAuthorizedRole && dynamicsError && (
-                  <span className="text-[11px] font-normal text-rose-300 max-w-sm truncate" title={dynamicsError}>
-                    ({dynamicsError})
-                  </span>
-                )}
-              </span>
-            )}
-
-            {dynamicsStatus !== 'sent' && dynamicsStatus !== 'sending' && dynamicsStatus !== 'failed' && (
-              <span className="inline-flex items-center gap-1.5 bg-slate-800 text-slate-300 border border-slate-700 px-2.5 py-1 rounded-lg text-xs font-bold">
-                <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-                <span>لم يُرسل</span>
-              </span>
+              </button>
             )}
           </div>
-
-          {/* Button: Show ONLY if logged-in user role is admin or developer AND dynamics_status is pending or failed */}
-          {isAuthorizedRole && (dynamicsStatus === 'pending' || dynamicsStatus === 'failed') && (
-            <button
-              type="button"
-              onClick={handleSendToDynamics}
-              disabled={isSendingDynamics}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black px-3.5 py-1.5 rounded-xl text-xs transition shadow-md shadow-blue-950/50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 shrink-0 border border-blue-400/40"
-              title="إرسال الطلبية إلى نظام Microsoft Dynamics"
-            >
-              {isSendingDynamics ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-                  <span>جاري الإرسال...</span>
-                </>
-              ) : (
-                <>
-                  <CloudUpload className="w-3.5 h-3.5 text-white" />
-                  <span>إرسال لـ Dynamics 🚀</span>
-                </>
-              )}
-            </button>
-          )}
-        </div>
+        )}
 
         {/* Dynamics Success Toast */}
         {dynamicsSuccessToast && (

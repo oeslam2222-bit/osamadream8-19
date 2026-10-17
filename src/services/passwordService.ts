@@ -84,12 +84,25 @@ export async function verifyPassword(
   password: string,
   stored: string | undefined | null
 ): Promise<VerifyResult> {
-  const clean = (password || '').trim();
+  const rawClean = (password || '').trim();
   const value = normalizeCredential(stored || '').trim();
-  if (!clean || !value) return { valid: false, legacy: false };
+  if (!rawClean || !value) return { valid: false, legacy: false };
+
+  // Generate candidate representations to handle mobile keyboard Arabic vs Western digits and auto-capitalization
+  const rawLower = rawClean.toLowerCase();
+  const asciiClean = rawClean.replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString()).trim();
+  const arabicClean = rawClean.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d, 10)]).trim();
+  const candidates = Array.from(new Set([
+    rawClean,
+    rawLower,
+    asciiClean,
+    asciiClean.toLowerCase(),
+    arabicClean
+  ])).filter(Boolean);
 
   if (!isHashedCredential(value)) {
-    return { valid: value === clean, legacy: true };
+    const isMatched = candidates.some((c) => c === value);
+    return { valid: isMatched, legacy: isMatched };
   }
 
   const [, iterationText, saltPart, expectedPart] = value.split('$');
@@ -98,8 +111,15 @@ export async function verifyPassword(
     return { valid: false, legacy: false };
   }
 
-  const computed = await hashWithSalt(clean, fromBase64(saltPart), iterations);
-  return { valid: constantTimeEquals(computed, expectedPart), legacy: false };
+  const saltBytes = fromBase64(saltPart);
+  for (const cand of candidates) {
+    const computed = await hashWithSalt(cand, saltBytes, iterations);
+    if (constantTimeEquals(computed, expectedPart)) {
+      return { valid: true, legacy: false };
+    }
+  }
+
+  return { valid: false, legacy: false };
 }
 
 function constantTimeEquals(a: string, b: string): boolean {

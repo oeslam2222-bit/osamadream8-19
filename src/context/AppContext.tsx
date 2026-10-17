@@ -3366,7 +3366,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   }, []);
 
   // --- Authentication System ---
-  const login = async (identifier: string, password?: string): Promise<{ success: boolean; message: string; user?: User }> => {
+  const login = async (
+    identifier: string,
+    password?: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+    user?: User;
+    errorType?: 'connection' | 'user_not_found' | 'wrong_password' | 'inactive' | 'no_password' | 'general';
+  }> => {
     const cleanId = sanitizeIdentifier(identifier).toLowerCase();
     const cleanEmail = sanitizeEmail(identifier);
     const rawTrim = sanitizeIdentifier(identifier);
@@ -3410,56 +3418,102 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         (u.id && String(u.id).toLowerCase() === cleanId)
     );
 
-    // 2. If not found locally, query Supabase directly (essential for fresh sessions and cloud users)
+    // 2. If not found locally, query Supabase directly (essential for fresh sessions, mobile, and tablet users)
+    let supabaseLookupError: string | null = null;
     if (!found) {
       try {
-        const lookupQuery = cleanEmail.includes('@') ? cleanEmail : (normInput || cleanId);
-        const supRes = await findUserInSupabase(lookupQuery);
+        // Try raw identifier first (username, name, email, or phone)
+        let supRes = await findUserInSupabase(rawTrim);
+        if (!supRes.success && cleanId && cleanId !== rawTrim.toLowerCase()) {
+          supRes = await findUserInSupabase(cleanId);
+        }
+        if (!supRes.success && !cleanEmail.includes('@') && cleanId) {
+          supRes = await findUserInSupabase(`${cleanId}@dream.com`);
+        }
+        if (!supRes.success && asciiDigits && asciiDigits.length >= 7) {
+          supRes = await findUserInSupabase(asciiDigits);
+        }
+
         if (supRes.success && supRes.user) {
           found = supRes.user;
           setUsers((prev) => {
             const map = new Map<string, User>();
             prev.forEach((u) => map.set(u.id, u));
             map.set(found!.id, found!);
-            return Array.from(map.values());
+            const updated = Array.from(map.values());
+            safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(updated));
+            return updated;
           });
+        } else if (supRes.error) {
+          supabaseLookupError = supRes.error;
         }
-      } catch (e) {
+      } catch (e: any) {
+        supabaseLookupError = e?.message || 'خطأ في الاتصال بقاعدة البيانات';
         console.warn('Direct Supabase login lookup failed:', e);
       }
     }
 
     if (!found) {
+      if (isOffline || (supabaseStatus.connected === false)) {
+        return {
+          success: false,
+          errorType: 'connection',
+          message: 'تعذر الاتصال بقاعدة البيانات السحابية (Supabase). يرجى التأكد من اتصال الإنترنت أو التحقق من سيرفر قاعدة البيانات.'
+        };
+      }
       return {
         success: false,
-        message: 'اسم المستخدم أو البريد الإلكتروني غير مسجل في النظام. يرجى التأكد من البيانات أو مراجعة إدارة شركة دريم.'
+        errorType: 'user_not_found',
+        message: `اسم المستخدم أو البريد الإلكتروني (${rawTrim}) غير مسجل في قاعدة البيانات. يرجى التأكد من كتابة الاسم أو الإيميل بدقة أو مراجعة إدارة شركة دريم.`
       };
     }
 
     if (found.approvalStatus === 'pending_approval') {
       return {
         success: false,
+        errorType: 'inactive',
         message: 'الحساب قيد المراجعة والتفعيل من الإدارة المركزية لشركة دريم. يرجى التواصل مع المشرف أو مسؤول النظام لتفعيل الحساب وتعيين الفرع والمشرف المباشر.'
       };
     }
 
     if (found.approvalStatus === 'rejected' || found.isActive === false) {
-      return { success: false, message: 'هذا الحساب موقوف أو تم رفض تفعيله من قبل الإدارة.' };
+      return {
+        success: false,
+        errorType: 'inactive',
+        message: 'هذا الحساب موقوف أو تم رفض تفعيله من قبل الإدارة.'
+      };
     }
 
-    // Verify the credential.
-    //
-    // لو Supabase Auth نجح فوق، التحقق اتعمل على السيرفر خلاص، فبنعدّي على
-    // مقارنة البصمة المحلية دي. في كل الحالات التانية (الحساب لسه على
-    // الوضع القديم، أو السيرفر مش متاح) بنستخدم نفس تحقق بصمة sha256
-    // القديم بالظبط — فسلوك الدخول الحالي مش بيتغيّر خالص.
-    const storedCredential = (found.password || '').trim();
+    // Verify the credential with immediate remote recovery if local password is empty
+    let storedCredential = (found.password || '').trim();
+    if (!storedCredential && found.id) {
+      try {
+        const { data: uData } = await supabase.from('users').select('password').eq('id', found.id).limit(1);
+        if (uData?.[0]?.password && String(uData[0].password).trim().length > 0) {
+          storedCredential = String(uData[0].password).trim();
+          found.password = storedCredential;
+        } else {
+          const { data: appData } = await supabase.from('app_users').select('password').eq('id', found.id).limit(1);
+          if (appData?.[0]?.password && String(appData[0].password).trim().length > 0) {
+            storedCredential = String(appData[0].password).trim();
+            found.password = storedCredential;
+          }
+        }
+      } catch (pwErr) {
+        console.warn('Direct password recovery notice:', pwErr);
+      }
+    }
+
     if (serverAuthUserId) {
-      // اتحقق على السيرفر خلاص — مفيش مقارنة محلية لازم تعملها.
+      // Authenticated on server already
     } else if (storedCredential.length > 0) {
       const check = await verifyPassword(cleanPass, storedCredential);
       if (!check.valid) {
-        return { success: false, message: 'كلمة المرور غير صحيحة. يرجى التأكد من كتابة كلمة المرور بدقة.' };
+        return {
+          success: false,
+          errorType: 'wrong_password',
+          message: `كلمة المرور غير صحيحة لحساب (${found.name}). يرجى التأكد من كتابة كلمة المرور بدقة والتأكد من لغة لوحة المفاتيح.`
+        };
       }
       if (check.legacy) {
         const upgraded = await withHashedCredential(found);
@@ -3475,7 +3529,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     } else {
       return {
         success: false,
-        message: 'لا توجد كلمة مرور مسجلة لهذا الحساب. يرجى مراجعة إدارة النظام لتعيين كلمة المرور قبل تسجيل الدخول.',
+        errorType: 'no_password',
+        message: `الحساب (${found.name}) مسجل في قاعدة البيانات ولكن لا توجد كلمة مرور معينة له. يرجى مراجعة إدارة النظام لتعيين كلمة المرور قبل تسجيل الدخول.`
       };
     }
 

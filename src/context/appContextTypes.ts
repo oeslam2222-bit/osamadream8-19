@@ -86,7 +86,12 @@ export interface AppContextType {
   }>;
 
   // Auth actions
-  login: (identifier: string, password: string) => Promise<{ success: boolean; message: string; user?: User }>;
+  login: (identifier: string, password: string) => Promise<{
+    success: boolean;
+    message: string;
+    user?: User;
+    errorType?: 'connection' | 'user_not_found' | 'wrong_password' | 'inactive' | 'no_password' | 'general';
+  }>;
   register: (userData: {
     name: string;
     username: string;

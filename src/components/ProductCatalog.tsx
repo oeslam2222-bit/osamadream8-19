@@ -67,6 +67,7 @@ import { getDepartmentMeta } from '../data/departmentMeta';
 import { getBranchStockForProduct, normalizeArabicText, CANONICAL_BRANCHES, MAIN_BRANCH_NAME } from '../services/arabicMatchingService';
 import { groupProductsIntoParents } from '../services/productVariantService';
 import { ProductVariantModal } from './ProductVariantModal';
+import { ProductCodeInspectorModal } from './ProductCodeInspectorModal';
 import { PosCashierSidebar } from './PosCashierSidebar';
 
 interface ProductCatalogProps {
@@ -172,6 +173,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   // Modals & UI States
   const [selectedProductForModal, setSelectedProductForModal] = useState<Product | null>(null);
   const [selectedParentForModal, setSelectedParentForModal] = useState<ParentProduct | null>(null);
+  const [inspectingProductCode, setInspectingProductCode] = useState<string | null>(null);
+  const [inspectingParentProduct, setInspectingParentProduct] = useState<ParentProduct | null>(null);
+
+  const handleInspectCode = (code: string, parent?: ParentProduct | null) => {
+    setInspectingProductCode(code);
+    setInspectingParentProduct(parent || null);
+  };
+
   const [zoomedProduct, setZoomedProduct] = useState<Product | null>(null);
 
   // اختصار Esc لإغلاق عدسة تكبير الصورة بجودة عالية
@@ -2090,14 +2099,42 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
                     {/* Top Right: Code Badge */}
                     <div className="absolute top-2 right-2 z-10 flex flex-col gap-1 items-end">
-                      <div className="bg-slate-950/90 text-amber-300 text-xs font-black px-2.5 py-1 rounded-xl backdrop-blur-sm shadow-md border border-amber-400/30 font-mono flex items-center gap-1">
-                        <span>كود أساسي:</span>
-                        <span>{parent.primaryCode}</span>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleInspectCode(parent.primaryCode, parent);
+                        }}
+                        className="bg-slate-950/95 hover:bg-amber-500 text-amber-300 hover:text-slate-950 text-xs font-black px-2.5 py-1 rounded-xl backdrop-blur-sm shadow-md border border-amber-400/40 font-mono flex items-center gap-1.5 transition cursor-pointer active:scale-95"
+                        title="انقر لفحص تكرار هذا الكود في الشيت، والكود الموحد، واللون والحجم"
+                      >
+                        <Tag className="w-3 h-3 text-amber-400" />
+                        <span>كود: {parent.primaryCode}</span>
+                        {parent.variants.length > 1 ? (
+                          <span className="bg-amber-400/20 text-amber-300 text-[9.5px] px-1 py-0.2 rounded font-sans font-bold">
+                            مكرر ({parent.variants.length}) 🔍
+                          </span>
+                        ) : (
+                          <span className="bg-emerald-500/20 text-emerald-300 text-[9px] px-1 py-0.2 rounded font-sans font-bold">
+                            فريد 🔍
+                          </span>
+                        )}
+                      </button>
                       {(activeVariant.unifiedCode || activeVariant.rawProduct?.unifiedCode || parent.unifiedCode) && (
-                        <div className="bg-blue-950/90 text-blue-200 text-[10px] font-bold px-2 py-0.5 rounded-lg font-mono border border-blue-400/30 shadow-xs">
-                          موحد: {activeVariant.unifiedCode || activeVariant.rawProduct?.unifiedCode || parent.unifiedCode}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleInspectCode(parent.primaryCode, parent);
+                          }}
+                          className="bg-blue-950/90 hover:bg-blue-900 text-blue-200 text-[10px] font-bold px-2 py-0.5 rounded-lg font-mono border border-blue-400/30 shadow-xs cursor-pointer flex items-center gap-1"
+                          title="الكود الموحد - انقر لفحص التفاصيل والتكرار"
+                        >
+                          <span className="text-blue-300 font-sans text-[9.5px]">موحد:</span>
+                          <span className="text-amber-300 font-black">
+                            {activeVariant.unifiedCode || activeVariant.rawProduct?.unifiedCode || parent.unifiedCode}
+                          </span>
+                        </button>
                       )}
                     </div>
 
@@ -2698,11 +2735,27 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                               onClick={() => setSelectedParentForModal(parent)}
                             />
                             <div className="flex flex-col gap-1 items-start">
-                              <span className="font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-lg text-[11px] font-mono">
-                                {parent.unifiedCode || parent.primaryCode}
-                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleInspectCode(parent.primaryCode, parent)}
+                                className="font-black text-amber-950 bg-amber-200 hover:bg-amber-300 px-2 py-0.5 rounded-lg text-[11px] font-mono flex items-center gap-1 cursor-pointer transition border border-amber-400"
+                                title="انقر لفحص تكرار هذا الكود في الشيت، والكود الموحد، واللون والحجم"
+                              >
+                                <span>كود: {parent.primaryCode}</span>
+                                <Search className="w-3 h-3 text-amber-800" />
+                              </button>
+                              {(activeVariant.unifiedCode || activeVariant.rawProduct?.unifiedCode || parent.unifiedCode) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleInspectCode(parent.primaryCode, parent)}
+                                  className="font-bold text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-1.5 py-0.2 rounded text-[10px] font-mono cursor-pointer"
+                                  title="الكود الموحد - انقر لفحص التفاصيل"
+                                >
+                                  موحد: {activeVariant.unifiedCode || activeVariant.rawProduct?.unifiedCode || parent.unifiedCode}
+                                </button>
+                              )}
                               <span className="font-bold text-indigo-900 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded text-[10px]">
-                                {parent.variantsCount} شبابيك
+                                {parent.variantsCount > 1 ? `مكرر بالشيت (${parent.variantsCount})` : 'صنف وحيد'}
                               </span>
                             </div>
                           </div>
@@ -2716,7 +2769,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                           </div>
                           <div className="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
                             <span>الشباك النشط: <strong className="text-slate-800">{activeVariant.name}</strong></span>
-                            <span>كود: {activeVariant.code}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleInspectCode(activeVariant.code, parent)}
+                              className="text-amber-800 hover:underline cursor-pointer font-mono font-bold"
+                              title="فحص الكود الفرعي"
+                            >
+                              كود: {activeVariant.code} 🔍
+                            </button>
                           </div>
                         </td>
                         <td className="p-2.5 font-bold text-slate-600">{parent.department || parent.category}</td>
@@ -3598,6 +3658,20 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         parentProduct={selectedParentForModal}
         isOpen={Boolean(selectedParentForModal)}
         onClose={() => setSelectedParentForModal(null)}
+        onOpenCart={onOpenCart}
+        isConfidentialMode={isConfidentialMode}
+        onInspectCode={(code) => handleInspectCode(code, selectedParentForModal)}
+      />
+
+      {/* Product Code Inspector & Sheet Duplication Modal */}
+      <ProductCodeInspectorModal
+        isOpen={Boolean(inspectingProductCode)}
+        onClose={() => {
+          setInspectingProductCode(null);
+          setInspectingParentProduct(null);
+        }}
+        productCode={inspectingProductCode || ''}
+        parentProduct={inspectingParentProduct}
         onOpenCart={onOpenCart}
         isConfidentialMode={isConfidentialMode}
       />

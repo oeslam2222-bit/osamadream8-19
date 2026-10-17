@@ -17,6 +17,7 @@ import {
   Receipt,
   RefreshCw,
   Server,
+  Settings,
   ShieldCheck,
   Smartphone,
   ShoppingCart,
@@ -36,7 +37,8 @@ import {
   Home,
   Lock,
   Menu,
-  Sparkles
+  Sparkles,
+  Terminal
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
@@ -142,25 +144,61 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     ? users.filter((u) => u.supervisorId === currentUser.id).length
     : 0;
 
+  const getPrimaryNavId = (tabId: string): string => {
+    if (tabId === 'catalog' || tabId === 'inventory' || tabId === 'offers') return 'catalog';
+    if (tabId === 'all_customers' || tabId === 'customers' || tabId === 'visits') return 'all_customers';
+    if (tabId === 'targets' || tabId === 'forecast') return 'targets';
+    if (tabId === 'invoices') return 'invoices';
+    if (['admin_hub', 'users', 'excel', 'guide', 'developer_console', 'developer'].includes(tabId)) return 'admin_hub';
+    if (tabId === 'rep_home') return 'rep_home';
+    if (['command', 'dashboard', 'management', 'supervisor', 'home'].includes(tabId)) {
+      return currentUser.role === 'sales_rep' ? 'rep_home' : 'command';
+    }
+    return tabId;
+  };
+
   const navItems = [
-    { id: 'rep_home', label: 'الرئيسية', icon: Home, roles: ['sales_rep'] },
+    ...(currentUser.role === 'sales_rep'
+      ? [{ id: 'rep_home', label: 'الرئيسية 🏠', icon: Home, roles: ['sales_rep'] }]
+      : [{
+          id: 'command',
+          label: 'لوحة القيادة والعمليات 🎯',
+          icon: Gauge,
+          roles: ['admin', 'branch_manager', 'supervisor', 'developer'],
+        }]
+    ),
     {
-      id: 'command',
-      label: 'لوحة القيادة والعمليات 🎯',
-      icon: Gauge,
-      roles: ['admin', 'branch_manager', 'supervisor', 'developer'],
+      id: 'catalog',
+      label: 'الكتالوج والمخزون 📦',
+      icon: Boxes,
+      roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'],
     },
-    { id: 'catalog', label: 'كتالوج الأصناف والبيع', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'all_customers', label: currentUser.role === 'sales_rep' ? 'كافة العملاء والتحليل 👥' : 'كافة العملاء والتحليل 👥', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'targets', label: currentUser.role === 'sales_rep' ? 'هدفي والتارجت' : 'تارجت المبيعات والتحصيل', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'forecast', label: 'توقعات التحصيل (أسبوعي وشهري) 📈', icon: TrendingUp, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'visits', label: 'زيارات العملاء', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'invoices', label: currentUser.role === 'sales_rep' ? 'طلبياتي وفواتيري 📑' : 'الفواتير والطلبيات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
-    { id: 'inventory', label: 'إدارة المخزون والاعتمادات', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'offers', label: 'العروض والإشعارات 🎁🔔', icon: Sparkles, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'excel', label: 'شيتات Google Sheets والإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },
-    { id: 'guide', label: 'دليل دورة العمل 📖', icon: BookOpen, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'users', label: 'فريق الفرع والموظفين', icon: UserCheck, roles: ['admin', 'developer'], badge: pendingApprovalsCount },
+    {
+      id: 'all_customers',
+      label: 'العملاء والزيارات 👥',
+      icon: Users,
+      roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'],
+    },
+    {
+      id: 'invoices',
+      label: currentUser.role === 'sales_rep' ? 'طلبياتي وفواتيري 📑' : 'الفواتير والطلبيات 📑',
+      icon: Receipt,
+      roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'],
+      badge: pendingOrdersCount,
+    },
+    {
+      id: 'targets',
+      label: 'الأهداف والتحصيل 🎯',
+      icon: Target,
+      roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'],
+    },
+    {
+      id: 'admin_hub',
+      label: 'إدارة المنظومة والشيتات ⚙️',
+      icon: Settings,
+      roles: ['admin', 'developer'],
+      badge: pendingApprovalsCount,
+    },
   ];
 
   const filteredNavItems = navItems.filter((item) => item.roles.includes(currentUser.role));
@@ -604,7 +642,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
           <div className="max-w-[1600px] w-full mx-auto flex items-center gap-1 sm:gap-2 py-1.5">
             {filteredNavItems.map((item) => {
               const Icon = item.icon;
-              const isActive = activeTab === item.id;
+              const isActive = getPrimaryNavId(activeTab) === item.id;
               return (
                 <button
                   key={item.id}
@@ -676,7 +714,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
               </div>
               {filteredNavItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = activeTab === item.id;
+                const isActive = getPrimaryNavId(activeTab) === item.id;
                 return (
                   <button
                     key={item.id}
@@ -775,24 +813,36 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
 
       {/* Mobile Bottom Navigation Bar (Smartphones & Small Screens - High Contrast & Large Touch Targets) */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/98 backdrop-blur border-t border-slate-800 flex items-center justify-around py-1.5 px-2 shadow-2xl safe-area-inset-bottom">
+        {/* Hub 1: الرئيسية / القيادة */}
         <button
-          onClick={() => setActiveTab('catalog')}
-          className={`flex flex-col items-center justify-center min-w-[52px] min-h-[52px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
-            activeTab === 'catalog' ? 'text-amber-400 font-black' : 'text-slate-300 hover:text-white font-bold'
+          onClick={() => setActiveTab(currentUser.role === 'sales_rep' ? 'rep_home' : 'command')}
+          className={`flex flex-col items-center justify-center min-w-[50px] min-h-[50px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
+            ['rep_home', 'command', 'dashboard', 'management', 'supervisor', 'home'].includes(activeTab)
+              ? 'text-amber-400 font-black'
+              : 'text-slate-300 hover:text-white font-bold'
           }`}
         >
-          <Boxes className={`w-5 h-5 ${activeTab === 'catalog' ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
-          <span className="text-[11px] mt-0.5 font-bold">الكتالوج</span>
+          {currentUser.role === 'sales_rep' ? (
+            <Home className={`w-5 h-5 ${['rep_home', 'dashboard', 'home'].includes(activeTab) ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
+          ) : (
+            <Gauge className={`w-5 h-5 ${['command', 'dashboard', 'management', 'supervisor', 'home'].includes(activeTab) ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
+          )}
+          <span className="text-[10.5px] mt-0.5 font-bold">
+            {currentUser.role === 'sales_rep' ? 'الرئيسية' : 'القيادة'}
+          </span>
         </button>
 
+        {/* Hub 2: الكتالوج والمخزون */}
         <button
-          onClick={() => setActiveTab('dashboard')}
-          className={`relative flex flex-col items-center justify-center min-w-[52px] min-h-[52px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
-            activeTab === 'dashboard' ? 'text-amber-400 font-black' : 'text-slate-300 hover:text-white font-bold'
+          onClick={() => setActiveTab('catalog')}
+          className={`flex flex-col items-center justify-center min-w-[50px] min-h-[50px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
+            ['catalog', 'inventory', 'offers'].includes(activeTab)
+              ? 'text-amber-400 font-black'
+              : 'text-slate-300 hover:text-white font-bold'
           }`}
         >
-          <LayoutDashboard className={`w-5 h-5 ${activeTab === 'dashboard' ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
-          <span className="text-[11px] mt-0.5 font-bold">المتابعة</span>
+          <Boxes className={`w-5 h-5 ${['catalog', 'inventory', 'offers'].includes(activeTab) ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
+          <span className="text-[10.5px] mt-0.5 font-bold">الأصناف</span>
         </button>
 
         {/* Center Cart Trigger (High Prominence & Large Touch Area) */}
@@ -809,30 +859,29 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
           )}
         </button>
 
+        {/* Hub 3: الفواتير */}
         <button
           onClick={() => setActiveTab('invoices')}
-          className={`relative flex flex-col items-center justify-center min-w-[52px] min-h-[52px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
+          className={`relative flex flex-col items-center justify-center min-w-[50px] min-h-[50px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
             activeTab === 'invoices' ? 'text-amber-400 font-black' : 'text-slate-300 hover:text-white font-bold'
           }`}
         >
           <Receipt className={`w-5 h-5 ${activeTab === 'invoices' ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
-          <span className="text-[11px] mt-0.5 font-bold">الفواتير</span>
+          <span className="text-[10.5px] mt-0.5 font-bold">الفواتير</span>
           {pendingOrdersCount > 0 && (
             <span className="absolute top-1 right-2 w-2.5 h-2.5 bg-amber-400 rounded-full border border-slate-950"></span>
           )}
         </button>
 
+        {/* Hub 4: العملاء والزيارات */}
         <button
-          onClick={() => setActiveTab('inventory')}
-          className={`relative flex flex-col items-center justify-center min-w-[52px] min-h-[52px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
-            activeTab === 'inventory' ? 'text-amber-400 font-black' : 'text-slate-300 hover:text-white font-bold'
+          onClick={() => setActiveTab('all_customers')}
+          className={`relative flex flex-col items-center justify-center min-w-[50px] min-h-[50px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
+            ['all_customers', 'customers', 'visits'].includes(activeTab) ? 'text-amber-400 font-black' : 'text-slate-300 hover:text-white font-bold'
           }`}
         >
-          <Layers className={`w-5 h-5 ${activeTab === 'inventory' ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
-          <span className="text-[11px] mt-0.5 font-bold">المخزون</span>
-          {pendingOrdersCount > 0 && (
-            <span className="absolute top-1 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full animate-ping"></span>
-          )}
+          <Users className={`w-5 h-5 ${['all_customers', 'customers', 'visits'].includes(activeTab) ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
+          <span className="text-[10.5px] mt-0.5 font-bold">العملاء</span>
         </button>
       </div>
 

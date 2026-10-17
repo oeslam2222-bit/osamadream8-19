@@ -36,6 +36,7 @@ interface ProductVariantModalProps {
   onClose: () => void;
   onOpenCart?: () => void;
   isConfidentialMode?: boolean;
+  onInspectCode?: (code: string) => void;
 }
 
 export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
@@ -44,6 +45,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
   onClose,
   onOpenCart,
   isConfidentialMode = false,
+  onInspectCode,
 }) => {
   const { addToCart, cart, branches, currentUser } = useApp();
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
@@ -224,18 +226,41 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
               <div className="min-w-0 space-y-1">
                 {/* Code Badges Row */}
                 <div className="flex items-center gap-2 flex-wrap">
-                  <div className="flex items-center bg-slate-800/90 rounded-lg px-2.5 py-0.5 border border-slate-700 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onInspectCode) onInspectCode(parentProduct.primaryCode);
+                    }}
+                    className="flex items-center bg-slate-800 hover:bg-slate-700 text-white rounded-lg px-2.5 py-0.5 border border-slate-700 text-xs transition cursor-pointer"
+                    title="انقر لفحص تفاصيل هذا الكود، وتكراراته في الشيت، والكود الموحد، واللون والحجم"
+                  >
                     <span className="text-slate-400 text-[11px] ml-1 font-medium">كود الصنف:</span>
-                    <span className="font-mono font-black text-white">{parentProduct.primaryCode}</span>
-                  </div>
+                    <span className="font-mono font-black text-amber-300">{parentProduct.primaryCode}</span>
+                    {parentProduct.variants.length > 1 ? (
+                      <span className="bg-amber-400/20 text-amber-300 text-[10px] px-1.5 py-0.2 rounded mr-1 font-bold">
+                        مكرر بالشيت ({parentProduct.variants.length}) 🔍
+                      </span>
+                    ) : (
+                      <span className="bg-emerald-500/20 text-emerald-300 text-[10px] px-1.5 py-0.2 rounded mr-1 font-bold">
+                        فريد 🔍
+                      </span>
+                    )}
+                  </button>
 
                   {(activeVariant.unifiedCode || activeVariant.rawProduct?.unifiedCode || parentProduct.unifiedCode) && (
-                    <div className="flex items-center bg-blue-950/90 text-blue-200 rounded-lg px-2.5 py-0.5 border border-blue-600/40 text-xs font-bold font-mono shadow-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onInspectCode) onInspectCode(parentProduct.primaryCode);
+                      }}
+                      className="flex items-center bg-blue-950/90 hover:bg-blue-900 text-blue-200 rounded-lg px-2.5 py-0.5 border border-blue-600/40 text-xs font-bold font-mono shadow-xs cursor-pointer"
+                      title="الكود الموحد - انقر لفحص التفاصيل"
+                    >
                       <span className="text-blue-300 text-[11px] ml-1 font-sans">الكود الموحد:</span>
                       <span className="text-amber-300 font-black">
                         {activeVariant.unifiedCode || activeVariant.rawProduct?.unifiedCode || parentProduct.unifiedCode}
                       </span>
-                    </div>
+                    </button>
                   )}
 
                   {activeVariant.color && activeVariant.color !== '---' && !activeVariant.color.toLowerCase().includes('blank') && (
