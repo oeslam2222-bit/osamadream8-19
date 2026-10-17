@@ -397,7 +397,7 @@ export interface ReturnedItem {
   cartonCount: number;               // عدد الكراتين المرتجعة
   pieceCount: number;                // عدد القطع المرتجعة
   cartonQuantity: number;            // شدة الكرتونة
-  totalPieces: number;               // إجمالي القطع المرتجعة
+  totalPieces: number;               // إجمالي القطع المرت��عة
   pricePerCarton: number;            // سعر الكرتونة
   pricePerPiece: number;             // سعر القطعة
   refundAmount: number;              // إجمالي القيمة المالية المرتجعة للصنف
@@ -522,6 +522,8 @@ export interface Invoice {
   customerCreditLimit?: number;
   customerBalanceAfter?: number;
   customerOverdueBalance?: number;
+  overduePaymentAmount?: number;
+  overduePaymentAtDelivery?: boolean;
   creditLimitExceeded?: boolean;
   requiredDownPayment?: number;
 

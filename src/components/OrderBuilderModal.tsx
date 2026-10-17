@@ -98,7 +98,8 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const [unregisteredCustomerAddress, setUnregisteredCustomerAddress] = useState('');
 
   // Financial & Order Options
-  const paymentMethod: PaymentMethod = 'نقدي (كاش)';
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('نقدي (كاش)');
+  const [overduePayment, setOverduePayment] = useState(0);
   const [invoiceNotes, setInvoiceNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
@@ -177,8 +178,14 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
           (p.color && p.color.toLowerCase().includes(q))
       );
     }
+    const availability = (p: Product) => {
+      const branch = getBranchStockForProduct(p, activeBranch);
+      const warehouse = p.mainWarehouseActual || 0;
+      return branch > 0 ? 2 : warehouse > 0 ? 1 : 0;
+    };
+    result.sort((a, b) => availability(b) - availability(a) || (getBranchStockForProduct(b, activeBranch) + (b.mainWarehouseActual || 0)) - (getBranchStockForProduct(a, activeBranch) + (a.mainWarehouseActual || 0)));
     return result.slice(0, 24);
-  }, [products, catalogGroup, catalogFamily, catalogSearch]);
+  }, [products, catalogGroup, catalogFamily, catalogSearch, activeBranch]);
 
   // Cart summary calculation
   const summary = useMemo(() => {
@@ -311,6 +318,8 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         customerCreditLimit: credLimit,
         customerBalanceAfter: balAfter,
         customerOverdueBalance: overdue,
+        overduePaymentAmount: overduePayment,
+        overduePaymentAtDelivery: overduePayment > 0,
         creditLimitExceeded: isExceeded,
         requiredDownPayment: reqDown,
       });
@@ -1055,6 +1064,26 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                         {formatCurrency(balAfter)}
                       </div>
                     </div>
+                  </div>
+
+                  <div className="bg-slate-900 border border-slate-700 p-3 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs font-black text-white">طريقة الدفع المعتمدة للعميل</div>
+                      {overdueBal > 0 && <span className="text-[10px] font-bold text-rose-300">تحصيل المتأخرات عند استلام السيارة</span>}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white">
+                        <option value="نقدي (كاش)">نقدي (كاش)</option>
+                        <option value="آجل (30 يوم)">آجل (30 يوم)</option>
+                        <option value="آجل (60 يوم)">آجل (60 يوم)</option>
+                        <option value="تحويل بنكي">تحويل بنكي</option>
+                        <option value="شيك">شيك</option>
+                      </select>
+                      {overdueBal > 0 && (
+                        <input type="number" min="0" max={overdueBal} value={overduePayment || ''} onChange={(e) => setOverduePayment(Math.min(overdueBal, Math.max(0, Number(e.target.value) || 0)))} placeholder={`سداد متأخرات عند الاستلام (حتى ${overdueBal})`} className="w-full rounded-xl border border-rose-700/60 bg-slate-950 px-3 py-2 text-xs text-white" />
+                      )}
+                    </div>
+                    {overduePayment > 0 && <div className="text-[11px] text-emerald-300 font-bold">سيتم تسجيل تحصيل {formatCurrency(overduePayment)} من المتأخرات عند تسليم المنتجات بالسيارة.</div>}
                   </div>
 
                   {/* Guarantee docs and warning */}

@@ -696,8 +696,18 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       return true;
     });
 
-    // Sorting by branch stock, October warehouse stock, total stock, priority, price, name
-    if (sortBy === 'branch_stock_desc') {
+    // الترتيب الافتراضي: المتاح بالفرع أولاً، ثم مخزن أكتوبر، ثم غير المتاح في النهاية.
+    // داخل كل مجموعة نعرض الأعلى رصيداً أولاً ليسهل على المندوب اختيار البديل الفوري.
+    if (sortBy === 'default') {
+      result.sort((a, b) => {
+        const availability = (p: Product) => {
+          const branch = stockOf(p);
+          const warehouse = p.mainWarehouseActual || 0;
+          return branch > 0 ? 2 : warehouse > 0 ? 1 : 0;
+        };
+        return availability(b) - availability(a) || (stockOf(b) + (b.mainWarehouseActual || 0)) - (stockOf(a) + (a.mainWarehouseActual || 0));
+      });
+    } else if (sortBy === 'branch_stock_desc') {
       result.sort((a, b) => stockOf(b) - stockOf(a));
     } else if (sortBy === 'branch_stock_asc') {
       result.sort((a, b) => stockOf(a) - stockOf(b));
