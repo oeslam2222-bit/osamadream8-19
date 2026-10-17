@@ -25,12 +25,12 @@ import { Customer, Invoice } from './types';
 // section below is loaded on demand so reps on mobile don't download the
 // analytics and Excel engines before they open them.
 const ProductCatalog = lazy(() => import('./components/ProductCatalog').then((m) => ({ default: m.ProductCatalog })));
-const AllCustomersAnalyticsView = lazy(() => import('./components/AllCustomersAnalyticsView').then((m) => ({ default: m.AllCustomersAnalyticsView })));
+const UnifiedCustomersHub = lazy(() => import('./components/UnifiedCustomersHub').then((m) => ({ default: m.UnifiedCustomersHub })));
 const UnifiedOperationsDashboard = lazy(() => import('./components/UnifiedOperationsDashboard').then((m) => ({ default: m.UnifiedOperationsDashboard })));
 const SupervisorDashboard = lazy(() => import('./components/SupervisorDashboard').then((m) => ({ default: m.SupervisorDashboard })));
 const TargetPerformanceDashboard = lazy(() => import('./components/TargetPerformanceDashboard').then((m) => ({ default: m.TargetPerformanceDashboard })));
 const CollectionForecastView = lazy(() => import('./components/CollectionForecastView'));
-const VisitsDashboard = lazy(() => import('./components/VisitsDashboard').then((m) => ({ default: m.VisitsDashboard })));
+
 const InvoicesManager = lazy(() => import('./components/InvoicesManager').then((m) => ({ default: m.InvoicesManager })));
 const InventoryStockView = lazy(() => import('./components/InventoryStockView').then((m) => ({ default: m.InventoryStockView })));
 const ExcelImportExport = lazy(() => import('./components/ExcelImportExport').then((m) => ({ default: m.ExcelImportExport })));
@@ -213,10 +213,11 @@ const MainLayout: React.FC = () => {
             </div>
           )}
 
-          {(visitedTabs['all_customers'] || visitedTabs['customers']) && (
-            <div className={(activeTab === 'all_customers' || activeTab === 'customers') ? 'block' : 'hidden'}>
-              <AllCustomersAnalyticsView
-                onOpenNewOrderForCustomer={(cust) => handleOpenOrderForCustomer(cust)}
+          {(visitedTabs['all_customers'] || visitedTabs['customers'] || visitedTabs['visits']) && (
+            <div className={['all_customers', 'customers', 'visits'].includes(activeTab) ? 'block' : 'hidden'}>
+              <UnifiedCustomersHub
+                initialSubTab={activeTab === 'visits' ? 'visits' : 'customers'}
+                onOpenNewOrderForCustomer={handleOpenOrderForCustomer}
               />
             </div>
           )}
@@ -271,11 +272,6 @@ const MainLayout: React.FC = () => {
             </div>
           )}
 
-          {visitedTabs['visits'] && (
-            <div className={activeTab === 'visits' ? 'block' : 'hidden'}>
-              <VisitsDashboard />
-            </div>
-          )}
 
           {visitedTabs['invoices'] && (
             <div className={activeTab === 'invoices' ? 'block' : 'hidden'}>
