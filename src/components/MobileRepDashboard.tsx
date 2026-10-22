@@ -490,8 +490,67 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
           </div>
         </div>
 
-        {/* ملخص اليوم */}
-        <div className="grid grid-cols-3 gap-2 mt-3">
+        {/* العمليات الميدانية الأساسية للمندوب - Flutter Material 3 Action Cards */}
+        <div className="grid grid-cols-2 gap-2.5 mt-3.5">
+          <button
+            type="button"
+            onClick={onNewInvoice}
+            className="flex items-center gap-2.5 p-3 bg-gradient-to-br from-emerald-600 to-emerald-700 active:from-emerald-700 active:to-emerald-800 text-white rounded-2xl shadow-sm border border-emerald-500/30 active:scale-[0.98] transition-all text-right cursor-pointer"
+          >
+            <span className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0 shadow-inner">
+              <ShoppingCart className="w-5 h-5 text-white" strokeWidth={2.3} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[12px] font-black leading-tight">تسجيل طلبية</div>
+              <div className="text-[9.5px] text-emerald-100 font-semibold mt-0.5 truncate">فاتورة جديدة</div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('visits')}
+            className="flex items-center gap-2.5 p-3 bg-gradient-to-br from-rose-600 to-rose-700 active:from-rose-700 active:to-rose-800 text-white rounded-2xl shadow-sm border border-rose-500/30 active:scale-[0.98] transition-all text-right cursor-pointer"
+          >
+            <span className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0 shadow-inner">
+              <MapPin className="w-5 h-5 text-white" strokeWidth={2.3} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[12px] font-black leading-tight">تسجيل زيارة</div>
+              <div className="text-[9.5px] text-rose-100 font-semibold mt-0.5 truncate">خط السير والـ GPS</div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('all_customers')}
+            className="flex items-center gap-2.5 p-2.5 bg-slate-50 active:bg-blue-50 text-slate-800 rounded-2xl border border-slate-200/80 active:border-blue-300 active:scale-[0.98] transition-all text-right cursor-pointer"
+          >
+            <span className="w-9 h-9 rounded-xl bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+              <Users className="w-4 h-4" strokeWidth={2.3} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[11.5px] font-black text-slate-800 leading-tight">العملاء والديون</div>
+              <div className="text-[9px] text-slate-400 font-semibold mt-0.5 truncate">كشف الحساب</div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('catalog')}
+            className="flex items-center gap-2.5 p-2.5 bg-slate-50 active:bg-amber-50 text-slate-800 rounded-2xl border border-slate-200/80 active:border-amber-300 active:scale-[0.98] transition-all text-right cursor-pointer"
+          >
+            <span className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+              <Boxes className="w-4 h-4" strokeWidth={2.3} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[11.5px] font-black text-slate-800 leading-tight">الكتالوج والعروض</div>
+              <div className="text-[9px] text-slate-400 font-semibold mt-0.5 truncate">المخزون المتاح</div>
+            </div>
+          </button>
+        </div>
+
+        {/* ملخص اليوم - Material 3 KPI Stat Pills */}
+        <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100">
           <div className="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
             <div className="text-lg font-black text-rose-500">{stats.myVisitsToday}</div>
             <div className="text-[10px] font-bold text-slate-500">زيارات اليوم</div>

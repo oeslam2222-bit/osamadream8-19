@@ -47,28 +47,30 @@
     <meta name="application-name" content="الطنطاوي" />
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Tajawal:wght@400;500;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700;800;900&display=swap">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+      <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+    </noscript>
   </head>
-  <body class="bg-slate-50 text-slate-900 font-['Cairo','Tajawal','IBM_Plex_Sans_Arabic',system-ui,sans-serif] antialiased selection:bg-amber-500 selection:text-white min-h-screen">
+  <body class="bg-slate-50 text-slate-900 font-['Cairo',system-ui,sans-serif] antialiased selection:bg-amber-500 selection:text-white min-h-screen">
     <div id="root">
-      <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0f172a; color: #f8fafc; font-family: 'Cairo', system-ui, -apple-system, sans-serif; text-align: center; padding: 20px;">
-        <div style="width: 96px; height: 96px; border-radius: 50%; background: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5); margin-bottom: 20px; animation: pulse 2s infinite; overflow: hidden; padding: 4px; border: 3px solid #f59e0b;">
-          <img src="/tantawy-brand-logo.svg?v=3.1" alt="مجموعة الطنطاوي" style="width: 100%; height: 100%; object-fit: contain;" />
-        </div>
-        <h2 style="font-size: 20px; font-weight: 900; margin: 0 0 8px 0; color: #fbbf24; letter-spacing: -0.5px;">مجموعة الطنطاوي | TANTAWY GROUP</h2>
-        <p style="font-size: 13px; color: #94a3b8; margin: 0 0 24px 0; font-weight: 600;">جاري تحميل منظومة المبيعات والكتالوج والمخازن...</p>
-        <div style="width: 160px; height: 4px; background: #1e293b; border-radius: 999px; overflow: hidden;">
-          <div style="width: 100%; height: 100%; background: linear-gradient(90deg, transparent, #fbbf24, transparent); animation: loading 1.5s infinite linear;"></div>
+      <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f8fafc; color: #0f172a; font-family: 'Cairo', system-ui, -apple-system, sans-serif; text-align: center; padding: 24px;">
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 28px; padding: 32px 28px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.03); max-width: 340px; width: 100%; display: flex; flex-direction: column; align-items: center;">
+          <div style="width: 84px; height: 84px; border-radius: 22px; background: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 16px -2px rgba(217, 119, 6, 0.18); margin-bottom: 18px; overflow: hidden; padding: 6px; border: 2px solid #f59e0b;">
+            <img src="/tantawy-brand-logo.svg" alt="مجموعة الطنطاوي" style="width: 100%; height: 100%; object-fit: contain;" />
+          </div>
+          <h2 style="font-size: 19px; font-weight: 900; margin: 0 0 6px 0; color: #0f172a; letter-spacing: -0.3px;">مجموعة الطنطاوي</h2>
+          <span style="font-size: 11px; font-weight: 800; color: #d97706; letter-spacing: 1.5px; margin-bottom: 14px; text-transform: uppercase;">Tantawy Group</span>
+          <p style="font-size: 12px; color: #64748b; margin: 0 0 20px 0; font-weight: 600;">جاري تحميل منظومة المبيعات والكتالوج...</p>
+          <div style="width: 180px; height: 5px; background: #f1f5f9; border-radius: 999px; overflow: hidden; position: relative;">
+            <div style="width: 45%; height: 100%; background: linear-gradient(90deg, #f59e0b, #d97706); border-radius: 999px; animation: loading 1.2s infinite ease-in-out;"></div>
+          </div>
         </div>
         <style>
-          @keyframes pulse {
-            0%, 100% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.05); opacity: 0.9; }
-          }
           @keyframes loading {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
+            0% { transform: translateX(-120%); }
+            100% { transform: translateX(240%); }
           }
         </style>
       </div>

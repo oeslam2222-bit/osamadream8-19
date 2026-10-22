@@ -32,31 +32,38 @@ window.addEventListener('vite:preloadError', (event) => {
  */
 // Service worker registration for full offline PWA capabilities
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register('/sw.js', {
-        scope: '/',
-        updateViaCache: 'none',
-      })
-      .then((registration) => {
-        let refreshing = false;
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (refreshing) return;
-          refreshing = true;
-          window.location.reload();
-        });
+  if (import.meta.env.DEV) {
+    // In dev mode, unregister any service worker so Vite's on-the-fly transforms are instant
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      registrations.forEach((r) => r.unregister());
+    }).catch(() => {});
+  } else {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker
+        .register('/sw.js', {
+          scope: '/',
+          updateViaCache: 'none',
+        })
+        .then((registration) => {
+          let refreshing = false;
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (refreshing) return;
+            refreshing = true;
+            window.location.reload();
+          });
 
-        registration.update().catch(() => {});
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible') {
-            registration.update().catch(() => {});
-          }
+          registration.update().catch(() => {});
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+              registration.update().catch(() => {});
+            }
+          });
+        })
+        .catch((error) => {
+          console.warn('Service Worker registration notice:', error);
         });
-      })
-      .catch((error) => {
-        console.warn('Service Worker registration notice:', error);
-      });
-  });
+    });
+  }
 }
 
 createRoot(document.getElementById('root')!).render(

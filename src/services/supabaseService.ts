@@ -95,15 +95,20 @@ export async function testSupabaseConnection(): Promise<SupabaseSyncStatus> {
 
     const countTable = async (table: string): Promise<number | null> => {
       try {
-        const { count, error } = await supabase.from(table).select('id', { count: 'exact', head: true });
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 2000);
+        const { count, error } = await supabase
+          .from(table)
+          .select('id', { count: 'estimated', head: true })
+          .abortSignal(controller.signal);
+        clearTimeout(timeout);
         return error || typeof count !== 'number' ? null : count;
-      } catch (error) {
-        console.warn(`Could not query ${table} table in Supabase:`, error);
+      } catch {
         return null;
       }
     };
 
-    // Run count queries in parallel for instant ping feedback
+    // Fast parallel probe with 2.0s maximum ceiling
     const [usersResult, productsResult, invoicesResult, customersResult, ordersResult, visitsResult, targetsResult] = await Promise.all([
       countTable('users'),
       countTable('products'),

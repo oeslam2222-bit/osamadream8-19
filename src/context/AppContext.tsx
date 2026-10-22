@@ -2331,11 +2331,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     // late hydration can restore the stale snapshot immediately after it is purged.
     if (!isLocalDataHydrated) return;
 
-    testSupabaseConnection().then((status) => {
-      setSupabaseStatus(status);
-      if (status.connected) {
-        // 1. Fetch Users
-        fetchUsersFromSupabase(true).then((res) => {
+    testSupabaseConnection().then(setSupabaseStatus).catch(() => {});
+
+    // 1. Fetch Users in parallel immediately
+    fetchUsersFromSupabase(true).then((res) => {
           if (res.success && res.users && res.users.length > 0) {
             setUsers((prev) => {
               const dedup = sanitizeAndDeduplicateUsers(res.users!);
@@ -2482,8 +2481,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             });
           }
         });
-      }
-    });
 
     // Setup Supabase Realtime subscriptions for data tables.
     try {

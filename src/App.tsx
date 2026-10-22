@@ -90,7 +90,7 @@ const MainLayout: React.FC = () => {
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
 
-  // Preload primary user tabs immediately in background so they are ready before the user clicks
+  // Preload secondary tabs during browser idle time so initial page render is fast and responsive
   useEffect(() => {
     const timer = setTimeout(() => {
       import('./components/ProductCatalog');
@@ -98,7 +98,7 @@ const MainLayout: React.FC = () => {
       import('./components/AllCustomersAnalyticsView');
       import('./components/InvoicesManager');
       import('./components/OrderBuilderModal');
-    }, 150);
+    }, 3000);
     return () => clearTimeout(timer);
   }, []);
 
