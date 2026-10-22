@@ -41,9 +41,7 @@ import { useApp } from '../context/AppContext';
 import {
   doesCustomerBelongToRep,
   isArabicNameMatch,
-  isBranchMatch,
   normalizeArabicText,
-  normalizeBranchKey,
   sanitizeAndDeduplicateUsers,
 } from '../services/arabicMatchingService';
 import { formatCurrency } from '../services/invoiceService';
@@ -87,13 +85,6 @@ export const UserManager: React.FC = () => {
   const USERS_PER_PAGE = 25;
 
   const isSuperAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
-  const branchScopedUsers = useMemo(() => {
-    if (isSuperAdminOrDev) return users;
-    if (!currentUser?.branchName) return [];
-    return users.filter((user) =>
-      isBranchMatch(user.branchName, currentUser.branchName, { allowUnassigned: false })
-    );
-  }, [users, isSuperAdminOrDev, currentUser?.branchName]);
 
   // Role metadata with updated clean titles requested by the user
   const roleConfigs: Record<UserRole, {
@@ -107,8 +98,8 @@ export const UserManager: React.FC = () => {
     desc: string;
   }> = {
     admin: {
-      label: 'مدير النظام (الإدارة)',
-      shortLabel: 'مدير النظام',
+      label: 'الآدمن (الإدارة العامة)',
+      shortLabel: 'الآدمن',
       bg: 'bg-rose-50',
       border: 'border-rose-200',
       text: 'text-rose-800',
@@ -268,7 +259,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     email: '',
     password: '',
     role: 'sales_rep',
-      branchName: 'فرع القاهرة',
+    branchName: 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
     supervisorId: '',
     phone: '',
     commissionRate: 2.5,
@@ -299,20 +290,28 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
   const [approvalRole, setApprovalRole] = useState<UserRole>('sales_rep');
 
   // Pending users waiting for approval (Memoized)
-  const pendingUsers = useMemo(() => branchScopedUsers.filter((u) => {
+  const pendingUsers = useMemo(() => users.filter((u) => {
     if (u.approvalStatus !== 'pending_approval') return false;
     if (isSuperAdminOrDev) return true;
-    return currentUser?.role !== 'supervisor' || u.role === 'sales_rep';
-  }), [branchScopedUsers, isSuperAdminOrDev, currentUser?.role]);
+    if (currentUser?.role === 'branch_manager') {
+      return u.branchName === currentUser.branchName;
+    }
+    return currentUser?.role === 'supervisor' &&
+      u.role === 'sales_rep' &&
+      u.branchName === currentUser.branchName;
+  }), [users, isSuperAdminOrDev, currentUser?.role, currentUser?.branchName]);
 
   // Active users are filtered once, then rendered in small pages to keep the table responsive.
-  const activeUsers = useMemo(() => branchScopedUsers.filter((u) => {
+  const activeUsers = useMemo(() => users.filter((u) => {
     if (u.approvalStatus === 'pending_approval') return false;
 
-    // User accounts are managed centrally; branch managers and supervisors only handle approvals,
-    // so the full active team list is not exposed in their user-management view.
-    if (!isSuperAdminOrDev) return false;
-    if (selectedBranchFilter !== 'الكل' && u.branchName !== selectedBranchFilter) return false;
+    // Admin/developer see everyone; branch managers see their branch; supervisors see branch sales reps only.
+    if (!isSuperAdminOrDev) {
+      if (u.branchName !== currentUser?.branchName) return false;
+      if (currentUser?.role === 'supervisor' && u.role !== 'sales_rep') return false;
+    } else {
+      if (selectedBranchFilter !== 'الكل' && u.branchName !== selectedBranchFilter) return false;
+    }
 
     if (selectedRoleFilter !== 'الكل' && u.role !== selectedRoleFilter) return false;
     if (searchQuery.trim()) {
@@ -324,7 +323,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       if (!matchName && !matchUser && !matchPhone && !matchEmail) return false;
     }
     return true;
-  }), [branchScopedUsers, isSuperAdminOrDev, selectedBranchFilter, selectedRoleFilter, searchQuery]);
+  }), [users, isSuperAdminOrDev, currentUser?.branchName, selectedBranchFilter, selectedRoleFilter, searchQuery]);
 
   const totalUsersPages = Math.max(1, Math.ceil(activeUsers.length / USERS_PER_PAGE));
   const visibleUsers = useMemo(() => {
@@ -434,13 +433,13 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
   // Fast memoized active count per role
   const roleCountsMap = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const u of branchScopedUsers) {
+    for (const u of users) {
       if (u.approvalStatus === 'active') {
         counts[u.role] = (counts[u.role] || 0) + 1;
       }
     }
     return counts;
-  }, [branchScopedUsers]);
+  }, [users]);
 
   // Memoized breakdown of sales reps and customer debts for the sync report modal
   const syncRepBreakdown = useMemo(() => {
@@ -511,9 +510,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       email: '',
       password: '',
       role: 'sales_rep',
-      branchName: isSuperAdminOrDev
-        ? (branches.find((b) => !b.isMainWarehouse)?.name || branches[0]?.name || 'فرع القاهرة')
-        : (currentUser?.branchName || 'فرع القاهرة'),
+      branchName: isSuperAdminOrDev ? (branches[0]?.name || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)') : (currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)'),
       supervisorId: '',
       phone: '',
       commissionRate: 2.5,
@@ -529,9 +526,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     setShowPassword(false);
     setFormData({
       ...user,
-      // Left blank on purpose: an empty field keeps the stored credential, and a
-      // digest must never be shown in the form.
-      password: '',
+      password: user.password || '',
       commissionRate: user.commissionRate || 2.5,
     });
     setUserFormError(null);
@@ -542,11 +537,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     e.preventDefault();
     setUserFormError(null);
     if (!formData.name?.trim() || !isSuperAdminOrDev) return;
-
-    if (!editingUser && !formData.password?.trim()) {
-      setUserFormError('يرجى كتابة كلمة مرور للموظف الجديد ليتمكن من تسجيل الدخول إلى حسابه.');
-      return;
-    }
 
     const requestedUsername = formData.username?.trim().toLowerCase() || '';
     const fallbackUsername = normalizeArabicText(formData.name).replace(/\s+/g, '') || `user_${Date.now()}`;
@@ -566,13 +556,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       return;
     }
 
-    const selectedBranch = formData.branchName || '';
-    const isMainWarehouseBranch = (bname: string) => bname && normalizeBranchKey(bname) === 'main';
     const assignedBranch = (formData.role === 'admin' || formData.role === 'developer')
       ? 'جميع الفروع والمخزن المركزي (6 أكتوبر)'
-      : (selectedBranch && !isMainWarehouseBranch(selectedBranch)
-        ? selectedBranch
-        : (!isMainWarehouseBranch(currentUser?.branchName || '') ? (currentUser?.branchName || 'فرع القاهرة') : 'فرع القاهرة'));
+      : (formData.branchName || currentUser?.branchName || 'فرع القاهرة');
 
     if (editingUser) {
       updateUser({
@@ -595,7 +581,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
         branchName: assignedBranch,
         supervisorId: formData.role === 'sales_rep' ? (formData.supervisorId || undefined) : undefined,
         phone: formData.phone || '',
-        avatar: '/pwa-192x192.png',
+        avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80`,
         commissionRate: formData.commissionRate || 2.5,
         isActive: formData.isActive ?? true,
         approvalStatus: 'active',
@@ -617,9 +603,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
 الصفة: ${roleConfigs[user.role]?.label || user.role}
 الفرع: ${user.branchName}
 البريد الإلكتروني لتسجيل الدخول: ${user.email}
-اسم المستخدم: ${user.username}
-رقم الهاتف: ${user.phone || 'غير مسجل'}
-كلمة المرور: (الكلمة المحددة عند الإنشاء)
+كلمة المرور: ${user.password || '(كلمة المرور الخاصة بالمستخدم)'}
 رابط المنظومة: ${window.location.origin}`;
 
     navigator.clipboard.writeText(credText);
@@ -628,7 +612,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
   };
 
   return (
-    <div className="space-y-6 pb-20 max-w-7xl mx-auto px-2 sm:px-4">
+    <div className="tantawy-screen space-y-6 pb-20 max-w-none mx-auto px-2 sm:px-4">
       
       {/* Header Banner */}
       <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-xs border border-slate-200">
@@ -643,11 +627,11 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   إدارة الموظفين والصلاحيات والهيكل الإداري
                 </h2>
                 <span className="bg-slate-100 text-slate-700 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-slate-200">
-                  {branchScopedUsers.length} {isSuperAdminOrDev ? 'موظف مسجل' : 'موظف في فرعك'}
+                  {users.length} موظف مسجل
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
-                إضافة المناديب والمشرفين • توزيع المناديب على المشرفين في كل فرع • تحديد الصلاحيات بدقة وتوزيع الفروع
+                إضافة المناديب والمشرفين • توزيع المناديب على المشرفين في كل فرع • سرية تامة وتحديد الصلاحيات
               </p>
             </div>
           </div>
@@ -802,8 +786,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
         </div>
       )}
 
-      {isSuperAdminOrDev && (
-        <>
       {/* 5 Official Roles Matrix Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         {(Object.keys(roleConfigs) as UserRole[]).map((roleKey) => {
@@ -835,7 +817,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               </div>
 
               <div className="pt-2 mt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-bold">
-                <span>{selectedRoleFilter === roleKey ? 'تصفية مفعلة ✓' : 'انقر للتصفية'}</span>
+                <span>{selectedRoleFilter === roleKey ? 'تصفية مفعلة' : 'انقر للتصفية'}</span>
               </div>
             </div>
           );
@@ -974,7 +956,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         className="bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 font-bold px-2 py-0.5 rounded text-[10px] cursor-pointer transition flex items-center gap-1 active:scale-95"
                         title="عرض قائمة العملاء والمديونيات والحد الائتماني لهذا المندوب"
                       >
-                        👥 {repCustCount} عميل (عرض التفاصيل)
+                        {repCustCount} عميل (عرض التفاصيل)
                       </button>
                     </div>
                   )}
@@ -1008,7 +990,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 transition"
                   >
                     <Copy className="w-3.5 h-3.5" />
-                    <span>{copiedCredentials === user.id ? 'تم النسخ! ✓' : 'نسخ بيانات الدخول'}</span>
+                    <span>{copiedCredentials === user.id ? 'تم النسخ!' : 'نسخ بيانات الدخول'}</span>
                   </button>
 
                   <button
@@ -1108,7 +1090,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                             className="inline-flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 px-2.5 py-1 rounded-xl text-[11px] font-black cursor-pointer transition shadow-2xs active:scale-95"
                             title="عرض قائمة العملاء والمديونيات والحد الائتماني لهذا المندوب"
                           >
-                            👥 {repCustCount} عميل مسند (عرض)
+                            {repCustCount} عميل مسند (عرض)
                           </button>
                         </div>
                       )}
@@ -1205,8 +1187,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
           </table>
         </div>
       </div>
-        </>
-      )}
 
       {/* ========================================================================= */}
       {/* MODERN RESPONSIVE ADD / EDIT EMPLOYEE MODAL (متناسق مع كافة الشاشات) */}
@@ -1303,7 +1283,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-amber-400 focus:bg-white transition text-xs sm:text-sm"
                   />
                   <p className="text-[10px] text-slate-500 mt-1">
-                    💡 هذا الاسم سيظهر تلقائياً للعملاء على الفواتير وشيتات الإكسل وأوامر الشغل.
+                    هذا الاسم سيظهر تلقائياً للعملاء على الفواتير وشيتات الإكسل وأوامر الشغل.
                   </p>
                 </div>
 
@@ -1322,7 +1302,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 text-xs"
                     />
                     <p className="text-[10px] text-slate-500 mt-1">
-                      🔐 يستخدمه الموظف لتسجيل الدخول في النظام مباشرة.
+                      يستخدمه الموظف لتسجيل الدخول في النظام مباشرة.
                     </p>
                   </div>
 
@@ -1394,7 +1374,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     </label>
                     {formData.role === 'admin' || formData.role === 'developer' ? (
                       <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl font-black text-amber-950 text-xs flex items-center gap-2">
-                        <span>🌐</span>
+                        <span>الرابط</span>
                         <span>جميع الفروع (7) + المخزن المركزي (6 أكتوبر)</span>
                       </div>
                     ) : (
@@ -1404,7 +1384,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         disabled={!isSuperAdminOrDev}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-xs cursor-pointer disabled:opacity-70 disabled:bg-slate-100"
                       >
-                        <option value="" disabled className="text-slate-400">-- اختر الفرع --</option>
                         {branches.filter((b) => !b.isMainWarehouse).map((b) => (
                           <option key={b.id} value={b.name}>
                             {b.name}
@@ -1645,15 +1624,15 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   {/* Stat Cards */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-                      <div className="text-[11px] text-slate-500 font-bold">👥 إجمالي العملاء المسندين</div>
+                      <div className="text-[11px] text-slate-500 font-bold">إجمالي العملاء المسندين</div>
                       <div className="text-lg font-black text-slate-900 mt-1">{repCustomers.length} <span className="text-xs text-slate-400 font-normal">عميل</span></div>
                     </div>
                     <div className="bg-rose-50/60 p-3.5 rounded-2xl border border-rose-200">
-                      <div className="text-[11px] text-rose-700 font-bold">💰 إجمالي مديونيات العملاء</div>
+                      <div className="text-[11px] text-rose-700 font-bold">إجمالي مديونيات العملاء</div>
                       <div className="text-lg font-black text-rose-700 mt-1">{formatCurrency(totalDebts)}</div>
                     </div>
                     <div className="bg-blue-50/60 p-3.5 rounded-2xl border border-blue-200">
-                      <div className="text-[11px] text-blue-700 font-bold">🛡️ إجمالي الحدود الائتمانية</div>
+                      <div className="text-[11px] text-blue-700 font-bold">إجمالي الحدود الائتمانية</div>
                       <div className="text-lg font-black text-blue-700 mt-1">{formatCurrency(totalLimits)}</div>
                     </div>
                   </div>
@@ -1814,7 +1793,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 <h4 className="font-black text-slate-900 text-xs sm:text-sm">
                   توزيع العملاء والمديونيات على حسابات المناديب المسجلة:
                 </h4>
-                <div className="border border-slate-200 rounded-2xl overflow-x-auto max-h-56 overflow-y-auto">
+                <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-56 overflow-y-auto">
                   <table className="w-full text-right text-xs">
                     <thead className="bg-slate-100 text-slate-700 font-black sticky top-0">
                       <tr>
@@ -1895,7 +1874,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                           key={idx}
                           className="bg-white border border-amber-200 text-amber-900 px-2.5 py-1 rounded-xl text-[11px] font-bold shadow-2xs"
                         >
-                          👤 {item.repName} ({item.branchName}) • {item.count} عميل
+                          {item.repName} ({item.branchName}) • {item.count} عميل
                         </span>
                       ))}
                     </div>
