@@ -1,28 +1,23 @@
 import {
   Bell,
-  BarChart3,
   BookOpen,
   Boxes,
   Building,
   Building2,
   CheckCircle,
   CloudLightning,
-  Database,
   Download,
   FileSpreadsheet,
-  Gauge,
   Layers,
   LayoutDashboard,
   LogOut,
   Receipt,
   RefreshCw,
   Server,
-  Settings,
   ShieldCheck,
   Smartphone,
   ShoppingCart,
   Target,
-  TrendingUp,
   CalendarCheck,
   User,
   UserCheck,
@@ -34,11 +29,7 @@ import {
   ZapOff,
   Eye,
   EyeOff,
-  Home,
-  Lock,
-  Menu,
-  Sparkles,
-  Terminal
+  Lock
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
@@ -46,9 +37,6 @@ import { formatCurrency } from '../services/invoiceService';
 import { UserRole } from '../types';
 import { CompanySettingsModal } from './CompanySettingsModal';
 import { InstallAppModal } from './InstallAppModal';
-import { DatabaseConnectionModal } from './DatabaseConnectionModal';
-import { InternalNotificationCenter } from './InternalNotificationCenter';
-import { SyncStatusIndicator } from './SyncStatusIndicator';
 
 interface NavbarProps {
   activeTab: string;
@@ -77,20 +65,11 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     triggerInstallPrompt,
     installPromptEvent,
     isInstallModalOpen,
-    setIsInstallModalOpen,
-    globalDataVersion,
-    isVersionSyncing,
-    lastVersionSyncNotice,
-    clearVersionSyncNotice,
-    checkAndSyncDataVersion,
-    offlineQueueCount,
-    flushOfflineQueue,
+    setIsInstallModalOpen
   } = useApp();
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
-  const [isDatabaseModalOpen, setIsDatabaseModalOpen] = useState(false);
   const [isStandalone, setIsStandalone] = useState(true);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
 
@@ -113,7 +92,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
   if (!currentUser) return null;
 
   const roleNames: Record<UserRole, { label: string; bg: string; text: string }> = {
-    admin: { label: 'مدير النظام (الإدارة)', bg: 'bg-rose-500/20 border-rose-500/40', text: 'text-rose-300' },
+    admin: { label: 'الآدمن (الإدارة العامة)', bg: 'bg-rose-500/20 border-rose-500/40', text: 'text-rose-300' },
     developer: { label: 'المطور (الدعم التقني)', bg: 'bg-amber-500/20 border-amber-500/40', text: 'text-amber-300' },
     branch_manager: { label: 'مدير الفرع', bg: 'bg-purple-500/20 border-purple-500/40', text: 'text-purple-300' },
     supervisor: { label: 'مشرف المناديب', bg: 'bg-blue-500/20 border-blue-500/40', text: 'text-blue-300' },
@@ -144,61 +123,17 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     ? users.filter((u) => u.supervisorId === currentUser.id).length
     : 0;
 
-  const getPrimaryNavId = (tabId: string): string => {
-    if (tabId === 'catalog' || tabId === 'inventory' || tabId === 'offers') return 'catalog';
-    if (tabId === 'all_customers' || tabId === 'customers' || tabId === 'visits') return 'all_customers';
-    if (tabId === 'targets' || tabId === 'forecast') return 'targets';
-    if (tabId === 'invoices') return 'invoices';
-    if (['admin_hub', 'users', 'excel', 'guide', 'developer_console', 'developer'].includes(tabId)) return 'admin_hub';
-    if (tabId === 'rep_home') return 'rep_home';
-    if (['command', 'dashboard', 'management', 'supervisor', 'home'].includes(tabId)) {
-      return currentUser.role === 'sales_rep' ? 'rep_home' : 'command';
-    }
-    return tabId;
-  };
-
   const navItems = [
-    ...(currentUser.role === 'sales_rep'
-      ? [{ id: 'rep_home', label: 'الرئيسية 🏠', icon: Home, roles: ['sales_rep'] }]
-      : [{
-          id: 'command',
-          label: 'لوحة القيادة والعمليات 🎯',
-          icon: Gauge,
-          roles: ['admin', 'branch_manager', 'supervisor', 'developer'],
-        }]
-    ),
-    {
-      id: 'catalog',
-      label: 'الكتالوج والمخزون 📦',
-      icon: Boxes,
-      roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'],
-    },
-    {
-      id: 'all_customers',
-      label: 'العملاء والزيارات 👥',
-      icon: Users,
-      roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'],
-    },
-    {
-      id: 'invoices',
-      label: currentUser.role === 'sales_rep' ? 'طلبياتي وفواتيري 📑' : 'الفواتير والطلبيات 📑',
-      icon: Receipt,
-      roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'],
-      badge: pendingOrdersCount,
-    },
-    {
-      id: 'targets',
-      label: 'الأهداف والتحصيل 🎯',
-      icon: Target,
-      roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'],
-    },
-    {
-      id: 'admin_hub',
-      label: 'إدارة المنظومة والشيتات ⚙️',
-      icon: Settings,
-      roles: ['admin', 'developer'],
-      badge: pendingApprovalsCount,
-    },
+    { id: 'catalog', label: 'كتالوج الأصناف والبيع', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'all_customers', label: 'كافة العملاء والتحليل', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'dashboard', label: currentUser.role === 'sales_rep' ? 'متابعة طلبياتي' : 'لوحة المشرف والمتابعة', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'targets', label: currentUser.role === 'sales_rep' ? 'هدفي والتارجت' : 'تارجت المبيعات والتحصيل', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'visits', label: 'زيارات العملاء', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'invoices', label: currentUser.role === 'sales_rep' ? 'طلبياتي وفواتيري' : 'الفواتير والطلبيات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
+    { id: 'inventory', label: 'إدارة المخزون والاعتمادات', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'excel', label: 'شيتات Google Sheets والإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },
+    { id: 'guide', label: 'دليل دورة العمل', icon: BookOpen, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'users', label: 'فريق الفرع والموظفين', icon: UserCheck, roles: ['admin', 'developer', 'branch_manager', 'supervisor'], badge: pendingApprovalsCount },
   ];
 
   const filteredNavItems = navItems.filter((item) => item.roles.includes(currentUser.role));
@@ -211,7 +146,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
           <div className="flex items-center gap-2 overflow-hidden">
             <img src="/pwa-192x192.png" alt="الطنطاوي" className="w-6 h-6 rounded-lg border border-slate-900/30 shadow-sm shrink-0" />
             <div className="leading-tight truncate">
-              <span className="font-black text-[11px] sm:text-xs block text-slate-950 truncate">تثبيت تطبيق مجموعة الطنطاوي 📲</span>
+              <span className="font-black text-[11px] sm:text-xs block text-slate-950 truncate">تثبيت تطبيق مجموعة الطنطاوي</span>
               <span className="text-[9px] sm:text-[10px] text-slate-900/80 font-bold block truncate">أيقونة نقية بدون علامة كروم وبدون شريط متصفح</span>
             </div>
           </div>
@@ -242,40 +177,12 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
         </div>
       )}
 
-      <header className="sticky top-0 z-40 bg-slate-900 text-white shadow-lg border-b border-slate-800">
-        {/* Real-time Data Version Sync Banner */}
-        {lastVersionSyncNotice && (
-          <div className="bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 text-white text-xs px-3 sm:px-4 py-2 font-bold flex items-center justify-between shadow-inner border-b border-emerald-500/50 animate-in slide-in-from-top duration-300">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-emerald-200 shrink-0" />
-              <span>{lastVersionSyncNotice}</span>
-            </div>
-            <button
-              onClick={clearVersionSyncNotice}
-              className="p-1 hover:bg-white/20 rounded-lg text-white transition cursor-pointer"
-              title="إغلاق التنبيه"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        {/* Top Banner - Wide, responsive & well spaced across mobile, tablet, and wide screens */}
-        <div className="max-w-[1600px] w-full mx-auto px-2 sm:px-4 lg:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2">
+      <header className="tantawy-topbar sticky top-0 z-40 bg-slate-900 text-white shadow-lg border-b border-slate-800">
+        {/* Top Banner - Compact on mobile with large touch controls */}
+        <div className="max-w-7xl mx-auto px-2 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2">
           
-          {/* Brand & Logo with Mobile Hamburger Menu */}
+          {/* Brand & Logo */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Mobile Hamburger Drawer Trigger ☰ */}
-            <button
-              type="button"
-              onClick={() => setIsMobileDrawerOpen(true)}
-              className="md:hidden flex items-center justify-center w-9 h-9 rounded-xl bg-slate-800/90 text-amber-400 hover:text-white hover:bg-slate-750 border border-slate-700/80 transition cursor-pointer shrink-0 active:scale-95"
-              aria-label="فتح القائمة الرئيسية"
-              title="القائمة الرئيسية والأقسام"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-
             <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-full bg-white p-0.5 border-2 border-amber-400 shadow-md shadow-amber-500/20 flex items-center justify-center shrink-0 overflow-hidden">
               <img src="/pwa-192x192.png" alt="مجموعة الطنطاوي - TANTAWY GROUP" className="h-full w-full object-contain" />
             </div>
@@ -296,7 +203,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
           </div>
 
           {/* Status Indicators, User Info, & Actions */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5 overflow-x-auto flex-nowrap scrollbar-none">
+          <div className="flex items-center gap-1.5 sm:gap-2.5">
             
             {/* PWA Install Button (Clear and Prominent on Mobile & Desktop) */}
             <button
@@ -306,7 +213,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
               title="تثبيت التطبيق على الموبايل (أيقونة أصلية بدون علامة كروم)"
             >
               <Smartphone className="w-4 h-4 text-amber-400 shrink-0" />
-              <span className="font-black text-amber-300 text-[11px] sm:text-xs">تثبيت 📲</span>
+              <span className="font-black text-amber-300 text-[11px] sm:text-xs">تثبيت</span>
             </button>
 
             {/* Data Saver Mode Toggle Button */}
@@ -335,75 +242,58 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
               )}
             </button>
 
-            {/* Internal Notification Center */}
-            <InternalNotificationCenter onNavigateToTab={setActiveTab} />
+            {/* Offline / Online Status Badge (Visible everywhere with high contrast) */}
+            <div className={`flex items-center gap-1 px-2 h-9 sm:h-10 rounded-xl text-xs font-bold border ${
+              isOffline ? 'bg-amber-900 text-amber-200 border-amber-500' : 'bg-emerald-950/80 text-emerald-300 border-emerald-700'
+            }`}>
+              {isOffline ? (
+                <>
+                  <WifiOff className="w-3.5 h-3.5 animate-pulse text-amber-400" />
+                  <span className="text-[11px] font-black">أوفلاين</span>
+                </>
+              ) : (
+                <>
+                  <Wifi className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden md:inline">متصل</span>
+                </>
+              )}
+            </div>
 
-            {/* Database & Cloud Connection Status and Synchronization Badges — Developer Only */}
-            {currentUser.role === 'developer' && (
-              <>
-                {/* Sync / Offline Status Indicator */}
-                <SyncStatusIndicator />
+            {/* Privacy & Confidentiality Mode Toggle (سرية البيانات) */}
+            <button
+              id="navbar-privacy-mode-toggle"
+              type="button"
+              onClick={togglePrivacyMode}
+              className={`flex items-center gap-1.5 px-2.5 h-9 sm:h-10 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                isPrivacyMode
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 shadow-xs'
+                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750 hover:text-white'
+              }`}
+              title={isPrivacyMode ? 'وضع سرية البيانات مفعّل (المبيعات والأرصدة مخفية). اضغط للإظهار.' : 'تفعيل وضع سرية البيانات لعرض الشاشة باحترافية وسرية'}
+            >
+              {isPrivacyMode ? (
+                <>
+                  <EyeOff className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                  <span className="hidden sm:inline">سرية البيانات: نشطة</span>
+                </>
+              ) : (
+                <>
+                  <Eye className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="hidden sm:inline">سرية البيانات</span>
+                </>
+              )}
+            </button>
 
-                {/* Global Data Version Sync Button & Status Badge */}
-                <button
-                  type="button"
-                  onClick={() => checkAndSyncDataVersion(true)}
-                  disabled={isVersionSyncing}
-                  className={`flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 h-9 sm:h-10 rounded-xl text-xs font-bold border transition cursor-pointer active:scale-95 ${
-                    isVersionSyncing
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-400 animate-pulse'
-                      : 'bg-slate-800 text-slate-200 border-slate-700 hover:border-amber-400 hover:text-white'
-                  }`}
-                  title="مزامنة أحدث إصدار لقاعدة البيانات السحابية ومسح الكاش لمنع تدبيل البيانات"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 text-amber-400 shrink-0 ${isVersionSyncing ? 'animate-spin' : ''}`} />
-                  <span className="font-mono text-amber-300 font-extrabold text-[11px] sm:text-xs">
-                    v{globalDataVersion?.version || 100}
-                  </span>
-                  <span className="hidden xl:inline text-[10px] text-slate-300">مزامنة</span>
-                </button>
-
-                {/* Database & Cloud Connection Status Button */}
-                <button
-                  type="button"
-                  onClick={() => setIsDatabaseModalOpen(true)}
-                  className={`flex items-center gap-1.5 px-2.5 h-9 sm:h-10 rounded-xl text-xs font-black border transition cursor-pointer active:scale-95 shadow-sm ${
-                    isOffline
-                      ? 'bg-amber-900 text-amber-200 border-amber-500 hover:bg-amber-850'
-                      : 'bg-emerald-950/90 text-emerald-300 border-emerald-600/70 hover:bg-emerald-900/90 hover:border-emerald-400'
-                  }`}
-                  title="انقر لفحص حالة الاتصال بقاعدة البيانات السحابية والجداول المتزامنة"
-                >
-                  <Database className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  {isOffline ? (
-                    <>
-                      <WifiOff className="w-3 h-3 text-amber-400 animate-pulse" />
-                      <span className="text-[11px] font-black">أوفلاين</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block" />
-                      <span className="text-[11px] font-black hidden xs:inline">قاعدة البيانات</span>
-                      <span className="text-[10px] text-emerald-400 font-bold hidden md:inline">متصلة 🟢</span>
-                    </>
-                  )}
-                </button>
-              </>
-            )}
-
-            {/* Anything done offline (invoices, visits, customers, products, users, targets) */}
-            {(pendingInvoicesCount > 0 || offlineQueueCount > 0) && (
+            {/* Pending Invoices Sync Button for Offline/Queued Orders */}
+            {pendingInvoicesCount > 0 && (
               <button
                 type="button"
-                onClick={() => {
-                  flushPendingInvoices();
-                  flushOfflineQueue();
-                }}
+                onClick={() => flushPendingInvoices()}
                 className="flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 px-2.5 h-9 sm:h-10 rounded-xl text-xs font-black transition cursor-pointer shadow-sm animate-pulse border border-amber-300"
-                title="تغييرات مسجلة بدون إنترنت بانتظار المزامنة مع السيرفر"
+                title="فواتير مسجلة أوفلاين بانتظار المزامنة مع السيرفر"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                <span>مزامنة ({pendingInvoicesCount + offlineQueueCount})</span>
+                <span>مزامنة ({pendingInvoicesCount})</span>
               </button>
             )}
 
@@ -428,7 +318,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                   onChange={(e) => setSelectedBranchFilter(e.target.value)}
                   className="bg-slate-800 text-slate-200 text-xs rounded-xl px-2.5 h-10 border border-slate-700 focus:outline-none focus:border-amber-400 font-bold"
                 >
-                  <option value="الكل">🏢 كل الفروع</option>
+                  <option value="الكل">كل الفروع</option>
                   {branches.map((b) => (
                     <option key={b.id} value={b.name}>
                       {b.name}
@@ -453,31 +343,17 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                 <Building2 className="w-3.5 h-3.5 text-amber-400" />
                 <span>
                   {currentUser.role === 'admin' || currentUser.role === 'developer'
-                    ? 'إعدادات بيانات الفاتورة 🏢'
-                    : 'إعدادات بيانات الفاتورة 🏢'}
+                    ? 'إعدادات بيانات الفاتورة'
+                    : 'إعدادات بيانات الفاتورة'}
                 </span>
               </button>
             )}
 
-            {/* Direct Logout Button in Header - Always visible, high-visibility, instant */}
-            <button
-              type="button"
-              onClick={() => logout()}
-              className="flex items-center gap-1 sm:gap-1.5 bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 hover:to-rose-500 text-white px-2 sm:px-3.5 h-9 sm:h-10 rounded-xl text-xs font-black transition cursor-pointer shadow-md shadow-red-950/50 active:scale-95 border border-red-400/60 shrink-0"
-              title="تسجيل الخروج الفوري من المنظومة"
-            >
-              <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white shrink-0" />
-              <span className="font-black text-xs hidden sm:inline whitespace-nowrap">تسجيل الخروج 🚪</span>
-              <span className="font-black text-[11px] sm:hidden whitespace-nowrap">خروج 🚪</span>
-            </button>
-
-            {/* User Profile Menu */}
-            <div>
+            {/* User Profile Menu with Logout */}
+            <div className="relative">
               <button
-                type="button"
-                onClick={() => setShowProfileMenu((prev) => !prev)}
-                className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 active:bg-slate-700 px-2.5 h-9 sm:h-10 rounded-xl border border-slate-700 transition cursor-pointer shadow-2xs"
-                title="الملف الشخصي والحساب"
+                onClick={() => setShowProfileMenu(!showProfileMenu)}
+                className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 active:bg-slate-700 px-2.5 h-9 sm:h-10 rounded-xl border border-slate-700 transition cursor-pointer"
               >
                 <img
                   src={currentUser.avatar || '/pwa-192x192.png'}
@@ -492,124 +368,94 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                     {roleNames[currentUser.role]?.label || currentUser.role}
                   </div>
                 </div>
-                <span className="text-xs text-slate-400 mr-0.5">⚙️</span>
+                <span className="text-xs text-slate-400 mr-0.5">▼</span>
               </button>
 
-              {/* Profile Centered Modal Dialog - Never clips off-screen or freezes */}
+              {/* Profile Popup Menu */}
               {showProfileMenu && (
-                <div 
-                  className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-xs animate-in fade-in"
-                  onClick={() => setShowProfileMenu(false)}
-                >
-                  <div 
-                    className="bg-slate-900 border border-slate-750 text-white w-full max-w-sm rounded-3xl shadow-2xl p-4 sm:p-5 relative z-50 max-h-[90vh] overflow-y-auto"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {/* Header with avatar & close button */}
-                    <div className="flex items-center justify-between gap-2 p-2.5 bg-slate-950/90 rounded-2xl border border-slate-800 mb-3">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <img
-                          src={currentUser.avatar || '/pwa-192x192.png'}
-                          alt={currentUser.name}
-                          className="w-11 h-11 rounded-full object-cover border-2 border-amber-400 shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <div className="font-black text-sm text-white truncate">{currentUser.name}</div>
-                          <div className="text-[11px] text-slate-400 truncate">{currentUser.email}</div>
-                          <div className={`mt-1 inline-block text-[10px] px-2 py-0.5 rounded-md border font-bold ${roleNames[currentUser.role]?.bg || 'bg-slate-700/40 border-slate-600'} ${roleNames[currentUser.role]?.text || 'text-slate-300'}`}>
-                            {roleNames[currentUser.role]?.label || currentUser.role || 'مستخدم'}
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowProfileMenu(false)}
-                        className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0"
-                        title="إغلاق"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-
-                    {/* Prominent High-Visibility Logout Button at top of dialog */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        logout();
-                      }}
-                      className="w-full mb-3 bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 hover:to-rose-500 text-white font-black py-2.5 px-3 rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-red-950/50 active:scale-[0.98] border border-red-400/40"
-                    >
-                      <LogOut className="w-4 h-4 text-white" />
-                      <span className="font-black text-white text-xs">تسجيل الخروج من الحساب 🚪</span>
-                    </button>
-
-                    <div className="space-y-2 py-2 px-1 text-[11px] text-slate-300 border-y border-slate-800/80 mb-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-slate-400">الفرع المخصص:</span>
-                        <span className="font-semibold text-amber-300">{currentUser.branchName || 'غير محدد'}</span>
-                      </div>
-                      {supervisorName && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-400">المشرف المباشر:</span>
-                          <span className="font-semibold text-blue-300">{supervisorName}</span>
-                        </div>
-                      )}
-                      {currentUser.role === 'supervisor' && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-400">عدد المناديب التابعين:</span>
-                          <span className="font-semibold text-emerald-300">{supervisedRepsCount} مندوب مبيعات</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between items-center">
-                        <span className="text-slate-400">حالة الحساب:</span>
-                        <span className="text-emerald-400 font-bold flex items-center gap-1">
-                          <ShieldCheck className="w-3.5 h-3.5" /> مفعّل ونشط
-                        </span>
+                <div className="absolute left-0 sm:right-0 mt-2 w-80 bg-slate-900 border border-slate-750 rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in slide-in-from-top-2 text-xs">
+                  <div className="flex items-center gap-3 p-2 bg-slate-950 rounded-xl border border-slate-800 mb-2.5">
+                    <img
+                      src={currentUser.avatar || '/pwa-192x192.png'}
+                      alt={currentUser.name}
+                      className="w-10 h-10 rounded-full object-cover border-2 border-amber-400"
+                    />
+                    <div>
+                      <div className="font-bold text-sm text-white">{currentUser.name}</div>
+                      <div className="text-[11px] text-slate-400">{currentUser.email}</div>
+                      <div className={`mt-1 inline-block text-[10px] px-2 py-0.5 rounded-md border font-bold ${roleNames[currentUser.role]?.bg || 'bg-slate-700/40 border-slate-600'} ${roleNames[currentUser.role]?.text || 'text-slate-300'}`}>
+                        {roleNames[currentUser.role]?.label || currentUser.role || 'مستخدم'}
                       </div>
                     </div>
+                  </div>
 
-                    <div className="space-y-2">
-                      {/* Edit Company Info & Header Details */}
-                      {['admin', 'developer', 'branch_manager', 'supervisor'].includes(currentUser.role) && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowProfileMenu(false);
-                            setIsCompanyModalOpen(true);
-                          }}
-                          className="w-full bg-slate-800 hover:bg-slate-750 text-amber-300 border border-amber-500/30 font-bold py-2 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[38px]"
-                        >
-                          <Building2 className="w-4 h-4 text-amber-400" />
-                          <span>
-                            {currentUser.role === 'admin' || currentUser.role === 'developer'
-                              ? '🏢 إعدادات بيانات الفاتورة (الشركة / الفروع)'
-                              : `🏢 إعدادات بيانات الفاتورة (${currentUser.branchName})`}
-                          </span>
-                        </button>
-                      )}
+                  <div className="space-y-1.5 py-1 text-[11px] text-slate-300 border-b border-slate-800 pb-2.5">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">الفرع المخصص:</span>
+                      <span className="font-semibold text-amber-300">{currentUser.branchName}</span>
+                    </div>
+                    {supervisorName && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">المشرف المباشر:</span>
+                        <span className="font-semibold text-blue-300">{supervisorName}</span>
+                      </div>
+                    )}
+                    {currentUser.role === 'supervisor' && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">عدد المناديب التابعين:</span>
+                        <span className="font-semibold text-emerald-300">{supervisedRepsCount} مندوب مبيعات</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">حالة الحساب:</span>
+                      <span className="text-emerald-400 font-bold flex items-center gap-1">
+                        <ShieldCheck className="w-3 h-3" /> مفعّل ونشط
+                      </span>
+                    </div>
+                  </div>
 
+                  <div className="space-y-1.5 pt-2">
+                    {/* Edit Company Info & Header Details */}
+                    {['admin', 'developer', 'branch_manager', 'supervisor'].includes(currentUser.role) && (
                       <button
                         type="button"
                         onClick={() => {
                           setShowProfileMenu(false);
-                          setActiveTab('guide');
+                          setIsCompanyModalOpen(true);
                         }}
-                        className="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold py-2 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[38px]"
+                        className="w-full bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[40px]"
                       >
-                        <BookOpen className="w-4 h-4" />
-                        <span>📖 دليل دورة العمل والتشغيل</span>
+                        <Building2 className="w-4 h-4 text-amber-400" />
+                        <span>
+                          {currentUser.role === 'admin' || currentUser.role === 'developer'
+                            ? 'إعدادات بيانات الفاتورة (الشركة / الفروع)'
+                            : `إعدادات بيانات الفاتورة (${currentUser.branchName})`}
+                        </span>
                       </button>
+                    )}
 
-                      {/* Close button */}
-                      <button
-                        type="button"
-                        onClick={() => setShowProfileMenu(false)}
-                        className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2 px-3 rounded-xl text-xs transition cursor-pointer"
-                      >
-                        إغلاق
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        setActiveTab('guide');
+                      }}
+                      className="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[40px]"
+                    >
+                      <BookOpen className="w-4 h-4" />
+                      <span>دليل دورة العمل والتشغيل</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        logout();
+                      }}
+                      className="w-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-2 cursor-pointer min-h-[40px]"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>تسجيل الخروج الآمن</span>
+                    </button>
                   </div>
                 </div>
               )}
@@ -637,12 +483,12 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
           </div>
         </div>
 
-        {/* Navigation Tabs Bar (Desktop and Tablets Only - Hidden on Mobile to prevent overcrowding) */}
-        <div className="hidden md:block bg-slate-950/60 border-t border-slate-800/80 px-2 sm:px-4 lg:px-6 overflow-x-auto no-scrollbar">
-          <div className="max-w-[1600px] w-full mx-auto flex items-center gap-1 sm:gap-2 py-1.5">
+        {/* Navigation Tabs Bar (Desktop and Tablets) */}
+        <div className="hidden bg-slate-950/60 border-t border-slate-800/80 px-2 sm:px-6 overflow-x-auto no-scrollbar">
+          <div className="max-w-7xl mx-auto flex items-center gap-1 sm:gap-2 py-1.5">
             {filteredNavItems.map((item) => {
               const Icon = item.icon;
-              const isActive = getPrimaryNavId(activeTab) === item.id;
+              const isActive = activeTab === item.id;
               return (
                 <button
                   key={item.id}
@@ -671,222 +517,42 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
         </div>
       </header>
 
-      {/* Mobile Slide-in Drawer Menu (Accessible via Hamburger Icon ☰) */}
-      {isMobileDrawerOpen && (
-        <div className="fixed inset-0 z-50 md:hidden animate-in fade-in duration-200">
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-xs transition-opacity cursor-pointer"
-            onClick={() => setIsMobileDrawerOpen(false)}
-          />
-          
-          {/* Drawer Body */}
-          <div className="fixed inset-y-0 right-0 max-w-xs w-full bg-slate-950 border-l border-slate-800 shadow-2xl flex flex-col z-50">
-            {/* Drawer Header */}
-            <div className="p-4 border-b border-slate-850 flex items-center justify-between bg-slate-900">
-              <div className="flex items-center gap-3">
-                <img
-                  src={currentUser.avatar || '/pwa-192x192.png'}
-                  alt={currentUser.name}
-                  className="w-10 h-10 rounded-full object-cover border-2 border-amber-400"
-                />
-                <div>
-                  <div className="font-bold text-sm text-white">{currentUser.name}</div>
-                  <div className="text-[11px] text-amber-400 font-medium">
-                    {currentUser.branchName || 'كل الفروع'} • {roleNames[currentUser.role]?.label || currentUser.role}
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsMobileDrawerOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-                title="إغلاق القائمة"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Nav Items List */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-1">
-              <div className="text-[10px] text-slate-400 font-bold px-3 py-1 uppercase tracking-wider">
-                التنقل السريع بين الأقسام
-              </div>
-              {filteredNavItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = getPrimaryNavId(activeTab) === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      setActiveTab(item.id);
-                      setIsMobileDrawerOpen(false);
-                    }}
-                    className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold transition cursor-pointer ${
-                      isActive
-                        ? 'bg-amber-400 text-slate-950 font-black shadow-md'
-                        : 'text-slate-200 hover:bg-slate-900 hover:text-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Icon className={`w-4 h-4 ${isActive ? 'text-slate-950' : 'text-amber-400'}`} />
-                      <span>{item.label}</span>
-                    </div>
-                    {item.badge && item.badge > 0 ? (
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
-                        isActive ? 'bg-slate-950 text-amber-300' : 'bg-rose-600 text-white'
-                      }`}>
-                        {item.badge}
-                      </span>
-                    ) : null}
-                  </button>
-                );
-              })}
-
-              {/* Quick Tools & Settings in Drawer */}
-              <div className="pt-3 border-t border-slate-900 mt-3 space-y-1.5">
-                <div className="text-[10px] text-slate-400 font-bold px-3 py-1 uppercase tracking-wider">
-                  الأدوات والإعدادات
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    toggleDataSaverMode();
-                  }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-850 text-slate-200 transition cursor-pointer"
-                >
-                  <div className="flex items-center gap-2">
-                    <Zap className={`w-4 h-4 ${dataSaverMode ? 'text-emerald-400' : 'text-slate-400'}`} />
-                    <span>توفير باقة الموبايل</span>
-                  </div>
-                  <span className={`text-[10px] px-2 py-0.5 rounded font-black ${dataSaverMode ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : 'bg-slate-800 text-slate-400'}`}>
-                    {dataSaverMode ? 'مفعّل 🟢' : 'معطل'}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMobileDrawerOpen(false);
-                    setIsInstallModalOpen(true);
-                  }}
-                  className="w-full flex items-center gap-2 p-2.5 rounded-xl text-xs font-bold bg-amber-400/10 hover:bg-amber-400/20 text-amber-300 border border-amber-400/20 transition cursor-pointer"
-                >
-                  <Smartphone className="w-4 h-4 text-amber-400" />
-                  <span>تثبيت التطبيق على الموبايل 📲</span>
-                </button>
-
-                {['admin', 'developer', 'branch_manager', 'supervisor'].includes(currentUser.role) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileDrawerOpen(false);
-                      setIsCompanyModalOpen(true);
-                    }}
-                    className="w-full flex items-center gap-2 p-2.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-850 text-slate-200 transition cursor-pointer"
-                  >
-                    <Building2 className="w-4 h-4 text-amber-400" />
-                    <span>إعدادات ترويسة الفاتورة 🏢</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Drawer Footer with Logout */}
-            <div className="p-3 border-t border-slate-900 bg-slate-900/60">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsMobileDrawerOpen(false);
-                  logout();
-                }}
-                className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl text-xs font-black text-rose-400 bg-rose-950/30 hover:bg-rose-950/50 border border-rose-800/40 transition cursor-pointer"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>تسجيل الخروج من المنظومة</span>
-              </button>
-            </div>
-          </div>
+      <aside className="tantawy-sidebar print:hidden" aria-label="التنقل الرئيسي">
+        <div className="flex items-center gap-3 px-2 pb-5 border-b border-white/10">
+          <img src="/pwa-192x192.png" alt="مجموعة الطنطاوي" className="w-11 h-11 rounded-xl bg-white p-1 object-contain" />
+          <div><div className="font-black text-sm">مجموعة الطنطاوي</div><div className="text-[10px] text-blue-200 mt-0.5">نظام المبيعات والتوزيع</div></div>
         </div>
-      )}
+        <div className="px-2 pt-5 pb-2 text-[10px] font-bold text-blue-200/70">القائمة الرئيسية</div>
+        <nav className="space-y-1">
+          {filteredNavItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return <button key={item.id} onClick={() => setActiveTab(item.id)} aria-current={isActive ? 'page' : undefined}
+              className={`w-full flex items-center gap-3 px-3 rounded-xl text-right text-sm font-bold transition ${isActive ? 'bg-blue-100 text-blue-950 shadow-sm' : 'text-blue-100/85 hover:bg-white/10 hover:text-white'}`}>
+              <Icon className={`w-[18px] h-[18px] ${isActive ? 'text-blue-700' : 'text-blue-200'}`} />
+              <span className="flex-1">{item.label}</span>
+              {item.badge && item.badge > 0 ? <span className="min-w-5 rounded-full bg-rose-500 px-1.5 text-center text-[10px] font-black text-white">{item.badge}</span> : null}
+            </button>;
+          })}
+        </nav>
+        <div className="mt-6 border-t border-white/10 pt-4 px-2 text-[11px] leading-6 text-blue-100/70">
+          <div className="font-bold text-white">{currentUser.name}</div>
+          <div>{roleNames[currentUser.role]?.label || currentUser.role}</div>
+          <div className="mt-1">{currentUser.branchName}</div>
+        </div>
+      </aside>
 
-      {/* Mobile Bottom Navigation Bar (Flutter Material 3 Style - Clean, Luminous & Ergonomic) */}
-      <nav aria-label="شريط التنقل السفلي" className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-lg border-t border-slate-200/80 flex items-center justify-around py-1.5 px-2 shadow-2xl safe-area-inset-bottom">
-        {/* Hub 1: الرئيسية / القيادة */}
-        <button
-          onClick={() => setActiveTab(currentUser.role === 'sales_rep' ? 'rep_home' : 'command')}
-          className={`flex flex-col items-center justify-center min-w-[54px] min-h-[48px] px-2 py-1 rounded-2xl transition active:scale-95 cursor-pointer ${
-            ['rep_home', 'command', 'dashboard', 'management', 'supervisor', 'home'].includes(activeTab)
-              ? 'bg-amber-100/80 text-amber-950 font-black'
-              : 'text-slate-500 hover:text-slate-900 font-bold'
-          }`}
-        >
-          {currentUser.role === 'sales_rep' ? (
-            <Home className={`w-5 h-5 ${['rep_home', 'dashboard', 'home'].includes(activeTab) ? 'text-amber-700 stroke-[2.5]' : 'text-slate-500'}`} />
-          ) : (
-            <Gauge className={`w-5 h-5 ${['command', 'dashboard', 'management', 'supervisor', 'home'].includes(activeTab) ? 'text-amber-700 stroke-[2.5]' : 'text-slate-500'}`} />
-          )}
-          <span className="text-[10px] mt-0.5 font-bold">
-            {currentUser.role === 'sales_rep' ? 'الرئيسية' : 'القيادة'}
-          </span>
-        </button>
-
-        {/* Hub 2: الكتالوج والمخزون */}
-        <button
-          onClick={() => setActiveTab('catalog')}
-          className={`flex flex-col items-center justify-center min-w-[54px] min-h-[48px] px-2 py-1 rounded-2xl transition active:scale-95 cursor-pointer ${
-            ['catalog', 'inventory', 'offers'].includes(activeTab)
-              ? 'bg-amber-100/80 text-amber-950 font-black'
-              : 'text-slate-500 hover:text-slate-900 font-bold'
-          }`}
-        >
-          <Boxes className={`w-5 h-5 ${['catalog', 'inventory', 'offers'].includes(activeTab) ? 'text-amber-700 stroke-[2.5]' : 'text-slate-500'}`} />
-          <span className="text-[10px] mt-0.5 font-bold">الأصناف</span>
-        </button>
-
-        {/* Center Cart Trigger (Flutter FloatingActionButton Style) */}
-        <button
-          onClick={onOpenCart}
-          className="relative -top-3 bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 text-slate-950 w-13 h-13 rounded-2xl shadow-xl shadow-amber-500/35 flex items-center justify-center transform active:scale-90 transition border-2 border-white cursor-pointer shrink-0"
-          aria-label="فتح سلة الطلبية"
-        >
-          <ShoppingCart className="w-6 h-6 stroke-[2.5]" />
-          {cartSummary.itemCount > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white text-[11px] px-1.5 py-0.5 rounded-full font-black min-w-[20px] text-center border-2 border-white shadow-sm">
-              {cartSummary.itemCount}
-            </span>
-          )}
-        </button>
-
-        {/* Hub 3: الفواتير */}
-        <button
-          onClick={() => setActiveTab('invoices')}
-          className={`relative flex flex-col items-center justify-center min-w-[54px] min-h-[48px] px-2 py-1 rounded-2xl transition active:scale-95 cursor-pointer ${
-            activeTab === 'invoices'
-              ? 'bg-amber-100/80 text-amber-950 font-black'
-              : 'text-slate-500 hover:text-slate-900 font-bold'
-          }`}
-        >
-          <Receipt className={`w-5 h-5 ${activeTab === 'invoices' ? 'text-amber-700 stroke-[2.5]' : 'text-slate-500'}`} />
-          <span className="text-[10px] mt-0.5 font-bold">الفواتير</span>
-          {pendingOrdersCount > 0 && (
-            <span className="absolute top-1 right-2 w-2.5 h-2.5 bg-amber-500 rounded-full border border-white"></span>
-          )}
-        </button>
-
-        {/* Hub 4: العملاء والزيارات */}
-        <button
-          onClick={() => setActiveTab('all_customers')}
-          className={`relative flex flex-col items-center justify-center min-w-[54px] min-h-[48px] px-2 py-1 rounded-2xl transition active:scale-95 cursor-pointer ${
-            ['all_customers', 'customers', 'visits'].includes(activeTab)
-              ? 'bg-amber-100/80 text-amber-950 font-black'
-              : 'text-slate-500 hover:text-slate-900 font-bold'
-          }`}
-        >
-          <Users className={`w-5 h-5 ${['all_customers', 'customers', 'visits'].includes(activeTab) ? 'text-amber-700 stroke-[2.5]' : 'text-slate-500'}`} />
-          <span className="text-[10px] mt-0.5 font-bold">العملاء</span>
-        </button>
+      <nav className="tantawy-mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#102b4e]/95 backdrop-blur border-t border-white/10 flex items-center py-1.5 shadow-2xl safe-area-inset-bottom print:hidden" aria-label="التنقل">
+        {filteredNavItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = activeTab === item.id;
+          return <button key={item.id} onClick={() => setActiveTab(item.id)} aria-current={isActive ? 'page' : undefined}
+            className={`relative flex flex-col items-center justify-center rounded-xl px-1 text-[10px] font-bold transition ${isActive ? 'text-amber-300' : 'text-blue-100/80'}`}>
+            <Icon className="w-5 h-5 mb-0.5" />
+            <span className="max-w-[72px] truncate">{item.label}</span>
+            {item.badge && item.badge > 0 ? <span className="absolute top-0 right-2 min-w-4 rounded-full bg-rose-500 px-1 text-[9px] text-white">{item.badge}</span> : null}
+          </button>;
+        })}
       </nav>
 
       {/* PWA Install Modal */}
@@ -903,12 +569,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
           onClose={() => setIsCompanyModalOpen(false)}
         />
       )}
-
-      {/* Database & Cloud Connection Status Modal */}
-      <DatabaseConnectionModal
-        isOpen={isDatabaseModalOpen}
-        onClose={() => setIsDatabaseModalOpen(false)}
-      />
     </>
   );
 };
+
