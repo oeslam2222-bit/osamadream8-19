@@ -17,6 +17,7 @@ import {
   Package,
   Plus,
   Minus,
+  Receipt,
   Search,
   ShoppingCart,
   Sparkles,
@@ -35,6 +36,7 @@ import {
   Star,
   ShieldCheck,
   Truck,
+  User,
   SlidersHorizontal,
   FileSpreadsheet,
   Link,
@@ -637,8 +639,85 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     'منخفض': { bg: 'bg-zinc-600 text-zinc-200', text: 'عادي' },
   };
 
+  const activeInvoiceStep = selectedCustomer ? 3 : cart.length > 0 ? 2 : 1;
+  const invoiceSteps = [
+    { id: 1, label: 'اختيار المنتجات', hint: 'ابحث وأضف الكمية', icon: Package },
+    { id: 2, label: 'مراجعة السلة', hint: cart.length > 0 ? `${cart.length} صنف مضاف` : 'لم تضف أصنافًا بعد', icon: ShoppingCart },
+    { id: 3, label: 'اختيار العميل', hint: selectedCustomer?.name || 'حدد عميل الفاتورة', icon: User },
+    { id: 4, label: 'الدفع والإصدار', hint: 'مراجعة وحفظ الفاتورة', icon: Receipt },
+  ];
+
   return (
     <div className="tantawy-screen space-y-4 pb-20">
+      {/* Sales workflow header: keeps the rep oriented without changing invoice logic. */}
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-4 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-amber-300 shadow-sm">
+              <ShoppingCart className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-black text-slate-900 sm:text-xl">إنشاء فاتورة بيع</h2>
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700 ring-1 ring-emerald-200">
+                  نقطة بيع المندوب
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs font-medium text-slate-500">
+                اختر المنتجات أولًا، ثم راجع السلة وحدد العميل لإتمام البيع.
+              </p>
+            </div>
+          </div>
+
+          {onOpenCart && (
+            <button
+              type="button"
+              onClick={onOpenCart}
+              disabled={cart.length === 0}
+              className="flex h-11 items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 text-xs font-black text-slate-950 shadow-sm transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
+            >
+              <ShoppingCart className="h-4 w-4" />
+              <span>{cart.length > 0 ? `متابعة السلة (${cart.length})` : 'السلة فارغة'}</span>
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-px bg-slate-100 lg:grid-cols-4">
+          {invoiceSteps.map((step) => {
+            const StepIcon = step.icon;
+            const isCurrent = step.id === activeInvoiceStep;
+            const isComplete = step.id < activeInvoiceStep;
+
+            return (
+              <div
+                key={step.id}
+                className={`relative flex min-w-0 items-center gap-3 bg-white px-4 py-3.5 sm:px-5 ${
+                  isCurrent ? 'after:absolute after:inset-x-0 after:bottom-0 after:h-1 after:bg-amber-400' : ''
+                }`}
+              >
+                <div
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                    isCurrent
+                      ? 'bg-slate-900 text-amber-300'
+                      : isComplete
+                        ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+                        : 'bg-slate-100 text-slate-400'
+                  }`}
+                >
+                  {isComplete ? <Check className="h-4 w-4" /> : <StepIcon className="h-4 w-4" />}
+                </div>
+                <div className="min-w-0">
+                  <div className={`text-xs font-black ${isCurrent ? 'text-slate-900' : isComplete ? 'text-emerald-800' : 'text-slate-500'}`}>
+                    {step.id}. {step.label}
+                  </div>
+                  <div className="mt-0.5 truncate text-[10px] font-medium text-slate-400">{step.hint}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
       {/* Selected Customer Order Context Banner */}
       {selectedCustomer && (
@@ -854,19 +933,19 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       </div>
 
       {/* Unified, Clean Search & Quick Filters Bar - Simplified for Mobile with high touch targets */}
-      <div className="bg-slate-900 text-white rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 shadow-lg border border-slate-800 space-y-2.5 sm:space-y-3">
+      <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:rounded-3xl sm:p-5 space-y-2.5 sm:space-y-3">
         <div className="flex items-center justify-between gap-2 md:hidden">
           <div className="flex items-center gap-2 min-w-0">
-            <SlidersHorizontal className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="text-sm font-black truncate">البحث والتصفية</span>
+            <SlidersHorizontal className="w-4 h-4 text-slate-700 shrink-0" />
+            <span className="text-sm font-black text-slate-900 truncate">البحث والتصفية</span>
             {(selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل' || stockAvailabilityFilter !== 'all') && (
-              <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-black text-slate-950">مفعّل</span>
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-800">مفعّل</span>
             )}
           </div>
           <button
             type="button"
             onClick={() => setIsFilterPanelOpen((open) => !open)}
-            className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-amber-400/40 bg-amber-400 px-3 text-xs font-black text-slate-950 transition active:scale-95"
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-slate-900 px-3 text-xs font-black text-white transition active:scale-95"
             aria-expanded={isFilterPanelOpen}
             aria-controls="catalog-filters"
           >
@@ -886,12 +965,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="ابحث بالكود، الكود الموحد (#)، اسم الصنف، الماركة..."
-              className="w-full h-11 sm:h-12 pl-10 pr-10 bg-slate-800 text-white placeholder-slate-400 border border-slate-700 rounded-xl text-sm sm:text-base font-medium focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
+              className="w-full h-11 sm:h-12 pl-10 pr-10 bg-slate-50 text-slate-900 placeholder-slate-400 border border-slate-200 rounded-xl text-sm sm:text-base font-medium focus:outline-none focus:ring-2 focus:ring-blue-200 transition"
             />
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm('')}
-                className="absolute left-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white w-9 h-9 flex items-center justify-center cursor-pointer"
+                className="absolute left-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 w-9 h-9 flex items-center justify-center cursor-pointer"
                 aria-label="مسح البحث"
               >
                 <X className="w-5 h-5" />
@@ -905,12 +984,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             onClick={toggleConfidentialMode}
             className={`h-11 sm:h-12 px-3 sm:px-4 rounded-xl font-black text-xs flex items-center justify-center gap-2 transition shrink-0 cursor-pointer shadow-sm ${
               isConfidentialMode
-                ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300'
-                : 'bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700'
+                ? 'bg-amber-100 text-amber-900 ring-1 ring-amber-300'
+                : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
             }`}
             title={isConfidentialMode ? 'وضع سرية البيانات مفعّل (الأسعار محجوبة أمام العملاء) - انقر للإظهار' : 'تفعيل وضع سرية البيانات أمام العملاء (إخفاء الأسعار والمديونيات)'}
           >
-            <ShieldCheck className={`w-4 h-4 ${isConfidentialMode ? 'text-slate-950' : 'text-amber-400'}`} />
+            <ShieldCheck className={`w-4 h-4 ${isConfidentialMode ? 'text-amber-700' : 'text-slate-500'}`} />
             <span className="whitespace-nowrap">
               {isConfidentialMode ? 'سرية البيانات: مفعّلة' : 'سرية البيانات'}
             </span>
@@ -918,14 +997,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
 
         {/* Dropdown Filters Toolbar */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 border-t border-slate-800/80 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-3 border-t border-slate-100 text-xs">
           {/* Stock Status Dropdown */}
           <div className="relative">
             <select
               aria-label="تصفية حالة المخزون"
               value={stockAvailabilityFilter}
               onChange={(e) => setStockAvailabilityFilter(e.target.value as any)}
-              className="w-full h-11 px-2.5 bg-slate-800 text-slate-100 border border-slate-700 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer text-xs"
+              className="w-full h-11 px-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer text-xs"
             >
               <option value="all">كل حالات المخزون ({stockCounts.all})</option>
               <option value="offers">عروض وتخفيضات خاصة ({stockCounts.offers})</option>
@@ -956,7 +1035,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   setSelectedStatus('الكل');
                 }
               }}
-              className="w-full h-11 px-2.5 bg-slate-800 text-slate-100 border border-slate-700 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer text-xs"
+              className="w-full h-11 px-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer text-xs"
             >
               <option value="all">كل الأصناف والعروض</option>
               <option value="priority_مرتفع">الأكثر طلباً</option>
@@ -972,7 +1051,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               aria-label="ترتيب المنتجات"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="flex-1 h-11 px-2.5 bg-slate-800 text-slate-100 border border-slate-700 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer text-xs"
+              className="flex-1 h-11 px-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer text-xs"
             >
               <option value="default">الترتيب: الافتراضي</option>
               <option value="branch_stock_desc">مخزون الفرع: الأكثر للأقل</option>
@@ -987,7 +1066,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             </select>
 
             {/* View Mode Switcher (Visible on Mobile, Tablet & Desktop) */}
-            <div className="flex items-center bg-slate-800 p-0.5 rounded-xl border border-slate-700 h-11 shrink-0">
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 h-11 shrink-0">
               <button
                 onClick={() => {
                   setViewMode('grid');
@@ -996,7 +1075,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 className={`px-2.5 h-9 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
                   viewMode === 'grid' && gridDensity === 'comfortable'
                     ? 'bg-amber-400 text-slate-950 shadow-xs'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-slate-500 hover:text-slate-900'
                 }`}
                 title="عرض مريح (بطاقة واسعة ومقروءة للموبايل)"
               >
@@ -1011,7 +1090,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 className={`px-2.5 h-9 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
                   viewMode === 'grid' && gridDensity === 'compact'
                     ? 'bg-amber-400 text-slate-950 shadow-xs'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-slate-500 hover:text-slate-900'
                 }`}
                 title="عرض مزدوج (بطاقتين بالصف)"
               >
@@ -1023,7 +1102,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 className={`px-2.5 h-9 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
                   viewMode === 'list'
                     ? 'bg-amber-400 text-slate-950 shadow-xs'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-slate-500 hover:text-slate-900'
                 }`}
                 title="عرض جدول تفصيلي"
               >
@@ -1035,13 +1114,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
 
         {/* Quick Stock Status Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar pt-1 border-t border-slate-800/60">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar pt-3 border-t border-slate-100">
           <button
             onClick={() => setStockAvailabilityFilter('all')}
             className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 ${
               stockAvailabilityFilter === 'all'
                 ? 'bg-amber-400 text-slate-950 shadow-xs'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
             }`}
           >
             الكل ({stockCounts.all})
@@ -1052,7 +1131,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             className={`px-3 py-1 rounded-lg text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
               stockAvailabilityFilter === 'offers'
                 ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 text-slate-950 shadow-md ring-2 ring-amber-300'
-                : 'bg-amber-950/50 text-amber-300 border border-amber-500/50 hover:bg-amber-900/70'
+                : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
             }`}
           >
             <span>عروض وتخفيضات</span>
@@ -1067,7 +1146,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1 ${
               stockAvailabilityFilter === 'in_branch'
                 ? 'bg-emerald-600 text-white shadow-xs'
-                : 'bg-slate-800 text-emerald-400 hover:bg-slate-700'
+                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
             }`}
           >
             <span>بالفرع</span>
@@ -1078,7 +1157,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1 ${
               stockAvailabilityFilter === 'in_warehouse'
                 ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-slate-800 text-blue-300 hover:bg-slate-700'
+                : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
             }`}
           >
             <span>مخزن أكتوبر</span>
@@ -1089,7 +1168,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1 ${
               stockAvailabilityFilter === 'out_of_branch_only'
                 ? 'bg-indigo-600 text-white shadow-xs'
-                : 'bg-slate-800 text-indigo-300 hover:bg-slate-700'
+                : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
             }`}
           >
             <span>بأكتوبر فقط</span>
@@ -1100,7 +1179,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1 ${
               stockAvailabilityFilter === 'low_stock'
                 ? 'bg-amber-500 text-slate-950 shadow-xs'
-                : 'bg-slate-800 text-amber-400 hover:bg-slate-700'
+                : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
             }`}
           >
             <span>قارب على النفاذ</span>
@@ -1111,7 +1190,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1 ${
               stockAvailabilityFilter === 'out_of_stock'
                 ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-slate-800 text-rose-400 hover:bg-slate-700'
+                : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
             }`}
           >
             <span>بدون مخزون (منتهية)</span>
@@ -1121,9 +1200,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
         {/* Active Filter Reset Pill if filtered */}
         {(searchTerm || selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل' || selectedPriority !== 'الكل' || selectedStatus !== 'الكل' || stockAvailabilityFilter !== 'all' || sortBy !== 'default') && (
-          <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-xs">
-            <span className="text-slate-400 text-[11px]">
-              النتائج المطابقة: <strong className="text-amber-300 font-bold">{filteredProducts.length}</strong> صنف
+          <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
+            <span className="text-slate-500 text-[11px]">
+              النتائج المطابقة: <strong className="text-slate-900 font-black">{filteredProducts.length}</strong> صنف
             </span>
             <button
               onClick={() => {
@@ -1135,7 +1214,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 setStockAvailabilityFilter('all');
                 setSortBy('default');
               }}
-              className="text-amber-400 hover:text-amber-300 font-bold underline cursor-pointer text-xs"
+              className="text-rose-600 hover:text-rose-700 font-bold cursor-pointer text-xs"
             >
               إلغاء التصفية الشاملة
             </button>
