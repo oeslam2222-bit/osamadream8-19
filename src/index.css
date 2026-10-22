@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
 @layer base {
@@ -6,16 +7,51 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    background: #eef3f8;
+    color: #17283d;
   }
+  body { margin: 0; min-width: 320px; }
+  #root { min-height: 100dvh; }
 
   button, input, select, textarea {
     font-family: inherit;
   }
 }
 
+:root {
+  --app-ink: #17283d;
+  --app-navy: #102b4e;
+  --app-blue: #1e5f9d;
+  --app-blue-soft: #e8f1fa;
+  --app-canvas: #eef3f8;
+  --app-line: #d8e2ec;
+  --app-muted: #6d7e91;
+  --app-accent: #c99a43;
+}
+
 /* Mobile & Touch Performance Optimization */
 * {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Keep every interactive control comfortable for touch users. */
+button,
+[role="button"],
+a,
+select,
+input[type="checkbox"],
+input[type="radio"] {
+  min-height: 44px;
+}
+
+button svg,
+[role="button"] svg {
+  flex-shrink: 0;
+}
+
+/* Prevent long Arabic labels and financial values from breaking layouts. */
+[dir="rtl"] {
+  overflow-wrap: anywhere;
 }
 
 /* Fast smooth transitions and hardware acceleration for modals */
@@ -27,37 +63,13 @@
 @media print {
   @page { size: A4 portrait; margin: 8mm; }
   html, body { background: #fff !important; }
-  body > *:not(#invoice-print-root):not(#visits-print-root) { display: none !important; }
+  body > *:not(#invoice-print-root) { display: none !important; }
   #invoice-print-root {
     display: block !important;
     width: 100% !important;
     color: #0f172a !important;
     background: #fff !important;
   }
-  /* Visits report. Same isolated-root approach as the invoice, so printing a filtered
-     visit list never disturbs invoice printing and never needs the on-screen chrome. */
-  #visits-print-root {
-    display: block !important;
-    width: 100% !important;
-    color: #0f172a !important;
-    background: #fff !important;
-    direction: rtl;
-    font-size: 10pt;
-  }
-  #visits-print-root table {
-    width: 100% !important;
-    border-collapse: collapse !important;
-  }
-  #visits-print-root th,
-  #visits-print-root td {
-    border: 1px solid #cbd5e1 !important;
-    padding: 4px 6px !important;
-    text-align: right !important;
-    font-size: 9pt;
-  }
-  #visits-print-root thead { display: table-header-group; }
-  #visits-print-root tr { page-break-inside: avoid; }
-
   #invoice-print-root .invoice-print-copy {
     display: block !important;
     width: 100% !important;
@@ -87,6 +99,142 @@
 }
 
 @media screen {
-  #invoice-print-root,
-  #visits-print-root { display: none; }
+  #invoice-print-root { display: none; }
+}
+
+/* App-wide responsive rules for catalog, invoices, customers, inventory and dashboards. */
+@media (max-width: 767px) {
+  main {
+    min-width: 0;
+    padding-inline: 0.625rem !important;
+    padding-bottom: 6.75rem !important;
+  }
+
+  /* KPI/stat grids collapse cleanly and let large currency values scale down. */
+  [class*="grid-cols-4"],
+  [class*="grid-cols-3"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .text-5xl { font-size: 2rem !important; line-height: 1.05 !important; }
+  .text-4xl { font-size: 1.75rem !important; line-height: 1.1 !important; }
+  .text-3xl { font-size: 1.5rem !important; line-height: 1.15 !important; }
+
+  /* Let dense data remain usable without forcing the entire page wide. */
+  table { min-width: 620px; }
+  .overflow-x-auto { -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+
+  /* Dialog-like fixed surfaces use the full viewport on phones. */
+  [role="dialog"] {
+    max-width: none !important;
+    width: 100vw !important;
+    max-height: 100dvh !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+    inset: 0 !important;
+  }
+
+  /* Common modal surface patterns used before role is applied. */
+  .fixed.inset-0 > .rounded-3xl,
+  .fixed.inset-0 > .rounded-2xl {
+    width: 100% !important;
+    max-width: none !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+
+  /* Compact filter/action rows into a horizontally scrollable control strip. */
+  main .flex.flex-wrap { row-gap: 0.5rem; }
+  main input,
+  main select,
+  main textarea { max-width: 100%; }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  [class*="grid-cols-4"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+
+@media (max-width: 420px) {
+  [class*="grid-cols-2"] { grid-template-columns: minmax(0, 1fr) !important; }
+  .text-2xl { font-size: 1.25rem !important; }
+  .text-xl { font-size: 1.1rem !important; }
+}
+
+.safe-area-inset-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Tantawy operations system: cool paper, deep ink, restrained brass. */
+body { background: var(--app-canvas); color: var(--app-ink); }
+main { min-width: 0; }
+main > :first-child { min-width: 0; }
+button, input, select, textarea { font-family: inherit; }
+input, select, textarea {
+  border-color: var(--app-line) !important;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #4b82b4 !important;
+  box-shadow: 0 0 0 3px rgba(51, 112, 169, .12);
+}
+main .bg-white {
+  background-color: #fff !important;
+}
+main .rounded-3xl, main .rounded-2xl {
+  border-radius: 1.1rem;
+}
+main .shadow-sm, main .shadow-xs {
+  box-shadow: 0 2px 10px rgba(27, 54, 82, .045);
+}
+main table thead { background-color: #173b63 !important; color: #edf5fc !important; }
+main tbody tr:hover { background-color: #f1f6fb; }
+main .text-amber-600, main .text-amber-700 { color: #9b7027 !important; }
+main .bg-amber-500, main .bg-amber-400 { background-color: #d0a34e !important; }
+main .border-amber-400, main .border-amber-500 { border-color: #d0a34e !important; }
+main .text-slate-900 { color: #17283d !important; }
+main .bg-slate-50 { background-color: #f4f7fa !important; }
+main .border-slate-200 { border-color: var(--app-line) !important; }
+
+.tantawy-sidebar {
+  position: fixed;
+  z-index: 45;
+  inset: 0 0 0 auto;
+  width: 258px;
+  overflow-y: auto;
+  padding: 1.15rem .85rem;
+  background: #102b4e;
+  border-left: 1px solid #23496f;
+  color: #eaf2f9;
+}
+.tantawy-sidebar button { min-height: 46px; }
+.tantawy-shell { padding-right: 258px; }
+.tantawy-mobile-nav button { min-height: 54px; }
+.tantawy-mobile-nav {
+  overflow-x: auto;
+  justify-content: flex-start;
+  gap: .25rem;
+  padding-inline: .5rem;
+  scroll-snap-type: x proximity;
+}
+.tantawy-mobile-nav button { flex: 1 0 64px; }
+
+@media (max-width: 1023px) {
+  .tantawy-sidebar { display: none; }
+  .tantawy-shell { padding-right: 0; }
+  .tantawy-topbar { margin-right: 0; }
+}
+@media (max-width: 767px) {
+  html, body, #root { width: 100%; overflow-x: hidden; }
+  main { padding-inline: .7rem !important; }
+  .tantawy-mobile-nav span { font-size: 10px; }
+  .tantawy-mobile-nav button { flex: 0 0 66px; }
+  .tantawy-mobile-nav button[aria-current="page"] { color: #d7ad5e; }
+  .tantawy-topbar > div { min-width: 0; }
+  .tantawy-topbar > div > div:last-child { max-width: 60vw; overflow-x: auto; scrollbar-width: none; }
+  .tantawy-topbar > div > div:last-child::-webkit-scrollbar { display: none; }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .tantawy-mobile-nav { display: flex; }
+  .tantawy-mobile-nav button { flex: 0 0 86px; }
 }
