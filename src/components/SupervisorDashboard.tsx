@@ -30,8 +30,7 @@ import {
   Users,
   X,
   XCircle,
-  Trash2,
-  Sparkles
+  Trash2
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -47,13 +46,11 @@ import { OrderReturnModal } from './OrderReturnModal';
 interface SupervisorDashboardProps {
   onOpenNewOrder?: () => void;
   onViewInvoice?: (invoice: Invoice) => void;
-  onNavigateToTab?: (tab: string) => void;
 }
 
 export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   onOpenNewOrder,
   onViewInvoice,
-  onNavigateToTab,
 }) => {
   const {
     invoices,
@@ -66,13 +63,11 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     setSelectedBranchFilter,
     updateOrderStatus,
     approveOrder,
-    dispatchOrderToMicrosoft,
-    syncToAccounting,
+    resendInvoiceEmail,
     forwardOrderToManager,
     rejectOrder,
     deleteInvoice,
   } = useApp();
-  const canFilterBranches = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
   const [activeStatusTab, setActiveStatusTab] = useState<string>('الكل');
   const [searchTerm, setSearchTerm] = useState('');
@@ -154,20 +149,9 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         return;
       }
 
-      // Robust branch lookup with isBranchMatch
-      let branchData = branchMap.get(bName);
-      if (!branchData) {
-        for (const [k, v] of branchMap.entries()) {
-          if (isBranchMatch(k, bName, { allowUnassigned: false })) {
-            branchData = v;
-            break;
-          }
-        }
-      }
-
-      if (!branchData) {
+      if (!branchMap.has(bName)) {
         if (isAdminOrDev) {
-          branchData = {
+          branchMap.set(bName, {
             name: bName,
             code: '',
             city: bName.replace('فرع ', ''),
@@ -177,15 +161,14 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             deliveredCount: 0,
             deliveredSales: 0,
             pendingCount: 0,
-          };
-          branchMap.set(bName, branchData);
-        } else if (branchMap.size === 1) {
-          // For branch manager, attribute all visible invoices to their branch
-          branchData = Array.from(branchMap.values())[0];
+          });
         } else {
           return;
         }
       }
+
+      const branchData = branchMap.get(bName);
+      if (!branchData) return;
 
       branchData.ordersCount += 1;
 
@@ -193,7 +176,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         branchData.totalSales += inv.estimatedGrandTotal || 0;
         branchData.totalCartons += inv.totalCartons || 0;
       }
-      if (inv.status === 'تم التسليم' || inv.status === 'إغلاق الطلبية') {
+      if (inv.status === 'تم التسليم') {
         branchData.deliveredCount += 1;
         branchData.deliveredSales += inv.estimatedGrandTotal || 0;
       }
@@ -224,7 +207,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
       if (
         (currentUser?.role === 'admin' || currentUser?.role === 'developer') &&
         selectedBranchFilter !== 'الكل' &&
-        !isBranchMatch(inv.branchName, selectedBranchFilter)
+        inv.branchName !== selectedBranchFilter
       ) {
         return false;
       }
@@ -276,10 +259,9 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     return accessibleInvoices.slice(start, start + itemsPerPage);
   }, [accessibleInvoices, currentPage, itemsPerPage]);
 
-  // High-Level Dashboard Metrics (Sales and Workflow Status)
+  // High-Level Dashboard Metrics
   const metrics = useMemo(() => {
     let totalRevenue = 0;
-    let totalAllSales = 0;
     let totalCartons = 0;
     let pendingApprovals = 0;
     let outForDelivery = 0;
@@ -289,31 +271,25 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     let returnedRevenue = 0;
     let returnedCartons = 0;
 
+    let approvedCount = 0;
     let preparingCount = 0;
 
     accessibleInvoices.forEach((inv) => {
-      // Calculate total sales across all non-cancelled orders
-      if (inv.status !== 'مرفوضة / ملغاة' && inv.status !== 'ملغاة') {
-        totalAllSales += inv.estimatedGrandTotal || 0;
-      }
-
       const isApprovedOrActive =
         inv.status === 'معتمدة ومصروفة من المخزن' ||
         inv.status === 'معتمدة' ||
         inv.status === 'جاري التجهيز' ||
-        inv.status === 'قيد التوصيل' ||
-        inv.status === 'تم التسليم' ||
-        inv.status === 'إغلاق الطلبية';
+  inv.status === 'قيد التوصيل' ||
+  inv.status === 'تم التسليم' ||
+  inv.status === 'إغلاق الطلبية';
 
       if (isApprovedOrActive) {
         totalRevenue += inv.estimatedGrandTotal || 0;
         totalCartons += inv.totalCartons || 0;
       }
 
-      // Collections: delivered or closed orders
-      if (inv.status === 'تم التسليم' || inv.status === 'إغلاق الطلبية') {
-        deliveredCount += 1;
-        deliveredRevenue += inv.estimatedGrandTotal || 0;
+      if (inv.status === 'معتمدة ومصروفة من المخزن' || inv.status === 'معتمدة') {
+        approvedCount += 1;
       } else if (inv.status === 'جاري التجهيز') {
         preparingCount += 1;
       }
@@ -326,6 +302,9 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         pendingApprovals += 1;
       } else if (inv.status === 'قيد التوصيل') {
         outForDelivery += 1;
+  } else if (inv.status === 'تم التسليم' || inv.status === 'إغلاق الطلبية') {
+  deliveredCount += 1;
+  deliveredRevenue += inv.estimatedGrandTotal || 0;
       } else if (inv.status === 'مرتجع') {
         returnedCount += 1;
         returnedRevenue += inv.estimatedGrandTotal || 0;
@@ -333,22 +312,26 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
       }
     });
 
-    const effectiveTotalSales = totalRevenue > 0 ? totalRevenue : totalAllSales;
+    const completedInvoices = deliveredCount + approvedCount;
     const inProgressInvoices = preparingCount + outForDelivery + pendingApprovals;
+    const totalProcessed = deliveredCount + returnedCount + outForDelivery;
+    const deliveryRate = totalProcessed > 0 ? Math.round((deliveredCount / totalProcessed) * 100) : 100;
 
     return {
-      totalRevenue: effectiveTotalSales,
-      totalAllSales,
+      totalRevenue,
       totalCartons,
       pendingApprovals,
       outForDelivery,
       preparingCount,
+      approvedCount,
+      completedInvoices,
       inProgressInvoices,
       deliveredCount,
       deliveredRevenue,
       returnedCount,
       returnedRevenue,
       returnedCartons,
+      deliveryRate,
       shortageInvoicesCount: accessibleInvoices.filter((i) => i.isShortageInvoice || (i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))).length,
     };
   }, [accessibleInvoices]);
@@ -384,56 +367,18 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     };
   }, [products]);
 
-  // 1. Base visible invoices before local rep filtering
-  const baseInvoices = useMemo(() => {
-    return getVisibleInvoices();
-  }, [getVisibleInvoices, invoices, currentUser, users, branches]);
-
-  // List of unique reps in accessible scope (Strict supervisor / branch privacy)
+  // List of unique reps in accessible invoices (Strict branch privacy)
   const repsList = useMemo(() => {
     const set = new Set<string>();
-    // If supervisor, add all reps reporting to this supervisor
-    if (currentUser?.role === 'supervisor') {
-      users.filter((u) => u.role === 'sales_rep' && u.supervisorId === currentUser.id).forEach((u) => set.add(u.name));
-    } else if (currentUser?.role === 'branch_manager' && currentUser.branchName) {
-      users.filter((u) => u.role === 'sales_rep' && isBranchMatch(u.branchName, currentUser.branchName, { allowUnassigned: false })).forEach((u) => set.add(u.name));
-    }
-    baseInvoices.forEach((i) => {
-      if (i.repName) set.add(i.repName);
-    });
-    return ['الكل', ...Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'))];
-  }, [baseInvoices, users, currentUser]);
+    accessibleInvoices.forEach((i) => i.repName && set.add(i.repName));
+    return ['الكل', ...Array.from(set)];
+  }, [accessibleInvoices]);
 
-  // Reps Performance Table calculated from baseInvoices so all team reps are shown
+  // Reps Performance Table
   const repPerformance = useMemo(() => {
-    const map = new Map<string, {
-      name: string;
-      branch: string;
-      orders: number;
-      revenue: number;
-      cartons: number;
-      delivered: number;
-      returned: number;
-      pending: number;
-    }>();
-
-    // Initialize with all supervised reps if supervisor
-    if (currentUser?.role === 'supervisor') {
-      users.filter((u) => u.role === 'sales_rep' && u.supervisorId === currentUser.id).forEach((u) => {
-        map.set(u.name, {
-          name: u.name,
-          branch: u.branchName || currentUser.branchName || 'الفرع',
-          orders: 0,
-          revenue: 0,
-          cartons: 0,
-          delivered: 0,
-          returned: 0,
-          pending: 0,
-        });
-      });
-    }
-
-    baseInvoices.forEach((inv) => {
+    const map = new Map<string, { name: string; branch: string; orders: number; revenue: number; cartons: number; delivered: number; returned: number }>();
+    
+    accessibleInvoices.forEach((inv) => {
       const repKey = inv.repName || 'غير محدد';
       const existing = map.get(repKey) || {
         name: repKey,
@@ -443,7 +388,6 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         cartons: 0,
         delivered: 0,
         returned: 0,
-        pending: 0,
       };
 
       existing.orders += 1;
@@ -451,21 +395,14 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         existing.revenue += inv.estimatedGrandTotal || 0;
         existing.cartons += inv.totalCartons || 0;
       }
-      if (inv.status === 'تم التسليم' || inv.status === 'إغلاق الطلبية') {
-        existing.delivered += 1;
-      }
-      if (inv.status === 'مرتجع') {
-        existing.returned += 1;
-      }
-      if (inv.status === 'قيد مراجعة المشرف' || inv.status === 'معلقة بانتظار اعتماد الفرع' || inv.status === 'قيد المراجعة') {
-        existing.pending += 1;
-      }
+      if (inv.status === 'تم التسليم') existing.delivered += 1;
+      if (inv.status === 'مرتجع') existing.returned += 1;
 
       map.set(repKey, existing);
     });
 
-    return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue);
-  }, [baseInvoices, users, currentUser]);
+    return Array.from(map.values());
+  }, [accessibleInvoices]);
 
   // Handlers for Delivery / Return Status Changes
   const handleSetDelivered = (invoice: Invoice) => {
@@ -523,20 +460,20 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   };
 
   const statusBadges: Record<string, { bg: string; text: string; label: string }> = {
-    'قيد مراجعة المشرف': { bg: 'bg-amber-100 border-amber-300', text: 'text-amber-900', label: 'قيد مراجعة المشرف ⏳' },
-    'معلقة بانتظار اعتماد الفرع': { bg: 'bg-blue-100 border-blue-300', text: 'text-blue-900', label: 'بانتظار مدير الفرع 🏛️' },
-    'جاري تحضير المنتجات': { bg: 'bg-orange-100 border-orange-300', text: 'text-orange-900', label: 'جاري تحضير المنتجات 📦' },
-    'تم وصول المنتجات': { bg: 'bg-teal-100 border-teal-300', text: 'text-teal-900', label: 'تم وصول المنتجات 🏢' },
-    'معتمدة ومصروفة من المخزن': { bg: 'bg-indigo-100 border-indigo-300', text: 'text-indigo-900', label: 'معتمدة ومصروفة 📦' },
-    'قيد التوصيل': { bg: 'bg-cyan-100 border-cyan-300', text: 'text-cyan-900', label: 'قيد التوصيل 🚚' },
-    'تم التسليم': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-900', label: 'تم التسليم بنجاح ✅' },
-    'إغلاق الطلبية': { bg: 'bg-slate-200 border-slate-400', text: 'text-slate-900', label: 'تم إغلاق الطلبية 🔒' },
-    'مرتجع': { bg: 'bg-purple-100 border-purple-300', text: 'text-purple-900', label: 'مرتجع للمخزن ↩️' },
-    'مرفوضة / ملغاة': { bg: 'bg-rose-100 border-rose-300', text: 'text-rose-900', label: 'ملغاة / مرفوضة ❌' },
+    'قيد مراجعة المشرف': { bg: 'bg-amber-100 border-amber-300', text: 'text-amber-900', label: 'قيد مراجعة المشرف' },
+    'معلقة بانتظار اعتماد الفرع': { bg: 'bg-blue-100 border-blue-300', text: 'text-blue-900', label: 'بانتظار مدير الفرع' },
+    'جاري تحضير المنتجات': { bg: 'bg-orange-100 border-orange-300', text: 'text-orange-900', label: 'جاري تحضير المنتجات' },
+    'تم وصول المنتجات': { bg: 'bg-teal-100 border-teal-300', text: 'text-teal-900', label: 'تم وصول المنتجات' },
+    'معتمدة ومصروفة من المخزن': { bg: 'bg-indigo-100 border-indigo-300', text: 'text-indigo-900', label: 'معتمدة ومصروفة' },
+    'قيد التوصيل': { bg: 'bg-cyan-100 border-cyan-300', text: 'text-cyan-900', label: 'قيد التوصيل' },
+    'تم التسليم': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-900', label: 'تم التسليم بنجاح' },
+    'إغلاق الطلبية': { bg: 'bg-slate-200 border-slate-400', text: 'text-slate-900', label: 'تم إغلاق الطلبية' },
+    'مرتجع': { bg: 'bg-purple-100 border-purple-300', text: 'text-purple-900', label: 'مرتجع للمخزن' },
+    'مرفوضة / ملغاة': { bg: 'bg-rose-100 border-rose-300', text: 'text-rose-900', label: 'ملغاة / مرفوضة' },
   };
 
   return (
-    <div className="space-y-5 pb-20">
+    <div className="tantawy-screen space-y-5 pb-20">
       
       {/* Success Notification Toast */}
       {successToast && (
@@ -558,12 +495,12 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             <div className="flex items-center gap-2 flex-wrap">
               <span className="bg-amber-400 text-slate-950 text-xs font-black px-2.5 py-1 rounded-lg">
                 {currentUser?.role === 'sales_rep'
-                  ? '🎯 لوحة تحكم وطلبيات المندوب (Rep Command Center)'
+                  ? 'لوحة تحكم وطلبيات المندوب (Rep Command Center)'
                   : currentUser?.role === 'supervisor'
-                  ? '👔 لوحة إشراف واعتماد الطلبيات (Supervisor Hub)'
+                  ? 'لوحة إشراف واعتماد الطلبيات (Supervisor Hub)'
                   : currentUser?.role === 'branch_manager'
-                  ? '🏛️ لوحة إدارة الفرع والاعتمادات (Branch Manager Hub)'
-                  : '🛡️ لوحة الإدارة العامة والتحكم المركزي (HQ Command Center)'}
+                  ? 'لوحة إدارة الفرع والاعتمادات (Branch Manager Hub)'
+                  : 'لوحة الإدارة العامة والتحكم المركزي (HQ Command Center)'}
               </span>
               <h2 className="text-lg sm:text-xl font-black text-white">
                 {currentUser?.role === 'sales_rep'
@@ -591,22 +528,14 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           </div>
         </div>
 
-        {/* Aggregate KPI Stats Grid - Top Row: Sales & Orders Workflow */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-2">
+        {/* Aggregate KPI Stats Grid - Top Row: Orders Workflow */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
           
-          {/* Card 1: Total Sales */}
-          <div className="bg-slate-800/90 p-3.5 rounded-2xl border border-slate-700/80 space-y-1 relative overflow-hidden group">
-            <div className="text-[11px] text-amber-300 font-bold flex items-center justify-between">
-              <span className="flex items-center gap-1">
-                <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
-                <span>
-                  {currentUser?.role === 'sales_rep'
-                    ? 'إجمالي مبيعاتي'
-                    : currentUser?.role === 'branch_manager'
-                    ? `مبيعات ${currentUser.branchName || 'الفرع'}`
-                    : 'إجمالي المبيعات'}
-                </span>
-              </span>
+          {/* Total Revenue */}
+          <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700/80 space-y-1">
+            <div className="text-[11px] text-slate-400 font-bold flex items-center gap-1">
+              <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
+              <span>{currentUser?.role === 'sales_rep' ? 'إجمالي مبيعاتي' : 'إجمالي المبيعات'}</span>
             </div>
             <div className="text-base sm:text-lg font-black text-amber-300">
               {formatCurrency(metrics.totalRevenue)}
@@ -616,7 +545,21 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             </div>
           </div>
 
-          {/* Card 2: In-Progress / Under Prep Invoices */}
+          {/* Completed Invoices */}
+          <div className="bg-emerald-500/10 p-3.5 rounded-2xl border border-emerald-500/30 space-y-1">
+            <div className="text-[11px] text-emerald-300 font-bold flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{currentUser?.role === 'sales_rep' ? 'طلبياتي المسلّمة' : 'الفواتير المكتملة'}</span>
+            </div>
+            <div className="text-base sm:text-lg font-black text-emerald-400">
+              {metrics.completedInvoices} فاتورة
+            </div>
+            <div className="text-[10px] text-emerald-300/80 font-medium">
+              {metrics.deliveredCount} مسلّمة • {metrics.approvedCount} معتمدة
+            </div>
+          </div>
+
+          {/* In-Progress / Under Prep Invoices */}
           <div className="bg-cyan-500/10 p-3.5 rounded-2xl border border-cyan-500/30 space-y-1">
             <div className="text-[11px] text-cyan-300 font-bold flex items-center gap-1">
               <Truck className="w-3.5 h-3.5 text-cyan-400" />
@@ -630,7 +573,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             </div>
           </div>
 
-          {/* Card 3: Pending Approvals */}
+          {/* Pending Approvals */}
           <div className="bg-amber-500/10 p-3.5 rounded-2xl border border-amber-500/30 space-y-1">
             <div className="text-[11px] text-amber-300 font-bold flex items-center gap-1">
               <Clock className="w-3.5 h-3.5 text-amber-400" />
@@ -644,7 +587,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             </div>
           </div>
 
-          {/* Card 4: Shortages & Backorders */}
+          {/* Shortages & Backorders */}
           <button
             type="button"
             onClick={() => setActiveStatusTab(activeStatusTab === 'فواتير النواقص' ? 'الكل' : 'فواتير النواقص')}
@@ -662,7 +605,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               {metrics.shortageInvoicesCount} فاتورة
             </div>
             <div className={`text-[10px] font-medium ${activeStatusTab === 'فواتير النواقص' ? 'text-indigo-100' : 'text-indigo-300/80'}`}>
-              طلب توريد من أكتوبر
+              طلب توريد من أكتوبر (اضغط للتصفية)
             </div>
           </button>
 
@@ -737,8 +680,8 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         </div>
       </div>
 
-      {/* Real-Time Branch Sales Performance Tracker (Admin, Developer & Branch Manager Overview) */}
-      {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'branch_manager' || currentUser?.role === 'supervisor') && (
+      {/* Real-Time Branch Sales Performance Tracker (Admin & Developer Overview) */}
+      {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
         <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2.5">
@@ -747,24 +690,18 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               </div>
               <div>
                 <h3 className="font-black text-sm sm:text-base text-slate-900">
-                  {currentUser?.role === 'branch_manager'
-                    ? `متابعة مبيعات وأداء ${currentUser.branchName || 'الفرع'} لحظياً`
-                    : 'متابعة مبيعات وأداء الفروع لحظياً (Real-Time Branch Performance)'}
+                  متابعة مبيعات وأداء الفروع لحظياً (Real-Time Branch Performance)
                 </h3>
                 <p className="text-xs text-slate-500">
-                  {currentUser?.role === 'branch_manager'
-                    ? 'إجمالي مبيعات الفرع، المبالغ المحصلة، الكراتين المحجوزة، وحالات الطلبيات'
-                    : 'إجمالي مبيعات كل فرع، عدد الكراتين المحجوزة، ونسبة التنفيذ المباشرة'}
+                  إجمالي مبيعات كل فرع، عدد الكراتين المحجوزة، ونسبة التنفيذ المباشرة
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-500">
-                {currentUser?.role === 'branch_manager' ? 'إجمالي مبيعات فرعك:' : 'إجمالي مبيعات كافة الفروع:'}
-              </span>
-              <span className="bg-slate-900 text-amber-300 font-black px-3 py-1 rounded-xl text-xs sm:text-sm font-mono">
-                {formatCurrency(totalAllBranchSales > 0 ? totalAllBranchSales : metrics.totalRevenue)}
+              <span className="text-xs font-bold text-slate-500">إجمالي مبيعات كافة الفروع:</span>
+              <span className="bg-slate-900 text-amber-300 font-black px-3 py-1 rounded-xl text-xs sm:text-sm">
+                {formatCurrency(totalAllBranchSales)}
               </span>
             </div>
           </div>
@@ -772,19 +709,15 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           {/* Branch Interactive Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {branchSalesSummary.map((b) => {
-              const isSelected = canFilterBranches ? selectedBranchFilter === b.name : true;
+              const isSelected = selectedBranchFilter === b.name;
               return (
                 <button
                   key={b.name}
-                  type="button"
-                  disabled={!canFilterBranches}
-                  onClick={() => {
-                    if (canFilterBranches) setSelectedBranchFilter(isSelected ? 'الكل' : b.name);
-                  }}
-                  className={`text-right p-3.5 rounded-2xl border transition-all ${canFilterBranches ? 'cursor-pointer' : 'cursor-default'} relative overflow-hidden flex flex-col justify-between ${
+                  onClick={() => setSelectedBranchFilter(isSelected ? 'الكل' : b.name)}
+                  className={`text-right p-3.5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
                     isSelected
                       ? 'bg-slate-900 text-white border-slate-900 ring-2 ring-amber-400 shadow-md transform scale-[1.01]'
-                      : `bg-slate-50 ${canFilterBranches ? 'hover:bg-slate-100' : ''} text-slate-900 border-slate-200`
+                      : 'bg-slate-50 hover:bg-slate-100 text-slate-900 border-slate-200'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2 w-full">
@@ -827,117 +760,6 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         </div>
       )}
 
-      {/* Team Reps Performance Table (Dedicated for Supervisor, Branch Manager, & Admin) */}
-      {(currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer') && repPerformance.length > 0 && (
-        <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold">
-                <Users className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="font-black text-sm sm:text-base text-slate-900">
-                  {currentUser?.role === 'supervisor'
-                    ? 'أداء وأرقام مناديب فريقك (المشرف المباشر)'
-                    : currentUser?.role === 'branch_manager'
-                    ? `أداء وأرقام مناديب فرعك (${currentUser.branchName})`
-                    : 'أداء وأرقام مناديب المبيعات'}
-                </h3>
-                <p className="text-xs text-slate-500">
-                  مبيعات كل مندوب، الكراتين، الطلبيات المسلمة والمعلقة، مع إمكانية التصفية المباشرة
-                </p>
-              </div>
-            </div>
-
-            {selectedRepFilter !== 'الكل' && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-xl">
-                  محدد: {selectedRepFilter}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setSelectedRepFilter('الكل')}
-                  className="text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-xl transition cursor-pointer"
-                >
-                  عرض كل المناديب ✕
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
-              <thead className="bg-slate-50 text-slate-700 font-black border-b border-slate-200">
-                <tr>
-                  <th className="p-3">اسم المندوب</th>
-                  <th className="p-3">الفرع</th>
-                  <th className="p-3">عدد الطلبيات</th>
-                  <th className="p-3">إجمالي المبيعات</th>
-                  <th className="p-3">عدد الكراتين</th>
-                  <th className="p-3">تم التسليم</th>
-                  <th className="p-3">قيد المراجعة</th>
-                  <th className="p-3 text-center">إجراء</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {repPerformance.map((rep) => {
-                  const isRepActive = selectedRepFilter === rep.name;
-                  return (
-                    <tr
-                      key={rep.name}
-                      className={`hover:bg-slate-50 transition ${
-                        isRepActive ? 'bg-amber-50/70 font-bold' : ''
-                      }`}
-                    >
-                      <td className="p-3 font-bold text-slate-900 flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px] font-black">
-                          {rep.name.slice(0, 1)}
-                        </div>
-                        <span>{rep.name}</span>
-                        {isRepActive && (
-                          <span className="bg-amber-400 text-slate-950 text-[10px] px-1.5 py-0.2 rounded font-black">
-                            مُختار
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3 text-slate-600">{rep.branch}</td>
-                      <td className="p-3 font-mono font-bold text-slate-800">{rep.orders}</td>
-                      <td className="p-3 font-mono font-black text-amber-950">
-                        {formatCurrency(rep.revenue)}
-                      </td>
-                      <td className="p-3 font-mono text-emerald-800 font-bold">{rep.cartons} كرتونة</td>
-                      <td className="p-3 font-mono text-teal-700 font-bold">{rep.delivered}</td>
-                      <td className="p-3 font-mono">
-                        {rep.pending > 0 ? (
-                          <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-bold">
-                            {rep.pending} معلقة
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">0</span>
-                        )}
-                      </td>
-                      <td className="p-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedRepFilter(isRepActive ? 'الكل' : rep.name)}
-                          className={`px-3 py-1 rounded-xl text-[11px] font-bold transition cursor-pointer ${
-                            isRepActive
-                              ? 'bg-amber-500 text-slate-950 font-black'
-                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                          }`}
-                        >
-                          {isRepActive ? 'إلغاء التصفية' : 'تصفية الطلبيات 🔍'}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
       {/* Orders Management Table with Delivery & Return Action Controls */}
       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
         
@@ -949,7 +771,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               <span className="bg-amber-100 text-amber-900 text-xs px-2.5 py-0.5 rounded-full font-bold">
                 {accessibleInvoices.length} طلبية
               </span>
-              {canFilterBranches && selectedBranchFilter !== 'الكل' && (
+              {selectedBranchFilter !== 'الكل' && (
                 <span className="bg-slate-900 text-amber-300 text-xs px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
                   <span>فرع: {selectedBranchFilter}</span>
                   <button
@@ -977,17 +799,17 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                     className="bg-transparent font-black text-slate-900 focus:outline-none cursor-pointer text-xs"
                   >
                     <option value="الكل">
-                      🏢 جميع الفروع ({formatCurrency(totalAllBranchSales)})
+                      جميع الفروع ({formatCurrency(totalAllBranchSales)})
                     </option>
                     {branchSalesSummary.map((b) => (
                       <option key={b.name} value={b.name}>
-                        📍 {b.name} — ({formatCurrency(b.totalSales)} | {b.totalCartons} كرتونة)
+                        {b.name} — ({formatCurrency(b.totalSales)} | {b.totalCartons} كرتونة)
                       </option>
                     ))}
                   </select>
                 </div>
-              ) : currentUser?.role === 'branch_manager' ? null : (
-                <div className="flex items-center gap-2 bg-amber-50/80 px-3 py-2 rounded-xl border border-amber-300">
+              ) : (
+                <div className="flex items-center gap-1.5 bg-amber-50/60 px-3 py-2 rounded-xl border border-amber-200">
                   <Building className="w-3.5 h-3.5 text-amber-700 shrink-0" />
                   <span className="text-amber-800 font-bold whitespace-nowrap">فرعك:</span>
                   <span className="font-black text-amber-950 text-xs">
@@ -1022,17 +844,17 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 text-xs">
             {[
               { id: 'الكل', label: 'جميع الحالات', count: accessibleInvoices.length },
-              { id: 'قيد مراجعة المشرف', label: '⏳ مراجعة المشرف', count: accessibleInvoices.filter((i) => i.status === 'قيد مراجعة المشرف').length },
-              { id: 'معلقة بانتظار اعتماد الفرع', label: '🏛️ اعتماد الفرع', count: accessibleInvoices.filter((i) => i.status === 'معلقة بانتظار اعتماد الفرع').length },
-              { id: 'جاري تحضير المنتجات', label: '📦 جاري التحضير', count: accessibleInvoices.filter((i) => i.status === 'جاري تحضير المنتجات').length },
-              { id: 'تم وصول المنتجات', label: '🏢 وصول المنتجات', count: accessibleInvoices.filter((i) => i.status === 'تم وصول المنتجات').length },
-              { id: 'معتمدة ومصروفة من المخزن', label: '✨ معتمدة ومصروفة', count: accessibleInvoices.filter((i) => i.status === 'معتمدة ومصروفة من المخزن').length },
-              { id: 'قيد التوصيل', label: '🚚 قيد التوصيل', count: accessibleInvoices.filter((i) => i.status === 'قيد التوصيل').length },
-              { id: 'تم التسليم', label: '✅ تم التسليم', count: accessibleInvoices.filter((i) => i.status === 'تم التسليم').length },
-              { id: 'إغلاق الطلبية', label: '🔒 إغلاق الطلبية', count: accessibleInvoices.filter((i) => i.status === 'إغلاق الطلبية').length },
-              { id: 'فواتير النواقص', label: '🚚 فواتير النواقص (-NQ)', count: accessibleInvoices.filter((i) => i.isShortageInvoice || (i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))).length },
-              { id: 'مرتجع', label: '↩️ مرتجع', count: accessibleInvoices.filter((i) => i.status === 'مرتجع').length },
-              { id: 'مرفوضة / ملغاة', label: '❌ ملغاة', count: accessibleInvoices.filter((i) => i.status === 'مرفوضة / ملغاة').length },
+              { id: 'قيد مراجعة المشرف', label: 'مراجعة المشرف', count: accessibleInvoices.filter((i) => i.status === 'قيد مراجعة المشرف').length },
+              { id: 'معلقة بانتظار اعتماد الفرع', label: 'اعتماد الفرع', count: accessibleInvoices.filter((i) => i.status === 'معلقة بانتظار اعتماد الفرع').length },
+              { id: 'جاري تحضير المنتجات', label: 'جاري التحضير', count: accessibleInvoices.filter((i) => i.status === 'جاري تحضير المنتجات').length },
+              { id: 'تم وصول المنتجات', label: 'وصول المنتجات', count: accessibleInvoices.filter((i) => i.status === 'تم وصول المنتجات').length },
+              { id: 'معتمدة ومصروفة من المخزن', label: 'معتمدة ومصروفة', count: accessibleInvoices.filter((i) => i.status === 'معتمدة ومصروفة من المخزن').length },
+              { id: 'قيد التوصيل', label: 'قيد التوصيل', count: accessibleInvoices.filter((i) => i.status === 'قيد التوصيل').length },
+              { id: 'تم التسليم', label: 'تم التسليم', count: accessibleInvoices.filter((i) => i.status === 'تم التسليم').length },
+              { id: 'إغلاق الطلبية', label: 'إغلاق الطلبية', count: accessibleInvoices.filter((i) => i.status === 'إغلاق الطلبية').length },
+              { id: 'فواتير النواقص', label: 'فواتير النواقص (-NQ)', count: accessibleInvoices.filter((i) => i.isShortageInvoice || (i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))).length },
+              { id: 'مرتجع', label: 'مرتجع', count: accessibleInvoices.filter((i) => i.status === 'مرتجع').length },
+              { id: 'مرفوضة / ملغاة', label: 'ملغاة', count: accessibleInvoices.filter((i) => i.status === 'مرفوضة / ملغاة').length },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1127,17 +949,17 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                         <div className="text-[10px] text-slate-400 mt-0.5">{inv.date}</div>
                         {inv.isShortageInvoice && (
                           <span className="text-[9px] bg-purple-100 text-purple-900 border border-purple-200 px-1.5 py-0.5 rounded font-bold mt-1 block w-fit">
-                            🚚 فاتورة نواقص (مخزن أكتوبر)
+                            فاتورة نواقص (مخزن أكتوبر)
                           </span>
                         )}
                         {inv.hasShortageSplit && (
                           <span className="text-[9px] bg-emerald-100 text-emerald-900 border border-emerald-200 px-1.5 py-0.5 rounded font-bold mt-1 block w-fit">
-                            📦 أصناف متوفرة (بالمخزن)
+                            أصناف متوفرة (بالمخزن)
                           </span>
                         )}
                         {!inv.isShortageInvoice && !inv.hasShortageSplit && (
                           <span className="text-[9px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded font-bold mt-1 block w-fit">
-                            ✅ فاتورة مكتملة متوفرة بالمخزن
+                            فاتورة مكتملة متوفرة بالمخزن
                           </span>
                         )}
                       </td>
@@ -1187,12 +1009,12 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                       <td className="p-3">
                         <div className="min-w-[200px] max-w-[240px] mx-auto space-y-1">
                           <div className="flex items-center justify-between text-[9px] font-bold text-slate-500">
-                            <span className={stageNum >= 1 ? 'text-amber-600 font-black' : ''}>مراجعة ⏳</span>
-                            <span className={stageNum >= 2 ? 'text-orange-600 font-black' : ''}>تحضير 📦</span>
-                            <span className={stageNum >= 3 ? 'text-teal-600 font-black' : ''}>وصول 🏢</span>
-                            <span className={stageNum >= 4 ? 'text-cyan-600 font-black' : ''}>توصيل 🚚</span>
-                            <span className={stageNum >= 5 ? 'text-emerald-600 font-black' : ''}>تسليم ✅</span>
-                            <span className={stageNum >= 6 ? 'text-slate-800 font-black' : ''}>إغلاق 🔒</span>
+                            <span className={stageNum >= 1 ? 'text-amber-600 font-black' : ''}>مراجعة</span>
+                            <span className={stageNum >= 2 ? 'text-orange-600 font-black' : ''}>تحضير</span>
+                            <span className={stageNum >= 3 ? 'text-teal-600 font-black' : ''}>وصول</span>
+                            <span className={stageNum >= 4 ? 'text-cyan-600 font-black' : ''}>توصيل</span>
+                            <span className={stageNum >= 5 ? 'text-emerald-600 font-black' : ''}>تسليم</span>
+                            <span className={stageNum >= 6 ? 'text-slate-800 font-black' : ''}>إغلاق</span>
                           </div>
 
                           {/* Progress Line */}
@@ -1219,16 +1041,16 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                           </div>
 
                           <div className="text-[10px] text-center font-bold">
-                            {inv.status === 'مرتجع' && <span className="text-purple-700">↩️ مرتجع إلى مخزن الفرع</span>}
-                            {inv.status === 'مرفوضة / ملغاة' && <span className="text-rose-700">❌ ملغاة / مرفوضة</span>}
-                            {inv.status === 'قيد مراجعة المشرف' && <span className="text-amber-700">⏳ بانتظار موافقة المشرف</span>}
-                            {inv.status === 'معلقة بانتظار اعتماد الفرع' && <span className="text-blue-700">🏛️ بانتظار مدير الفرع</span>}
-                            {inv.status === 'جاري تحضير المنتجات' && <span className="text-orange-700">📦 جاري التجهيز بالمخزن</span>}
-                            {inv.status === 'معتمدة ومصروفة من المخزن' && <span className="text-indigo-700">✨ تم الصرف من المخزن</span>}
-                            {inv.status === 'تم وصول المنتجات' && <span className="text-teal-700">🏢 جاهزة بالفرع للتوزيع</span>}
-                            {inv.status === 'قيد التوصيل' && <span className="text-cyan-700 font-black animate-pulse">🚚 جاري التوصيل للعميل</span>}
-                            {inv.status === 'تم التسليم' && <span className="text-emerald-700 font-black">✅ تم الاستلام والتحصيل</span>}
-                            {inv.status === 'إغلاق الطلبية' && <span className="text-slate-800 font-black">🔒 تم التقفيل والتسوية المالية</span>}
+                            {inv.status === 'مرتجع' && <span className="text-purple-700">مرتجع إلى مخزن الفرع</span>}
+                            {inv.status === 'مرفوضة / ملغاة' && <span className="text-rose-700">ملغاة / مرفوضة</span>}
+                            {inv.status === 'قيد مراجعة المشرف' && <span className="text-amber-700">بانتظار موافقة المشرف</span>}
+                            {inv.status === 'معلقة بانتظار اعتماد الفرع' && <span className="text-blue-700">بانتظار مدير الفرع</span>}
+                            {inv.status === 'جاري تحضير المنتجات' && <span className="text-orange-700">جاري التجهيز بالمخزن</span>}
+                            {inv.status === 'معتمدة ومصروفة من المخزن' && <span className="text-indigo-700">تم الصرف من المخزن</span>}
+                            {inv.status === 'تم وصول المنتجات' && <span className="text-teal-700">جاهزة بالفرع للتوزيع</span>}
+                            {inv.status === 'قيد التوصيل' && <span className="text-cyan-700 font-black animate-pulse">جاري التوصيل للعميل</span>}
+                            {inv.status === 'تم التسليم' && <span className="text-emerald-700 font-black">تم الاستلام والتحصيل</span>}
+                            {inv.status === 'إغلاق الطلبية' && <span className="text-slate-800 font-black">تم التقفيل والتسوية المالية</span>}
                           </div>
                         </div>
                       </td>
@@ -1244,7 +1066,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                                 onClick={() => {
                                   approveOrder(inv.id);
                                   updateOrderStatus(inv.id, 'جاري تحضير المنتجات');
-                                  setSuccessToast(`تم اعتماد الطلبية رقم ${inv.invoiceNumber} وبدء تحضير المنتجات 📦`);
+                                      setSuccessToast(`تم اعتماد الطلبية رقم ${inv.invoiceNumber} وبدء تحضير المنتجات`);
                                   setTimeout(() => setSuccessToast(null), 4000);
                                 }}
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
@@ -1282,7 +1104,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                                 onClick={() => {
                                   const res = updateOrderStatus(inv.id, 'تم وصول المنتجات');
                                   if (res.success) {
-                                    setSuccessToast(`تم تسجيل وصول منتجات الطلبية ${inv.invoiceNumber} 🏢`);
+                                    setSuccessToast(`تم تسجيل وصول منتجات الطلبية ${inv.invoiceNumber}`);
                                     setTimeout(() => setSuccessToast(null), 4000);
                                   }
                                 }}
@@ -1322,7 +1144,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                                 title="تأكيد تسليم الطلبية للعميل"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>تم التسليم ✅</span>
+                                <span>تم التسليم</span>
                               </button>
                             </>
                           )}
@@ -1336,7 +1158,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                                 title="تأكيد تسليم الطلبية للعميل وتحصيل المبلغ"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>تم التسليم ✅</span>
+                                <span>تم التسليم</span>
                               </button>
 
                               <button
@@ -1345,7 +1167,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                                 title="تسجيل مرتجع وإعادة البضاعة للمخزن"
                               >
                                 <RotateCcw className="w-3.5 h-3.5 text-purple-700" />
-                                <span>مرتجع ↩️</span>
+                                <span>مرتجع</span>
                               </button>
                             </>
                           )}
@@ -1358,14 +1180,14 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                                   onClick={() => {
                                     const res = updateOrderStatus(inv.id, 'إغلاق الطلبية');
                                     if (res.success) {
-                                      setSuccessToast(`تم إغلاق وتسوية الطلبية ${inv.invoiceNumber} بنجاح 🔒`);
+                                      setSuccessToast(`تم إغلاق وتسوية الطلبية ${inv.invoiceNumber} بنجاح`);
                                       setTimeout(() => setSuccessToast(null), 4000);
                                     }
                                   }}
                                   className="bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
                                   title="إغلاق وتسوية الطلبية نهائياً"
                                 >
-                                  <span>إغلاق الطلبية 🔒</span>
+                                  <span>إغلاق الطلبية</span>
                                 </button>
                               )}
 
@@ -1384,7 +1206,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                           {inv.status === 'إغلاق الطلبية' && (
                             <div className="flex items-center gap-1.5">
                               <span className="text-[10px] bg-slate-100 text-slate-800 font-black px-2 py-0.5 rounded-md border border-slate-300">
-                                🔒 مغلقة ومكتملة
+                                مغلقة ومكتملة
                               </span>
                               {canManage && (
                                 <button
@@ -1393,7 +1215,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                                   title="تسجيل إذن مرتجع مبيعات (كلي أو جزئي) على طلبية مغلقة"
                                 >
                                   <RotateCcw className="w-3 h-3 text-purple-700" />
-                                  <span>مرتجع ↩️</span>
+                                  <span>مرتجع</span>
                                 </button>
                               )}
                             </div>
@@ -1403,7 +1225,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                           {inv.status === 'مرتجع جزئي' && (
                             <div className="flex items-center gap-1.5">
                               <span className="text-[10px] bg-amber-50 text-amber-900 font-black px-2 py-0.5 rounded-md border border-amber-300">
-                                ⚠️ مرتجع جزئي
+                                مرتجع جزئي
                               </span>
                               {canManage && (
                                 <button
@@ -1412,7 +1234,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                                   title="تسجيل إذن مرتجع إضافي لباقي الأصناف"
                                 >
                                   <RotateCcw className="w-3 h-3 text-purple-700" />
-                                  <span>إضافة مرتجع ↩️</span>
+                                  <span>إضافة مرتجع</span>
                                 </button>
                               )}
                             </div>
@@ -1425,7 +1247,22 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                             </span>
                           )}
 
-
+                          {/* General Actions: View, Excel, PDF */}
+  {['admin', 'developer', 'branch_manager', 'supervisor'].includes(currentUser?.role || '') &&
+  ['معتمدة ومصروفة من المخزن', 'معتمدة'].includes(inv.status) && (
+  <button
+  onClick={async () => {
+  const result = await resendInvoiceEmail(inv.id);
+  setSuccessToast(result.message);
+  setTimeout(() => setSuccessToast(null), 4500);
+  }}
+  className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer"
+  title="إعادة إرسال الفاتورة بالبريد مع PDF وExcel"
+  >
+  <Send className="w-3.5 h-3.5" />
+  <span>إعادة الإرسال على الميل</span>
+  </button>
+  )}
 
   {onViewInvoice && (
   <button
