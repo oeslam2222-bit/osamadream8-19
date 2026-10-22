@@ -1,5 +1,4 @@
 import {
-  Boxes,
   Calendar,
   CheckCircle2,
   ChevronLeft,
@@ -30,28 +29,18 @@ import {
   PlusCircle,
   ExternalLink,
   RefreshCw,
-  Sparkles,
-  Truck,
-  BarChart3
+  Sparkles
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { exportElectronicInvoiceToExcel, exportInvoiceForERP, downloadInvoiceBoth } from '../services/excelService';
 import { downloadInvoicePDF } from '../services/pdfService';
-import {
-  buildDispatchReport,
-  downloadDispatchReport,
-  type DispatchScope,
-} from '../services/dispatchReportService';
 import { formatArabicDate, formatCurrency } from '../services/invoiceService';
 import { Invoice, OrderStatus } from '../types';
 import { CreditAuditModal } from './CreditAuditModal';
 import { CreditStatusBadge } from './CreditStatusBadge';
 import { OrderReturnModal } from './OrderReturnModal';
 import { ExcelInvoicePreviewModal } from './ExcelInvoicePreviewModal';
-import { ConsolidatedInvoiceModal } from './ConsolidatedInvoiceModal';
-import { ShortagePullModal } from './ShortagePullModal';
-import { CustomerOrderAnalyticsModal } from './CustomerOrderAnalyticsModal';
 
 interface InvoicesManagerProps {
   onOpenNewOrder: () => void;
@@ -66,22 +55,19 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 }) => {
   const {
     invoices,
-    products,
     currentUser,
     users,
     getVisibleInvoices,
     updateOrderStatus,
     deleteInvoice,
     approveOrder,
-    dispatchOrderToMicrosoft,
-    syncToAccounting,
+    resendInvoiceEmail,
     forwardOrderToManager,
     rejectOrder,
     branches,
     selectedBranchFilter,
     setSelectedBranchFilter,
-    refreshInvoicesNow,
-    bulkDispatchOctoberSupply
+    refreshInvoicesNow
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -97,20 +83,6 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   const [downloadingBothId, setDownloadingBothId] = useState<string | null>(null);
   const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isExportingShortage, setIsExportingShortage] = useState(false);
-  // Date / Day Filter State (فلترة الفواتير والنواقص باليوم والتاريخ)
-  const [dateFilterMode, setDateFilterMode] = useState<'all' | 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom_day'>('all');
-  const [selectedCustomDate, setSelectedCustomDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
-
-  // Multi-selection for Consolidating Invoices & October Supply Analysis (دمج الفواتير وتحليل توريد أكتوبر)
-  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
-  const [isConsolidatedModalOpen, setIsConsolidatedModalOpen] = useState<boolean>(false);
-  const [isShortagePullModalOpen, setIsShortagePullModalOpen] = useState<boolean>(false);
-
-  // The dispatch pack is a daily document, so the period defaults to today and the
-  // scope defaults to both halves: the warehouse request plus the approved orders.
-  const [dispatchDay, setDispatchDay] = useState(new Date().toISOString().slice(0, 10));
-  const [dispatchScope, setDispatchScope] = useState<DispatchScope>('both');
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
   // Auto-refresh invoices on component mount (uses cached data if refreshed recently)
@@ -136,208 +108,37 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     }
   };
 
-  /** Renders the `YYYY-MM-DD` picker value in Arabic, parsed as local time so the day
-   *  never shifts back a day on timezones behind UTC. */
-  const formatArabicDay = (isoDay: string) => {
-    const [year, month, day] = isoDay.split('-').map(Number);
-    if (!year || !month || !day) return isoDay;
-    return new Date(year, month - 1, day).toLocaleDateString('ar-EG', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-  };
-
-  const [isExportingApproved, setIsExportingApproved] = useState(false);
-  const [analyticsInvoice, setAnalyticsInvoice] = useState<Invoice | null>(null);
-  const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
-
-  /**
-   * Exports the dispatch pack: the shortage request for the October warehouse and the
-   * approved orders for the local store, both for one chosen day and both in the ERP
-   * column layout their system already accepts.
-   */
-  const handleExportShortage = async () => {
-    setIsExportingShortage(true);
-    try {
-      const report = buildDispatchReport(userVisibleInvoices, products, {
-        from: dispatchDay,
-        to: dispatchDay,
-        scope: dispatchScope,
-        scopeLabel: selectedBranchFilter === 'الكل' ? 'الكل' : selectedBranchFilter,
-      });
-
-      if (report.shortageLines.length === 0 && report.approvedLines.length === 0) {
-        setSuccessToast(`لا توجد فواتير نواقص أو طلبيات معتمدة بتاريخ ${formatArabicDay(dispatchDay)}.`);
-        setTimeout(() => setSuccessToast(null), 4000);
-        return;
-      }
-
-      await downloadDispatchReport(report);
-      setSuccessToast(
-        `تم التصدير: ${report.shortageInvoiceCount} فاتورة نواقص (${report.totalCartons} كرتونة) و ${report.approvedInvoiceCount} طلبية معتمدة`
-      );
-      setTimeout(() => setSuccessToast(null), 5000);
-    } catch (err: any) {
-      setSuccessToast(`تعذر التصدير: ${err?.message || 'خطأ غير معروف'}`);
-      setTimeout(() => setSuccessToast(null), 4000);
-    } finally {
-      setIsExportingShortage(false);
-    }
-  };
-
-  /**
-   * تصدير فوري لطلبية النواقص فقط (مخزن 6 أكتوبر المركزي) بصيغة ERP
-   */
-  const handleExportShortageOnly = async () => {
-    setIsExportingShortage(true);
-    try {
-      const report = buildDispatchReport(userVisibleInvoices, products, {
-        from: dispatchDay,
-        to: dispatchDay,
-        scope: 'shortage',
-        scopeLabel: selectedBranchFilter === 'الكل' ? 'الكل' : selectedBranchFilter,
-      });
-
-      if (report.shortageLines.length === 0) {
-        setSuccessToast(`لا توجد فواتير بها نواقص توريد بتاريخ ${formatArabicDay(dispatchDay)}.`);
-        setTimeout(() => setSuccessToast(null), 4000);
-        return;
-      }
-
-      await downloadDispatchReport(report);
-      setSuccessToast(
-        `تم تصدير طلبية النواقص بنجاح: ${report.shortageInvoiceCount} فاتورة (${report.totalCartons} كرتونة) لمخزن 6 أكتوبر 🚚`
-      );
-      setTimeout(() => setSuccessToast(null), 5000);
-    } catch (err: any) {
-      setSuccessToast(`تعذر تصدير طلبية النواقص: ${err?.message || 'خطأ غير معروف'}`);
-      setTimeout(() => setSuccessToast(null), 4000);
-    } finally {
-      setIsExportingShortage(false);
-    }
-  };
-
-  /**
-   * تصدير فوري للفواتير المكتملة المتوفرة بالفرع فقط بصيغة ERP المعتمدة
-   */
-  const handleExportApprovedOnly = async () => {
-    setIsExportingApproved(true);
-    try {
-      const report = buildDispatchReport(userVisibleInvoices, products, {
-        from: dispatchDay,
-        to: dispatchDay,
-        scope: 'approved',
-        scopeLabel: selectedBranchFilter === 'الكل' ? 'الكل' : selectedBranchFilter,
-      });
-
-      if (report.approvedLines.length === 0) {
-        setSuccessToast(`لا توجد فواتير مكتملة معتمدة بتاريخ ${formatArabicDay(dispatchDay)}.`);
-        setTimeout(() => setSuccessToast(null), 4000);
-        return;
-      }
-
-      await downloadDispatchReport(report);
-      setSuccessToast(
-        `تم تصدير شيت الفواتير المكتملة بنجاح: ${report.approvedInvoiceCount} فاتورة جاهزة لرفعها على السيستم (ERP) 📥`
-      );
-      setTimeout(() => setSuccessToast(null), 5000);
-    } catch (err: any) {
-      setSuccessToast(`تعذر تصدير الفواتير المكتملة: ${err?.message || 'خطأ غير معروف'}`);
-      setTimeout(() => setSuccessToast(null), 4000);
-    } finally {
-      setIsExportingApproved(false);
-    }
-  };
-
   // Pagination state for responsive multi-page browsing
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(15);
 
   useEffect(() => {
     setCurrentPage(1);
-    setSelectedInvoiceIds(new Set());
-  }, [searchTerm, selectedStatus, selectedRepFilter, selectedBranchFilter, itemsPerPage, dateFilterMode, selectedCustomDate]);
+  }, [searchTerm, selectedStatus, selectedRepFilter, selectedBranchFilter, itemsPerPage]);
 
   // The context applies the privacy boundary before local filters.
   const userVisibleInvoices = useMemo(() => {
     return getVisibleInvoices();
   }, [invoices, currentUser, users, selectedBranchFilter]);
 
-  // Helper to match an invoice's date against dateFilterMode (اليوم / أمس / أسبوع / شهر / يوم مخصص)
-  const matchesDateFilter = (inv: Invoice) => {
-    if (dateFilterMode === 'all') return true;
-    const invDate = (inv.date || '').slice(0, 10);
-    const todayIso = new Date().toISOString().slice(0, 10);
-    if (dateFilterMode === 'today') {
-      return invDate === todayIso;
-    }
-    if (dateFilterMode === 'yesterday') {
-      const yest = new Date();
-      yest.setDate(yest.getDate() - 1);
-      return invDate === yest.toISOString().slice(0, 10);
-    }
-    if (dateFilterMode === 'this_week') {
-      const now = new Date();
-      const day = now.getDay();
-      const diff = (day + 1) % 7; // days since Saturday
-      const sat = new Date(now);
-      sat.setDate(now.getDate() - diff);
-      const satIso = sat.toISOString().slice(0, 10);
-      return invDate >= satIso && invDate <= todayIso;
-    }
-    if (dateFilterMode === 'this_month') {
-      const ym = todayIso.slice(0, 7);
-      return invDate.startsWith(ym);
-    }
-    if (dateFilterMode === 'custom_day') {
-      return invDate === selectedCustomDate;
-    }
-    return true;
-  };
-
-  // Tab counts calculated accurately on user's visible invoices (with date filter applied)
+  // Tab counts calculated accurately on user's visible invoices (optionally filtered by selected rep)
   const tabCounts = useMemo(() => {
-    let base = userVisibleInvoices;
-    if (selectedRepFilter !== 'الكل') {
-      base = base.filter((i) => i.repName === selectedRepFilter);
-    }
-    if (dateFilterMode !== 'all') {
-      base = base.filter(matchesDateFilter);
-    }
+    const base = selectedRepFilter !== 'الكل' ? userVisibleInvoices.filter((i) => i.repName === selectedRepFilter) : userVisibleInvoices;
     return {
       all: base.length,
-      available: base.filter(
-        (i) =>
-          !i.hasOctoberShortages &&
-          !Boolean(i.shortageItemsCount && i.shortageItemsCount > 0) &&
-          !i.items.some((it) => it.isShortage || it.needsOctoberSupply) &&
-          !i.isShortageInvoice &&
-          !(i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))
-      ).length,
-      shortage: base.filter(
-        (i) =>
-          i.hasOctoberShortages ||
-          Boolean(i.shortageItemsCount && i.shortageItemsCount > 0) ||
-          i.items.some((it) => it.isShortage || it.needsOctoberSupply) ||
-          i.isShortageInvoice ||
-          (i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))
-      ).length,
+      available: base.filter((i) => !i.isShortageInvoice && !(i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))).length,
+      shortage: base.filter((i) => i.isShortageInvoice || (i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))).length,
       pending: base.filter(
         (i) => i.status === 'قيد مراجعة المشرف' || i.status === 'معلقة بانتظار اعتماد الفرع' || i.status === 'قيد المراجعة'
       ).length,
       approved: base.filter((i) => i.status === 'معتمدة ومصروفة من المخزن' || i.status === 'معتمدة').length,
       cancelled: base.filter((i) => i.status === 'مرفوضة / ملغاة' || i.status === 'ملغاة').length,
     };
-  }, [userVisibleInvoices, selectedRepFilter, dateFilterMode, selectedCustomDate]);
+  }, [userVisibleInvoices, selectedRepFilter]);
 
   const accessibleInvoices = useMemo(() => {
     return userVisibleInvoices.filter((inv) => {
-      // 1. Date filter (فلترة اليوم والتاريخ)
-      if (!matchesDateFilter(inv)) return false;
-
-      // 2. Search query filter
+      // Search query filter
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase().trim();
         const numMatch = inv.invoiceNumber.toLowerCase().includes(q);
@@ -350,16 +151,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
       // 3. Status filter
       if (selectedStatus !== 'الكل') {
-        const hasShortages = inv.hasOctoberShortages ||
-          Boolean(inv.shortageItemsCount && inv.shortageItemsCount > 0) ||
-          inv.items.some((it) => it.isShortage || it.needsOctoberSupply) ||
-          inv.isShortageInvoice ||
-          (inv.invoiceNumber && inv.invoiceNumber.endsWith('-NQ'));
-
         if (selectedStatus === 'فواتير الأصناف المتوفرة') {
-          if (hasShortages) return false;
+          if (inv.isShortageInvoice || (inv.invoiceNumber && inv.invoiceNumber.endsWith('-NQ'))) return false;
         } else if (selectedStatus === 'فواتير النواقص') {
-          if (!hasShortages) return false;
+          if (!inv.isShortageInvoice && !(inv.invoiceNumber && inv.invoiceNumber.endsWith('-NQ'))) return false;
         } else if (selectedStatus === 'قيد مراجعة المشرف') {
           if (inv.status !== 'قيد مراجعة المشرف' && inv.status !== 'معلقة بانتظار اعتماد الفرع' && inv.status !== 'قيد المراجعة') {
             return false;
@@ -384,54 +179,19 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
       return true;
     });
-  }, [userVisibleInvoices, searchTerm, selectedStatus, selectedRepFilter, dateFilterMode, selectedCustomDate]);
-
-  // Selected invoices list for consolidation
-  const selectedInvoicesList = useMemo(() => {
-    return userVisibleInvoices.filter((inv) => selectedInvoiceIds.has(inv.id));
-  }, [userVisibleInvoices, selectedInvoiceIds]);
-
-  const toggleSelectAll = () => {
-    if (displayedInvoices.length === 0) return;
-    const allSelected = displayedInvoices.every((inv) => selectedInvoiceIds.has(inv.id));
-    const next = new Set(selectedInvoiceIds);
-    if (allSelected) {
-      displayedInvoices.forEach((inv) => next.delete(inv.id));
-    } else {
-      displayedInvoices.forEach((inv) => next.add(inv.id));
-    }
-    setSelectedInvoiceIds(next);
-  };
-
-  const toggleSelectInvoice = (id: string) => {
-    const next = new Set(selectedInvoiceIds);
-    if (next.has(id)) {
-      next.delete(id);
-    } else {
-      next.add(id);
-    }
-    setSelectedInvoiceIds(next);
-  };
+  }, [userVisibleInvoices, searchTerm, selectedStatus, selectedRepFilter]);
 
   // Aggregate Metrics
   const metrics = useMemo(() => {
     let totalRevenue = 0;
-    let count = 0;
     let totalCartons = 0;
     let totalPieces = 0;
     let pendingCount = 0;
-    let deliveredCount = 0;
 
     accessibleInvoices.forEach((inv) => {
-      if (inv.status !== 'مرفوضة / ملغاة' && inv.status !== 'ملغاة') {
-        totalRevenue += inv.estimatedGrandTotal || 0;
-        totalCartons += inv.totalCartons || 0;
-        totalPieces += inv.totalPieces || 0;
-        count++;
-      }
-      if (inv.status === 'تم التسليم' || inv.status === 'إغلاق الطلبية') {
-        deliveredCount++;
-      }
+      totalRevenue += inv.estimatedGrandTotal;
+      totalCartons += inv.totalCartons;
+      totalPieces += inv.totalPieces;
       if (
         inv.status === 'قيد مراجعة المشرف' ||
         inv.status === 'معلقة بانتظار اعتماد الفرع' ||
@@ -441,14 +201,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       }
     });
 
-    return {
-      totalRevenue,
-      count,
-      totalCartons,
-      totalPieces,
-      pendingCount,
-      deliveredCount,
-    };
+    return { totalRevenue, totalCartons, totalPieces, pendingCount, count: accessibleInvoices.length };
   }, [accessibleInvoices]);
 
   const repsList = useMemo(() => {
@@ -473,14 +226,14 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
   const statusStyles: Record<string, { bg: string; text: string; label?: string }> = {
     'مسودة': { bg: 'bg-slate-100 border-slate-300', text: 'text-slate-700' },
-    'قيد مراجعة المشرف': { bg: 'bg-amber-100 border-amber-300 animate-pulse', text: 'text-amber-900', label: 'قيد مراجعة المشرف ⏳' },
-    'معلقة بانتظار اعتماد الفرع': { bg: 'bg-blue-100 border-blue-300 animate-pulse', text: 'text-blue-900', label: 'بانتظار مدير الفرع 🏛️' },
+    'قيد مراجعة المشرف': { bg: 'bg-amber-100 border-amber-300 animate-pulse', text: 'text-amber-900', label: 'قيد مراجعة المشرف' },
+    'معلقة بانتظار اعتماد الفرع': { bg: 'bg-blue-100 border-blue-300 animate-pulse', text: 'text-blue-900', label: 'بانتظار مدير الفرع' },
     'قيد المراجعة': { bg: 'bg-amber-100 border-amber-300', text: 'text-amber-800' },
-    'معتمدة ومصروفة من المخزن': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-800', label: 'معتمدة ومصروفة ✅' },
+    'معتمدة ومصروفة من المخزن': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-800', label: 'معتمدة ومصروفة' },
     'معتمدة': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-800' },
     'جاري التجهيز': { bg: 'bg-indigo-100 border-indigo-300', text: 'text-indigo-800' },
     'تم التسليم': { bg: 'bg-teal-100 border-teal-300', text: 'text-teal-800' },
-    'مرفوضة / ملغاة': { bg: 'bg-rose-100 border-rose-300', text: 'text-rose-800', label: 'مرفوضة / ملغاة ❌' },
+    'مرفوضة / ملغاة': { bg: 'bg-rose-100 border-rose-300', text: 'text-rose-800', label: 'مرفوضة / ملغاة' },
     'ملغاة': { bg: 'bg-rose-100 border-rose-300', text: 'text-rose-800' },
   };
 
@@ -494,21 +247,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     }
   };
 
-  const [syncingMicrosoftId, setSyncingMicrosoftId] = useState<string | null>(null);
-
-  const handleSyncToMicrosoft = async (invoice: Invoice) => {
-    try {
-      setSyncingMicrosoftId(invoice.id);
-      const result = await dispatchOrderToMicrosoft(invoice.id);
-      await syncToAccounting(invoice.id);
-      setSuccessToast(result.message || `تم بنجاح ربط الفاتورة #${invoice.invoiceNumber} مع Microsoft 365 وترحيلها بنجاح ✅`);
-      setTimeout(() => setSuccessToast(null), 4500);
-    } catch (e: any) {
-      setSuccessToast(`تم إرسال الفاتورة #${invoice.invoiceNumber} لقائمة مزامنة Microsoft 365 المحاسبية.`);
-      setTimeout(() => setSuccessToast(null), 4500);
-    } finally {
-      setSyncingMicrosoftId(null);
-    }
+  const handleResendInvoice = async (invoice: Invoice) => {
+    const result = await resendInvoiceEmail(invoice.id);
+    setSuccessToast(result.message);
+    setTimeout(() => setSuccessToast(null), 4500);
   };
 
   const handleForwardClick = (invoiceId: string) => {
@@ -549,7 +291,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   };
 
   return (
-    <div className="space-y-4 pb-16">
+    <div className="tantawy-screen space-y-4 pb-16">
       
       {/* Success Notification Toast */}
       {successToast && (
@@ -580,68 +322,15 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1">
-              <span className="text-[11px] font-bold text-slate-500">تاريخ:</span>
-              <input
-                type="date"
-                value={dispatchDay}
-                max={new Date().toISOString().slice(0, 10)}
-                onChange={(e) => setDispatchDay(e.target.value)}
-                className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 focus:border-amber-400 focus:ring-1 focus:ring-amber-200 outline-none cursor-pointer"
-                title="يوم التصدير: يحدد الفواتير المعتمدة لهذا اليوم فقط"
-              />
-            </div>
-
-            {/* زر تصدير طلبية النواقص لمخزن 6 أكتوبر */}
-            <button
-              onClick={handleExportShortageOnly}
-              disabled={isExportingShortage}
-              className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black px-3.5 py-2.5 rounded-xl text-xs shadow-sm transition active:scale-95 cursor-pointer disabled:opacity-50"
-              title="تصدير شيت إكسيل ERP منسق بطلبية نواقص مخزن 6 أكتوبر المركزي فقط"
-            >
-              <FileSpreadsheet className={`w-3.5 h-3.5 ${isExportingShortage ? 'animate-pulse text-white' : 'text-amber-200'}`} />
-              <span>{isExportingShortage ? 'جاري التصدير...' : 'طلبية النواقص (6 أكتوبر) Excel 🚚'}</span>
-              {tabCounts.shortage > 0 && (
-                <span className="bg-amber-900/80 text-amber-200 text-[10px] font-mono px-1.5 py-0.5 rounded-full font-black">
-                  {tabCounts.shortage}
-                </span>
-              )}
-            </button>
-
-            {/* زر تصدير الفواتير المكتملة للسيستم */}
-            <button
-              onClick={handleExportApprovedOnly}
-              disabled={isExportingApproved}
-              className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-teal-600 to-emerald-700 hover:from-teal-500 hover:to-emerald-600 text-white font-black px-3.5 py-2.5 rounded-xl text-xs shadow-sm transition active:scale-95 cursor-pointer disabled:opacity-50"
-              title="تصدير شيت إكسيل ERP منسق للفواتير المكتملة المعتمدة بالفرع الجاهزة للرفع المالي"
-            >
-              <Download className={`w-3.5 h-3.5 ${isExportingApproved ? 'animate-pulse text-white' : 'text-emerald-200'}`} />
-              <span>{isExportingApproved ? 'جاري التصدير...' : 'الفواتير المكتملة (ERP) 📥'}</span>
-              {tabCounts.available > 0 && (
-                <span className="bg-emerald-950/80 text-emerald-200 text-[10px] font-mono px-1.5 py-0.5 rounded-full font-black">
-                  {tabCounts.available}
-                </span>
-              )}
-            </button>
-
-            {/* زر سحب ومتابعة فواتير النواقص لمخزن 6 أكتوبر المركزي */}
-            <button
-              onClick={() => setIsShortagePullModalOpen(true)}
-              className="flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-amber-300 font-black px-3.5 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95 cursor-pointer border border-amber-400/30"
-              title="سحب فواتير النواقص لمخزن 6 أكتوبر المركزي وإرسال الميل الرسمي للسيستم"
-            >
-              <Truck className="w-4 h-4 text-amber-400" />
-              <span>سحب فواتير النواقص</span>
-            </button>
-
+          <div className="flex items-center gap-2">
             <button
               onClick={handleManualRefresh}
               disabled={isRefreshing}
-              className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs border border-slate-200 transition active:scale-95 cursor-pointer disabled:opacity-50"
+              className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-2.5 rounded-xl text-xs border border-slate-200 transition active:scale-95 cursor-pointer disabled:opacity-50"
               title="تحديث ومزامنة الفواتير مباشرة من قاعدة بيانات السيرفر"
             >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-amber-600' : 'text-slate-500'}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-amber-600' : 'text-slate-500'}`} />
+              <span>{isRefreshing ? 'جاري التحديث...' : 'تحديث من السيرفر'}</span>
             </button>
 
             <button
@@ -649,56 +338,38 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>فاتورة / طلبية جديدة</span>
+              <span>إنشاء فاتورة / طلبية جديدة</span>
             </button>
           </div>
         </div>
 
         {/* Dashboard Aggregate Stat Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-2">
-          {/* Card 1: Total Sales */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
           <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
-            <div className="text-[11px] text-slate-500 font-bold">
-              {currentUser?.role === 'branch_manager' ? `مبيعات ${currentUser.branchName || 'الفرع'}` : 'إجمالي مبيعات الفواتير'}
-            </div>
-            <div className="text-base sm:text-lg font-black text-slate-900 font-mono">
+            <div className="text-[11px] text-slate-500 font-bold">إجمالي مبيعات الفواتير</div>
+            <div className="text-base sm:text-lg font-black text-slate-900">
               {formatCurrency(metrics.totalRevenue)}
             </div>
-            <div className="text-[10px] text-slate-400 font-medium">
-              {metrics.count} فاتورة مسجلة
-            </div>
           </div>
 
-          {/* Card 2: Delivered Invoices */}
-          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
-            <div className="text-[11px] text-slate-500 font-bold">الفواتير المسلّمة للعملاء</div>
-            <div className="text-base sm:text-lg font-black text-teal-800">
-              {metrics.deliveredCount} فاتورة
-            </div>
-            <div className="text-[10px] text-slate-400 font-medium">
-              تم تسليمها وإغلاقها
-            </div>
-          </div>
-
-          {/* Card 3: Total Cartons */}
           <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
             <div className="text-[11px] text-slate-500 font-bold">إجمالي الكراتين المطلوبة</div>
             <div className="text-base sm:text-lg font-black text-amber-800">
               {metrics.totalCartons} كرتونة
             </div>
-            <div className="text-[10px] text-slate-400 font-medium">
+          </div>
+
+          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
+            <div className="text-[11px] text-slate-500 font-bold">إجمالي القطع</div>
+            <div className="text-base sm:text-lg font-black text-slate-900">
               {metrics.totalPieces} قطعة
             </div>
           </div>
 
-          {/* Card 4: Pending Approvals */}
           <div className="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 space-y-1">
-            <div className="text-[11px] text-amber-800 font-bold">طلبيات بانتظار الاعتماد</div>
+            <div className="text-[11px] text-amber-800 font-bold">طلبيات معلقة بانتظار الاعتماد</div>
             <div className="text-base sm:text-lg font-black text-amber-900">
               {metrics.pendingCount} طلبية
-            </div>
-            <div className="text-[10px] text-amber-700 font-medium">
-              مراجعة المشرف والفرع
             </div>
           </div>
         </div>
@@ -723,9 +394,9 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 ? 'bg-teal-700 text-white shadow-sm'
                 : 'bg-teal-50 text-teal-800 hover:bg-teal-100'
             }`}
-            title="عرض فواتير البضاعة المتوفرة بالفرع بالكامل"
+            title="عرض فواتير البضاعة المتوفرة بالفرع فقط"
           >
-            فواتير مكتملة بالفرع 📦 ({tabCounts.available})
+            فواتير المتوفر ({tabCounts.available})
           </button>
 
           <button
@@ -735,9 +406,9 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 ? 'bg-indigo-700 text-white shadow-sm'
                 : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100'
             }`}
-            title="عرض فواتير الطلبيات التي بها نواقص مطلوب توريدها من مخزن 6 أكتوبر"
+            title="عرض فواتير النواقص المحولة للمخزن المركزي بأكتوبر"
           >
-            فواتير بها نواقص توريد من أكتوبر 🚚 ({tabCounts.shortage})
+            فواتير النواقص (-NQ) ({tabCounts.shortage})
           </button>
 
           <button
@@ -748,7 +419,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
             }`}
           >
-            بانتظار الاعتماد ⏳ ({tabCounts.pending})
+            بانتظار الاعتماد ({tabCounts.pending})
           </button>
 
           <button
@@ -759,7 +430,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
             }`}
           >
-            معتمدة ومصروفة ✅ ({tabCounts.approved})
+            معتمدة ومصروفة ({tabCounts.approved})
           </button>
 
           <button
@@ -770,7 +441,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 : 'bg-rose-50 text-rose-800 hover:bg-rose-100'
             }`}
           >
-            الملغية والمرفوضة ❌ ({tabCounts.cancelled})
+            الملغية والمرفوضة ({tabCounts.cancelled})
           </button>
         </div>
 
@@ -795,8 +466,8 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer w-full"
             >
               <option value="الكل">كل الفواتير</option>
-              <option value="فواتير الأصناف المتوفرة">فواتير مكتملة بالفرع 📦</option>
-              <option value="فواتير النواقص">فواتير بها نواقص توريد من أكتوبر 🚚</option>
+              <option value="فواتير الأصناف المتوفرة">فواتير الأصناف المتوفرة فقط</option>
+              <option value="فواتير النواقص">فواتير النواقص فقط (-NQ)</option>
               <option value="قيد مراجعة المشرف">قيد مراجعة المشرف</option>
               <option value="معلقة بانتظار اعتماد الفرع">بانتظار مدير الفرع</option>
               <option value="معتمدة ومصروفة من المخزن">معتمدة ومصروفة</option>
@@ -804,15 +475,8 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </select>
           </div>
 
-          {/* Branch Filter for Admin, Developer & Supervisor, or Fixed Branch Badge for Branch Manager */}
-          {currentUser?.role === 'branch_manager' ? (
-            <div className="flex items-center gap-1.5 bg-amber-50/90 px-3 py-2 rounded-xl border border-amber-300">
-              <span className="text-amber-800 font-bold whitespace-nowrap">الفرع:</span>
-              <span className="font-black text-amber-950 text-xs">
-                {currentUser?.branchName || 'الفرع المحدد'}
-              </span>
-            </div>
-          ) : (currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor') ? (
+          {/* Branch Filter for Admin, Developer & Supervisor */}
+          {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor') && (
             <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
               <span className="text-slate-500 font-bold whitespace-nowrap">الفرع:</span>
               <select
@@ -820,7 +484,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 onChange={(e) => setSelectedBranchFilter(e.target.value)}
                 className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer w-full"
               >
-                <option value="الكل">🏢 كل الفروع</option>
+                <option value="الكل">كل الفروع</option>
                 {branches.map((b) => (
                   <option key={b.id} value={b.name}>
                     {b.name}
@@ -828,7 +492,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 ))}
               </select>
             </div>
-          ) : null}
+          )}
 
           {currentUser?.role !== 'sales_rep' && (
             <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
@@ -847,141 +511,6 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </div>
           )}
         </div>
-
-        {/* Date / Day Filter Bar - فلترة فواتير النواقص والفواتير باليوم والتاريخ بدقة */}
-        <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-100 text-xs">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-slate-500 font-bold flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5 text-amber-500" />
-              <span>فلترة اليوم والتاريخ:</span>
-            </span>
-
-            <button
-              type="button"
-              onClick={() => setDateFilterMode('all')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                dateFilterMode === 'all'
-                  ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              كل التواريخ
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setDateFilterMode('today')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                dateFilterMode === 'today'
-                  ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              فواتير اليوم ⚡
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setDateFilterMode('yesterday')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                dateFilterMode === 'yesterday'
-                  ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              أمس
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setDateFilterMode('this_week')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                dateFilterMode === 'this_week'
-                  ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              هذا الأسبوع
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setDateFilterMode('this_month')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                dateFilterMode === 'this_month'
-                  ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              هذا الشهر
-            </button>
-
-            <div className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
-              <span className="text-[11px] text-slate-500 font-bold">يوم مخصص:</span>
-              <input
-                type="date"
-                value={selectedCustomDate}
-                onChange={(e) => {
-                  setSelectedCustomDate(e.target.value);
-                  setDateFilterMode('custom_day');
-                }}
-                className="bg-white border border-slate-300 rounded px-1.5 py-0.5 text-xs font-mono font-bold text-slate-800 outline-none cursor-pointer"
-              />
-            </div>
-          </div>
-
-          {/* Quick Consolidate Shortage Invoices Button */}
-          {tabCounts.shortage > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                const shortages = accessibleInvoices.filter(
-                  (i) => i.isShortageInvoice || (i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))
-                );
-                setSelectedInvoiceIds(new Set(shortages.map((i) => i.id)));
-                setIsConsolidatedModalOpen(true);
-              }}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
-              title="دمج كافة فواتير النواقص المعروضة في فاتورة واحدة وتحليل توريد مخزن 6 أكتوبر"
-            >
-              <Boxes className="w-3.5 h-3.5 text-amber-300" />
-              <span>دمج فواتير النواقص ({tabCounts.shortage}) وتحليل توريد أكتوبر 📦</span>
-            </button>
-          )}
-        </div>
-
-        {/* Floating Multi-Selection Action Bar */}
-        {selectedInvoiceIds.size > 0 && (
-          <div className="bg-slate-900 text-white p-3.5 rounded-2xl shadow-xl flex items-center justify-between gap-3 animate-in fade-in border-2 border-amber-400">
-            <div className="flex items-center gap-2.5">
-              <span className="bg-amber-400 text-slate-950 font-black px-2.5 py-1 rounded-xl text-xs">
-                {selectedInvoiceIds.size} فواتير محددة
-              </span>
-              <span className="text-xs text-slate-300 hidden sm:inline">
-                إجمالي الكراتين: <strong className="text-amber-300 font-mono">{selectedInvoicesList.reduce((acc, i) => acc + (i.totalCartons || 0), 0)}</strong> كرتونة • القيمة: <strong className="text-purple-300 font-mono">{formatCurrency(selectedInvoicesList.reduce((acc, i) => acc + (i.estimatedGrandTotal || 0), 0))}</strong>
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsConsolidatedModalOpen(true)}
-                className="bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs sm:text-sm shadow-md transition flex items-center gap-2 cursor-pointer active:scale-95"
-              >
-                <Boxes className="w-4 h-4" />
-                <span>دمج الفواتير وتحليل طلبية مخزن أكتوبر 📦</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedInvoiceIds(new Set())}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer"
-              >
-                إلغاء التحديد
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Active Branch Notification for Admin/Dev */}
         {selectedBranchFilter !== 'الكل' && (currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
@@ -1017,15 +546,6 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             <table className="w-full text-right text-xs">
               <thead className="bg-slate-900 text-slate-200 font-bold">
                 <tr>
-                  <th className="p-3.5 w-10 text-center">
-                    <input
-                      type="checkbox"
-                      checked={displayedInvoices.length > 0 && displayedInvoices.every((i) => selectedInvoiceIds.has(i.id))}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 rounded text-amber-500 accent-amber-500 cursor-pointer"
-                      title="تحديد أو إلغاء تحديد كافة الفواتير المعروضة بالصفحة"
-                    />
-                  </th>
                   <th className="p-3.5">رقم الفاتورة</th>
                   <th className="p-3.5">اسم العميل / المحل</th>
                   <th className="p-3.5">المندوب والفرع</th>
@@ -1082,44 +602,61 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                      invoice.status === 'مرتجع جزئي');
 
                   return (
-                    <tr key={invoice.id} className={`hover:bg-amber-50/30 transition ${selectedInvoiceIds.has(invoice.id) ? 'bg-amber-50/70 font-semibold' : ''}`}>
+                    <tr key={invoice.id} className="hover:bg-amber-50/30 transition">
                       
-                      {/* Checkbox for Bulk Merge */}
-                      <td className="p-3 text-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedInvoiceIds.has(invoice.id)}
-                          onChange={() => toggleSelectInvoice(invoice.id)}
-                          className="w-4 h-4 rounded text-amber-500 accent-amber-500 cursor-pointer"
-                          title="تحديد الفاتورة لدمجها وتحليل طلبية أكتوبر"
-                        />
-                      </td>
-
                       {/* Invoice Number */}
                       <td className="p-3 font-mono font-black text-slate-900">
                         <div className="flex flex-col gap-1 items-start">
                           <span className="bg-slate-100 px-2 py-1 rounded-md text-amber-900 border border-slate-200 font-bold">
                             {invoice.invoiceNumber}
                           </span>
-                          {(invoice.hasOctoberShortages || invoice.items.some((it) => it.isShortage || it.needsOctoberSupply) || invoice.isShortageInvoice) ? (
-                            <div className="flex flex-col gap-0.5">
-                              <span className="bg-amber-100 text-amber-950 px-2 py-0.5 rounded-md text-[10px] font-black border border-amber-300 flex items-center gap-1 shadow-2xs">
-                                <span>🚚 فاتورة موحدة بها نواقص توريد</span>
-                                <span>({invoice.shortageItemsCount || invoice.items.filter((it) => it.isShortage || it.needsOctoberSupply).length} صنف)</span>
-                              </span>
-                              {invoice.octoberSupplyRequested ? (
-                                <span className="text-[9px] text-emerald-800 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                  ✓ تم طلب التوريد من أكتوبر ({invoice.octoberSupplyRequestedBy || 'المشرف'})
-                                </span>
-                              ) : (
-                                <span className="text-[9px] text-amber-900 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                                  ⏳ مطلوب سحب النواقص من أكتوبر
-                                </span>
+                          {invoice.isShortageInvoice && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (invoice.parentInvoiceNumber) setSearchTerm(invoice.parentInvoiceNumber);
+                              }}
+                              className="bg-purple-50 hover:bg-purple-100 text-purple-950 px-2 py-1 rounded-md text-[10px] font-black border border-purple-300 flex flex-col gap-0.5 transition cursor-pointer text-right shadow-2xs group"
+                              title="فاتورة نواقص محولة لمخزن أكتوبر المركزي - انقر للبحث عن الفاتورة الأساسية"
+                            >
+                              <div className="flex items-center gap-1 text-purple-900 font-black">
+                                <span>فاتورة نواقص (مخزن أكتوبر)</span>
+                              </div>
+                              {invoice.parentInvoiceNumber && (
+                                <div className="flex items-center gap-1 text-[9px] text-purple-700 font-mono">
+                                  <span>الأصلية:</span>
+                                  <span className="font-bold underline">#{invoice.parentInvoiceNumber}</span>
+                                  <ExternalLink className="w-2.5 h-2.5 shrink-0 text-purple-600" />
+                                </div>
                               )}
-                            </div>
-                          ) : (
-                            <span className="bg-emerald-50 text-emerald-900 px-2 py-0.5 rounded-md text-[10px] font-black border border-emerald-300 flex items-center gap-1 shadow-2xs">
-                              <span>✅ كافة الأصناف متوفرة بـ {invoice.branchName || 'الفرع'}</span>
+                            </button>
+                          )}
+                          {invoice.hasShortageSplit && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (invoice.shortageInvoiceNumber) setSearchTerm(invoice.shortageInvoiceNumber);
+                              }}
+                              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-950 px-2 py-1 rounded-md text-[10px] font-black border border-emerald-300 flex flex-col gap-0.5 transition cursor-pointer text-right shadow-2xs group"
+                              title="فاتورة الأصناف المتوفرة بالمخزن - تم فصل النواقص - انقر للبحث عن فاتورة النواقص"
+                            >
+                              <div className="flex items-center gap-1 text-emerald-900 font-black">
+                                <span>أصناف متوفرة (بالمخزن)</span>
+                              </div>
+                              {invoice.shortageInvoiceNumber && (
+                                <div className="flex items-center gap-1 text-[9px] text-emerald-700 font-mono">
+                                  <span>نواقص:</span>
+                                  <span className="font-bold underline">#{invoice.shortageInvoiceNumber}</span>
+                                  <ExternalLink className="w-2.5 h-2.5 shrink-0 text-emerald-600" />
+                                </div>
+                              )}
+                            </button>
+                          )}
+                          {!invoice.isShortageInvoice && !invoice.hasShortageSplit && (
+                            <span className="bg-emerald-50 text-emerald-900 px-2 py-1 rounded-md text-[10px] font-black border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                              <span>فاتورة مكتملة متوفرة بالمخزن</span>
                             </span>
                           )}
                         </div>
@@ -1160,9 +697,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                         <div className="font-black text-amber-900 text-sm">
                           {formatCurrency(invoice.estimatedGrandTotal)}
                         </div>
-                        {invoice.discountAmount > 0 && (
-                          <div className="text-[10px] text-emerald-700">خصم: {formatCurrency(invoice.discountAmount)}</div>
-                        )}
+                        <div className="text-[10px] text-emerald-700">خصم: {formatCurrency(invoice.discountAmount)}</div>
                       </td>
 
                       {/* Payment Method */}
@@ -1185,7 +720,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           )}
                           {invoice.restoredStockDetails && (invoice.status === 'مرفوضة / ملغاة' || invoice.status === 'ملغاة' || invoice.status === 'مرتجع') && (
                             <span className="text-[9px] bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded font-medium border border-emerald-200">
-                              تم استرجاع الرصيد للمخزن 🔄
+                              تم استرجاع الرصيد للمخزن
                             </span>
                           )}
                         </div>
@@ -1288,20 +823,17 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             <span>عرض</span>
                           </button>
 
-                          {/* Item Analysis & Customer Affinity */}
-                          <button
-                            onClick={() => {
-                              setAnalyticsInvoice(invoice);
-                              setIsAnalyticsModalOpen(true);
-                            }}
-                            className="bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 px-2 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 shadow-2xs"
-                            title="تحليل مسحوبات العميل ونسب الأصناف في الطلبية"
-                          >
-                            <BarChart3 className="w-3.5 h-3.5 text-indigo-600" />
-                            <span>تحليل الأصناف 📊</span>
-                          </button>
-
-
+                          {['admin', 'developer', 'branch_manager', 'supervisor'].includes(currentUser?.role || '') &&
+                            ['معتمدة ومصروفة من المخزن', 'معتمدة'].includes(invoice.status) && (
+                            <button
+                              onClick={() => void handleResendInvoice(invoice)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1"
+                              title="إعادة إرسال الفاتورة بالبريد مع PDF وExcel"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              <span>إعادة الإرسال على الميل</span>
+                            </button>
+                          )}
 
                           {/* Download Both (PDF + Excel) directly to device */}
                           <button
@@ -1309,7 +841,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               try {
                                 setDownloadingBothId(invoice.id);
                                 await downloadInvoiceBoth(invoice);
-                                setSuccessToast(`تم تنزيل ملف PDF وملف Excel للفاتورة #${invoice.invoiceNumber} مباشرة على جهازك! 📥⚡`);
+                                setSuccessToast(`تم تنزيل ملف PDF وملف Excel للفاتورة #${invoice.invoiceNumber} مباشرة على جهازك!`);
                                 setTimeout(() => setSuccessToast(null), 4000);
                               } catch (e) {
                                 setSuccessToast('تم إرسال أمر تنزيل الملفات إلى جهازك.');
@@ -1330,7 +862,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           <button
                             onClick={async () => {
                               await downloadInvoicePDF(invoice);
-                              setSuccessToast(`تم تنزيل ملف PDF للفاتورة #${invoice.invoiceNumber} على جهازك بنجاح! 📥`);
+                              setSuccessToast(`تم تنزيل ملف PDF للفاتورة #${invoice.invoiceNumber} على جهازك بنجاح!`);
                               setTimeout(() => setSuccessToast(null), 3500);
                             }}
                             className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded-lg transition cursor-pointer shadow-xs"
@@ -1352,7 +884,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           <button
                             onClick={() => {
                               exportElectronicInvoiceToExcel(invoice);
-                              setSuccessToast(`تم تنزيل ملف إكسل للفاتورة #${invoice.invoiceNumber} على جهازك 📊`);
+                              setSuccessToast(`تم تنزيل ملف إكسل للفاتورة #${invoice.invoiceNumber} على جهازك`);
                               setTimeout(() => setSuccessToast(null), 3000);
                             }}
                             className="bg-emerald-800 hover:bg-emerald-900 text-white p-1.5 rounded-lg transition cursor-pointer shadow-xs"
@@ -1643,40 +1175,6 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
           onClose={() => setPreviewExcelInvoice(null)}
         />
       )}
-
-      {/* Consolidated Invoice & October Warehouse Supply Analysis Modal (دمج الفواتير وطلب توريد مخزن 6 أكتوبر) */}
-      <ConsolidatedInvoiceModal
-        isOpen={isConsolidatedModalOpen}
-        onClose={() => setIsConsolidatedModalOpen(false)}
-        selectedInvoices={selectedInvoicesList.length > 0 ? selectedInvoicesList : accessibleInvoices}
-        products={products}
-        currentBranch={selectedBranchFilter !== 'الكل' ? selectedBranchFilter : currentUser?.branchName}
-      />
-
-      {/* Shortage Invoices Pulling Modal (سحب فواتير النواقص لمخزن 6 أكتوبر المركزي) */}
-      <ShortagePullModal
-        isOpen={isShortagePullModalOpen}
-        onClose={() => setIsShortagePullModalOpen(false)}
-        invoices={userVisibleInvoices}
-        products={products}
-        currentUser={currentUser}
-        onConfirmDispatch={(invoiceIds) => {
-          const res = bulkDispatchOctoberSupply(invoiceIds);
-          setSuccessToast(res.message || `تم بنجاح اعتماد وتأكيد طلب توريد النواقص لـ ${invoiceIds.length} فاتورة في السيستم! ⚡`);
-          setTimeout(() => setSuccessToast(null), 5000);
-        }}
-      />
-
-      {/* Customer Order Item Analytics Modal (تحليل مسحوبات العميل ونسب الأصناف) */}
-      <CustomerOrderAnalyticsModal
-        invoice={analyticsInvoice}
-        allInvoices={invoices}
-        isOpen={isAnalyticsModalOpen}
-        onClose={() => {
-          setIsAnalyticsModalOpen(false);
-          setAnalyticsInvoice(null);
-        }}
-      />
 
     </div>
   );
