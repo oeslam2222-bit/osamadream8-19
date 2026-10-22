@@ -9,7 +9,6 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
-  Clock,
   Download,
   ExternalLink,
   FileSpreadsheet,
@@ -60,9 +59,6 @@ import {
   getSavedSourceUrl,
   saveSingleSourceUrl,
 } from '../services/dataSourceService';
-import { resolveNetCollections, sumNetCollections, parseCleanNumber } from '../services/customerFinancialService';
-import { resolveCustomerDuesValue } from '../services/customerDues';
-import { classifyEligibilityColumn } from '../services/customerFinancialService';
 
 // Helper to normalize and match branch names with tolerance for prefixes
 const isBranchMatch = (b1?: string | null, b2?: string | null): boolean => {
@@ -98,7 +94,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
   const [periodMode, setPeriodMode] = useState<'monthly' | 'quarterly'>('monthly');
   const [selectedMonth, setSelectedMonth] = useState<number | 'ALL'>('ALL');
   const [selectedQuarter, setSelectedQuarter] = useState<TargetQuarter | 'ALL'>('ALL');
-  const [selectedYear, setSelectedYear] = useState<number | 'ALL'>('ALL');
+  const [selectedYear, setSelectedYear] = useState<number | 'ALL'>(2026);
 
   // Filters for Admin / Manager / Supervisor
   const [selectedBranch, setSelectedBranch] = useState<string>('ALL');
@@ -145,16 +141,6 @@ export const TargetPerformanceDashboard: React.FC = () => {
       if (r.branch) set.add(r.branch);
     });
     return Array.from(set);
-  }, [visibleRecords]);
-
-  // Distinct years available in data
-  const availableYears = useMemo(() => {
-    const set = new Set<number>();
-    visibleRecords.forEach((r) => {
-      if (r.year && r.year >= 2020) set.add(r.year);
-    });
-    const arr = Array.from(set).sort((a, b) => b - a);
-    return arr.length > 0 ? arr : [2026, 2025];
   }, [visibleRecords]);
 
   // Supervisors available in this branch (for Branch Manager & Admin)
@@ -225,7 +211,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
       visibleRecords.forEach((r) => {
         if (isArabicNameMatch(r.repName, currentUser.name)) return; // exclude self from reps list
         const norm = normalizeArabicText(r.repName);
-        if (directNames.size > 0 && Array.from(directNames).some((dn) => isArabicNameMatch(r.repName, dn) || norm.includes(dn))) {
+        if (directNames.size === 0 || Array.from(directNames).some((dn) => isArabicNameMatch(r.repName, dn) || norm.includes(dn))) {
           set.add(r.repName);
         }
       });
@@ -239,23 +225,20 @@ export const TargetPerformanceDashboard: React.FC = () => {
         .sort((a, b) => a.localeCompare(b, 'ar'));
     }
 
-    // 3. Filter reps by the selected branch.
-    // Unassigned reps are visible to branch managers and admins only.
-    const canViewUnassignedReps = isBranchManager || isAdminOrDev;
+    // 3. Filter reps by the selected branch!
     const set = new Set<string>();
     visibleRecords.forEach((r) => {
       if (!effectiveBranch || isBranchMatch(r.branch, effectiveBranch)) {
-        const repUser = users.find(
-          (u) => u.role === 'sales_rep' && (isArabicNameMatch(u.name, r.repName) || normalizeArabicText(u.name) === normalizeArabicText(r.repName))
-        );
-        if (r.repName && (canViewUnassignedReps || repUser?.supervisorId)) set.add(r.repName);
+        if (r.repName) set.add(r.repName);
       }
     });
 
-    // Also check users, keeping reps without a supervisor hidden from non-manager roles.
+    // Also check users
     users.forEach((u) => {
-      if (u.role === 'sales_rep' && (!effectiveBranch || isBranchMatch(u.branchName, effectiveBranch))) {
-        if (canViewUnassignedReps || u.supervisorId) set.add(u.name);
+      if (u.role === 'sales_rep') {
+        if (!effectiveBranch || isBranchMatch(u.branchName, effectiveBranch)) {
+          set.add(u.name);
+        }
       }
     });
 
@@ -368,7 +351,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
       totalSalesTarget += r.salesTarget || 0;
       totalSalesAchieved += r.salesAchieved || 0;
       totalCollectionTarget += r.collectionTarget || 0;
-      totalCollectionAchieved += r.collectionAchieved || 0;
+      totalCollectionAchieved += Math.abs(Number(r.collectionAchieved) || 0);
     });
 
     const salesPercentage = totalSalesTarget > 0 ? (totalSalesAchieved / totalSalesTarget) * 100 : 0;
@@ -419,7 +402,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
           buckets[m].salesTarget += r.salesTarget || 0;
           buckets[m].salesAchieved += r.salesAchieved || 0;
           buckets[m].collectionTarget += r.collectionTarget || 0;
-          buckets[m].collectionAchieved += r.collectionAchieved || 0;
+          buckets[m].collectionAchieved += Math.abs(Number(r.collectionAchieved) || 0);
         }
       });
 
@@ -437,7 +420,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
           qData[r.quarter].salesTarget += r.salesTarget || 0;
           qData[r.quarter].salesAchieved += r.salesAchieved || 0;
           qData[r.quarter].collectionTarget += r.collectionTarget || 0;
-          qData[r.quarter].collectionAchieved += r.collectionAchieved || 0;
+          qData[r.quarter].collectionAchieved += Math.abs(Number(r.collectionAchieved) || 0);
         }
       });
 
@@ -488,138 +471,6 @@ export const TargetPerformanceDashboard: React.FC = () => {
       })
       .sort((a, b) => b.salesPerc - a.salesPerc);
   }, [filteredRecords]);
-
-  // Customer accountability summary linked to the Target sheet.
-  // A customer is considered dealt in a month only when that month's sales are greater than zero.
-  const repCustomerSummary = useMemo(() => {
-    const map = new Map<string, {
-      repName: string;
-      totalCustomers: number;
-      dealtCustomers: number;
-      nonDealtCustomers: number;
-      eligibleCustomers: number;
-      coverageRate: number;
-      dues: number;
-      debts: number;
-      collections: number;
-      netBalance: number;
-    }>();
-
-    const matchesRep = (customerRep: string | undefined, repName: string) =>
-      Boolean(customerRep) && (isArabicNameMatch(customerRep, repName) || normalizeArabicText(customerRep) === normalizeArabicText(repName));
-
-    const repsFromTargets = filteredRecords.map((record) => record.repName).filter(Boolean);
-    const repsFromCustomers = customers
-      .filter((c) => !effectiveBranch || isBranchMatch(c.branchName, effectiveBranch))
-      .map((c) => c.repName || c.salesRepName)
-      .filter((name): name is string => Boolean(name));
-    const reps = Array.from(new Set([...repsFromTargets, ...repsFromCustomers]));
-
-    reps.forEach((repName) => {
-      const repCustomers = customers.filter((customer) => {
-        const matchesBranch = !effectiveBranch || isBranchMatch(customer.branchName, effectiveBranch);
-        const matchesSelectedRep = selectedRep === 'ALL' || matchesRep(customer.repName || customer.salesRepName, selectedRep);
-        return matchesBranch && matchesSelectedRep && matchesRep(customer.repName || customer.salesRepName, repName);
-      });
-
-      if (repCustomers.length === 0 && selectedRep !== 'ALL') return;
-
-      const selectedMonthSales = (customer: typeof customers[number]) => {
-        if (selectedMonth === 'ALL') {
-          const mSum = Object.values(customer.monthlySales2026 || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
-          return Math.max(
-            mSum,
-            Number(customer.sales2026 || 0),
-            Number(customer.totalMonthlySales || 0),
-            Number(customer.totalOverallSales || 0)
-          );
-        }
-        return Math.max(0, Number(customer.monthlySales2026?.[selectedMonth]) || 0);
-      };
-
-      const isDealtCustomer = (customer: typeof customers[number]) => {
-        const sales = selectedMonthSales(customer);
-        if (sales > 0) return true;
-        if (selectedMonth === 'ALL') {
-          return Boolean(
-            customer.hasDealtIn2026 ||
-            customer.dealt2026 === 'متعامل' ||
-            (customer.collections2026 && Number(customer.collections2026) > 0) ||
-            (customer.totalMonthlyCollections && Number(customer.totalMonthlyCollections) > 0)
-          );
-        }
-        return false;
-      };
-
-      // Read eligibility through the canonical classifier. The old inline test
-      // ("does the text contain غير?") counted "غير متعامل" as ineligible, which
-      // is a dealt flag, not an eligibility block.
-      const eligibleCustomers = repCustomers.filter((customer) => classifyEligibilityColumn(customer.dealEligibility)?.eligible ?? true).length;
-      const dealtCustomers = repCustomers.filter(isDealtCustomer).length;
-      const coverageRate = eligibleCustomers > 0 ? Math.round((dealtCustomers / eligibleCustomers) * 100) : 0;
-
-      const summary = {
-        repName,
-        totalCustomers: repCustomers.length,
-        dealtCustomers,
-        nonDealtCustomers: repCustomers.filter((customer) => !isDealtCustomer(customer)).length,
-        eligibleCustomers,
-        coverageRate,
-        dues: repCustomers.reduce((sum, customer) => sum + resolveCustomerDuesValue(customer), 0),
-        debts: repCustomers.reduce((sum, customer) => {
-          const val = Number(customer.currentBalance ?? customer.balance ?? 0);
-          return sum + (isNaN(val) ? 0 : val);
-        }, 0),
-        netBalance: repCustomers.reduce((sum, customer) => {
-          const val = Number(customer.currentBalance ?? customer.balance ?? 0);
-          return sum + (isNaN(val) ? 0 : val);
-        }, 0),
-        collections: repCustomers.reduce((sum, customer) => {
-          const annual = resolveNetCollections(customer);
-          const monthSum = sumNetCollections(customer.monthlyCollections2026);
-          const value = selectedMonth === 'ALL'
-            ? (annual !== 0 ? annual : monthSum)
-            : Math.abs(parseCleanNumber(customer.monthlyCollections2026?.[selectedMonth]));
-          return sum + (isNaN(value) ? 0 : value);
-        }, 0),
-      };
-      map.set(repName, summary);
-    });
-
-    return Array.from(map.values()).sort((a, b) => b.dealtCustomers - a.dealtCustomers || a.repName.localeCompare(b.repName, 'ar'));
-  }, [customers, effectiveBranch, filteredRecords, selectedMonth, selectedRep]);
-
-  // Aggregate totals for the Rep Customers Summary (Power BI KPI Cards)
-  const repCustomerTotals = useMemo(() => {
-    return repCustomerSummary.reduce(
-      (acc, s) => {
-        acc.totalCustomers += s.totalCustomers;
-        acc.dealtCustomers += s.dealtCustomers;
-        acc.nonDealtCustomers += s.nonDealtCustomers;
-        acc.eligibleCustomers += s.eligibleCustomers;
-        acc.dues += s.dues;
-        acc.debts += s.debts;
-        acc.collections += s.collections;
-        acc.netBalance += s.netBalance;
-        return acc;
-      },
-      {
-        totalCustomers: 0,
-        dealtCustomers: 0,
-        nonDealtCustomers: 0,
-        eligibleCustomers: 0,
-        dues: 0,
-        debts: 0,
-        collections: 0,
-        netBalance: 0,
-      }
-    );
-  }, [repCustomerSummary]);
-
-  const overallRepCustomerCoverageRate =
-    repCustomerTotals.eligibleCustomers > 0
-      ? Math.round((repCustomerTotals.dealtCustomers / repCustomerTotals.eligibleCustomers) * 100)
-      : 0;
 
   // Base records for the monthly details matrix (filtered by user/role/branch/rep/year, WITHOUT filtering out months)
   const baseRecordsForMonths = useMemo(() => {
@@ -707,6 +558,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
     colPerc: number;
     remainingCol: number;
     recordsCount: number;
+    activeCustomers: number;
+    totalCustomers: number;
     // Milestones gaps for sales
     salesGap60: number;
     salesGap70: number;
@@ -720,6 +573,60 @@ export const TargetPerformanceDashboard: React.FC = () => {
     // Power BI Milestone status
     highestMilestone: '100%+' | '90%+' | '70%+' | '60%+' | 'below_60' | 'none';
   }
+
+  // Filtered customers matching the same branch/supervisor/rep filters as baseRecordsForMonths
+  const filteredCustomersForMonths = useMemo(() => {
+    return customers.filter((c) => {
+      const repName = c.salesRepName || c.repName || '';
+
+      // 1. Supervisor personal vs team mode
+      if (isSupervisor && currentUser) {
+        const isSelf = isArabicNameMatch(repName, currentUser.name) ||
+          normalizeArabicText(repName) === normalizeArabicText(currentUser.name);
+        if (supervisorViewMode === 'my_personal') {
+          if (!isSelf) return false;
+        } else {
+          if (isSelf && supervisedReps.length > 0) return false;
+          if (supervisedReps.length > 0) {
+            const normRep = normalizeArabicText(repName);
+            const matches = supervisedReps.some((sr) => isArabicNameMatch(repName, sr) || normRep === normalizeArabicText(sr));
+            if (!matches) return false;
+          }
+        }
+      }
+
+      // 2. Sales rep: only own customers
+      if (isSalesRep && currentUser) {
+        if (!isArabicNameMatch(repName, currentUser.name) && normalizeArabicText(repName) !== normalizeArabicText(currentUser.name)) {
+          return false;
+        }
+      }
+
+      // 3. Branch filter
+      if (isBranchManager && currentUser) {
+        if (!isBranchMatch(c.branchName, currentUser.branchName)) return false;
+      }
+      if (isAdminOrDev && selectedBranch !== 'ALL' && !isBranchMatch(c.branchName, selectedBranch)) return false;
+
+      // 4. Supervisor filter (Branch Manager or Admin)
+      if ((isBranchManager || isAdminOrDev) && selectedSupervisor !== 'ALL' && repsUnderSelectedSupervisor) {
+        const normRep = normalizeArabicText(repName);
+        const matches = Array.from(repsUnderSelectedSupervisor).some(
+          (sRep) => isArabicNameMatch(repName, sRep) || normRep === normalizeArabicText(sRep)
+        );
+        if (!matches) return false;
+      }
+
+      // 5. Rep filter
+      if (!isSalesRep && selectedRep !== 'ALL') {
+        if (!isArabicNameMatch(repName, selectedRep) && normalizeArabicText(repName) !== normalizeArabicText(selectedRep)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [customers, isSupervisor, currentUser, supervisorViewMode, supervisedReps, isSalesRep, isBranchManager, isAdminOrDev, selectedBranch, selectedSupervisor, repsUnderSelectedSupervisor, selectedRep]);
 
   // Monthly Matrix Rows for all 12 months
   const monthlyMatrixRows = useMemo<MonthlyMatrixRow[]>(() => {
@@ -764,6 +671,11 @@ export const TargetPerformanceDashboard: React.FC = () => {
         else highestMilestone = 'below_60';
       }
 
+      const activeCustomersForMonth = filteredCustomersForMonths.filter((c) => {
+        const ms = c.monthlySales2026;
+        return ms && ms[m] && ms[m] > 0;
+      }).length;
+
       rows.push({
         month: m,
         monthName: ARABIC_MONTHS[m - 1],
@@ -777,6 +689,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
         colPerc: cPerc,
         remainingCol: remC,
         recordsCount: monthRecords.length,
+        activeCustomers: activeCustomersForMonth,
+        totalCustomers: filteredCustomersForMonths.length,
         salesGap60,
         salesGap70,
         salesGap90,
@@ -790,7 +704,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
     }
 
     return rows;
-  }, [baseRecordsForMonths]);
+  }, [baseRecordsForMonths, filteredCustomersForMonths]);
 
   // Filter rows according to user's view choice (all 12 or with data only)
   const displayedMonthlyRows = useMemo(() => {
@@ -809,6 +723,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
     let totColTarget = 0;
     let totColAchieved = 0;
     let totRecords = 0;
+    let totActiveCustomers = 0;
 
     monthlyMatrixRows.forEach((r) => {
       totSalesTarget += r.salesTarget;
@@ -816,6 +731,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
       totColTarget += r.colTarget;
       totColAchieved += r.colAchieved;
       totRecords += r.recordsCount;
+      totActiveCustomers = Math.max(totActiveCustomers, r.activeCustomers);
     });
 
     const totSalesPerc = totSalesTarget > 0 ? Number(((totSalesAchieved / totSalesTarget) * 100).toFixed(1)) : 0;
@@ -833,6 +749,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
       totColPerc,
       totRemCol,
       totRecords,
+      totActiveCustomers,
+      totTotalCustomers: filteredCustomersForMonths.length,
       totSalesGap60: Math.max(0, totSalesTarget * 0.6 - totSalesAchieved),
       totSalesGap70: Math.max(0, totSalesTarget * 0.7 - totSalesAchieved),
       totSalesGap90: Math.max(0, totSalesTarget * 0.9 - totSalesAchieved),
@@ -842,7 +760,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
       totColGap90: Math.max(0, totColTarget * 0.9 - totColAchieved),
       totColGap100: totRemCol,
     };
-  }, [monthlyMatrixRows]);
+  }, [monthlyMatrixRows, filteredCustomersForMonths]);
 
   // Monthly Comparison Chart Data for Power BI side-by-side visualization
   const monthlyComparisonChartData = useMemo(() => {
@@ -916,7 +834,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 pb-12">
+    <div className="tantawy-screen space-y-4 sm:space-y-6 pb-12">
       {/* Top Header Card */}
       <div className="bg-slate-900 text-white rounded-3xl p-4 sm:p-6 shadow-xl border border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -928,36 +846,36 @@ export const TargetPerformanceDashboard: React.FC = () => {
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                   {isSalesRep
-                    ? 'هدفي وتارجت المبيعات والتحصيل 🎯'
+                    ? 'هدفي وتارجت المبيعات والتحصيل'
                     : isSupervisor
-                    ? 'أهداف ومحققات المبيعات والتحصيل (المشرف) 🎯'
+                    ? 'أهداف ومحققات المبيعات والتحصيل (المشرف)'
                     : isBranchManager
-                    ? `أهداف وتارجت ${currentUser?.branchName || 'الفرع'} 🏢`
-                    : 'لوحة أهداف المبيعات والتحصيل الشاملة (Google Sheets) 📊'}
+                    ? `أهداف وتارجت ${currentUser?.branchName || 'الفرع'}`
+                    : 'لوحة أهداف المبيعات والتحصيل الشاملة (Google Sheets)'}
                 </h1>
                 <span className="bg-amber-400 text-slate-950 text-[11px] font-black px-2.5 py-0.5 rounded-full">
                   2026
                 </span>
               </div>
 
-              {/* Role Scope Indicator */}
+              {/* Strict Privacy Indicator */}
               <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-300">
                 <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                 {isSalesRep ? (
                   <span className="font-bold text-emerald-300">
-                    أهدافك الشخصية المعتمدة ({currentUser?.name})
+                    سرية تامة: معروضة أرقامك الشخصية فقط ({currentUser?.name})
                   </span>
                 ) : isSupervisor ? (
                   <span className="font-bold text-blue-300">
-                    أهدافك الشخصية ومناديب فريقك في {currentUser?.branchName}
+                    سرية الفرع: معروضة أرقامك الشخصية ومناديب فريقك فقط في {currentUser?.branchName}
                   </span>
                 ) : isBranchManager ? (
                   <span className="font-bold text-purple-300">
-                    أهداف ومؤشرات مناديب {currentUser?.branchName}
+                    إدارة الفرع: معروضة فقط أرقام مناديب {currentUser?.branchName}
                   </span>
                 ) : (
                   <span className="font-bold text-amber-300">
-                    رؤية شاملة لجميع الفروع والمناديب
+                    الإدارة والمطور: رؤية كاملة لجميع الفروع مع صلاحيات رفع وتحديث الشيتات
                   </span>
                 )}
               </div>
@@ -975,7 +893,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                   title="مزامنة فورية من شيت Google Sheets المحفوظ"
                 >
                   <RefreshCw className={`w-4 h-4 ${isSyncingSheet ? 'animate-spin' : ''}`} />
-                  <span>{isSyncingSheet ? 'جاري المزامنة...' : 'مزامنة Google Sheets 🟢'}</span>
+                  <span>{isSyncingSheet ? 'جاري المزامنة...' : 'مزامنة Google Sheets'}</span>
                 </button>
               )}
 
@@ -1043,7 +961,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
               className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black px-4 py-2 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>حفظ ومزامنة الآن 🟢</span>
+              <span>حفظ ومزامنة الآن</span>
             </button>
           </div>
         )}
@@ -1084,7 +1002,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
           <div className="space-y-1.5">
             <h2 className="text-lg sm:text-xl font-black text-slate-900">
               {isAdminOrDev
-                ? 'ربط ومزامنة شيت أهداف وتارجت المناديب (Google Sheets) 🎯'
+                ? 'ربط ومزامنة شيت أهداف وتارجت المناديب (Google Sheets)'
                 : `أهلاً بك يا ${currentUser?.name || ''}`}
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 max-w-lg mx-auto leading-relaxed">
@@ -1121,7 +1039,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                   ) : (
                     <>
                       <CheckCircle2 className="w-4 h-4" />
-                      <span>حفظ ومزامنة الأهداف 🟢</span>
+                      <span>حفظ ومزامنة الأهداف</span>
                     </>
                   )}
                 </button>
@@ -1129,7 +1047,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
               <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold px-1">
                 <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
-                  ✓ الرابط يُحفظ تلقائياً في المتصفح ولن تضطر لإعادة إدخاله كل مرة
+                  الرابط يُحفظ تلقائياً في المتصفح ولن تضطر لإعادة إدخاله كل مرة
                 </span>
                 <button
                   type="button"
@@ -1148,7 +1066,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
           <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200 shadow-xs space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               {/* Period Mode: Monthly vs Quarterly */}
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-500">طريقة العرض:</span>
                 <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
                   <button
@@ -1180,24 +1098,6 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     <span>كوارتر (Quarterly)</span>
                   </button>
                 </div>
-
-                {/* Year Filter Selector */}
-                <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-200">
-                  <span className="text-xs font-bold text-slate-500">السنة:</span>
-                  <select
-                    value={selectedYear}
-                    onChange={(e) => setSelectedYear(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
-                    className="bg-white text-slate-900 font-black text-xs px-2 py-1 rounded-lg border border-slate-200 outline-none cursor-pointer"
-                    aria-label="تصفية السنة"
-                  >
-                    <option value="ALL">كل السنوات</option>
-                    {availableYears.map((yr) => (
-                      <option key={yr} value={yr}>
-                        {yr}
-                      </option>
-                    ))}
-                  </select>
-                </div>
               </div>
 
               {/* Supervisor View Mode: My Targets vs Team Reps */}
@@ -1215,7 +1115,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     }`}
                   >
                     <User className="w-3.5 h-3.5" />
-                    <span>أرقامي الشخصية 👤</span>
+                    <span>أرقامي الشخصية</span>
                   </button>
                   <button
                     onClick={() => setSupervisorViewMode('my_team')}
@@ -1226,7 +1126,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     }`}
                   >
                     <Users className="w-3.5 h-3.5" />
-                    <span>مناديب فريقي 👥</span>
+                    <span>مناديب فريقي</span>
                   </button>
                 </div>
               )}
@@ -1512,7 +1412,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                 {formatEGP(kpis.remainingSales)}
               </div>
               <div className="text-[11px] text-slate-500 mt-1 font-bold">
-                {kpis.remainingSales === 0 ? '🎉 تم إكمال التارجت بالكامل!' : 'المبلغ المطلوب لتحقيق الهدف'}
+                {kpis.remainingSales === 0 ? 'تم إكمال التارجت بالكامل!' : 'المبلغ المطلوب لتحقيق الهدف'}
               </div>
             </div>
 
@@ -1527,10 +1427,10 @@ export const TargetPerformanceDashboard: React.FC = () => {
               </div>
               <div className="text-[11px] text-slate-300 mt-1 font-bold">
                 {kpis.salesPercentage >= 100
-                  ? 'أداء استثنائي متفوق ⭐'
+                  ? 'أداء استثنائي متفوق'
                   : kpis.salesPercentage >= 75
-                  ? 'أداء جيد جداً وجاري المتابعة 🚀'
-                  : 'يحتاج لتكثيف الزيارات والمبيعات ⚠️'}
+                  ? 'أداء جيد جداً وجاري المتابعة'
+                  : 'يحتاج لتكثيف الزيارات والمبيعات'}
               </div>
             </div>
 
@@ -1679,6 +1579,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                       <th className="px-4 py-3.5 whitespace-nowrap text-blue-800">محقق التحصيل</th>
                       <th className="px-4 py-3.5 whitespace-nowrap text-center">نسبة التحصيل %</th>
                       <th className="px-4 py-3.5 whitespace-nowrap text-blue-900">المتبقي تحصيل (100%)</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap text-center">المتعاملين</th>
                       <th className="px-4 py-3.5 whitespace-nowrap text-center">حالة الإنجاز</th>
                       <th className="px-3 py-3.5 whitespace-nowrap text-center">تركيز</th>
                     </tr>
@@ -1708,7 +1609,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                               </span>
                               {isRowSelected && (
                                 <span className="text-[10px] font-black text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-md">
-                                  مختار حالياً 📌
+                                  مختار حالياً
                                 </span>
                               )}
                             </div>
@@ -1753,7 +1654,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                           <td className="px-4 py-3 whitespace-nowrap font-black text-amber-700">
                             {row.remainingSales === 0 && row.salesTarget > 0 ? (
                               <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md text-[11px] font-bold">
-                                تم بالكامل ✅
+                                تم بالكامل
                               </span>
                             ) : (
                               formatEGP(row.remainingSales)
@@ -1799,34 +1700,50 @@ export const TargetPerformanceDashboard: React.FC = () => {
                           <td className="px-4 py-3 whitespace-nowrap font-black text-blue-900">
                             {row.remainingCol === 0 && row.colTarget > 0 ? (
                               <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md text-[11px] font-bold">
-                                تم بالكامل ✅
+                                تم بالكامل
                               </span>
                             ) : (
                               formatEGP(row.remainingCol)
                             )}
                           </td>
 
+                          {/* Active Customers (متعامل) */}
+                          <td className="px-4 py-3 whitespace-nowrap text-center">
+                            <div className="inline-flex flex-col items-center">
+                              <span className={`inline-flex rounded-full border px-2.5 py-0.5 font-black text-xs ${
+                                row.activeCustomers > 0
+                                  ? 'bg-teal-50 text-teal-700 border-teal-300'
+                                  : 'bg-slate-50 text-slate-400 border-slate-200'
+                              }`}>
+                                {row.activeCustomers}
+                              </span>
+                              <span className="text-[10px] text-slate-400 mt-0.5">
+                                من {row.totalCustomers}
+                              </span>
+                            </div>
+                          </td>
+
                           {/* Achievement Status Badge */}
                           <td className="px-4 py-3 whitespace-nowrap text-center">
                             {row.salesPerc >= 100 && row.colPerc >= 100 ? (
                               <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full">
-                                ⭐ مكتمل بالكامل
+                                مكتمل بالكامل
                               </span>
                             ) : row.salesPerc >= 100 ? (
                               <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                                🛒 مكتمل بيعاً
+                                مكتمل بيعاً
                               </span>
                             ) : row.colPerc >= 100 ? (
                               <span className="inline-flex items-center gap-1 text-[11px] font-black text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
-                                💰 مكتمل تحصيلاً
+                                مكتمل تحصيلاً
                               </span>
                             ) : row.salesPerc >= 70 || row.colPerc >= 70 ? (
                               <span className="inline-flex items-center gap-1 text-[11px] font-black text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                                ⚡ متقدم
+                                متقدم
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 text-[11px] font-black text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
-                                ⏳ قيد المتابعة
+                                قيد المتابعة
                               </span>
                             )}
                           </td>
@@ -1887,6 +1804,14 @@ export const TargetPerformanceDashboard: React.FC = () => {
                       <td className="px-4 py-4 whitespace-nowrap text-blue-300">
                         {formatEGP(monthlyMatrixTotals.totRemCol)}
                       </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-center">
+                        <span className="inline-flex flex-col items-center">
+                          <span className="inline-block bg-teal-500/20 text-teal-300 border border-teal-500/40 px-3 py-1 rounded-full text-xs font-black">
+                            {monthlyMatrixTotals.totActiveCustomers}
+                          </span>
+                          <span className="text-[10px] text-slate-400 mt-0.5">من {monthlyMatrixTotals.totTotalCustomers}</span>
+                        </span>
+                      </td>
                       <td className="px-4 py-4 whitespace-nowrap text-center text-amber-300 text-[11px]">
                         ملخص الأداء السنوي
                       </td>
@@ -1935,7 +1860,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     }`}
                   >
                     <BarChart3 className="w-3.5 h-3.5" />
-                    <span>مقارنة الشهور بيع وتحصيل 📊 (Power BI)</span>
+                    <span>مقارنة الشهور بيع وتحصيل (Power BI)</span>
                   </button>
                   {repsRankingData.length > 1 && (
                     <button
@@ -1947,7 +1872,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                       }`}
                     >
                       <Award className="w-3.5 h-3.5" />
-                      <span>مقارنة وترتيب المناديب 🏆 ({repsRankingData.length})</span>
+                      <span>مقارنة وترتيب المناديب ({repsRankingData.length})</span>
                     </button>
                   )}
                 </div>
@@ -2033,7 +1958,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
                     {/* The Chart */}
                     <div className="h-[300px] sm:h-[360px] w-full">
-                      <ResponsiveContainer width="100%" height="100%" minHeight={200}>
+                      <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                           data={monthlyComparisonChartData}
                           margin={{ top: 15, right: 10, left: 10, bottom: 25 }}
@@ -2058,7 +1983,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                                 return (
                                   <div className="bg-slate-900 text-white p-3.5 rounded-2xl shadow-xl text-xs space-y-1.5 border border-slate-800 font-sans min-w-[220px]">
                                     <div className="font-black text-amber-400 text-sm border-b border-slate-700 pb-1 flex justify-between">
-                                      <span>📅 شهر {label}</span>
+                                      <span>شهر {label}</span>
                                       <span className="text-slate-400 text-xs font-normal">{row.quarter}</span>
                                     </div>
                                     <div className="pt-1">
@@ -2209,7 +2134,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                       <div>
                         <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
                           <Award className="w-5 h-5 text-amber-500" />
-                          <span>رسم بياني لمقارنة نسب إنجاز مناديب الفرع 📊</span>
+                          <span>رسم بياني لمقارنة نسب إنجاز مناديب الفرع</span>
                         </h3>
                         <p className="text-xs text-slate-500 mt-0.5 font-bold">
                           مقارنة نسبة إنجاز مبيعات ونسبة إنجاز تحصيل كل مندوب مئوية (%)
@@ -2228,7 +2153,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     </div>
 
                     <div className="h-[280px] sm:h-[340px] w-full">
-                      <ResponsiveContainer width="100%" height="100%" minHeight={200}>
+                      <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                           data={repsRankingData}
                           margin={{ top: 10, right: 10, left: 10, bottom: 25 }}
@@ -2253,7 +2178,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                                 return (
                                   <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl text-xs space-y-1.5 border border-slate-800 font-sans">
                                     <div className="font-black text-amber-400 text-sm border-b border-slate-700 pb-1">
-                                      👤 {label}
+                                      {label}
                                     </div>
                                     <div className="text-slate-300">
                                       هدف البيع: <strong className="text-white">{formatEGP(item.salesTarget)}</strong>
@@ -2283,7 +2208,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                   {/* Rep Leaderboard Cards */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {repsRankingData.map((rep, idx) => {
-                      const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}`;
+                      const medal = `${idx + 1}`;
                       const isSalesAchieved = rep.salesPerc >= 100;
                       const isColAchieved = rep.colPerc >= 100;
 
@@ -2310,7 +2235,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                               }}
                               className="text-[10px] text-amber-700 bg-amber-100 hover:bg-amber-200 font-black px-2 py-0.5 rounded-md transition cursor-pointer"
                             >
-                              تفاصيل 🔍
+                              تفاصيل
                             </button>
                           </div>
 
@@ -2395,7 +2320,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     </div>
 
                     <div className="h-[280px] sm:h-[320px] w-full">
-                      <ResponsiveContainer width="100%" height="100%" minHeight={200}>
+                      <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                           data={displayChartData}
                           margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
@@ -2468,7 +2393,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     </div>
 
                     <div className="h-[250px] sm:h-[280px] w-full">
-                      <ResponsiveContainer width="100%" height="100%" minHeight={200}>
+                      <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                           data={displayChartData}
                           margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
@@ -2591,213 +2516,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
           {/* ADMIN ONLY TAB 3: Raw Excel Table View */}
           {isAdminOrDev && adminTab === 'table' && (
-            <div className="space-y-4">
-              <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden space-y-4 p-4">
-                {/* Header & Month Slicer */}
-                <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 pb-3 border-b border-slate-200">
-                  <div>
-                    <div className="font-black text-sm text-slate-900 flex items-center gap-2">
-                      <Users className="w-5 h-5 text-amber-600" />
-                      <span>ملخص عملاء كل مندوب من شيت العملاء (تحليلات Power BI)</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 font-bold mt-1">
-                      {selectedMonth === 'ALL'
-                        ? 'عرض تراكمي لكامل عام 2026 | المتعامل: من لديه مبيعات > 0 في السنة | المستحقات محسوبة من عمود إجمالي المستحقات.'
-                        : `فلترة شهر ${ARABIC_MONTHS[(selectedMonth as number) - 1]} | المتعامل: من لديه مبيعات > 0 في هذا الشهر | التغطية = (المتعامل ÷ القابل)%.`}
-                    </p>
-                  </div>
-
-                  {/* Month Slicer Buttons */}
-                  <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-1 w-full lg:w-auto bg-slate-900 p-1.5 rounded-2xl shadow-inner">
-                    <span className="text-[11px] font-black text-amber-400 px-2 flex items-center gap-1 shrink-0">
-                      <Calendar className="w-3.5 h-3.5" />
-                      <span>الشهر:</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMonth('ALL')}
-                      className={`px-2.5 py-1 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
-                        selectedMonth === 'ALL'
-                          ? 'bg-amber-400 text-slate-950 shadow-md font-black'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
-                      }`}
-                    >
-                      كامل 2026
-                    </button>
-                    {ARABIC_MONTHS.map((name, idx) => {
-                      const mNum = idx + 1;
-                      const isSelected = selectedMonth === mNum;
-                      return (
-                        <button
-                          key={mNum}
-                          type="button"
-                          onClick={() => setSelectedMonth(mNum)}
-                          className={`px-2 py-1 rounded-xl text-[11px] font-bold transition cursor-pointer whitespace-nowrap ${
-                            isSelected
-                              ? 'bg-emerald-400 text-slate-950 font-black shadow-md'
-                              : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
-                          }`}
-                        >
-                          {name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Power BI KPI Analytics Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
-                  <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
-                    <div className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
-                      <Users className="w-3.5 h-3.5 text-slate-600" />
-                      <span>إجمالي العملاء</span>
-                    </div>
-                    <div className="text-lg font-black text-slate-900 mt-0.5">
-                      {repCustomerTotals.totalCustomers.toLocaleString('ar-EG')}
-                    </div>
-                  </div>
-
-                  <div className="bg-emerald-50/80 p-2.5 rounded-2xl border border-emerald-200">
-                    <div className="text-[10px] font-bold text-emerald-800 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>المتعاملين ✅</span>
-                    </div>
-                    <div className="text-lg font-black text-emerald-700 mt-0.5">
-                      {repCustomerTotals.dealtCustomers.toLocaleString('ar-EG')}
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-100/80 p-2.5 rounded-2xl border border-slate-200">
-                    <div className="text-[10px] font-bold text-slate-600 flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-slate-500" />
-                      <span>غير متعامل ⭕</span>
-                    </div>
-                    <div className="text-lg font-black text-slate-700 mt-0.5">
-                      {repCustomerTotals.nonDealtCustomers.toLocaleString('ar-EG')}
-                    </div>
-                  </div>
-
-                  <div className="bg-blue-50/80 p-2.5 rounded-2xl border border-blue-200">
-                    <div className="text-[10px] font-bold text-blue-800 flex items-center gap-1">
-                      <Check className="w-3.5 h-3.5 text-blue-600" />
-                      <span>قابل للتعامل ⏳</span>
-                    </div>
-                    <div className="text-lg font-black text-blue-700 mt-0.5">
-                      {repCustomerTotals.eligibleCustomers.toLocaleString('ar-EG')}
-                    </div>
-                  </div>
-
-                  <div className="bg-amber-50/80 p-2.5 rounded-2xl border border-amber-200">
-                    <div className="text-[10px] font-bold text-amber-900 flex items-center gap-1">
-                      <Percent className="w-3.5 h-3.5 text-amber-600" />
-                      <span>نسبة التغطية %</span>
-                    </div>
-                    <div className="text-lg font-black text-amber-800 mt-0.5">
-                      {overallRepCustomerCoverageRate}%
-                    </div>
-                  </div>
-
-                  <div className="bg-orange-50/80 p-2.5 rounded-2xl border border-orange-200">
-                    <div className="text-[10px] font-bold text-orange-900 flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5 text-orange-600" />
-                      <span>إجمالي المستحقات</span>
-                    </div>
-                    <div className="text-sm font-black text-orange-800 mt-1 truncate" title={formatEGP(repCustomerTotals.dues)}>
-                      {formatEGP(repCustomerTotals.dues)}
-                    </div>
-                  </div>
-
-                  <div className="bg-rose-50/80 p-2.5 rounded-2xl border border-rose-200">
-                    <div className="text-[10px] font-bold text-rose-800 flex items-center gap-1">
-                      <Wallet className="w-3.5 h-3.5 text-rose-600" />
-                      <span>إجمالي المديونيات</span>
-                    </div>
-                    <div className="text-sm font-black text-rose-700 mt-1 truncate" title={formatEGP(repCustomerTotals.debts)}>
-                      {formatEGP(repCustomerTotals.debts)}
-                    </div>
-                  </div>
-
-                  <div className="bg-sky-50/80 p-2.5 rounded-2xl border border-sky-200">
-                    <div className="text-[10px] font-bold text-sky-800 flex items-center gap-1">
-                      <TrendingUp className="w-3.5 h-3.5 text-sky-600" />
-                      <span>إجمالي التحصيلات</span>
-                    </div>
-                    <div className="text-sm font-black text-sky-700 mt-1 truncate" title={formatEGP(repCustomerTotals.collections)}>
-                      {formatEGP(repCustomerTotals.collections)}
-                    </div>
-                  </div>
-
-                  <div className="bg-indigo-50/80 p-2.5 rounded-2xl border border-indigo-200">
-                    <div className="text-[10px] font-bold text-indigo-800 flex items-center gap-1">
-                      <Wallet className="w-3.5 h-3.5 text-indigo-600" />
-                      <span>الرصيد الصافي المتبقي</span>
-                    </div>
-                    <div className="text-sm font-black text-indigo-900 mt-1 truncate" title={formatEGP(repCustomerTotals.netBalance)}>
-                      {formatEGP(repCustomerTotals.netBalance)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Table */}
-                <div className="overflow-x-auto border border-slate-200 rounded-2xl">
-                  <table className="w-full min-w-[1000px] text-right text-xs">
-                    <thead className="bg-slate-100 text-slate-700 font-black border-b border-slate-200">
-                      <tr>
-                        <th className="p-3">المندوب</th>
-                        <th className="p-3 text-center">عدد العملاء</th>
-                        <th className="p-3 text-center text-emerald-700">متعامل</th>
-                        <th className="p-3 text-center text-slate-600">غير متعامل</th>
-                        <th className="p-3 text-center text-blue-700">قابل</th>
-                        <th className="p-3 text-center text-amber-800">تغطية المتعاملين %</th>
-                        <th className="p-3 text-left text-orange-700">إجمالي المستحقات</th>
-                        <th className="p-3 text-left text-blue-700">إجمالي التحصيلات</th>
-                        <th className="p-3 text-left text-indigo-700">الرصيد الصافي المتبقي</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-bold text-slate-800">
-                      {repCustomerSummary.map((summary) => (
-                        <tr key={summary.repName} className="hover:bg-amber-50/40 transition">
-                          <td className="p-3 font-black text-slate-950">{summary.repName}</td>
-                          <td className="p-3 text-center">{summary.totalCustomers}</td>
-                          <td className="p-3 text-center text-emerald-700 font-black">{summary.dealtCustomers}</td>
-                          <td className="p-3 text-center text-slate-500">{summary.nonDealtCustomers}</td>
-                          <td className="p-3 text-center text-blue-700">{summary.eligibleCustomers}</td>
-                          <td className="p-3 text-center">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
-                              summary.coverageRate >= 50 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-950'
-                            }`}>
-                              {summary.coverageRate}%
-                            </span>
-                          </td>
-                          <td className="p-3 text-left text-orange-700 font-mono font-black">{formatEGP(summary.dues)}</td>
-                          <td className="p-3 text-left text-blue-700 font-mono font-black">{formatEGP(summary.collections)}</td>
-                          <td className="p-3 text-left text-indigo-700 font-mono font-black">{formatEGP(summary.netBalance)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    {/* Grand Total Row */}
-                    <tfoot className="bg-slate-900 text-white font-black text-xs border-t-2 border-slate-800">
-                      <tr>
-                        <td className="p-3 text-amber-400">الإجمالي الشامل ({repCustomerSummary.length} مندوب)</td>
-                        <td className="p-3 text-center">{repCustomerTotals.totalCustomers.toLocaleString('ar-EG')}</td>
-                        <td className="p-3 text-center text-emerald-400">{repCustomerTotals.dealtCustomers.toLocaleString('ar-EG')}</td>
-                        <td className="p-3 text-center text-slate-300">{repCustomerTotals.nonDealtCustomers.toLocaleString('ar-EG')}</td>
-                        <td className="p-3 text-center text-sky-400">{repCustomerTotals.eligibleCustomers.toLocaleString('ar-EG')}</td>
-                        <td className="p-3 text-center">
-                          <span className="px-2 py-0.5 rounded-full text-xs font-black bg-amber-400 text-slate-950">
-                            {overallRepCustomerCoverageRate}%
-                          </span>
-                        </td>
-                        <td className="p-3 text-left text-orange-300 font-mono">{formatEGP(repCustomerTotals.dues)}</td>
-                        <td className="p-3 text-left text-sky-300 font-mono">{formatEGP(repCustomerTotals.collections)}</td>
-                        <td className="p-3 text-left text-indigo-300 font-mono">{formatEGP(repCustomerTotals.netBalance)}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
               <div className="p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50">
                 <div className="font-black text-sm text-slate-900 flex items-center gap-2">
                   <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
@@ -2850,7 +2569,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                         </td>
                         <td className="p-3 text-left font-bold text-amber-700">{formatEGP(r.remainingSales)}</td>
                         <td className="p-3 text-left font-bold">{formatEGP(r.collectionTarget)}</td>
-                        <td className="p-3 text-left font-black text-blue-700">{formatEGP(r.collectionAchieved)}</td>
+                        <td className="p-3 text-left font-black text-blue-700">{formatEGP(Math.abs(Number(r.collectionAchieved) || 0))}</td>
                         <td className="p-3 text-center">
                           <span className={`px-2 py-0.5 rounded text-[11px] font-black border ${getBadgeColor(r.collectionPercentage)}`}>
                             {r.collectionPercentage}%
@@ -2860,7 +2579,6 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
-              </div>
               </div>
             </div>
           )}
@@ -2887,7 +2605,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-base font-black text-slate-900">
-                  رفع شيت أهداف المبيعات والتحصيل اليومي
+                  رفع شيت أهداف ��لمبيعات والتحصيل اليومي
                 </h3>
                 <p className="text-xs text-slate-500 font-bold">
                   يدعم ملفات Excel (.xlsx, .xls) وCSV
