@@ -11,7 +11,6 @@ import {
   Download,
   Edit2,
   FileSpreadsheet,
-  CalendarCheck,
   Filter,
   Flame,
   Layers,
@@ -31,12 +30,11 @@ import {
   UserCheck,
   Warehouse,
   X,
-  XCircle,
-  Zap
+  XCircle
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { exportEndOfDayBranchReport, exportProductsToExcel, cleanProductCode } from '../services/excelService';
+import { exportProductsToExcel } from '../services/excelService';
 import { formatCurrency } from '../services/invoiceService';
 import { getBranchStockForProduct } from '../services/arabicMatchingService';
 import { ItemStatus, Product, SalesPriority } from '../types';
@@ -79,14 +77,8 @@ export const InventoryStockView: React.FC = () => {
   const [supplyCartons, setSupplyCartons] = useState<number>(10);
   const [supplyReason, setSupplyReason] = useState<string>('توريد واستلام شحنة جديدة من المصنع');
 
-  // Tab Navigation: Available stock vs. October warehouse shortages & replenishment
-  const [primaryTab, setPrimaryTab] = useState<'available_stock' | 'october_shortages'>('available_stock');
-  const [octoberSearch, setOctoberSearch] = useState('');
-
   // Success Notification Toast
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
-  // End-of-day report: the day the branch reconciles against. Empty = all days.
-  const [reportDate, setReportDate] = useState<string>(new Date().toISOString().slice(0, 10));
 
   // Form State for Adding / Editing Product
   const [formData, setFormData] = useState<Partial<Product>>({
@@ -186,7 +178,7 @@ export const InventoryStockView: React.FC = () => {
     let totalCartonsActual = 0;
     let totalCartonsReserved = 0;
 
-    visibleProducts.forEach((p) => {
+    products.forEach((p) => {
       const bStock = getProductBranchStock(p);
       const oStock = p.mainWarehouseActual || 0;
 
@@ -290,178 +282,8 @@ export const InventoryStockView: React.FC = () => {
     setTimeout(() => setActionSuccessMsg(null), 4000);
   };
 
-  // النواقص ومسحوبات مخزن 6 أكتوبر المركزي من واقع الفواتير والطلبيات
-  const octoberShortagesList = useMemo(() => {
-    const map = new Map<string, {
-      product: Product;
-      productCode: string;
-      unifiedCode?: string;
-      productName: string;
-      category: string;
-      cartonQuantity: number;
-      branchStock: number;
-      octoberStock: number;
-      requestedCartons: number;
-      requestedPieces: number;
-      cartonPrice: number;
-      totalEstimatedValue: number;
-      invoiceCount: number;
-      invoiceNumbers: string[];
-    }>();
-
-    invoices.forEach((inv) => {
-      if (inv.status === 'ملغاة') return;
-      if (currentActiveBranch && currentActiveBranch !== 'كل الفروع' && inv.branchName && inv.branchName !== currentActiveBranch) {
-        return;
-      }
-      (inv.items || []).forEach((item) => {
-        const prod = products.find(
-          (p) => cleanProductCode(p.code) === cleanProductCode(item.productCode) ||
-                 (p.unifiedCode && item.unifiedCode && p.unifiedCode.replace(/^#/, '') === item.unifiedCode.replace(/^#/, '')) ||
-                 p.name.trim().toLowerCase() === item.productName.trim().toLowerCase()
-        );
-        const bStock = prod ? getProductBranchStock(prod) : 0;
-        const oStock = prod?.mainWarehouseActual || 0;
-
-        const itemAny = item as any;
-        const isShortage = itemAny.isShortage || itemAny.shortageCartons > 0 || bStock <= 0 || (item.cartonCount || 0) > bStock;
-
-        if (isShortage) {
-          const key = cleanProductCode(item.productCode) || item.productName;
-          const reqC = Number(itemAny.shortageCartons) || Number(item.cartonCount) || 0;
-          const reqP = Number(itemAny.shortagePieces) || Number(item.pieceCount) || 0;
-          const price = prod?.cartonPrice || item.pricePerCarton || 200;
-
-          const existing = map.get(key);
-          if (existing) {
-            existing.requestedCartons += reqC;
-            existing.requestedPieces += reqP;
-            existing.totalEstimatedValue += (reqC * price);
-            existing.invoiceCount += 1;
-            if (!existing.invoiceNumbers.includes(inv.invoiceNumber)) {
-              existing.invoiceNumbers.push(inv.invoiceNumber);
-            }
-          } else if (prod) {
-            map.set(key, {
-              product: prod,
-              productCode: prod.code,
-              unifiedCode: prod.unifiedCode,
-              productName: prod.name,
-              category: prod.category || 'عام',
-              cartonQuantity: prod.cartonQuantity || 24,
-              branchStock: bStock,
-              octoberStock: oStock,
-              requestedCartons: reqC,
-              requestedPieces: reqP,
-              cartonPrice: price,
-              totalEstimatedValue: reqC * price,
-              invoiceCount: 1,
-              invoiceNumbers: [inv.invoiceNumber],
-            });
-          }
-        }
-      });
-    });
-
-    return Array.from(map.values());
-  }, [invoices, products, currentActiveBranch]);
-
-  // تصفية النواقص حسب البحث
-  const filteredOctoberShortages = useMemo(() => {
-    if (!octoberSearch.trim()) return octoberShortagesList;
-    const q = octoberSearch.trim().toLowerCase();
-    return octoberShortagesList.filter((item) =>
-      item.productName.toLowerCase().includes(q) ||
-      item.productCode.toLowerCase().includes(q) ||
-      (item.unifiedCode && item.unifiedCode.toLowerCase().includes(q))
-    );
-  }, [octoberShortagesList, octoberSearch]);
-
-  // سحب فوري لصنف واحد من مخزن أكتوبر للفرع
-  const handlePullFromOctober = (item: typeof octoberShortagesList[0]) => {
-    const cartonsToPull = Math.min(item.requestedCartons || 1, item.octoberStock > 0 ? item.octoberStock : item.requestedCartons);
-    if (cartonsToPull <= 0) {
-      alert('لا توجد كميات متوفرة في مخزن 6 أكتوبر لهذا الصنف حالياً.');
-      return;
-    }
-    const mainDelta = item.product.mainWarehouseActual && item.product.mainWarehouseActual >= cartonsToPull ? -cartonsToPull : 0;
-    adjustStock(
-      item.product.id,
-      cartonsToPull,
-      mainDelta,
-      `سحب وتوريد (${cartonsToPull} كرتونة) من مخزن 6 أكتوبر إلى ${currentActiveBranch}`
-    );
-    setActionSuccessMsg(`تم بنجاح سحب وتوريد ${cartonsToPull} كرتونة من مخزن 6 أكتوبر إلى رصيد فرعك (${currentActiveBranch})! 🚚📦`);
-    setTimeout(() => setActionSuccessMsg(null), 5000);
-  };
-
-  // سحب جماعي لكافة النواقص المتوفرة بأكتوبر
-  const handleBulkPullAllAvailableFromOctober = () => {
-    let pulledCount = 0;
-    let totalCartons = 0;
-    octoberShortagesList.forEach((item) => {
-      if (item.octoberStock > 0) {
-        const pullQty = Math.min(item.requestedCartons, item.octoberStock);
-        if (pullQty > 0) {
-          const mainDelta = item.product.mainWarehouseActual && item.product.mainWarehouseActual >= pullQty ? -pullQty : 0;
-          adjustStock(
-            item.product.id,
-            pullQty,
-            mainDelta,
-            `سحب جماعي (${pullQty} كرتونة) من مخزن 6 أكتوبر إلى ${currentActiveBranch}`
-          );
-          pulledCount++;
-          totalCartons += pullQty;
-        }
-      }
-    });
-
-    if (pulledCount === 0) {
-      alert('لا توجد نواقص متوفرة حالياً في مخزن أكتوبر للسحب.');
-      return;
-    }
-
-    setActionSuccessMsg(`تم بنجاح سحب وتوريد ${totalCartons} كرتونة لـ ${pulledCount} صنف من مخزن 6 أكتوبر لفرعك! 🚚🎉`);
-    setTimeout(() => setActionSuccessMsg(null), 5000);
-  };
-
-  // تصدير إكسل رسمي لمنفذ مخزن أكتوبر
-  const handleExportOctoberShortagesExcel = async () => {
-    try {
-      const XLSX = await import('xlsx-js-style');
-      const rows = filteredOctoberShortages.map((item, idx) => ({
-        'م': idx + 1,
-        'كود الصنف': item.productCode,
-        'الكود الموحد': item.unifiedCode || '---',
-        'اسم الصنف': item.productName,
-        'القسم / الفئة': item.category,
-        'شدة الكرتونة': item.cartonQuantity,
-        'الكمية المطلوبة (كرتونة)': item.requestedCartons,
-        'القطع المطلوبة': item.requestedPieces,
-        'سعر الكرتونة': item.cartonPrice,
-        'إجمالي القيمة': item.totalEstimatedValue,
-        'رصيد الفرع الحالي': item.branchStock,
-        'رصيد مخزن 6 أكتوبر': item.octoberStock,
-        'حالة التوفر بأكتوبر': item.octoberStock >= item.requestedCartons ? 'متوفر بالكامل جاهز للسحب' : item.octoberStock > 0 ? 'متوفر جزئياً' : 'عجز بمخزن أكتوبر',
-        'عدد الفواتير المعلقة': item.invoiceCount,
-        'أرقام الفواتير': item.invoiceNumbers.join(', '),
-        'الفرع المستلم': currentActiveBranch || 'كل الفروع',
-        'تاريخ الطلب': new Date().toLocaleDateString('ar-EG'),
-      }));
-
-      const ws = XLSX.utils.json_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'نواقص ومسحوبات أكتوبر');
-      XLSX.writeFile(wb, `بيان_مسحوبات_مخزن_اكتوبر_${new Date().toISOString().slice(0, 10)}.xlsx`);
-      setActionSuccessMsg('تم تصدير بيان مسحوبات مخزن أكتوبر للإكسل بنجاح 📊');
-      setTimeout(() => setActionSuccessMsg(null), 4000);
-    } catch (err: any) {
-      alert(`خطأ أثناء تصدير الإكسل: ${err?.message || ''}`);
-    }
-  };
-
   return (
-    <div className="space-y-4 pb-16">
+    <div className="tantawy-screen space-y-4 pb-16">
       
       {/* Toast Notification */}
       {actionSuccessMsg && (
@@ -476,68 +298,7 @@ export const InventoryStockView: React.FC = () => {
         </div>
       )}
 
-      {/* Primary Section Switcher: Available Stock vs. October Shortages & Supply Requests */}
-      <div className="bg-slate-900 border border-slate-800 p-2 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xl">
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <button
-            type="button"
-            onClick={() => setPrimaryTab('available_stock')}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer ${
-              primaryTab === 'available_stock'
-                ? 'bg-amber-400 text-slate-950 shadow-md'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            <Boxes className="w-4 h-4" />
-            <span>المخزون المتوفر وحالة الأصناف بالفرع 📦</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setPrimaryTab('october_shortages')}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer relative ${
-              primaryTab === 'october_shortages'
-                ? 'bg-amber-400 text-slate-950 shadow-md'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            <Truck className="w-4 h-4" />
-            <span>نواقص ومسحوبات مخزن 6 أكتوبر المركزي 🏭🚚</span>
-            {octoberShortagesList.length > 0 && (
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
-                primaryTab === 'october_shortages' ? 'bg-slate-950 text-amber-300' : 'bg-rose-500 text-white animate-pulse'
-              }`}>
-                {octoberShortagesList.length} صنف مطلوب
-              </span>
-            )}
-          </button>
-        </div>
-
-        {primaryTab === 'october_shortages' && octoberShortagesList.length > 0 && (
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-            <button
-              type="button"
-              onClick={handleBulkPullAllAvailableFromOctober}
-              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl text-xs font-black shadow transition cursor-pointer active:scale-95"
-            >
-              <Zap className="w-3.5 h-3.5 text-amber-300" />
-              <span>سحب كافة النواقص المتوفرة ⚡</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleExportOctoberShortagesExcel}
-              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-              <span>تصدير إكسل 📊</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {primaryTab === 'available_stock' && (
-        <>
-          {/* Top Smart Metrics & Branch Availability Cards */}
+      {/* Top Smart Metrics & Branch Availability Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
         {/* In Branch Available Card */}
         <div
@@ -553,7 +314,7 @@ export const InventoryStockView: React.FC = () => {
               <CheckCircle2 className="w-5 h-5" />
             </div>
             <span className="text-[10px] font-black bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-full">
-              صرف مباشر ✓
+              صرف مباشر
             </span>
           </div>
           <div className="mt-2">
@@ -579,11 +340,11 @@ export const InventoryStockView: React.FC = () => {
               <Truck className="w-5 h-5" />
             </div>
             <span className="text-[10px] font-black bg-blue-100 text-blue-900 px-2 py-0.5 rounded-full">
-              طلب تحويل 🚚
+              طلب تحويل
             </span>
           </div>
           <div className="mt-2">
-            <div className="text-sm sm:text-base text-blue-950 font-black">طلب تحويل 🚚 — يحتاج تحويل من أكتوبر</div>
+            <div className="text-sm sm:text-base text-blue-950 font-black">طلب تحويل — يحتاج تحويل من أكتوبر</div>
             <div className="text-xl sm:text-2xl font-black text-blue-950">
               {stockMetrics.needsTransferCount} <span className="text-xs font-bold text-slate-500">صنف</span>
             </div>
@@ -606,7 +367,7 @@ export const InventoryStockView: React.FC = () => {
             </div>
             {stockMetrics.lowStockCount > 0 && (
               <span className="text-[10px] font-black bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">
-                مخزون منخفض ⚠️
+                مخزون منخفض
               </span>
             )}
           </div>
@@ -633,7 +394,7 @@ export const InventoryStockView: React.FC = () => {
               <ShieldAlert className="w-5 h-5" />
             </div>
             <span className="text-[10px] font-black bg-rose-100 text-rose-900 px-2 py-0.5 rounded-full">
-              نفذ المخزون 🚫
+              نفذ المخزون
             </span>
           </div>
           <div className="mt-2">
@@ -703,37 +464,9 @@ export const InventoryStockView: React.FC = () => {
                   </button>
                 </div>
 
-                {/* End-of-day report: branch managers and supervisors reconcile on it */}
-                <div className="flex items-center gap-1.5 bg-teal-50 border border-teal-200 rounded-xl px-2 py-1">
-                  <CalendarCheck className="w-4 h-4 text-teal-700" />
-                  <input
-                    type="date"
-                    value={reportDate}
-                    onChange={(e) => setReportDate(e.target.value)}
-                    className="bg-transparent text-[11px] font-bold text-teal-900 outline-none cursor-pointer"
-                    title="يوم الاستخراج — بيأثر على الفواتير المعتمدة فقط"
-                  />
-                  <button
-                    onClick={() =>
-                      exportEndOfDayBranchReport({
-                        products,
-                        invoices: invoices || [],
-                        branchName: currentActiveBranch || selectedBranchFilter,
-                        currentUser,
-                        date: reportDate,
-                      })
-                    }
-                    className="flex items-center gap-1.5 bg-teal-700 hover:bg-teal-800 text-white font-bold px-2.5 py-1.5 rounded-lg text-[11px] shadow-xs transition cursor-pointer whitespace-nowrap"
-                    title="كشف نهاية اليوم: الفواتير المعتمدة + المتوفر بالفرع + غير المتوفر — كلهم في شيت واحد"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5" />
-                    <span className="hidden md:inline">كشف نهاية اليوم</span>
-                  </button>
-                </div>
-
                 {/* Export Inventory to Excel */}
                 <button
-                  onClick={() => exportProductsToExcel(filteredProducts, currentActiveBranch || selectedBranchFilter, currentUser)}
+                  onClick={() => exportProductsToExcel(filteredProducts, selectedBranchFilter)}
                   className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer"
                   title="تصدير شيت إكسل كامل بالمخزون"
                 >
@@ -986,11 +719,7 @@ export const InventoryStockView: React.FC = () => {
                         <div className="flex items-center justify-between font-bold mb-1">
                           <span className="flex items-center gap-1">
                             <Building className="w-3.5 h-3.5" />
-                            <span>
-                              {selectedBranchFilter === 'الكل'
-                                ? 'إجمالي المخزون المتاح (كافة الفروع):'
-                                : `مخزون الفرع الحالي (${currentActiveBranch || 'الفرع'}):`}
-                            </span>
+                            <span>مخزون الفرع الحالي ({currentActiveBranch || 'الفرع'}):</span>
                           </span>
                           <span className="text-sm font-black">
                             {branchActual} كرتونة
@@ -1011,15 +740,15 @@ export const InventoryStockView: React.FC = () => {
                         <div className="mt-2 text-[10px] font-bold">
                           {isAvailableInBranch ? (
                             <span className="text-emerald-800 flex items-center gap-1">
-                              ✓ الصنف متاح بالفرع — صرف وتسليم مباشر للمندوب بدون تحويل
+                              الصنف متاح بالفرع — صرف وتسليم مباشر للمندوب بدون تحويل
                             </span>
                           ) : needsTransfer ? (
                             <span className="text-blue-800 flex items-center gap-1">
-                              🚚 غير متوفر بالفرع — اضغط بالأسفل لطلب تحويل الكمية المطلوبة من أكتوبر
+                              غير متوفر بالفرع — اضغط بالأسفل لطلب تحويل الكمية المطلوبة من أكتوبر
                             </span>
                           ) : (
                             <span className="text-rose-800 flex items-center gap-1">
-                              🚫 الرصيد منتهي بالكامل من الفرع والمخزن المركزي
+                              الرصيد منتهي بالكامل من الفرع والمخزن المركزي
                             </span>
                           )}
                         </div>
@@ -1035,7 +764,7 @@ export const InventoryStockView: React.FC = () => {
                             className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-black py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
                           >
                             <Truck className="w-4 h-4" />
-                            <span>طلب تحويل من أكتوبر 🚚</span>
+                            <span>طلب تحويل من أكتوبر</span>
                           </button>
                         ) : (
                           <div className="flex-1 bg-blue-50 border border-blue-200 text-blue-900 font-bold py-2 px-3 rounded-xl text-xs text-center flex items-center justify-center gap-1.5">
@@ -1045,7 +774,7 @@ export const InventoryStockView: React.FC = () => {
                         )
                       ) : isAvailableInBranch ? (
                         <div className="flex-1 bg-emerald-100 text-emerald-900 font-bold py-2 px-3 rounded-xl text-xs text-center border border-emerald-200">
-                          ✓ متاح للصرف المباشر
+                          متاح للصرف المباشر
                         </div>
                       ) : (
                         <div className="flex-1 bg-slate-100 text-slate-500 font-bold py-2 px-3 rounded-xl text-xs text-center">
@@ -1113,11 +842,7 @@ export const InventoryStockView: React.FC = () => {
                       <th className="p-3">الكود</th>
                       <th className="p-3">اسم الصنف والبيان</th>
                       <th className="p-3 text-center">شدة الكرتونة</th>
-                      <th className="p-3 text-center">
-                        {selectedBranchFilter === 'الكل'
-                          ? 'إجمالي المخزون (كافة الفروع)'
-                          : `المخزون بالفرع (${currentActiveBranch})`}
-                      </th>
+                      <th className="p-3 text-center">المخزون بالفرع (المتاح)</th>
                       <th className="p-3 text-center">حالة التوافر والإجراء</th>
                       <th className="p-3 text-center">المخزن الرئيسي (أكتوبر)</th>
                       <th className="p-3 text-left">سعر الكرتونة</th>
@@ -1167,7 +892,7 @@ export const InventoryStockView: React.FC = () => {
                               </span>
                               {p.classification && (
                                 <span className="bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-bold">
-                                  🏷️ {p.classification}
+                                  {p.classification}
                                 </span>
                               )}
                             </div>
@@ -1204,12 +929,12 @@ export const InventoryStockView: React.FC = () => {
                             ) : needsTransfer ? (
                               <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-900 border border-blue-300 px-2 py-0.5 rounded-full text-[10px] font-black animate-pulse">
                                 <Truck className="w-3 h-3 text-blue-600" />
-                                <span>طلب تحويل من أكتوبر 🚚</span>
+                                <span>طلب تحويل من أكتوبر</span>
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 bg-rose-600 text-white px-2 py-0.5 rounded-full text-[10px] font-black">
                                 <ShieldAlert className="w-3 h-3" />
-                                <span>نفذ تماماً 🚫</span>
+                                <span>نفذ تماماً</span>
                               </span>
                             )}
                           </td>
@@ -1395,261 +1120,6 @@ export const InventoryStockView: React.FC = () => {
             </div>
           )}
         </div>
-        </>
-      )}
-
-      {/* ================= SECTION 2: نواقص ومسحوبات مخزن 6 أكتوبر المركزي ================= */}
-      {primaryTab === 'october_shortages' && (
-        <div className="space-y-4 animate-in fade-in duration-200">
-          {/* October Shortages KPI Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
-            {/* KPI 1 */}
-            <div className="p-4 rounded-3xl bg-slate-900 text-white border border-slate-800 shadow-md">
-              <div className="flex items-center justify-between">
-                <div className="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black border border-amber-500/30">
-                  <Truck className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-black bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30">
-                  مطلوب سحبه
-                </span>
-              </div>
-              <div className="mt-2.5">
-                <div className="text-[11px] text-slate-400 font-bold">أصناف النواقص المطلوبة</div>
-                <div className="text-xl sm:text-2xl font-black text-amber-400 font-mono">
-                  {octoberShortagesList.length} <span className="text-xs text-slate-400 font-sans">صنف</span>
-                </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">من واقع فواتير وطلبيات الفرع</div>
-              </div>
-            </div>
-
-            {/* KPI 2 */}
-            <div className="p-4 rounded-3xl bg-slate-900 text-white border border-slate-800 shadow-md">
-              <div className="flex items-center justify-between">
-                <div className="w-9 h-9 rounded-2xl bg-blue-500/20 text-blue-400 flex items-center justify-center font-black border border-blue-500/30">
-                  <Boxes className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-black bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-500/30">
-                  الكمية
-                </span>
-              </div>
-              <div className="mt-2.5">
-                <div className="text-[11px] text-slate-400 font-bold">إجمالي الكراتين المطلوبة</div>
-                <div className="text-xl sm:text-2xl font-black text-blue-400 font-mono">
-                  {octoberShortagesList.reduce((s, i) => s + i.requestedCartons, 0)}{' '}
-                  <span className="text-xs text-slate-400 font-sans">كرتونة</span>
-                </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">
-                  + {octoberShortagesList.reduce((s, i) => s + i.requestedPieces, 0)} قطعة فردية
-                </div>
-              </div>
-            </div>
-
-            {/* KPI 3 */}
-            <div className="p-4 rounded-3xl bg-slate-900 text-white border border-slate-800 shadow-md">
-              <div className="flex items-center justify-between">
-                <div className="w-9 h-9 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black border border-emerald-500/30">
-                  <CheckCircle2 className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-black bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                  جاهز للسحب
-                </span>
-              </div>
-              <div className="mt-2.5">
-                <div className="text-[11px] text-slate-400 font-bold">متوفر بمخزن 6 أكتوبر</div>
-                <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono">
-                  {octoberShortagesList.filter((i) => i.octoberStock > 0).length}{' '}
-                  <span className="text-xs text-slate-400 font-sans">صنف متاح</span>
-                </div>
-                <div className="text-[10px] text-emerald-400 mt-0.5">يمكن سحبها فوراً لرصيد الفرع</div>
-              </div>
-            </div>
-
-            {/* KPI 4 */}
-            <div className="p-4 rounded-3xl bg-slate-900 text-white border border-slate-800 shadow-md">
-              <div className="flex items-center justify-between">
-                <div className="w-9 h-9 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center font-black border border-purple-500/30">
-                  <Warehouse className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-black bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/30">
-                  القيمة
-                </span>
-              </div>
-              <div className="mt-2.5">
-                <div className="text-[11px] text-slate-400 font-bold">إجمالي القيمة التقديرية</div>
-                <div className="text-lg sm:text-xl font-black text-purple-300 font-mono">
-                  {formatCurrency(octoberShortagesList.reduce((s, i) => s + i.totalEstimatedValue, 0))}
-                </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">قيمة البضاعة المطلوب توريدها</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Controls & Table Container */}
-          <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-slate-200 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
-                  <span>كشف نواقص الطلبيات ومسحوبات مخزن 6 أكتوبر المركزي</span>
-                  <span className="bg-amber-100 text-amber-900 text-xs px-2.5 py-0.5 rounded-full font-bold">
-                    {filteredOctoberShortages.length} صنف مطلوب
-                  </span>
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  هذه الأصناف تم طلبها في الفواتير ولم يكن رصيد الفرع كافياً لها؛ يمكنك سحبها بضغطة زر لتزويد رصيد الفرع فورياً من مخزن أكتوبر.
-                </p>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={handleBulkPullAllAvailableFromOctober}
-                  disabled={octoberShortagesList.length === 0}
-                  className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-black shadow transition cursor-pointer disabled:opacity-50"
-                >
-                  <Zap className="w-3.5 h-3.5 text-amber-300" />
-                  <span>سحب كافة النواقص المتوفرة ⚡</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleExportOctoberShortagesExcel}
-                  disabled={octoberShortagesList.length === 0}
-                  className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>تصدير إكسل 📊</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Search Input */}
-            <div className="relative">
-              <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="ابحث باسم الصنف، كود الصنف، أو الكود الموحد..."
-                value={octoberSearch}
-                onChange={(e) => setOctoberSearch(e.target.value)}
-                className="w-full pr-10 pl-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold"
-              />
-            </div>
-
-            {/* List / Table */}
-            {filteredOctoberShortages.length === 0 ? (
-              <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-2">
-                <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
-                <h4 className="font-black text-slate-800 text-sm">لا توجد نواقص معلقة لمخزن أكتوبر حالياً! 🎉</h4>
-                <p className="text-xs text-slate-500">
-                  كافة طلبيات وفواتير الفرع مغطاة بالكامل من مخزون الفرع الحالي، أو تم سحبها مسبقاً.
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs">
-                <table className="w-full text-right text-xs">
-                  <thead className="bg-slate-900 text-white font-black text-[11px]">
-                    <tr>
-                      <th className="p-3 w-10 text-center">م</th>
-                      <th className="p-3">الصنف والكود</th>
-                      <th className="p-3 text-center">الكود الموحد</th>
-                      <th className="p-3 text-center">القسم / الشدة</th>
-                      <th className="p-3 text-center">المطلوب سحبه</th>
-                      <th className="p-3 text-center">رصيد الفرع</th>
-                      <th className="p-3 text-center">رصيد مخزن أكتوبر</th>
-                      <th className="p-3 text-center">حالة التوفر بأكتوبر</th>
-                      <th className="p-3 text-center">الفواتير المعلقة</th>
-                      <th className="p-3 text-center">إجراء السحب 🚚</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-bold text-slate-800">
-                    {filteredOctoberShortages.map((item, idx) => {
-                      const isAvailableInOctober = item.octoberStock >= item.requestedCartons;
-                      const isPartiallyAvailable = item.octoberStock > 0 && item.octoberStock < item.requestedCartons;
-
-                      return (
-                        <tr key={item.productCode + idx} className="hover:bg-slate-50/80 transition">
-                          <td className="p-3 text-center font-mono text-slate-400">{idx + 1}</td>
-                          <td className="p-3">
-                            <div className="font-black text-slate-900 text-xs">{item.productName}</div>
-                            <div className="font-mono text-[10px] text-amber-700 mt-0.5">كود: {item.productCode}</div>
-                          </td>
-                          <td className="p-3 text-center">
-                            {item.unifiedCode ? (
-                              <span className="font-mono bg-amber-50 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-md text-[11px] font-black">
-                                #{item.unifiedCode.replace(/^#/, '')}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 text-[10px]">---</span>
-                            )}
-                          </td>
-                          <td className="p-3 text-center">
-                            <div className="text-[11px] text-slate-700">{item.category}</div>
-                            <div className="text-[10px] text-slate-400">شدة {item.cartonQuantity} ق</div>
-                          </td>
-                          <td className="p-3 text-center">
-                            <span className="bg-rose-100 text-rose-900 border border-rose-300 px-2.5 py-1 rounded-xl text-xs font-black font-mono inline-block">
-                              {item.requestedCartons} كرتونة
-                            </span>
-                            {item.requestedPieces > 0 && (
-                              <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                                + {item.requestedPieces} قطعة
-                              </div>
-                            )}
-                          </td>
-                          <td className="p-3 text-center font-mono">
-                            <span className={item.branchStock > 0 ? 'text-emerald-700 font-black' : 'text-rose-600 font-black'}>
-                              {item.branchStock} ك
-                            </span>
-                          </td>
-                          <td className="p-3 text-center font-mono">
-                            <span className={item.octoberStock > 0 ? 'text-blue-700 font-black text-sm' : 'text-slate-400'}>
-                              {item.octoberStock} ك
-                            </span>
-                          </td>
-                          <td className="p-3 text-center">
-                            {isAvailableInOctober ? (
-                              <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center justify-center gap-1 w-fit mx-auto">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                <span>متوفر بالكامل ✅</span>
-                              </span>
-                            ) : isPartiallyAvailable ? (
-                              <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center justify-center gap-1 w-fit mx-auto">
-                                <AlertTriangle className="w-3 h-3 text-amber-600" />
-                                <span>متوفر {item.octoberStock} ك ⚠️</span>
-                              </span>
-                            ) : (
-                              <span className="bg-rose-100 text-rose-800 border border-rose-300 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center justify-center gap-1 w-fit mx-auto">
-                                <XCircle className="w-3 h-3 text-rose-600" />
-                                <span>عجز بأكتوبر 🚫</span>
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-3 text-center">
-                            <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded-md text-[10px] font-bold" title={item.invoiceNumbers.join(', ')}>
-                              {item.invoiceCount} فاتورة
-                            </span>
-                          </td>
-                          <td className="p-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handlePullFromOctober(item)}
-                              disabled={item.octoberStock <= 0}
-                              className="bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs transition shadow-xs cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center gap-1 mx-auto"
-                            >
-                              <Truck className="w-3.5 h-3.5" />
-                              <span>سحب للفرع 🚚</span>
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Quick Supply / Replenish Modal */}
       {supplyModal && (
@@ -1860,8 +1330,8 @@ export const InventoryStockView: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, salesPriority: e.target.value as SalesPriority })}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
                   >
-                    <option value="مرتفع">مرتفع 🔥</option>
-                    <option value="متوسط">متوسط ⚡</option>
+                    <option value="مرتفع">مرتفع</option>
+                    <option value="متوسط">متوسط</option>
                     <option value="عادي">عادي</option>
                     <option value="منخفض">منخفض</option>
                   </select>
