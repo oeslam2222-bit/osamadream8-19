@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx-js-style';
 import { Product, PromotionOffer } from '../types';
-import { cleanProductCode } from './excelService';
+import { cleanProductCode, buildGoogleSheetsPublicCsvUrl } from './excelService';
+import { extractBaseProductCode } from './productVariantService';
 import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
 
 const PROMOTIONS_STORAGE_KEY = 'tantawy_promotions_offers_v1';
@@ -71,6 +72,24 @@ export function savePromotions(promotions: PromotionOffer[]): void {
 }
 
 /**
+ * Normalizes header string to match flexibly
+ */
+function normalizePromoKey(header: string): string {
+  if (!header) return '';
+  let str = header.toString().trim();
+  const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  for (let i = 0; i < 10; i++) {
+    str = str.split(arabicNumerals[i]).join(String(i));
+  }
+  return str
+    .toLowerCase()
+    .replace(/[ـ\s_%\-]/g, '')
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي');
+}
+
+/**
  * Parse an uploaded Excel or Google Sheets file for promotions and map by code / unifiedCode
  */
 export async function parsePromotionsFromExcelBuffer(
@@ -102,52 +121,69 @@ export async function parsePromotionsFromExcelBuffer(
   const nextMonthIso = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
 
   rows.forEach((row, idx) => {
+    // Build normalized row lookup map
+    const rowNorm: Record<string, any> = {};
+    Object.keys(row).forEach((k) => {
+      rowNorm[normalizePromoKey(k)] = row[k];
+    });
+
+    const getVal = (...keys: string[]): string => {
+      for (const k of keys) {
+        const val = row[k] ?? rowNorm[normalizePromoKey(k)];
+        if (val !== undefined && val !== null && String(val).trim() !== '') {
+          return String(val).trim();
+        }
+      }
+      return '';
+    };
+
+    const getNum = (...keys: string[]): number => {
+      for (const k of keys) {
+        const val = row[k] ?? rowNorm[normalizePromoKey(k)];
+        if (val !== undefined && val !== null && String(val).trim() !== '') {
+          const clean = String(val).replace(/,/g, '').replace(/[^\d.-]/g, '');
+          const parsed = parseFloat(clean);
+          if (!isNaN(parsed)) return parsed;
+        }
+      }
+      return 0;
+    };
+
     // Detect product code, unified code, name, discount % and promo price flexibly
-    const rawCode = String(
-      row['كود الصنف'] || row['كود المنتج'] || row['الكود'] || row['Code'] || row['code'] || row['SKU'] || ''
-    ).trim();
+    const rawCode = cleanProductCode(
+      getVal('كود الصنف', 'كود المنتج', 'الكود', 'كود', 'رقم الصنف', 'الموديل', 'Code', 'code', 'SKU', 'Item Code', 'ItemNo')
+    );
 
-    const rawUnified = String(
-      row['الكود الموحد'] || row['كود موحد'] || row['الموحد'] || row['UnifiedCode'] || row['unified_code'] || ''
-    ).replace(/^#/, '').trim();
+    const rawUnified = cleanProductCode(
+      getVal('الكود الموحد', 'كود موحد', 'الموحد', 'كود موضح', 'UnifiedCode', 'unified_code').replace(/^#/, '')
+    );
 
-    const rawName = String(
-      row['اسم المنتج'] || row['اسم الصنف'] || row['المنتج'] || row['الصنف'] || row['Name'] || row['name'] || ''
-    ).trim();
+    const rawName = getVal('اسم المنتج', 'اسم الصنف', 'المنتج', 'الصنف', 'الاسم', 'البيان', 'Name', 'name');
 
     if (!rawCode && !rawUnified && !rawName) return;
 
-    const rawDiscount = Number(
-      String(row['نسبة الخصم'] || row['نسبة الخصم %'] || row['الخصم %'] || row['الخصم'] || row['Discount'] || '0').replace('%', '').trim()
-    ) || 0;
+    const rawDiscount = getNum('نسبة الخصم', 'نسبة الخصم %', 'الخصم %', 'الخصم', 'نسبه الخصم', 'Discount', 'discount');
+    const rawPromoPrice = getNum('سعر العرض', 'سعر العرض للكرتونة', 'سعر الخصم', 'سعر ترويجي', 'السعر الجديد', 'سعر العرض كرتونة', 'PromoPrice', 'offer_price');
+    const rawOriginalPrice = getNum('السعر الأصلي', 'سعر الكرتونة', 'السعر', 'السعر قبل الخصم', 'Price', 'original_price');
+    const rawPromoPiecePrice = getNum('سعر القطعة بالعرض', 'سعر العرض للقطعة', 'سعر القطعة ترويجي', 'سعر القطعة جديد');
 
-    const rawPromoPrice = Number(
-      row['سعر العرض'] || row['سعر العرض للكرتونة'] || row['سعر الخصم'] || row['سعر ترويجي'] || row['PromoPrice'] || 0
-    ) || 0;
-
-    const rawOriginalPrice = Number(
-      row['السعر الأصلي'] || row['سعر الكرتونة'] || row['السعر'] || row['Price'] || 0
-    ) || 0;
-
-    const rawTitle = String(
-      row['عنوان العرض'] || row['اسم العرض'] || row['العرض'] || row['Title'] || ''
-    ).trim() || `عرض خاص: ${rawName || rawCode}`;
-
-    const rawStart = String(row['تاريخ البداية'] || row['من تاريخ'] || row['StartDate'] || todayIso).trim();
-    const rawEnd = String(row['تاريخ النهاية'] || row['إلى تاريخ'] || row['EndDate'] || nextMonthIso).trim();
-    const rawBranch = String(row['الفرع'] || row['الفروع المشمولة'] || row['Branch'] || 'كل الفروع').trim();
-    const rawNotes = String(row['ملاحظات'] || row['شروط العرض'] || row['Notes'] || '').trim();
-    const rawCategory = String(row['التصنيف'] || row['المجموعة'] || row['Category'] || '').trim();
+    const rawTitle = getVal('عنوان العرض', 'اسم العرض', 'العرض', 'Title') || `عرض خاص: ${rawName || rawCode}`;
+    const rawStart = getVal('تاريخ البداية', 'من تاريخ', 'StartDate') || todayIso;
+    const rawEnd = getVal('تاريخ النهاية', 'إلى تاريخ', 'EndDate') || nextMonthIso;
+    const rawBranch = getVal('الفرع', 'الفروع المشمولة', 'Branch') || 'كل الفروع';
+    const rawNotes = getVal('ملاحظات', 'شروط العرض', 'Notes');
+    const rawCategory = getVal('التصنيف', 'المجموعة', 'Category');
 
     parsedPromos.push({
       id: `promo-imported-${Date.now()}-${idx}`,
       title: rawTitle,
       productCode: rawCode,
       unifiedCode: rawUnified || undefined,
-      productName: rawName || `صنف كود ${rawCode}`,
+      productName: rawName || (rawCode ? `صنف كود ${rawCode}` : 'صنف ترويجي'),
       category: rawCategory || undefined,
       discountPercentage: rawDiscount,
       promoPrice: rawPromoPrice > 0 ? rawPromoPrice : undefined,
+      promoPiecePrice: rawPromoPiecePrice > 0 ? rawPromoPiecePrice : undefined,
       originalPrice: rawOriginalPrice > 0 ? rawOriginalPrice : undefined,
       startDate: rawStart,
       endDate: rawEnd,
@@ -161,14 +197,34 @@ export async function parsePromotionsFromExcelBuffer(
 
   return {
     promotions: parsedPromos,
-    message: `تمت قراءة ${parsedPromos.length} عرض بنجاح من الشيت (${chosenSheetName}).`,
+    message: `تمت قراءة ${parsedPromos.length} عرض بنجاح من شيت العروض (${chosenSheetName}).`,
     matchedCount: parsedPromos.length,
   };
 }
 
 /**
+ * Fetch and parse promotions directly from a Google Sheets URL
+ */
+export async function parsePromotionsFromGoogleSheet(
+  sheetUrl: string
+): Promise<{ promotions: PromotionOffer[]; message: string; matchedCount: number }> {
+  const csvUrl = buildGoogleSheetsPublicCsvUrl(sheetUrl);
+  if (!csvUrl) {
+    throw new Error('رابط Google Sheets غير صالح. يرجى التأكد من نسخ الرابط بشكل صحيح.');
+  }
+
+  const response = await fetch(csvUrl);
+  if (!response.ok) {
+    throw new Error(`تعذر تحميل شيت Google Sheets (${response.statusText}). تأكد أن الشيت متاح للقراءة.`);
+  }
+
+  const buffer = await response.arrayBuffer();
+  return parsePromotionsFromExcelBuffer(buffer, 'GoogleSheets');
+}
+
+/**
  * Applies active promotions to the master product list.
- * Matches by productCode or unifiedCode or name.
+ * Matches by productCode, baseCode, unifiedCode, or name.
  */
 export function applyPromotionsToProducts(
   products: Product[],
@@ -181,14 +237,27 @@ export function applyPromotionsToProducts(
 
   const updatedProducts = products.map((prod) => {
     const prodCode = cleanProductCode(prod.code).toLowerCase();
-    const prodUnified = (prod.unifiedCode || '').replace(/^#/, '').toLowerCase().trim();
+    const prodUnified = cleanProductCode(prod.unifiedCode?.replace(/^#/, '')).toLowerCase();
+    const prodBase = extractBaseProductCode(prod.code).toLowerCase();
     const prodName = prod.name.trim().toLowerCase();
 
     // Find matching active promo
     const matchedPromo = activePromos.find((promo) => {
-      if (promo.productCode && cleanProductCode(promo.productCode).toLowerCase() === prodCode) return true;
-      if (promo.unifiedCode && prodUnified && promo.unifiedCode.toLowerCase() === prodUnified) return true;
-      if (promo.productName && promo.productName.trim().toLowerCase() === prodName) return true;
+      const pCode = cleanProductCode(promo.productCode).toLowerCase();
+      const pUnified = cleanProductCode(promo.unifiedCode?.replace(/^#/, '')).toLowerCase();
+      const pBase = extractBaseProductCode(promo.productCode).toLowerCase();
+      const pName = promo.productName.trim().toLowerCase();
+
+      // 1. Direct code match
+      if (pCode && (pCode === prodCode || pCode === prodBase)) return true;
+      // 2. Base code match (e.g. promo on 8009 applies to all variants of 8009!)
+      if (pBase && (pBase === prodBase || pBase === prodCode)) return true;
+      // 3. Unified code match
+      if (pUnified && (pUnified === prodUnified || pUnified === prodCode)) return true;
+      // 4. Exact or clean name match
+      if (pName && (pName === prodName || (prodName.length > 5 && pName.includes(prodName)) || (pName.length > 5 && prodName.includes(pName)))) {
+        return true;
+      }
       return false;
     });
 
@@ -217,7 +286,7 @@ export function applyPromotionsToProducts(
     }
 
     updatedCount++;
-    const factor = prod.cartonQuantity || 24;
+    const factor = prod.cartonQuantity || prod.factor || 1;
     const originalCartonPrice = prod.cartonPrice || (prod.piecePrice ? prod.piecePrice * factor : 200);
 
     let promoCartonPrice = matchedPromo.promoPrice;
@@ -229,7 +298,7 @@ export function applyPromotionsToProducts(
       discountPct = Number((((originalCartonPrice - promoCartonPrice) / originalCartonPrice) * 100).toFixed(1));
     }
 
-    const promoPiecePrice = promoCartonPrice ? Number((promoCartonPrice / factor).toFixed(2)) : undefined;
+    const promoPiecePrice = matchedPromo.promoPiecePrice || (promoCartonPrice ? Number((promoCartonPrice / factor).toFixed(2)) : undefined);
 
     return {
       ...prod,

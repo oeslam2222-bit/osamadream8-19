@@ -158,6 +158,7 @@ export interface PromotionOffer {
   category?: string;                 // التصنيف
   discountPercentage: number;        // نسبة الخصم %
   promoPrice?: number;               // سعر العرض للكرتونة
+  promoPiecePrice?: number;          // سعر العرض للقطعة
   originalPrice?: number;            // السعر الأصلي للكرتونة
   startDate?: string;                // تاريخ البداية
   endDate?: string;                  // تاريخ النهاية

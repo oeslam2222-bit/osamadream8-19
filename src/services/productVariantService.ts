@@ -1,4 +1,5 @@
 import { ItemStatus, ParentProduct, Product, ProductVariant, SalesPriority } from '../types';
+import { cleanProductCode, extractCodeFromProductName } from './excelService';
 
 /**
  * Optimizes image URLs for crystal-clear, high-definition viewing
@@ -33,14 +34,29 @@ export function getHighResVariantImageUrl(url?: string, targetWidth = 800): stri
  * - "1005741 #" -> "1005741"
  * - "1005741 #1", "1005741 #2" -> "1005741"
  * - "1005741 green", "1005741 red", "1005741 أحمر" -> "1005741"
- * - "1005741-1", "1005741_02", "6008-01" -> "1005741", "6008"
+ * - "1005741-1", "1005741_02", "6008-01", "8009/1", "8009.1" -> "1005741", "6008", "8009"
  * - "#1005741", "#1005741-1" -> "1005741"
  * - "DRM-101-1" -> "DRM-101"
  */
 export function extractBaseProductCode(raw?: string | null): string {
   if (!raw) return '';
   let s = String(raw).trim();
-  if (!s) return '';
+  if (
+    !s ||
+    s === '---' ||
+    s === '--' ||
+    s === '-' ||
+    s === '#---' ||
+    s === '#--' ||
+    s === '#-' ||
+    s === '#0' ||
+    s === '0' ||
+    s === 'بدون' ||
+    s === 'null' ||
+    s === 'undefined'
+  ) {
+    return '';
+  }
 
   // Normalize Arabic digits ٠-٩ to 0-9
   s = s.replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660));
@@ -48,26 +64,32 @@ export function extractBaseProductCode(raw?: string | null): string {
   // Strip leading hash #
   s = s.replace(/^#\s*/, '').trim();
 
-  // Pattern 1: Code followed by # or #number or #word (e.g. "1005741 #", "1005741 #1", "1005741 #2")
-  const hashMatch = s.match(/^(.+?)\s*#\s*([0-9]*|[a-zA-Z\u0621-\u064A]*)$/);
+  // Pattern 1: Code followed by # or #number or #word (e.g. "1005741 #", "1005741 #1", "1005741 #2", "8009 # شباك 1")
+  const hashMatch = s.match(/^(.+?)\s*#\s*([0-9]*|[a-zA-Z\u0621-\u064A]*.*)$/);
   if (hashMatch && hashMatch[1].trim()) {
     return hashMatch[1].trim();
   }
 
-  // Pattern 2: Numeric base code (3+ digits) followed by separator and 1-2 digits (e.g. "1005741-1", "6008-01", "1005741_02", "1005741/3")
-  const numSuffixMatch = s.match(/^([0-9]{3,})[-_/]([0-9]{1,2})$/);
+  // Pattern 2: Numeric base code (3+ digits) followed by separator and 1-3 digits or letters (e.g. "1005741-1", "6008-01", "8009/3", "8009.1")
+  const numSuffixMatch = s.match(/^([0-9]{3,})[-_/.]([0-9]{1,3})$/);
   if (numSuffixMatch && numSuffixMatch[1].trim()) {
     return numSuffixMatch[1].trim();
   }
 
-  // Pattern 2b: Multi-part code with trailing variant number (e.g. "DRM-101-1" => "DRM-101")
-  const multiPartMatch = s.match(/^([A-Za-z0-9]+[-_][0-9]+)[-_/]([0-9]{1,2})$/);
+  // Pattern 2b: Multi-part code with trailing variant number or single letter (e.g. "DRM-101-1" => "DRM-101", "8009-A" => "8009")
+  const multiPartMatch = s.match(/^([A-Za-z0-9]+[-_][0-9]+)[-_/.]([0-9]{1,3}|[A-Za-z])$/);
   if (multiPartMatch && multiPartMatch[1].trim()) {
     return multiPartMatch[1].trim();
   }
 
-  // Pattern 3: Number code followed by space and color or word (e.g. "1005741 green", "1005741 red", "1005741 أحمر")
-  const colorMatch = s.match(/^([0-9]{4,})\s+([a-zA-Z\u0621-\u064A]+.*)$/);
+  // Pattern 2c: Number code followed by letter variant (e.g. "8009-A", "8009 A", "8009-B")
+  const letterMatch = s.match(/^([0-9]{3,})[-_\s]([A-Za-z])$/);
+  if (letterMatch && letterMatch[1].trim()) {
+    return letterMatch[1].trim();
+  }
+
+  // Pattern 3: Number code followed by space and color or word (e.g. "1005741 green", "1005741 red", "1005741 أحمر", "8009 شباك 1", "8009 60 ق")
+  const colorMatch = s.match(/^([0-9]{3,})\s+(?:شباك|ش|لون|ق)?\s*([a-zA-Z\u0621-\u064A0-9]+.*)$/);
   if (colorMatch && colorMatch[1].trim()) {
     return colorMatch[1].trim();
   }
@@ -177,20 +199,36 @@ export function extractWindowInfo(
  * Extracts base unifying code for grouping products into Parent items
  */
 export function getUnifiedBaseKey(product: Product): { key: string; displayCode: string; unifiedCode?: string } {
-  const rawCode = (product.code || '').trim();
-  const rawUnified = (product.unifiedCode || '').trim();
+  let rawCode = cleanProductCode(product.code);
+  let rawUnified = cleanProductCode(product.unifiedCode?.replace(/^#/, ''));
 
-  // 1. Group primarily by the Base Product Code (e.g. 1005741 from 1005741, 1005741 #, 1005741 green, 1005741 #1).
+  // 1. If code is missing, fallback to unifiedCode
+  if (!rawCode && rawUnified) {
+    rawCode = rawUnified;
+  }
+
+  // 2. If code is still missing, extract model from product name (e.g. "سفرة 8009 60 ق KAZAN" -> "8009")
+  if (!rawCode && product.name) {
+    const extracted = extractCodeFromProductName(product.name);
+    if (extracted) {
+      rawCode = extracted;
+    }
+  }
+
+  // 3. Group primarily by the Base Product Code (e.g. 1005741 from 1005741, 1005741 #, 1005741 green, 1005741 #1).
   const baseFromCode = extractBaseProductCode(rawCode);
   if (baseFromCode) {
+    const cleanUnified = rawUnified
+      ? (rawUnified.startsWith('#') ? rawUnified : `#${rawUnified}`)
+      : (rawCode !== baseFromCode ? (rawCode.startsWith('#') ? rawCode : `#${rawCode}`) : `#${baseFromCode}`);
     return {
       key: baseFromCode.toLowerCase(),
       displayCode: baseFromCode,
-      unifiedCode: rawUnified || (rawCode !== baseFromCode ? rawCode : undefined),
+      unifiedCode: cleanUnified,
     };
   }
 
-  // 2. Fallback to unifiedCode if product.code is missing or generic
+  // 4. Fallback to unifiedCode if baseFromCode failed
   const baseFromUnified = extractBaseProductCode(rawUnified);
   if (baseFromUnified) {
     return {
@@ -200,12 +238,16 @@ export function getUnifiedBaseKey(product: Product): { key: string; displayCode:
     };
   }
 
-  // 3. Fallback to product name or ID
-  const fallbackKey = (product.name || product.id || 'unknown').trim().toLowerCase();
+  // 5. Fallback to product name or ID
+  const cleanName = (product.name || '').trim();
+  const fallbackKey = (cleanName || product.id || 'unknown').trim().toLowerCase();
+  const candidateCode = rawCode || rawUnified || extractCodeFromProductName(cleanName);
+  const displayCode = candidateCode || (cleanName ? cleanName.slice(0, 20) : 'صنف موحد');
+
   return {
     key: fallbackKey,
-    displayCode: product.code || '---',
-    unifiedCode: rawUnified || undefined,
+    displayCode,
+    unifiedCode: rawUnified ? (rawUnified.startsWith('#') ? rawUnified : `#${rawUnified}`) : `#${displayCode}`,
   };
 }
 
@@ -302,11 +344,17 @@ export function groupProductsIntoParents(products: Product[]): ParentProduct[] {
       const rawPromo = Number(prod.promoPrice || prod.offerPrice || 0);
       const cleanPromo = rawPromo > vPiecePrice && rawPromo < vCartonPrice ? rawPromo : undefined;
 
+      const cleanVCode = cleanProductCode(prod.code) || (items.length > 1 ? `${displayCode}-${idx + 1}` : displayCode);
+      const rawU = cleanProductCode(prod.unifiedCode?.replace(/^#/, ''));
+      const cleanVUnified = rawU
+        ? (rawU.startsWith('#') ? rawU : `#${rawU}`)
+        : `#${displayCode}${items.length > 1 || windowInfo.windowNumber > 1 ? ` #${windowInfo.windowNumber}` : ''}`;
+
       return {
-        id: prod.id || `var_${prod.code}_${idx}`,
+        id: prod.id || `var_${cleanVCode}_${idx}`,
         productId: key,
-        code: prod.code,
-        unifiedCode: prod.unifiedCode,
+        code: cleanVCode,
+        unifiedCode: cleanVUnified,
         name: windowInfo.name,
         windowNumber: windowInfo.windowNumber,
         color: windowInfo.color,
@@ -324,6 +372,8 @@ export function groupProductsIntoParents(products: Product[]): ParentProduct[] {
         barcode: prod.barcode,
         rawProduct: {
           ...prod,
+          code: cleanVCode,
+          unifiedCode: cleanVUnified,
           cartonQuantity: vCartonQty,
           piecePrice: vPiecePrice,
           cartonPrice: vCartonPrice,
@@ -371,7 +421,9 @@ export function groupProductsIntoParents(products: Product[]): ParentProduct[] {
     const parent: ParentProduct = {
       id: `parent_${key}`,
       primaryCode: displayCode,
-      unifiedCode: unifiedCode || (displayCode.startsWith('#') ? displayCode : `#${displayCode}`),
+      unifiedCode: (unifiedCode && !unifiedCode.includes('---'))
+        ? unifiedCode
+        : (displayCode.startsWith('#') ? displayCode : `#${displayCode}`),
       name: generalName,
       department: firstItem.department || firstItem.itemGroup || firstItem.category || 'عام',
       category: firstItem.category || firstItem.itemGroup || 'عام',

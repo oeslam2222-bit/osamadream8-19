@@ -137,9 +137,12 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
 
   // Find all occurrences / rows matching this base code or specific code in the sheet
   const matchingItems = useMemo(() => {
-    if (!productCode) return [];
-    const cleanTarget = extractBaseProductCode(productCode).trim().toLowerCase();
-    const rawTarget = productCode.trim().toLowerCase();
+    const targetCode = productCode && productCode !== '---' && productCode !== '--'
+      ? productCode
+      : (parentProduct?.primaryCode && parentProduct.primaryCode !== '---' ? parentProduct.primaryCode : '');
+
+    const cleanTarget = extractBaseProductCode(targetCode).trim().toLowerCase();
+    const rawTarget = targetCode.trim().toLowerCase();
 
     // Map by unique product ID to prevent duplicates in our display
     const resultMap = new Map<string, Product>();
@@ -160,18 +163,35 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
       const pUnified = (p.unifiedCode || '').trim().toLowerCase();
 
       if (
-        pBase === cleanTarget ||
-        pCode === rawTarget ||
-        pCode === cleanTarget ||
-        pUnified === rawTarget ||
+        (cleanTarget && pBase === cleanTarget) ||
+        (rawTarget && pCode === rawTarget) ||
+        (cleanTarget && pCode === cleanTarget) ||
+        (rawTarget && pUnified === rawTarget) ||
         (cleanTarget && pCode.startsWith(cleanTarget))
       ) {
         resultMap.set(p.id, p);
       }
     });
 
-    return Array.from(resultMap.values());
-  }, [productCode, parentProduct, products]);
+    const items = Array.from(resultMap.values());
+
+    // Sort: Available items first, ordered by active branch stock, then October stock
+    items.sort((a, b) => {
+      const bStockA = getBranchStockForProduct(a, activeBranchName);
+      const oStockA = a.mainWarehouseActual || 0;
+      const bStockB = getBranchStockForProduct(b, activeBranchName);
+      const oStockB = b.mainWarehouseActual || 0;
+
+      const availA = (bStockA > 0 || oStockA > 0) ? 1 : 0;
+      const availB = (bStockB > 0 || oStockB > 0) ? 1 : 0;
+
+      if (availB !== availA) return availB - availA; // Available first
+      if (bStockB !== bStockA) return bStockB - bStockA; // Higher branch stock first
+      return oStockB - oStockA; // Higher October stock next
+    });
+
+    return items;
+  }, [productCode, parentProduct, products, activeBranchName]);
 
   const count = matchingItems.length;
   const isRepeated = count > 1;

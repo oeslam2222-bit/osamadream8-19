@@ -811,23 +811,23 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
         </div>
       )}
 
-      {/* Mobile Bottom Navigation Bar (Smartphones & Small Screens - High Contrast & Large Touch Targets) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/98 backdrop-blur border-t border-slate-800 flex items-center justify-around py-1.5 px-2 shadow-2xl safe-area-inset-bottom">
+      {/* Mobile Bottom Navigation Bar (Flutter Material 3 Style - Clean, Luminous & Ergonomic) */}
+      <nav aria-label="شريط التنقل السفلي" className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-lg border-t border-slate-200/80 flex items-center justify-around py-1.5 px-2 shadow-2xl safe-area-inset-bottom">
         {/* Hub 1: الرئيسية / القيادة */}
         <button
           onClick={() => setActiveTab(currentUser.role === 'sales_rep' ? 'rep_home' : 'command')}
-          className={`flex flex-col items-center justify-center min-w-[50px] min-h-[50px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
+          className={`flex flex-col items-center justify-center min-w-[54px] min-h-[48px] px-2 py-1 rounded-2xl transition active:scale-95 cursor-pointer ${
             ['rep_home', 'command', 'dashboard', 'management', 'supervisor', 'home'].includes(activeTab)
-              ? 'text-amber-400 font-black'
-              : 'text-slate-300 hover:text-white font-bold'
+              ? 'bg-amber-100/80 text-amber-950 font-black'
+              : 'text-slate-500 hover:text-slate-900 font-bold'
           }`}
         >
           {currentUser.role === 'sales_rep' ? (
-            <Home className={`w-5 h-5 ${['rep_home', 'dashboard', 'home'].includes(activeTab) ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
+            <Home className={`w-5 h-5 ${['rep_home', 'dashboard', 'home'].includes(activeTab) ? 'text-amber-700 stroke-[2.5]' : 'text-slate-500'}`} />
           ) : (
-            <Gauge className={`w-5 h-5 ${['command', 'dashboard', 'management', 'supervisor', 'home'].includes(activeTab) ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
+            <Gauge className={`w-5 h-5 ${['command', 'dashboard', 'management', 'supervisor', 'home'].includes(activeTab) ? 'text-amber-700 stroke-[2.5]' : 'text-slate-500'}`} />
           )}
-          <span className="text-[10.5px] mt-0.5 font-bold">
+          <span className="text-[10px] mt-0.5 font-bold">
             {currentUser.role === 'sales_rep' ? 'الرئيسية' : 'القيادة'}
           </span>
         </button>
@@ -835,20 +835,20 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
         {/* Hub 2: الكتالوج والمخزون */}
         <button
           onClick={() => setActiveTab('catalog')}
-          className={`flex flex-col items-center justify-center min-w-[50px] min-h-[50px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
+          className={`flex flex-col items-center justify-center min-w-[54px] min-h-[48px] px-2 py-1 rounded-2xl transition active:scale-95 cursor-pointer ${
             ['catalog', 'inventory', 'offers'].includes(activeTab)
-              ? 'text-amber-400 font-black'
-              : 'text-slate-300 hover:text-white font-bold'
+              ? 'bg-amber-100/80 text-amber-950 font-black'
+              : 'text-slate-500 hover:text-slate-900 font-bold'
           }`}
         >
-          <Boxes className={`w-5 h-5 ${['catalog', 'inventory', 'offers'].includes(activeTab) ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
-          <span className="text-[10.5px] mt-0.5 font-bold">الأصناف</span>
+          <Boxes className={`w-5 h-5 ${['catalog', 'inventory', 'offers'].includes(activeTab) ? 'text-amber-700 stroke-[2.5]' : 'text-slate-500'}`} />
+          <span className="text-[10px] mt-0.5 font-bold">الأصناف</span>
         </button>
 
-        {/* Center Cart Trigger (High Prominence & Large Touch Area) */}
+        {/* Center Cart Trigger (Flutter FloatingActionButton Style) */}
         <button
           onClick={onOpenCart}
-          className="relative -top-3.5 bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 text-slate-950 w-13 h-13 rounded-2xl shadow-xl shadow-amber-500/40 flex items-center justify-center transform active:scale-90 transition border-2 border-slate-950 cursor-pointer shrink-0"
+          className="relative -top-3 bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 text-slate-950 w-13 h-13 rounded-2xl shadow-xl shadow-amber-500/35 flex items-center justify-center transform active:scale-90 transition border-2 border-white cursor-pointer shrink-0"
           aria-label="فتح سلة الطلبية"
         >
           <ShoppingCart className="w-6 h-6 stroke-[2.5]" />
@@ -862,28 +862,32 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
         {/* Hub 3: الفواتير */}
         <button
           onClick={() => setActiveTab('invoices')}
-          className={`relative flex flex-col items-center justify-center min-w-[50px] min-h-[50px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
-            activeTab === 'invoices' ? 'text-amber-400 font-black' : 'text-slate-300 hover:text-white font-bold'
+          className={`relative flex flex-col items-center justify-center min-w-[54px] min-h-[48px] px-2 py-1 rounded-2xl transition active:scale-95 cursor-pointer ${
+            activeTab === 'invoices'
+              ? 'bg-amber-100/80 text-amber-950 font-black'
+              : 'text-slate-500 hover:text-slate-900 font-bold'
           }`}
         >
-          <Receipt className={`w-5 h-5 ${activeTab === 'invoices' ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
-          <span className="text-[10.5px] mt-0.5 font-bold">الفواتير</span>
+          <Receipt className={`w-5 h-5 ${activeTab === 'invoices' ? 'text-amber-700 stroke-[2.5]' : 'text-slate-500'}`} />
+          <span className="text-[10px] mt-0.5 font-bold">الفواتير</span>
           {pendingOrdersCount > 0 && (
-            <span className="absolute top-1 right-2 w-2.5 h-2.5 bg-amber-400 rounded-full border border-slate-950"></span>
+            <span className="absolute top-1 right-2 w-2.5 h-2.5 bg-amber-500 rounded-full border border-white"></span>
           )}
         </button>
 
         {/* Hub 4: العملاء والزيارات */}
         <button
           onClick={() => setActiveTab('all_customers')}
-          className={`relative flex flex-col items-center justify-center min-w-[50px] min-h-[50px] px-1 rounded-xl transition active:scale-95 cursor-pointer ${
-            ['all_customers', 'customers', 'visits'].includes(activeTab) ? 'text-amber-400 font-black' : 'text-slate-300 hover:text-white font-bold'
+          className={`relative flex flex-col items-center justify-center min-w-[54px] min-h-[48px] px-2 py-1 rounded-2xl transition active:scale-95 cursor-pointer ${
+            ['all_customers', 'customers', 'visits'].includes(activeTab)
+              ? 'bg-amber-100/80 text-amber-950 font-black'
+              : 'text-slate-500 hover:text-slate-900 font-bold'
           }`}
         >
-          <Users className={`w-5 h-5 ${['all_customers', 'customers', 'visits'].includes(activeTab) ? 'text-amber-400 stroke-[2.5]' : 'text-slate-300'}`} />
-          <span className="text-[10.5px] mt-0.5 font-bold">العملاء</span>
+          <Users className={`w-5 h-5 ${['all_customers', 'customers', 'visits'].includes(activeTab) ? 'text-amber-700 stroke-[2.5]' : 'text-slate-500'}`} />
+          <span className="text-[10px] mt-0.5 font-bold">العملاء</span>
         </button>
-      </div>
+      </nav>
 
       {/* PWA Install Modal */}
       <InstallAppModal
