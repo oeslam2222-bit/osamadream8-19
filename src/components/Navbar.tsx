@@ -8,6 +8,7 @@ import {
   CloudLightning,
   Download,
   FileSpreadsheet,
+  Home,
   Layers,
   LayoutDashboard,
   LogOut,
@@ -88,6 +89,12 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
   }, []);
 
   const cartSummary = getCartSummary();
+  const todayLabel = new Date().toLocaleDateString('ar-EG', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
 
   if (!currentUser) return null;
 
@@ -124,6 +131,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     : 0;
 
   const navItems = [
+    { id: 'home', label: 'لوحة التحكم', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'catalog', label: 'كتالوج الأصناف والبيع', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'all_customers', label: 'كافة العملاء والتحليل', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'dashboard', label: currentUser.role === 'sales_rep' ? 'متابعة طلبياتي' : 'لوحة المشرف والمتابعة', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
@@ -177,26 +185,31 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
         </div>
       )}
 
-      <header className="tantawy-topbar sticky top-0 z-40 bg-slate-900 text-white shadow-lg border-b border-slate-800">
+      <header className="tantawy-topbar sticky top-0 z-40 bg-white text-slate-900 shadow-sm border-b border-slate-200">
         {/* Top Banner - Compact on mobile with large touch controls */}
         <div className="max-w-7xl mx-auto px-2 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2">
           
-          {/* Brand & Logo */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          {/* Date pill (desktop: the brand lives in the sidebar) */}
+          <div className="hidden lg:block rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-600">
+            {todayLabel}
+          </div>
+
+          {/* Brand & Logo (mobile / tablet) */}
+          <div className="flex items-center gap-2 sm:gap-3 lg:hidden">
             <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-full bg-white p-0.5 border-2 border-amber-400 shadow-md shadow-amber-500/20 flex items-center justify-center shrink-0 overflow-hidden">
               <img src="/pwa-192x192.png" alt="مجموعة الطنطاوي - TANTAWY GROUP" className="h-full w-full object-contain" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h1 className="font-black text-sm sm:text-lg tracking-tight text-white flex items-center gap-1">
+                <h1 className="font-black text-sm sm:text-lg tracking-tight text-slate-900 flex items-center gap-1">
                   <span>مجموعة الطنطاوي</span>
-                  <span className="text-amber-400 text-xs sm:text-sm font-bold hidden xs:inline">للتجارة والتوزيع</span>
+                  <span className="text-amber-700 text-xs sm:text-sm font-bold hidden xs:inline">للتجارة والتوزيع</span>
                 </h1>
-                <span className="hidden md:inline-block px-2 py-0.5 text-[10px] font-extrabold bg-amber-400/20 text-amber-300 rounded-md border border-amber-400/30">
+                <span className="hidden md:inline-block px-2 py-0.5 text-[10px] font-extrabold bg-amber-50 text-amber-800 rounded-md border border-amber-300">
                   TANTAWY GROUP
                 </span>
               </div>
-              <p className="text-[10px] sm:text-[11px] text-slate-300 hidden sm:block">
+              <p className="text-[10px] sm:text-[11px] text-slate-500 hidden sm:block">
                 المنظومة الذكية لإدارة المبيعات والفروع الـ 7 ومخزن أكتوبر المركزي
               </p>
             </div>
@@ -209,11 +222,11 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
             <button
               type="button"
               onClick={() => setIsInstallModalOpen(true)}
-              className="flex items-center justify-center gap-1 bg-amber-500/20 hover:bg-amber-500/30 active:bg-amber-500/40 text-amber-300 border border-amber-400/50 px-2 sm:px-2.5 h-9 sm:h-10 rounded-xl text-xs font-black transition cursor-pointer shadow-sm shadow-amber-500/10"
+              className="flex items-center justify-center gap-1 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-800 border border-amber-300 px-2 sm:px-2.5 h-9 sm:h-10 rounded-xl text-xs font-black transition cursor-pointer"
               title="تثبيت التطبيق على الموبايل (أيقونة أصلية بدون علامة كروم)"
             >
-              <Smartphone className="w-4 h-4 text-amber-400 shrink-0" />
-              <span className="font-black text-amber-300 text-[11px] sm:text-xs">تثبيت</span>
+              <Smartphone className="w-4 h-4 text-amber-700 shrink-0" />
+              <span className="font-black text-amber-800 text-[11px] sm:text-xs">تثبيت</span>
             </button>
 
             {/* Data Saver Mode Toggle Button */}
@@ -222,16 +235,16 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
               onClick={toggleDataSaverMode}
               className={`flex items-center justify-center gap-1 px-2.5 h-9 sm:h-10 rounded-xl text-xs font-black border transition cursor-pointer ${
                 dataSaverMode
-                  ? 'bg-emerald-900/90 text-emerald-200 border-emerald-400 shadow-sm'
-                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-sm'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
               }`}
               title={dataSaverMode ? 'وضع توفير الباقة مفعل' : 'تفعيل وضع توفير الباقة'}
             >
               {dataSaverMode ? (
                 <>
-                  <Zap className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <Zap className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span className="hidden sm:inline">باقة:</span>
-                  <span className="text-emerald-300 font-black">مفعّل</span>
+                  <span className="text-emerald-700 font-black">مفعّل</span>
                 </>
               ) : (
                 <>
@@ -244,16 +257,16 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
 
             {/* Offline / Online Status Badge (Visible everywhere with high contrast) */}
             <div className={`flex items-center gap-1 px-2 h-9 sm:h-10 rounded-xl text-xs font-bold border ${
-              isOffline ? 'bg-amber-900 text-amber-200 border-amber-500' : 'bg-emerald-950/80 text-emerald-300 border-emerald-700'
+              isOffline ? 'bg-amber-50 text-amber-800 border-amber-300' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
             }`}>
               {isOffline ? (
                 <>
-                  <WifiOff className="w-3.5 h-3.5 animate-pulse text-amber-400" />
+                  <WifiOff className="w-3.5 h-3.5 animate-pulse text-amber-600" />
                   <span className="text-[11px] font-black">أوفلاين</span>
                 </>
               ) : (
                 <>
-                  <Wifi className="w-3.5 h-3.5 text-emerald-400" />
+                  <Wifi className="w-3.5 h-3.5 text-emerald-600" />
                   <span className="hidden md:inline">متصل</span>
                 </>
               )}
@@ -266,14 +279,14 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
               onClick={togglePrivacyMode}
               className={`flex items-center gap-1.5 px-2.5 h-9 sm:h-10 rounded-xl text-xs font-bold transition cursor-pointer border ${
                 isPrivacyMode
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 shadow-xs'
-                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750 hover:text-white'
+                  ? 'bg-amber-50 text-amber-800 border-amber-300 shadow-xs'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
               }`}
               title={isPrivacyMode ? 'وضع سرية البيانات مفعّل (المبيعات والأرصدة مخفية). اضغط للإظهار.' : 'تفعيل وضع سرية البيانات لعرض الشاشة باحترافية وسرية'}
             >
               {isPrivacyMode ? (
                 <>
-                  <EyeOff className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                  <EyeOff className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
                   <span className="hidden sm:inline">سرية البيانات: نشطة</span>
                 </>
               ) : (
@@ -301,10 +314,10 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
             {(currentUser.role === 'admin' || currentUser.role === 'developer') && pendingApprovalsCount > 0 && (
               <button
                 onClick={() => setActiveTab('users')}
-                className="flex items-center justify-center gap-1 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 px-2.5 h-9 sm:h-10 rounded-xl text-xs font-bold transition animate-pulse"
+                className="flex items-center justify-center gap-1 bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-700 px-2.5 h-9 sm:h-10 rounded-xl text-xs font-bold transition animate-pulse"
                 title="يوجد طلبات انضمام جديدة بانتظار التفعيل"
               >
-                <Bell className="w-3.5 h-3.5 text-rose-400" />
+                <Bell className="w-3.5 h-3.5 text-rose-600" />
                 <span>{pendingApprovalsCount}</span>
               </button>
             )}
@@ -316,7 +329,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                   aria-label="تصفية الفرع"
                   value={selectedBranchFilter}
                   onChange={(e) => setSelectedBranchFilter(e.target.value)}
-                  className="bg-slate-800 text-slate-200 text-xs rounded-xl px-2.5 h-10 border border-slate-700 focus:outline-none focus:border-amber-400 font-bold"
+                  className="bg-white text-slate-700 text-xs rounded-xl px-2.5 h-10 border border-slate-200 focus:outline-none focus:border-amber-500 font-bold"
                 >
                   <option value="الكل">كل الفروع</option>
                   {branches.map((b) => (
@@ -333,14 +346,14 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
               <button
                 type="button"
                 onClick={() => setIsCompanyModalOpen(true)}
-                className="hidden xl:flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-amber-300 border border-amber-500/30 px-3 h-9 sm:h-10 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+                className="hidden xl:flex items-center gap-1.5 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 border border-slate-200 px-3 h-9 sm:h-10 rounded-xl text-xs font-bold transition cursor-pointer"
                 title={
                   currentUser.role === 'admin' || currentUser.role === 'developer'
                     ? 'إعدادات بيانات الفاتورة للشركة والفروع'
                     : `إعدادات بيانات فاتورة فرعك (${currentUser.branchName})`
                 }
               >
-                <Building2 className="w-3.5 h-3.5 text-amber-400" />
+                <Building2 className="w-3.5 h-3.5 text-amber-700" />
                 <span>
                   {currentUser.role === 'admin' || currentUser.role === 'developer'
                     ? 'إعدادات بيانات الفاتورة'
@@ -353,7 +366,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
             <div className="relative">
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 active:bg-slate-700 px-2.5 h-9 sm:h-10 rounded-xl border border-slate-700 transition cursor-pointer"
+                className="flex items-center gap-1.5 bg-white hover:bg-slate-50 active:bg-slate-100 px-2.5 h-9 sm:h-10 rounded-xl border border-slate-200 transition cursor-pointer"
               >
                 <img
                   src={currentUser.avatar || '/pwa-192x192.png'}
@@ -361,10 +374,10 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
                   className="w-6 h-6 rounded-full object-cover border border-amber-400"
                 />
                 <div className="text-right hidden md:block">
-                  <div className="text-xs font-bold text-slate-100 flex items-center gap-1">
+                  <div className="text-xs font-bold text-slate-900 flex items-center gap-1">
                     {currentUser.name}
                   </div>
-                  <div className="text-[10px] text-amber-400 font-medium">
+                  <div className="text-[10px] text-amber-700 font-medium">
                     {roleNames[currentUser.role]?.label || currentUser.role}
                   </div>
                 </div>
@@ -528,8 +541,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return <button key={item.id} onClick={() => setActiveTab(item.id)} aria-current={isActive ? 'page' : undefined}
-              className={`w-full flex items-center gap-3 px-3 rounded-xl text-right text-sm font-bold transition ${isActive ? 'bg-blue-100 text-blue-950 shadow-sm' : 'text-blue-100/85 hover:bg-white/10 hover:text-white'}`}>
-              <Icon className={`w-[18px] h-[18px] ${isActive ? 'text-blue-700' : 'text-blue-200'}`} />
+              className={`w-full flex items-center gap-3 px-3 rounded-xl text-right text-sm font-bold transition ${isActive ? 'bg-[#c99a43] text-[#102b4e] shadow-sm' : 'text-blue-100/85 hover:bg-white/10 hover:text-white'}`}>
+              <Icon className={`w-[18px] h-[18px] ${isActive ? 'text-[#102b4e]' : 'text-blue-200'}`} />
               <span className="flex-1">{item.label}</span>
               {item.badge && item.badge > 0 ? <span className="min-w-5 rounded-full bg-rose-500 px-1.5 text-center text-[10px] font-black text-white">{item.badge}</span> : null}
             </button>;
@@ -542,12 +555,12 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
         </div>
       </aside>
 
-      <nav className="tantawy-mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#102b4e]/95 backdrop-blur border-t border-white/10 flex items-center py-1.5 shadow-2xl safe-area-inset-bottom print:hidden" aria-label="التنقل">
+      <nav className="tantawy-mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-slate-200 flex items-center py-1.5 shadow-2xl safe-area-inset-bottom print:hidden" aria-label="التنقل">
         {filteredNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
           return <button key={item.id} onClick={() => setActiveTab(item.id)} aria-current={isActive ? 'page' : undefined}
-            className={`relative flex flex-col items-center justify-center rounded-xl px-1 text-[10px] font-bold transition ${isActive ? 'text-amber-300' : 'text-blue-100/80'}`}>
+            className={`relative flex flex-col items-center justify-center rounded-xl px-1 text-[10px] font-bold transition ${isActive ? 'text-[#102b4e]' : 'text-slate-500'}`}>
             <Icon className="w-5 h-5 mb-0.5" />
             <span className="max-w-[72px] truncate">{item.label}</span>
             {item.badge && item.badge > 0 ? <span className="absolute top-0 right-2 min-w-4 rounded-full bg-rose-500 px-1 text-[9px] text-white">{item.badge}</span> : null}

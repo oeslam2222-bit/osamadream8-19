@@ -66,6 +66,7 @@ import {
   Cell
 } from 'recharts';
 import { useApp } from '../context/AppContext';
+import { StatGrid } from './ui/StatGrid';
 import { Customer, CustomerVisit, User, Invoice, OrderStatus } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import {
@@ -928,7 +929,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       )}
 
       {/* Power BI Executive KPI Cards (Top Accent Colored Stripes & High Contrast) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5">
+      <StatGrid visible={4} className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3" moreLabel="عرض باقي المؤشرات المالية">
         {/* Total Customers */}
         <div className="bg-white rounded-2xl p-3 border border-slate-200 border-t-4 border-t-slate-700 shadow-xs hover:shadow-md transition">
           <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
@@ -1038,7 +1039,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             قيمة: {formatMoney(kpiStats.totalOrdersValue)}
           </div>
         </div>
-      </div>
+      </StatGrid>
 
       {/* Power BI Multi-Visual Interactive Dashboard */}
       {showCharts && (

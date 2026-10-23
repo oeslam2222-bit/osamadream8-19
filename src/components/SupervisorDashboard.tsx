@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { StatGrid } from './ui/StatGrid';
 import { exportElectronicInvoiceToExcel } from '../services/excelService';
 import { formatCurrency } from '../services/invoiceService';
 import { downloadInvoicePDF } from '../services/pdfService';
@@ -489,7 +490,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
       )}
 
       {/* Main Header & Role Welcome */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-slate-800 space-y-4">
+      <div className="bg-[#102b4e] text-white rounded-3xl p-5 sm:p-6 shadow-sm border border-[#23496f] space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -529,8 +530,8 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         </div>
 
         {/* Aggregate KPI Stats Grid - Top Row: Orders Workflow */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
-          
+        <StatGrid visible={4} tone="dark" className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2" moreLabel="عرض باقي المؤشرات">
+
           {/* Total Revenue */}
           <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700/80 space-y-1">
             <div className="text-[11px] text-slate-400 font-bold flex items-center gap-1">
@@ -623,7 +624,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             </div>
           </div>
 
-        </div>
+        </StatGrid>
 
         {/* Product Inventory Summary Cards for Admin & Management */}
         <div className="pt-3 border-t border-slate-800/80">
@@ -632,7 +633,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             <span>موقف المخزون وحالة توفر المنتجات لشركة دريم:</span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <StatGrid visible={0} tone="dark" className="grid grid-cols-2 sm:grid-cols-4 gap-3" moreLabel="عرض موقف المخزون">
             {/* Total Products */}
             <div className="bg-slate-800/60 p-3 rounded-2xl border border-slate-700/60 flex items-center justify-between">
               <div>
@@ -676,7 +677,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                 <AlertTriangle className="w-4 h-4" />
               </div>
             </div>
-          </div>
+          </StatGrid>
         </div>
       </div>
 

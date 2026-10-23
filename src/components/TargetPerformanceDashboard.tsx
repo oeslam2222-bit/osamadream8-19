@@ -45,6 +45,7 @@ import {
   YAxis
 } from 'recharts';
 import { useApp } from '../context/AppContext';
+import { StatGrid } from './ui/StatGrid';
 import { isArabicNameMatch, normalizeArabicText } from '../services/arabicMatchingService';
 import {
   ARABIC_MONTHS,
@@ -1358,7 +1359,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
           </div>
 
           {/* THE 8 NUMBERS (KPI Cards for Sales and Collection) - Fully responsive 2-col on mobile, 4-col on desktop */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
+          <StatGrid visible={4} className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5" moreLabel="عرض مؤشرات التحصيل">
             {/* 1. Sales Target */}
             <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs relative overflow-hidden">
               <div className="flex items-center justify-between">
@@ -1504,7 +1505,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                 مؤشر السيولة النقدية والتوريدات
               </div>
             </div>
-          </div>
+          </StatGrid>
 
           {/* POWER BI FEATURE: MONTHLY DETAILS TABLE (جدول تفاصيل أهداف وتحصيلات الشهور) */}
           {periodMode === 'monthly' && (
