@@ -30,6 +30,7 @@ import { UserManager } from './components/UserManager';
 import { SystemWorkflowGuide } from './components/SystemWorkflowGuide';
 import { TargetPerformanceDashboard } from './components/TargetPerformanceDashboard';
 import { VisitsDashboard } from './components/VisitsDashboard';
+import { LegalAdvisorDashboard } from './components/LegalAdvisorDashboard';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
 import { AppProvider, useApp } from './context/AppContext';
@@ -139,6 +140,8 @@ const MainLayout: React.FC = () => {
               onViewInvoice={(inv) => setViewingInvoice(inv)}
             />
           )}
+
+          {activeTab === 'legal_advisor' && <LegalAdvisorDashboard />}
 
           {activeTab === 'targets' && <TargetPerformanceDashboard />}
 

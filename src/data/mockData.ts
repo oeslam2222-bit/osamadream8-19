@@ -151,6 +151,18 @@ export const INITIAL_USERS: User[] = [
     isActive: true,
     approvalStatus: 'active',
   },
+  {
+    id: 'u-legal-counsel',
+    name: 'المستشار القانوني (الإدارة القانونية)',
+    username: 'legal',
+    email: 'legal@tantawy.com',
+    password: '',
+    role: 'legal_advisor',
+    branchName: 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+    phone: '01022334455',
+    isActive: true,
+    approvalStatus: 'active',
+  },
 ];
 
 // Empty products list ready for live upload / Supabase sync

@@ -11,16 +11,16 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
-import { Filter } from 'lucide-react';
+import { Filter, MapPin, Target, TrendingUp, Users, Wallet } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import { MONTH_NAMES_AR, filterCustomersByRBAC } from '../services/customerAnalyticsService';
 import { isArabicNameMatch, isBranchMatch } from '../services/arabicMatchingService';
-import { Customer, CustomerVisit, TargetRecord } from '../types';
+import { Customer, CustomerVisit, Invoice, TargetRecord } from '../types';
 
 interface DashboardHomeProps {
   onNavigateToTab: (tab: string) => void;
-  onViewInvoice?: (invoice: unknown) => void;
+  onViewInvoice?: (invoice: Invoice) => void;
 }
 
 const NAVY = '#102b4e';
@@ -31,6 +31,7 @@ const PIE_COLORS = [NAVY, GOLD, BLUE, '#8fa3bf'];
 const GRID_STROKE = '#e3ebf3';
 const TICK_FILL = '#5b6577';
 const BRASS_INK = 'text-[#8a6420]';
+const BRASS_SOFT = 'bg-[rgba(155,112,39,.12)]';
 const MASK = '••••••';
 
 const customerSales = (c: Customer): number => {
@@ -279,27 +280,110 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
     year: 'numeric'
   });
 
-  const stripKpis: Array<{ label: string; value: string; tone?: 'brass' }> = isFieldRole
-    ? isSupervisor
-      ? [
-          { label: 'الزيارات', value: num(stats.visitsTotal) },
-          { label: 'العملاء', value: num(stats.customers) },
-          { label: 'مبيعات 2026', value: money(stats.sales) },
-          { label: 'تحصيلات 2026', value: money(stats.collections) }
-        ]
-      : [
-          { label: 'الزيارات', value: num(stats.visitsTotal) },
-          { label: 'مبيعات 2026', value: money(stats.sales) },
-          { label: 'تحصيلات 2026', value: money(stats.collections) },
-          { label: 'العملاء', value: num(stats.customers) }
-        ]
-    : [
-        { label: 'مبيعات 2026', value: money(stats.sales) },
-        { label: 'تحصيلات 2026', value: money(stats.collections) },
-        { label: 'تارجت البيع', value: money(stats.targetSales), tone: 'brass' },
-        { label: 'العملاء', value: num(stats.customers) },
-        { label: 'الزيارات', value: num(stats.visitsTotal) }
+  const kpis = useMemo(() => {
+    if (isFieldRole) {
+      if (isSupervisor) {
+        return [
+          {
+            label: 'الزيارات',
+            value: num(stats.visitsTotal),
+            icon: MapPin,
+            tint: 'bg-[#eaf0f6]',
+            color: 'text-[var(--app-navy)]'
+          },
+          {
+            label: 'العملاء',
+            value: num(stats.customers),
+            icon: Users,
+            tint: 'bg-[#ebf4fa]',
+            color: 'text-[var(--app-blue)]'
+          },
+          {
+            label: 'مبيعات 2026',
+            value: money(stats.sales),
+            icon: TrendingUp,
+            tint: 'bg-[#e8f6f0]',
+            color: 'text-[var(--app-ok)]'
+          },
+          {
+            label: 'تحصيلات 2026',
+            value: money(stats.collections),
+            icon: Wallet,
+            tint: 'bg-[#fbf4e6]',
+            color: 'text-[var(--app-gold)]'
+          }
+        ];
+      }
+      return [
+        {
+          label: 'الزيارات',
+          value: num(stats.visitsTotal),
+          icon: MapPin,
+          tint: 'bg-[#eaf0f6]',
+          color: 'text-[var(--app-navy)]'
+        },
+        {
+          label: 'مبيعات 2026',
+          value: money(stats.sales),
+          icon: TrendingUp,
+          tint: 'bg-[#e8f6f0]',
+          color: 'text-[var(--app-ok)]'
+        },
+        {
+          label: 'تحصيلات 2026',
+          value: money(stats.collections),
+          icon: Wallet,
+          tint: 'bg-[#fbf4e6]',
+          color: 'text-[var(--app-gold)]'
+        },
+        {
+          label: 'العملاء',
+          value: num(stats.customers),
+          icon: Users,
+          tint: 'bg-[#ebf4fa]',
+          color: 'text-[var(--app-blue)]'
+        }
       ];
+    }
+
+    return [
+      {
+        label: 'مبيعات 2026',
+        value: money(stats.sales),
+        icon: TrendingUp,
+        tint: 'bg-[#e8f6f0]',
+        color: 'text-[var(--app-ok)]'
+      },
+      {
+        label: 'تحصيلات 2026',
+        value: money(stats.collections),
+        icon: Wallet,
+        tint: 'bg-[#fbf4e6]',
+        color: 'text-[var(--app-gold)]'
+      },
+      {
+        label: 'العملاء',
+        value: num(stats.customers),
+        icon: Users,
+        tint: 'bg-[#ebf4fa]',
+        color: 'text-[var(--app-blue)]'
+      },
+      {
+        label: 'الزيارات',
+        value: num(stats.visitsTotal),
+        icon: MapPin,
+        tint: 'bg-[#eaf0f6]',
+        color: 'text-[var(--app-navy)]'
+      },
+      {
+        label: 'تارجت البيع 2026',
+        value: money(stats.targetSales),
+        icon: Target,
+        tint: BRASS_SOFT,
+        color: BRASS_INK
+      }
+    ];
+  }, [isFieldRole, isSupervisor, stats, isPrivacyMode]);
 
   const monthChart = MONTH_NAMES_AR.map((month, i) => ({
     month: month.slice(0, 3),

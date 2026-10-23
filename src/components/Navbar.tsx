@@ -30,7 +30,9 @@ import {
   ZapOff,
   Eye,
   EyeOff,
-  Lock
+  Lock,
+  Scale,
+  Settings
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
@@ -38,6 +40,7 @@ import { formatCurrency } from '../services/invoiceService';
 import { UserRole } from '../types';
 import { CompanySettingsModal } from './CompanySettingsModal';
 import { InstallAppModal } from './InstallAppModal';
+import { SystemSettingsAndAboutModal } from './SystemSettingsAndAboutModal';
 
 interface NavbarProps {
   activeTab: string;
@@ -66,11 +69,13 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     triggerInstallPrompt,
     installPromptEvent,
     isInstallModalOpen,
-    setIsInstallModalOpen
+    setIsInstallModalOpen,
+    login
   } = useApp();
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStandalone, setIsStandalone] = useState(true);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
 
@@ -104,6 +109,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
     branch_manager: { label: 'مدير الفرع', bg: 'bg-purple-500/20 border-purple-500/40', text: 'text-purple-300' },
     supervisor: { label: 'مشرف المناديب', bg: 'bg-blue-500/20 border-blue-500/40', text: 'text-blue-300' },
     sales_rep: { label: 'المندوب', bg: 'bg-emerald-500/20 border-emerald-500/40', text: 'text-emerald-300' },
+    legal_advisor: { label: 'المستشار القانوني', bg: 'bg-indigo-500/20 border-indigo-500/40', text: 'text-indigo-300' },
   };
 
   const pendingApprovalsCount = users.filter((u) => {
@@ -133,13 +139,14 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
   const isFieldRole = currentUser.role === 'sales_rep' || currentUser.role === 'supervisor';
 
   const navItems = [
-    { id: 'home', label: 'الرئيسية', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'home', label: 'الرئيسية', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'legal_advisor'] },
+    { id: 'legal_advisor', label: 'الشؤون القانونية', icon: Scale, roles: ['admin', 'developer', 'legal_advisor'] },
     { id: 'catalog', label: 'الكتالوج', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'all_customers', label: 'العملاء', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'all_customers', label: 'العملاء', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'legal_advisor'] },
     { id: 'dashboard', label: 'المتابعة', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'targets', label: 'التارجت', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'targets', label: 'التارجت', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'legal_advisor'] },
     { id: 'visits', label: 'الزيارات', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'invoices', label: 'الفواتير', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
+    { id: 'invoices', label: 'الفواتير', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'legal_advisor'], badge: pendingOrdersCount },
     { id: 'inventory', label: 'المخزون', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'excel', label: 'الإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },
     { id: 'guide', label: 'الدليل', icon: BookOpen, roles: isFieldRole ? [] : ['admin', 'branch_manager', 'developer'] },
@@ -220,44 +227,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
           {/* Status Indicators, User Info, & Actions */}
           <div className="flex items-center gap-1.5 sm:gap-2.5">
             
-            {/* PWA Install Button (Clear and Prominent on Mobile & Desktop) */}
-            <button
-              type="button"
-              onClick={() => setIsInstallModalOpen(true)}
-              className="hidden sm:flex items-center justify-center gap-1 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-800 border border-amber-300 px-2 sm:px-2.5 h-11 rounded-xl text-xs font-black transition cursor-pointer"
-              title="تثبيت التطبيق على الموبايل (أيقونة أصلية بدون علامة كروم)"
-            >
-              <Smartphone className="w-4 h-4 text-amber-700 shrink-0" />
-              <span className="font-black text-amber-800 text-[11px] sm:text-xs">تثبيت</span>
-            </button>
-
-            {/* Data Saver Mode Toggle Button */}
-            <button
-              type="button"
-              onClick={toggleDataSaverMode}
-              className={`hidden sm:flex items-center justify-center gap-1 px-2.5 h-11 rounded-xl text-xs font-black border transition cursor-pointer ${
-                dataSaverMode
-                  ? 'panel-ok shadow-sm'
-                  : 'bg-white text-slate-600 border-[var(--app-line)] hover:bg-slate-50'
-              }`}
-              title={dataSaverMode ? 'وضع توفير الباقة مفعل' : 'تفعيل وضع توفير الباقة'}
-            >
-              {dataSaverMode ? (
-                <>
-                  <Zap className="w-4 h-4 text-[var(--app-ok)] shrink-0" />
-                  <span className="hidden sm:inline">باقة:</span>
-                  <span className="text-[var(--app-ok)] font-black">مفعّل</span>
-                </>
-              ) : (
-                <>
-                  <ZapOff className="w-4 h-4 text-slate-400 shrink-0" />
-                  <span className="hidden sm:inline">توفير الباقة</span>
-                  <span className="sm:hidden text-[11px]">باقة</span>
-                </>
-              )}
-            </button>
-
-            {/* Offline / Online Status Badge (Visible everywhere with high contrast) */}
+            {/* Offline / Online Status Badge */}
             <div className={`flex items-center gap-1 px-2.5 h-11 rounded-full text-xs font-bold border ${
               isOffline ? 'panel-warn' : 'panel-ok'
             }`}>
@@ -274,29 +244,16 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
               )}
             </div>
 
-            {/* Privacy & Confidentiality Mode Toggle (سرية البيانات) */}
+            {/* Settings, About & Privacy Modal Trigger Button */}
             <button
-              id="navbar-privacy-mode-toggle"
+              id="navbar-settings-and-about-btn"
               type="button"
-              onClick={togglePrivacyMode}
-              className={`hidden sm:flex items-center gap-1.5 px-2.5 h-11 rounded-xl text-xs font-bold transition cursor-pointer border ${
-                isPrivacyMode
-                  ? 'panel-warn shadow-xs'
-                  : 'bg-white text-slate-600 border-[var(--app-line)] hover:bg-slate-50'
-              }`}
-              title={isPrivacyMode ? 'وضع سرية البيانات مفعّل (المبيعات والأرصدة مخفية). اضغط للإظهار.' : 'تفعيل وضع سرية البيانات لعرض الشاشة باحترافية وسرية'}
+              onClick={() => setIsSettingsModalOpen(true)}
+              className="flex items-center justify-center gap-1.5 px-3 h-11 rounded-xl text-xs font-black border border-[var(--app-line)] bg-white hover:bg-slate-50 text-slate-700 transition cursor-pointer shadow-2xs active:scale-95"
+              title="الإعدادات، السياسة والخصوصية، معلومات المنظومة، والقائمين على الفكرة"
             >
-              {isPrivacyMode ? (
-                <>
-                  <EyeOff className="w-3.5 h-3.5 text-[var(--app-warn)] animate-pulse" />
-                  <span className="hidden sm:inline">سرية البيانات: نشطة</span>
-                </>
-              ) : (
-                <>
-                  <Eye className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="hidden sm:inline">سرية البيانات</span>
-                </>
-              )}
+              <Settings className="w-4 h-4 text-amber-600" />
+              <span className="hidden sm:inline">الإعدادات وعن النظام</span>
             </button>
 
             {/* Pending Invoices Sync Button for Offline/Queued Orders */}
@@ -626,6 +583,14 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
         <CompanySettingsModal
           isOpen={isCompanyModalOpen}
           onClose={() => setIsCompanyModalOpen(false)}
+        />
+      )}
+
+      {/* System Settings, About & Privacy Modal */}
+      {isSettingsModalOpen && (
+        <SystemSettingsAndAboutModal
+          isOpen={isSettingsModalOpen}
+          onClose={() => setIsSettingsModalOpen(false)}
         />
       )}
     </>

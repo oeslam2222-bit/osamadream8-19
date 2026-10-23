@@ -34,6 +34,7 @@ import {
   UserPlus,
   Users,
   Wrench,
+  Scale,
   X
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -146,6 +147,16 @@ export const UserManager: React.FC = () => {
       activeRing: 'border-[var(--app-navy)] bg-[rgba(16,43,78,.06)]',
       icon: Smartphone,
       desc: 'مندوب مبيعات ميداني: إنشاء وتجهيز طلبيات البيع لعملائه المسجلين وإرسالها (لا يوافق على الطلبيات ولا ينفذ تحويلات مخزنية بنفسه).'
+    },
+    legal_advisor: {
+      label: 'المستشار القانوني',
+      shortLabel: 'مستشار قانوني',
+      bg: 'bg-indigo-50',
+      border: 'border-indigo-200',
+      text: 'text-indigo-800',
+      activeRing: 'border-indigo-500 bg-indigo-50/50',
+      icon: Scale,
+      desc: 'الإدارة القانونية والتحصيل القضائي: كشوفات العملاء المتعثرين، صياغة ومتابعة الإنذارات الرسمية، تسويات وجدولة الديون، وإدارة محفظة الشيكات وإيصالات الأمانة.'
     }
   };
 
@@ -871,6 +882,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   <option value="branch_manager">مدير الفرع</option>
                   <option value="supervisor">مشرف المناديب</option>
                   <option value="sales_rep">المندوب</option>
+                  <option value="legal_advisor">المستشار القانوني</option>
                 </select>
               </div>
             </div>
@@ -1519,6 +1531,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   <option value="sales_rep">المندوب (مندوب مبيعات وتوزيع)</option>
                   <option value="supervisor">مشرف المناديب</option>
                   <option value="branch_manager">مدير الفرع</option>
+                  <option value="legal_advisor">المستشار القانوني (الإدارة القانونية)</option>
                   <option value="developer">المطور (الدعم التقني)</option>
                   <option value="admin">الآدمن (الإدارة العامة)</option>
                 </select>
