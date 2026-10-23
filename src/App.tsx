@@ -34,6 +34,11 @@ import { LegalAdvisorDashboard } from './components/LegalAdvisorDashboard';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
 import { AppProvider, useApp } from './context/AppContext';
+import { AuthProvider } from './context/authContext';
+import { InvoiceProvider } from './context/invoiceContext';
+import { CustomerProvider } from './context/customerContext';
+import { InventoryProvider } from './context/inventoryContext';
+import { SyncProvider } from './context/syncContext';
 import { Customer, Invoice } from './types';
 
 // Lightweight Skeleton for tab transitions
@@ -302,9 +307,19 @@ class MobileErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBound
 export function App() {
   return (
     <MobileErrorBoundary>
-      <AppProvider>
-        <MainLayout />
-      </AppProvider>
+      <AuthProvider>
+        <InvoiceProvider>
+          <CustomerProvider>
+            <InventoryProvider>
+              <SyncProvider>
+                <AppProvider>
+                  <MainLayout />
+                </AppProvider>
+              </SyncProvider>
+            </InventoryProvider>
+          </CustomerProvider>
+        </InvoiceProvider>
+      </AuthProvider>
     </MobileErrorBoundary>
   );
 }
