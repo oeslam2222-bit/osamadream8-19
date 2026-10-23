@@ -229,7 +229,10 @@ main .border-slate-200 { border-color: var(--app-line) !important; }
   main { padding-inline: .7rem !important; }
   .tantawy-mobile-nav span { font-size: 10px; }
   .tantawy-mobile-nav button { flex: 0 0 66px; }
-  .tantawy-mobile-nav button[aria-current="page"] { color: #d7ad5e; }
+  .tantawy-mobile-nav button[aria-current="page"] {
+    color: #102b4e;
+    box-shadow: inset 0 3px 0 #c99a43;
+  }
   .tantawy-topbar > div { min-width: 0; }
   .tantawy-topbar > div > div:last-child { max-width: 60vw; overflow-x: auto; scrollbar-width: none; }
   .tantawy-topbar > div > div:last-child::-webkit-scrollbar { display: none; }
