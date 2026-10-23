@@ -15,7 +15,8 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
-import React, { Component, ErrorInfo, Suspense, useState } from 'react';
+import React, { Component, ErrorInfo, Suspense, useEffect, useState } from 'react';
+import { DashboardHome } from './components/DashboardHome';
 import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { ProductCatalog } from './components/ProductCatalog';
@@ -54,6 +55,13 @@ const MainLayout: React.FC = () => {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+
+  // Everyone except sales reps lands on the new dashboard after login; reps keep the catalog as their landing page.
+  useEffect(() => {
+    if (currentUser && currentUser.role !== 'sales_rep') {
+      setActiveTab((prev) => (prev === 'catalog' ? 'home' : prev));
+    }
+  }, [currentUser?.id]);
 
   // If user is not logged in, show dedicated Login / Registration Page
   if (!isAuthenticated || !currentUser) {
@@ -101,6 +109,13 @@ const MainLayout: React.FC = () => {
       {/* Content Container with optimal tight padding for mobile and standard padding for desktop */}
       <main className="flex-1 max-w-none w-full mx-auto px-2 sm:px-4 md:px-6 py-3 sm:py-6 pb-24 md:pb-8">
         <Suspense fallback={<TabLoadingSkeleton />}>
+          {activeTab === 'home' && (
+            <DashboardHome
+              onNavigateToTab={(tab) => setActiveTab(tab)}
+              onViewInvoice={(inv) => setViewingInvoice(inv)}
+            />
+          )}
+
           {activeTab === 'catalog' && (
             <ProductCatalog
               onOpenCart={() => setIsOrderModalOpen(true)}
