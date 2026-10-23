@@ -1,0 +1,4 @@
+src/App.tsx(115,57): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'SetStateAction<Invoice>'.
+src/components/UnifiedOperationsDashboard.tsx(222,13): error TS2322: Type '{ onNavigateToTab: (tab: string) => void; onOpenNewOrder: () => void; onViewInvoice: (invoice: Invoice) => void; }' is not assignable to type 'IntrinsicAttributes & SupervisorDashboardProps'.
+  Property 'onNavigateToTab' does not exist on type 'IntrinsicAttributes & SupervisorDashboardProps'.
+done 
