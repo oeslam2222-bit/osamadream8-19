@@ -32,7 +32,9 @@ import {
   EyeOff,
   Lock,
   Scale,
-  Settings
+  Settings,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
@@ -46,9 +48,17 @@ interface NavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onOpenCart: () => void;
+  isSidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenCart }) => {
+export const Navbar: React.FC<NavbarProps> = ({
+  activeTab,
+  setActiveTab,
+  onOpenCart,
+  isSidebarCollapsed = false,
+  onToggleSidebar
+}) => {
   const {
     currentUser,
     logout,
@@ -139,21 +149,23 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
   const isFieldRole = currentUser.role === 'sales_rep' || currentUser.role === 'supervisor';
 
   const navItems = [
-    { id: 'home', label: 'الرئيسية', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'legal_advisor'] },
+    { id: 'home', label: 'الرئيسية', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'legal_advisor', label: 'الشؤون القانونية', icon: Scale, roles: ['admin', 'developer', 'legal_advisor'] },
     { id: 'catalog', label: 'الكتالوج', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'all_customers', label: 'العملاء', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'legal_advisor'] },
+    { id: 'all_customers', label: 'العملاء', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'dashboard', label: 'المتابعة', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'targets', label: 'التارجت', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'legal_advisor'] },
+    { id: 'targets', label: 'التارجت', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'visits', label: 'الزيارات', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'invoices', label: 'الفواتير', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'legal_advisor'], badge: pendingOrdersCount },
+    { id: 'invoices', label: 'الفواتير', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
     { id: 'inventory', label: 'المخزون', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'excel', label: 'الإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },
     { id: 'guide', label: 'الدليل', icon: BookOpen, roles: isFieldRole ? [] : ['admin', 'branch_manager', 'developer'] },
     { id: 'users', label: 'الفريق', icon: UserCheck, roles: ['admin', 'developer', 'branch_manager', 'supervisor'], badge: pendingApprovalsCount },
   ];
 
-  const filteredNavItems = navItems.filter((item) => item.roles.includes(currentUser.role));
+  const filteredNavItems = currentUser.role === 'legal_advisor'
+    ? navItems.filter((item) => item.id === 'legal_advisor')
+    : navItems.filter((item) => item.roles.includes(currentUser.role));
 
   return (
     <>
@@ -510,52 +522,159 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, onOpenC
         </div>
       </header>
 
-      <aside className="tantawy-sidebar print:hidden" aria-label="التنقل الرئيسي">
-        <div className="flex items-center gap-3 px-2 pb-5 border-b border-white/10">
-          <img src="/pwa-192x192.png" alt="مجموعة الطنطاوي" className="w-11 h-11 rounded-xl bg-white p-1 object-contain" />
-          <div><div className="font-black text-sm">مجموعة الطنطاوي</div><div className="text-[10px] text-blue-200 mt-0.5">نظام المبيعات والتوزيع</div></div>
-        </div>
-        <div className="px-2 pt-5 pb-2 text-[10px] font-bold text-blue-200/70">القائمة الرئيسية</div>
-        <nav className="space-y-1">
-          {filteredNavItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return <button key={item.id} onClick={() => setActiveTab(item.id)} aria-current={isActive ? 'page' : undefined}
-              className={`relative w-full flex items-center gap-3 px-3 rounded-xl text-right text-sm transition ${isActive ? 'bg-white/[0.08] text-white font-semibold' : 'text-[#9db0c7] hover:bg-white/[0.08] hover:text-white font-medium'}`}>
-              <Icon className={`w-[19px] h-[19px] shrink-0 ${isActive ? 'text-[var(--app-accent)]' : 'text-[#8aa2bd]'}`} />
-              <span className="flex-1">{item.label}</span>
-              {item.badge && item.badge > 0 ? <span className="min-w-5 rounded-full bg-rose-500 px-1.5 text-center text-[10px] font-black text-white">{item.badge}</span> : null}
-            </button>;
-          })}
-        </nav>
-        <div className="mt-6 border-t border-white/10 pt-4 px-2 text-[11px] leading-6 text-blue-100/70">
-          <div className="font-bold text-white">{currentUser.name}</div>
-          <div>{roleNames[currentUser.role]?.label || currentUser.role}</div>
-          <div className="mt-1">{currentUser.branchName}</div>
-        </div>
+      <aside className={`tantawy-sidebar print:hidden ${isSidebarCollapsed ? 'is-collapsed' : ''}`} aria-label="التنقل الرئيسي">
+        {isSidebarCollapsed ? (
+          /* Collapsed Smart Mini Rail (Allows maximum screen space for Catalog) */
+          <div className="flex flex-col items-center h-full">
+            {/* Expand Toggle Button & Logo */}
+            <div className="pb-4 border-b border-white/10 w-full flex flex-col items-center gap-3">
+              <button
+                type="button"
+                onClick={onToggleSidebar}
+                title="توسيع القائمة الجانبية"
+                className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 text-amber-300 flex items-center justify-center transition cursor-pointer active:scale-95 shadow-2xs"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <img src="/pwa-192x192.png" alt="مجموعة الطنطاوي" className="w-9 h-9 rounded-xl bg-white p-0.5 object-contain shadow-xs" />
+            </div>
+
+            {/* Nav Icon Rail */}
+            <nav className="space-y-2 pt-4 flex-1 w-full flex flex-col items-center">
+              {filteredNavItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    title={item.label}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`relative w-11 h-11 rounded-xl flex items-center justify-center transition cursor-pointer group ${
+                      isActive
+                        ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                        : 'text-[#9db0c7] hover:bg-white/[0.08] hover:text-white'
+                    }`}
+                  >
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-slate-950' : 'text-[#8aa2bd] group-hover:text-amber-300'}`} />
+                    {item.badge && item.badge > 0 ? (
+                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-rose-500 px-1 text-center text-[9px] font-black text-white flex items-center justify-center shadow-xs">
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </nav>
+
+            {/* Mini User Avatar at Bottom */}
+            <div className="pt-4 border-t border-white/10 w-full flex flex-col items-center">
+              <div
+                title={`${currentUser.name} (${roleNames[currentUser.role]?.label || currentUser.role}) - ${currentUser.branchName}`}
+                className="w-9 h-9 rounded-full bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center cursor-pointer shadow-xs"
+              >
+                {(currentUser.name || '').trim().charAt(0)}
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Full Expanded Sidebar */
+          <>
+            <div className="flex items-center justify-between pb-4 border-b border-white/10 px-1">
+              <div className="flex items-center gap-2.5">
+                <img src="/pwa-192x192.png" alt="مجموعة الطنطاوي" className="w-10 h-10 rounded-xl bg-white p-1 object-contain shrink-0" />
+                <div>
+                  <div className="font-black text-sm text-white">مجموعة الطنطاوي</div>
+                  <div className="text-[10px] text-blue-200">نظام المبيعات والتوزيع</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onToggleSidebar}
+                title="تصغير القائمة لتوسيع مساحة عرض المنتجات"
+                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-amber-300 flex items-center justify-center transition cursor-pointer shrink-0"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between px-2 pt-4 pb-2 text-[10px] font-bold text-blue-200/70">
+              <span>القائمة الرئيسية</span>
+              <button
+                type="button"
+                onClick={onToggleSidebar}
+                className="text-[10px] text-amber-300 hover:text-white font-medium flex items-center gap-0.5 cursor-pointer"
+              >
+                <span>تصغير</span>
+                <ChevronRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            <nav className="space-y-1">
+              {filteredNavItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`relative w-full flex items-center gap-3 px-3 rounded-xl text-right text-sm transition cursor-pointer ${
+                      isActive ? 'bg-white/[0.08] text-white font-semibold' : 'text-[#9db0c7] hover:bg-white/[0.08] hover:text-white font-medium'
+                    }`}
+                  >
+                    <Icon className={`w-[19px] h-[19px] shrink-0 ${isActive ? 'text-[var(--app-accent)]' : 'text-[#8aa2bd]'}`} />
+                    <span className="flex-1">{item.label}</span>
+                    {item.badge && item.badge > 0 ? (
+                      <span className="min-w-5 rounded-full bg-rose-500 px-1.5 text-center text-[10px] font-black text-white">
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="mt-6 border-t border-white/10 pt-4 px-2 text-[11px] leading-6 text-blue-100/70">
+              <div className="font-bold text-white">{currentUser.name}</div>
+              <div>{roleNames[currentUser.role]?.label || currentUser.role}</div>
+              <div className="mt-0.5 text-amber-300/90">{currentUser.branchName}</div>
+            </div>
+          </>
+        )}
       </aside>
 
       <nav className="tantawy-mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-slate-200 flex items-center justify-around py-1.5 shadow-2xl safe-area-inset-bottom print:hidden" aria-label="التنقل">
-        {filteredNavItems
-          .filter((item) => ['home', 'catalog', 'all_customers', 'invoices'].includes(item.id))
-          .map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                aria-current={isActive ? 'page' : undefined}
-                className={`relative flex flex-col items-center justify-center rounded-xl px-1 text-[10px] font-bold transition ${isActive ? 'text-[#102b4e]' : 'text-slate-500'}`}
-              >
-                <Icon className="w-5 h-5 mb-0.5" />
-                <span className="max-w-[72px] truncate">{item.label}</span>
-                {item.badge && item.badge > 0 ? (
-                  <span className="absolute top-0 right-2 min-w-4 rounded-full bg-rose-500 px-1 text-[9px] text-white">{item.badge}</span>
-                ) : null}
-              </button>
-            );
-          })}
+        {currentUser.role === 'legal_advisor' ? (
+          <button
+            onClick={() => setActiveTab('legal_advisor')}
+            className="flex items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-xs font-black text-white bg-[#0f233d] shadow-md my-0.5"
+          >
+            <Scale className="w-4 h-4 text-amber-400" />
+            <span>لوحة الشؤون القانونية والمتابعة القضائية</span>
+          </button>
+        ) : (
+          filteredNavItems
+            .filter((item) => ['home', 'catalog', 'all_customers', 'invoices'].includes(item.id))
+            .map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`relative flex flex-col items-center justify-center rounded-xl px-1 text-[10px] font-bold transition ${isActive ? 'text-[#102b4e]' : 'text-slate-500'}`}
+                >
+                  <Icon className="w-5 h-5 mb-0.5" />
+                  <span className="max-w-[72px] truncate">{item.label}</span>
+                  {item.badge && item.badge > 0 ? (
+                    <span className="absolute top-0 right-2 min-w-4 rounded-full bg-rose-500 px-1 text-[9px] text-white">{item.badge}</span>
+                  ) : null}
+                </button>
+              );
+            })
+        )}
         <button
           type="button"
           onClick={onOpenCart}
