@@ -953,27 +953,27 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
       {/* ========================================================================= */}
       {/* 1. Header & Quick Slicers Bar (شريط التحكم والفلترة التفاعلي Power BI)     */}
       {/* ========================================================================= */}
-      <section className="bg-gradient-to-r from-slate-900 via-slate-850 to-indigo-950 text-white rounded-3xl p-5 shadow-lg border border-slate-800 space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-700/60 pb-4">
+      <section className="text-white rounded-3xl p-5 shadow-lg border border-[#23496f] space-y-4 bg-[linear-gradient(270deg,#123157_0%,#0d2444_58%,#0b2140_100%)]">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/10 pb-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-black flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="badge-brass-dark px-2.5 py-1 text-xs flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-[#ecc987]" />
                 <span>لوحة التحكم والتحليل التنفيذي Power BI 360°</span>
               </span>
-              <span className="px-2 py-0.5 rounded-md bg-white/10 text-slate-300 text-xs font-bold">
+              <span className="px-2 py-0.5 rounded-[10px] bg-white/10 text-[#c7d4e4] text-xs font-bold">
                 {isSuperAdmin ? '👑 الإدارة العليا' : isBranchMgr ? '🏢 مدير الفرع' : '👔 مشرف الفريق'}
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
               <span>لوحة الإدارة والأداء</span>
-              <span className="text-emerald-400 font-mono text-base font-bold">({selectedYear})</span>
+              <span className="text-[#ecc987] dream-amt text-base font-bold">({selectedYear})</span>
             </h1>
-            <p className="text-[11px] text-emerald-200 font-bold">
+            <p className="text-[11px] text-[#ecc987] font-bold">
               الفترة: {selectedPeriodLabel}
               {selectedBranch !== 'ALL' ? ` · ${selectedBranch}` : ' · كل الفروع'}
             </p>
-            <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+            <p className="text-xs text-[#a9bdd6] max-w-2xl leading-relaxed">
               التارجت والمحقق من شيت الأهداف، والتوقع الأسبوعي تقدير مستقل من المندوب، والزيارات من سجل الميدان.
             </p>
           </div>
@@ -983,7 +983,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
             <button
               type="button"
               onClick={handleExportPowerBIReport}
-              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+              className="btn-brass h-11 px-4 text-xs cursor-pointer"
             >
               <Download className="w-4 h-4" />
               <span>تصدير تقرير Power BI إلى Excel 📥</span>
@@ -998,7 +998,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                 setSelectedRep('ALL');
                 setSearchQuery('');
               }}
-              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs transition flex items-center gap-1 border border-slate-700 cursor-pointer"
+              className="btn-ondark h-11 px-3.5 text-xs cursor-pointer"
               title="إعادة ضبط كافة الفلاتر"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -1011,17 +1011,17 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
           {/* Year Slicer */}
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
-              <Calendar className="w-3 h-3 text-emerald-400" />
+            <label className="text-[11px] font-bold text-[#9db0c7] flex items-center gap-1">
+              <Calendar className="w-3 h-3 text-[#8aa2c0]" />
               <span>السنة المالية</span>
             </label>
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="w-full bg-slate-800/90 text-white border border-slate-700 rounded-xl px-2.5 py-1.5 font-black focus:outline-none focus:border-emerald-500 cursor-pointer"
+              className="w-full h-11 bg-white/[.08] text-white border border-white/15 rounded-[10px] px-3 font-black focus:outline-none focus:border-[#c99a43] cursor-pointer"
             >
               {availableYears.map((y) => (
-                <option key={y} value={y} className="bg-slate-900 text-white">
+                <option key={y} value={y} className="bg-[#0d2340] text-white">
                   {y}
                 </option>
               ))}
@@ -1030,37 +1030,37 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
 
           {/* Quarter Slicer */}
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
-              <Filter className="w-3 h-3 text-cyan-400" />
+            <label className="text-[11px] font-bold text-[#9db0c7] flex items-center gap-1">
+              <Filter className="w-3 h-3 text-[#8aa2c0]" />
               <span>الربع السنوي</span>
             </label>
             <select
               value={selectedQuarter}
               onChange={(e) => setSelectedQuarter(e.target.value)}
-              className="w-full bg-slate-800/90 text-white border border-slate-700 rounded-xl px-2.5 py-1.5 font-bold focus:outline-none focus:border-cyan-500 cursor-pointer"
+              className="w-full h-11 bg-white/[.08] text-white border border-white/15 rounded-[10px] px-3 font-bold focus:outline-none focus:border-[#c99a43] cursor-pointer"
             >
-              <option value="ALL" className="bg-slate-900 text-white">كامل السنة (الكل)</option>
-              <option value="Q1" className="bg-slate-900 text-white">الربع الأول Q1 (يناير - مارس)</option>
-              <option value="Q2" className="bg-slate-900 text-white">الربع الثاني Q2 (إبريل - يونيو)</option>
-              <option value="Q3" className="bg-slate-900 text-white">الربع الثالث Q3 (يوليو - سبتمبر)</option>
-              <option value="Q4" className="bg-slate-900 text-white">الربع الرابع Q4 (أكتوبر - ديسمبر)</option>
+              <option value="ALL" className="bg-[#0d2340] text-white">كامل السنة (الكل)</option>
+              <option value="Q1" className="bg-[#0d2340] text-white">الربع الأول Q1 (يناير - مارس)</option>
+              <option value="Q2" className="bg-[#0d2340] text-white">الربع الثاني Q2 (إبريل - يونيو)</option>
+              <option value="Q3" className="bg-[#0d2340] text-white">الربع الثالث Q3 (يوليو - سبتمبر)</option>
+              <option value="Q4" className="bg-[#0d2340] text-white">الربع الرابع Q4 (أكتوبر - ديسمبر)</option>
             </select>
           </div>
 
           {/* Month Slicer */}
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
-              <CalendarCheck className="w-3 h-3 text-amber-400" />
+            <label className="text-[11px] font-bold text-[#9db0c7] flex items-center gap-1">
+              <CalendarCheck className="w-3 h-3 text-[#8aa2c0]" />
               <span>الشهر</span>
             </label>
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="w-full bg-slate-800/90 text-white border border-slate-700 rounded-xl px-2.5 py-1.5 font-bold focus:outline-none focus:border-amber-500 cursor-pointer"
+              className="w-full h-11 bg-white/[.08] text-white border border-white/15 rounded-[10px] px-3 font-bold focus:outline-none focus:border-[#c99a43] cursor-pointer"
             >
-              <option value="ALL" className="bg-slate-900 text-white">كافة الأشهر</option>
+              <option value="ALL" className="bg-[#0d2340] text-white">كافة الأشهر</option>
               {MONTHS_NAMES_AR.map((m, idx) => (
-                <option key={idx + 1} value={String(idx + 1)} className="bg-slate-900 text-white">
+                <option key={idx + 1} value={String(idx + 1)} className="bg-[#0d2340] text-white">
                   شهر {idx + 1} - {m}
                 </option>
               ))}
@@ -1069,8 +1069,8 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
 
           {/* Branch Slicer */}
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
-              <Building2 className="w-3 h-3 text-indigo-400" />
+            <label className="text-[11px] font-bold text-[#9db0c7] flex items-center gap-1">
+              <Building2 className="w-3 h-3 text-[#8aa2c0]" />
               <span>الفرع</span>
             </label>
             <select
@@ -1094,13 +1094,13 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                 if (!supervisorStillMatchesBranch) setSelectedSupervisor(isSupervisor ? currentUser.id : 'ALL');
                 if (!repStillMatchesBranch) setSelectedRep(isSalesRep ? currentUser.id : 'ALL');
               }}
-              className="w-full bg-slate-800/90 text-white border border-slate-700 rounded-xl px-2.5 py-1.5 font-bold focus:outline-none focus:border-indigo-500 disabled:opacity-60 cursor-pointer"
+              className="w-full h-11 bg-white/[.08] text-white border border-white/15 rounded-[10px] px-3 font-bold focus:outline-none focus:border-[#c99a43] cursor-pointer disabled:opacity-60"
             >
               {!isBranchMgr && !isSupervisor && !isSalesRep && (
-                <option value="ALL" className="bg-slate-900 text-white">كافة الفروع</option>
+                <option value="ALL" className="bg-[#0d2340] text-white">كافة الفروع</option>
               )}
               {branchList.map((b) => (
-                <option key={b} value={b} className="bg-slate-900 text-white">
+                <option key={b} value={b} className="bg-[#0d2340] text-white">
                   {b}
                 </option>
               ))}
@@ -1109,8 +1109,8 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
 
           {/* Supervisor Slicer */}
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3 text-purple-400" />
+            <label className="text-[11px] font-bold text-[#9db0c7] flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3 text-[#8aa2c0]" />
               <span>مشرف الفريق</span>
             </label>
             <select
@@ -1124,13 +1124,13 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                   setSelectedRep('ALL');
                 }
               }}
-              className="w-full bg-slate-800/90 text-white border border-slate-700 rounded-xl px-2.5 py-1.5 font-bold focus:outline-none focus:border-purple-500 disabled:opacity-60 cursor-pointer"
+              className="w-full h-11 bg-white/[.08] text-white border border-white/15 rounded-[10px] px-3 font-bold focus:outline-none focus:border-[#c99a43] cursor-pointer disabled:opacity-60"
             >
               {!isSupervisor && !isSalesRep && (
-                <option value="ALL" className="bg-slate-900 text-white">كافة المشرفين</option>
+                <option value="ALL" className="bg-[#0d2340] text-white">كافة المشرفين</option>
               )}
               {supervisorList.map((sup) => (
-                <option key={sup.id} value={sup.id} className="bg-slate-900 text-white">
+                <option key={sup.id} value={sup.id} className="bg-[#0d2340] text-white">
                   {sup.name} {isSupervisor ? '(فريقي فقط)' : ''}
                 </option>
               ))}
@@ -1139,23 +1139,23 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
 
           {/* Sales Rep Slicer */}
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
-              <Users className="w-3 h-3 text-rose-400" />
+            <label className="text-[11px] font-bold text-[#9db0c7] flex items-center gap-1">
+              <Users className="w-3 h-3 text-[#8aa2c0]" />
               <span>المندوب الميداني</span>
             </label>
             <select
               value={effectiveRep}
               disabled={isSalesRep}
               onChange={(e) => setSelectedRep(e.target.value)}
-              className="w-full bg-slate-800/90 text-white border border-slate-700 rounded-xl px-2.5 py-1.5 font-bold focus:outline-none focus:border-rose-500 disabled:opacity-60 cursor-pointer"
+              className="w-full h-11 bg-white/[.08] text-white border border-white/15 rounded-[10px] px-3 font-bold focus:outline-none focus:border-[#c99a43] cursor-pointer disabled:opacity-60"
             >
               {!isSalesRep && (
-                <option value="ALL" className="bg-slate-900 text-white">
+                <option value="ALL" className="bg-[#0d2340] text-white">
                   {isSupervisor ? `كافة مناديبي المباشرين (${repList.length})` : 'كافة المناديب'}
                 </option>
               )}
               {repList.map((rep) => (
-                <option key={rep.id} value={rep.id} className="bg-slate-900 text-white">
+                <option key={rep.id} value={rep.id} className="bg-[#0d2340] text-white">
                   {rep.name}
                 </option>
               ))}
@@ -1164,14 +1164,14 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[10px] font-bold text-slate-400">الفلاتر المطبقة معًا:</span>
+            <span className="text-[10px] font-bold text-[#9db0c7]">الفلاتر المطبقة معًا:</span>
             {activeFilterLabels.map((label, index) => (
-              <span key={`${label}-${index}`} className="rounded-full border border-slate-700 bg-slate-800 px-2.5 py-1 text-[10px] font-bold text-slate-200">
+              <span key={`${label}-${index}`} className="rounded-full border border-white/15 bg-white/[.08] px-2.5 py-1 text-[10px] font-bold text-[#c7d4e4]">
                 {label}
               </span>
             ))}
           </div>
-          <span className="text-[10px] font-bold text-slate-400">
+          <span className="text-[10px] font-bold text-[#9db0c7]">
             {filteredData.targets.length.toLocaleString('ar-EG')} هدف · {filteredData.forecasts.length.toLocaleString('ar-EG')} توقع · {filteredData.visits.length.toLocaleString('ar-EG')} زيارة
           </span>
         </div>
@@ -1182,7 +1182,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
       {/* ========================================================================= */}
       <section className="grid grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7 gap-2 sm:gap-3">
         {/* KPI 1: Sales Target vs Achieved */}
-        <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+        <article className="min-w-0 rounded-[var(--app-radius)] border border-[var(--app-line)] bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>تحقيق البيع</span>
@@ -1216,7 +1216,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         </article>
 
         {/* KPI 2: Collection Target vs Achieved */}
-        <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+        <article className="min-w-0 rounded-[var(--app-radius)] border border-[var(--app-line)] bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>تحقيق التحصيل</span>
@@ -1250,7 +1250,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         </article>
 
         {/* KPI 3: Weekly rep forecast, kept separate from targets and actuals */}
-        <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+        <article className="min-w-0 rounded-[var(--app-radius)] border border-[var(--app-line)] bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>التوقع الأسبوعي</span>
@@ -1273,7 +1273,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         </article>
 
         {/* KPI 4: Current customer receivables (snapshot, not a period target) */}
-        <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+        <article className="min-w-0 rounded-[var(--app-radius)] border border-[var(--app-line)] bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>مستحقات العملاء الحالية</span>
@@ -1294,7 +1294,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         </article>
 
         {/* KPI 5: Customer Coverage */}
-        <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+        <article className="min-w-0 rounded-[var(--app-radius)] border border-[var(--app-line)] bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>تغطية العملاء</span>
@@ -1323,7 +1323,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         </article>
 
         {/* KPI 6: Field Visits Execution */}
-        <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+        <article className="min-w-0 rounded-[var(--app-radius)] border border-[var(--app-line)] bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>الزيارات الميدانية</span>
@@ -1353,7 +1353,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         </article>
 
         {/* KPI 7: Delivered Sales & Net Logistics */}
-        <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+        <article className="min-w-0 rounded-[var(--app-radius)] border border-[var(--app-line)] bg-white p-2.5 sm:p-3.5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>الفواتير المسلّمة (المحمّلة)</span>

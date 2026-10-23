@@ -224,17 +224,17 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     return accessibleInvoices.slice(start, start + itemsPerPage);
   }, [accessibleInvoices, currentPage, itemsPerPage]);
 
-  const statusStyles: Record<string, { bg: string; text: string; label?: string }> = {
-    'مسودة': { bg: 'bg-slate-100 border-slate-300', text: 'text-slate-700' },
-    'قيد مراجعة المشرف': { bg: 'bg-amber-100 border-amber-300 animate-pulse', text: 'text-amber-900', label: 'قيد مراجعة المشرف' },
-    'معلقة بانتظار اعتماد الفرع': { bg: 'bg-blue-100 border-blue-300 animate-pulse', text: 'text-blue-900', label: 'بانتظار مدير الفرع' },
-    'قيد المراجعة': { bg: 'bg-amber-100 border-amber-300', text: 'text-amber-800' },
-    'معتمدة ومصروفة من المخزن': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-800', label: 'معتمدة ومصروفة' },
-    'معتمدة': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-800' },
-    'جاري التجهيز': { bg: 'bg-indigo-100 border-indigo-300', text: 'text-indigo-800' },
-    'تم التسليم': { bg: 'bg-teal-100 border-teal-300', text: 'text-teal-800' },
-    'مرفوضة / ملغاة': { bg: 'bg-rose-100 border-rose-300', text: 'text-rose-800', label: 'مرفوضة / ملغاة' },
-    'ملغاة': { bg: 'bg-rose-100 border-rose-300', text: 'text-rose-800' },
+  const statusStyles: Record<string, { bg: string; text?: string; label?: string }> = {
+    'مسودة': { bg: 'app-badge neutral' },
+    'قيد مراجعة المشرف': { bg: 'app-badge warn animate-pulse', label: 'قيد مراجعة المشرف' },
+    'معلقة بانتظار اعتماد الفرع': { bg: 'app-badge warn animate-pulse', label: 'بانتظار مدير الفرع' },
+    'قيد المراجعة': { bg: 'app-badge warn' },
+    'معتمدة ومصروفة من المخزن': { bg: 'app-badge ok', label: 'معتمدة ومصروفة' },
+    'معتمدة': { bg: 'app-badge ok' },
+    'جاري التجهيز': { bg: 'app-badge warn' },
+    'تم التسليم': { bg: 'app-badge ok' },
+    'مرفوضة / ملغاة': { bg: 'app-badge risk', label: 'مرفوضة / ملغاة' },
+    'ملغاة': { bg: 'app-badge risk' },
   };
 
   const handleApproveClick = (invoiceId: string) => {
@@ -295,12 +295,12 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       
       {/* Success Notification Toast */}
       {successToast && (
-        <div className="bg-emerald-600 text-white p-3.5 rounded-2xl shadow-xl flex items-center justify-between text-xs animate-in fade-in sticky top-20 z-30">
+        <div className="bg-[var(--app-ok)] text-white p-3.5 rounded-2xl shadow-xl flex items-center justify-between text-xs animate-in fade-in sticky top-20 z-30">
           <div className="flex items-center gap-2 font-bold">
-            <CheckCircle2 className="w-5 h-5 text-emerald-200" />
+            <CheckCircle2 className="w-5 h-5 text-white/70" />
             <span>{successToast}</span>
           </div>
-          <button onClick={() => setSuccessToast(null)} className="text-white hover:text-emerald-200">
+          <button onClick={() => setSuccessToast(null)} className="text-white hover:text-white/70">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -313,7 +313,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
           <div>
             <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
               <span>سجل الفواتير وطلبيات المبيعات</span>
-              <span className="bg-amber-100 text-amber-900 text-xs px-2.5 py-0.5 rounded-full font-bold">
+              <span className="border border-[rgba(201,154,67,.3)] bg-[rgba(201,154,67,.13)] text-[#8a6420] text-xs px-2.5 py-0.5 rounded-full font-bold app-num">
                 {accessibleInvoices.length} فاتورة
               </span>
             </h2>
@@ -326,7 +326,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             <button
               onClick={handleManualRefresh}
               disabled={isRefreshing}
-              className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-2.5 rounded-xl text-xs border border-slate-200 transition active:scale-95 cursor-pointer disabled:opacity-50"
+              className="app-btn app-btn-ghost px-3 text-xs active:scale-95"
               title="تحديث ومزامنة الفواتير مباشرة من قاعدة بيانات السيرفر"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-amber-600' : 'text-slate-500'}`} />
@@ -335,7 +335,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
             <button
               onClick={onOpenNewOrder}
-              className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95 cursor-pointer"
+              className="app-btn app-btn-primary px-4 h-11 text-xs active:scale-95"
             >
               <Plus className="w-4 h-4" />
               <span>إنشاء فاتورة / طلبية جديدة</span>
@@ -347,28 +347,28 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
           <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
             <div className="text-[11px] text-slate-500 font-bold">إجمالي مبيعات الفواتير</div>
-            <div className="text-base sm:text-lg font-black text-slate-900">
+            <div className="text-base sm:text-lg app-num app-ink-brass">
               {formatCurrency(metrics.totalRevenue)}
             </div>
           </div>
 
           <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
             <div className="text-[11px] text-slate-500 font-bold">إجمالي الكراتين المطلوبة</div>
-            <div className="text-base sm:text-lg font-black text-amber-800">
+            <div className="text-base sm:text-lg app-num text-[var(--app-warn)]">
               {metrics.totalCartons} كرتونة
             </div>
           </div>
 
           <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1">
             <div className="text-[11px] text-slate-500 font-bold">إجمالي القطع</div>
-            <div className="text-base sm:text-lg font-black text-slate-900">
+            <div className="text-base sm:text-lg app-num text-[var(--app-navy)]">
               {metrics.totalPieces} قطعة
             </div>
           </div>
 
-          <div className="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 space-y-1">
-            <div className="text-[11px] text-amber-800 font-bold">طلبيات معلقة بانتظار الاعتماد</div>
-            <div className="text-base sm:text-lg font-black text-amber-900">
+          <div className="bg-[#f7f0e1] p-3.5 rounded-2xl border border-[rgba(155,112,39,.25)] space-y-1">
+            <div className="text-[11px] text-[#9b7027] font-bold">طلبيات معلقة بانتظار الاعتماد</div>
+            <div className="text-base sm:text-lg app-num text-[#8a6420]">
               {metrics.pendingCount} طلبية
             </div>
           </div>
@@ -378,10 +378,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold scrollbar-none">
           <button
             onClick={() => setSelectedStatus('الكل')}
-            className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition cursor-pointer ${
+            className={`app-pill px-3 py-1.5 text-xs whitespace-nowrap text-right ${
               selectedStatus === 'الكل'
-                ? 'bg-slate-900 text-amber-400 shadow-sm'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                ? 'on'
+                : ''
             }`}
           >
             كافة الفواتير ({tabCounts.all})
@@ -389,10 +389,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
           <button
             onClick={() => setSelectedStatus('فواتير الأصناف المتوفرة')}
-            className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition cursor-pointer ${
+            className={`app-pill px-3 py-1.5 text-xs whitespace-nowrap text-right ${
               selectedStatus === 'فواتير الأصناف المتوفرة'
-                ? 'bg-teal-700 text-white shadow-sm'
-                : 'bg-teal-50 text-teal-800 hover:bg-teal-100'
+                ? 'on'
+                : ''
             }`}
             title="عرض فواتير البضاعة المتوفرة بالفرع فقط"
           >
@@ -401,10 +401,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
           <button
             onClick={() => setSelectedStatus('فواتير النواقص')}
-            className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition cursor-pointer ${
+            className={`app-pill px-3 py-1.5 text-xs whitespace-nowrap text-right ${
               selectedStatus === 'فواتير النواقص'
-                ? 'bg-indigo-700 text-white shadow-sm'
-                : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100'
+                ? 'on'
+                : ''
             }`}
             title="عرض فواتير النواقص المحولة للمخزن المركزي بأكتوبر"
           >
@@ -413,10 +413,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
           <button
             onClick={() => setSelectedStatus('قيد مراجعة المشرف')}
-            className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition cursor-pointer ${
+            className={`app-pill px-3 py-1.5 text-xs whitespace-nowrap text-right ${
               selectedStatus === 'قيد مراجعة المشرف'
-                ? 'bg-amber-600 text-white shadow-sm'
-                : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                ? 'on'
+                : ''
             }`}
           >
             بانتظار الاعتماد ({tabCounts.pending})
@@ -424,10 +424,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
           <button
             onClick={() => setSelectedStatus('معتمدة ومصروفة من المخزن')}
-            className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition cursor-pointer ${
+            className={`app-pill px-3 py-1.5 text-xs whitespace-nowrap text-right ${
               selectedStatus === 'معتمدة ومصروفة من المخزن'
-                ? 'bg-emerald-700 text-white shadow-sm'
-                : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                ? 'on'
+                : ''
             }`}
           >
             معتمدة ومصروفة ({tabCounts.approved})
@@ -435,10 +435,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
           <button
             onClick={() => setSelectedStatus('مرفوضة / ملغاة')}
-            className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition cursor-pointer ${
+            className={`app-pill px-3 py-1.5 text-xs whitespace-nowrap text-right ${
               selectedStatus === 'مرفوضة / ملغاة'
-                ? 'bg-rose-700 text-white shadow-sm'
-                : 'bg-rose-50 text-rose-800 hover:bg-rose-100'
+                ? 'on'
+                : ''
             }`}
           >
             الملغية والمرفوضة ({tabCounts.cancelled})
@@ -454,11 +454,11 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="ابحث برقم الفاتورة، اسم العميل، الهاتف، المندوب..."
-              className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 text-xs"
+              className="w-full pl-3 pr-9 py-2 bg-white border border-slate-200 rounded-xl text-xs"
             />
           </div>
 
-          <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+          <div className="flex items-center gap-1.5 bg-white px-3 py-2 rounded-lg border border-slate-200">
             <span className="text-slate-500 font-bold whitespace-nowrap">الحالة:</span>
             <select
               value={selectedStatus}
@@ -477,7 +477,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
           {/* Branch Filter for Admin, Developer & Supervisor */}
           {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor') && (
-            <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+            <div className="flex items-center gap-1.5 bg-white px-3 py-2 rounded-lg border border-slate-200">
               <span className="text-slate-500 font-bold whitespace-nowrap">الفرع:</span>
               <select
                 value={selectedBranchFilter}
@@ -495,7 +495,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
           )}
 
           {currentUser?.role !== 'sales_rep' && (
-            <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+            <div className="flex items-center gap-1.5 bg-white px-3 py-2 rounded-lg border border-slate-200">
               <span className="text-slate-500 font-bold whitespace-nowrap">المندوب:</span>
               <select
                 value={selectedRepFilter}
@@ -514,16 +514,16 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
         {/* Active Branch Notification for Admin/Dev */}
         {selectedBranchFilter !== 'الكل' && (currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
-          <div className="bg-amber-50 border border-amber-300/80 rounded-2xl p-3 flex items-center justify-between text-xs text-amber-950 font-bold">
+          <div className="bg-[#f7f0e1] border border-[rgba(155,112,39,.25)] rounded-2xl p-3 flex items-center justify-between text-xs text-[var(--app-warn)] font-bold">
             <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-amber-700" />
+              <Filter className="w-4 h-4 text-[#9b7027]" />
               <span>
-                يتم الآن تصفية الفواتير بحسب الفرع: <span className="underline decoration-amber-500 underline-offset-4">{selectedBranchFilter}</span>. أي فواتير لمندوبين من فروع أخرى لن تظهر حتى تلغي التصفية.
+                يتم الآن تصفية الفواتير بحسب الفرع: <span className="underline decoration-[#c99a43] underline-offset-4">{selectedBranchFilter}</span>. أي فواتير لمندوبين من فروع أخرى لن تظهر حتى تلغي التصفية.
               </span>
             </div>
             <button
               onClick={() => setSelectedBranchFilter('الكل')}
-              className="bg-amber-500 hover:bg-amber-600 text-slate-950 px-3 py-1 rounded-xl text-[11px] font-black cursor-pointer transition shadow-xs"
+              className="app-btn app-btn-primary px-3 text-[11px]"
             >
               عرض فواتير كل الفروع
             </button>
@@ -560,8 +560,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               <tbody className="divide-y divide-slate-100">
                 {displayedInvoices.map((invoice) => {
                   const style = statusStyles[invoice.status] || {
-                    bg: 'bg-slate-100 border-slate-300',
-                    text: 'text-slate-800',
+                    bg: 'app-badge neutral',
                     label: invoice.status
                   };
                   const isPending =
@@ -602,12 +601,12 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                      invoice.status === 'مرتجع جزئي');
 
                   return (
-                    <tr key={invoice.id} className="hover:bg-amber-50/30 transition">
+                    <tr key={invoice.id} className="transition">
                       
                       {/* Invoice Number */}
                       <td className="p-3 font-mono font-black text-slate-900">
                         <div className="flex flex-col gap-1 items-start">
-                          <span className="bg-slate-100 px-2 py-1 rounded-md text-amber-900 border border-slate-200 font-bold">
+                          <span className="bg-white px-2 py-1 rounded-md text-[var(--app-navy)] border border-slate-200 font-black app-num">
                             {invoice.invoiceNumber}
                           </span>
                           {invoice.isShortageInvoice && (
@@ -617,17 +616,17 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                                 e.stopPropagation();
                                 if (invoice.parentInvoiceNumber) setSearchTerm(invoice.parentInvoiceNumber);
                               }}
-                              className="bg-purple-50 hover:bg-purple-100 text-purple-950 px-2 py-1 rounded-md text-[10px] font-black border border-purple-300 flex flex-col gap-0.5 transition cursor-pointer text-right shadow-2xs group"
+                              className="bg-[#f7f0e1] hover:bg-[#f0e5cb] text-[#9b7027] px-2 py-1 rounded-md text-[10px] font-black border border-[rgba(155,112,39,.25)] flex flex-col gap-0.5 transition cursor-pointer text-right shadow-2xs group"
                               title="فاتورة نواقص محولة لمخزن أكتوبر المركزي - انقر للبحث عن الفاتورة الأساسية"
                             >
-                              <div className="flex items-center gap-1 text-purple-900 font-black">
+                              <div className="flex items-center gap-1 text-[#8a6420] font-black">
                                 <span>فاتورة نواقص (مخزن أكتوبر)</span>
                               </div>
                               {invoice.parentInvoiceNumber && (
-                                <div className="flex items-center gap-1 text-[9px] text-purple-700 font-mono">
+                                <div className="flex items-center gap-1 text-[9px] text-[#9b7027] font-mono">
                                   <span>الأصلية:</span>
                                   <span className="font-bold underline">#{invoice.parentInvoiceNumber}</span>
-                                  <ExternalLink className="w-2.5 h-2.5 shrink-0 text-purple-600" />
+                                  <ExternalLink className="w-2.5 h-2.5 shrink-0 text-[#9b7027]" />
                                 </div>
                               )}
                             </button>
@@ -639,23 +638,23 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                                 e.stopPropagation();
                                 if (invoice.shortageInvoiceNumber) setSearchTerm(invoice.shortageInvoiceNumber);
                               }}
-                              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-950 px-2 py-1 rounded-md text-[10px] font-black border border-emerald-300 flex flex-col gap-0.5 transition cursor-pointer text-right shadow-2xs group"
+                              className="bg-[#e8f3ee] hover:bg-[#dfeeda] text-[#2e7d5b] px-2 py-1 rounded-md text-[10px] font-black border border-[rgba(46,125,91,.22)] flex flex-col gap-0.5 transition cursor-pointer text-right shadow-2xs group"
                               title="فاتورة الأصناف المتوفرة بالمخزن - تم فصل النواقص - انقر للبحث عن فاتورة النواقص"
                             >
-                              <div className="flex items-center gap-1 text-emerald-900 font-black">
+                              <div className="flex items-center gap-1 text-[#2e7d5b] font-black">
                                 <span>أصناف متوفرة (بالمخزن)</span>
                               </div>
                               {invoice.shortageInvoiceNumber && (
-                                <div className="flex items-center gap-1 text-[9px] text-emerald-700 font-mono">
+                                <div className="flex items-center gap-1 text-[9px] text-[#2e7d5b] font-mono">
                                   <span>نواقص:</span>
                                   <span className="font-bold underline">#{invoice.shortageInvoiceNumber}</span>
-                                  <ExternalLink className="w-2.5 h-2.5 shrink-0 text-emerald-600" />
+                                  <ExternalLink className="w-2.5 h-2.5 shrink-0 text-[#2e7d5b]" />
                                 </div>
                               )}
                             </button>
                           )}
                           {!invoice.isShortageInvoice && !invoice.hasShortageSplit && (
-                            <span className="bg-emerald-50 text-emerald-900 px-2 py-1 rounded-md text-[10px] font-black border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                            <span className="bg-[#e8f3ee] text-[#2e7d5b] px-2 py-1 rounded-md text-[10px] font-black border border-[rgba(46,125,91,.22)] flex items-center gap-1 shadow-2xs">
                               <span>فاتورة مكتملة متوفرة بالمخزن</span>
                             </span>
                           )}
@@ -688,16 +687,16 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
                       {/* Quantities */}
                       <td className="p-3 text-center">
-                        <div className="font-black text-slate-900">{invoice.totalCartons} كرتونة</div>
+                        <div className="app-num text-[var(--app-navy)]">{invoice.totalCartons} كرتونة</div>
                         <div className="text-[10px] text-slate-500">{invoice.totalPieces} قطعة</div>
                       </td>
 
                       {/* Estimated Grand Total */}
                       <td className="p-3 text-left">
-                        <div className="font-black text-amber-900 text-sm">
+                        <div className="app-num app-ink-brass text-sm">
                           {formatCurrency(invoice.estimatedGrandTotal)}
                         </div>
-                        <div className="text-[10px] text-emerald-700">خصم: {formatCurrency(invoice.discountAmount)}</div>
+                        <div className="text-[10px] text-[var(--app-ok)]">خصم: {formatCurrency(invoice.discountAmount)}</div>
                       </td>
 
                       {/* Payment Method */}
@@ -710,16 +709,16 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                       {/* Status Dropdown / Badge */}
                       <td className="p-3 text-center">
                         <div className="flex flex-col items-center gap-1">
-                          <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold border ${style.bg} ${style.text}`}>
+                          <span className={`${style.bg} ${style.text || ''}`}>
                             {style.label || invoice.status}
                           </span>
                           {(invoice.status === 'مرفوضة / ملغاة' || invoice.status === 'ملغاة') && invoice.cancellationReason && (
-                            <div className="text-[10px] text-rose-700 max-w-[140px] truncate" title={`سبب الرفض: ${invoice.cancellationReason} | ${invoice.restoredStockDetails || ''}`}>
+                            <div className="text-[10px] text-[var(--app-risk)] max-w-[140px] truncate" title={`سبب الرفض: ${invoice.cancellationReason} | ${invoice.restoredStockDetails || ''}`}>
                               {invoice.cancellationReason}
                             </div>
                           )}
                           {invoice.restoredStockDetails && (invoice.status === 'مرفوضة / ملغاة' || invoice.status === 'ملغاة' || invoice.status === 'مرتجع') && (
-                            <span className="text-[9px] bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded font-medium border border-emerald-200">
+                            <span className="text-[9px] bg-[#e8f3ee] text-[#2e7d5b] px-1.5 py-0.5 rounded font-bold border border-[rgba(46,125,91,.22)]">
                               تم استرجاع الرصيد للمخزن
                             </span>
                           )}
@@ -734,7 +733,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           {canEditPending && (
                             <button
                               onClick={() => onEditInvoice && onEditInvoice(invoice)}
-                              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                              className="app-btn app-btn-ghost px-2.5 text-xs"
                               title="تعديل الطلبية وإضافة أو حذف أصناف في السلة"
                             >
                               <Pencil className="w-3.5 h-3.5" />
@@ -747,7 +746,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             <>
                               <button
                                 onClick={() => handleApproveClick(invoice.id)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                className="app-btn app-btn-ok px-2 text-xs"
                                 title="اعتماد وصرف المخزون"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -757,7 +756,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               {currentUser?.role === 'supervisor' && invoice.status === 'قيد مراجعة المشرف' && (
                                 <button
                                   onClick={() => handleForwardClick(invoice.id)}
-                                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                  className="app-btn app-btn-ghost px-2 text-xs"
                                   title="إرسال لمدير الفرع"
                                 >
                                   <Send className="w-3.5 h-3.5" />
@@ -767,7 +766,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
                               <button
                                 onClick={() => setRejectModalInvoiceId(invoice.id)}
-                                className="bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer border border-rose-300"
+                                className="app-btn app-btn-risk-soft px-2 text-xs"
                                 title="رفض وإرجاع الرصيد المحجوز"
                               >
                                 <XCircle className="w-3.5 h-3.5" />
@@ -780,10 +779,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           {!canApprove && canRepCancel && (
                             <button
                               onClick={() => setRejectModalInvoiceId(invoice.id)}
-                              className="bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer border border-rose-300"
+                              className="app-btn app-btn-risk-soft px-2 text-xs"
                               title="إلغاء طلبيتي قبل الاعتماد وفك حجز البضاعة"
                             >
-                              <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                              <XCircle className="w-3.5 h-3.5 text-[var(--app-risk)]" />
                               <span>إلغاء الطلبية</span>
                             </button>
                           )}
@@ -792,10 +791,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           {!canApprove && !canRepCancel && canCancelAnytime && (
                             <button
                               onClick={() => setRejectModalInvoiceId(invoice.id)}
-                              className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer border border-rose-200"
+                              className="app-btn app-btn-risk-soft px-2 text-xs"
                               title="إلغاء الطلبية في أي وقت وإرجاع المخزون"
                             >
-                              <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                              <XCircle className="w-3.5 h-3.5 text-[var(--app-risk)]" />
                               <span>إلغاء</span>
                             </button>
                           )}
@@ -806,17 +805,17 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                                 setReturnModalInvoice(invoice);
                                 setReturnReason('مرتجع بطلب العميل واسترجاع البضاعة للمخزن');
                               }}
-                              className="bg-amber-100 hover:bg-amber-200 text-amber-950 font-black px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer border border-amber-300 shadow-xs"
+                              className="app-btn app-btn-warn-soft px-2 text-xs"
                               title="تسجيل مرتجع للطلبية وإرجاع المخزون وتعديل المديونية"
                             >
-                              <RotateCcw className="w-3.5 h-3.5 text-amber-800" />
+                              <RotateCcw className="w-3.5 h-3.5 text-[#9b7027]" />
                               <span>مرتجع</span>
                             </button>
                           )}
 
                           <button
                             onClick={() => onViewInvoice(invoice)}
-                            className="bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition shadow-xs cursor-pointer"
+                            className="app-btn app-btn-primary px-2.5 text-xs"
                             title="عرض الفاتورة الإلكترونية والباركود"
                           >
                             <Eye className="w-3.5 h-3.5" />
@@ -827,7 +826,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             ['معتمدة ومصروفة من المخزن', 'معتمدة'].includes(invoice.status) && (
                             <button
                               onClick={() => void handleResendInvoice(invoice)}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1"
+                              className="app-btn app-btn-ghost px-2 text-xs"
                               title="إعادة إرسال الفاتورة بالبريد مع PDF وExcel"
                             >
                               <Send className="w-3.5 h-3.5" />
@@ -851,7 +850,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               }
                             }}
                             disabled={downloadingBothId === invoice.id}
-                            className="bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 px-2 py-1 rounded-lg text-xs font-black transition cursor-pointer shadow-xs flex items-center gap-1 active:scale-95 disabled:opacity-50"
+                            className="app-btn app-btn-ghost app-ink-brass px-2 text-xs active:scale-95"
                             title="تحميل ملف PDF وملف Excel معاً مباشرة على جهازك بضغطة واحدة"
                           >
                             <Sparkles className="w-3.5 h-3.5" />
@@ -865,7 +864,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               setSuccessToast(`تم تنزيل ملف PDF للفاتورة #${invoice.invoiceNumber} على جهازك بنجاح!`);
                               setTimeout(() => setSuccessToast(null), 3500);
                             }}
-                            className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded-lg transition cursor-pointer shadow-xs"
+                            className="app-btn app-btn-risk p-1.5"
                             title="تحميل فاتورة PDF مباشرة على الهاتف أو الكمبيوتر"
                           >
                             <Download className="w-3.5 h-3.5" />
@@ -874,7 +873,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           {/* Preview Excel Modal */}
                           <button
                             onClick={() => setPreviewExcelInvoice(invoice)}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white p-1.5 rounded-lg transition cursor-pointer shadow-xs"
+                            className="app-btn app-btn-ok p-1.5"
                             title="معاينة شيت الإكسل المطور وتفاصيله قبل التنزيل"
                           >
                             <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -887,7 +886,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               setSuccessToast(`تم تنزيل ملف إكسل للفاتورة #${invoice.invoiceNumber} على جهازك`);
                               setTimeout(() => setSuccessToast(null), 3000);
                             }}
-                            className="bg-emerald-800 hover:bg-emerald-900 text-white p-1.5 rounded-lg transition cursor-pointer shadow-xs"
+                            className="app-btn app-btn-ghost p-1.5"
                             title="تحميل شيت إكسل رسمي فوري على جهازك"
                           >
                             <Download className="w-3.5 h-3.5" />
@@ -900,7 +899,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               setSuccessToast(`تم تصدير ملف إكسل منسق للسيستم الرئيسي (ERP) للفاتورة ${invoice.invoiceNumber}`);
                               setTimeout(() => setSuccessToast(null), 3000);
                             }}
-                            className="bg-amber-500 hover:bg-amber-400 text-slate-950 p-1.5 rounded-lg transition cursor-pointer shadow-xs font-bold hidden sm:inline-flex"
+                            className="app-btn app-btn-warn-soft p-1.5 hidden sm:inline-flex"
                             title="تصدير شيت إكسل جاهز للرفع على السيستم الرئيسي (ERP)"
                           >
                             <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -920,7 +919,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                                   }
                                 }
                               }}
-                              className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg transition cursor-pointer"
+                              className="text-slate-400 hover:text-[var(--app-risk)] p-1.5 rounded-lg transition cursor-pointer"
                               title="حذف الفاتورة نهائياً من السيرفر والنظام"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -962,7 +961,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                     const val = e.target.value === 'all' ? 'all' : Number(e.target.value);
                     setItemsPerPage(val);
                   }}
-                  className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer shadow-xs"
+                  className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold text-slate-800 cursor-pointer shadow-xs"
                 >
                   <option value={15}>15 فاتورة (سريع)</option>
                   <option value={30}>30 فاتورة</option>
@@ -1024,8 +1023,8 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           onClick={() => setCurrentPage(pageNum)}
                           className={`w-8 h-8 rounded-xl text-xs font-black transition cursor-pointer ${
                             isActive
-                              ? 'bg-amber-500 text-slate-950 shadow-sm'
-                              : 'bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 shadow-xs'
+                              ? 'app-pill w-8 h-8 inline-grid place-items-center p-0'
+                              : 'app-pill w-8 h-8 inline-grid place-items-center p-0 bg-white text-slate-700'
                           }`}
                         >
                           {pageNum}
@@ -1065,8 +1064,8 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-black text-sm text-rose-700 flex items-center gap-2">
-                <XCircle className="w-5 h-5 text-rose-600" />
+              <h3 className="font-black text-sm text-[var(--app-risk)] flex items-center gap-2">
+                <XCircle className="w-5 h-5 text-[var(--app-risk)]" />
                 <span>إلغاء أو رفض الطلبية وإرجاع المخزون</span>
               </h3>
               <button onClick={() => setRejectModalInvoiceId(null)}>
@@ -1074,12 +1073,12 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               </button>
             </div>
 
-            <div className="bg-rose-50 border border-rose-200 text-rose-950 p-3 rounded-2xl text-xs space-y-1">
-              <div className="font-bold flex items-center gap-1.5 text-rose-800">
-                <CheckCircle2 className="w-4 h-4 text-rose-700" />
+            <div className="bg-[#f9eaea] border border-[rgba(179,74,74,.25)] text-[var(--app-risk)] p-3 rounded-2xl text-xs space-y-1">
+              <div className="font-bold flex items-center gap-1.5 text-[var(--app-risk)]">
+                <CheckCircle2 className="w-4 h-4 text-[var(--app-risk)]" />
                 <span>إرجاع البضاعة تلقائياً للمخزن:</span>
               </div>
-              <p className="text-rose-900/90 leading-relaxed">
+              <p className="text-[var(--app-risk)] leading-relaxed">
                 سيقوم النظام فوراً بإلغاء الطلبية وفك الحجز وإرجاع كافة الكراتين إلى رصيد المخزن المتاح للبيع.
               </p>
             </div>
@@ -1101,8 +1100,8 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                     onClick={() => setRejectReason(reasonText)}
                     className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition cursor-pointer ${
                       rejectReason === reasonText
-                        ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        ? 'bg-[var(--app-risk)] text-white border-transparent'
+                        : 'bg-white text-[#526780] border-slate-200 hover:border-[#b8c9db]'
                     }`}
                   >
                     {reasonText}
@@ -1118,21 +1117,21 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="اكتب سبب إلغاء أو رفض الطلبية..."
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-rose-400 font-medium"
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-medium"
               />
             </div>
 
             <div className="flex items-center gap-2 pt-2">
               <button
                 onClick={handleRejectConfirm}
-                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
+                className="app-btn app-btn-risk flex-1 py-2.5 text-xs"
               >
                 <XCircle className="w-4 h-4" />
                 <span>تأكيد الإلغاء وإرجاع المخزون</span>
               </button>
               <button
                 onClick={() => setRejectModalInvoiceId(null)}
-                className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200 cursor-pointer"
+                className="app-btn app-btn-ghost px-4 text-xs"
               >
                 تراجع
               </button>

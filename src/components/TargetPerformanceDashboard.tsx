@@ -829,18 +829,18 @@ export const TargetPerformanceDashboard: React.FC = () => {
   };
 
   const getBadgeColor = (percent: number) => {
-    if (percent >= 100) return 'bg-emerald-500/20 text-emerald-700 border-emerald-300';
-    if (percent >= 80) return 'bg-amber-500/20 text-amber-700 border-amber-300';
-    return 'bg-rose-500/20 text-rose-700 border-rose-300';
+    if (percent >= 100) return 'bg-[rgba(46,125,91,.12)] text-[var(--app-ok)] border-[rgba(46,125,91,.28)]';
+    if (percent >= 80) return 'bg-[rgba(155,112,39,.14)] text-[var(--app-warn)] border-[rgba(155,112,39,.30)]';
+    return 'bg-[rgba(179,74,74,.12)] text-[var(--app-risk)] border-[rgba(179,74,74,.28)]';
   };
 
   return (
     <div className="tantawy-screen space-y-4 sm:space-y-6 pb-12">
       {/* Top Header Card */}
-      <div className="bg-slate-900 text-white rounded-3xl p-4 sm:p-6 shadow-xl border border-slate-800">
+      <div className="bg-[var(--app-navy)] text-white rounded-2xl p-4 sm:p-6 shadow-lg border border-[#0b2140]">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start sm:items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-amber-500/20 shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-[var(--app-accent)] text-[#231a05] flex items-center justify-center font-black shadow-md shrink-0">
               <Target className="w-6 h-6" />
             </div>
             <div>
@@ -854,28 +854,28 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     ? `أهداف وتارجت ${currentUser?.branchName || 'الفرع'}`
                     : 'لوحة أهداف المبيعات والتحصيل الشاملة (Google Sheets)'}
                 </h1>
-                <span className="bg-amber-400 text-slate-950 text-[11px] font-black px-2.5 py-0.5 rounded-full">
+                <span className="bg-[var(--app-accent)] text-[#231a05] text-[11px] font-black px-2.5 py-0.5 rounded-full">
                   2026
                 </span>
               </div>
 
               {/* Strict Privacy Indicator */}
-              <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-300">
-                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+              <div className="flex items-center gap-2 mt-1.5 text-xs text-[#c9d8ea]">
+                <ShieldCheck className="w-4 h-4 text-[var(--app-accent)] shrink-0" />
                 {isSalesRep ? (
-                  <span className="font-bold text-emerald-300">
+                  <span className="font-bold text-[#8fd0b0]">
                     سرية تامة: معروضة أرقامك الشخصية فقط ({currentUser?.name})
                   </span>
                 ) : isSupervisor ? (
-                  <span className="font-bold text-blue-300">
+                  <span className="font-bold text-[#9dbcd9]">
                     سرية الفرع: معروضة أرقامك الشخصية ومناديب فريقك فقط في {currentUser?.branchName}
                   </span>
                 ) : isBranchManager ? (
-                  <span className="font-bold text-purple-300">
+                  <span className="font-bold text-[#c9d8ea]">
                     إدارة الفرع: معروضة فقط أرقام مناديب {currentUser?.branchName}
                   </span>
                 ) : (
-                  <span className="font-bold text-amber-300">
+                  <span className="font-bold text-[var(--app-accent)]">
                     الإدارة والمطور: رؤية كاملة لجميع الفروع مع صلاحيات رفع وتحديث الشيتات
                   </span>
                 )}
@@ -890,7 +890,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                 <button
                   onClick={() => handleSyncGoogleSheet(targetsSheetUrl)}
                   disabled={isSyncingSheet}
-                  className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black px-3.5 py-2 rounded-xl text-xs transition shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  className="bg-white hover:bg-[#f4f7fa] disabled:opacity-50 text-[var(--app-navy)] font-black px-3.5 py-2 rounded-[10px] text-xs transition shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95 min-h-[44px]"
                   title="مزامنة فورية من شيت Google Sheets المحفوظ"
                 >
                   <RefreshCw className={`w-4 h-4 ${isSyncingSheet ? 'animate-spin' : ''}`} />
@@ -900,16 +900,16 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
               <button
                 onClick={() => setShowUrlEdit((prev) => !prev)}
-                className="bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 font-bold px-3 py-2 rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
+                className="bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold px-3 py-2 rounded-[10px] text-xs transition flex items-center gap-1.5 cursor-pointer min-h-[44px]"
                 title="تعديل أو ربط رابط Google Sheets للأهداف"
               >
-                <ExternalLink className="w-4 h-4 text-amber-400" />
+                <ExternalLink className="w-4 h-4 text-[var(--app-accent)]" />
                 <span>{showUrlEdit ? 'إغلاق الرابط' : targetsSheetUrl ? 'تعديل رابط الشيت' : 'ربط Google Sheet'}</span>
               </button>
 
               <button
                 onClick={() => setIsUploadModalOpen(true)}
-                className="bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 font-bold px-3 py-2 rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
+                className="bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold px-3 py-2 rounded-[10px] text-xs transition flex items-center gap-1.5 cursor-pointer min-h-[44px]"
                 title="خيارات إضافية / رفع ملف إكسل محلي"
               >
                 <Upload className="w-4 h-4 text-slate-300" />
@@ -918,10 +918,10 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
               <button
                 onClick={exportTargetsReport}
-                className="bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 font-bold px-3 py-2 rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
+                className="bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold px-3 py-2 rounded-[10px] text-xs transition flex items-center gap-1.5 cursor-pointer min-h-[44px]"
                 title="تصدير الأهداف والتقارير إلى إكسل"
               >
-                <Download className="w-4 h-4 text-emerald-400" />
+                <Download className="w-4 h-4 text-emerald-300" />
                 <span>تصدير Excel</span>
               </button>
 
@@ -932,7 +932,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                       resetTargetsToDefault();
                     }
                   }}
-                  className="bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-700/50 p-2 rounded-xl transition cursor-pointer"
+                  className="bg-white/10 hover:bg-white/20 text-white/70 hover:text-[#e8b6b6] border border-white/20 hover:border-[rgba(179,74,74,.45)] p-2 rounded-[10px] transition cursor-pointer min-h-[44px] min-w-[44px]"
                   title="مسح بيانات الشيت"
                 >
                   <RefreshCw className="w-4 h-4" />
@@ -953,13 +953,13 @@ export const TargetPerformanceDashboard: React.FC = () => {
                 setSyncNotice(null);
               }}
               placeholder="https://docs.google.com/spreadsheets/d/.../edit"
-              className="flex-1 bg-slate-950/80 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="flex-1 bg-[#0b2140] border border-white/15 rounded-[10px] px-3.5 py-2 text-xs text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)]"
               dir="ltr"
             />
             <button
               onClick={() => handleSyncGoogleSheet(targetsSheetUrl)}
               disabled={isSyncingSheet || !targetsSheetUrl.trim()}
-              className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black px-4 py-2 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+              className="bg-white hover:bg-[#f4f7fa] disabled:opacity-50 text-[var(--app-navy)] font-black px-4 py-2 rounded-[10px] text-xs transition shadow-md flex items-center justify-center gap-1.5 shrink-0 cursor-pointer min-h-[44px]"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>حفظ ومزامنة الآن</span>
@@ -973,15 +973,15 @@ export const TargetPerformanceDashboard: React.FC = () => {
         <div
           className={`p-3.5 rounded-2xl text-xs font-bold flex items-center justify-between gap-2 shadow-xs ${
             syncNotice.type === 'success'
-              ? 'bg-emerald-50 text-emerald-900 border border-emerald-200'
-              : 'bg-rose-50 text-rose-900 border border-rose-200'
+              ? 'bg-[rgba(46,125,91,.10)] text-[var(--app-ok)] border border-[rgba(46,125,91,.28)]'
+              : 'bg-[rgba(179,74,74,.10)] text-[var(--app-risk)] border border-[rgba(179,74,74,.28)]'
           }`}
         >
           <div className="flex items-center gap-2">
             {syncNotice.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-[var(--app-ok)] shrink-0" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <AlertCircle className="w-4 h-4 text-[var(--app-risk)] shrink-0" />
             )}
             <span>{syncNotice.message}</span>
           </div>
@@ -996,12 +996,12 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
       {/* EMPTY STATE (No data synced yet) */}
       {visibleRecords.length === 0 ? (
-        <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200 text-center shadow-xs max-w-2xl mx-auto space-y-5">
-          <div className="w-16 h-16 rounded-3xl bg-amber-50 text-amber-500 flex items-center justify-center mx-auto shadow-inner">
+        <div className="bg-white rounded-[14px] p-6 sm:p-10 border border-[var(--app-line)] text-center shadow-xs max-w-2xl mx-auto space-y-5">
+          <div className="w-16 h-16 rounded-2xl bg-[rgba(201,154,67,.15)] text-[#8a6420] flex items-center justify-center mx-auto">
             <Target className="w-8 h-8" />
           </div>
           <div className="space-y-1.5">
-            <h2 className="text-lg sm:text-xl font-black text-slate-900">
+            <h2 className="text-lg sm:text-xl font-black text-[var(--app-navy)]">
               {isAdminOrDev
                 ? 'ربط ومزامنة شيت أهداف وتارجت المناديب (Google Sheets)'
                 : `أهلاً بك يا ${currentUser?.name || ''}`}
@@ -1024,13 +1024,13 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     setSyncNotice(null);
                   }}
                   placeholder="https://docs.google.com/spreadsheets/d/.../edit"
-                  className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="flex-1 bg-white border border-[var(--app-line)] rounded-[10px] px-4 py-3 text-xs sm:text-sm text-[var(--app-navy)] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--app-navy)]"
                   dir="ltr"
                 />
                 <button
                   onClick={() => handleSyncGoogleSheet(targetsSheetUrl)}
                   disabled={isSyncingSheet || !targetsSheetUrl.trim()}
-                  className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black px-5 py-3 rounded-xl text-xs sm:text-sm transition shadow-md flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+                  className="btn-primary font-black px-5 py-3 text-xs sm:text-sm transition flex items-center justify-center gap-2 shrink-0 cursor-pointer min-h-[44px]"
                 >
                   {isSyncingSheet ? (
                     <>
@@ -1047,13 +1047,13 @@ export const TargetPerformanceDashboard: React.FC = () => {
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold px-1">
-                <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                <span className="text-[var(--app-ok)] bg-[rgba(46,125,91,.10)] border border-[rgba(46,125,91,.25)] px-2.5 py-1 rounded-lg">
                   الرابط يُحفظ تلقائياً في المتصفح ولن تضطر لإعادة إدخاله كل مرة
                 </span>
                 <button
                   type="button"
                   onClick={() => setIsUploadModalOpen(true)}
-                  className="text-slate-600 hover:text-slate-900 underline cursor-pointer"
+                  className="app-link"
                 >
                   أو خيارات إضافية / رفع ملف إكسل محلي (.xlsx)
                 </button>
@@ -1068,7 +1068,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
             <div className="flex flex-wrap items-center justify-between gap-3">
               {/* Period Mode: Monthly vs Quarterly */}
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-500">طريقة العرض:</span>
+                <span className="text-xs font-bold text-[#526780]">طريقة العرض:</span>
                 <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
                   <button
                     onClick={() => {
@@ -1077,8 +1077,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
                       periodMode === 'monthly'
-                        ? 'bg-amber-500 text-slate-950 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-[var(--app-navy)] text-white shadow-xs shadow-[inset_0_-3px_0_var(--app-accent)]'
+                        : 'text-[#526780] hover:text-[var(--app-navy)]'
                     }`}
                   >
                     <Calendar className="w-3.5 h-3.5" />
@@ -1091,8 +1091,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
                       periodMode === 'quarterly'
-                        ? 'bg-amber-500 text-slate-950 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-[var(--app-navy)] text-white shadow-xs shadow-[inset_0_-3px_0_var(--app-accent)]'
+                        : 'text-[#526780] hover:text-[var(--app-navy)]'
                     }`}
                   >
                     <PieChart className="w-3.5 h-3.5" />
@@ -1103,7 +1103,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
               {/* Supervisor View Mode: My Targets vs Team Reps */}
               {isSupervisor && (
-                <div className="flex items-center gap-1 bg-blue-50 border border-blue-200 p-1 rounded-xl">
+                <div className="flex items-center gap-1 bg-[rgba(16,43,78,.06)] border border-[rgba(16,43,78,.18)] p-1 rounded-xl">
                   <button
                     onClick={() => {
                       setSupervisorViewMode('my_personal');
@@ -1111,8 +1111,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
                       supervisorViewMode === 'my_personal'
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-blue-700 hover:bg-blue-100'
+                        ? 'bg-[var(--app-navy)] text-white shadow-xs shadow-[inset_0_-3px_0_var(--app-accent)]'
+                        : 'text-[#526780] hover:text-[var(--app-navy)]'
                     }`}
                   >
                     <User className="w-3.5 h-3.5" />
@@ -1122,8 +1122,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     onClick={() => setSupervisorViewMode('my_team')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
                       supervisorViewMode === 'my_team'
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-blue-700 hover:bg-blue-100'
+                        ? 'bg-[var(--app-navy)] text-white shadow-xs shadow-[inset_0_-3px_0_var(--app-accent)]'
+                        : 'text-[#526780] hover:text-[var(--app-navy)]'
                     }`}
                   >
                     <Users className="w-3.5 h-3.5" />
@@ -1134,7 +1134,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
               {/* Rep Selector for Supervisor in Team Mode */}
               {isSupervisor && supervisorViewMode === 'my_team' && (
-                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700">
+                <div className="flex items-center gap-1.5 bg-white border border-[var(--app-line)] rounded-xl px-2.5 py-1.5 text-xs font-bold text-[#526780]">
                   <Users className="w-3.5 h-3.5 text-slate-400" />
                   <span>المندوب:</span>
                   <select
@@ -1155,14 +1155,14 @@ export const TargetPerformanceDashboard: React.FC = () => {
               {/* Branch Manager Filters: Filter by Supervisor AND/OR Rep */}
               {isBranchManager && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800">
-                    <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                  <div className="flex items-center gap-1.5 bg-[rgba(201,154,67,.12)] border border-[rgba(201,154,67,.35)] rounded-xl px-2.5 py-1.5 text-xs font-bold text-[#8a6420]">
+                    <Building2 className="w-3.5 h-3.5 text-[#8a6420]" />
                     <span>الفرع:</span>
-                    <span className="font-black text-slate-950">{currentUser?.branchName || 'فرعي'}</span>
+                    <span className="font-black text-[var(--app-navy)]">{currentUser?.branchName || 'فرعي'}</span>
                   </div>
 
                   {/* Supervisor Filter for Branch Manager */}
-                  <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700">
+                  <div className="flex items-center gap-1.5 bg-white border border-[var(--app-line)] rounded-xl px-2.5 py-1.5 text-xs font-bold text-[#526780]">
                     <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
                     <span>مشرف المناديب:</span>
                     <select
@@ -1180,7 +1180,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                   </div>
 
                   {/* Rep Filter for Branch Manager */}
-                  <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700">
+                  <div className="flex items-center gap-1.5 bg-white border border-[var(--app-line)] rounded-xl px-2.5 py-1.5 text-xs font-bold text-[#526780]">
                     <Users className="w-3.5 h-3.5 text-slate-400" />
                     <span>المندوب:</span>
                     <select
@@ -1209,7 +1209,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                   <button
                     onClick={() => setAdminTab('overview')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
-                      adminTab === 'overview' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      adminTab === 'overview' ? 'bg-[var(--app-navy)] text-white shadow-xs shadow-[inset_0_-3px_0_var(--app-accent)]' : 'text-[#526780] hover:text-[var(--app-navy)]'
                     }`}
                   >
                     الأرقام والرسم البياني
@@ -1217,7 +1217,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                   <button
                     onClick={() => setAdminTab('quarters')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
-                      adminTab === 'quarters' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      adminTab === 'quarters' ? 'bg-[var(--app-navy)] text-white shadow-xs shadow-[inset_0_-3px_0_var(--app-accent)]' : 'text-[#526780] hover:text-[var(--app-navy)]'
                     }`}
                   >
                     مقارنة الكوارترات
@@ -1225,7 +1225,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                   <button
                     onClick={() => setAdminTab('table')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
-                      adminTab === 'table' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      adminTab === 'table' ? 'bg-[var(--app-navy)] text-white shadow-xs shadow-[inset_0_-3px_0_var(--app-accent)]' : 'text-[#526780] hover:text-[var(--app-navy)]'
                     }`}
                   >
                     جدول الشيت المرفوع
@@ -1241,10 +1241,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
                   <span className="text-xs font-bold text-slate-500 ml-1">اختر الشهر:</span>
                   <button
                     onClick={() => setSelectedMonth('ALL')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      selectedMonth === 'ALL'
-                        ? 'bg-slate-900 text-white font-black shadow-xs'
-                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    className={`px-2.5 py-1.5 rounded-lg text-xs transition cursor-pointer pill-filter min-h-[36px] ${
+                      selectedMonth === 'ALL' ? 'on font-black' : ''
                     }`}
                   >
                     كل الشهور
@@ -1253,10 +1251,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     <button
                       key={idx + 1}
                       onClick={() => setSelectedMonth(idx + 1)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                        selectedMonth === idx + 1
-                          ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
-                          : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                      className={`px-2.5 py-1.5 rounded-lg text-xs transition cursor-pointer pill-filter min-h-[36px] ${
+                        selectedMonth === idx + 1 ? 'on font-black' : ''
                       }`}
                     >
                       {mName}
@@ -1268,10 +1264,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
                   <span className="text-xs font-bold text-slate-500 ml-1">اختر الكوارتر:</span>
                   <button
                     onClick={() => setSelectedQuarter('ALL')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      selectedQuarter === 'ALL'
-                        ? 'bg-slate-900 text-white font-black shadow-xs'
-                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    className={`px-3 py-1.5 rounded-lg text-xs transition cursor-pointer pill-filter min-h-[36px] ${
+                      selectedQuarter === 'ALL' ? 'on font-black' : ''
                     }`}
                   >
                     كل الكوارترات
@@ -1280,10 +1274,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     <button
                       key={q}
                       onClick={() => setSelectedQuarter(q)}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                        selectedQuarter === q
-                          ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
-                          : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                      className={`px-3 py-1.5 rounded-lg text-xs transition cursor-pointer pill-filter min-h-[36px] ${
+                        selectedQuarter === q ? 'on font-black' : ''
                       }`}
                       title={QUARTER_LABELS[q].months}
                     >
@@ -1299,7 +1291,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
               {/* Admin filters: Linked Branch, Supervisor, and Rep selections */}
               {isAdminOrDev && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-700">
+                  <div className="flex items-center gap-1.5 bg-white border border-[var(--app-line)] rounded-xl px-2.5 py-1 text-xs font-bold text-[#526780]">
                     <Layers className="w-3.5 h-3.5 text-slate-400" />
                     <span>الفرع:</span>
                     <select
@@ -1316,7 +1308,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     </select>
                   </div>
 
-                  <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-700">
+                  <div className="flex items-center gap-1.5 bg-white border border-[var(--app-line)] rounded-xl px-2.5 py-1 text-xs font-bold text-[#526780]">
                     <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
                     <span>المشرف:</span>
                     <select
@@ -1333,7 +1325,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     </select>
                   </div>
 
-                  <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-700">
+                  <div className="flex items-center gap-1.5 bg-white border border-[var(--app-line)] rounded-xl px-2.5 py-1 text-xs font-bold text-[#526780]">
                     <Users className="w-3.5 h-3.5 text-slate-400" />
                     <span>المندوب:</span>
                     <select
@@ -1361,72 +1353,73 @@ export const TargetPerformanceDashboard: React.FC = () => {
           {/* THE 8 NUMBERS (KPI Cards for Sales and Collection) - Fully responsive 2-col on mobile, 4-col on desktop */}
           <StatGrid visible={4} className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5" moreLabel="عرض مؤشرات التحصيل">
             {/* 1. Sales Target */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs relative overflow-hidden">
+            <div className="bg-white rounded-[14px] p-4 border border-[var(--app-line)] shadow-xs relative overflow-hidden">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">هدف البيع (Sales Target)</span>
-                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-black">
+                <span className="text-xs font-bold text-[#526780]">هدف البيع (Sales Target)</span>
+                <div className="w-8 h-8 rounded-lg bg-[rgba(16,43,78,.08)] text-[var(--app-navy)] flex items-center justify-center font-black">
                   <Target className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black text-slate-900 mt-2">
+              <div className="text-2xl font-black app-num stat-hero text-[var(--app-navy)] mt-2">
                 {formatEGP(kpis.totalSalesTarget)}
               </div>
-              <div className="text-[11px] text-slate-500 mt-1 font-bold">
+              <div className="text-[11px] text-[#526780] mt-1 font-bold">
                 المستهدف للفترة المحددة
               </div>
             </div>
 
             {/* 2. Actual Sales */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs relative overflow-hidden">
+            <div className="bg-white rounded-[14px] p-4 border border-[var(--app-line)] shadow-xs relative overflow-hidden">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">المحقق بيع (Actual)</span>
-                <span className={`text-xs font-black px-2 py-0.5 rounded-md border ${getBadgeColor(kpis.salesPercentage)}`}>
+                <span className="text-xs font-bold text-[#526780]">المحقق بيع (Actual)</span>
+                <span className={`text-xs font-black px-2 py-0.5 rounded-md border tabular-nums ${getBadgeColor(kpis.salesPercentage)}`}>
                   {kpis.salesPercentage}%
                 </span>
               </div>
-              <div className="text-2xl font-black text-emerald-700 mt-2">
+              <div className="text-2xl font-black app-num stat-hero text-[var(--app-ok)] mt-2">
                 {formatEGP(kpis.totalSalesAchieved)}
               </div>
               {/* Progress Bar */}
-              <div className="w-full bg-slate-100 h-2 rounded-full mt-2 overflow-hidden">
+              <div className="w-full bg-[rgba(16,43,78,.10)] h-2 rounded-full mt-2 overflow-hidden">
                 <div
                   className={`h-full transition-all duration-500 ${
-                    kpis.salesPercentage >= 100 ? 'bg-emerald-600' : kpis.salesPercentage >= 75 ? 'bg-amber-500' : 'bg-rose-500'
+                    kpis.salesPercentage >= 100 ? 'bg-[var(--app-ok)]' : kpis.salesPercentage >= 75 ? 'bg-[var(--app-warn)]' : 'bg-[var(--app-risk)]'
                   }`}
                   style={{ width: `${Math.min(100, kpis.salesPercentage)}%` }}
                 />
               </div>
-              <div className="text-[11px] text-slate-500 mt-1 font-bold flex justify-between">
-                <span>نسبة الإنجاز: {kpis.salesPercentage}%</span>
+              <div className="text-[11px] mt-1 font-bold flex justify-between">
+                <span className="text-[#526780]">نسبة الإنجاز:</span>
+                <span className="text-[var(--app-navy)] font-black tabular-nums">{kpis.salesPercentage}%</span>
               </div>
             </div>
 
             {/* 3. Remaining Sales */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs relative overflow-hidden">
+            <div className="bg-white rounded-[14px] p-4 border border-[var(--app-line)] shadow-xs relative overflow-hidden">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">المتبقي بيع (Remaining)</span>
-                <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-black">
+                <span className="text-xs font-bold text-[#526780]">المتبقي بيع (Remaining)</span>
+                <div className="w-8 h-8 rounded-lg bg-[rgba(155,112,39,.14)] text-[var(--app-warn)] flex items-center justify-center font-black">
                   <ArrowDownRight className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black text-amber-700 mt-2">
+              <div className="text-2xl font-black app-num stat-hero text-[var(--app-warn)] mt-2">
                 {formatEGP(kpis.remainingSales)}
               </div>
-              <div className="text-[11px] text-slate-500 mt-1 font-bold">
+              <div className="text-[11px] text-[#526780] mt-1 font-bold">
                 {kpis.remainingSales === 0 ? 'تم إكمال التارجت بالكامل!' : 'المبلغ المطلوب لتحقيق الهدف'}
               </div>
             </div>
 
             {/* 4. Sales Percentage Badge Card */}
-            <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-4 shadow-xs relative overflow-hidden">
+            <div className="bg-[var(--app-navy)] text-white rounded-[14px] p-4 shadow-xs relative overflow-hidden border border-[#0b2140]">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-300">نسبة نجاح البيع</span>
-                <TrendingUp className="w-4 h-4 text-amber-400" />
+                <span className="text-xs font-bold text-[#9dbcd9]">نسبة نجاح البيع</span>
+                <TrendingUp className="w-4 h-4 text-[var(--app-accent)]" />
               </div>
-              <div className="text-3xl font-black text-amber-400 mt-2">
+              <div className="text-3xl font-black app-num stat-hero text-[var(--app-accent)] mt-2 tabular-nums">
                 {kpis.salesPercentage}%
               </div>
-              <div className="text-[11px] text-slate-300 mt-1 font-bold">
+              <div className="text-[11px] text-[#c9d8ea] mt-1 font-bold">
                 {kpis.salesPercentage >= 100
                   ? 'أداء استثنائي متفوق'
                   : kpis.salesPercentage >= 75
@@ -1436,72 +1429,73 @@ export const TargetPerformanceDashboard: React.FC = () => {
             </div>
 
             {/* 5. Collection Target */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs relative overflow-hidden">
+            <div className="bg-white rounded-[14px] p-4 border border-[var(--app-line)] shadow-xs relative overflow-hidden">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">هدف التحصيل (Collection Target)</span>
-                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-black">
+                <span className="text-xs font-bold text-[#526780]">هدف التحصيل (Collection Target)</span>
+                <div className="w-8 h-8 rounded-lg bg-[rgba(16,43,78,.08)] text-[var(--app-navy)] flex items-center justify-center font-black">
                   <Wallet className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black text-slate-900 mt-2">
+              <div className="text-2xl font-black app-num stat-hero text-[var(--app-navy)] mt-2">
                 {formatEGP(kpis.totalCollectionTarget)}
               </div>
-              <div className="text-[11px] text-slate-500 mt-1 font-bold">
+              <div className="text-[11px] text-[#526780] mt-1 font-bold">
                 المستهدف توريده للخزينة
               </div>
             </div>
 
             {/* 6. Actual Collection */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs relative overflow-hidden">
+            <div className="bg-white rounded-[14px] p-4 border border-[var(--app-line)] shadow-xs relative overflow-hidden">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">المحقق تحصيل (Collected)</span>
-                <span className={`text-xs font-black px-2 py-0.5 rounded-md border ${getBadgeColor(kpis.collectionPercentage)}`}>
+                <span className="text-xs font-bold text-[#526780]">المحقق تحصيل (Collected)</span>
+                <span className={`text-xs font-black px-2 py-0.5 rounded-md border tabular-nums ${getBadgeColor(kpis.collectionPercentage)}`}>
                   {kpis.collectionPercentage}%
                 </span>
               </div>
-              <div className="text-2xl font-black text-blue-700 mt-2">
+              <div className="text-2xl font-black app-num stat-hero text-[var(--app-navy)] mt-2">
                 {formatEGP(kpis.totalCollectionAchieved)}
               </div>
               {/* Progress Bar */}
-              <div className="w-full bg-slate-100 h-2 rounded-full mt-2 overflow-hidden">
+              <div className="w-full bg-[rgba(16,43,78,.10)] h-2 rounded-full mt-2 overflow-hidden">
                 <div
                   className={`h-full transition-all duration-500 ${
-                    kpis.collectionPercentage >= 100 ? 'bg-emerald-600' : kpis.collectionPercentage >= 75 ? 'bg-amber-500' : 'bg-blue-600'
+                    kpis.collectionPercentage >= 100 ? 'bg-[var(--app-ok)]' : kpis.collectionPercentage >= 75 ? 'bg-[var(--app-warn)]' : 'bg-[var(--app-risk)]'
                   }`}
                   style={{ width: `${Math.min(100, kpis.collectionPercentage)}%` }}
                 />
               </div>
-              <div className="text-[11px] text-slate-500 mt-1 font-bold flex justify-between">
-                <span>نسبة التحصيل: {kpis.collectionPercentage}%</span>
+              <div className="text-[11px] mt-1 font-bold flex justify-between">
+                <span className="text-[#526780]">نسبة التحصيل:</span>
+                <span className="text-[var(--app-navy)] font-black tabular-nums">{kpis.collectionPercentage}%</span>
               </div>
             </div>
 
             {/* 7. Remaining Collection */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs relative overflow-hidden">
+            <div className="bg-white rounded-[14px] p-4 border border-[var(--app-line)] shadow-xs relative overflow-hidden">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">المتبقي تحصيل (Remaining)</span>
-                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-black">
+                <span className="text-xs font-bold text-[#526780]">المتبقي تحصيل (Remaining)</span>
+                <div className="w-8 h-8 rounded-lg bg-[rgba(16,43,78,.08)] text-[var(--app-navy)] flex items-center justify-center font-black">
                   <Wallet className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black text-blue-900 mt-2">
+              <div className="text-2xl font-black app-num stat-hero text-[var(--app-navy)] mt-2">
                 {formatEGP(kpis.remainingCollection)}
               </div>
-              <div className="text-[11px] text-slate-500 mt-1 font-bold">
+              <div className="text-[11px] text-[#526780] mt-1 font-bold">
                 المتبقي توريده لتغطية الهدف
               </div>
             </div>
 
             {/* 8. Collection Percentage Badge Card */}
-            <div className="bg-gradient-to-br from-blue-950 to-slate-900 text-white rounded-2xl p-4 shadow-xs relative overflow-hidden">
+            <div className="bg-[var(--app-navy)] text-white rounded-[14px] p-4 shadow-xs relative overflow-hidden border border-[#0b2140]">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-blue-200">نسبة التحصيل</span>
-                <Award className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-bold text-[#9dbcd9]">نسبة التحصيل</span>
+                <Award className="w-4 h-4 text-[var(--app-accent)]" />
               </div>
-              <div className="text-3xl font-black text-emerald-400 mt-2">
+              <div className="text-3xl font-black app-num stat-hero text-white mt-2 tabular-nums">
                 {kpis.collectionPercentage}%
               </div>
-              <div className="text-[11px] text-blue-200 mt-1 font-bold">
+              <div className="text-[11px] text-[#9dbcd9] mt-1 font-bold">
                 مؤشر السيولة النقدية والتوريدات
               </div>
             </div>
@@ -1509,19 +1503,19 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
           {/* POWER BI FEATURE: MONTHLY DETAILS TABLE (جدول تفاصيل أهداف وتحصيلات الشهور) */}
           {periodMode === 'monthly' && (
-            <section className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-0">
+            <section className="bg-white rounded-[14px] border border-[var(--app-line)] shadow-sm overflow-hidden space-y-0">
               {/* Table Header with Filters */}
-              <div className="p-4 sm:p-5 border-b border-slate-200 bg-gradient-to-l from-slate-50 via-white to-amber-50/30 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div className="p-4 sm:p-5 border-b border-[var(--app-line)] bg-gradient-to-l from-[rgba(16,43,78,.04)] via-white to-[rgba(201,154,67,.07)] flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-slate-900 text-amber-400 flex items-center justify-center font-black shadow-xs">
+                    <div className="w-8 h-8 rounded-xl bg-[var(--app-navy)] text-[var(--app-accent)] flex items-center justify-center font-black shadow-xs">
                       <FileSpreadsheet className="w-4 h-4" />
                     </div>
-                    <h3 className="text-base sm:text-lg font-black text-slate-900">
+                    <h3 className="text-base sm:text-lg font-black text-[var(--app-navy)]">
                       جدول تفاصيل أهداف وتحصيلات الشهور (Power BI Monthly Details Table)
                     </h3>
                   </div>
-                  <p className="text-xs text-slate-500 mt-1 font-bold">
+                  <p className="text-xs text-[#526780] mt-1 font-bold">
                     عرض مقارن لكل شهر يشمل: هدف البيع، المحقق بيع، النسبة، المتبقي، هدف التحصيل، محقق التحصيل، النسبة، والمتبقي تحصيل
                   </p>
                 </div>
@@ -1529,11 +1523,11 @@ export const TargetPerformanceDashboard: React.FC = () => {
                 <div className="flex flex-wrap items-center gap-2.5">
                   {/* Active Month Alert / Clear Button */}
                   {selectedMonth !== 'ALL' && (
-                    <div className="flex items-center gap-1.5 bg-amber-100/80 border border-amber-300 px-3 py-1.5 rounded-xl text-xs font-black text-amber-900">
+                    <div className="flex items-center gap-1.5 bg-[rgba(155,112,39,.14)] border border-[rgba(155,112,39,.30)] px-3 py-1.5 rounded-xl text-xs font-black text-[var(--app-warn)]">
                       <span>الشهر المختار: {ARABIC_MONTHS[(selectedMonth as number) - 1]}</span>
                       <button
                         onClick={() => setSelectedMonth('ALL')}
-                        className="text-amber-800 hover:text-amber-950 underline mr-1 cursor-pointer"
+                        className="text-[var(--app-warn)] hover:opacity-70 underline mr-1 cursor-pointer"
                       >
                         عرض كل الشهور
                       </button>
@@ -1546,8 +1540,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
                       onClick={() => setTableMonthsFilter('all_12')}
                       className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
                         tableMonthsFilter === 'all_12'
-                          ? 'bg-white text-slate-900 shadow-xs font-black'
-                          : 'text-slate-600 hover:text-slate-900'
+                          ? 'bg-[var(--app-navy)] text-white shadow-xs shadow-[inset_0_-3px_0_var(--app-accent)] font-black'
+                          : 'text-[#526780] hover:text-[var(--app-navy)]'
                       }`}
                     >
                       كامل الـ 12 شهراً
@@ -1556,8 +1550,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
                       onClick={() => setTableMonthsFilter('with_data_only')}
                       className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
                         tableMonthsFilter === 'with_data_only'
-                          ? 'bg-white text-slate-900 shadow-xs font-black'
-                          : 'text-slate-600 hover:text-slate-900'
+                          ? 'bg-[var(--app-navy)] text-white shadow-xs shadow-[inset_0_-3px_0_var(--app-accent)] font-black'
+                          : 'text-[#526780] hover:text-[var(--app-navy)]'
                       }`}
                     >
                       الشهور ذات البيانات فقط
@@ -1569,17 +1563,17 @@ export const TargetPerformanceDashboard: React.FC = () => {
               {/* The Matrix Table */}
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[980px] text-right text-xs">
-                  <thead className="bg-slate-100 text-slate-700 font-black border-b border-slate-200">
+                  <thead className="bg-[var(--app-navy)] text-[#c9dbec] font-black border-b border-[rgba(255,255,255,.14)]">
                     <tr>
                       <th className="px-4 py-3.5 whitespace-nowrap">الشهر / الربع</th>
-                      <th className="px-4 py-3.5 whitespace-nowrap text-slate-900">هدف البيع</th>
-                      <th className="px-4 py-3.5 whitespace-nowrap text-emerald-800">المحقق بيع</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap text-white">هدف البيع</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap text-[#8fd0b0]">المحقق بيع</th>
                       <th className="px-4 py-3.5 whitespace-nowrap text-center">نسبة البيع %</th>
-                      <th className="px-4 py-3.5 whitespace-nowrap text-amber-700">المتبقي بيع (100%)</th>
-                      <th className="px-4 py-3.5 whitespace-nowrap text-slate-900">هدف التحصيل</th>
-                      <th className="px-4 py-3.5 whitespace-nowrap text-blue-800">محقق التحصيل</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap text-[var(--app-accent)]">المتبقي بيع (100%)</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap text-white">هدف التحصيل</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap text-[#9dbcd9]">محقق التحصيل</th>
                       <th className="px-4 py-3.5 whitespace-nowrap text-center">نسبة التحصيل %</th>
-                      <th className="px-4 py-3.5 whitespace-nowrap text-blue-900">المتبقي تحصيل (100%)</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap text-[#9dbcd9]">المتبقي تحصيل (100%)</th>
                       <th className="px-4 py-3.5 whitespace-nowrap text-center">المتعاملين</th>
                       <th className="px-4 py-3.5 whitespace-nowrap text-center">حالة الإنجاز</th>
                       <th className="px-3 py-3.5 whitespace-nowrap text-center">تركيز</th>
@@ -1595,7 +1589,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                           key={row.month}
                           className={`transition-colors ${
                             isRowSelected
-                              ? 'bg-amber-50/70 font-bold ring-1 ring-amber-400'
+                              ? 'bg-[rgba(201,154,67,.09)] font-bold ring-1 ring-[rgba(201,154,67,.45)]'
                               : hasData
                               ? 'hover:bg-slate-50/80'
                               : 'opacity-60 hover:opacity-100 hover:bg-slate-50'
@@ -1604,12 +1598,12 @@ export const TargetPerformanceDashboard: React.FC = () => {
                           {/* Month & Quarter */}
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-2">
-                              <span className="font-black text-slate-900 text-sm">{row.monthName}</span>
-                              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                              <span className="font-black text-[var(--app-navy)] text-sm">{row.monthName}</span>
+                              <span className="text-[10px] font-bold text-[#526780] bg-[#f4f7fa] px-2 py-0.5 rounded-md border border-[var(--app-line)]">
                                 {row.quarter}
                               </span>
                               {isRowSelected && (
-                                <span className="text-[10px] font-black text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-md">
+                                <span className="text-[10px] font-black text-[#8a6420] bg-[rgba(201,154,67,.18)] px-2 py-0.5 rounded-md">
                                   مختار حالياً
                                 </span>
                               )}
@@ -1617,12 +1611,12 @@ export const TargetPerformanceDashboard: React.FC = () => {
                           </td>
 
                           {/* Sales Target */}
-                          <td className="px-4 py-3 whitespace-nowrap font-bold text-slate-700">
+                          <td className="px-4 py-3 whitespace-nowrap font-bold text-[#526780] tabular-nums">
                             {formatEGP(row.salesTarget)}
                           </td>
 
                           {/* Sales Achieved */}
-                          <td className="px-4 py-3 whitespace-nowrap font-black text-emerald-700">
+                          <td className="px-4 py-3 whitespace-nowrap font-black text-[var(--app-ok)] tabular-nums">
                             {formatEGP(row.salesAchieved)}
                           </td>
 
@@ -1636,14 +1630,14 @@ export const TargetPerformanceDashboard: React.FC = () => {
                               >
                                 {row.salesPerc}%
                               </span>
-                              <div className="w-16 bg-slate-200 h-1 rounded-full mt-1 overflow-hidden">
+                              <div className="w-16 bg-[rgba(16,43,78,.10)] h-1 rounded-full mt-1 overflow-hidden">
                                 <div
                                   className={`h-full ${
                                     row.salesPerc >= 100
-                                      ? 'bg-emerald-600'
+                                      ? 'bg-[var(--app-ok)]'
                                       : row.salesPerc >= 70
-                                      ? 'bg-amber-500'
-                                      : 'bg-rose-500'
+                                      ? 'bg-[var(--app-warn)]'
+                                      : 'bg-[var(--app-risk)]'
                                   }`}
                                   style={{ width: `${Math.min(100, row.salesPerc)}%` }}
                                 />
@@ -1652,9 +1646,9 @@ export const TargetPerformanceDashboard: React.FC = () => {
                           </td>
 
                           {/* Sales Remaining */}
-                          <td className="px-4 py-3 whitespace-nowrap font-black text-amber-700">
+                          <td className="px-4 py-3 whitespace-nowrap font-black text-[var(--app-warn)] tabular-nums">
                             {row.remainingSales === 0 && row.salesTarget > 0 ? (
-                              <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md text-[11px] font-bold">
+                              <span className="text-[var(--app-ok)] bg-[rgba(46,125,91,.10)] px-2 py-0.5 rounded-md text-[11px] font-bold">
                                 تم بالكامل
                               </span>
                             ) : (
@@ -1663,12 +1657,12 @@ export const TargetPerformanceDashboard: React.FC = () => {
                           </td>
 
                           {/* Collection Target */}
-                          <td className="px-4 py-3 whitespace-nowrap font-bold text-slate-700">
+                          <td className="px-4 py-3 whitespace-nowrap font-bold text-[#526780] tabular-nums">
                             {formatEGP(row.colTarget)}
                           </td>
 
                           {/* Collection Achieved */}
-                          <td className="px-4 py-3 whitespace-nowrap font-black text-blue-700">
+                          <td className="px-4 py-3 whitespace-nowrap font-black text-[var(--app-navy)] tabular-nums">
                             {formatEGP(row.colAchieved)}
                           </td>
 
@@ -1682,14 +1676,14 @@ export const TargetPerformanceDashboard: React.FC = () => {
                               >
                                 {row.colPerc}%
                               </span>
-                              <div className="w-16 bg-slate-200 h-1 rounded-full mt-1 overflow-hidden">
+                              <div className="w-16 bg-[rgba(16,43,78,.10)] h-1 rounded-full mt-1 overflow-hidden">
                                 <div
                                   className={`h-full ${
                                     row.colPerc >= 100
-                                      ? 'bg-emerald-600'
+                                      ? 'bg-[var(--app-ok)]'
                                       : row.colPerc >= 70
-                                      ? 'bg-amber-500'
-                                      : 'bg-blue-600'
+                                      ? 'bg-[var(--app-warn)]'
+                                      : 'bg-[var(--app-risk)]'
                                   }`}
                                   style={{ width: `${Math.min(100, row.colPerc)}%` }}
                                 />
@@ -1698,9 +1692,9 @@ export const TargetPerformanceDashboard: React.FC = () => {
                           </td>
 
                           {/* Collection Remaining */}
-                          <td className="px-4 py-3 whitespace-nowrap font-black text-blue-900">
+                          <td className="px-4 py-3 whitespace-nowrap font-black text-[var(--app-navy)] tabular-nums">
                             {row.remainingCol === 0 && row.colTarget > 0 ? (
-                              <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md text-[11px] font-bold">
+                              <span className="text-[var(--app-ok)] bg-[rgba(46,125,91,.10)] px-2 py-0.5 rounded-md text-[11px] font-bold">
                                 تم بالكامل
                               </span>
                             ) : (
@@ -1711,9 +1705,9 @@ export const TargetPerformanceDashboard: React.FC = () => {
                           {/* Active Customers (متعامل) */}
                           <td className="px-4 py-3 whitespace-nowrap text-center">
                             <div className="inline-flex flex-col items-center">
-                              <span className={`inline-flex rounded-full border px-2.5 py-0.5 font-black text-xs ${
+                              <span className={`inline-flex rounded-full border px-2.5 py-0.5 font-black text-xs tabular-nums ${
                                 row.activeCustomers > 0
-                                  ? 'bg-teal-50 text-teal-700 border-teal-300'
+                                  ? 'bg-[rgba(16,43,78,.08)] text-[var(--app-navy)] border-[rgba(16,43,78,.20)]'
                                   : 'bg-slate-50 text-slate-400 border-slate-200'
                               }`}>
                                 {row.activeCustomers}
@@ -1727,23 +1721,23 @@ export const TargetPerformanceDashboard: React.FC = () => {
                           {/* Achievement Status Badge */}
                           <td className="px-4 py-3 whitespace-nowrap text-center">
                             {row.salesPerc >= 100 && row.colPerc >= 100 ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-[var(--app-ok)] bg-[rgba(46,125,91,.14)] border border-[rgba(46,125,91,.30)] px-2.5 py-0.5 rounded-full">
                                 مكتمل بالكامل
                               </span>
                             ) : row.salesPerc >= 100 ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-[var(--app-ok)] bg-[rgba(46,125,91,.10)] border border-[rgba(46,125,91,.25)] px-2 py-0.5 rounded-full">
                                 مكتمل بيعاً
                               </span>
                             ) : row.colPerc >= 100 ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-[var(--app-navy)] bg-[rgba(16,43,78,.08)] border border-[rgba(16,43,78,.20)] px-2 py-0.5 rounded-full">
                                 مكتمل تحصيلاً
                               </span>
                             ) : row.salesPerc >= 70 || row.colPerc >= 70 ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-[var(--app-warn)] bg-[rgba(155,112,39,.12)] border border-[rgba(155,112,39,.28)] px-2 py-0.5 rounded-full">
                                 متقدم
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-[#526780] bg-[#f4f7fa] border border-[var(--app-line)] px-2 py-0.5 rounded-full">
                                 قيد المتابعة
                               </span>
                             )}
@@ -1755,8 +1749,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
                               onClick={() => setSelectedMonth(row.month)}
                               className={`p-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                                 isRowSelected
-                                  ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
-                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                  ? 'bg-[var(--app-navy)] text-white font-black shadow-xs shadow-[inset_0_-3px_0_var(--app-accent)]'
+                                  : 'bg-white border border-[var(--app-line)] text-[#526780] hover:border-[#b8c9db] hover:text-[var(--app-navy)]'
                               }`}
                               title={`التركيز على أرقام شهر ${row.monthName}`}
                             >

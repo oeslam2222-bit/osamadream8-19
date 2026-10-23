@@ -19,6 +19,7 @@ import {
   Minus,
   Receipt,
   Search,
+  Barcode,
   ShoppingCart,
   Sparkles,
   Tag,
@@ -650,20 +651,20 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   return (
     <div className="tantawy-screen space-y-4 pb-20">
       {/* Sales workflow header: keeps the rep oriented without changing invoice logic. */}
-      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-4 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <section className="overflow-hidden rounded-3xl border border-[color:var(--app-line)] bg-white shadow-sm">
+        <div className="flex flex-col gap-4 border-b border-[color:var(--app-line)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-amber-300 shadow-sm">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[color:var(--app-navy)] text-[color:var(--app-accent)] shadow-sm">
               <ShoppingCart className="h-5 w-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-black text-slate-900 sm:text-xl">إنشاء فاتورة بيع</h2>
-                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700 ring-1 ring-emerald-200">
+                <span className="rounded-full bg-[#e8f1fa] px-2.5 py-1 text-[10px] font-black text-[#1e5f9d] ring-1 ring-[#cfe0f0]">
                   نقطة بيع المندوب
                 </span>
               </div>
-              <p className="mt-0.5 text-xs font-medium text-slate-500">
+              <p className="mt-0.5 text-xs font-medium text-[color:var(--app-muted)]">
                 اختر المنتجات أولًا، ثم راجع السلة وحدد العميل لإتمام البيع.
               </p>
             </div>
@@ -674,7 +675,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               type="button"
               onClick={onOpenCart}
               disabled={cart.length === 0}
-              className="flex h-11 items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 text-xs font-black text-slate-950 shadow-sm transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
+              className="flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[color:var(--app-navy)] px-4 text-xs font-black text-white shadow-sm transition hover:bg-[#0d2340] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
             >
               <ShoppingCart className="h-4 w-4" />
               <span>{cart.length > 0 ? `متابعة السلة (${cart.length})` : 'السلة فارغة'}</span>
@@ -693,15 +694,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <div
                 key={step.id}
                 className={`relative flex min-w-0 items-center gap-3 bg-white px-4 py-3.5 sm:px-5 ${
-                  isCurrent ? 'after:absolute after:inset-x-0 after:bottom-0 after:h-1 after:bg-amber-400' : ''
+                  isCurrent ? 'after:absolute after:inset-x-0 after:bottom-0 after:h-1 after:bg-[color:var(--app-accent)]' : ''
                 }`}
               >
                 <div
                   className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
                     isCurrent
-                      ? 'bg-slate-900 text-amber-300'
+                      ? 'bg-[color:var(--app-navy)] text-[color:var(--app-accent)]'
                       : isComplete
-                        ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+                        ? 'bg-[#e8f3ee] text-[color:var(--app-ok)] ring-1 ring-[rgba(46,125,91,.22)]'
                         : 'bg-slate-100 text-slate-400'
                   }`}
                 >
@@ -721,15 +722,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
       {/* Selected Customer Order Context Banner */}
       {selectedCustomer && (
-        <div className="bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 p-3 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg border border-amber-300 animate-in fade-in slide-in-from-top-2">
+        <div className="bg-[#fdf8ed] text-slate-950 p-3 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm border border-[#e8dcba] animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-slate-950 text-amber-400 flex items-center justify-center font-black shrink-0 shadow-md">
+            <div className="w-10 h-10 rounded-2xl bg-[color:var(--app-navy)] text-[color:var(--app-accent)] flex items-center justify-center font-black shrink-0 shadow-sm">
               <ShoppingCart className="w-5 h-5" />
             </div>
             <div>
               <div className="text-[11px] font-bold text-slate-900 flex items-center gap-1.5">
                 <span>جاري إنشاء طلبية للعميل المختار:</span>
-                <span className="bg-slate-950 text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full">
+                <span className="bg-[color:var(--app-navy)] text-white text-[10px] font-black px-2 py-0.5 rounded-full">
                   {selectedCustomer.code || 'عميل مسجل'}
                 </span>
               </div>
@@ -743,7 +744,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   <span>
                     {' • المديونية: '}
                     {isConfidentialMode ? (
-                      <span className="bg-slate-900 text-amber-300 font-mono px-1.5 py-0.5 rounded text-[10px]">•••••• (محمي)</span>
+                      <span className="bg-[color:var(--app-navy)] text-[color:var(--app-accent)] font-mono px-1.5 py-0.5 rounded text-[10px]">•••••• (محمي)</span>
                     ) : (
                       formatCurrency(selectedCustomer.currentBalance)
                     )}
@@ -757,7 +758,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             {onOpenCart && (
               <button
                 onClick={onOpenCart}
-                className="bg-slate-950 hover:bg-slate-900 active:scale-95 text-amber-400 px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 shadow-md transition cursor-pointer"
+                className="bg-[color:var(--app-navy)] hover:bg-[#0d2340] active:scale-95 text-white px-4 py-2 rounded-[10px] text-xs font-black flex items-center gap-2 shadow-md transition cursor-pointer"
               >
                 <ShoppingCart className="w-4 h-4" />
                 <span>معاينة الفاتورة وتأكيد الطلبية</span>
@@ -766,7 +767,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             {onClearSelectedCustomer && (
               <button
                 onClick={onClearSelectedCustomer}
-                className="bg-slate-900/10 hover:bg-slate-900/20 text-slate-900 p-2 rounded-xl text-xs font-bold transition cursor-pointer"
+                className="bg-white hover:bg-slate-50 text-slate-600 border border-[color:var(--app-line)] p-2 rounded-[10px] text-xs font-bold transition cursor-pointer"
                 title="إلغاء تحديد العميل والعودة للطلب العام"
               >
                 <X className="w-4 h-4" />
@@ -778,15 +779,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       
       {/* Toast Notification when adding item (Amazon / Souq style) */}
       {addedItemToast && (
-        <div className="fixed bottom-20 md:bottom-6 left-4 right-4 md:left-6 md:right-auto z-50 bg-slate-950 text-white px-4 py-3 rounded-2xl shadow-2xl border-2 border-amber-400 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-4">
+        <div className="fixed bottom-20 md:bottom-6 left-4 right-4 md:left-6 md:right-auto z-50 bg-[color:var(--app-navy)] text-white px-4 py-3 rounded-2xl shadow-2xl border-2 border-[color:var(--app-accent)] flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black">
+            <div className="w-9 h-9 rounded-xl bg-[color:var(--app-accent)] text-[#231a05] flex items-center justify-center font-black">
               <Check className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xs text-amber-400 font-bold flex items-center gap-1">
+              <div className="text-xs text-[color:var(--app-accent)] font-bold flex items-center gap-1">
                 <span>تمت الإضافة إلى عربة التسوق</span>
-                <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.2 rounded font-black">جاهز للطلب</span>
+                <span className="text-[10px] bg-[color:var(--app-accent)]/20 text-[color:var(--app-accent)] px-1.5 py-0.2 rounded font-black">جاهز للطلب</span>
               </div>
               <div className="text-sm font-black truncate max-w-[220px] sm:max-w-xs">{addedItemToast.name}</div>
               <div className="text-xs text-slate-300 font-medium">{addedItemToast.count}</div>
@@ -796,7 +797,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           {onOpenCart && (
             <button
               onClick={onOpenCart}
-              className="bg-amber-400 hover:bg-amber-300 text-slate-950 px-3 py-1.5 rounded-xl font-black text-xs shadow transition whitespace-nowrap cursor-pointer"
+              className="bg-[color:var(--app-accent)] hover:bg-[#b98e3c] text-[#231a05] px-3 py-1.5 rounded-[10px] font-black text-xs shadow transition whitespace-nowrap cursor-pointer"
             >
               عرض السلة
             </button>
@@ -824,16 +825,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
       {/* Wipe / Reset Data Success Alert */}
       {wipeSuccessText && (
-        <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 text-xs rounded-xl font-bold flex items-center gap-2 animate-in fade-in">
-          <CheckCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+        <div className="p-3 bg-[#e8f3ee] border border-[rgba(46,125,91,.22)] text-[color:var(--app-ok)] text-xs rounded-xl font-bold flex items-center gap-2 animate-in fade-in">
+          <CheckCheck className="w-4 h-4 text-[color:var(--app-ok)] shrink-0" />
           <span>{wipeSuccessText}</span>
         </div>
       )}
 
       {/* Offline Image Cache & Data-Saver Bar (Works 100% Offline with Zero Data Consumption) */}
-      <div className="bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-slate-100 border border-amber-300/60 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+      <div className="bg-white border border-[color:var(--app-line)] rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-xs">
+          <div className="w-9 h-9 rounded-xl bg-[color:var(--app-navy)] text-[color:var(--app-accent)] flex items-center justify-center font-black shrink-0 shadow-xs">
             <Download className="w-5 h-5" />
           </div>
           <div>
@@ -841,11 +842,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <h4 className="text-xs sm:text-sm font-black text-slate-900">
                 العمل بدون إنترنت (توفير الباقة وسرعة العرض للمناديب)
               </h4>
-              <span className="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+              <span className="bg-[#e8f3ee] text-[color:var(--app-ok)] border border-[rgba(46,125,91,.22)] text-[10px] font-black px-2 py-0.5 rounded-full">
                 Offline Mode
               </span>
             </div>
-            <p className="text-[11px] text-slate-600 mt-0.5">
+            <p className="text-[11px] text-[color:var(--app-muted)] mt-0.5">
               اضغط زر التحميل لحفظ صور الأصناف بضغط فائق (حجم خفيف جداً) لعرضها على العملاء في أي مكان بدون شبكة وبدون استهلاك باقة الإنترنت.
             </p>
           </div>
@@ -854,7 +855,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-between sm:justify-end">
           <div className="text-right sm:text-left text-[11px] font-bold text-slate-700">
             <span>المحفوظ بالجهاز: </span>
-            <strong className="text-emerald-700 font-black">{cacheStats.count} صورة</strong>
+            <strong className="text-[color:var(--app-ok)] font-black">{cacheStats.count} صورة</strong>
             {cacheStats.estimatedSizeMB > 0 && (
               <span className="text-[10px] text-slate-500 block sm:inline"> (~{cacheStats.estimatedSizeMB} ميجابايت فقط)</span>
             )}
@@ -863,17 +864,17 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           <button
             onClick={handleCacheAllImages}
             disabled={isCaching || products.length === 0}
-            className="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-amber-300 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow transition cursor-pointer active:scale-95"
+            className="bg-[color:var(--app-navy)] hover:bg-[#0d2340] disabled:opacity-50 text-white font-black px-3.5 py-2 rounded-[10px] text-xs flex items-center gap-1.5 shadow transition cursor-pointer active:scale-95"
             title="تحميل وضغط كل صور الأصناف للعمل بدون إنترنت"
           >
             {isCaching ? (
               <>
-                <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-[color:var(--app-accent)]" />
                 <span>جاري الحفظ ({products.length})...</span>
               </>
             ) : (
               <>
-                <Download className="w-3.5 h-3.5 text-amber-400" />
+                <Download className="w-3.5 h-3.5 text-[color:var(--app-accent)]" />
                 <span>تحميل الصور أوفلاين</span>
               </>
             )}
@@ -883,26 +884,26 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
       {/* Cache Progress Notification */}
       {cacheProgressText && (
-        <div className="p-3 bg-emerald-500 text-white text-xs rounded-xl font-bold flex items-center gap-2 shadow-md animate-in fade-in">
-          <CheckCheck className="w-4 h-4 text-emerald-200 shrink-0" />
+        <div className="p-3 bg-[color:var(--app-ok)] text-white text-xs rounded-xl font-bold flex items-center gap-2 shadow-md animate-in fade-in">
+          <CheckCheck className="w-4 h-4 text-white shrink-0" />
           <span>{cacheProgressText}</span>
         </div>
       )}
 
       {/* Active Branch Scope Indicator & Switcher for Admin / Developer / Sales Reps */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-slate-100 border border-slate-300/80 rounded-2xl p-3 sm:p-3.5 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white border border-[color:var(--app-line)] rounded-2xl p-3 sm:p-3.5 shadow-sm">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-xs">
+          <div className="w-8 h-8 rounded-xl bg-[color:var(--app-navy)] text-[color:var(--app-accent)] flex items-center justify-center font-black shrink-0 shadow-xs">
             <Building className="w-4 h-4" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold text-slate-500">الفرع المعروض أرصدته حالياً:</span>
-              <span className="bg-amber-400 text-slate-950 text-xs font-black px-2.5 py-0.5 rounded-lg shadow-2xs">
+              <span className="bg-[#f7f0e1] text-[color:var(--app-warn)] border border-[#e6d9b8] text-xs font-black px-2.5 py-0.5 rounded-lg">
                 {currentActiveBranch || 'الفرع الرئيسي (كل الفروع)'}
               </span>
             </div>
-            <p className="text-[11px] text-slate-600 mt-0.5">
+            <p className="text-[11px] text-[color:var(--app-muted)] mt-0.5">
               كل مشرف ومندوب ومدير فرع يستعرض مخزون فرعه المسند إليه.
             </p>
           </div>
@@ -917,7 +918,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               id="catalog-branch-select"
               value={selectedBranchFilter}
               onChange={(e) => setSelectedBranchFilter(e.target.value)}
-              className="bg-white border border-slate-300 text-slate-900 font-black rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-amber-400 focus:outline-none shadow-2xs"
+              className="bg-white border border-[color:var(--app-line)] text-slate-900 font-black rounded-[10px] px-3 py-1.5 text-xs shadow-2xs"
             >
               <option value="الكل">الفرع الرئيسي (كل الفروع)</option>
               {branches
@@ -933,19 +934,19 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       </div>
 
       {/* Unified, Clean Search & Quick Filters Bar - Simplified for Mobile with high touch targets */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:rounded-3xl sm:p-5 space-y-2.5 sm:space-y-3">
+      <div className="rounded-2xl border border-[color:var(--app-line)] bg-white p-2.5 sm:p-4 space-y-2.5 sm:space-y-3 shadow-sm">
         <div className="flex items-center justify-between gap-2 md:hidden">
           <div className="flex items-center gap-2 min-w-0">
             <SlidersHorizontal className="w-4 h-4 text-slate-700 shrink-0" />
             <span className="text-sm font-black text-slate-900 truncate">البحث والتصفية</span>
             {(selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل' || stockAvailabilityFilter !== 'all') && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-800">مفعّل</span>
+              <span className="rounded-full bg-[color:var(--app-accent)]/15 px-2 py-0.5 text-[10px] font-black text-[#8a6420]">مفعّل</span>
             )}
           </div>
           <button
             type="button"
             onClick={() => setIsFilterPanelOpen((open) => !open)}
-            className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-slate-900 px-3 text-xs font-black text-white transition active:scale-95"
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-[10px] bg-[color:var(--app-navy)] px-3 text-xs font-black text-white transition hover:bg-[#0d2340] active:scale-95"
             aria-expanded={isFilterPanelOpen}
             aria-controls="catalog-filters"
           >
@@ -959,15 +960,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         <div className="flex flex-col md:flex-row items-stretch gap-2">
           {/* Main search input */}
           <div className="relative flex-1">
-            <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[color:var(--app-muted)]" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="ابحث بالكود، الكود الموحد (#)، اسم الصنف، الماركة..."
-              className="w-full h-11 sm:h-12 pl-10 pr-10 bg-slate-50 text-slate-900 placeholder-slate-400 border border-slate-200 rounded-xl text-sm sm:text-base font-medium focus:outline-none focus:ring-2 focus:ring-blue-200 transition"
+              className="w-full h-11 sm:h-12 pl-10 pr-10 bg-white text-slate-900 placeholder-slate-400 border border-[color:var(--app-line)] rounded-[10px] text-sm sm:text-base font-medium shadow-none"
             />
-            {searchTerm && (
+            {searchTerm ? (
               <button
                 onClick={() => setSearchTerm('')}
                 className="absolute left-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 w-9 h-9 flex items-center justify-center cursor-pointer"
@@ -975,6 +976,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               >
                 <X className="w-5 h-5" />
               </button>
+            ) : (
+              <Barcode className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" aria-hidden="true" />
             )}
           </div>
 
@@ -982,14 +985,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           <button
             type="button"
             onClick={toggleConfidentialMode}
-            className={`h-11 sm:h-12 px-3 sm:px-4 rounded-xl font-black text-xs flex items-center justify-center gap-2 transition shrink-0 cursor-pointer shadow-sm ${
+            className={`h-11 sm:h-12 px-3 sm:px-4 rounded-[10px] font-black text-xs flex items-center justify-center gap-2 transition shrink-0 cursor-pointer ${
               isConfidentialMode
-                ? 'bg-amber-100 text-amber-900 ring-1 ring-amber-300'
-                : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
+                ? 'bg-[#f7f0e1] text-[color:var(--app-warn)] ring-1 ring-[#e6d9b8]'
+                : 'bg-white hover:bg-slate-50 text-slate-700 border border-[color:var(--app-line)]'
             }`}
             title={isConfidentialMode ? 'وضع سرية البيانات مفعّل (الأسعار محجوبة أمام العملاء) - انقر للإظهار' : 'تفعيل وضع سرية البيانات أمام العملاء (إخفاء الأسعار والمديونيات)'}
           >
-            <ShieldCheck className={`w-4 h-4 ${isConfidentialMode ? 'text-amber-700' : 'text-slate-500'}`} />
+            <ShieldCheck className={`w-4 h-4 ${isConfidentialMode ? 'text-[color:var(--app-warn)]' : 'text-slate-400'}`} />
             <span className="whitespace-nowrap">
               {isConfidentialMode ? 'سرية البيانات: مفعّلة' : 'سرية البيانات'}
             </span>
@@ -1004,7 +1007,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               aria-label="تصفية حالة المخزون"
               value={stockAvailabilityFilter}
               onChange={(e) => setStockAvailabilityFilter(e.target.value as any)}
-              className="w-full h-11 px-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer text-xs"
+              className="w-full h-11 px-2.5 bg-white text-slate-800 border border-[color:var(--app-line)] rounded-[10px] font-bold cursor-pointer text-xs"
             >
               <option value="all">كل حالات المخزون ({stockCounts.all})</option>
               <option value="offers">عروض وتخفيضات خاصة ({stockCounts.offers})</option>
@@ -1035,7 +1038,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   setSelectedStatus('الكل');
                 }
               }}
-              className="w-full h-11 px-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer text-xs"
+              className="w-full h-11 px-2.5 bg-white text-slate-800 border border-[color:var(--app-line)] rounded-[10px] font-bold cursor-pointer text-xs"
             >
               <option value="all">كل الأصناف والعروض</option>
               <option value="priority_مرتفع">الأكثر طلباً</option>
@@ -1051,7 +1054,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               aria-label="ترتيب المنتجات"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="flex-1 h-11 px-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer text-xs"
+              className="flex-1 h-11 px-2.5 bg-white text-slate-800 border border-[color:var(--app-line)] rounded-[10px] font-bold cursor-pointer text-xs"
             >
               <option value="default">الترتيب: الافتراضي</option>
               <option value="branch_stock_desc">مخزون الفرع: الأكثر للأقل</option>
@@ -1066,15 +1069,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             </select>
 
             {/* View Mode Switcher (Visible on Mobile, Tablet & Desktop) */}
-            <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 h-11 shrink-0">
+            <div className="flex items-center bg-[#f4f7fa] p-0.5 rounded-[10px] border border-[color:var(--app-line)] h-11 shrink-0">
               <button
                 onClick={() => {
                   setViewMode('grid');
                   setGridDensity('comfortable');
                 }}
-                className={`px-2.5 h-9 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2.5 h-9 rounded-[8px] text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
                   viewMode === 'grid' && gridDensity === 'comfortable'
-                    ? 'bg-amber-400 text-slate-950 shadow-xs'
+                    ? 'bg-[color:var(--app-navy)] text-white shadow-sm'
                     : 'text-slate-500 hover:text-slate-900'
                 }`}
                 title="عرض مريح (بطاقة واسعة ومقروءة للموبايل)"
@@ -1087,9 +1090,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   setViewMode('grid');
                   setGridDensity('compact');
                 }}
-                className={`px-2.5 h-9 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2.5 h-9 rounded-[8px] text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
                   viewMode === 'grid' && gridDensity === 'compact'
-                    ? 'bg-amber-400 text-slate-950 shadow-xs'
+                    ? 'bg-[color:var(--app-navy)] text-white shadow-sm'
                     : 'text-slate-500 hover:text-slate-900'
                 }`}
                 title="عرض مزدوج (بطاقتين بالصف)"
@@ -1099,9 +1102,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`px-2.5 h-9 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2.5 h-9 rounded-[8px] text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
                   viewMode === 'list'
-                    ? 'bg-amber-400 text-slate-950 shadow-xs'
+                    ? 'bg-[color:var(--app-navy)] text-white shadow-sm'
                     : 'text-slate-500 hover:text-slate-900'
                 }`}
                 title="عرض جدول تفصيلي"
@@ -1114,13 +1117,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
 
         {/* Quick Stock Status Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar pt-3 border-t border-slate-100">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar pt-3 border-t border-[color:var(--app-line)]">
           <button
             onClick={() => setStockAvailabilityFilter('all')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 ${
+            className={`relative min-h-[44px] px-4 rounded-[10px] text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 ${
               stockAvailabilityFilter === 'all'
-                ? 'bg-amber-400 text-slate-950 shadow-xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                ? 'bg-[color:var(--app-navy)] text-white shadow-[inset_0_-3px_0_var(--app-accent)]'
+                : 'bg-white text-slate-600 border border-[color:var(--app-line)] hover:text-slate-900 hover:border-[#b8c9db]'
             }`}
           >
             الكل ({stockCounts.all})
@@ -1128,79 +1131,89 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           <button
             id="filter-offers-pill-btn"
             onClick={() => setStockAvailabilityFilter('offers')}
-            className={`px-3 py-1 rounded-lg text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
+            className={`relative min-h-[44px] px-4 rounded-[10px] text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
               stockAvailabilityFilter === 'offers'
-                ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 text-slate-950 shadow-md ring-2 ring-amber-300'
-                : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
+                ? 'bg-[color:var(--app-navy)] text-white shadow-[inset_0_-3px_0_var(--app-accent)]'
+                : 'bg-white text-slate-600 border border-[color:var(--app-line)] hover:text-slate-900 hover:border-[#b8c9db]'
             }`}
           >
             <span>عروض وتخفيضات</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
-              stockAvailabilityFilter === 'offers' ? 'bg-slate-950 text-amber-300' : 'bg-amber-400/20 text-amber-200'
+              stockAvailabilityFilter === 'offers' ? 'bg-[color:var(--app-accent)]/25 text-[color:var(--app-accent)]' : 'bg-[#f2f6fa] text-[color:var(--app-muted)] border border-[color:var(--app-line)]'
             }`}>
               {stockCounts.offers}
             </span>
           </button>
           <button
             onClick={() => setStockAvailabilityFilter('in_branch')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1 ${
+            className={`relative min-h-[44px] px-4 rounded-[10px] text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
               stockAvailabilityFilter === 'in_branch'
-                ? 'bg-emerald-600 text-white shadow-xs'
-                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                ? 'bg-[color:var(--app-navy)] text-white shadow-[inset_0_-3px_0_var(--app-accent)]'
+                : 'bg-white text-slate-600 border border-[color:var(--app-line)] hover:text-slate-900 hover:border-[#b8c9db]'
             }`}
           >
             <span>بالفرع</span>
-            <span className="bg-black/30 px-1 py-0.2 rounded text-[10px]">{stockCounts.inBranch}</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
+              stockAvailabilityFilter === 'in_branch' ? 'bg-[color:var(--app-accent)]/25 text-[color:var(--app-accent)]' : 'bg-[#f2f6fa] text-[color:var(--app-muted)] border border-[color:var(--app-line)]'
+            }`}>{stockCounts.inBranch}</span>
           </button>
           <button
             onClick={() => setStockAvailabilityFilter('in_warehouse')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1 ${
+            className={`relative min-h-[44px] px-4 rounded-[10px] text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
               stockAvailabilityFilter === 'in_warehouse'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                ? 'bg-[color:var(--app-navy)] text-white shadow-[inset_0_-3px_0_var(--app-accent)]'
+                : 'bg-white text-slate-600 border border-[color:var(--app-line)] hover:text-slate-900 hover:border-[#b8c9db]'
             }`}
           >
             <span>مخزن أكتوبر</span>
-            <span className="bg-black/30 px-1 py-0.2 rounded text-[10px]">{stockCounts.inWarehouse}</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
+              stockAvailabilityFilter === 'in_warehouse' ? 'bg-[color:var(--app-accent)]/25 text-[color:var(--app-accent)]' : 'bg-[#f2f6fa] text-[color:var(--app-muted)] border border-[color:var(--app-line)]'
+            }`}>{stockCounts.inWarehouse}</span>
           </button>
           <button
             onClick={() => setStockAvailabilityFilter('out_of_branch_only')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1 ${
+            className={`relative min-h-[44px] px-4 rounded-[10px] text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
               stockAvailabilityFilter === 'out_of_branch_only'
-                ? 'bg-indigo-600 text-white shadow-xs'
-                : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                ? 'bg-[color:var(--app-navy)] text-white shadow-[inset_0_-3px_0_var(--app-accent)]'
+                : 'bg-white text-slate-600 border border-[color:var(--app-line)] hover:text-slate-900 hover:border-[#b8c9db]'
             }`}
           >
             <span>بأكتوبر فقط</span>
-            <span className="bg-black/30 px-1 py-0.2 rounded text-[10px]">{stockCounts.outOfBranchOnly}</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
+              stockAvailabilityFilter === 'out_of_branch_only' ? 'bg-[color:var(--app-accent)]/25 text-[color:var(--app-accent)]' : 'bg-[#f2f6fa] text-[color:var(--app-muted)] border border-[color:var(--app-line)]'
+            }`}>{stockCounts.outOfBranchOnly}</span>
           </button>
           <button
             onClick={() => setStockAvailabilityFilter('low_stock')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1 ${
+            className={`relative min-h-[44px] px-4 rounded-[10px] text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
               stockAvailabilityFilter === 'low_stock'
-                ? 'bg-amber-500 text-slate-950 shadow-xs'
-                : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                ? 'bg-[color:var(--app-navy)] text-white shadow-[inset_0_-3px_0_var(--app-accent)]'
+                : 'bg-white text-slate-600 border border-[color:var(--app-line)] hover:text-slate-900 hover:border-[#b8c9db]'
             }`}
           >
             <span>قارب على النفاذ</span>
-            <span className="bg-black/30 px-1 py-0.2 rounded text-[10px]">{stockCounts.lowStock}</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
+              stockAvailabilityFilter === 'low_stock' ? 'bg-[color:var(--app-accent)]/25 text-[color:var(--app-accent)]' : 'bg-[#f2f6fa] text-[color:var(--app-muted)] border border-[color:var(--app-line)]'
+            }`}>{stockCounts.lowStock}</span>
           </button>
           <button
             onClick={() => setStockAvailabilityFilter('out_of_stock')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1 ${
+            className={`relative min-h-[44px] px-4 rounded-[10px] text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
               stockAvailabilityFilter === 'out_of_stock'
-                ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                ? 'bg-[color:var(--app-navy)] text-white shadow-[inset_0_-3px_0_var(--app-accent)]'
+                : 'bg-white text-slate-600 border border-[color:var(--app-line)] hover:text-slate-900 hover:border-[#b8c9db]'
             }`}
           >
             <span>بدون مخزون (منتهية)</span>
-            <span className="bg-black/30 px-1 py-0.2 rounded text-[10px]">{stockCounts.outOfStock}</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
+              stockAvailabilityFilter === 'out_of_stock' ? 'bg-[color:var(--app-accent)]/25 text-[color:var(--app-accent)]' : 'bg-[#f2f6fa] text-[color:var(--app-muted)] border border-[color:var(--app-line)]'
+            }`}>{stockCounts.outOfStock}</span>
           </button>
         </div>
 
         {/* Active Filter Reset Pill if filtered */}
         {(searchTerm || selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل' || selectedPriority !== 'الكل' || selectedStatus !== 'الكل' || stockAvailabilityFilter !== 'all' || sortBy !== 'default') && (
-          <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
+          <div className="flex items-center justify-between pt-3 border-t border-[color:var(--app-line)] text-xs">
             <span className="text-slate-500 text-[11px]">
               النتائج المطابقة: <strong className="text-slate-900 font-black">{filteredProducts.length}</strong> صنف
             </span>
@@ -1225,15 +1238,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
       {/* Confidentiality Reminder Banner */}
       {isConfidentialMode && (
-        <div className="bg-gradient-to-r from-amber-500/20 via-amber-400/15 to-amber-500/20 border-2 border-amber-400 text-slate-950 p-3 sm:p-3.5 rounded-2xl flex items-center justify-between gap-3 shadow-xs">
+        <div className="bg-[#fdf8ed] border border-[#e8dcba] text-slate-950 p-3 sm:p-3.5 rounded-2xl flex items-center justify-between gap-3 shadow-sm">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-xs">
+            <div className="w-8 h-8 rounded-xl bg-[color:var(--app-accent)] text-[#231a05] flex items-center justify-center font-black shrink-0 shadow-xs">
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
               <div className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5">
                 <span>وضع سرية البيانات مفعّل</span>
-                <span className="bg-slate-950 text-amber-300 text-[10px] font-black px-2 py-0.2 rounded-full">محمي</span>
+                <span className="bg-[color:var(--app-navy)] text-white text-[10px] font-black px-2 py-0.2 rounded-full">محمي</span>
               </div>
               <p className="text-[11px] text-slate-700 font-medium">
                 تم حجب أسعار الكراتين والقطع ومديونيات العملاء بنجاح لضمان الخصوصية التامة عند عرض الشاشة أمام العملاء.
@@ -1243,7 +1256,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           <button
             type="button"
             onClick={toggleConfidentialMode}
-            className="text-xs font-black text-slate-950 hover:text-amber-800 bg-white border border-amber-300 px-3 py-1.5 rounded-xl shadow-2xs hover:bg-amber-50 transition cursor-pointer shrink-0"
+            className="text-xs font-black text-slate-900 hover:bg-[#fdf8ed] bg-white border border-[color:var(--app-line)] px-3 py-1.5 rounded-[10px] hover:shadow-sm transition cursor-pointer shrink-0"
           >
             إلغاء السرية وإظهار الأسعار
           </button>
@@ -1258,24 +1271,24 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             /* Smart Slicer Hub: When no filter is active, products and images are hidden until user searches or picks Item Group / Family */
             <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-6" id="smart-slicer-hub">
               {/* Header Banner */}
-              <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-slate-800 shadow-md">
+              <div className="bg-[color:var(--app-navy)] text-white rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-[color:var(--app-ok)] animate-pulse" />
                     <h3 className="text-base sm:text-lg font-black text-white">
                       محطة المبيعات والفلترة الذكية
                     </h3>
                   </div>
-                  <p className="text-xs text-amber-300 font-medium">
+                  <p className="text-xs text-[color:var(--app-accent)] font-medium">
                     اختر المجموعة الرئيسية أو العائلة أو ابحث بكود الصنف لإظهار المنتجات والصور فوراً دون استهلاك باقة الموبايل.
                   </p>
                 </div>
 
                 <button
                   onClick={() => setShowAllExplicitly(true)}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-700 transition cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
+                  className="bg-white hover:bg-[#f4f7fa] text-[color:var(--app-navy)] px-3.5 py-2 rounded-[10px] text-xs font-black border border-[color:var(--app-line)] transition cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
                 >
-                  <Eye className="w-4 h-4 text-amber-400" />
+                  <Eye className="w-4 h-4 text-[#8a6420]" />
                   <span>استعراض كافة الأصناف ({products.length})</span>
                 </button>
               </div>
@@ -1284,7 +1297,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shadow-xs">
+                    <div className="w-7 h-7 rounded-[8px] bg-[color:var(--app-navy)] text-[color:var(--app-accent)] flex items-center justify-center font-black text-xs shadow-xs">
                       1
                     </div>
                     <h4 className="font-black text-slate-900 text-sm sm:text-base">
@@ -1306,14 +1319,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                           setSelectedOfficialDept(group);
                           setSelectedSubCategory('الكل');
                         }}
-                        className="p-3 rounded-2xl border border-slate-200 hover:border-amber-400 bg-slate-50/70 hover:bg-amber-50/60 transition text-right flex flex-col justify-between group cursor-pointer active:scale-98 shadow-2xs"
+                        className="p-3 rounded-[10px] border border-[color:var(--app-line)] bg-white hover:border-[#b8c9db] hover:shadow-[0_6px_18px_rgba(15,40,70,.08)] transition text-right flex flex-col justify-between group cursor-pointer active:scale-[0.98]"
                       >
-                        <div className="font-black text-slate-900 text-xs sm:text-sm group-hover:text-amber-800 transition line-clamp-2">
+                        <div className="font-black text-slate-900 text-xs sm:text-sm line-clamp-2">
                           {group}
                         </div>
-                        <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-400 group-hover:text-amber-700">
+                        <div className="mt-2.5 flex items-center justify-between text-[11px] text-[color:var(--app-muted)] font-bold">
                           <span>عرض الأصناف</span>
-                          <span className="font-black bg-white px-2 py-0.5 rounded-lg border border-slate-200 text-slate-700 group-hover:border-amber-300">
+                          <span className="font-mono font-black bg-[#f2f6fa] px-2 py-0.5 rounded-[6px] border border-[color:var(--app-line)] text-slate-700 group-hover:text-[color:var(--app-navy)] group-hover:border-[#b8c9db]">
                             {count}
                           </span>
                         </div>
@@ -1328,7 +1341,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 <div className="space-y-3 pt-3 border-t border-slate-150">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-xs shadow-xs">
+                      <div className="w-7 h-7 rounded-[8px] bg-[color:var(--app-navy)] text-[color:var(--app-accent)] flex items-center justify-center font-black text-xs shadow-xs">
                         2
                       </div>
                       <h4 className="font-black text-slate-900 text-sm sm:text-base">
@@ -1345,7 +1358,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       <button
                         key={fam}
                         onClick={() => setSelectedSubCategory(fam)}
-                        className="px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-800 hover:text-blue-900 transition cursor-pointer active:scale-95 shadow-2xs"
+                        className="px-3 py-2 rounded-[10px] text-xs font-bold bg-white border border-[color:var(--app-line)] hover:border-[#b8c9db] hover:shadow-sm text-slate-800 hover:text-[color:var(--app-navy)] transition cursor-pointer active:scale-95"
                       >
                         {fam}
                       </button>
@@ -1356,29 +1369,29 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
               {/* Quick Filter Shortcuts */}
               <div className="space-y-2 pt-3 border-t border-slate-150">
-                <div className="text-xs font-black text-slate-700">فلاتر وصول سريعة ومميزة:</div>
+                <div className="text-xs font-black text-slate-900">فلاتر وصول سريعة ومميزة:</div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                   <button
                     onClick={() => setStockAvailabilityFilter('offers')}
-                    className="p-2.5 rounded-xl border border-rose-200 bg-rose-50/60 hover:bg-rose-100/70 text-rose-900 font-black transition cursor-pointer text-center"
+                    className="p-2.5 min-h-[44px] rounded-[10px] border border-[rgba(179,74,74,.25)] bg-white hover:shadow-sm text-[color:var(--app-risk)] font-black transition cursor-pointer text-center"
                   >
                     عروض وتخفيضات ({stockCounts.offers})
                   </button>
                   <button
                     onClick={() => setStockAvailabilityFilter('in_branch')}
-                    className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100/70 text-emerald-900 font-black transition cursor-pointer text-center"
+                    className="p-2.5 min-h-[44px] rounded-[10px] border border-[rgba(46,125,91,.22)] bg-white hover:shadow-sm text-[color:var(--app-ok)] font-black transition cursor-pointer text-center"
                   >
                     متوفر بالفرع ({stockCounts.inBranch})
                   </button>
                   <button
                     onClick={() => setSelectedPriority('عالي')}
-                    className="p-2.5 rounded-xl border border-amber-200 bg-amber-50/60 hover:bg-amber-100/70 text-amber-900 font-black transition cursor-pointer text-center"
+                    className="p-2.5 min-h-[44px] rounded-[10px] border border-[rgba(155,112,39,.25)] bg-white hover:shadow-sm text-[color:var(--app-warn)] font-black transition cursor-pointer text-center"
                   >
                     الأكثر طلباً وتركيزاً
                   </button>
                   <button
                     onClick={() => setStockAvailabilityFilter('in_warehouse')}
-                    className="p-2.5 rounded-xl border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/70 text-indigo-900 font-black transition cursor-pointer text-center"
+                    className="p-2.5 min-h-[44px] rounded-[10px] border border-[color:var(--app-line)] bg-white hover:shadow-sm text-[color:var(--app-navy)] font-black transition cursor-pointer text-center"
                   >
                     متاح بأكتوبر ({stockCounts.inWarehouse})
                   </button>
@@ -1388,21 +1401,21 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           ) : (
             <>
               {/* Active Filter Bar */}
-              <div className="bg-slate-900 text-white p-3 sm:p-3.5 rounded-2xl flex items-center justify-between gap-3 text-xs border border-slate-800 shadow-sm">
+              <div className="bg-[color:var(--app-navy)] text-white p-3 sm:p-3.5 rounded-2xl flex items-center justify-between gap-3 text-xs border border-[#0b2140] shadow-sm">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-[color:var(--app-accent)] shrink-0" />
                   <div className="truncate font-bold text-slate-200">
                     <span>نتائج الفلترة: </span>
-                    <strong className="text-amber-300 font-black">{filteredProducts.length}</strong> صنف
+                    <strong className="text-[color:var(--app-accent)] font-black">{filteredProducts.length}</strong> صنف
                     {searchTerm && <span className="text-slate-400 text-[11px] mr-1.5 font-normal">بحث: &quot;{searchTerm}&quot;</span>}
                     {selectedOfficialDept !== 'الكل' && <span className="text-amber-200 text-[11px] mr-1.5 font-normal">��لمج��وعة: {selectedOfficialDept}</span>}
-                    {selectedSubCategory !== 'الكل' && <span className="text-blue-200 text-[11px] mr-1.5 font-normal">العائلة: {selectedSubCategory}</span>}
+                    {selectedSubCategory !== 'الكل' && <span className="text-slate-300 opacity-80 text-[11px] mr-1.5 font-normal">العائلة: {selectedSubCategory}</span>}
                   </div>
                 </div>
 
                 <button
                   onClick={resetAllFilters}
-                  className="bg-slate-800 hover:bg-rose-950/80 hover:text-rose-300 text-slate-300 px-3 py-1.5 rounded-xl text-[11px] font-black transition cursor-pointer flex items-center gap-1 shrink-0 border border-slate-700 hover:border-rose-700"
+                  className="bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-[10px] text-[11px] font-black transition cursor-pointer flex items-center gap-1 shrink-0 border border-white/20"
                 >
                   <X className="w-3.5 h-3.5" />
                   <span>إلغاء والعودة للمجموعات</span>
@@ -1424,10 +1437,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
       {/* Fresh Upload / Setup Box (Visible ONLY to Admin and Developer) */}
       {isAdminOrDev && isUploadBoxOpen && (
-        <div className="bg-white rounded-3xl p-5 sm:p-6 border-2 border-amber-400 shadow-xl space-y-4 animate-in fade-in">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-[color:var(--app-line)] shadow-md space-y-4 animate-in fade-in">
+          <div className="flex items-center justify-between border-b border-[color:var(--app-line)] pb-3">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black">
+              <div className="w-8 h-8 rounded-xl bg-[#f7f0e1] text-[color:var(--app-warn)] flex items-center justify-center font-black">
                 <Upload className="w-4 h-4" />
               </div>
               <h3 className="font-black text-slate-900 text-base">رفع شيت الأصناف وربط الصور من جديد</h3>
@@ -1441,13 +1454,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           </div>
 
           {uploadError && (
-            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-bold">
+            <div className="p-3 bg-[#fdf5f5] border border-[rgba(179,74,74,.25)] text-[color:var(--app-risk)] text-xs rounded-xl font-bold">
               {uploadError}
             </div>
           )}
 
           {uploadSuccess && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-xl font-bold">
+            <div className="p-3 bg-[#e8f3ee] border border-[rgba(46,125,91,.22)] text-[color:var(--app-ok)] text-xs rounded-xl font-bold">
               {uploadSuccess}
             </div>
           )}
@@ -1455,11 +1468,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Direct Excel File Upload */}
             <div className="p-4 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300 text-center space-y-2">
-              <FileSpreadsheet className="w-8 h-8 text-amber-500 mx-auto" />
+              <FileSpreadsheet className="w-8 h-8 text-[color:var(--app-warn)] mx-auto" />
               <div className="font-black text-slate-800 text-sm">رفع ملف Excel أو CSV من الهاتف/الكمبيوتر</div>
               <p className="text-xs text-slate-500">يدعم كافة أعمدة شيت شركة دريم طنطاوي (كود، اسم، كرتونة، أسعار، صور)</p>
               
-              <label className="inline-block bg-slate-900 hover:bg-slate-800 text-amber-300 font-black px-4 py-2 rounded-xl text-xs cursor-pointer shadow transition mt-2">
+              <label className="inline-block bg-[color:var(--app-navy)] hover:bg-[#0d2340] text-white font-black px-4 py-2 rounded-[10px] text-xs cursor-pointer shadow transition mt-2">
                 <span>{isUploading ? 'جاري الرفع...' : 'اختيار ملف الإكسل'}</span>
                 <input
                   type="file"
@@ -1478,7 +1491,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             {/* Google Sheets Live Link */}
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 text-right">
               <div className="flex items-center gap-2">
-                <Link className="w-4 h-4 text-emerald-600" />
+                <Link className="w-4 h-4 text-[color:var(--app-ok)]" />
                 <span className="font-black text-slate-800 text-sm">ربط مباشر مع Google Sheets</span>
               </div>
               <p className="text-xs text-slate-500">انسخ رابط شيت جوجل درايف والصقه هنا للمزامنة المباشرة</p>
@@ -1489,13 +1502,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   value={googleSheetInput}
                   onChange={(e) => setGoogleSheetInput(e.target.value)}
                   placeholder="https://docs.google.com/spreadsheets/d/..."
-                  className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  className="flex-1 px-3 py-2 bg-white border border-[color:var(--app-line)] rounded-[10px] text-xs"
                 />
                 <button
                   type="button"
                   onClick={handleGoogleSheetSync}
                   disabled={isUploading}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl text-xs transition cursor-pointer disabled:opacity-50"
+                  className="bg-[color:var(--app-ok)] hover:bg-[#256a4c] text-white font-bold px-3 py-2 rounded-[10px] text-xs transition cursor-pointer disabled:opacity-50"
                 >
                   {isUploading ? 'مزامنة...' : 'سحب البيانات'}
                 </button>
@@ -1510,7 +1523,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         <div
           className={
             gridDensity === 'comfortable'
-              ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 2xl:grid-cols-4 gap-3.5 sm:gap-5'
+              ? 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 2xl:grid-cols-4 gap-2.5 sm:gap-4'
               : 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 2xl:grid-cols-4 gap-2 sm:gap-3.5'
           }
         >
@@ -1530,13 +1543,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             return (
               <div
                 key={product.id}
-                className="bg-white rounded-2xl sm:rounded-3xl overflow-hidden border border-slate-200 hover:border-amber-400 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group relative"
+                className="bg-white rounded-2xl overflow-hidden border border-[color:var(--app-line)] shadow-sm hover:shadow-[0_10px_28px_rgba(15,40,70,.12)] hover:border-[#bfcfdb] hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between group relative"
               >
                 {/* Top Image & Floating Badges */}
                 <div
                   className={`relative ${
                     isComfortable ? 'h-44 sm:h-52' : 'h-32 sm:h-40'
-                  } bg-gradient-to-br from-slate-100 via-slate-50 to-amber-50/20 overflow-hidden cursor-pointer flex items-center justify-center border-b border-slate-100`}
+                  } bg-[#f2f6fa] overflow-hidden cursor-pointer flex items-center justify-center border-b border-[#e3ebf3]`}
                   onClick={() => setSelectedProductForModal(product)}
                 >
                   {/* Image with quick lazy/eager loading */}
@@ -1552,27 +1565,27 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
                   {/* Product Code Badge */}
                   <div className="absolute top-2 right-2 z-10">
-                    <div className="bg-slate-950/85 text-amber-300 text-xs font-black px-2 py-0.5 rounded-lg backdrop-blur-sm">
+                    <div className="bg-white/95 text-[#657b93] border border-[color:var(--app-line)] font-mono text-[10px] font-bold px-2 py-0.5 rounded-lg backdrop-blur-sm tracking-wide">
                       {product.code}
                     </div>
                   </div>
 
                   {/* Single Promo/Priority Badge */}
                   {isPromo ? (
-                    <div className="absolute top-2 left-2 bg-rose-600 text-white text-[11px] font-black px-2 py-0.5 rounded-lg flex items-center gap-1">
+                    <div className="absolute top-2 left-2 bg-white/95 text-[color:var(--app-risk)] border border-[rgba(179,74,74,.25)] text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
                       <Flame className="w-3 h-3" />
                       <span>عرض خاص</span>
                     </div>
                   ) : product.salesPriority === 'مرتفع' ? (
-                    <div className="absolute top-2 left-2 bg-amber-400 text-slate-950 text-[11px] font-black px-2 py-0.5 rounded-lg flex items-center gap-1">
-                      <Star className="w-3 h-3 fill-slate-950" />
+                    <div className="absolute top-2 left-2 bg-white/95 text-[#8a6420] border border-[rgba(201,154,67,.4)] text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <Star className="w-3 h-3 fill-[color:var(--app-accent)]" />
                       <span>الأكثر طلباً</span>
                     </div>
                   ) : null}
 
                   {/* Pack Size Pill */}
-                  <div className="absolute bottom-2 right-2 bg-slate-950/85 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-lg backdrop-blur-sm">
-                    الشدة: <strong className="text-amber-300">{product.cartonQuantity || 1} ق</strong>
+                  <div className="absolute bottom-2 right-2 bg-white/95 text-[#657b93] border border-[color:var(--app-line)] text-[10px] font-bold px-2 py-0.5 rounded-lg backdrop-blur-sm">
+                    الشدة: <strong className="text-[#8a6420] font-mono">{product.cartonQuantity || 1} ق</strong>
                   </div>
                 </div>
 
@@ -1587,10 +1600,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         const DeptIcon = deptMeta.icon;
                         return (
                           <span
-                            className="bg-amber-50 text-amber-900 font-bold px-2 py-0.5 rounded-md text-[11px] truncate max-w-[160px] flex items-center gap-1"
+                            className="bg-[#f2f6fa] text-[#657b93] border border-[#e3ebf3] font-bold px-2 py-0.5 rounded-md text-[10px] truncate max-w-[160px] flex items-center gap-1"
                             title={`${deptMeta.nameArabic} - ${product.department || ''}`}
                           >
-                            <DeptIcon className="w-3 h-3 text-amber-700 shrink-0" />
+                            <DeptIcon className="w-3 h-3 text-[color:var(--app-muted)] shrink-0" />
                             <span>{product.department || product.category || 'عام'}</span>
                           </span>
                         );
@@ -1599,7 +1612,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
                     <h3
                       onClick={() => setSelectedProductForModal(product)}
-                      className="font-black text-slate-900 text-sm leading-snug line-clamp-2 hover:text-amber-600 cursor-pointer transition min-h-[36px]"
+                      className="font-black text-slate-900 text-sm leading-snug line-clamp-2 hover:text-[#8a6420] cursor-pointer transition min-h-[36px]"
                       title={product.name}
                     >
                       {product.name}
@@ -1611,22 +1624,22 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     {/* Single-line stock status */}
                     <div className="flex items-center justify-between text-xs">
                       {totalCartonsAvailable <= 0 ? (
-                        <span className="text-rose-600 font-bold flex items-center gap-1">
+                        <span className="text-[color:var(--app-risk)] font-bold flex items-center gap-1">
                           <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                           غير متوفر
                         </span>
                       ) : dynamicBranchStock <= 0 && octoberAvail > 0 ? (
-                        <span className="text-blue-600 font-bold flex items-center gap-1">
+                        <span className="text-[#1e5f9d] font-bold flex items-center gap-1">
                           <Truck className="w-3.5 h-3.5 shrink-0" />
                           أكتوبر: {octoberAvail} ك
                         </span>
                       ) : dynamicBranchStock <= 5 && dynamicBranchStock > 0 ? (
-                        <span className="text-amber-700 font-bold flex items-center gap-1">
+                        <span className="text-[color:var(--app-warn)] font-bold flex items-center gap-1">
                           <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                           محدود: {dynamicBranchStock} ك
                         </span>
                       ) : (
-                        <span className="text-emerald-700 font-bold flex items-center gap-1">
+                        <span className="text-[color:var(--app-ok)] font-bold flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                           متوفر: {dynamicBranchStock} ك
                         </span>
@@ -1639,32 +1652,32 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     </div>
 
                     {/* Pricing — single row */}
-                    <div className="flex items-baseline justify-between bg-slate-50 rounded-xl px-2.5 py-1.5 border border-slate-100">
+                    <div className="flex items-baseline sm:items-center justify-between bg-white rounded-[10px] px-2.5 py-1.5 border border-[color:var(--app-line)]">
                       <div>
-                        <span className="text-[11px] text-slate-500 font-medium block">الكرتونة</span>
-                        <span className="text-sm font-black text-slate-950">
+                        <span className="text-[11px] text-[color:var(--app-muted)] font-bold block">الكرتونة</span>
+                        <span className="text-[color:var(--app-navy)] font-black text-[21px] leading-none tracking-[-.3px] tabular-nums sm:text-sm sm:leading-snug">
                           {isConfidentialMode ? (
-                            <span className="font-mono text-slate-400 text-xs tracking-widest bg-slate-200/60 px-1.5 py-0.5 rounded">••••••</span>
+                            <span className="font-mono text-slate-400 text-xs tracking-widest bg-[#f2f6fa] px-1.5 py-0.5 rounded">••••••</span>
                           ) : (
                             formatCurrency(product.cartonPrice)
                           )}
                         </span>
                       </div>
                       <div className="text-left">
-                        <span className="text-[11px] text-slate-500 font-medium block">القطعة</span>
-                        <span className="text-xs font-black text-slate-700">
+                        <span className="text-[11px] text-[color:var(--app-muted)] font-bold block">القطعة</span>
+                        <span className="text-xs font-extrabold text-slate-700 tabular-nums">
                           {isConfidentialMode ? (
-                            <span className="font-mono text-slate-400 text-xs tracking-widest bg-slate-200/60 px-1.5 py-0.5 rounded">••••••</span>
+                            <span className="font-mono text-slate-400 text-xs tracking-widest bg-[#f2f6fa] px-1.5 py-0.5 rounded">••••••</span>
                           ) : (
                             formatCurrency(product.piecePrice)
                           )}
                         </span>
                       </div>
                       {product.promoPrice ? (
-                        <span className="text-xs font-black text-rose-600 flex items-center gap-0.5">
+                        <span className="text-xs font-black text-[color:var(--app-risk)] tabular-nums flex items-center gap-0.5">
                           <Flame className="w-3 h-3" />
                           {isConfidentialMode ? (
-                            <span className="font-mono text-rose-400 text-xs tracking-widest">•••</span>
+                            <span className="font-mono text-[color:var(--app-risk)] opacity-70 text-xs tracking-widest">•••</span>
                           ) : (
                             formatCurrency(product.promoPrice)
                           )}
@@ -1674,16 +1687,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   </div>
 
                   {/* Order Controls Section: 2 Clean Rows (Relieves crowding and makes Add prominent) */}
-                  <div className="space-y-2 pt-1 border-t border-slate-100">
+                  <div className="space-y-2 pt-1 border-t border-[color:var(--app-line)]">
                     {/* Row 1: Quantity Stepper & Unit Switcher */}
                     <div className="flex items-center justify-between gap-1.5">
                       {/* Stepper with comfortable touch targets */}
-                      <div className="flex items-center bg-slate-100 rounded-xl border border-slate-300 p-0.5 shrink-0">
+                      <div className="flex items-center bg-[#f8fbfe] rounded-[10px] border border-[color:var(--app-line)] p-0.5 shrink-0">
                         <button
                           type="button"
                           disabled={totalCartonsAvailable <= 0 || orderState.quantity <= 1}
                           onClick={() => adjustCardQuantity(product.id, -1)}
-                          className="w-8 h-8 sm:w-8 sm:h-8 flex items-center justify-center text-slate-800 active:bg-slate-200 rounded-lg font-black disabled:opacity-30 cursor-pointer"
+                          className="w-11 h-11 sm:w-8 sm:h-8 flex items-center justify-center text-slate-800 active:bg-[#eef3f9] rounded-[8px] font-black disabled:opacity-30 cursor-pointer hover:text-[color:var(--app-navy)]"
                           title="إنقاص (-1)"
                           aria-label="إنقاص الكمية"
                         >
@@ -1699,7 +1712,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                             const parsed = parseInt(e.target.value, 10);
                             setCardQuantityDirect(product.id, parsed);
                           }}
-                          className="w-10 sm:w-11 h-8 text-center font-black text-xs sm:text-sm text-slate-950 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
+                          className="w-10 sm:w-11 h-11 sm:h-8 text-center font-black text-xs sm:text-sm text-slate-950 bg-white border border-[color:var(--app-line)] rounded-[8px] tabular-nums"
                           aria-label="الكمية المطلوبة"
                         />
 
@@ -1707,7 +1720,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                           type="button"
                           disabled={totalCartonsAvailable <= 0}
                           onClick={() => adjustCardQuantity(product.id, 1)}
-                          className="w-8 h-8 sm:w-8 sm:h-8 flex items-center justify-center text-slate-800 active:bg-slate-200 rounded-lg font-black disabled:opacity-30 cursor-pointer"
+                          className="w-11 h-11 sm:w-8 sm:h-8 flex items-center justify-center text-slate-800 active:bg-[#eef3f9] rounded-[8px] font-black disabled:opacity-30 cursor-pointer hover:text-[color:var(--app-navy)]"
                           title="زيادة (+1)"
                           aria-label="زيادة الكمية"
                         >
@@ -1716,14 +1729,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       </div>
 
                       {/* Unit Switcher: Carton vs Piece */}
-                      <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-300 text-[11px] font-bold flex-1">
+                      <div className="flex items-center bg-[#f8fbfe] p-0.5 rounded-[10px] border border-[color:var(--app-line)] text-[11px] font-bold flex-1">
                         <button
                           type="button"
                           onClick={() => updateCardType(product.id, 'carton')}
-                          className={`flex-1 py-1 sm:py-1.5 rounded-lg transition cursor-pointer text-center ${
+                          className={`flex-1 h-11 sm:h-7 rounded-[8px] transition cursor-pointer text-center ${
                             orderState.type === 'carton'
-                              ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
-                              : 'text-slate-600 hover:text-slate-950'
+                              ? 'bg-[color:var(--app-navy)] text-white font-black shadow-sm'
+                              : 'text-[color:var(--app-muted)] hover:text-slate-900'
                           }`}
                         >
                           كرتونة
@@ -1731,10 +1744,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         <button
                           type="button"
                           onClick={() => updateCardType(product.id, 'piece')}
-                          className={`flex-1 py-1 sm:py-1.5 rounded-lg transition cursor-pointer text-center ${
+                          className={`flex-1 h-11 sm:h-7 rounded-[8px] transition cursor-pointer text-center ${
                             orderState.type === 'piece'
-                              ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
-                              : 'text-slate-600 hover:text-slate-950'
+                              ? 'bg-[color:var(--app-navy)] text-white font-black shadow-sm'
+                              : 'text-[color:var(--app-muted)] hover:text-slate-900'
                           }`}
                         >
                           قطعة
@@ -1747,11 +1760,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       <button
                         type="button"
                         onClick={() => handleQuickAddWithState(product)}
-                        className="w-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 active:scale-[0.98] text-slate-950 font-black h-11 px-3 rounded-xl text-xs sm:text-sm shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        className="w-full bg-[color:var(--app-navy)] hover:bg-[#0d2340] active:scale-[0.98] text-white font-black h-12 sm:h-11 px-3 rounded-[10px] text-xs sm:text-sm shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
                         aria-label={`إضافة ${orderState.quantity} ${orderState.type === 'carton' ? 'كرتونة' : 'قطعة'}`}
                       >
                         <ShoppingCart className="w-4 h-4 stroke-[2.5] shrink-0" />
-                        <span className="font-black text-xs sm:text-sm tracking-wide">
+                        <span className="font-black text-xs sm:text-sm tracking-wide whitespace-nowrap">
                           إضافة للسلة ({orderState.quantity} {orderState.type === 'carton' ? 'كرتونة' : 'قطعة'})
                         </span>
                       </button>
@@ -1759,9 +1772,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       <button
                         type="button"
                         disabled
-                        className="w-full bg-slate-100 border border-slate-200 text-slate-400 font-bold h-11 px-3 rounded-xl text-xs flex items-center justify-center cursor-not-allowed"
+                        className="w-full bg-[#fdf5f5] border border-[rgba(179,74,74,.3)] text-[color:var(--app-risk)] font-black h-11 px-3 rounded-[10px] text-xs flex items-center justify-center cursor-not-allowed"
                       >
-                        <span>غير متوفر بالرصيد حالياً</span>
+                        <span className="flex items-center gap-1.5 whitespace-nowrap">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                          غير متوفر بالرصيد حالياً
+                        </span>
                       </button>
                     )}
                   </div>
@@ -1775,7 +1791,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-right text-xs">
-              <thead className="bg-slate-900 text-slate-200 font-bold">
+              <thead>
                 <tr>
                   <th className="p-3">الكود والصورة</th>
                   <th className="p-3">اسم الصنف والبيان</th>
@@ -1798,7 +1814,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     : (product.mainWarehouseActual || 0);
 
                   return (
-                    <tr key={product.id} className="hover:bg-amber-50/40 transition">
+                    <tr key={product.id} className="transition">
                       <td className="p-2.5">
                         <div className="flex items-center gap-2">
                           <ProductImage
@@ -1806,18 +1822,18 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                             cloudinaryConfig={cloudinaryConfig}
                             targetSize={120}
                             sizeVariant="thumbnail"
-                            containerClassName="w-11 h-11 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200 cursor-pointer"
+                            containerClassName="w-11 h-11 rounded-[8px] bg-[#f2f6fa] overflow-hidden shrink-0 border border-[color:var(--app-line)] cursor-pointer"
                             className="w-full h-full object-cover"
                             showBadgeOnFallback={false}
                             onClick={() => setSelectedProductForModal(product)}
                           />
                           <div className="flex flex-col gap-1 items-start">
-                            <span className="font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-lg text-[11px]">
+                            <span className="font-mono font-bold text-[#657b93] bg-[#f3f6fa] px-2 py-0.5 rounded-[6px] text-[11px] border border-[#e3ebf3]">
                               {product.code}
                             </span>
                             {product.unifiedCode && (
-                              <span className="font-bold text-indigo-900 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded text-[10px] flex items-center gap-0.5" title="الكود الموحد">
-                                <span className="text-indigo-500 font-bold">#</span>
+                              <span className="font-mono font-bold text-[#1e5f9d] bg-white border border-[color:var(--app-line)] px-1.5 py-0.2 rounded text-[10px] flex items-center gap-0.5" title="الكود الموحد">
+                                <span className="text-[#8a6420] font-bold">#</span>
                                 <span>{product.unifiedCode.replace('#', '')}</span>
                               </span>
                             )}
@@ -1825,10 +1841,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         </div>
                       </td>
                       <td className="p-2.5">
-                        <div className="font-black text-slate-900 hover:text-amber-600 cursor-pointer" onClick={() => setSelectedProductForModal(product)}>
+                        <div className="font-black text-slate-900 hover:text-[#8a6420] cursor-pointer" onClick={() => setSelectedProductForModal(product)}>
                           {product.name}
                         </div>
-                        <div className="text-[10px] text-slate-400 flex items-center gap-2">
+                        <div className="text-[10px] text-[#6d7e91] flex items-center gap-2">
                           <span>اللون: {product.color || '---'}</span>
                           <span>الحجم: {product.size || '---'}</span>
                         </div>
@@ -1836,42 +1852,42 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       <td className="p-2.5 font-bold text-slate-600">{product.department || product.category}</td>
                       <td className="p-2.5 text-center font-black text-slate-800">{product.cartonQuantity} قطعة</td>
                       <td className="p-2.5 text-center">
-                        <span className={branchCartons > 0 ? (branchCartons <= 5 ? 'text-amber-900 font-black' : 'text-emerald-700 font-black') : 'text-red-600 font-bold'}>
+                        <span className={branchCartons > 0 ? (branchCartons <= 5 ? 'text-[color:var(--app-warn)] font-black' : 'text-[color:var(--app-ok)] font-black') : 'text-[color:var(--app-risk)] font-bold'}>
                           {branchCartons} كرتونة
                         </span>
                         <div className="text-[10px] mt-0.5">
                           {branchCartons <= 0 ? (
-                            <span className="text-rose-600 font-black">نفد (0 متاح)</span>
+                            <span className="text-[color:var(--app-risk)] font-black">نفد (0 متاح)</span>
                           ) : branchCartons <= 5 ? (
-                            <span className="text-amber-950 bg-amber-200 border border-amber-400 font-black px-1.5 py-0.5 rounded text-[9px] inline-block shadow-2xs">
+                            <span className="text-[color:var(--app-warn)] bg-[#f7f0e1] border border-[rgba(155,112,39,.25)] font-black px-1.5 py-0.5 rounded-full text-[9px] inline-block">
                               مخزون حرج ({branchCartons} ك)
                             </span>
                           ) : branchCartons <= 10 ? (
-                            <span className="text-amber-800 bg-amber-50 border border-amber-200 font-bold px-1.5 py-0.5 rounded text-[9px] inline-block">
+                            <span className="text-[color:var(--app-warn)] bg-[#fdf8ed] border border-[#e8dcba] font-bold px-1.5 py-0.5 rounded-full text-[9px] inline-block">
                               محدود ({branchCartons} ك)
                             </span>
                           ) : (
-                            <span className="text-emerald-700 font-bold">متاح: {branchCartons} ك</span>
+                            <span className="text-[color:var(--app-ok)] font-bold">متاح: {branchCartons} ك</span>
                           )}
                         </div>
                       </td>
                       <td className="p-2.5 text-center">
-                        <span className="text-amber-800 font-black">{mainWhCartons} كرتونة</span>
+                        <span className="text-[color:var(--app-navy)] font-black">{mainWhCartons} كرتونة</span>
                       </td>
-                      <td className="p-2.5 text-left font-black text-amber-950 text-sm">
+                      <td className="p-2.5 text-left font-extrabold text-slate-900 text-sm tabular-nums">
                         {isConfidentialMode ? (
-                          <span className="font-mono text-slate-400 text-xs tracking-widest bg-slate-200/60 px-1.5 py-0.5 rounded">••••••</span>
+                          <span className="font-mono text-slate-400 text-xs tracking-widest bg-[#f2f6fa] px-1.5 py-0.5 rounded">••••••</span>
                         ) : (
                           formatCurrency(product.cartonPrice)
                         )}
                       </td>
                       <td className="p-2.5 text-center">
                         {isConfidentialMode ? (
-                          <span className="font-mono text-slate-400 text-xs tracking-widest bg-slate-200/60 px-1.5 py-0.5 rounded">••••••</span>
+                          <span className="font-mono text-slate-400 text-xs tracking-widest bg-[#f2f6fa] px-1.5 py-0.5 rounded">••••••</span>
                         ) : product.promoPrice ? (
-                          <div className="inline-flex flex-col items-center bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-lg">
-                            <span className="text-rose-700 font-black text-xs">{formatCurrency(product.promoPrice)}</span>
-                            <span className="text-[9px] text-rose-500 font-bold">
+                          <div className="inline-flex flex-col items-center bg-[#fdf5f5] border border-[rgba(179,74,74,.25)] px-2 py-0.5 rounded-[8px]">
+                            <span className="text-[color:var(--app-risk)] font-black text-xs tabular-nums">{formatCurrency(product.promoPrice)}</span>
+                            <span className="text-[9px] text-[color:var(--app-risk)] opacity-80 font-bold">
                               ({formatCurrency(product.promoPiecePrice || (product.cartonQuantity ? product.promoPrice / product.cartonQuantity : product.promoPrice))} ق)
                             </span>
                           </div>
@@ -1884,13 +1900,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               onClick={() => handleDirectAdd(product, 'carton', 1)}
-                              className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs transition cursor-pointer shadow-xs whitespace-nowrap"
+                              className="bg-[color:var(--app-navy)] hover:bg-[#0d2340] text-white font-black px-3 py-1.5 rounded-[10px] text-xs transition cursor-pointer shadow-sm whitespace-nowrap min-h-[38px]"
                             >
                               +1 كرتونة
                             </button>
                           </div>
                         ) : (
-                          <div className="text-center text-rose-600 font-bold text-[11px] bg-rose-50 px-2 py-1 rounded-lg border border-rose-200">
+                          <div className="text-center text-[color:var(--app-risk)] font-bold text-[11px] bg-[#fdf5f5] px-2 py-1 rounded-[8px] border border-[rgba(179,74,74,.25)]">
                             نفد المخزون
                           </div>
                         )}
@@ -1929,10 +1945,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       setItemsPerPage(size as any);
                       setCurrentPage(1);
                     }}
-                    className={`px-2 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                    className={`px-2 py-1 rounded-[8px] text-xs font-black transition cursor-pointer ${
                       itemsPerPage === size
-                        ? 'bg-amber-400 text-slate-950 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-950 hover:bg-slate-200/60'
+                        ? 'bg-[color:var(--app-navy)] text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-[#eef3f9]'
                     }`}
                   >
                     {size === 'all' ? 'الكل' : size}
@@ -1976,10 +1992,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                           setCurrentPage(p);
                           window.scrollTo({ top: 180, behavior: 'smooth' });
                         }}
-                        className={`min-w-[34px] h-[34px] rounded-xl text-xs font-black transition cursor-pointer flex items-center justify-center ${
+                        className={`min-w-[36px] h-[36px] rounded-[10px] text-xs font-black transition cursor-pointer flex items-center justify-center ${
                           currentPage === p
-                            ? 'bg-slate-950 text-amber-400 shadow-md scale-105'
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                            ? 'bg-[color:var(--app-navy)] text-white shadow-sm'
+                            : 'bg-white border border-[color:var(--app-line)] hover:bg-[#f4f7fa] hover:border-[#b8c9db] text-slate-700'
                         }`}
                       >
                         {p}
@@ -2008,7 +2024,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* Empty State with Fast Setup Assistant */}
       {filteredProducts.length === 0 && (
         <div className="bg-white rounded-3xl p-8 sm:p-12 text-center border border-slate-200 shadow-sm space-y-4 max-w-xl mx-auto">
-          <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
+          <div className="w-16 h-16 bg-[#f2f6fa] text-[#9aabbf] rounded-2xl flex items-center justify-center mx-auto shadow-inner">
             <Package className="w-8 h-8" />
           </div>
           
@@ -2027,7 +2043,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               isAdminOrDev ? (
                 <button
                   onClick={() => setIsUploadBoxOpen(true)}
-                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 px-5 py-2.5 rounded-2xl text-xs font-black shadow-md transition flex items-center gap-2 cursor-pointer"
+                  className="bg-[color:var(--app-navy)] hover:bg-[#0d2340] text-white px-5 py-2.5 rounded-[10px] text-xs font-black shadow-sm transition flex items-center gap-2 cursor-pointer"
                 >
                   <Upload className="w-4 h-4" />
                   <span>رفع شيت الأصناف الآن</span>
@@ -2046,7 +2062,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   setStockAvailabilityFilter('all');
                   setSortBy('default');
                 }}
-                className="bg-slate-900 text-amber-300 px-5 py-2.5 rounded-2xl text-xs font-bold shadow hover:bg-slate-800 cursor-pointer"
+                className="bg-[color:var(--app-navy)] text-white px-5 py-2.5 rounded-[10px] text-xs font-bold shadow hover:bg-[#0d2340] cursor-pointer"
               >
                 إعادة تعيين البحث
               </button>
@@ -2071,30 +2087,40 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
       </div>
 
-      {/* Mobile Floating Cashier Trigger Bar */}
+      {/* Sticky Mobile Bottom Cart Bar: سلة — N | المجموع X ج | إتمام الطلب (sits above the app's mobile nav) */}
       {(cart.length > 0 || selectedCustomer) && (
-        <div className="fixed bottom-16 left-3 right-3 z-40 lg:hidden animate-in slide-in-from-bottom">
-          <div className="bg-white text-slate-900 p-2.5 sm:p-3 rounded-2xl shadow-xl border border-amber-200 flex items-center justify-between">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0">
-                <ShoppingCart className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-[11px] text-slate-500 font-bold truncate">
-                  {selectedCustomer ? `العميل: ${selectedCustomer.name}` : 'فاتورة الكاشير الحالية'}
-                </div>
-                <div className="text-xs font-black text-amber-700 truncate">
-                  {cart.length > 0
-                    ? `${cart.length} أصناف • ${cartSummary.totalCartons} ك • ${formatCurrency(cartSummary.grandTotal)}`
-                    : selectedCustomer ? 'الموقف المالي جاهز - ابدأ إضافة الأصناف' : 'السلة فارغة'}
-                </div>
-              </div>
-            </div>
+        <div className="fixed bottom-[calc(62px+env(safe-area-inset-bottom)+0.5rem)] left-3 right-3 z-[45] lg:hidden animate-in slide-in-from-bottom">
+          <div className="bg-[#0b2140] text-white p-2 rounded-2xl shadow-[0_10px_30px_rgba(11,33,64,.4)] ring-1 ring-[rgba(201,154,67,.25)] flex items-center justify-between gap-2">
             <button
+              type="button"
               onClick={() => setIsMobileCashierOpen(true)}
-              className="bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 active:scale-95 shrink-0 cursor-pointer"
+              className="flex-1 min-w-0 flex items-center gap-2.5 bg-white/[0.07] border border-white/[0.13] rounded-xl h-12 px-2.5 text-right transition active:bg-white/[0.13] cursor-pointer"
+              aria-label="فتح سلة الطلب"
             >
-              <span>فاتورة الكاشير</span>
+              <span className="relative w-9 h-9 rounded-[10px] bg-[color:var(--app-accent)]/20 text-[color:var(--app-accent)] flex items-center justify-center font-black shrink-0">
+                <ShoppingCart className="w-[18px] h-[18px]" />
+                {cart.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[17px] h-[17px] rounded-full bg-[color:var(--app-accent)] text-[#231a05] text-[9.5px] font-black flex items-center justify-center px-1 shadow-[0_0_0_2px_#0b2140] tabular-nums">
+                    {cart.length}
+                  </span>
+                )}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-black leading-tight text-white truncate">
+                  {selectedCustomer ? selectedCustomer.name : 'سلة الطلب'}
+                </span>
+                <span className="block text-[10px] font-bold text-[#87a0bd] truncate">
+                  سلة — <span className="tabular-nums">{cart.length}</span> | المجموع {formatCurrency(cartSummary.grandTotal)} ج
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={onOpenCart || (() => setIsMobileCashierOpen(true))}
+              disabled={cart.length === 0}
+              className="shrink-0 flex items-center justify-center gap-1.5 h-12 rounded-xl px-3.5 bg-[color:var(--app-accent)] text-[#231a05] text-[13px] font-black transition active:scale-95 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+            >
+              <span>إتمام الطلب</span>
             </button>
           </div>
         </div>
@@ -2103,7 +2129,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* Mobile Slide-Up Cashier Modal */}
       {isMobileCashierOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex flex-col justify-end lg:hidden animate-in fade-in">
-          <div className="bg-white rounded-t-3xl h-[92vh] max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border-t-2 border-amber-400">
+          <div className="bg-white rounded-t-3xl h-[92vh] max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border-t-2 border-[color:var(--app-accent)]">
             <PosCashierSidebar
               selectedCustomer={selectedCustomer}
               onClearSelectedCustomer={onClearSelectedCustomer}
@@ -2163,7 +2189,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 type="button"
                 onClick={handleConfirmWipe}
                 disabled={isWiping}
-                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 rounded-2xl text-xs shadow-md transition cursor-pointer disabled:opacity-50"
+                className="flex-1 bg-[color:var(--app-risk)] hover:bg-[#953f3f] text-white font-black py-2.5 rounded-[10px] text-xs shadow-md transition cursor-pointer disabled:opacity-50"
               >
                 {isWiping ? 'جاري المسح...' : 'نعم، تصفير والبدء من جديد'}
               </button>
@@ -2180,12 +2206,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center flex-wrap gap-2">
-                <span className="bg-slate-950 text-amber-300 font-black text-xs px-2.5 py-1 rounded-xl">
+                <span className="bg-[color:var(--app-navy)] text-white font-mono font-black text-xs px-2.5 py-1 rounded-[10px]">
                   {selectedProductForModal.code}
                 </span>
                 {selectedProductForModal.unifiedCode && (
-                  <span className="bg-indigo-950 text-indigo-200 font-mono font-black text-xs px-2.5 py-1 rounded-xl border border-indigo-700 flex items-center gap-1">
-                    <span className="text-amber-400 font-bold">#</span>
+                  <span className="bg-[#e8f1fa] text-[#1e5f9d] font-mono font-black text-xs px-2.5 py-1 rounded-[10px] border border-[#cfe0f0] flex items-center gap-1">
+                    <span className="text-[#8a6420] font-bold">#</span>
                     <span>الكود الموحد: {selectedProductForModal.unifiedCode.replace('#', '')}</span>
                   </span>
                 )}
@@ -2193,8 +2219,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   const deptMeta = getDepartmentMeta(selectedProductForModal.department || selectedProductForModal.category);
                   const DeptIcon = deptMeta.icon;
                   return (
-                    <span className="text-xs font-bold text-slate-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg flex items-center gap-1.5">
-                      <DeptIcon className="w-3.5 h-3.5 text-amber-700" />
+                    <span className="text-xs font-bold text-slate-700 bg-[#f2f6fa] border border-[#e3ebf3] px-2 py-0.5 rounded-lg flex items-center gap-1.5">
+                      <DeptIcon className="w-3.5 h-3.5 text-[color:var(--app-muted)]" />
                       <span>{deptMeta.nameArabic} ({selectedProductForModal.department || 'عام'})</span>
                     </span>
                   );
@@ -2233,7 +2259,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   )}
                 </div>
                 <div className="text-[11px] text-slate-500 text-center">
-                  معرّف الصورة: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-amber-800 font-bold">{selectedProductForModal.cloudinaryPublicId || selectedProductForModal.code}</code>
+                  معرّف الصورة: <code className="bg-[#f2f6fa] px-1.5 py-0.5 rounded text-[#8a6420] font-mono font-bold">{selectedProductForModal.cloudinaryPublicId || selectedProductForModal.code}</code>
                 </div>
               </div>
 
@@ -2249,21 +2275,21 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   
                   {/* Code & Unified Code Identification */}
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    <span className="bg-slate-900 text-amber-300 font-mono font-black text-xs px-2.5 py-1 rounded-lg">
+                    <span className="bg-[color:var(--app-navy)] text-[color:var(--app-accent)] font-mono font-black text-xs px-2.5 py-1 rounded-[10px]">
                       كود الصنف: {selectedProductForModal.code}
                     </span>
                     {selectedProductForModal.unifiedCode ? (
-                      <span className="bg-indigo-950 text-indigo-200 font-mono font-black text-xs px-2.5 py-1 rounded-lg border border-indigo-700/80 flex items-center gap-1">
-                        <span className="text-amber-400 font-bold">#</span>
+                      <span className="bg-[#e8f1fa] text-[#1e5f9d] font-mono font-black text-xs px-2.5 py-1 rounded-[10px] border border-[#cfe0f0] flex items-center gap-1">
+                        <span className="text-[#8a6420] font-bold">#</span>
                         <span>الكود الموحد ل��موديل: {selectedProductForModal.unifiedCode.replace('#', '')}</span>
                       </span>
                     ) : (
-                      <span className="bg-slate-100 text-slate-600 font-bold text-xs px-2 py-0.5 rounded-lg border border-slate-200">
+                      <span className="bg-[#f2f6fa] text-slate-600 font-bold text-xs px-2 py-0.5 rounded-lg border border-[color:var(--app-line)]">
                         # بدون كود موحد
                       </span>
                     )}
                     {selectedProductForModal.color && (
-                      <span className="bg-indigo-50 text-indigo-900 border border-indigo-200 font-black text-xs px-2 py-0.5 rounded-lg">
+                      <span className="bg-[#e8f1fa] text-[#1e5f9d] border border-[#cfe0f0] font-black text-xs px-2 py-0.5 rounded-lg">
                         اللون: {selectedProductForModal.color}
                       </span>
                     )}
@@ -2280,12 +2306,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     );
                     if (siblings.length === 0) return null;
                     return (
-                      <div className="mt-3 bg-indigo-50/80 border border-indigo-200 rounded-2xl p-2.5 space-y-2">
-                        <div className="flex items-center justify-between text-xs font-black text-indigo-950">
+                      <div className="mt-3 bg-[#e8f1fa]/70 border border-[#cfe0f0] rounded-2xl p-2.5 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-black text-[#1e5f9d]">
                           <span className="flex items-center gap-1">
                             <span>الألوان والموديلات لنفس الكود الموحد (#{normCode}):</span>
                           </span>
-                          <span className="text-[10px] bg-indigo-200 text-indigo-900 font-black px-2 py-0.5 rounded-md">
+                          <span className="text-[10px] bg-[color:var(--app-navy)] text-white font-black px-2 py-0.5 rounded-md tabular-nums">
                             {siblings.length} بدائل ألوان
                           </span>
                         </div>
@@ -2294,7 +2320,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                             <div
                               key={sib.id}
                               onClick={() => setSelectedProductForModal(sib)}
-                              className="flex items-center gap-2 p-1.5 bg-white border border-indigo-100 rounded-xl hover:border-indigo-400 hover:shadow-xs cursor-pointer transition text-[11px]"
+                              className="flex items-center gap-2 p-1.5 bg-white border border-[#cfe0f0] rounded-[10px] hover:border-[#1e5f9d] hover:shadow-xs cursor-pointer transition text-[11px]"
                               title={`عرض صنف: ${sib.name} (${sib.color || 'بدون لون'})`}
                             >
                               <ProductImage
@@ -2306,7 +2332,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                               />
                               <div className="truncate flex-1">
                                 <div className="font-black text-slate-900 truncate">{sib.color || sib.name}</div>
-                                <div className="text-[10px] text-indigo-700 font-mono font-bold flex items-center gap-1">
+                                <div className="text-[10px] text-[#1e5f9d] font-mono font-bold flex items-center gap-1">
                                   <span>{sib.code}</span>
                                 </div>
                               </div>
@@ -2332,29 +2358,29 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2.5">
                       <div className="flex items-center justify-between">
                         <div className="font-bold text-slate-900 text-xs">مستويات المخزون بالكراتين ({activeBranchLabel}):</div>
-                        <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-md">
+                        <span className="text-[10px] bg-[#f7f0e1] text-[color:var(--app-warn)] font-bold px-2 py-0.5 rounded-md">
                           أكتوبر: المخزن الرئيسي
                         </span>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-white p-2.5 rounded-xl border border-slate-100">
+                        <div className="bg-white p-2.5 rounded-xl border border-[color:var(--app-line)]">
                           <div className="text-[10px] text-slate-400">رصيد {activeBranchLabel}:</div>
-                          <div className={`font-black text-sm ${branchStock <= 5 && branchStock > 0 ? 'text-amber-900' : 'text-emerald-700'}`}>
+                          <div className={`font-black text-sm ${branchStock <= 5 && branchStock > 0 ? 'text-[color:var(--app-warn)]' : 'text-[color:var(--app-ok)]'}`}>
                             {branchStock} كرتونة
                           </div>
                           <div className="text-[10px] text-slate-500 font-bold">
                             {branchStock <= 0 ? (
-                              <span className="text-rose-600 font-black">نفد بالفرع</span>
+                              <span className="text-[color:var(--app-risk)] font-black">نفد بالفرع</span>
                             ) : branchStock <= 5 ? (
-                              <span className="text-amber-800 font-black">مخزون حرج (متاح {branchStock} ك)</span>
+                              <span className="text-[color:var(--app-warn)] font-black">مخزون حرج (متاح {branchStock} ك)</span>
                             ) : (
                               <span>متاح للطلب: {branchReserved} كرتونة</span>
                             )}
                           </div>
                         </div>
-                        <div className="bg-white p-2.5 rounded-xl border border-slate-100">
+                        <div className="bg-white p-2.5 rounded-xl border border-[color:var(--app-line)]">
                           <div className="text-[10px] text-slate-400">المخزن المركزي بأكتوبر:</div>
-                          <div className="font-black text-sm text-amber-800">
+                          <div className="font-black text-sm text-[color:var(--app-navy)]">
                             {octoberStock} كرتونة
                           </div>
                           <div className="text-[10px] text-slate-500 font-bold">
@@ -2378,9 +2404,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                                   key={b.id}
                                   className={`p-1.5 rounded-lg border ${
                                     isOctober
-                                      ? 'bg-amber-50/80 border-amber-200 text-amber-950 font-black'
+                                      ? 'bg-[#f7f0e1] border-[#e6d9b8] text-[color:var(--app-warn)] font-black'
                                       : bStock > 0
-                                      ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950'
+                                      ? 'bg-[#e8f3ee] border-[rgba(46,125,91,.22)] text-[color:var(--app-ok)]'
                                       : 'bg-white border-slate-200 text-slate-500'
                                   }`}
                                 >
@@ -2401,13 +2427,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 })()}
 
                 {/* Pricing Box (Carton Price Only) */}
-                <div className="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 space-y-2">
+                <div className="bg-[#fdf8ed] p-3.5 rounded-2xl border border-[#e8dcba] space-y-2">
                   <div className="flex items-baseline justify-between">
                     <div>
-                      <div className="text-xs text-amber-950 font-black">سعر الكرتونة بالجملة (المعتمد):</div>
-                      <div className="text-xl font-black text-amber-950">
+                      <div className="text-xs text-slate-700 font-black">سعر الكرتونة بالجملة (المعتمد):</div>
+                      <div className="text-xl font-black text-[#8a6420] tabular-nums">
                         {isConfidentialMode ? (
-                              <span className="font-mono text-slate-400 text-sm tracking-widest bg-amber-100 px-2.5 py-1 rounded-xl">•••••• ج.م (محمي)</span>
+                              <span className="font-mono text-slate-400 text-sm tracking-widest bg-white px-2.5 py-1 rounded-[10px]">•••••• ج.م (محمي)</span>
                         ) : (
                           formatCurrency(selectedProductForModal.cartonPrice)
                         )}
@@ -2415,7 +2441,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     </div>
                     <div className="text-left">
                       <div className="text-[10px] text-slate-500 font-bold">شدة الكرتونة:</div>
-                      <div className="text-xs font-black bg-amber-200/80 text-amber-950 px-2 py-0.5 rounded-lg">
+                      <div className="text-xs font-black bg-white text-[color:var(--app-navy)] border border-[color:var(--app-line)] px-2 py-0.5 rounded-lg tabular-nums">
                         {selectedProductForModal.cartonQuantity} قطعة
                       </div>
                     </div>
@@ -2446,19 +2472,19 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       return (
                         <div className="space-y-2">
                           {isCriticalStock && (
-                            <div className="bg-amber-100 text-amber-950 border border-amber-300 p-2.5 rounded-xl text-xs font-black flex items-center gap-2">
-                              <AlertTriangle className="w-4 h-4 text-amber-800 shrink-0" />
+                            <div className="bg-[#f7f0e1] text-[color:var(--app-warn)] border border-[#e6d9b8] p-2.5 rounded-xl text-xs font-black flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 text-[color:var(--app-warn)] shrink-0" />
                               <span><strong>هامش الأمان:</strong> رصيد الصنف حرج ({branchAvail} كرتونة فقط متبقية بالفرع) - يُرجى التأكد من مسؤولي الفرع قبل تأكيد البيع.</span>
                             </div>
                           )}
                           {isFromOctober && (
-                            <div className="bg-blue-50 text-blue-900 border border-blue-200 p-2 rounded-xl text-[11px] font-bold flex items-center gap-1.5">
-                              <Truck className="w-4 h-4 text-blue-600 shrink-0" />
+                            <div className="bg-[#e8f1fa] text-[#1e5f9d] border border-[#cfe0f0] p-2 rounded-xl text-[11px] font-bold flex items-center gap-1.5">
+                              <Truck className="w-4 h-4 text-[#1e5f9d] shrink-0" />
                               <span>الصنف غير متوفر بالفرع وسيتم سحبه وتحويله من مخزن أكتوبر المركزي مباشرة.</span>
                             </div>
                           )}
                           <div className="flex items-center gap-2">
-                            <div className="flex items-center bg-slate-100 rounded-2xl border border-slate-300 p-1 shrink-0">
+                            <div className="flex items-center bg-[#f8fbfe] rounded-[10px] border border-[color:var(--app-line)] p-1 shrink-0">
                               <button
                                 type="button"
                                 onClick={() => adjustCardQuantity(selectedProductForModal.id, -1)}
@@ -2475,7 +2501,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                                 onChange={(e) => {
                                   setCardQuantityDirect(selectedProductForModal.id, parseInt(e.target.value, 10), totalAvail);
                                 }}
-                                className="w-14 text-center font-black text-sm text-slate-900 bg-white border border-slate-200 rounded-lg h-8 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                                className="w-14 text-center font-black text-sm text-slate-900 bg-white border border-[color:var(--app-line)] rounded-lg h-8"
                               />
                               <button
                                 type="button"
@@ -2493,10 +2519,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                                 handleDirectAdd(selectedProductForModal, 'carton', count);
                                 setSelectedProductForModal(null);
                               }}
-                              className={`flex-1 font-black py-3 px-3 rounded-2xl shadow-md text-xs transition cursor-pointer flex items-center justify-center gap-2 ${
+                              className={`flex-1 font-black py-3 px-3 rounded-[10px] shadow-md text-xs transition cursor-pointer flex items-center justify-center gap-2 ${
                                 isFromOctober
-                                  ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                                  : 'bg-amber-400 hover:bg-amber-300 text-slate-950'
+                                  ? 'bg-[#1e5f9d] hover:bg-[#184f84] text-white'
+                                  : 'bg-[color:var(--app-navy)] hover:bg-[#0d2340] text-white'
                               }`}
                             >
                               <ShoppingCart className="w-4 h-4" />
@@ -2514,7 +2540,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     return (
                       <button
                         disabled
-                        className="w-full bg-slate-100 border border-slate-300 text-slate-500 font-bold py-3 rounded-2xl text-xs cursor-not-allowed opacity-80"
+                        className="w-full bg-[#fdf5f5] border border-[rgba(179,74,74,.3)] text-[color:var(--app-risk)] font-bold py-3 rounded-[10px] text-xs cursor-not-allowed"
                       >
                         الصنف غير متاح للطلب (بدون مخزون بالفرع أو بأكتوبر)
                       </button>

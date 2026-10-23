@@ -242,7 +242,7 @@ function onEdit(e) {
   if (!isAdminOrDev) {
     return (
       <div className="bg-white rounded-3xl p-8 border border-slate-200 text-center space-y-3 my-6 shadow-sm">
-        <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+        <div className="w-14 h-14 rounded-2xl tint-risk flex items-center justify-center mx-auto">
           <ShieldAlert className="w-8 h-8" />
         </div>
         <h3 className="text-lg font-black text-slate-900">غير مصرح لك بالدخول</h3>
@@ -258,7 +258,7 @@ function onEdit(e) {
       
       {/* Success Notification */}
       {importSuccessMsg && (
-        <div className="bg-emerald-600 text-white p-4 rounded-2xl shadow-xl flex items-center justify-between text-xs sm:text-sm animate-in fade-in">
+        <div className="bg-[#2e7d5b] text-white p-4 rounded-2xl shadow-xl flex items-center justify-between text-xs sm:text-sm animate-in fade-in">
           <div className="flex items-center gap-2 font-bold">
             <CheckCircle2 className="w-5 h-5 shrink-0" />
             <span>{importSuccessMsg}</span>
@@ -273,7 +273,7 @@ function onEdit(e) {
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black">
+            <div className="w-12 h-12 rounded-2xl tint-navy flex items-center justify-center font-black">
               <FileSpreadsheet className="w-6 h-6" />
             </div>
             <div>
@@ -287,25 +287,25 @@ function onEdit(e) {
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => setIsWipeModalOpen(true)}
-              className="flex items-center gap-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 font-black px-3.5 py-2 rounded-xl text-xs border border-rose-300 transition cursor-pointer"
+              className="app-btn app-btn-risk-soft px-3.5 py-2 text-xs cursor-pointer"
               title="مسح وتصفير كافة الأصناف للرفع من جديد"
             >
-              <Trash2 className="w-4 h-4 text-rose-600" />
+              <Trash2 className="w-4 h-4" />
               <span>تصفير ومسح الكل</span>
             </button>
 
             <button
               onClick={generateSampleExcelTemplate}
-              className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3.5 py-2 rounded-xl text-xs border border-slate-300 transition"
+              className="app-btn app-btn-ghost px-3.5 py-2 text-xs"
               title="تحميل نموذج شيت إكسل جاهز"
             >
-              <Download className="w-4 h-4 text-slate-600" />
+              <Download className="w-4 h-4" />
               <span>تحميل نموذج إكسل معتمد</span>
             </button>
 
             <button
               onClick={() => exportProductsToExcel(products, selectedBranchFilter)}
-              className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-xs transition"
+              className="app-btn app-btn-primary px-3.5 py-2 text-xs shadow-xs"
             >
               <FileSpreadsheet className="w-4 h-4" />
               <span>تصدير المخزون الحالي ({products.length})</span>
@@ -319,20 +319,20 @@ function onEdit(e) {
             onClick={() => setActiveSubTab('google_sheets')}
             className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
               activeSubTab === 'google_sheets'
-                ? 'border-emerald-600 text-emerald-700'
+                ? 'border-amber-400 text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-900'
             }`}
           >
             <Globe className="w-4 h-4" />
             <span>ربط المنتجات مع Google Sheets</span>
-            <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded-full font-bold">مباشر Live</span>
+            <span className="app-badge ok text-[10px]">مباشر Live</span>
           </button>
 
           <button
             onClick={() => setActiveSubTab('excel_file')}
             className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
               activeSubTab === 'excel_file'
-                ? 'border-emerald-600 text-emerald-700'
+                ? 'border-amber-400 text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-900'
             }`}
           >
@@ -344,39 +344,39 @@ function onEdit(e) {
             onClick={() => setActiveSubTab('customers')}
             className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
               activeSubTab === 'customers'
-                ? 'border-emerald-600 text-emerald-700'
+                ? 'border-amber-400 text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-900'
             }`}
           >
             <Users className="w-4 h-4 text-amber-600" />
             <span>قاعدة بيانات العملاء (شيتات وإكسل)</span>
-            <span className="bg-amber-100 text-amber-900 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{customers.length} عميل</span>
+            <span className="app-badge warn text-[10px]">{customers.length} عميل</span>
           </button>
 
           <button
             onClick={() => setActiveSubTab('drive_scanner')}
             className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
               activeSubTab === 'drive_scanner'
-                ? 'border-emerald-600 text-emerald-700'
+                ? 'border-amber-400 text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-900'
             }`}
           >
-            <FolderOpen className="w-4 h-4 text-blue-500" />
+            <FolderOpen className="w-4 h-4 t-navy" />
             <span>ماسح مجلدات Google Drive</span>
-            <span className="bg-blue-100 text-blue-900 text-[10px] px-1.5 py-0.5 rounded-full font-bold">Apps Script</span>
+            <span className="app-badge neutral text-[10px]">Apps Script</span>
           </button>
 
           <button
             onClick={() => setActiveSubTab('published_sources')}
             className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
               activeSubTab === 'published_sources'
-                ? 'border-emerald-600 text-emerald-700'
+                ? 'border-amber-400 text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-900'
             }`}
           >
-            <Globe className="w-4 h-4 text-emerald-600" />
+            <Globe className="w-4 h-4 t-ok" />
             <span>شيتات Google Sheets المباشرة</span>
-            <span className="bg-emerald-100 text-emerald-900 text-[10px] px-1.5 py-0.5 rounded-full font-bold">Cloud Live</span>
+            <span className="app-badge ok text-[10px]">Cloud Live</span>
           </button>
         </div>
       </div>
@@ -384,10 +384,10 @@ function onEdit(e) {
       {/* SUB-TAB 1: Google Sheets Live Sync */}
       {activeSubTab === 'google_sheets' && (
         <div className="space-y-6">
-          <div className="bg-gradient-to-br from-emerald-950 via-slate-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-800/40 space-y-6">
+          <div className="navy-panel text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-[#23496f] space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <div className="inline-flex items-center gap-2 bg-emerald-500/20 text-emerald-300 text-xs font-black px-3 py-1 rounded-full border border-emerald-500/30 mb-2">
+                <div className="badge-brass-dark inline-flex items-center gap-2 text-xs font-black px-3 py-1 mb-2">
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>المزامنة السحابية المباشرة مع Google Sheets</span>
                 </div>
@@ -400,15 +400,15 @@ function onEdit(e) {
                 </p>
               </div>
 
-              <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700 text-center min-w-[200px]">
+              <div className="bg-white/[0.06] p-4 rounded-2xl border border-white/15 text-center min-w-[200px]">
                 <div className="text-xs text-slate-400 font-medium">الأصناف المحدثة حالياً</div>
-                <div className="text-3xl font-black text-amber-400 mt-0.5">{products.length}</div>
+                <div className="text-3xl dream-amt t-brass mt-0.5">{products.length}</div>
                 <div className="text-[10px] text-emerald-400 mt-1">جاهزة ومربوطة بـ Cloudinary</div>
               </div>
             </div>
 
             {/* Google Sheets URL Input Form */}
-            <div className="bg-slate-800/90 p-4 sm:p-5 rounded-2xl border border-slate-700 space-y-4">
+            <div className="bg-white/[0.04] p-4 sm:p-5 rounded-2xl border border-white/10 space-y-4">
               <label className="block text-xs font-bold text-slate-200">
                 ضع رابط Google Sheet الخاص بك هنا:
               </label>
@@ -420,13 +420,13 @@ function onEdit(e) {
                     value={googleSheetUrl}
                     onChange={(e) => setGoogleSheetUrl(e.target.value)}
                     placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-                    className="w-full bg-slate-900 border border-slate-600 rounded-xl pr-10 pl-4 py-3 text-xs sm:text-sm text-white focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition"
+                    className="w-full bg-slate-950/50 border border-white/15 rounded-xl pr-10 pl-4 py-3 text-xs sm:text-sm text-white transition"
                   />
                 </div>
                 <button
                   onClick={handleFetchGoogleSheet}
                   disabled={isSyncingGoogleSheet || !googleSheetUrl.trim()}
-                  className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-slate-950 font-black px-6 py-3 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition"
+                  className="btn-brass px-6 py-3 text-xs sm:text-sm shadow-lg disabled:opacity-50 cursor-pointer"
                 >
                   {isSyncingGoogleSheet ? (
                     <>
@@ -444,15 +444,15 @@ function onEdit(e) {
 
               {/* Status messages */}
               {googleSheetSuccess && (
-                <div className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 p-3.5 rounded-xl text-xs flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                <div className="xls-note-ok p-3.5 rounded-xl text-xs flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
                   <span>{googleSheetSuccess}</span>
                 </div>
               )}
 
               {googleSheetError && (
-                <div className="bg-rose-500/20 border border-rose-500/40 text-rose-300 p-3.5 rounded-xl text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <div className="xls-note-risk p-3.5 rounded-xl text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{googleSheetError}</span>
                 </div>
               )}
@@ -460,24 +460,24 @@ function onEdit(e) {
 
             {/* Quick 3-Step Guide */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-              <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/60">
-                <div className="w-7 h-7 rounded-full bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-xs mb-2">1</div>
+              <div className="bg-white/[0.04] p-4 rounded-2xl border border-white/10">
+                <div className="w-7 h-7 rounded-full icon-brass-dark font-black flex items-center justify-center text-xs mb-2">1</div>
                 <h4 className="font-black text-sm text-white mb-1">افتح شيت جوجل شيت</h4>
                 <p className="text-xs text-slate-400">
                   أنشئ جدولك على Google Sheets بالأعمدة الرئيسية المعتمدة لمجموعة دريم.
                 </p>
               </div>
 
-              <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/60">
-                <div className="w-7 h-7 rounded-full bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-xs mb-2">2</div>
+              <div className="bg-white/[0.04] p-4 rounded-2xl border border-white/10">
+                <div className="w-7 h-7 rounded-full icon-brass-dark font-black flex items-center justify-center text-xs mb-2">2</div>
                 <h4 className="font-black text-sm text-white mb-1">اجعل الرابط متاحاً للرؤية</h4>
                 <p className="text-xs text-slate-400">
                   اضغط على زر المشاركة (Share) في Google Sheets واختر "Anyone with the link can view".
                 </p>
               </div>
 
-              <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/60">
-                <div className="w-7 h-7 rounded-full bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-xs mb-2">3</div>
+              <div className="bg-white/[0.04] p-4 rounded-2xl border border-white/10">
+                <div className="w-7 h-7 rounded-full icon-brass-dark font-black flex items-center justify-center text-xs mb-2">3</div>
                 <h4 className="font-black text-sm text-white mb-1">الصق الرابط واضغط مزامنة</h4>
                 <p className="text-xs text-slate-400">
                   الصق الرابط هنا واضغط "جلب وتحديث"، سيتم تحديث كامل فروع ومناديب دريم فوراً!
@@ -486,7 +486,7 @@ function onEdit(e) {
             </div>
 
             {/* Official Columns Reference Table (Matching exact User Google Sheet Screenshot) */}
-            <div className="bg-slate-950/80 rounded-2xl p-4 sm:p-5 border border-emerald-500/30 space-y-3">
+            <div className="bg-slate-950/60 rounded-2xl p-4 sm:p-5 border border-white/10 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
@@ -494,7 +494,7 @@ function onEdit(e) {
                     الأعمدة الـ 19 المعتمدة لرفع المنتجات والمخزون (مطابقة 100% لجدولك):
                   </h4>
                 </div>
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-md border border-emerald-500/30">
+                <span className="badge-brass-dark text-[10px] font-bold px-2 py-0.5 rounded-md">
                   19 عمود معتمد
                 </span>
               </div>
@@ -610,11 +610,11 @@ function onEdit(e) {
               }
             }}
             className={`border-2 border-dashed rounded-3xl p-8 sm:p-12 text-center transition-all bg-white shadow-sm ${
-              isDragging ? 'border-emerald-500 bg-emerald-50/50' : 'border-slate-300 hover:border-emerald-400'
+              isDragging ? 'border-[#c99a43] bg-[rgba(201,154,67,.05)]' : 'border-[#c9d7e4] hover:border-[#c99a43]'
             }`}
           >
             <div className="max-w-md mx-auto space-y-4">
-              <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto shadow-inner">
+              <div className="w-16 h-16 rounded-2xl tint-navy flex items-center justify-center mx-auto shadow-inner">
                 {isLoading ? (
                   <RefreshCw className="w-8 h-8 animate-spin" />
                 ) : (
@@ -632,7 +632,7 @@ function onEdit(e) {
               </div>
 
               <div>
-                <label className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-2xl text-xs cursor-pointer shadow-md transition">
+                <label className="btn-primary px-6 py-3 text-xs cursor-pointer shadow-md">
                   <Upload className="w-4 h-4" />
                   <span>اختر ملف إكسل من جهازك</span>
                   <input
@@ -655,10 +655,10 @@ function onEdit(e) {
       {/* SUB-TAB 3: Google Drive Recursive Folder Scanner */}
       {activeSubTab === 'drive_scanner' && (
         <div className="space-y-6 animate-in fade-in">
-          <div className="bg-gradient-to-br from-blue-950 via-slate-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-blue-800/40 space-y-6">
+          <div className="navy-panel text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-[#23496f] space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <div className="inline-flex items-center gap-2 bg-blue-500/20 text-blue-300 text-xs font-black px-3 py-1 rounded-full border border-blue-500/30 mb-2">
+                <div className="badge-brass-dark inline-flex items-center gap-2 text-xs font-black px-3 py-1 mb-2">
                   <FolderOpen className="w-3.5 h-3.5" />
                   <span>المسح الشامل لمجلدات Google Drive وتوليد روابط سريعة للكتالوج</span>
                 </div>
@@ -670,17 +670,17 @@ function onEdit(e) {
                 </p>
               </div>
 
-              <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700 text-center min-w-[200px]">
+              <div className="bg-white/[0.06] p-4 rounded-2xl border border-white/15 text-center min-w-[200px]">
                 <div className="text-xs text-slate-400 font-medium">صيغة روابط الصور</div>
-                <div className="text-sm font-black text-amber-400 font-mono mt-1">lh3.googleusercontent.com</div>
+                <div className="text-sm dream-amt t-brass font-mono mt-1">lh3.googleusercontent.com</div>
                 <div className="text-[10px] text-emerald-400 mt-1">خفيفة وسريعة التحميل</div>
               </div>
             </div>
 
             {/* Script Box with Copy Button */}
-            <div className="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-blue-800/50 space-y-3">
+            <div className="bg-slate-950/70 p-4 sm:p-5 rounded-2xl border border-white/10 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-blue-300 flex items-center gap-2">
+                <span className="text-xs font-bold t-brass flex items-center gap-2">
                   <FileSpreadsheet className="w-4 h-4" />
                   <span>كود Google Apps Script (جاهز للتشغيل في Google Sheets):</span>
                 </span>
@@ -817,7 +817,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                     setCopiedScript(true);
                     setTimeout(() => setCopiedScript(false), 3000);
                   }}
-                  className="px-4 py-1.5 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-xl shadow flex items-center gap-1.5 cursor-pointer"
+                  className="btn-brass px-4 py-1.5 text-xs shadow flex items-center gap-1.5 cursor-pointer"
                 >
                   {copiedScript ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   <span>{copiedScript ? 'تم نسخ السكريبت!' : 'نسخ كود Apps Script'}</span>
@@ -841,9 +841,9 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
 
             {/* Step-by-Step Instructions & XLOOKUP Formula */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-slate-800/60 p-4 rounded-2xl border border-slate-700/60 space-y-2">
-                <div className="flex items-center gap-2 font-black text-amber-300 text-xs">
-                  <Globe className="w-4 h-4 text-amber-400" />
+              <div className="bg-white/[0.04] p-4 rounded-2xl border border-white/10 space-y-2">
+                <div className="flex items-center gap-2 font-black t-brass text-xs">
+                  <Globe className="w-4 h-4 t-brass" />
                   <span>خطوات التشغيل في Google Sheets:</span>
                 </div>
                 <ol className="list-decimal list-inside space-y-1.5 text-xs text-slate-300 leading-relaxed">
@@ -854,7 +854,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                 </ol>
               </div>
 
-              <div className="bg-slate-800/60 p-4 rounded-2xl border border-slate-700/60 space-y-2">
+              <div className="bg-white/[0.04] p-4 rounded-2xl border border-white/10 space-y-2">
                 <div className="flex items-center gap-2 font-black text-emerald-300 text-xs">
                   <Sparkles className="w-4 h-4 text-emerald-400" />
                   <span>معادلة الربط التلقائي في شيت الأسعار (XLOOKUP):</span>
@@ -878,7 +878,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
               <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
+                <span className="w-3 h-3 rounded-full bg-[#2e7d5b] animate-ping" />
                 <h3 className="text-lg font-black text-slate-900">
                   تم قراءة {previewProducts.length} صف من الملف وتجهيزها للتحديث
                 </h3>
@@ -917,13 +917,13 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
           </div>
 
           {importDataNotice && (
-            <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-3 text-xs font-bold">
+            <div className="panel-warn rounded-xl px-4 py-3 text-xs font-bold">
               {importDataNotice}
             </div>
           )}
 
           {/* Search and Page Size Controls inside Preview */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-amber-50/50 p-3 rounded-2xl border border-amber-200/70">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
             <div className="relative w-full sm:w-80">
               <input
                 type="text"
@@ -933,9 +933,9 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                   setPreviewPage(1);
                 }}
                 placeholder="بحث في الجدول (بالكود، الاسم، اللون، القسم...)"
-                className="w-full bg-white border border-amber-200 rounded-xl pr-9 pl-8 py-2 text-xs font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                className="w-full bg-white border rounded-xl pr-9 pl-8 py-2 text-xs font-medium"
               />
-              <Search className="w-4 h-4 text-amber-700 absolute right-3 top-2.5" />
+              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
               {previewSearchTerm && (
                 <button
                   onClick={() => {
@@ -959,7 +959,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                     setPreviewPageSize(val);
                     setPreviewPage(1);
                   }}
-                  className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500"
+                  className="bg-white border rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800"
                 >
                   <option value={50}>50 صنف</option>
                   <option value={100}>100 صنف</option>
@@ -977,7 +977,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                   <button
                     onClick={() => setPreviewPage(1)}
                     disabled={previewPage === 1}
-                    className="p-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="chip-btn disabled:opacity-30 disabled:cursor-not-allowed"
                     title="الصفحة الأولى"
                   >
                     <ChevronsRight className="w-4 h-4" />
@@ -985,7 +985,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                   <button
                     onClick={() => setPreviewPage((p) => Math.max(1, p - 1))}
                     disabled={previewPage === 1}
-                    className="p-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="chip-btn disabled:opacity-30 disabled:cursor-not-allowed"
                     title="الصفحة السابقة"
                   >
                     <ChevronRight className="w-4 h-4" />
@@ -996,7 +996,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                   <button
                     onClick={() => setPreviewPage((p) => Math.min(totalPreviewPages, p + 1))}
                     disabled={previewPage === totalPreviewPages}
-                    className="p-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="chip-btn disabled:opacity-30 disabled:cursor-not-allowed"
                     title="الصفحة التالية"
                   >
                     <ChevronLeft className="w-4 h-4" />
@@ -1004,7 +1004,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                   <button
                     onClick={() => setPreviewPage(totalPreviewPages)}
                     disabled={previewPage === totalPreviewPages}
-                    className="p-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="chip-btn disabled:opacity-30 disabled:cursor-not-allowed"
                     title="الصفحة الأخيرة"
                   >
                     <ChevronsLeft className="w-4 h-4" />
@@ -1061,7 +1061,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                         <td className="p-3 font-bold text-slate-900">{p.name}</td>
                         <td className="p-3 text-slate-600 font-semibold">{p.department || p.category}</td>
                         <td className="p-3 font-bold text-slate-700">{p.cartonQuantity} ق</td>
-                        <td className="p-3 text-amber-900 font-black text-sm">{formatCurrency(p.cartonPrice)}</td>
+                        <td className="p-3 dream-amt t-navy text-sm">{formatCurrency(p.cartonPrice)}</td>
                         <td className="p-3 font-bold text-slate-700">{p.branchStockActual} كرتونة</td>
                         <td className="p-3 font-bold text-slate-700">{p.mainWarehouseActual} كرتونة</td>
                         <td className="p-3 text-[10px] text-slate-500 font-mono max-w-[150px] truncate">
@@ -1097,13 +1097,13 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                   setImportDataNotice(null);
                   setPreviewSearchTerm('');
                 }}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-5 py-2.5 rounded-xl text-xs transition"
+                className="btn-ghost px-5 py-2.5 text-xs cursor-pointer"
               >
                 إلغاء المعاينة
               </button>
               <button
                 onClick={handleApplyImport}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-7 py-2.5 rounded-xl text-xs sm:text-sm shadow-md transition flex items-center gap-2"
+                className="btn-primary px-7 py-2.5 text-xs sm:text-sm shadow-md cursor-pointer"
               >
                 <Check className="w-4 h-4" />
                 <span>تأكيد حفظ كافة الأصناف ({previewProducts.length} صنف) في المنظومة</span>
@@ -1117,10 +1117,10 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
       {activeSubTab === 'customers' && (
         <div className="space-y-6">
           {/* Customer Google Sheets & Excel Sync Hero */}
-          <div className="bg-gradient-to-br from-amber-950 via-slate-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-amber-800/40 space-y-6">
+          <div className="navy-panel text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-[#23496f] space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <div className="inline-flex items-center gap-2 bg-amber-500/20 text-amber-300 text-xs font-black px-3 py-1 rounded-full border border-amber-500/30 mb-2">
+                <div className="badge-brass-dark inline-flex items-center gap-2 text-xs font-black px-3 py-1 mb-2">
                   <Store className="w-3.5 h-3.5" />
                   <span>إدارة ومزامنة قاعدة بيانات العملاء والمحلات</span>
                 </div>
@@ -1139,10 +1139,10 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                     const res = refreshCustomerRepLinks();
                     setCustomerSheetSuccess(`تمت إعادة فحص وتحديث مطابقة المناديب والفروع لجميع العملاء (${res.updatedCount} عميل تم تحديث ارتباطهم بالمناديب).`);
                   }}
-                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-black px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer"
+                  className="btn-ondark px-4 py-2.5 text-xs cursor-pointer"
                   title="إعادة ربط العملاء بحسابات المناديب الحالية والفروع"
                 >
-                  <RefreshCw className="w-4 h-4 text-white" />
+                  <RefreshCw className="w-4 h-4" />
                   <span>ربط العملاء بالمناديب ({users.filter(u => u.role === 'sales_rep').length} مندوب)</span>
                 </button>
                 <button
@@ -1155,41 +1155,41 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                       setCustomerSheetSuccess(`سجل العملاء نظيف ومثالي تماماً (${res.deduplicatedCount} عميل فريد) ولا يحتوي على أي تكرارات.`);
                     }
                   }}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer"
+                  className="btn-ondark px-4 py-2.5 text-xs cursor-pointer"
                 >
-                  <Sparkles className="w-4 h-4 text-amber-300" />
+                  <Sparkles className="w-4 h-4 t-brass" />
                   <span>تنظيف وضغط التكرارات ({customers.length} عميل)</span>
                 </button>
                 <button
                   type="button"
                   onClick={generateSampleCustomerTargetTemplate}
-                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black px-4 py-2.5 rounded-xl transition shadow-md flex items-center gap-2 cursor-pointer"
+                  className="btn-brass px-4 py-2.5 text-xs shadow-md cursor-pointer"
                   title="تحميل قالب إكسل معتمد بكافة أعمدة تارجت المبيعات والشهور والمتأخرات"
                 >
-                  <Target className="w-4 h-4 text-slate-900" />
+                  <Target className="w-4 h-4" />
                   <span>تحميل قالب شيت تارجت المبيعات والعملاء</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => exportCustomerTargetSheetToExcel(customers)}
-                  className="bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 text-xs font-black px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer"
+                  className="btn-ondark px-4 py-2.5 text-xs cursor-pointer"
                   title="تصدير بيانات العملاء الحالية بشيت تارجت المبيعات والتحصيلات والمتأخرات"
                 >
-                  <FileSpreadsheet className="w-4 h-4 text-amber-400" />
+                  <FileSpreadsheet className="w-4 h-4 t-brass" />
                   <span>تصدير شيت تارجت المبيعات الحالي ({customers.length})</span>
                 </button>
                 <button
                   type="button"
                   onClick={generateSampleCustomersTemplate}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-black px-4 py-2.5 rounded-xl transition flex items-center gap-2"
+                  className="btn-ondark px-4 py-2.5 text-xs cursor-pointer"
                 >
-                  <Download className="w-4 h-4 text-amber-400" />
+                  <Download className="w-4 h-4 t-brass" />
                   <span>تحميل نموذج شيت العملاء المبسط</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => exportCustomersToExcel(customers)}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-2"
+                  className="btn-ondark px-4 py-2.5 text-xs cursor-pointer"
                 >
                   <FileSpreadsheet className="w-4 h-4" />
                   <span>تصدير العملاء القياسي ({customers.length})</span>
@@ -1198,14 +1198,14 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
             </div>
 
             {/* Sales Target & Debts Sheet Dedicated Feature Card */}
-            <div className="bg-gradient-to-r from-amber-950/50 via-slate-900 to-slate-950 border border-amber-500/40 rounded-2xl p-4 sm:p-5 space-y-3">
+            <div className="bg-white/[0.04] border border-[#c99a43]/40 rounded-2xl p-4 sm:p-5 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0">
                     <Target className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-sm sm:text-base font-black text-amber-300 flex items-center gap-2">
+                    <h4 className="text-sm sm:text-base font-black t-brass flex items-center gap-2">
                       <span>شيت تارجت المبيعات والعملاء والمتأخرات (الشيت المعتمد بالحسابات)</span>
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                         معتمد ومفعل بالكامل
@@ -1220,7 +1220,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                 <button
                   type="button"
                   onClick={() => setShowTargetColumnsExplainer(!showTargetColumnsExplainer)}
-                  className="text-xs text-amber-400 hover:text-amber-300 font-bold bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 px-3 py-1.5 rounded-xl transition shrink-0 cursor-pointer"
+                  className="btn-ondark px-3 py-1.5 text-xs shrink-0 cursor-pointer"
                 >
                   {showTargetColumnsExplainer ? 'إخفاء دليل الأعمدة' : 'استعراض الأعمدة المعتمدة (45 عمود)'}
                 </button>
@@ -1266,9 +1266,9 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
             </div>
 
             {/* Google Sheet URL Sync Input for Customers */}
-            <div className="bg-slate-950/60 p-4 sm:p-5 rounded-2xl border border-slate-800 space-y-4">
+            <div className="bg-white/[0.04] p-4 sm:p-5 rounded-2xl border border-white/10 space-y-4">
               <div className="space-y-1.5">
-                <label className="block text-xs sm:text-sm font-bold text-amber-200">
+                <label className="block text-xs sm:text-sm font-bold t-brass">
                   رابط Google Sheets لقاعدة بيانات العملاء:
                 </label>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -1281,7 +1281,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                       setCustomerSheetSuccess(null);
                     }}
                     placeholder="https://docs.google.com/spreadsheets/d/your-customer-sheet-id/edit..."
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-xs sm:text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    className="flex-1 bg-slate-950/50 border border-white/15 rounded-xl px-4 py-3 text-xs sm:text-sm text-white placeholder:text-slate-500"
                   />
                   <button
                     type="button"
@@ -1308,7 +1308,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                         setIsSyncingCustomers(false);
                       }
                     }}
-                    className="bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black px-6 py-3 rounded-xl text-xs sm:text-sm shadow-md transition disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+                    className="btn-brass px-6 py-3 text-xs sm:text-sm shadow-md disabled:opacity-50 cursor-pointer"
                   >
                     {isSyncingCustomers ? (
                       <>
@@ -1327,14 +1327,14 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
 
               {/* Status alerts */}
               {customerSheetSuccess && (
-                <div className="bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 p-3.5 rounded-xl text-xs flex items-center gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <div className="xls-note-ok p-3.5 rounded-xl text-xs flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
                   <span>{customerSheetSuccess}</span>
                 </div>
               )}
               {customerSheetError && (
-                <div className="bg-rose-950/80 border border-rose-500/50 text-rose-200 p-3.5 rounded-xl text-xs flex items-center gap-2.5">
-                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                <div className="xls-note-risk p-3.5 rounded-xl text-xs flex items-center gap-2.5">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{customerSheetError}</span>
                 </div>
               )}
@@ -1343,10 +1343,10 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
             {/* Direct Excel File Upload for Customers */}
             <div className="bg-slate-950/40 p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
               <div className="text-slate-300 flex items-center gap-2">
-                <Upload className="w-4 h-4 text-amber-400 shrink-0" />
+                <Upload className="w-4 h-4 t-brass shrink-0" />
                 <span>أو يمكنك رفع ملف إكسل للعملاء مباشرة من جهازك (.xlsx / .csv):</span>
               </div>
-              <label className="bg-slate-800 hover:bg-slate-700 text-white font-bold px-4 py-2 rounded-xl cursor-pointer border border-slate-700 transition">
+              <label className="btn-ondark px-4 py-2 text-xs font-bold cursor-pointer">
                 <span>اختيار ملف العملاء من الجهاز</span>
                 <input
                   type="file"
@@ -1380,26 +1380,26 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
               <div className="text-[11px] font-bold text-slate-500">إجمالي العملاء بالمنظومة</div>
-              <div className="text-xl font-black text-slate-900 mt-1">{customers.length} <span className="text-xs text-slate-400 font-normal">عميل</span></div>
-              <div className="text-[10px] text-emerald-600 font-bold mt-1">
+              <div className="text-xl dream-amt t-navy mt-1">{customers.length} <span className="text-xs text-slate-400 font-normal">عميل</span></div>
+              <div className="text-[10px] t-ok font-bold mt-1">
                 {customers.filter((c) => c.repId || c.salesRepName || c.repName).length} مرتبطين بمندوب
               </div>
             </div>
 
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-              <div className="text-[11px] font-bold text-slate-500">إجمالي مديونيات العملاء</div>
-              <div className="text-xl font-black text-rose-600 mt-1">
+              <div className="text-[11px] font-bold t-risk">إجمالي مديونيات العملاء</div>
+              <div className="text-xl dream-amt t-risk mt-1">
                 {formatCurrency(customers.reduce((sum, c) => sum + (c.currentBalance || c.balance || 0), 0))}
               </div>
               <div className="text-[10px] text-slate-400 font-bold mt-1">مستحقة التحصيل</div>
             </div>
 
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-              <div className="text-[11px] font-bold text-slate-500">إجمالي الحدود الائتمانية</div>
-              <div className="text-xl font-black text-blue-700 mt-1">
+              <div className="text-[11px] font-bold t-navy">إجمالي الحدود الائتمانية</div>
+              <div className="text-xl dream-amt t-navy mt-1">
                 {formatCurrency(customers.reduce((sum, c) => sum + (c.creditLimit || 0), 0))}
               </div>
-              <div className="text-[10px] text-blue-500 font-bold mt-1">حد أقصى مسموح</div>
+              <div className="text-[10px] t-muted font-bold mt-1">حد أقصى مسموح</div>
             </div>
 
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
@@ -1411,7 +1411,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                     const res = refreshCustomerRepLinks();
                     setCustomerSheetSuccess(`تمت المزامنة والتطابق بنجاح! تم تحديث ${res.updatedCount} عميل وربطهم بحسابات مناديبهم.`);
                   }}
-                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-2 py-1.5 rounded-xl text-[10px] transition text-center shadow-xs cursor-pointer"
+                  className="flex-1 btn-brass px-2 py-1.5 text-[10px] text-center cursor-pointer"
                   title="مزامنة فورية وتطابق ذكي بين أسماء المناديب والعملاء"
                 >
                   مطابقة المناديب
@@ -1422,7 +1422,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                     const res = autoCreateMissingRepsFromCustomers();
                     setCustomerSheetSuccess(res.message);
                   }}
-                  className="flex-1 bg-slate-900 hover:bg-slate-800 text-amber-400 font-black px-2 py-1.5 rounded-xl text-[10px] transition text-center shadow-xs cursor-pointer"
+                  className="flex-1 btn-primary px-2 py-1.5 text-[10px] text-center cursor-pointer"
                   title="إنشاء وتفعيل حسابات جديدة للمناديب المذكورين في الشيت ولم يتم تسجيلهم بعد"
                 >
                   إنشاء المناديب
@@ -1440,7 +1440,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                     <UserCheck className="w-5 h-5 text-emerald-600" />
                     <span>معاينة شيت العملاء والتارجت ({customerPreviewList.length} عميل)</span>
                     {customerPreviewList.some((c) => c.annualTarget || c.totalMonthlySales || c.totalOverdueAndDue) && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-300">
+                      <span className="app-badge warn text-[10px]">
                         شيت تارجت ومبيعات
                       </span>
                     )}
@@ -1467,7 +1467,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                       setCustomerPreviewList([]);
                       setCustomerSheetSuccess(`تم حفظ وتحديث ${customerPreviewList.length} عميل بنجاح مع كافة بيانات التارجت والمبيعات والمتأخرات في المنظومة!`);
                     }}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-5 py-2 rounded-xl text-xs shadow transition flex items-center gap-1.5 cursor-pointer"
+                    className="btn-primary px-5 py-2 text-xs cursor-pointer"
                   >
                     <Check className="w-4 h-4" />
                     <span>تأكيد حفظ العملاء ({customerPreviewList.length})</span>
@@ -1476,7 +1476,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                   <button
                     type="button"
                     onClick={() => setCustomerPreviewList([])}
-                    className="text-xs text-slate-500 hover:text-slate-700 px-3 py-2 cursor-pointer"
+                    className="btn-ghost px-3 py-2 text-xs cursor-pointer"
                   >
                     إلغاء
                   </button>
@@ -1485,28 +1485,28 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
 
               {/* Preview Target Summary Metrics (if Target data detected) */}
               {customerPreviewList.some((c) => c.annualTarget || c.totalMonthlySales || c.totalOverdueAndDue) && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-2xl bg-amber-50/70 border border-amber-200 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 panel-warn p-3 rounded-2xl text-xs">
                   <div>
                     <div className="text-[10px] text-slate-500 font-bold">إجمالي الهدف السنوي</div>
-                    <div className="font-mono font-black text-amber-900 text-sm">
+                    <div className="dream-amt t-warn text-sm">
                       {formatCurrency(customerPreviewList.reduce((acc, c) => acc + (c.annualTarget || 0), 0))}
                     </div>
                   </div>
                   <div>
                     <div className="text-[10px] text-slate-500 font-bold">إجمالي المبيعات المحققة</div>
-                    <div className="font-mono font-black text-emerald-800 text-sm">
+                    <div className="dream-amt t-ok text-sm">
                       {formatCurrency(customerPreviewList.reduce((acc, c) => acc + (c.totalMonthlySales || 0), 0))}
                     </div>
                   </div>
                   <div>
                     <div className="text-[10px] text-slate-500 font-bold">إجمالي التحصيلات</div>
-                    <div className="font-mono font-black text-blue-800 text-sm">
+                    <div className="dream-amt t-navy text-sm">
                       {formatCurrency(customerPreviewList.reduce((acc, c) => acc + (c.totalMonthlyCollections || 0), 0))}
                     </div>
                   </div>
-                  <div className="bg-rose-100/80 p-1.5 rounded-xl border border-rose-300">
-                    <div className="text-[10px] text-rose-800 font-black">إجمالي المتأخرات (مستحق الطلبيات)</div>
-                    <div className="font-mono font-black text-rose-700 text-sm">
+                  <div className="tint-risk p-1.5 rounded-xl border border-[rgba(179,74,74,.25)]">
+                    <div className="text-[10px] font-black">إجمالي المتأخرات (مستحق الطلبيات)</div>
+                    <div className="dream-amt text-sm">
                       {formatCurrency(customerPreviewList.reduce((acc, c) => acc + (c.totalOverdueAndDue || c.overdueBalance || c.currentBalance || c.balance || 0), 0))}
                     </div>
                   </div>
@@ -1541,7 +1541,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                       return (
                         <tr key={c.id || i} className="hover:bg-amber-50/50">
                           <td className="p-3 text-slate-400">{i + 1}</td>
-                          <td className="p-3 font-mono font-bold text-amber-800">{c.code || '---'}</td>
+                          <td className="p-3 font-mono font-bold t-warn">{c.code || '---'}</td>
                           <td className="p-3 font-bold text-slate-950">
                             <div>{c.name}</div>
                             {c.activityType && (
@@ -1556,43 +1556,43 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                           <td className="p-3 font-bold text-slate-700">
                             {c.salesRepName || c.repName || <span className="text-slate-400">غير مرتبط</span>}
                           </td>
-                          <td className="p-3 font-mono font-bold text-amber-900">
+                          <td className="p-3 dream-amt t-warn">
                             {(c.annualTarget || 0) > 0 ? formatCurrency(c.annualTarget || 0) : '---'}
                           </td>
-                          <td className="p-3 font-mono font-bold text-emerald-700">
+                          <td className="p-3 dream-amt t-ok">
                             <div>{(c.totalMonthlySales || 0) > 0 ? formatCurrency(c.totalMonthlySales || 0) : '0 ج.م'}</div>
                             {salesMonthsCount > 0 && (
                               <div className="text-[10px] text-emerald-600 font-normal">({salesMonthsCount} شهور)</div>
                             )}
                           </td>
-                          <td className="p-3 font-mono font-bold text-blue-700">
+                          <td className="p-3 dream-amt t-navy">
                             <div>{(c.totalMonthlyCollections || 0) > 0 ? formatCurrency(c.totalMonthlyCollections || 0) : '0 ج.م'}</div>
                             {collMonthsCount > 0 && (
                               <div className="text-[10px] text-blue-600 font-normal">({collMonthsCount} شهور)</div>
                             )}
                           </td>
-                          <td className="p-3 font-mono font-black text-rose-700 bg-rose-50/70">
+                          <td className="p-3 dream-amt t-risk bg-rose-50/60">
                             {overdue > 0 ? formatCurrency(overdue) : '0 ج.م'}
                           </td>
                           <td className="p-3 font-mono text-slate-700">
                             {(c.creditLimit || 0) > 0 ? formatCurrency(c.creditLimit || 0) : 'غير محدد'}
                           </td>
                           <td className="p-3">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            <span className={`app-badge text-[10px] ${
                               c.debtStatus === 'متعثر' || (overdue > (c.creditLimit || 0) && (c.creditLimit || 0) > 0)
-                                ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                ? 'risk'
                                 : overdue > 0
-                                ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                                : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                ? 'warn'
+                                : 'ok'
                             }`}>
                               {c.debtStatus || (overdue > 0 ? 'متأخر' : 'منتظم')}
                             </span>
                           </td>
                           <td className="p-3">
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            <span className={`app-badge text-[10px] ${
                               c.dealEligibility === 'غير' || c.dealEligibility === 'غير قابل'
-                                ? 'bg-rose-100 text-rose-800'
-                                : 'bg-emerald-100 text-emerald-800'
+                                ? 'risk'
+                                : 'ok'
                             }`}>
                               {c.dealEligibility || 'قابل'}
                             </span>
@@ -1610,7 +1610,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-black">
+                <div className="w-10 h-10 rounded-2xl tint-navy flex items-center justify-center font-black">
                   <Users className="w-5 h-5" />
                 </div>
                 <div>
@@ -1628,10 +1628,10 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                 <button
                   type="button"
                   onClick={() => setCustomerTableTab('target')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer ${
+                  className={`pill-filter px-3 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer ${
                     customerTableTab === 'target'
-                      ? 'bg-amber-400 text-slate-950 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'on'
+                      : ''
                   }`}
                 >
                   <Target className="w-3.5 h-3.5" />
@@ -1640,10 +1640,10 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                 <button
                   type="button"
                   onClick={() => setCustomerTableTab('standard')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer ${
+                  className={`pill-filter px-3 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer ${
                     customerTableTab === 'standard'
-                      ? 'bg-amber-400 text-slate-950 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'on'
+                      : ''
                   }`}
                 >
                   <Users className="w-3.5 h-3.5" />
@@ -1657,25 +1657,25 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
                 <div>
                   <div className="text-[10px] text-slate-500 font-bold">إجمالي الهدف السنوي بالمنظومة</div>
-                  <div className="font-mono font-black text-amber-900 text-sm">
+                  <div className="dream-amt t-warn text-sm">
                     {formatCurrency(customers.reduce((sum, c) => sum + (c.annualTarget || 0), 0))}
                   </div>
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-500 font-bold">إجمالي مبيعات الشهور المسجلة</div>
-                  <div className="font-mono font-black text-emerald-800 text-sm">
+                  <div className="dream-amt t-ok text-sm">
                     {formatCurrency(customers.reduce((sum, c) => sum + (c.totalMonthlySales || 0), 0))}
                   </div>
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-500 font-bold">إجمالي التحصيلات المسجلة</div>
-                  <div className="font-mono font-black text-blue-800 text-sm">
+                  <div className="dream-amt t-navy text-sm">
                     {formatCurrency(customers.reduce((sum, c) => sum + (c.totalMonthlyCollections || 0), 0))}
                   </div>
                 </div>
-                <div className="bg-rose-50 p-2 rounded-xl border border-rose-200">
-                  <div className="text-[10px] text-rose-800 font-black">إجمالي المتأخرات (المستحق لطلبيات المندوب)</div>
-                  <div className="font-mono font-black text-rose-700 text-sm">
+                <div className="tint-risk p-2 rounded-xl border border-[rgba(179,74,74,.25)]">
+                  <div className="text-[10px] font-black">إجمالي المتأخرات (المستحق لطلبيات المندوب)</div>
+                  <div className="dream-amt text-sm">
                     {formatCurrency(
                       customers.reduce(
                         (sum, c) =>
@@ -1839,7 +1839,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                               return (
                                 <tr key={c.id} className="hover:bg-amber-50/40">
                                   <td className="p-3 text-slate-400 font-bold">{i + 1}</td>
-                                  <td className="p-3 font-mono font-bold text-amber-900">{c.code || '---'}</td>
+                                  <td className="p-3 dream-amt t-warn">{c.code || '---'}</td>
                                   <td className="p-3">
                                     <div className="font-black text-slate-900">{c.name}</div>
                                     {c.storeName && (
@@ -1854,22 +1854,22 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                                   <td className="p-3 font-bold text-emerald-800">
                                     {c.salesRepName || c.repName || <span className="text-slate-400">غير محدد</span>}
                                   </td>
-                                  <td className="p-3 font-mono font-bold text-amber-900">
+                                  <td className="p-3 dream-amt t-warn">
                                     {(c.annualTarget || 0) > 0 ? formatCurrency(c.annualTarget || 0) : '---'}
                                   </td>
-                                  <td className="p-3 font-mono font-bold text-emerald-700">
+                                  <td className="p-3 dream-amt t-ok">
                                     <div>{(c.totalMonthlySales || 0) > 0 ? formatCurrency(c.totalMonthlySales || 0) : '0 ج.م'}</div>
                                     {salesMonthsCount > 0 && (
                                       <div className="text-[10px] text-emerald-600 font-normal">({salesMonthsCount} شهور)</div>
                                     )}
                                   </td>
-                                  <td className="p-3 font-mono font-bold text-blue-700">
+                                  <td className="p-3 dream-amt t-navy">
                                     <div>{(c.totalMonthlyCollections || 0) > 0 ? formatCurrency(c.totalMonthlyCollections || 0) : '0 ج.م'}</div>
                                     {collMonthsCount > 0 && (
                                       <div className="text-[10px] text-blue-600 font-normal">({collMonthsCount} شهور)</div>
                                     )}
                                   </td>
-                                  <td className="p-3 font-mono font-black text-rose-700 bg-rose-50/80">
+                                  <td className="p-3 dream-amt t-risk bg-rose-50/80">
                                     {overdue > 0 ? formatCurrency(overdue) : '0 ج.م'}
                                   </td>
                                   <td className="p-3 font-mono text-slate-700">
@@ -1880,12 +1880,12 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                                   </td>
                                   <td className="p-3">
                                     <span
-                                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                      className={`app-badge text-[10px] ${
                                         c.debtStatus === 'متعثر' || (overdue > limit && limit > 0)
-                                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                          ? 'risk'
                                           : overdue > 0
-                                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                                          : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                          ? 'warn'
+                                          : 'ok'
                                       }`}
                                     >
                                       {c.debtStatus || (overdue > 0 ? 'متأخر' : 'منتظم')}
@@ -1899,7 +1899,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                                           deleteCustomer(c.id);
                                         }
                                       }}
-                                      className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer transition"
+                                      className="chip-btn danger p-1.5 cursor-pointer"
                                       title="حذف العميل"
                                     >
                                       <Trash2 className="w-4 h-4" />
@@ -1912,7 +1912,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                             return (
                               <tr key={c.id} className="hover:bg-amber-50/40">
                                 <td className="p-3 text-slate-400 font-bold">{i + 1}</td>
-                                <td className="p-3 font-mono font-bold text-amber-900">{c.code || '---'}</td>
+                                <td className="p-3 dream-amt t-warn">{c.code || '---'}</td>
                                 <td className="p-3">
                                   <div className="font-black text-slate-900">{c.name}</div>
                                   {c.storeName && (
@@ -1958,13 +1958,13 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                                       ))}
                                   </select>
                                 </td>
-                                <td className="p-3 font-mono font-bold text-rose-600">
+                                <td className="p-3 dream-amt t-risk">
                                   {debt > 0 ? formatCurrency(debt) : <span className="text-slate-400">0 ج.م</span>}
                                 </td>
-                                <td className="p-3 font-mono font-bold text-blue-700">
+                                <td className="p-3 dream-amt t-navy">
                                   {limit > 0 ? formatCurrency(limit) : <span className="text-slate-400">غير محدد</span>}
                                 </td>
-                                <td className="p-3 font-mono font-bold text-emerald-700">
+                                <td className="p-3 dream-amt t-ok">
                                   {availableCredit !== null ? (
                                     formatCurrency(availableCredit)
                                   ) : (
@@ -1981,7 +1981,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                                         deleteCustomer(c.id);
                                       }
                                     }}
-                                    className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer transition"
+                                    className="chip-btn danger p-1.5 cursor-pointer"
                                     title="حذف العميل"
                                   >
                                     <Trash2 className="w-4 h-4" />
@@ -1996,7 +1996,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                                 <button
                                   type="button"
                                   onClick={() => setCustomerDisplayLimit((prev) => prev + 100)}
-                                  className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-5 py-2 rounded-xl transition cursor-pointer"
+                                  className="chip-btn px-5 py-2 text-xs cursor-pointer"
                                 >
                                   عرض المزيد من العملاء (يتبقى {filtered.length - customerDisplayLimit} عميل)
                                 </button>
@@ -2022,9 +2022,9 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
       )}
 
       {/* Supported Columns Reference */}
-      <div className="bg-slate-900 text-white rounded-3xl p-5 shadow-sm space-y-3">
+      <div className="navy-panel text-white rounded-3xl p-5 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
-          <span className="font-extrabold text-xs text-amber-300">
+          <span className="font-extrabold text-xs t-brass">
             الأعمدة الأساسية المدعومة تلقائياً في Google Sheets والإكسل:
           </span>
           <span className="text-[10px] text-slate-400">مطابقة ذكية وسريعة للأسعار والمخزون</span>
@@ -2057,7 +2057,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
           ].map((col, idx) => (
             <span
               key={idx}
-              className="bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700 font-medium"
+              className="bg-white/[0.06] text-slate-200 px-2.5 py-1 rounded-lg border border-white/10 font-medium"
             >
               {idx + 1}. {col}
             </span>
@@ -2069,7 +2069,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
       {isWipeModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 rounded-2xl tint-risk flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
 
@@ -2096,7 +2096,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
               <button
                 type="button"
                 onClick={() => setIsWipeModalOpen(false)}
-                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-2.5 rounded-2xl text-xs transition cursor-pointer"
+                className="btn-ghost flex-1 py-2.5 text-xs cursor-pointer"
               >
                 إلغاء
               </button>
@@ -2114,7 +2114,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                   }
                 }}
                 disabled={isWiping}
-                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 rounded-2xl text-xs shadow-md transition cursor-pointer disabled:opacity-50"
+                className="btn-danger flex-1 py-2.5 text-xs shadow-md cursor-pointer disabled:opacity-50"
               >
                 {isWiping ? 'جاري المسح...' : 'نعم، مسح والبدء من جديد'}
               </button>

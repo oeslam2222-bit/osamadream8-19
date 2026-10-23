@@ -461,16 +461,16 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   };
 
   const statusBadges: Record<string, { bg: string; text: string; label: string }> = {
-    'قيد مراجعة المشرف': { bg: 'bg-amber-100 border-amber-300', text: 'text-amber-900', label: 'قيد مراجعة المشرف' },
-    'معلقة بانتظار اعتماد الفرع': { bg: 'bg-blue-100 border-blue-300', text: 'text-blue-900', label: 'بانتظار مدير الفرع' },
-    'جاري تحضير المنتجات': { bg: 'bg-orange-100 border-orange-300', text: 'text-orange-900', label: 'جاري تحضير المنتجات' },
-    'تم وصول المنتجات': { bg: 'bg-teal-100 border-teal-300', text: 'text-teal-900', label: 'تم وصول المنتجات' },
-    'معتمدة ومصروفة من المخزن': { bg: 'bg-indigo-100 border-indigo-300', text: 'text-indigo-900', label: 'معتمدة ومصروفة' },
-    'قيد التوصيل': { bg: 'bg-cyan-100 border-cyan-300', text: 'text-cyan-900', label: 'قيد التوصيل' },
-    'تم التسليم': { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-900', label: 'تم التسليم بنجاح' },
-    'إغلاق الطلبية': { bg: 'bg-slate-200 border-slate-400', text: 'text-slate-900', label: 'تم إغلاق الطلبية' },
-    'مرتجع': { bg: 'bg-purple-100 border-purple-300', text: 'text-purple-900', label: 'مرتجع للمخزن' },
-    'مرفوضة / ملغاة': { bg: 'bg-rose-100 border-rose-300', text: 'text-rose-900', label: 'ملغاة / مرفوضة' },
+    'قيد مراجعة المشرف': { bg: 'tint-warn', text: '', label: 'قيد مراجعة المشرف' },
+    'معلقة بانتظار اعتماد الفرع': { bg: 'tint-navy', text: '', label: 'بانتظار مدير الفرع' },
+    'جاري تحضير المنتجات': { bg: 'tint-warn', text: '', label: 'جاري تحضير المنتجات' },
+    'تم وصول المنتجات': { bg: 'tint-ok', text: '', label: 'تم وصول المنتجات' },
+    'معتمدة ومصروفة من المخزن': { bg: 'tint-navy', text: '', label: 'معتمدة ومصروفة' },
+    'قيد التوصيل': { bg: 'tint-navy', text: '', label: 'قيد التوصيل' },
+    'تم التسليم': { bg: 'tint-ok', text: '', label: 'تم التسليم بنجاح' },
+    'إغلاق الطلبية': { bg: 'bg-[#f4f7fa] text-slate-700', text: 'border-slate-200', label: 'تم إغلاق الطلبية' },
+    'مرتجع': { bg: 'tint-risk', text: '', label: 'مرتجع للمخزن' },
+    'مرفوضة / ملغاة': { bg: 'tint-risk', text: '', label: 'ملغاة / مرفوضة' },
   };
 
   return (
@@ -478,12 +478,12 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
       
       {/* Success Notification Toast */}
       {successToast && (
-        <div className="bg-emerald-600 text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between text-xs sm:text-sm font-bold animate-in fade-in sticky top-20 z-40">
+        <div className="bg-[var(--app-ok)] text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between text-xs sm:text-sm font-bold animate-in fade-in sticky top-20 z-40">
           <div className="flex items-center gap-2.5">
-            <CheckCircle2 className="w-5 h-5 text-emerald-200 shrink-0" />
+            <CheckCircle2 className="w-5 h-5 text-white/80 shrink-0" />
             <span>{successToast}</span>
           </div>
-          <button onClick={() => setSuccessToast(null)} className="text-white hover:text-emerald-200 p-1">
+          <button onClick={() => setSuccessToast(null)} className="text-white hover:text-white/80 p-1">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -494,7 +494,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="bg-amber-400 text-slate-950 text-xs font-black px-2.5 py-1 rounded-lg">
+              <span className="badge-brass-dark text-xs font-black px-2.5 py-1 rounded-lg">
                 {currentUser?.role === 'sales_rep'
                   ? 'لوحة تحكم وطلبيات المندوب (Rep Command Center)'
                   : currentUser?.role === 'supervisor'
@@ -509,7 +509,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                   : 'متابعة طلبيات المناديب والتسليم والمرتجعات'}
               </h2>
             </div>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            <p className="text-xs sm:text-sm text-slate-300 mt-1">
               {currentUser?.role === 'sales_rep'
                 ? `فرعك: ${currentUser.branchName || 'الفرع المحدد'} | متابعة فورية لحالات طلبياتك ومراحل الصرف والتوصيل للعملاء.`
                 : 'متابعة مباشرة لحالات الصرف، التوصيل، التسليم للعملاء، واسترداد المخزون تلقائياً عند تسجيل المرتجع.'}
@@ -520,7 +520,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             {onOpenNewOrder && (
               <button
                 onClick={onOpenNewOrder}
-                className="flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition transform active:scale-95 cursor-pointer"
+                className="btn-brass px-4 py-2.5 text-xs shadow-sm"
               >
                 <Plus className="w-4 h-4" />
                 <span>إنشاء طلبية جديدة</span>
@@ -533,57 +533,65 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         <StatGrid visible={4} tone="dark" className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2" moreLabel="عرض باقي المؤشرات">
 
           {/* Total Revenue */}
-          <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700/80 space-y-1">
-            <div className="text-[11px] text-slate-400 font-bold flex items-center gap-1">
-              <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
-              <span>{currentUser?.role === 'sales_rep' ? 'إجمالي مبيعاتي' : 'إجمالي المبيعات'}</span>
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[11px] text-slate-500 font-bold">{currentUser?.role === 'sales_rep' ? 'إجمالي مبيعاتي' : 'إجمالي المبيعات'}</span>
+              <div className="w-7 h-7 rounded-lg bg-[var(--app-navy)] text-white flex items-center justify-center shrink-0">
+                <TrendingUp className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <div className="text-base sm:text-lg font-black text-amber-300">
+            <div className="text-base sm:text-lg dream-amt text-[var(--app-navy)]">
               {formatCurrency(metrics.totalRevenue)}
             </div>
-            <div className="text-[10px] text-slate-400 font-medium">
+            <div className="text-[10px] text-slate-500 font-semibold">
               {metrics.totalCartons} كرتونة مباعة
             </div>
           </div>
 
           {/* Completed Invoices */}
-          <div className="bg-emerald-500/10 p-3.5 rounded-2xl border border-emerald-500/30 space-y-1">
-            <div className="text-[11px] text-emerald-300 font-bold flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{currentUser?.role === 'sales_rep' ? 'طلبياتي المسلّمة' : 'الفواتير المكتملة'}</span>
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[11px] text-slate-500 font-bold">{currentUser?.role === 'sales_rep' ? 'طلبياتي المسلّمة' : 'الفواتير المكتملة'}</span>
+              <div className="w-7 h-7 rounded-lg bg-[#e8f3ee] t-ok flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <div className="text-base sm:text-lg font-black text-emerald-400">
+            <div className="text-base sm:text-lg dream-amt text-[var(--app-navy)]">
               {metrics.completedInvoices} فاتورة
             </div>
-            <div className="text-[10px] text-emerald-300/80 font-medium">
+            <div className="text-[10px] dream-amt t-ok font-bold">
               {metrics.deliveredCount} مسلّمة • {metrics.approvedCount} معتمدة
             </div>
           </div>
 
           {/* In-Progress / Under Prep Invoices */}
-          <div className="bg-cyan-500/10 p-3.5 rounded-2xl border border-cyan-500/30 space-y-1">
-            <div className="text-[11px] text-cyan-300 font-bold flex items-center gap-1">
-              <Truck className="w-3.5 h-3.5 text-cyan-400" />
-              <span>قيد التحضير والتنفيذ</span>
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[11px] text-slate-500 font-bold">قيد التحضير والتنفيذ</span>
+              <div className="w-7 h-7 rounded-lg bg-[var(--app-navy)] text-white flex items-center justify-center shrink-0">
+                <Truck className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <div className="text-base sm:text-lg font-black text-cyan-300">
+            <div className="text-base sm:text-lg dream-amt text-[var(--app-navy)]">
               {metrics.inProgressInvoices} طلبية
             </div>
-            <div className="text-[10px] text-cyan-300/70 font-medium">
-              {metrics.outForDelivery} توصيل • {metrics.preparingCount} تجهيز
+            <div className="text-[10px] text-slate-500 font-semibold dream-amt">
+              <span className="t-ok">{metrics.outForDelivery} توصيل</span> • <span className="t-warn">{metrics.preparingCount} تجهيز</span>
             </div>
           </div>
 
-          {/* Pending Approvals */}
-          <div className="bg-amber-500/10 p-3.5 rounded-2xl border border-amber-500/30 space-y-1">
-            <div className="text-[11px] text-amber-300 font-bold flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5 text-amber-400" />
-              <span>بانتظار الاعتماد</span>
+          {/* Pending Approvals — the single brass-tinted KPI highlight */}
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[11px] dream-amt t-warn font-bold">بانتظار الاعتماد</span>
+              <div className="w-7 h-7 rounded-lg icon-brass flex items-center justify-center shrink-0">
+                <Clock className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <div className="text-base sm:text-lg font-black text-amber-400">
+            <div className="text-base sm:text-lg dream-amt text-[var(--app-navy)]">
               {metrics.pendingApprovals} طلبية
             </div>
-            <div className="text-[10px] text-amber-300/70 font-medium">
+            <div className="text-[10px] text-[var(--app-warn)] font-semibold">
               مراجعة المشرف والفرع
             </div>
           </div>
@@ -592,34 +600,38 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           <button
             type="button"
             onClick={() => setActiveStatusTab(activeStatusTab === 'فواتير النواقص' ? 'الكل' : 'فواتير النواقص')}
-            className={`p-3.5 rounded-2xl border space-y-1 text-right transition cursor-pointer ${
+            className={`p-3.5 rounded-2xl border space-y-1.5 text-right transition cursor-pointer ${
               activeStatusTab === 'فواتير النواقص'
-                ? 'bg-indigo-600 text-white border-indigo-400 shadow-md ring-2 ring-indigo-300'
-                : 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                ? 'navy-panel text-white border-transparent shadow-[inset_0_-3px_0_var(--app-accent)]'
+                : 'bg-white hover:bg-[#f8fafc] text-slate-600 border-slate-200'
             }`}
           >
-            <div className={`text-[11px] font-bold flex items-center gap-1 ${activeStatusTab === 'فواتير النواقص' ? 'text-white' : 'text-indigo-300'}`}>
-              <Boxes className="w-3.5 h-3.5 text-indigo-400" />
+            <div className={`flex items-center justify-between gap-1 text-[11px] font-bold ${activeStatusTab === 'فواتير النواقص' ? 'text-[#ecc987]' : 'text-slate-500'}`}>
               <span>فواتير النواقص (-NQ)</span>
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${activeStatusTab === 'فواتير النواقص' ? 'bg-white/10 text-[#ecc987]' : 'bg-[var(--app-navy)] text-white'}`}>
+                <Boxes className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <div className={`text-base sm:text-lg font-black ${activeStatusTab === 'فواتير النواقص' ? 'text-white' : 'text-indigo-300'}`}>
+            <div className={`text-base sm:text-lg dream-amt ${activeStatusTab === 'فواتير النواقص' ? 'text-white' : 'text-[var(--app-navy)]'}`}>
               {metrics.shortageInvoicesCount} فاتورة
             </div>
-            <div className={`text-[10px] font-medium ${activeStatusTab === 'فواتير النواقص' ? 'text-indigo-100' : 'text-indigo-300/80'}`}>
+            <div className={`text-[10px] font-semibold ${activeStatusTab === 'فواتير النواقص' ? 'text-white/70' : 'text-slate-500'}`}>
               طلب توريد من أكتوبر (اضغط للتصفية)
             </div>
           </button>
 
           {/* Returns & Auto Stock Restored */}
-          <div className="bg-purple-500/10 p-3.5 rounded-2xl border border-purple-500/30 space-y-1">
-            <div className="text-[11px] text-purple-300 font-bold flex items-center gap-1">
-              <RotateCcw className="w-3.5 h-3.5 text-purple-400" />
-              <span>المرتجعات (المستردة)</span>
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[11px] text-slate-500 font-bold">المرتجعات (المستردة)</span>
+              <div className="w-7 h-7 rounded-lg bg-[#f9eaea] t-risk flex items-center justify-center shrink-0">
+                <RotateCcw className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <div className="text-base sm:text-lg font-black text-purple-300">
+            <div className="text-base sm:text-lg dream-amt text-[var(--app-navy)]">
               {metrics.returnedCount} طلبية
             </div>
-            <div className="text-[10px] text-purple-300/80 font-medium">
+            <div className="text-[10px] dream-amt t-risk font-semibold">
               مسترجع {metrics.returnedCartons} كرتونة
             </div>
           </div>
@@ -627,53 +639,53 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         </StatGrid>
 
         {/* Product Inventory Summary Cards for Admin & Management */}
-        <div className="pt-3 border-t border-slate-800/80">
-          <div className="text-xs font-bold text-slate-400 mb-2 flex items-center gap-2">
-            <Package className="w-4 h-4 text-amber-400" />
+        <div className="pt-3 border-t border-white/15">
+          <div className="text-xs font-bold text-slate-300 mb-2 flex items-center gap-2">
+            <Package className="w-4 h-4 t-brass" />
             <span>موقف المخزون وحالة توفر المنتجات لشركة دريم:</span>
           </div>
 
           <StatGrid visible={0} tone="dark" className="grid grid-cols-2 sm:grid-cols-4 gap-3" moreLabel="عرض موقف المخزون">
             {/* Total Products */}
-            <div className="bg-slate-800/60 p-3 rounded-2xl border border-slate-700/60 flex items-center justify-between">
+            <div className="bg-white p-3 rounded-2xl border border-slate-200 flex items-center justify-between">
               <div>
-                <div className="text-[11px] text-slate-400 font-bold">إجمالي الأصناف</div>
-                <div className="text-lg font-black text-white">{productMetrics.total} صنف</div>
+                <div className="text-[11px] text-slate-500 font-bold">إجمالي الأصناف</div>
+                <div className="text-lg dream-amt text-[var(--app-navy)]">{productMetrics.total} صنف</div>
               </div>
-              <div className="w-9 h-9 rounded-xl bg-slate-700/60 text-slate-300 flex items-center justify-center font-bold">
+              <div className="w-9 h-9 rounded-xl bg-[var(--app-navy)] text-white flex items-center justify-center shrink-0">
                 <Package className="w-4 h-4" />
               </div>
             </div>
 
             {/* Available In Stock */}
-            <div className="bg-emerald-500/10 p-3 rounded-2xl border border-emerald-500/30 flex items-center justify-between">
+            <div className="bg-white p-3 rounded-2xl border border-slate-200 flex items-center justify-between">
               <div>
-                <div className="text-[11px] text-emerald-300 font-bold">متوفر بالمخازن</div>
-                <div className="text-lg font-black text-emerald-400">{productMetrics.availableCount} صنف</div>
+                <div className="text-[11px] text-slate-500 font-bold">متوفر بالمخازن</div>
+                <div className="text-lg dream-amt t-ok">{productMetrics.availableCount} صنف</div>
               </div>
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center font-bold">
+              <div className="w-9 h-9 rounded-xl bg-[#e8f3ee] t-ok flex items-center justify-center shrink-0">
                 <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
 
             {/* Out of Stock (0 units) */}
-            <div className="bg-rose-500/10 p-3 rounded-2xl border border-rose-500/30 flex items-center justify-between">
+            <div className="bg-white p-3 rounded-2xl border border-slate-200 flex items-center justify-between">
               <div>
-                <div className="text-[11px] text-rose-300 font-bold">غير متوفر (0 رصيد)</div>
-                <div className="text-lg font-black text-rose-400">{productMetrics.outOfStockCount} صنف</div>
+                <div className="text-[11px] text-slate-500 font-bold">غير متوفر (0 رصيد)</div>
+                <div className="text-lg dream-amt t-risk">{productMetrics.outOfStockCount} صنف</div>
               </div>
-              <div className="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-300 flex items-center justify-center font-bold">
+              <div className="w-9 h-9 rounded-xl bg-[#f9eaea] t-risk flex items-center justify-center shrink-0">
                 <XCircle className="w-4 h-4" />
               </div>
             </div>
 
             {/* Low Stock Alerts */}
-            <div className="bg-amber-500/10 p-3 rounded-2xl border border-amber-500/30 flex items-center justify-between">
+            <div className="bg-white p-3 rounded-2xl border border-slate-200 flex items-center justify-between">
               <div>
-                <div className="text-[11px] text-amber-300 font-bold">رصيد حرج (قرب النفاذ)</div>
-                <div className="text-lg font-black text-amber-400">{productMetrics.lowStockCount} صنف</div>
+                <div className="text-[11px] text-slate-500 font-bold">رصيد حرج (قرب النفاذ)</div>
+                <div className="text-lg dream-amt t-warn">{productMetrics.lowStockCount} صنف</div>
               </div>
-              <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center font-bold">
+              <div className="w-9 h-9 rounded-xl bg-[#f7f0e1] t-warn flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-4 h-4" />
               </div>
             </div>
@@ -686,7 +698,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
+              <div className="w-8 h-8 rounded-xl icon-brass-dark flex items-center justify-center shrink-0">
                 <Building className="w-4 h-4" />
               </div>
               <div>
@@ -699,9 +711,9 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold text-slate-500">إجمالي مبيعات كافة الفروع:</span>
-              <span className="bg-slate-900 text-amber-300 font-black px-3 py-1 rounded-xl text-xs sm:text-sm">
+              <span className="navy-panel text-[#ecc987] dream-amt px-3 py-1 rounded-xl text-xs sm:text-sm">
                 {formatCurrency(totalAllBranchSales)}
               </span>
             </div>
@@ -717,24 +729,24 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                   onClick={() => setSelectedBranchFilter(isSelected ? 'الكل' : b.name)}
                   className={`text-right p-3.5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
                     isSelected
-                      ? 'bg-slate-900 text-white border-slate-900 ring-2 ring-amber-400 shadow-md transform scale-[1.01]'
-                      : 'bg-slate-50 hover:bg-slate-100 text-slate-900 border-slate-200'
+                      ? 'navy-panel text-white border-transparent shadow-[inset_0_-3px_0_var(--app-accent),0_4px_12px_rgba(16,43,78,.22)]'
+                      : 'bg-white hover:bg-[#f8fafc] text-slate-900 border-slate-200 hover:border-[#b8c9db]'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2 w-full">
                     <div className="space-y-0.5">
-                      <div className={`text-xs font-black truncate ${isSelected ? 'text-amber-300' : 'text-slate-900'}`}>
+                      <div className={`text-xs font-black truncate ${isSelected ? 'text-[#ecc987]' : 'text-slate-900'}`}>
                         {b.name}
                       </div>
-                      <div className={`text-[10px] font-medium ${isSelected ? 'text-slate-400' : 'text-slate-500'}`}>
+                      <div className={`text-[10px] font-medium ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
                         {b.city || 'الفرع'}
                       </div>
                     </div>
                     <span
                       className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
                         isSelected
-                          ? 'bg-amber-400 text-slate-950'
-                          : 'bg-slate-200 text-slate-700'
+                          ? 'bg-[var(--app-accent)] text-[#231a05]'
+                          : 'bg-[#f4f7fa] text-slate-600 border border-slate-200'
                       }`}
                     >
                       {b.ordersCount} طلبية
@@ -743,14 +755,14 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
                   <div className="pt-3 border-t border-current/10 mt-3 flex items-end justify-between gap-2 w-full">
                     <div>
-                      <span className={`text-[10px] block font-bold ${isSelected ? 'text-slate-400' : 'text-slate-500'}`}>
+                      <span className={`text-[10px] block font-bold ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
                         إجمالي المبيعات:
                       </span>
-                      <strong className={`text-sm sm:text-base font-black ${isSelected ? 'text-white' : 'text-amber-950'}`}>
+                      <strong className={`text-sm sm:text-base dream-amt ${isSelected ? 'text-white' : 'text-[var(--app-navy)]'}`}>
                         {formatCurrency(b.totalSales)}
                       </strong>
                     </div>
-                    <div className={`text-[10px] font-bold text-left ${isSelected ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                    <div className={`text-[10px] dream-amt font-bold ${isSelected ? 'text-[#a9d3bd]' : 't-ok'}`}>
                       {b.totalCartons} كرتونة
                     </div>
                   </div>
@@ -769,11 +781,11 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
               <span>قائمة الطلبيات ومتابعة دورة التسليم</span>
-              <span className="bg-amber-100 text-amber-900 text-xs px-2.5 py-0.5 rounded-full font-bold">
+              <span className="tint-brass text-xs px-2.5 py-0.5 rounded-full dream-amt">
                 {accessibleInvoices.length} طلبية
               </span>
               {selectedBranchFilter !== 'الكل' && (
-                <span className="bg-slate-900 text-amber-300 text-xs px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                <span className="navy-panel text-[#ecc987] text-xs px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
                   <span>فرع: {selectedBranchFilter}</span>
                   <button
                     onClick={() => setSelectedBranchFilter('الكل')}
@@ -791,8 +803,8 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               
               {/* Branch Filter Dropdown for Admin/Developer, Fixed Badge for Branch Users */}
               {(currentUser?.role === 'admin' || currentUser?.role === 'developer') ? (
-                <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
-                  <Building className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <div className="flex items-center gap-1.5 bg-white px-3 py-2 rounded-xl border border-slate-200">
+                  <Building className="w-3.5 h-3.5 text-[var(--app-warn)] shrink-0" />
                   <span className="text-slate-500 font-bold whitespace-nowrap">الفرع:</span>
                   <select
                     value={selectedBranchFilter}
@@ -810,10 +822,10 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                   </select>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 bg-amber-50/60 px-3 py-2 rounded-xl border border-amber-200">
-                  <Building className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                  <span className="text-amber-800 font-bold whitespace-nowrap">فرعك:</span>
-                  <span className="font-black text-amber-950 text-xs">
+                <div className="flex items-center gap-1.5 bg-white px-3 py-2 rounded-xl border border-slate-200">
+                  <Building className="w-3.5 h-3.5 text-[var(--app-warn)] shrink-0" />
+                  <span className="t-warn font-bold whitespace-nowrap">فرعك:</span>
+                  <span className="dream-amt text-[var(--app-navy)] text-xs">
                     {currentUser?.branchName || 'الفرع المحدد'}
                   </span>
                 </div>
@@ -821,8 +833,8 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
               {/* Rep Filter if Supervisor / Manager */}
               {currentUser?.role !== 'sales_rep' && (
-                <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
-                  <Users className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <div className="flex items-center gap-1.5 bg-white px-3 py-2 rounded-xl border border-slate-200">
+                  <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                   <span className="text-slate-500 font-bold whitespace-nowrap">المندوب:</span>
                   <select
                     value={selectedRepFilter}
@@ -860,15 +872,15 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               <button
                 key={tab.id}
                 onClick={() => setActiveStatusTab(tab.id)}
-                className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
-                  activeStatusTab === tab.id
-                    ? 'bg-slate-900 text-amber-300 shadow-sm'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                className={`px-3 py-1.5 pill-filter text-xs whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  activeStatusTab === tab.id ? 'on' : ''
                 }`}
               >
                 <span>{tab.label}</span>
                 {tab.count > 0 && (
-                  <span className="text-[10px] bg-slate-950/20 text-current px-1.5 py-0.2 rounded-full font-bold">
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    activeStatusTab === tab.id ? 'bg-white/15 text-white' : 'bg-[#f2f6fa] text-[var(--app-muted)]'
+                  }`}>
                     {tab.count}
                   </span>
                 )}
@@ -884,7 +896,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="ابحث برقم الفاتورة، اسم العميل، الهاتف، المندوب، الفرع..."
-              className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 text-xs font-medium"
+              className="w-full pl-3 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none text-xs font-medium"
             />
           </div>
         </div>
@@ -914,8 +926,8 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               <tbody className="divide-y divide-slate-100">
                 {displayedInvoices.map((inv) => {
                   const badge = statusBadges[inv.status] || {
-                    bg: 'bg-slate-100 border-slate-300',
-                    text: 'text-slate-800',
+                    bg: 'bg-[#f4f7fa] text-slate-700',
+                    text: 'border-slate-200',
                     label: inv.status,
                   };
 
@@ -940,26 +952,26 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                   const stageNum = getStageNumber(inv.status);
 
                   return (
-                    <tr key={inv.id} className="hover:bg-amber-50/30 transition">
+                    <tr key={inv.id} className="transition">
                       
                       {/* Order Code */}
                       <td className="p-3 font-mono font-black text-slate-900">
-                        <span className="bg-slate-100 px-2 py-1 rounded-md text-amber-900 border border-slate-200 block w-fit">
+                        <span className="bg-[#f4f7fa] px-2 py-1 rounded-md text-[var(--app-navy)] border border-slate-200 dream-amt block w-fit">
                           {inv.invoiceNumber}
                         </span>
                         <div className="text-[10px] text-slate-400 mt-0.5">{inv.date}</div>
                         {inv.isShortageInvoice && (
-                          <span className="text-[9px] bg-purple-100 text-purple-900 border border-purple-200 px-1.5 py-0.5 rounded font-bold mt-1 block w-fit">
+                          <span className="tint-warn text-[9px] font-bold px-1.5 py-0.5 rounded block w-fit mt-1">
                             فاتورة نواقص (مخزن أكتوبر)
                           </span>
                         )}
                         {inv.hasShortageSplit && (
-                          <span className="text-[9px] bg-emerald-100 text-emerald-900 border border-emerald-200 px-1.5 py-0.5 rounded font-bold mt-1 block w-fit">
+                          <span className="tint-ok text-[9px] font-bold px-1.5 py-0.5 rounded block w-fit mt-1">
                             أصناف متوفرة (بالمخزن)
                           </span>
                         )}
                         {!inv.isShortageInvoice && !inv.hasShortageSplit && (
-                          <span className="text-[9px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded font-bold mt-1 block w-fit">
+                          <span className="tint-ok text-[9px] font-bold px-1.5 py-0.5 rounded block w-fit mt-1">
                             فاتورة مكتملة متوفرة بالمخزن
                           </span>
                         )}
@@ -987,13 +999,13 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
                       {/* Quantities in Cartons */}
                       <td className="p-3 text-center">
-                        <div className="font-black text-amber-900 text-sm">{inv.totalCartons} كرتونة</div>
-                        <div className="text-[10px] text-slate-500 font-medium">({inv.totalPieces} قطعة)</div>
+                        <div className="dream-amt text-[var(--app-navy)] text-sm">{inv.totalCartons} كرتونة</div>
+                        <div className="text-[10px] text-slate-500 font-medium dream-amt">({inv.totalPieces} قطعة)</div>
                       </td>
 
                       {/* Grand Total */}
                       <td className="p-3 text-left">
-                        <div className="font-black text-slate-900 text-sm">
+                        <div className="dream-amt text-[var(--app-navy)] text-sm">
                           {formatCurrency(inv.estimatedGrandTotal)}
                         </div>
                         <div className="text-[10px] text-slate-400">{inv.paymentMethod}</div>
@@ -1010,12 +1022,12 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                       <td className="p-3">
                         <div className="min-w-[200px] max-w-[240px] mx-auto space-y-1">
                           <div className="flex items-center justify-between text-[9px] font-bold text-slate-500">
-                            <span className={stageNum >= 1 ? 'text-amber-600 font-black' : ''}>مراجعة</span>
-                            <span className={stageNum >= 2 ? 'text-orange-600 font-black' : ''}>تحضير</span>
-                            <span className={stageNum >= 3 ? 'text-teal-600 font-black' : ''}>وصول</span>
-                            <span className={stageNum >= 4 ? 'text-cyan-600 font-black' : ''}>توصيل</span>
-                            <span className={stageNum >= 5 ? 'text-emerald-600 font-black' : ''}>تسليم</span>
-                            <span className={stageNum >= 6 ? 'text-slate-800 font-black' : ''}>إغلاق</span>
+                            <span className={stageNum >= 1 ? 't-navy font-black' : ''}>مراجعة</span>
+                            <span className={stageNum >= 2 ? 't-navy font-black' : ''}>تحضير</span>
+                            <span className={stageNum >= 3 ? 't-navy font-black' : ''}>وصول</span>
+                            <span className={stageNum >= 4 ? 't-navy font-black' : ''}>توصيل</span>
+                            <span className={stageNum >= 5 ? 't-ok font-black' : ''}>تسليم</span>
+                            <span className={stageNum >= 6 ? 't-navy font-black' : ''}>إغلاق</span>
                           </div>
 
                           {/* Progress Line */}
@@ -1023,35 +1035,35 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                             <div
                               className={`h-full transition-all duration-300 ${
                                 inv.status === 'مرتجع'
-                                  ? 'bg-purple-500 w-full'
+                                  ? 'bg-[var(--app-warn)] w-full'
                                   : inv.status === 'مرفوضة / ملغاة'
-                                  ? 'bg-rose-500 w-full'
+                                  ? 'bg-[var(--app-risk)] w-full'
                                   : stageNum === 6
-                                  ? 'bg-slate-800 w-full'
+                                  ? 'bg-[var(--app-navy)] w-full'
                                   : stageNum === 5
-                                  ? 'bg-emerald-500 w-[83%]'
+                                  ? 'bg-[var(--app-ok)] w-[83%]'
                                   : stageNum === 4
-                                  ? 'bg-cyan-500 w-[66%]'
+                                  ? 'bg-[var(--app-navy)] w-[66%]'
                                   : stageNum === 3
-                                  ? 'bg-teal-500 w-[50%]'
+                                  ? 'bg-[var(--app-navy)] w-[50%]'
                                   : stageNum === 2
-                                  ? 'bg-orange-500 w-[33%]'
-                                  : 'bg-amber-500 w-[16%]'
+                                  ? 'bg-[var(--app-navy)] w-[33%]'
+                                  : 'bg-[var(--app-accent)] w-[16%]'
                               }`}
                             />
                           </div>
 
                           <div className="text-[10px] text-center font-bold">
-                            {inv.status === 'مرتجع' && <span className="text-purple-700">مرتجع إلى مخزن الفرع</span>}
-                            {inv.status === 'مرفوضة / ملغاة' && <span className="text-rose-700">ملغاة / مرفوضة</span>}
-                            {inv.status === 'قيد مراجعة المشرف' && <span className="text-amber-700">بانتظار موافقة المشرف</span>}
-                            {inv.status === 'معلقة بانتظار اعتماد الفرع' && <span className="text-blue-700">بانتظار مدير الفرع</span>}
-                            {inv.status === 'جاري تحضير المنتجات' && <span className="text-orange-700">جاري التجهيز بالمخزن</span>}
-                            {inv.status === 'معتمدة ومصروفة من المخزن' && <span className="text-indigo-700">تم الصرف من المخزن</span>}
-                            {inv.status === 'تم وصول المنتجات' && <span className="text-teal-700">جاهزة بالفرع للتوزيع</span>}
-                            {inv.status === 'قيد التوصيل' && <span className="text-cyan-700 font-black animate-pulse">جاري التوصيل للعميل</span>}
-                            {inv.status === 'تم التسليم' && <span className="text-emerald-700 font-black">تم الاستلام والتحصيل</span>}
-                            {inv.status === 'إغلاق الطلبية' && <span className="text-slate-800 font-black">تم التقفيل والتسوية المالية</span>}
+                            {inv.status === 'مرتجع' && <span className="t-warn">مرتجع إلى مخزن الفرع</span>}
+                            {inv.status === 'مرفوضة / ملغاة' && <span className="t-risk">ملغاة / مرفوضة</span>}
+                            {inv.status === 'قيد مراجعة المشرف' && <span className="t-warn">بانتظار موافقة المشرف</span>}
+                            {inv.status === 'معلقة بانتظار اعتماد الفرع' && <span className="t-navy">بانتظار مدير الفرع</span>}
+                            {inv.status === 'جاري تحضير المنتجات' && <span className="t-warn">جاري التجهيز بالمخزن</span>}
+                            {inv.status === 'معتمدة ومصروفة من المخزن' && <span className="t-navy">تم الصرف من المخزن</span>}
+                            {inv.status === 'تم وصول المنتجات' && <span className="t-ok">جاهزة بالفرع للتوزيع</span>}
+                            {inv.status === 'قيد التوصيل' && <span className="t-navy font-black animate-pulse">جاري التوصيل للعميل</span>}
+                            {inv.status === 'تم التسليم' && <span className="t-ok font-black">تم الاستلام والتحصيل</span>}
+                            {inv.status === 'إغلاق الطلبية' && <span className="t-navy font-black">تم التقفيل والتسوية المالية</span>}
                           </div>
                         </div>
                       </td>
@@ -1070,7 +1082,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                                       setSuccessToast(`تم اعتماد الطلبية رقم ${inv.invoiceNumber} وبدء تحضير المنتجات`);
                                   setTimeout(() => setSuccessToast(null), 4000);
                                 }}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                className="app-btn app-btn-ok px-2 py-1 text-xs"
                                 title="اعتماد وبدء تحضير المنتجات"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -1079,7 +1091,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
                               <button
                                 onClick={() => setRejectModalInvoice(inv)}
-                                className="bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 border border-rose-300 cursor-pointer"
+                                className="app-btn app-btn-risk-soft px-2 py-1 text-xs"
                                 title="رفض وإرجاع الرصيد المحجوز"
                               >
                                 <XCircle className="w-3.5 h-3.5" />
@@ -1092,10 +1104,10 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                           {!isPendingApproval && inv.status !== 'تم التسليم' && inv.status !== 'إغلاق الطلبية' && inv.status !== 'مرتجع' && inv.status !== 'مرفوضة / ملغاة' && canManage && (
                             <button
                               onClick={() => setRejectModalInvoice(inv)}
-                              className="bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 border border-rose-200 transition cursor-pointer"
+                              className="app-btn app-btn-risk-soft px-2 py-1 text-xs"
                               title="إلغاء الطلبية في أي وقت وإرجاع الكميات للمخزن"
                             >
-                              <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                              <XCircle className="w-3.5 h-3.5" />
                               <span>إلغاء الطلبية</span>
                             </button>
                           )}
@@ -1109,7 +1121,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                                     setTimeout(() => setSuccessToast(null), 4000);
                                   }
                                 }}
-                                className="bg-teal-600 hover:bg-teal-700 text-white font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                className="app-btn app-btn-primary px-2 py-1 text-xs"
                                 title="تأكيد وصول المنتجات للفرع/المنطقة"
                               >
                                 <Building className="w-3.5 h-3.5" />
@@ -1118,7 +1130,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
                               <button
                                 onClick={() => handleSetOutForDelivery(inv)}
-                                className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                className="app-btn app-btn-primary px-2 py-1 text-xs"
                                 title="تسليم للسائق / بدء التوصيل"
                               >
                                 <Truck className="w-3.5 h-3.5" />
@@ -1132,7 +1144,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                             <>
                               <button
                                 onClick={() => handleSetOutForDelivery(inv)}
-                                className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                className="app-btn app-btn-primary px-2 py-1 text-xs"
                                 title="تسليم للسائق / بدء التوصيل"
                               >
                                 <Truck className="w-3.5 h-3.5" />
@@ -1141,7 +1153,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
                               <button
                                 onClick={() => handleSetDelivered(inv)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                className="app-btn app-btn-ok px-2 py-1 text-xs"
                                 title="تأكيد تسليم الطلبية للعميل"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -1155,7 +1167,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                             <>
                               <button
                                 onClick={() => handleSetDelivered(inv)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                className="app-btn app-btn-primary px-2.5 py-1 text-xs"
                                 title="تأكيد تسليم الطلبية للعميل وتحصيل المبلغ"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -1164,10 +1176,10 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
                               <button
                                 onClick={() => setReturnModalInvoice(inv)}
-                                className="bg-purple-100 hover:bg-purple-200 text-purple-900 border border-purple-300 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer"
+                                className="app-btn app-btn-warn-soft px-2 py-1 text-xs"
                                 title="تسجيل مرتجع وإعادة البضاعة للمخزن"
                               >
-                                <RotateCcw className="w-3.5 h-3.5 text-purple-700" />
+                                <RotateCcw className="w-3.5 h-3.5" />
                                 <span>مرتجع</span>
                               </button>
                             </>
@@ -1185,7 +1197,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                                       setTimeout(() => setSuccessToast(null), 4000);
                                     }
                                   }}
-                                  className="bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                  className="app-btn app-btn-primary px-2 py-1 text-xs"
                                   title="إغلاق وتسوية الطلبية نهائياً"
                                 >
                                   <span>إغلاق الطلبية</span>
@@ -1194,10 +1206,10 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
                               <button
                                 onClick={() => setReturnModalInvoice(inv)}
-                                className="bg-slate-100 hover:bg-purple-100 text-slate-700 hover:text-purple-900 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer border border-slate-200"
+                                className="app-btn app-btn-warn-soft px-2 py-1 text-xs"
                                 title="تسجيل مرتجع بعد الاستلام"
                               >
-                                <RotateCcw className="w-3.5 h-3.5 text-purple-600" />
+                                <RotateCcw className="w-3.5 h-3.5" />
                                 <span>مرتجع لاحق</span>
                               </button>
                             </>
@@ -1206,16 +1218,16 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                           {/* 6. If Closed: Display Final Closed Badge with Return Option */}
                           {inv.status === 'إغلاق الطلبية' && (
                             <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] bg-slate-100 text-slate-800 font-black px-2 py-0.5 rounded-md border border-slate-300">
+                              <span className="t-navy bg-[#f4f7fa] text-[10px] dream-amt px-2 py-0.5 rounded-md border border-slate-200">
                                 مغلقة ومكتملة
                               </span>
                               {canManage && (
                                 <button
                                   onClick={() => setReturnModalInvoice(inv)}
-                                  className="bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer"
+                                  className="app-btn app-btn-warn-soft px-2 py-1 text-xs"
                                   title="تسجيل إذن مرتجع مبيعات (كلي أو جزئي) على طلبية مغلقة"
                                 >
-                                  <RotateCcw className="w-3 h-3 text-purple-700" />
+                                  <RotateCcw className="w-3 h-3" />
                                   <span>مرتجع</span>
                                 </button>
                               )}
@@ -1225,16 +1237,16 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                           {/* If Partially Returned: Display Badge and Option to Add Another Return */}
                           {inv.status === 'مرتجع جزئي' && (
                             <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] bg-amber-50 text-amber-900 font-black px-2 py-0.5 rounded-md border border-amber-300">
+                              <span className="tint-warn text-[10px] dream-amt px-2 py-0.5 rounded-md">
                                 مرتجع جزئي
                               </span>
                               {canManage && (
                                 <button
                                   onClick={() => setReturnModalInvoice(inv)}
-                                  className="bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer"
+                                  className="app-btn app-btn-warn-soft px-2 py-1 text-xs"
                                   title="تسجيل إذن مرتجع إضافي لباقي الأصناف"
                                 >
-                                  <RotateCcw className="w-3 h-3 text-purple-700" />
+                                  <RotateCcw className="w-3 h-3" />
                                   <span>إضافة مرتجع</span>
                                 </button>
                               )}
@@ -1243,7 +1255,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
                           {/* If Returned: Indicate restored */}
                           {inv.status === 'مرتجع' && (
-                            <span className="text-[10px] bg-purple-50 text-purple-800 font-bold px-2 py-0.5 rounded-md border border-purple-200">
+                            <span className="tint-warn text-[10px] dream-amt px-2 py-0.5 rounded-md font-bold">
                               تم استرداد {inv.totalCartons} كرتونة للمخزن
                             </span>
                           )}
@@ -1257,7 +1269,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   setSuccessToast(result.message);
   setTimeout(() => setSuccessToast(null), 4500);
   }}
-  className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer"
+  className="app-btn app-btn-ghost px-2 py-1 text-xs"
   title="إعادة إرسال الفاتورة بالبريد مع PDF وExcel"
   >
   <Send className="w-3.5 h-3.5" />
@@ -1268,7 +1280,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   {onViewInvoice && (
   <button
   onClick={() => onViewInvoice(inv)}
-                              className="bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold px-2 py-1 rounded-lg text-xs flex items-center gap-1 transition cursor-pointer"
+                              className="app-btn app-btn-primary px-2 py-1 text-xs"
                               title="معاينة الفاتورة الإلكترونية"
                             >
                               <Eye className="w-3.5 h-3.5" />
@@ -1278,7 +1290,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
                           <button
                             onClick={() => exportElectronicInvoiceToExcel(inv)}
-                            className="bg-emerald-700 hover:bg-emerald-800 text-white p-1.5 rounded-lg transition cursor-pointer"
+                            className="chip-btn p-1.5"
                             title="تصدير شيت إكسل منسق"
                           >
                             <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -1286,7 +1298,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
                           <button
                             onClick={() => downloadInvoicePDF(inv)}
-                            className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded-lg transition cursor-pointer"
+                            className="chip-btn p-1.5"
                             title="تحميل فاتورة PDF رسمية"
                           >
                             <Download className="w-3.5 h-3.5" />
@@ -1302,7 +1314,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                                   setTimeout(() => setSuccessToast(null), 3500);
                                 }
                               }}
-                              className="bg-rose-100 hover:bg-rose-200 text-rose-700 p-1.5 rounded-lg transition cursor-pointer"
+                              className="chip-btn danger p-1.5"
                               title="حذف الفاتورة نهائياً"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1324,7 +1336,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         {accessibleInvoices.length > 0 && (
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="font-bold text-slate-700">
+              <span className="font-bold text-slate-700 dream-amt">
                 عرض {itemsPerPage === 'all' ? `كافة الطلبيات (${accessibleInvoices.length})` : `${Math.min(accessibleInvoices.length, (currentPage - 1) * itemsPerPage + 1)} - ${Math.min(accessibleInvoices.length, currentPage * itemsPerPage)} من أصل ${accessibleInvoices.length}`}
               </span>
               <div className="flex items-center gap-1.5">
@@ -1335,7 +1347,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                     const val = e.target.value === 'all' ? 'all' : Number(e.target.value);
                     setItemsPerPage(val);
                   }}
-                  className="bg-white border border-slate-300 rounded-xl px-2.5 py-1 font-bold text-slate-800 focus:outline-none cursor-pointer"
+                  className="bg-white border border-slate-200 rounded-xl px-2.5 py-1 font-bold text-slate-800 focus:outline-none cursor-pointer dream-amt"
                 >
                   <option value={15}>15 طلبية</option>
                   <option value={30}>30 طلبية</option>
@@ -1350,7 +1362,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                 <button
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage(1)}
-                  className="p-1.5 bg-white border border-slate-200 rounded-xl text-slate-700 disabled:opacity-40 hover:bg-slate-100 transition cursor-pointer"
+                  className="chip-btn p-1.5 disabled:opacity-40"
                   title="الصفحة الأولى"
                 >
                   <ChevronsRight className="w-3.5 h-3.5" />
@@ -1358,24 +1370,24 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                 <button
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="px-2.5 py-1 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 disabled:opacity-40 hover:bg-slate-100 transition cursor-pointer"
+                  className="chip-btn px-2.5 py-1 font-bold disabled:opacity-40"
                 >
                   السابق
                 </button>
-                <span className="px-2 font-black text-slate-900">
+                <span className="px-2 dream-amt text-[var(--app-navy)]">
                   {currentPage} / {totalPages}
                 </span>
                 <button
                   disabled={currentPage === totalPages}
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  className="px-2.5 py-1 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 disabled:opacity-40 hover:bg-slate-100 transition cursor-pointer"
+                  className="chip-btn px-2.5 py-1 font-bold disabled:opacity-40"
                 >
                   التالي
                 </button>
                 <button
                   disabled={currentPage === totalPages}
                   onClick={() => setCurrentPage(totalPages)}
-                  className="p-1.5 bg-white border border-slate-200 rounded-xl text-slate-700 disabled:opacity-40 hover:bg-slate-100 transition cursor-pointer"
+                  className="chip-btn p-1.5 disabled:opacity-40"
                   title="الصفحة الأخيرة"
                 >
                   <ChevronsLeft className="w-3.5 h-3.5" />
@@ -1405,8 +1417,8 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2 text-rose-800">
-                <XCircle className="w-6 h-6 text-rose-600" />
+              <div className="flex items-center gap-2 text-[var(--app-risk)]">
+                <XCircle className="w-6 h-6" />
                 <div>
                   <h3 className="font-black text-base">إلغاء أو رفض الطلبية #{rejectModalInvoice.invoiceNumber}</h3>
                   <div className="text-[11px] text-slate-500 font-medium">العميل: {rejectModalInvoice.customerName} ({rejectModalInvoice.branchName || 'الفرع'})</div>
@@ -1417,12 +1429,12 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               </button>
             </div>
 
-            <div className="bg-rose-50 border border-rose-200 text-rose-950 p-3.5 rounded-2xl text-xs space-y-1.5">
-              <div className="font-black flex items-center gap-1.5 text-rose-800">
-                <CheckCircle2 className="w-4 h-4 text-rose-700" />
+            <div className="bg-[#fdf1f1] border border-[rgba(179,74,74,.28)] text-[#9c4343] p-3.5 rounded-2xl text-xs space-y-1.5">
+              <div className="font-black flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4" />
                 <span>إرجاع البضاعة والمخزون فوراً:</span>
               </div>
-              <p className="text-rose-900 leading-relaxed">
+              <p className="leading-relaxed">
                 سيقوم النظام فوراً بإلغاء الطلبية وإرجاع <strong className="font-black">{rejectModalInvoice.totalCartons} كرتونة ({rejectModalInvoice.totalPieces} قطعة)</strong> إلى رصيد المخزن الفعلي والمحجوز وإتاحتها للبيع فوراً لباقي المناديب.
               </p>
             </div>
@@ -1444,8 +1456,8 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                     onClick={() => setRejectReason(reasonText)}
                     className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition cursor-pointer ${
                       rejectReason === reasonText
-                        ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        ? 'tint-risk font-black'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-[#f8fafc]'
                     }`}
                   >
                     {reasonText}
@@ -1461,21 +1473,21 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="اكتب سبب إلغاء أو رفض الطلبية بالتفصيل..."
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-400 text-xs font-medium"
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium"
               />
             </div>
 
             <div className="flex items-center gap-2 pt-2">
               <button
                 onClick={handleConfirmReject}
-                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
+                className="app-btn app-btn-risk flex-1 py-2.5 text-xs"
               >
                 <XCircle className="w-4 h-4" />
                 <span>تأكيد إلغاء الطلبية واسترجاع المخزون</span>
               </button>
               <button
                 onClick={() => setRejectModalInvoice(null)}
-                className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200 cursor-pointer"
+                className="btn-ghost px-4 py-2.5 text-xs"
               >
                 تراجع
               </button>

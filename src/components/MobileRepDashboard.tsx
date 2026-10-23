@@ -386,28 +386,28 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
 
   // ===== tiles =====
   const fieldTiles: RepTile[] = [
-    { id: 'customers', label: 'العملاء', hint: 'قائمة عملاء المندوب', icon: Users, accent: 'bg-blue-500', ring: 'group-active:border-blue-300', action: () => onNavigate('all_customers') },
-    { id: 'catalog', label: 'الكتالوج', hint: 'الأصناف والأسعار', icon: Boxes, accent: 'bg-cyan-500', ring: 'group-active:border-cyan-300', action: () => onNavigate('catalog') },
-    { id: 'new-invoice', label: 'فاتورة مبيعات', hint: 'طلبية جديدة', icon: ShoppingCart, accent: 'bg-emerald-500', ring: 'group-active:border-emerald-300', action: onNewInvoice },
-    { id: 'visits', label: 'الزيارات', hint: 'خط السير و GPS', icon: MapPin, accent: 'bg-rose-500', ring: 'group-active:border-rose-300', action: () => onNavigate('visits') },
-    { id: 'returns', label: 'المرتجعات', hint: 'مرتجع فاتورة', icon: RotateCcw, accent: 'bg-amber-500', ring: 'group-active:border-amber-300', action: () => onNavigate('invoices') },
+    { id: 'customers', label: 'العملاء', hint: 'قائمة عملاء المندوب', icon: Users, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('all_customers') },
+    { id: 'catalog', label: 'الكتالوج', hint: 'الأصناف والأسعار', icon: Boxes, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('catalog') },
+    { id: 'new-invoice', label: 'فاتورة مبيعات', hint: 'طلبية جديدة', icon: ShoppingCart, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: onNewInvoice },
+    { id: 'visits', label: 'الزيارات', hint: 'خط السير و GPS', icon: MapPin, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('visits') },
+    { id: 'returns', label: 'المرتجعات', hint: 'مرتجع فاتورة', icon: RotateCcw, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('invoices') },
   ];
 
   const moneyTiles: RepTile[] = [
-    { id: 'collections', label: 'التحصيلات', hint: 'سند قبض / تحصيل', icon: Coins, accent: 'bg-purple-500', ring: 'group-active:border-purple-300', action: () => onNavigate('visits') },
-    { id: 'statement', label: 'كشف حساب العميل', hint: 'المديونيات وسقف الائتمان', icon: Wallet, accent: 'bg-indigo-500', ring: 'group-active:border-indigo-300', action: () => onNavigate('all_customers') },
-    { id: 'debts', label: 'المديونيات', hint: 'أعلى العملاء ديناً', icon: FileText, accent: 'bg-pink-500', ring: 'group-active:border-pink-300', action: () => onNavigate('all_customers') },
+    { id: 'collections', label: 'التحصيلات', hint: 'سند قبض / تحصيل', icon: Coins, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('visits') },
+    { id: 'statement', label: 'كشف حساب العميل', hint: 'المديونيات وسقف الائتمان', icon: Wallet, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('all_customers') },
+    { id: 'debts', label: 'المديونيات', hint: 'أعلى العملاء ديناً', icon: FileText, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('all_customers') },
   ];
 
   const reportTiles: RepTile[] = [
-    { id: 'sales-report', label: 'تقرير المبيعات', hint: 'متابعة طلبياتي', icon: LayoutDashboard, accent: 'bg-teal-500', ring: 'group-active:border-teal-300', action: () => onNavigate('dashboard') },
-    { id: 'forecast', label: 'توقعات التحصيل', hint: 'المتوقع تحصيله', icon: TrendingUp, accent: 'bg-orange-500', ring: 'group-active:border-orange-300', action: () => onNavigate('forecast') },
-    { id: 'targets', label: 'هدفي والتارجت', hint: 'المبيعات والتحصيل', icon: Target, accent: 'bg-lime-500', ring: 'group-active:border-lime-300', action: () => onNavigate('targets') },
+    { id: 'sales-report', label: 'تقرير المبيعات', hint: 'متابعة طلبياتي', icon: LayoutDashboard, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('dashboard') },
+    { id: 'forecast', label: 'توقعات التحصيل', hint: 'المتوقع تحصيله', icon: TrendingUp, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('forecast') },
+    { id: 'targets', label: 'هدفي والتارجت', hint: 'المبيعات والتحصيل', icon: Target, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('targets') },
   ];
 
   const moreTiles: RepTile[] = [
-    { id: 'inventory', label: 'المخزون', hint: 'الأرصدة المتاحة', icon: Layers, accent: 'bg-sky-500', ring: 'group-active:border-sky-300', action: () => onNavigate('inventory') },
-    { id: 'guide', label: 'دليل دورة العمل', hint: 'طريقة التشغيل', icon: BookOpen, accent: 'bg-slate-500', ring: 'group-active:border-slate-300', action: () => onNavigate('guide') },
+    { id: 'inventory', label: 'المخزون', hint: 'الأرصدة المتاحة', icon: Layers, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('inventory') },
+    { id: 'guide', label: 'دليل دورة العمل', hint: 'طريقة التشغيل', icon: BookOpen, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('guide') },
   ];
 
   const renderTile = (tile: RepTile) => {
@@ -419,11 +419,11 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
         onClick={tile.action}
         className={`group flex flex-col items-center justify-center gap-1.5 p-2.5 bg-white rounded-2xl border border-slate-200 shadow-sm min-h-[104px] transition-all duration-150 active:scale-95 cursor-pointer ${tile.ring}`}
       >
-        <span className={`w-11 h-11 ${tile.accent} text-white rounded-full flex items-center justify-center shadow-md`}>
+        <span className={`w-11 h-11 rounded-xl ${tile.accent} flex items-center justify-center shadow-sm`}>
           <Icon size={22} strokeWidth={2.2} />
         </span>
         <span className="text-[12px] font-bold text-slate-800 text-center leading-tight">{tile.label}</span>
-        <span className="text-[10px] font-medium text-slate-400 text-center leading-tight -mt-0.5">{tile.hint}</span>
+        <span className="text-[10px] font-medium t-muted text-center leading-tight -mt-0.5">{tile.hint}</span>
       </button>
     );
   };
@@ -433,28 +433,28 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
     return (
       <h2 className="text-[13px] font-black text-slate-700 px-1 mb-2 flex items-center gap-1.5">
         <span className="w-1 h-3.5 rounded-full bg-amber-400 inline-block" />
-        {Icon && <Icon className="w-4 h-4 text-amber-500" />}
+        {Icon && <Icon className="w-4 h-4 t-navy" opacity={0.75} />}
         {text}
       </h2>
     );
   };
 
   const alertStyles: Record<RepAlert['kind'], string> = {
-    danger: 'bg-rose-50 border-rose-200 text-rose-800',
-    warning: 'bg-amber-50 border-amber-200 text-amber-800',
-    info: 'bg-sky-50 border-sky-200 text-sky-800',
-    success: 'bg-emerald-50 border-emerald-200 text-emerald-800',
+    danger: 'tint-risk border-[rgba(179,74,74,.28)]',
+    warning: 'tint-warn border-[rgba(155,112,39,.28)]',
+    info: 'panel-navy',
+    success: 'panel-ok',
   };
 
   const alertIconStyles: Record<RepAlert['kind'], string> = {
-    danger: 'bg-rose-500 text-white',
-    warning: 'bg-amber-500 text-white',
-    info: 'bg-sky-500 text-white',
-    success: 'bg-emerald-500 text-white',
+    danger: 'rep-solid-risk',
+    warning: 'rep-solid-warn',
+    info: 'rep-solid-navy',
+    success: 'rep-solid-ok',
   };
 
   const progressColor = (rate: number) =>
-    rate >= 90 ? 'bg-emerald-500' : rate >= 60 ? 'bg-amber-500' : 'bg-rose-500';
+    rate >= 90 ? 'rep-bar-ok' : rate >= 60 ? 'rep-bar-warn' : 'rep-bar-risk';
 
   return (
     <div className="space-y-4">
@@ -476,13 +476,13 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {isOffline && (
-              <span className="flex items-center gap-1 bg-amber-100 text-amber-700 border border-amber-300 text-[10px] font-black px-2 py-1 rounded-lg whitespace-nowrap">
+              <span className="flex items-center gap-1 tint-warn border border-[rgba(155,112,39,.25)] text-[10px] font-black px-2 py-1 rounded-lg whitespace-nowrap">
                 <WifiOff className="w-3 h-3" />
                 أوفلاين
               </span>
             )}
             {visibleAlerts.length > 0 && (
-              <span className="flex items-center gap-1 bg-rose-100 text-rose-700 border border-rose-300 text-[10px] font-black px-2 py-1 rounded-lg whitespace-nowrap">
+              <span className="flex items-center gap-1 tint-risk border border-[rgba(179,74,74,.25)] text-[10px] font-black px-2 py-1 rounded-lg whitespace-nowrap">
                 <BellRing className="w-3 h-3" />
                 {visibleAlerts.length}
               </span>
@@ -495,56 +495,56 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
           <button
             type="button"
             onClick={onNewInvoice}
-            className="flex items-center gap-2.5 p-3 bg-gradient-to-br from-emerald-600 to-emerald-700 active:from-emerald-700 active:to-emerald-800 text-white rounded-2xl shadow-sm border border-emerald-500/30 active:scale-[0.98] transition-all text-right cursor-pointer"
+            className="rep-cta flex items-center gap-2.5 p-3 rounded-2xl shadow-sm border border-white/10 active:scale-[0.98] transition-all text-right cursor-pointer min-h-12"
           >
-            <span className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0 shadow-inner">
+            <span className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
               <ShoppingCart className="w-5 h-5 text-white" strokeWidth={2.3} />
             </span>
             <div className="min-w-0 flex-1">
               <div className="text-[12px] font-black leading-tight">تسجيل طلبية</div>
-              <div className="text-[9.5px] text-emerald-100 font-semibold mt-0.5 truncate">فاتورة جديدة</div>
+              <div className="text-[9.5px] text-white/70 font-semibold mt-0.5 truncate">فاتورة جديدة</div>
             </div>
           </button>
 
           <button
             type="button"
             onClick={() => onNavigate('visits')}
-            className="flex items-center gap-2.5 p-3 bg-gradient-to-br from-rose-600 to-rose-700 active:from-rose-700 active:to-rose-800 text-white rounded-2xl shadow-sm border border-rose-500/30 active:scale-[0.98] transition-all text-right cursor-pointer"
+            className="rep-cta flex items-center gap-2.5 p-3 rounded-2xl shadow-sm border border-white/10 active:scale-[0.98] transition-all text-right cursor-pointer min-h-12"
           >
-            <span className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0 shadow-inner">
+            <span className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
               <MapPin className="w-5 h-5 text-white" strokeWidth={2.3} />
             </span>
             <div className="min-w-0 flex-1">
               <div className="text-[12px] font-black leading-tight">تسجيل زيارة</div>
-              <div className="text-[9.5px] text-rose-100 font-semibold mt-0.5 truncate">خط السير والـ GPS</div>
+              <div className="text-[9.5px] text-white/70 font-semibold mt-0.5 truncate">خط السير والـ GPS</div>
             </div>
           </button>
 
           <button
             type="button"
             onClick={() => onNavigate('all_customers')}
-            className="flex items-center gap-2.5 p-2.5 bg-slate-50 active:bg-blue-50 text-slate-800 rounded-2xl border border-slate-200/80 active:border-blue-300 active:scale-[0.98] transition-all text-right cursor-pointer"
+            className="flex items-center gap-2.5 p-2.5 bg-slate-50 text-slate-800 rounded-2xl border border-slate-200/80 active:border-[#b8c9db] active:scale-[0.98] transition-all text-right cursor-pointer"
           >
-            <span className="w-9 h-9 rounded-xl bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+            <span className="rep-ico-navy w-9 h-9 rounded-xl flex items-center justify-center shrink-0">
               <Users className="w-4 h-4" strokeWidth={2.3} />
             </span>
             <div className="min-w-0 flex-1">
               <div className="text-[11.5px] font-black text-slate-800 leading-tight">العملاء والديون</div>
-              <div className="text-[9px] text-slate-400 font-semibold mt-0.5 truncate">كشف الحساب</div>
+              <div className="text-[9px] t-muted font-semibold mt-0.5 truncate">كشف الحساب</div>
             </div>
           </button>
 
           <button
             type="button"
             onClick={() => onNavigate('catalog')}
-            className="flex items-center gap-2.5 p-2.5 bg-slate-50 active:bg-amber-50 text-slate-800 rounded-2xl border border-slate-200/80 active:border-amber-300 active:scale-[0.98] transition-all text-right cursor-pointer"
+            className="flex items-center gap-2.5 p-2.5 bg-slate-50 text-slate-800 rounded-2xl border border-slate-200/80 active:border-[#d0a34e] active:scale-[0.98] transition-all text-right cursor-pointer"
           >
-            <span className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+            <span className="rep-ico-brass w-9 h-9 rounded-xl flex items-center justify-center shrink-0">
               <Boxes className="w-4 h-4" strokeWidth={2.3} />
             </span>
             <div className="min-w-0 flex-1">
               <div className="text-[11.5px] font-black text-slate-800 leading-tight">الكتالوج والعروض</div>
-              <div className="text-[9px] text-slate-400 font-semibold mt-0.5 truncate">المخزون المتاح</div>
+              <div className="text-[9px] t-muted font-semibold mt-0.5 truncate">المخزون المتاح</div>
             </div>
           </button>
         </div>
@@ -552,16 +552,16 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
         {/* ملخص اليوم - Material 3 KPI Stat Pills */}
         <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100">
           <div className="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
-            <div className="text-lg font-black text-rose-500">{stats.myVisitsToday}</div>
-            <div className="text-[10px] font-bold text-slate-500">زيارات اليوم</div>
+            <div className="rep-num rep-hero t-navy">{stats.myVisitsToday}</div>
+            <div className="text-[10px] font-bold t-muted">زيارات اليوم</div>
           </div>
           <div className="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
-            <div className="text-lg font-black text-blue-500">{stats.myInvoices}</div>
-            <div className="text-[10px] font-bold text-slate-500">طلبياتي</div>
+            <div className="rep-num rep-hero t-navy">{stats.myInvoices}</div>
+            <div className="text-[10px] font-bold t-muted">طلبياتي</div>
           </div>
           <div className="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
-            <div className="text-lg font-black text-amber-500">{stats.pendingReview}</div>
-            <div className="text-[10px] font-bold text-slate-500">قيد المراجعة</div>
+            <div className="rep-num rep-hero t-warn">{stats.pendingReview}</div>
+            <div className="text-[10px] font-bold t-muted">قيد المراجعة</div>
           </div>
         </div>
       </div>
@@ -634,20 +634,20 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-slate-500">هدف البيع</span>
-              <span className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+              <span className="rep-ico-ok w-7 h-7 rounded-lg flex items-center justify-center">
                 <Target className="w-3.5 h-3.5" />
               </span>
             </div>
-            <div className="mt-1.5 font-mono text-base font-black text-emerald-800 truncate" title={formatCurrency(targetSummary.salesTarget)}>
+            <div className="mt-1.5 rep-num rep-hero t-ok truncate" title={formatCurrency(targetSummary.salesTarget)}>
               {formatCurrency(targetSummary.salesTarget)}
             </div>
             <div className="text-[10px] text-slate-500 font-semibold">
-              المحقق: <span className="font-mono text-slate-700">{formatCurrency(targetSummary.salesAchieved)}</span>
+              المحقق: <span className="app-num text-slate-700">{formatCurrency(targetSummary.salesAchieved)}</span>
             </div>
             <div className="mt-2">
               <div className="flex items-center justify-between text-[10px] font-black mb-1">
                 <span className="text-slate-500">الإنجاز</span>
-                <span className={targetSummary.salesRate >= 90 ? 'text-emerald-700' : targetSummary.salesRate >= 60 ? 'text-amber-700' : 'text-rose-700'}>
+                <span className={targetSummary.salesRate >= 90 ? 't-ok' : targetSummary.salesRate >= 60 ? 't-warn' : 't-risk'}>
                   {targetSummary.salesRate}%
                 </span>
               </div>
@@ -656,7 +656,7 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
               </div>
             </div>
             <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] font-bold text-slate-500">
-              المتبقي للبيع: <span className="font-mono text-rose-600">{formatCurrency(targetSummary.remainingSales)}</span>
+              المتبقي للبيع: <span className="app-num t-risk">{formatCurrency(targetSummary.remainingSales)}</span>
             </div>
           </div>
 
@@ -664,29 +664,29 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-slate-500">هدف التحصيل</span>
-              <span className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
+              <span className="rep-ico-navy w-7 h-7 rounded-lg flex items-center justify-center">
                 <Coins className="w-3.5 h-3.5" />
               </span>
             </div>
-            <div className="mt-1.5 font-mono text-base font-black text-blue-800 truncate" title={formatCurrency(targetSummary.collectionTarget)}>
+            <div className="mt-1.5 rep-num rep-hero t-navy truncate" title={formatCurrency(targetSummary.collectionTarget)}>
               {formatCurrency(targetSummary.collectionTarget)}
             </div>
             <div className="text-[10px] text-slate-500 font-semibold">
-              المحقق: <span className="font-mono text-slate-700">{formatCurrency(targetSummary.collectionAchieved)}</span>
+              المحقق: <span className="app-num text-slate-700">{formatCurrency(targetSummary.collectionAchieved)}</span>
             </div>
             <div className="mt-2">
               <div className="flex items-center justify-between text-[10px] font-black mb-1">
                 <span className="text-slate-500">الإنجاز</span>
-                <span className={targetSummary.collectionRate >= 90 ? 'text-blue-700' : targetSummary.collectionRate >= 60 ? 'text-amber-700' : 'text-rose-700'}>
+                <span className={targetSummary.collectionRate >= 90 ? 't-navy' : targetSummary.collectionRate >= 60 ? 't-warn' : 't-risk'}>
                   {targetSummary.collectionRate}%
                 </span>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                <div className={`h-full rounded-full ${targetSummary.collectionRate >= 90 ? 'bg-blue-600' : targetSummary.collectionRate >= 60 ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${Math.min(100, targetSummary.collectionRate)}%` }} />
+                <div className={`h-full rounded-full ${targetSummary.collectionRate >= 90 ? 'rep-bar-navy' : targetSummary.collectionRate >= 60 ? 'rep-bar-warn' : 'rep-bar-risk'}`} style={{ width: `${Math.min(100, targetSummary.collectionRate)}%` }} />
               </div>
             </div>
             <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] font-bold text-slate-500">
-              المتبقي للتحصيل: <span className="font-mono text-rose-600">{formatCurrency(targetSummary.remainingCollection)}</span>
+              المتبقي للتحصيل: <span className="app-num t-risk">{formatCurrency(targetSummary.remainingCollection)}</span>
             </div>
           </div>
         </div>
@@ -696,39 +696,39 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
       <section>
         {sectionTitle('المتوقع تحصيله وتوقع البيع الشهري', TrendingUp)}
         <div className="grid grid-cols-2 gap-2.5">
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-3 text-white shadow-md">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-purple-100">المتوقع تحصيله</span>
-              <span className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center">
+              <span className="text-[11px] font-bold text-slate-500">المتوقع تحصيله</span>
+              <span className="rep-ico-navy w-7 h-7 rounded-lg flex items-center justify-center">
                 <DollarSign className="w-3.5 h-3.5" />
               </span>
             </div>
-            <div className="mt-1.5 font-mono text-lg font-black truncate" title={formatCurrency(expectedCollection.total)}>
+            <div className="mt-1.5 rep-num rep-hero t-navy truncate" title={formatCurrency(expectedCollection.total)}>
               {formatCurrency(expectedCollection.total)}
             </div>
-            <div className="text-[10px] text-purple-100 font-semibold mt-1">
+            <div className="text-[10px] text-slate-500 font-semibold mt-1">
               من {expectedCollection.customersCount} عميل • {expectedCollection.records} توقع أسبوعي
             </div>
-            <div className="mt-2 pt-2 border-t border-white/20 text-[10px] font-bold text-purple-100">
-              متوقع بيعه: <span className="font-mono">{formatCurrency(expectedCollection.salesTotal)}</span>
+            <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] font-bold t-muted">
+              متوقع بيعه: <span className="app-num">{formatCurrency(expectedCollection.salesTotal)}</span>
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-orange-500 to-amber-500 rounded-2xl p-3 text-white shadow-md">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-orange-100">توقع البيع الشهري</span>
-              <span className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center">
+              <span className="text-[11px] font-bold text-slate-500">توقع البيع الشهري</span>
+              <span className="rep-ico-warn w-7 h-7 rounded-lg flex items-center justify-center">
                 <BarChart3 className="w-3.5 h-3.5" />
               </span>
             </div>
-            <div className="mt-1.5 font-mono text-lg font-black truncate" title={formatCurrency(monthlySalesForecast.total)}>
+            <div className="mt-1.5 rep-num rep-hero t-navy truncate" title={formatCurrency(monthlySalesForecast.total)}>
               {formatCurrency(monthlySalesForecast.total)}
             </div>
-            <div className="text-[10px] text-orange-100 font-semibold mt-1">
+            <div className="text-[10px] text-slate-500 font-semibold mt-1">
               نسبة التغطية: {monthlySalesForecast.rate}% من هدف البيع
             </div>
-            <div className="mt-2 pt-2 border-t border-white/20 text-[10px] font-bold text-orange-100">
-              الفجوة: <span className="font-mono">{formatCurrency(monthlySalesForecast.gap)}</span>
+            <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] font-bold t-muted">
+              الفجوة: <span className="app-num">{formatCurrency(monthlySalesForecast.gap)}</span>
             </div>
           </div>
         </div>
@@ -739,29 +739,29 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
         {sectionTitle('المستحقات والمديونيات', Wallet)}
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 text-center">
-            <div className="w-8 h-8 mx-auto rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mb-1.5">
+            <div className="rep-ico-warn w-8 h-8 mx-auto rounded-xl flex items-center justify-center mb-1.5">
               <Wallet className="w-4 h-4" />
             </div>
-            <div className="font-mono text-sm font-black text-amber-800 truncate" title={formatCurrency(duesSummary.totalBalance)}>
+            <div className="app-num font-black text-[13px] t-warn truncate" title={formatCurrency(duesSummary.totalBalance)}>
               {formatCurrency(duesSummary.totalBalance)}
             </div>
-            <div className="text-[10px] font-bold text-slate-500 mt-0.5">إجمالي المديونيات</div>
+            <div className="text-[10px] font-bold t-muted mt-0.5">إجمالي المديونيات</div>
           </div>
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 text-center">
-            <div className="w-8 h-8 mx-auto rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center mb-1.5">
+            <div className="rep-ico-risk w-8 h-8 mx-auto rounded-xl flex items-center justify-center mb-1.5">
               <AlertTriangle className="w-4 h-4" />
             </div>
-            <div className="font-mono text-sm font-black text-rose-800 truncate" title={formatCurrency(duesSummary.totalOverdue)}>
+            <div className="app-num font-black text-[13px] t-risk truncate" title={formatCurrency(duesSummary.totalOverdue)}>
               {formatCurrency(duesSummary.totalOverdue)}
             </div>
-            <div className="text-[10px] font-bold text-slate-500 mt-0.5">المتأخرات</div>
+            <div className="text-[10px] font-bold t-muted mt-0.5">المتأخرات</div>
           </div>
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 text-center">
-            <div className="w-8 h-8 mx-auto rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center mb-1.5">
+            <div className="rep-ico-navy w-8 h-8 mx-auto rounded-xl flex items-center justify-center mb-1.5">
               <ShieldCheck className="w-4 h-4" />
             </div>
-            <div className="font-mono text-sm font-black text-indigo-800">{duesSummary.overLimitCount}</div>
-            <div className="text-[10px] font-bold text-slate-500 mt-0.5">تجاوز حد الائتمان</div>
+            <div className="rep-num text-[13px] t-navy">{duesSummary.overLimitCount}</div>
+            <div className="text-[10px] font-bold t-muted mt-0.5">تجاوز حد الائتمان</div>
           </div>
         </div>
 
@@ -770,7 +770,7 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
           <div className="mt-2.5 bg-white rounded-2xl border border-slate-200 shadow-sm p-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-black text-slate-700 flex items-center gap-1.5">
-                <Flame className="w-3.5 h-3.5 text-rose-500" />
+                <Flame className="w-3.5 h-3.5 t-risk" />
                 أعلى العملاء مديونية
               </span>
               <button
@@ -786,16 +786,16 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
                 <div key={customer.id} className="flex items-center justify-between gap-2 bg-slate-50 rounded-xl px-2.5 py-2 border border-slate-100">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 ${
-                      idx === 0 ? 'bg-rose-500 text-white' : idx === 1 ? 'bg-amber-500 text-white' : idx === 2 ? 'bg-orange-400 text-white' : 'bg-slate-200 text-slate-600'
+                      idx === 0 ? 'rep-solid-risk' : idx === 1 ? 'rep-ico-warn' : idx === 2 ? 'rep-ico-navy' : 'rep-ico-slate'
                     }`}>
                       {idx + 1}
                     </span>
                     <div className="min-w-0">
                       <div className="text-[11px] font-bold text-slate-800 truncate">{customer.name}</div>
-                      <div className="text-[9px] text-slate-400 font-mono">{customer.code || 'بدون كود'}</div>
+                      <div className="app-num text-[9px] text-slate-400">{customer.code || 'بدون كود'}</div>
                     </div>
                   </div>
-                  <span className="font-mono text-[11px] font-black text-rose-700 shrink-0" title={formatCurrency(balance)}>
+                  <span className="app-num font-black text-[11px] t-risk shrink-0" title={formatCurrency(balance)}>
                     {formatCurrency(balance)}
                   </span>
                 </div>
@@ -810,36 +810,36 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
         {sectionTitle('أوامر البيع ودورة الطلبيات', Receipt)}
         <div className="grid grid-cols-4 gap-2">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-2.5 text-center">
-            <div className="text-base font-black text-amber-600">{salesOrdersSummary.pendingCount}</div>
-            <div className="text-[9px] font-bold text-slate-500 leading-tight">بانتظار الاعتماد</div>
-            <div className="text-[9px] font-mono text-slate-400 truncate" title={formatCurrency(salesOrdersSummary.pendingValue)}>
+            <div className="rep-num text-base t-warn">{salesOrdersSummary.pendingCount}</div>
+            <div className="text-[9px] font-bold t-muted leading-tight">بانتظار الاعتماد</div>
+            <div className="app-num text-[9px] text-slate-400 truncate" title={formatCurrency(salesOrdersSummary.pendingValue)}>
               {formatCurrency(salesOrdersSummary.pendingValue)}
             </div>
           </div>
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-2.5 text-center">
-            <div className="text-base font-black text-cyan-600">{salesOrdersSummary.inDeliveryCount}</div>
-            <div className="text-[9px] font-bold text-slate-500 leading-tight">قيد التوصيل</div>
+            <div className="rep-num text-base t-navy">{salesOrdersSummary.inDeliveryCount}</div>
+            <div className="text-[9px] font-bold t-muted leading-tight">قيد التوصيل</div>
           </div>
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-2.5 text-center">
-            <div className="text-base font-black text-emerald-600">{salesOrdersSummary.deliveredCount}</div>
-            <div className="text-[9px] font-bold text-slate-500 leading-tight">تم التسليم</div>
-            <div className="text-[9px] font-mono text-slate-400 truncate" title={formatCurrency(salesOrdersSummary.deliveredValue)}>
+            <div className="rep-num text-base t-ok">{salesOrdersSummary.deliveredCount}</div>
+            <div className="text-[9px] font-bold t-muted leading-tight">تم التسليم</div>
+            <div className="app-num text-[9px] text-slate-400 truncate" title={formatCurrency(salesOrdersSummary.deliveredValue)}>
               {formatCurrency(salesOrdersSummary.deliveredValue)}
             </div>
           </div>
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-2.5 text-center">
-            <div className="text-base font-black text-purple-600">{salesOrdersSummary.returnedCount}</div>
-            <div className="text-[9px] font-bold text-slate-500 leading-tight">مرتجعات</div>
+            <div className="rep-num text-base t-risk">{salesOrdersSummary.returnedCount}</div>
+            <div className="text-[9px] font-bold t-muted leading-tight">مرتجعات</div>
           </div>
         </div>
-        <div className="mt-2 bg-slate-900 rounded-2xl p-3 flex items-center justify-between">
+        <div className="mt-2 navy-panel rounded-2xl p-3 flex items-center justify-between">
           <div>
             <div className="text-[10px] font-bold text-slate-400">مبيعات {currentMonthName} المسجلة</div>
-            <div className="font-mono text-base font-black text-amber-300" title={formatCurrency(salesOrdersSummary.monthSales)}>
+            <div className="rep-num t-brass text-base" title={formatCurrency(salesOrdersSummary.monthSales)}>
               {formatCurrency(salesOrdersSummary.monthSales)}
             </div>
           </div>
-          <span className="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center">
+          <span className="badge-brass-dark w-10 h-10 rounded-xl flex items-center justify-center">
             <ShoppingCart className="w-5 h-5" />
           </span>
         </div>
@@ -856,7 +856,7 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
             <button
               type="button"
               onClick={() => onNavigate('visits')}
-              className="mt-3 inline-flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-[11px] px-4 py-2 rounded-xl cursor-pointer active:scale-95 transition"
+              className="mt-3 inline-flex items-center gap-1.5 btn-primary font-black text-[11px] px-4 py-2 cursor-pointer active:scale-95"
             >
               جدولة زيارة جديدة <Plus className="w-3.5 h-3.5" />
             </button>
@@ -871,10 +871,10 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
                   key={v.id}
                   type="button"
                   onClick={() => onNavigate('visits')}
-                  className="w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-3 flex items-center gap-3 text-right cursor-pointer active:scale-[0.99] transition hover:border-amber-300"
+                  className="w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-3 flex items-center gap-3 text-right cursor-pointer active:scale-[0.99] transition hover:border-[#d0a34e]"
                 >
                   <span className={`w-11 h-11 rounded-xl flex flex-col items-center justify-center shrink-0 ${
-                    isToday ? 'bg-rose-500 text-white' : isTomorrow ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600'
+                    isToday ? 'rep-solid-navy' : isTomorrow ? 'rep-ico-warn' : 'rep-ico-slate'
                   }`}>
                     <span className="text-[9px] font-black leading-none">
                       {isToday ? 'اليوم' : isTomorrow ? 'غداً' : v.date.slice(8, 10)}
@@ -893,9 +893,13 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
                   </div>
                   <div className="text-left shrink-0">
                     {v.collectedAmount ? (
-                      <span className="font-mono text-[11px] font-black text-emerald-600 block">{formatCurrency(v.collectedAmount)}</span>
+                      <span className="app-num font-black text-[11px] t-ok block">{formatCurrency(v.collectedAmount)}</span>
                     ) : null}
-                    <span className="text-[9px] font-bold text-slate-400">{v.status || 'مجدولة'}</span>
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-black whitespace-nowrap ${
+                      v.status === 'منفذة' || v.outcome ? 'tint-ok' : 'tint-warn'
+                    }`}>
+                      {v.status || 'مجدولة'}
+                    </span>
                   </div>
                 </button>
               );
@@ -913,7 +917,7 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
               <div key={r.region} className="bg-slate-50 rounded-xl p-2.5 border border-slate-100">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[11px] font-black text-slate-800 flex items-center gap-1.5 truncate">
-                    <MapPin className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <MapPin className="w-3.5 h-3.5 t-navy shrink-0" />
                     {r.region}
                   </span>
                   <span className="text-[10px] font-bold text-slate-500 shrink-0">
@@ -923,13 +927,13 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <div>
                     <div className="text-[9px] font-bold text-slate-500">مبيعات المنطقة</div>
-                    <div className="font-mono text-[11px] font-black text-emerald-700 truncate" title={formatCurrency(r.sales)}>
+                    <div className="app-num font-black text-[11px] t-ok truncate" title={formatCurrency(r.sales)}>
                       {formatCurrency(r.sales)}
                     </div>
                   </div>
                   <div>
                     <div className="text-[9px] font-bold text-slate-500">مديونيات المنطقة</div>
-                    <div className="font-mono text-[11px] font-black text-rose-700 truncate" title={formatCurrency(r.balance)}>
+                    <div className="app-num font-black text-[11px] t-risk truncate" title={formatCurrency(r.balance)}>
                       {formatCurrency(r.balance)}
                     </div>
                   </div>
@@ -944,7 +948,7 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
       <section>
         {sectionTitle('رسائل تحفظية وتوجيهية', MessageSquare)}
         <div className="space-y-2">
-          <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-3.5 text-white border border-slate-700">
+          <div className="navy-panel rounded-2xl p-3.5 text-white border border-white/10">
             <div className="flex items-center gap-2 mb-2">
               <span className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black">
                 <User className="w-4 h-4" />
@@ -967,14 +971,14 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
             </ul>
           </div>
 
-          <div className="bg-gradient-to-r from-blue-900 to-blue-800 rounded-2xl p-3.5 text-white border border-blue-700">
+          <div className="navy-panel rounded-2xl p-3.5 text-white border border-white/10">
             <div className="flex items-center gap-2 mb-2">
               <span className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
                 <UserCheck className="w-4 h-4" />
               </span>
               <span className="text-[12px] font-black">للمشرف على الفريق</span>
             </div>
-            <ul className="space-y-1.5 text-[11px] text-blue-100 leading-relaxed">
+            <ul className="space-y-1.5 text-[11px] text-slate-300 leading-relaxed">
               <li className="flex items-start gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
                 <span>اعتمد الطلبيات المعلقة خلال ساعات العمل لمنع توقف دورة الصرف</span>
@@ -990,14 +994,14 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
             </ul>
           </div>
 
-          <div className="bg-gradient-to-r from-purple-900 to-purple-800 rounded-2xl p-3.5 text-white border border-purple-700">
+          <div className="navy-panel rounded-2xl p-3.5 text-white border border-white/10">
             <div className="flex items-center gap-2 mb-2">
               <span className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
                 <Building2 className="w-4 h-4" />
               </span>
               <span className="text-[12px] font-black">لمدير الفرع</span>
             </div>
-            <ul className="space-y-1.5 text-[11px] text-purple-100 leading-relaxed">
+            <ul className="space-y-1.5 text-[11px] text-slate-300 leading-relaxed">
               <li className="flex items-start gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
                 <span>اعتمد الطلبيات المعلقة بانتظار الفرع لإغلاق دورة الطلب</span>

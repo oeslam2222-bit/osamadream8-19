@@ -100,50 +100,50 @@ export const UserManager: React.FC = () => {
     admin: {
       label: 'الآدمن (الإدارة العامة)',
       shortLabel: 'الآدمن',
-      bg: 'bg-rose-50',
-      border: 'border-rose-200',
-      text: 'text-rose-800',
-      activeRing: 'ring-rose-500 border-rose-500 bg-rose-50/50',
+      bg: 'tint-navy',
+      border: 'border-[rgba(16,43,78,.22)]',
+      text: 'text-[var(--app-navy)]',
+      activeRing: 'border-[var(--app-navy)] bg-[rgba(16,43,78,.06)]',
       icon: ShieldAlert,
       desc: 'صلاحيات الإدارة والرقابة الشاملة الكاملة: حذف وتعديل أي فواتير نهائياً، تعديل وحذف الأصناف والعملاء، إدارة الموظفين، والتحكم بالفروع والمخازن.'
     },
     developer: {
       label: 'المطور (الدعم التقني)',
       shortLabel: 'المطور',
-      bg: 'bg-amber-50',
-      border: 'border-amber-200',
-      text: 'text-amber-800',
-      activeRing: 'ring-amber-500 border-amber-500 bg-amber-50/50',
+      bg: 'tint-navy',
+      border: 'border-[rgba(16,43,78,.22)]',
+      text: 'text-[var(--app-navy)]',
+      activeRing: 'border-[var(--app-navy)] bg-[rgba(16,43,78,.06)]',
       icon: Code,
       desc: 'صلاحيات برمجية وإدارية شاملة (مطابقة للآدمن): حذف وتعديل أي فواتير أو أصناف نهائياً، الربط السحابي، فحص وتطوير المنظومة بالكامل.'
     },
     branch_manager: {
       label: 'مدير الفرع',
       shortLabel: 'مدير الفرع',
-      bg: 'bg-purple-50',
-      border: 'border-purple-200',
-      text: 'text-purple-800',
-      activeRing: 'ring-purple-500 border-purple-500 bg-purple-50/50',
+      bg: 'bg-[var(--app-blue-soft)]',
+      border: 'border-[rgba(30,95,157,.24)]',
+      text: 'text-[var(--app-blue)]',
+      activeRing: 'border-[var(--app-blue)] bg-[var(--app-blue-soft)]',
       icon: Building,
       desc: 'إدارة كاملة لمخزن الفرع: طلب تحويلات بضاعة من مخزن أكتوبر، اعتماد وصرف وتجهيز طلبيات المناديب بالفرع، ومتابعة حركات التوريد والمخزون.'
     },
     supervisor: {
       label: 'مشرف المناديب',
       shortLabel: 'مشرف المناديب',
-      bg: 'bg-blue-50',
-      border: 'border-blue-200',
-      text: 'text-blue-800',
-      activeRing: 'ring-blue-500 border-blue-500 bg-blue-50/50',
+      bg: 'tint-brass',
+      border: 'border-[rgba(201,154,67,.35)]',
+      text: 'app-ink-brass',
+      activeRing: 'border-[rgba(201,154,67,.6)] bg-[rgba(201,154,67,.12)]',
       icon: UserCheck,
       desc: 'الإشراف على مناديب الفرع: مراجعة وتدقيق واعتماد الطلبيات أو إرسالها لمدير الفرع، طلب تحويلات من أكتوبر، ومتابعة المستهدفات وعدد الكراتين.'
     },
     sales_rep: {
       label: 'المندوب',
       shortLabel: 'المندوب',
-      bg: 'bg-emerald-50',
-      border: 'border-emerald-200',
-      text: 'text-emerald-800',
-      activeRing: 'ring-emerald-500 border-emerald-500 bg-emerald-50/50',
+      bg: 'bg-[#f4f7fa]',
+      border: 'border-[var(--app-line)]',
+      text: 'text-[#45607e]',
+      activeRing: 'border-[var(--app-navy)] bg-[rgba(16,43,78,.06)]',
       icon: Smartphone,
       desc: 'مندوب مبيعات ميداني: إنشاء وتجهيز طلبيات البيع لعملائه المسجلين وإرسالها (لا يوافق على الطلبيات ولا ينفذ تحويلات مخزنية بنفسه).'
     }
@@ -618,15 +618,15 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-xs border border-slate-200">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start sm:items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/15 text-amber-900 border border-amber-500/30 flex items-center justify-center font-black shrink-0">
-              <ShieldCheck className="w-6 h-6 text-amber-700" />
+            <div className="w-12 h-12 rounded-2xl bg-[rgba(16,43,78,.10)] text-[var(--app-navy)] border border-[rgba(16,43,78,.22)] flex items-center justify-center font-black shrink-0">
+              <ShieldCheck className="w-6 h-6 text-[var(--app-navy)]" />
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-lg sm:text-xl font-black text-slate-900">
                   إدارة الموظفين والصلاحيات والهيكل الإداري
                 </h2>
-                <span className="bg-slate-100 text-slate-700 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-slate-200">
+                <span className="bg-[rgba(201,154,67,.13)] text-[#8a6420] text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-[rgba(201,154,67,.3)] app-num">
                   {users.length} موظف مسجل
                 </span>
               </div>
@@ -641,10 +641,10 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               <button
                 onClick={handleMergeDuplicates}
                 disabled={isMergingDuplicates}
-                className="flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-emerald-400 font-black px-4 py-3 rounded-2xl text-xs shadow-md transition active:scale-95 cursor-pointer border border-slate-700"
+                className="app-btn app-btn-ghost px-3 text-xs active:scale-95"
                 title="فحص حسابات الموظفين والمناديب المكررة ودمجها وتوحيد السجلات"
               >
-                <Sparkles className={`w-3.5 h-3.5 text-emerald-400 ${isMergingDuplicates ? 'animate-spin' : ''}`} />
+                <Sparkles className={`w-3.5 h-3.5 text-[var(--app-ok)] ${isMergingDuplicates ? 'animate-spin' : ''}`} />
                 <span>{isMergingDuplicates ? 'جاري الفحص والدمج...' : 'فحص ودمج الحسابات المكررة'}</span>
               </button>
             )}
@@ -657,10 +657,10 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   setSyncToast(`تم فحص ومزامنة العملاء بنجاح! تم تحديث وربط ${res.updatedCount} عميل بالمناديب.`);
                   setTimeout(() => setSyncToast(null), 4000);
                 }}
-                className="flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-black px-4 py-3 rounded-2xl text-xs shadow-md transition active:scale-95 cursor-pointer border border-slate-700"
+                className="app-btn app-btn-ghost px-3 text-xs active:scale-95"
                 title="إعادة فحص وربط العملاء بالمناديب وفقاً للأسماء والفروع وعرض تقرير المطابقة"
               >
-                <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
+                <RefreshCw className="w-3.5 h-3.5 app-ink-brass" />
                 <span>مزامنة وربط العملاء بالمناديب</span>
               </button>
             )}
@@ -668,14 +668,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             {isSuperAdminOrDev ? (
               <button
                 onClick={handleOpenAddModal}
-                className="flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black px-5 py-3 rounded-2xl text-xs sm:text-sm shadow-md transition transform active:scale-95 cursor-pointer"
+                className="app-btn app-btn-primary px-5 text-xs sm:text-sm active:scale-95"
               >
                 <UserPlus className="w-4 h-4" />
                 <span>إضافة موظف جديد +</span>
               </button>
             ) : (
-              <div className="bg-amber-50 text-amber-800 border border-amber-200 px-3.5 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2">
-                <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+              <div className="panel-warn px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2">
+                <Lock className="w-4 h-4 shrink-0" />
                 <span>إضافة وتعديل الموظفين مقتصرة على الآدمن والمطور فقط</span>
               </div>
             )}
@@ -683,21 +683,21 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
         </div>
 
         {syncToast && (
-          <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 text-emerald-950 rounded-2xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <div className="mt-3 p-3 panel-ok rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>{syncToast}</span>
           </div>
         )}
 
         {duplicateCheck.mergedCount > 0 && isSuperAdminOrDev && (
-          <div className="mt-4 bg-amber-50 border-2 border-amber-400 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-in fade-in">
+          <div className="mt-4 panel-warn border rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-in fade-in">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-800 flex items-center justify-center font-black shrink-0">
-                <Sparkles className="w-5 h-5 text-amber-700 animate-bounce" />
+              <div className="w-10 h-10 rounded-xl tint-brass border border-[rgba(201,154,67,.35)] flex items-center justify-center font-black shrink-0">
+                <Sparkles className="w-5 h-5 animate-bounce" />
               </div>
               <div>
                 <p className="text-sm font-black text-slate-900">
-                  تم رصد {duplicateCheck.mergedCount} حساب مكرر في النظام (تكرار نفس المندوب أو المشرف)
+                  تم رصد <span className="app-num">{duplicateCheck.mergedCount}</span> حساب مكرر في النظام (تكرار نفس المندوب أو المشرف)
                 </p>
                 <p className="text-xs text-slate-600 mt-0.5 font-medium">
                   {duplicateCheck.mergedPairs.map((p) => `[${p.keptUser.name} - ${p.keptUser.branchName || 'العام'}]`).join(' • ')}
@@ -707,7 +707,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             <button
               onClick={handleMergeDuplicates}
               disabled={isMergingDuplicates}
-              className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-black text-xs px-5 py-2.5 rounded-xl shadow transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+              className="app-btn app-btn-primary px-5 py-2.5 text-xs shrink-0 active:scale-95"
             >
               <Check className="w-4 h-4" />
               <span>{isMergingDuplicates ? 'جاري الدمج والتنظيف...' : 'دمج الحسابات المكررة الآن'}</span>
@@ -719,16 +719,16 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
 
       {/* PENDING APPROVALS SECTION (Requests from register page) */}
       {pendingUsers.length > 0 && (
-        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent rounded-3xl p-5 border-2 border-amber-500/30 shadow-xs space-y-3 animate-in fade-in">
+        <div className="panel-warn rounded-3xl border p-5 shadow-xs space-y-3 animate-in fade-in">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-amber-500 animate-ping"></span>
+              <span className="w-3 h-3 rounded-full bg-[var(--app-accent)] animate-ping"></span>
               <h3 className="font-black text-sm text-slate-900 flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-amber-600" />
-                <span>طلبات تسجيل الحسابات بانتظار تفعيل الإدارة ({pendingUsers.length})</span>
+                <Clock className="w-4 h-4" />
+                <span>طلبات تسجيل الحسابات بانتظار تفعيل الإدارة (<span className="app-num">{pendingUsers.length}</span>)</span>
               </h3>
             </div>
-            <span className="text-xs text-amber-800 font-bold bg-amber-100 px-2.5 py-1 rounded-full border border-amber-300">
+            <span className="tint-warn text-[11px] font-bold px-2.5 py-1 rounded-full border border-[rgba(155,112,39,.25)]">
               تفعيل واعتماد مباشر
             </span>
           </div>
@@ -738,7 +738,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               return (
                 <div
                   key={pUser.id}
-                  className="bg-white p-4 rounded-2xl border border-amber-200 shadow-xs space-y-3 flex flex-col justify-between"
+                  className="bg-white p-4 rounded-2xl border border-[var(--app-line)] shadow-xs space-y-3 flex flex-col justify-between"
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2">
@@ -746,12 +746,12 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         <div className="font-black text-sm text-slate-900">{pUser.name}</div>
                         <div className="text-[11px] text-slate-500 font-mono">@{pUser.username} • {pUser.email}</div>
                       </div>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full app-badge ${roleConfigs[pUser.role]?.bg || 'bg-[#f4f7fa]'} ${roleConfigs[pUser.role]?.border || 'border-[var(--app-line)]'} ${roleConfigs[pUser.role]?.text || 'text-[#45607e]'}`}>
                         {roleConfigs[pUser.role]?.shortLabel || pUser.role}
                       </span>
                     </div>
 
-                    <div className="mt-2 text-xs text-slate-600 space-y-1 bg-slate-50 p-2 rounded-xl">
+                    <div className="mt-2 text-xs text-slate-600 space-y-1 bg-[#f4f7fa] p-2 rounded-xl">
                       <div className="flex justify-between">
                         <span className="text-slate-400">الفرع المطلوب:</span>
                         <span className="font-bold text-slate-800">{pUser.branchName}</span>
@@ -763,17 +763,17 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                  <div className="flex items-center gap-2 pt-2 border-t border-[#e3ebf3]">
                     <button
                       onClick={() => handleOpenApproveModal(pUser)}
-                      className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+                      className="app-btn app-btn-ok flex-1 py-2 text-xs active:scale-95"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>اعتماد وتخصيص المشرف</span>
                     </button>
                     <button
                       onClick={() => rejectUser(pUser.id)}
-                      className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold p-2 rounded-xl text-xs transition border border-rose-200 cursor-pointer"
+                      className="chip-btn danger p-2 text-xs"
                       title="رفض الطلب"
                     >
                       <X className="w-4 h-4" />
@@ -799,8 +799,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               onClick={() => setSelectedRoleFilter(selectedRoleFilter === roleKey ? 'الكل' : roleKey)}
               className={`bg-white rounded-3xl p-4 border transition-all cursor-pointer shadow-xs flex flex-col justify-between ${
                 selectedRoleFilter === roleKey
-                  ? 'border-slate-900 ring-2 ring-slate-900 bg-slate-50/70'
-                  : 'border-slate-200 hover:border-slate-300'
+                  ? 'border-[var(--app-navy)] bg-[rgba(16,43,78,.05)] shadow-[inset_0_-3px_0_var(--app-accent)]'
+                  : 'border-[var(--app-line)] hover:border-[#b8c9db]'
               }`}
             >
               <div>
@@ -808,7 +808,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   <div className={`w-8 h-8 rounded-xl ${cfg.bg} ${cfg.border} border flex items-center justify-center`}>
                     <RoleIcon className={`w-4 h-4 ${cfg.text}`} />
                   </div>
-                  <span className="font-black text-sm text-slate-900">{count} موظف</span>
+                  <span className="font-black text-sm text-slate-900 app-num">{count} <span className="text-[11px] font-bold text-slate-400">موظف</span></span>
                 </div>
                 <div className="mt-2.5 font-black text-xs text-slate-900">{cfg.label}</div>
                 <p className="text-[11px] text-slate-500 mt-1 leading-relaxed line-clamp-2">
@@ -816,8 +816,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 </p>
               </div>
 
-              <div className="pt-2 mt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-bold">
-                <span>{selectedRoleFilter === roleKey ? 'تصفية مفعلة' : 'انقر للتصفية'}</span>
+              <div className="pt-2 mt-2 border-t border-[#e3ebf3] flex items-center justify-between text-[10px] text-slate-400 font-bold">
+                <span className={selectedRoleFilter === roleKey ? 't-navy' : ''}>{selectedRoleFilter === roleKey ? 'تصفية مفعلة' : 'انقر للتصفية'}</span>
               </div>
             </div>
           );
@@ -835,7 +835,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               <h3 className="font-black text-sm sm:text-base text-slate-900">
                 قائمة الموظفين المفعلين في المنظومة
               </h3>
-              <span className="bg-amber-100 text-amber-900 text-xs font-black px-2.5 py-0.5 rounded-full">
+              <span className="tint-brass text-xs font-black px-2.5 py-0.5 rounded-full app-num">
                 {activeUsers.length}
               </span>
             </div>
@@ -843,7 +843,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             {/* Filters Row */}
             <div className="flex flex-wrap items-center gap-2">
               {/* Branch Filter */}
-              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs">
+              <div className="flex items-center gap-1.5 bg-white border border-[var(--app-line)] rounded-xl px-2.5 py-1.5 text-xs">
                 <span className="text-slate-400 font-bold">الفرع:</span>
                 <select
                   value={selectedBranchFilter}
@@ -858,7 +858,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               </div>
 
               {/* Role Filter */}
-              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs">
+              <div className="flex items-center gap-1.5 bg-white border border-[var(--app-line)] rounded-xl px-2.5 py-1.5 text-xs">
                 <span className="text-slate-400 font-bold">الصلاحية:</span>
                 <select
                   value={selectedRoleFilter}
@@ -884,7 +884,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="ابحث بالاسم، اسم المستخدم، رقم الهاتف، أو البريد..."
-              className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs focus:ring-2 focus:ring-amber-400 focus:bg-white transition"
+              className="w-full pl-3 pr-10 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs transition"
             />
             {searchQuery && (
               <button
@@ -897,12 +897,12 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 text-xs">
-    <span className="font-bold text-slate-500">عرض {visibleUsers.length} من {activeUsers.length} مستخدم</span>
+        <div className="flex items-center justify-between gap-3 border-t border-[#e3ebf3] px-4 py-3 text-xs">
+    <span className="font-bold text-slate-500 app-num">عرض {visibleUsers.length} من {activeUsers.length} مستخدم</span>
     <div className="flex items-center gap-2">
-      <button type="button" onClick={() => setUsersPage((page) => Math.max(1, page - 1))} disabled={usersPage === 1} className="rounded-lg border border-slate-200 px-3 py-1.5 font-bold disabled:cursor-not-allowed disabled:opacity-40">السابق</button>
-      <span className="font-black text-slate-700">{usersPage} / {totalUsersPages}</span>
-      <button type="button" onClick={() => setUsersPage((page) => Math.min(totalUsersPages, page + 1))} disabled={usersPage === totalUsersPages} className="rounded-lg border border-slate-200 px-3 py-1.5 font-bold disabled:cursor-not-allowed disabled:opacity-40">التالي</button>
+      <button type="button" onClick={() => setUsersPage((page) => Math.max(1, page - 1))} disabled={usersPage === 1} className="app-pill px-3 py-1.5 text-xs">السابق</button>
+      <span className="font-black text-slate-700 app-num">{usersPage} / {totalUsersPages}</span>
+      <button type="button" onClick={() => setUsersPage((page) => Math.min(totalUsersPages, page + 1))} disabled={usersPage === totalUsersPages} className="app-pill px-3 py-1.5 text-xs">التالي</button>
     </div>
   </div>
 
@@ -916,17 +916,17 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             const RoleIcon = cfg.icon;
 
             return (
-              <div key={user.id} className={`p-4 space-y-3 ${isCurrent ? 'bg-amber-50/40' : ''}`}>
+              <div key={user.id} className={`p-4 space-y-3 ${isCurrent ? 'row-brass' : ''}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-2xl bg-slate-900 text-amber-400 flex items-center justify-center font-black text-sm shrink-0 shadow-xs">
+                    <div className="w-10 h-10 rounded-2xl bg-[var(--app-navy)] text-[var(--app-accent)] flex items-center justify-center font-black text-sm shrink-0 shadow-xs">
                       {user.name.charAt(0)}
                     </div>
                     <div>
                       <div className="font-black text-slate-900 text-sm flex items-center gap-1.5">
                         <span>{user.name}</span>
                         {isCurrent && (
-                          <span className="bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.2 rounded">
+                          <span className="tint-brass text-[10px] font-black px-1.5 py-0.2 rounded-full border border-[rgba(201,154,67,.35)]">
                             أنت
                           </span>
                         )}
@@ -935,14 +935,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     </div>
                   </div>
 
-                  <span className={`px-2.5 py-1 rounded-xl text-[10px] font-black border ${cfg.bg} ${cfg.border} ${cfg.text} flex items-center gap-1`}>
+                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border ${cfg.bg} ${cfg.border} ${cfg.text} flex items-center gap-1`}>
                     <RoleIcon className="w-3 h-3" />
                     <span>{cfg.label}</span>
                   </span>
                 </div>
 
                 {/* Details Grid */}
-                <div className="bg-slate-50 p-2.5 rounded-2xl text-xs space-y-1.5 border border-slate-100">
+                <div className="bg-[#f4f7fa] p-2.5 rounded-2xl text-xs space-y-1.5 border border-[#e3ebf3]">
                   <div className="flex justify-between">
                     <span className="text-slate-400">الفرع:</span>
                     <span className="font-bold text-slate-800">{user.branchName}</span>
@@ -953,7 +953,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                       <button
                         type="button"
                         onClick={() => setViewingRepUser(user)}
-                        className="bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 font-bold px-2 py-0.5 rounded text-[10px] cursor-pointer transition flex items-center gap-1 active:scale-95"
+                        className="app-pill px-2.5 py-1 rounded-full text-[10px] app-num"
                         title="عرض قائمة العملاء والمديونيات والحد الائتماني لهذا المندوب"
                       >
                         {repCustCount} عميل (عرض التفاصيل)
@@ -987,7 +987,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 <div className="flex items-center justify-between gap-2 pt-1">
                   <button
                     onClick={() => handleCopyUserCredentials(user)}
-                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 transition"
+                    className="app-btn app-btn-ghost flex-1 py-2 text-xs"
                   >
                     <Copy className="w-3.5 h-3.5" />
                     <span>{copiedCredentials === user.id ? 'تم النسخ!' : 'نسخ بيانات الدخول'}</span>
@@ -995,8 +995,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
 
                   <button
                     onClick={() => loginAs(user.id)}
-                    className={`px-3 py-2 rounded-xl text-xs font-black transition flex items-center gap-1 ${
-                      isCurrent ? 'bg-amber-500 text-slate-950' : 'bg-slate-900 text-white'
+                    className={`px-3 py-2 text-xs font-black flex items-center gap-1 ${
+                      isCurrent ? 'tint-brass border border-[rgba(201,154,67,.4)] app-ink-brass rounded-[10px]' : 'app-btn app-btn-primary'
                     }`}
                   >
                     <UserCheck className="w-3.5 h-3.5" />
@@ -1006,7 +1006,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   {isSuperAdminOrDev && (
                     <button
                       onClick={() => handleOpenEditModal(user)}
-                      className="p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200"
+                      className="chip-btn p-2"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
@@ -1041,19 +1041,19 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 const RoleIcon = cfg.icon;
 
                 return (
-                  <tr key={user.id} className={`hover:bg-amber-50/25 transition ${isCurrent ? 'bg-amber-50/60 font-medium' : ''}`}>
+                  <tr key={user.id} className={`transition ${isCurrent ? 'row-brass' : ''}`}>
                     
                     {/* Name & Avatar */}
                     <td className="p-3.5">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-2xl bg-slate-900 text-amber-400 flex items-center justify-center font-black text-sm shrink-0 border border-slate-700">
+                        <div className="w-9 h-9 rounded-2xl bg-[var(--app-navy)] text-[var(--app-accent)] flex items-center justify-center font-black text-sm shrink-0 border border-[rgba(16,43,78,.3)]">
                           {user.name.charAt(0)}
                         </div>
                         <div>
                           <div className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
                             <span>{user.name}</span>
                             {isCurrent && (
-                              <span className="bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.2 rounded">
+                              <span className="tint-brass text-[10px] font-black px-1.5 py-0.2 rounded-full border border-[rgba(201,154,67,.35)]">
                                 أنت
                               </span>
                             )}
@@ -1073,7 +1073,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
 
                     {/* Role Badge */}
                     <td className="p-3.5">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-black border ${cfg.bg} ${cfg.border} ${cfg.text}`}>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black border ${cfg.bg} ${cfg.border} ${cfg.text}`}>
                         <RoleIcon className="w-3.5 h-3.5" />
                         <span>{cfg.label}</span>
                       </span>
@@ -1087,7 +1087,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                           <button
                             type="button"
                             onClick={() => setViewingRepUser(user)}
-                            className="inline-flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 px-2.5 py-1 rounded-xl text-[11px] font-black cursor-pointer transition shadow-2xs active:scale-95"
+                            className="app-pill px-2.5 py-1 rounded-full text-[11px] app-num"
                             title="عرض قائمة العملاء والمديونيات والحد الائتماني لهذا المندوب"
                           >
                             {repCustCount} عميل مسند (عرض)
@@ -1102,7 +1102,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         <select
                           value={user.supervisorId || ''}
                           onChange={(e) => assignSupervisor(user.id, e.target.value)}
-                          className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-500"
+                          className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-xs font-semibold text-slate-800 focus:outline-none"
                         >
                           <option value="">-- بدون مشرف محدد --</option>
                           {branchSupervisors.map((s) => (
@@ -1112,7 +1112,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                           ))}
                         </select>
                       ) : user.role === 'supervisor' ? (
-                        <span className="text-[11px] text-blue-700 font-bold bg-blue-50 px-2.5 py-1 rounded-lg">
+                        <span className="text-[11px] app-ink-brass tint-brass px-2.5 py-1 rounded-lg app-num">
                           مشرف قطاع ({supervisedRepsCount} مناديب)
                         </span>
                       ) : (
@@ -1132,19 +1132,19 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         {/* Copy Credentials */}
                         <button
                           onClick={() => handleCopyUserCredentials(user)}
-                          className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                          className="chip-btn p-2 cursor-pointer"
                           title="نسخ بيانات تسجيل الدخول للموظف"
                         >
-                          {copiedCredentials === user.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          {copiedCredentials === user.id ? <Check className="w-3.5 h-3.5 text-[var(--app-ok)]" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
 
                         {/* Switch account for testing */}
                         <button
                           onClick={() => loginAs(user.id)}
-                          className={`px-2.5 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                          className={`px-2.5 py-1 rounded-[10px] text-xs font-bold flex items-center gap-1 cursor-pointer transition ${
                             isCurrent
-                              ? 'bg-amber-500 text-slate-950 font-black'
-                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                              ? 'tint-brass app-ink-brass border border-[rgba(201,154,67,.4)] font-black'
+                              : 'app-pill'
                           }`}
                           title="تجربة بيئة وصلاحيات هذا الموظف"
                         >
@@ -1156,7 +1156,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         {isSuperAdminOrDev && (
                           <button
                             onClick={() => handleOpenEditModal(user)}
-                            className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                            className="chip-btn p-2 cursor-pointer"
                             title="تعديل بيانات الموظف"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -1171,7 +1171,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                                 deleteUser(user.id);
                               }
                             }}
-                            className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 cursor-pointer"
+                            className="chip-btn danger p-2 cursor-pointer"
                             title="حذف الحساب"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1196,10 +1196,10 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
           <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-2xl w-full p-5 sm:p-7 space-y-5 shadow-2xl border border-slate-200 max-h-[92vh] sm:max-h-[90vh] overflow-y-auto flex flex-col">
             
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="flex items-center justify-between border-b border-[#e3ebf3] pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/15 text-amber-900 border border-amber-500/30 flex items-center justify-center font-black shrink-0">
-                  <UserPlus className="w-5 h-5 text-amber-700" />
+                <div className="w-10 h-10 rounded-2xl icon-brass-dark border border-[rgba(201,154,67,.35)] flex items-center justify-center font-black shrink-0">
+                  <UserPlus className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-black text-base sm:text-lg text-slate-900">
@@ -1212,7 +1212,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               </div>
               <button
                 onClick={() => setShowAddUserModal(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition"
+                className="chip-btn w-8 h-8 min-h-0"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1220,7 +1220,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
 
             <form onSubmit={handleSaveUser} className="space-y-4 text-xs">
               {userFormError && (
-                <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl px-3 py-2.5 font-bold text-xs">
+                <div className="tint-risk rounded-xl px-3 py-2.5 font-bold text-xs">
                   {userFormError}
                 </div>
               )}
@@ -1243,13 +1243,13 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         onClick={() => setFormData((prev) => ({ ...prev, role: rKey }))}
                         className={`p-3 rounded-2xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
                           isSelected
-                            ? `border-slate-900 ring-2 ring-slate-900 bg-slate-900 text-white shadow-md`
-                            : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800'
+                            ? 'border-[var(--app-navy)] bg-[var(--app-navy)] text-white shadow-md shadow-[inset_0_-3px_0_var(--app-accent)]'
+                            : 'border-[var(--app-line)] bg-white hover:border-[#b8c9db] text-slate-800'
                         }`}
                       >
                         <div className="flex items-center justify-between w-full mb-1">
-                          <RoleIcon className={`w-4 h-4 ${isSelected ? 'text-amber-400' : 'text-slate-600'}`} />
-                          {isSelected && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                          <RoleIcon className={`w-4 h-4 ${isSelected ? 'text-[var(--app-accent)]' : 'text-slate-500'}`} />
+                          {isSelected && <Check className="w-3.5 h-3.5 text-[var(--app-accent)]" />}
                         </div>
                         <div className="font-black text-xs">{cfg.shortLabel}</div>
                       </button>
@@ -1257,7 +1257,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   })}
                 </div>
                 {/* Active Role Description */}
-                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-slate-600 text-[11px] flex items-center gap-2">
+                <div className="bg-[#f4f7fa] p-2.5 rounded-xl border border-[var(--app-line)] text-slate-600 text-[11px] flex items-center gap-2">
                   <span className="font-bold text-slate-900 shrink-0">مهام الصلاحية:</span>
                   <span>{roleConfigs[formData.role || 'sales_rep']?.desc}</span>
                 </div>
@@ -1272,7 +1272,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 {/* Full Name */}
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    الاسم بالكامل (اسم المندوب / الموظف المربوط بالعملاء وفواتير البيع) <span className="text-rose-600">*</span>
+                    الاسم بالكامل (اسم المندوب / الموظف المربوط بالعملاء وفواتير البيع) <span className="t-risk">*</span>
                   </label>
                   <input
                     type="text"
@@ -1280,7 +1280,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     value={formData.name || ''}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="مثال: أسامة الشناوي"
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-amber-400 focus:bg-white transition text-xs sm:text-sm"
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-900 transition text-xs sm:text-sm"
                   />
                   <p className="text-[10px] text-slate-500 mt-1">
                     هذا الاسم سيظهر تلقائياً للعملاء على الفواتير وشيتات الإكسل وأوامر الشغل.
@@ -1291,7 +1291,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">
-                      البريد الإلكتروني لتسجيل الدخول (Login Email) <span className="text-rose-600">*</span>
+                      البريد الإلكتروني لتسجيل الدخول (Login Email) <span className="t-risk">*</span>
                     </label>
                     <input
                       type="email"
@@ -1308,7 +1308,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
 
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">
-                      اسم المستخدم <span className="text-rose-600">*</span>
+                      اسم المستخدم <span className="t-risk">*</span>
                     </label>
                     <input
                       type="text"
@@ -1373,7 +1373,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         : 'الفرع التابع له *'}
                     </label>
                     {formData.role === 'admin' || formData.role === 'developer' ? (
-                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl font-black text-amber-950 text-xs flex items-center gap-2">
+                      <div className="p-2.5 panel-navy border rounded-xl font-black text-xs flex items-center gap-2">
                         <span>الرابط</span>
                         <span>جميع الفروع (7) + المخزن المركزي (6 أكتوبر)</span>
                       </div>
@@ -1421,30 +1421,30 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 <label className="block font-black text-slate-800 text-[11px] text-slate-500">
                   معاينة بطاقة الموظف والعملاء المرتبطين به:
                 </label>
-                <div className="bg-slate-900 text-white p-3.5 rounded-2xl border border-slate-800 flex items-center justify-between gap-3">
+                <div className="bg-[var(--app-navy)] text-white p-3.5 rounded-2xl border border-[#0b2140] flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 font-black flex items-center justify-center text-sm shrink-0">
+                    <div className="w-10 h-10 rounded-2xl bg-[var(--app-accent)] text-[#231a05] font-black flex items-center justify-center text-sm shrink-0">
                       {formData.name?.charAt(0) || '؟'}
                     </div>
                     <div>
                       <div className="font-black text-sm text-slate-100">{formData.name || 'اسم الموظف'}</div>
-                      <div className="text-[10px] text-amber-300 font-mono">{formData.email || 'user@dream.com'} • {formData.branchName}</div>
+                      <div className="text-[10px] text-[#ecc987] font-mono">{formData.email || 'user@dream.com'} • {formData.branchName}</div>
                     </div>
                   </div>
-                  <span className="bg-amber-500/20 border border-amber-400 text-amber-300 text-[10px] font-black px-2.5 py-1 rounded-xl">
+                  <span className="badge-brass-dark text-[10px] font-black px-2.5 py-1 rounded-xl">
                     {roleConfigs[formData.role || 'sales_rep']?.label}
                   </span>
                 </div>
 
                 {formData.role === 'sales_rep' && formData.name?.trim() && (
-                  <div className="bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl text-emerald-950 text-xs flex items-center justify-between gap-2">
+                  <div className="panel-ok border p-2.5 rounded-xl text-xs flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <UserCheck className="w-4 h-4 shrink-0" />
                       <span>
                         قاعدة بيانات العملاء: تم رصد <strong>{matchingCustomerCount} عميل</strong> مسجل باسم ({formData.name}) في ({formData.branchName || 'الفرع'})
                       </span>
                     </div>
-                    <span className="bg-emerald-200 text-emerald-900 text-[10px] font-black px-2 py-0.5 rounded-md shrink-0">
+                    <span className="bg-[rgba(46,125,91,.16)] text-[var(--app-ok)] text-[10px] font-black px-2 py-0.5 rounded-md shrink-0">
                       ربط تلقائي بالسيستم
                     </span>
                   </div>
@@ -1452,17 +1452,17 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               </div>
 
               {/* Modal Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#e3ebf3]">
                 <button
                   type="button"
                   onClick={() => setShowAddUserModal(false)}
-                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-xs cursor-pointer"
+                  className="app-btn app-btn-ghost px-5 py-2.5 text-xs"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
-                  className="px-7 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-2xl font-black shadow-md text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer"
+                  className="app-btn app-btn-primary px-7 py-2.5 text-xs sm:text-sm active:scale-95"
                 >
                   <Check className="w-4 h-4" />
                   <span>{editingUser ? 'حفظ التعديلات' : 'إنشاء وحفظ الحساب سحابياً'}</span>
@@ -1477,17 +1477,17 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       {approvingUser && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center justify-between border-b border-[#e3ebf3] pb-3">
               <h3 className="font-black text-base text-slate-900 flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                <CheckCircle2 className="w-5 h-5 text-[var(--app-ok)]" />
                 <span>تفعيل حساب وتخصيص المشرف والفرع</span>
               </h3>
-              <button onClick={() => setApprovingUser(null)}>
-                <X className="w-5 h-5 text-slate-400" />
+              <button onClick={() => setApprovingUser(null)} className="chip-btn w-8 h-8 min-h-0 p-0">
+                <X className="w-4 h-4 text-slate-500" />
               </button>
             </div>
 
-            <div className="bg-slate-50 p-3 rounded-2xl text-xs space-y-1">
+            <div className="bg-[#f4f7fa] p-3 rounded-2xl border border-[var(--app-line)] text-xs space-y-1">
               <div className="font-bold text-slate-900 text-sm">{approvingUser.name}</div>
               <div className="text-slate-500 font-mono">@{approvingUser.username} • {approvingUser.email}</div>
               <div className="text-slate-500">الهاتف: {approvingUser.phone}</div>
@@ -1546,18 +1546,18 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#e3ebf3]">
               <button
                 type="button"
                 onClick={() => setApprovingUser(null)}
-                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 text-xs"
+                className="app-btn app-btn-ghost px-4 py-2 text-xs"
               >
                 إلغاء
               </button>
               <button
                 type="button"
                 onClick={handleConfirmApproval}
-                className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black shadow text-xs flex items-center gap-1.5 cursor-pointer"
+                className="app-btn app-btn-ok px-6 py-2 text-xs active:scale-95"
               >
                 <Check className="w-4 h-4" />
                 <span>اعتماد وتفعيل الحساب فوراً</span>
@@ -1572,19 +1572,19 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
             {/* Header */}
-            <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white flex items-center justify-between">
+            <div className="p-4 sm:p-5 navy-panel text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-base shadow-sm">
+                <div className="w-10 h-10 rounded-2xl bg-[var(--app-accent)] text-[#231a05] flex items-center justify-center font-black text-base shadow-sm">
                   {viewingRepUser.name.charAt(0)}
                 </div>
                 <div>
                   <h3 className="font-black text-sm sm:text-base flex items-center gap-2">
                     <span>عملاء المندوب: {viewingRepUser.name}</span>
-                    <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold">
+                    <span className="text-[10px] badge-brass-dark px-2 py-0.5 rounded-full font-bold">
                       {viewingRepUser.branchName}
                     </span>
                   </h3>
-                  <p className="text-[11px] text-slate-300 font-mono mt-0.5">
+                  <p className="text-[11px] text-[#9db0c7] font-mono mt-0.5">
                     كود: {viewingRepUser.id} • هاتف: {viewingRepUser.phone || 'غير مسجل'} • @{viewingRepUser.username}
                   </p>
                 </div>
@@ -1597,7 +1597,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     loginAs(viewingRepUser.id);
                     setViewingRepUser(null);
                   }}
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3.5 py-1.5 rounded-xl text-xs shadow transition flex items-center gap-1 cursor-pointer"
+                  className="btn-brass px-3.5 py-2 text-xs"
                 >
                   <Eye className="w-3.5 h-3.5" />
                   <span>دخول كـ المندوب</span>
@@ -1608,7 +1608,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     setViewingRepUser(null);
                     setRepCustomerSearchTerm('');
                   }}
-                  className="text-slate-400 hover:text-white p-1 rounded-xl cursor-pointer"
+                  className="text-[#9db0c7] hover:text-white p-2 rounded-xl cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1623,17 +1623,17 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 <div className="p-4 sm:p-5 space-y-4 flex-1 overflow-y-auto">
                   {/* Stat Cards */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                    <div className="bg-[#f4f7fa] p-3.5 rounded-2xl border border-[var(--app-line)]">
                       <div className="text-[11px] text-slate-500 font-bold">إجمالي العملاء المسندين</div>
-                      <div className="text-lg font-black text-slate-900 mt-1">{repCustomers.length} <span className="text-xs text-slate-400 font-normal">عميل</span></div>
+                      <div className="text-lg font-black text-slate-900 mt-1 dream-amt">{repCustomers.length} <span className="text-xs text-slate-400 font-normal">عميل</span></div>
                     </div>
-                    <div className="bg-rose-50/60 p-3.5 rounded-2xl border border-rose-200">
-                      <div className="text-[11px] text-rose-700 font-bold">إجمالي مديونيات العملاء</div>
-                      <div className="text-lg font-black text-rose-700 mt-1">{formatCurrency(totalDebts)}</div>
+                    <div className="bg-[#f9eaea] p-3.5 rounded-2xl border border-[rgba(179,74,74,.25)]">
+                      <div className="text-[11px] text-[var(--app-risk)] font-bold">إجمالي مديونيات العملاء</div>
+                      <div className="text-lg font-black text-[var(--app-risk)] mt-1 dream-amt">{formatCurrency(totalDebts)}</div>
                     </div>
-                    <div className="bg-blue-50/60 p-3.5 rounded-2xl border border-blue-200">
-                      <div className="text-[11px] text-blue-700 font-bold">إجمالي الحدود الائتمانية</div>
-                      <div className="text-lg font-black text-blue-700 mt-1">{formatCurrency(totalLimits)}</div>
+                    <div className="bg-[var(--app-blue-soft)] p-3.5 rounded-2xl border border-[rgba(30,95,157,.24)]">
+                      <div className="text-[11px] text-[var(--app-blue)] font-bold">إجمالي الحدود الائتمانية</div>
+                      <div className="text-lg font-black text-[var(--app-blue)] mt-1 dream-amt">{formatCurrency(totalLimits)}</div>
                     </div>
                   </div>
 
@@ -1645,43 +1645,43 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                       value={repCustomerSearchTerm}
                       onChange={(e) => setRepCustomerSearchTerm(e.target.value)}
                       placeholder="ابحث في عملاء المندوب بالاسم، الكود، الهاتف، أو العنوان..."
-                      className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold focus:ring-2 focus:ring-amber-400 focus:bg-white"
+                      className="w-full pl-3 pr-10 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-bold"
                     />
                   </div>
 
                   {/* Customer Table */}
                   {filtered.length === 0 ? (
-                    <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-300 text-slate-500 text-xs">
+                    <div className="p-8 text-center bg-[#f4f7fa] rounded-2xl border border-dashed border-slate-300 text-slate-500 text-xs">
                       {repCustomers.length === 0
                         ? `لا يوجد عملاء مسندين حالياً للمندوب (${viewingRepUser.name}) في فرع (${viewingRepUser.branchName}). يمكنك مزامنة الشيت أو تعديل مندوب العميل.`
                         : 'لا توجد نتائج مطابقة لبحثك في عملاء المندوب.'}
                     </div>
                   ) : (
-                    <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                    <div className="overflow-x-auto border border-[var(--app-line)] rounded-2xl">
                       <table className="w-full text-right text-xs">
-                        <thead className="bg-slate-100 text-slate-700 font-black sticky top-0">
+                        <thead className="bg-slate-900 text-slate-200 font-black sticky top-0">
                           <tr>
                             <th className="p-3">#</th>
                             <th className="p-3">كود العميل</th>
                             <th className="p-3">اسم العميل / المحل</th>
                             <th className="p-3">الفرع</th>
-                            <th className="p-3 text-rose-700">المديونية (ج.م)</th>
-                            <th className="p-3 text-blue-700">الحد الائتماني</th>
-                            <th className="p-3 text-emerald-700">المتاح من الائتمان</th>
+                            <th className="p-3">المديونية (ج.م)</th>
+                            <th className="p-3">الحد الائتماني</th>
+                            <th className="p-3">المتاح من الائتمان</th>
                             <th className="p-3">الهاتف</th>
                             <th className="p-3">العنوان</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 font-semibold text-slate-800">
+                        <tbody className="divide-y divide-[#e3ebf3] font-semibold text-slate-800">
                           {filtered.map((c, idx) => {
                             const debt = c.currentBalance || c.balance || 0;
                             const limit = c.creditLimit || 0;
                             const available = limit > 0 ? Math.max(0, limit - debt) : null;
 
                             return (
-                              <tr key={c.id} className="hover:bg-amber-50/40">
+                              <tr key={c.id}>
                                 <td className="p-3 text-slate-400 font-bold">{idx + 1}</td>
-                                <td className="p-3 font-mono font-bold text-amber-900">{c.code || '---'}</td>
+                                <td className="p-3 font-mono font-bold app-ink-brass">{c.code || '---'}</td>
                                 <td className="p-3">
                                   <div className="font-black text-slate-900">{c.name}</div>
                                   {c.storeName && (
@@ -1689,17 +1689,17 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                                   )}
                                 </td>
                                 <td className="p-3 text-slate-600">
-                                  <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[11px]">
+                                  <span className="inline-block px-2 py-0.5 rounded bg-[#f4f7fa] text-[#45607e] font-bold text-[11px]">
                                     {c.branchName || viewingRepUser.branchName}
                                   </span>
                                 </td>
-                                <td className="p-3 font-mono font-bold text-rose-600">
+                                <td className="p-3 dream-amt t-risk">
                                   {debt > 0 ? formatCurrency(debt) : <span className="text-slate-400">0 ج.م</span>}
                                 </td>
-                                <td className="p-3 font-mono font-bold text-blue-700">
+                                <td className="p-3 dream-amt text-[var(--app-blue)]">
                                   {limit > 0 ? formatCurrency(limit) : <span className="text-slate-400">غير محدد</span>}
                                 </td>
-                                <td className="p-3 font-mono font-bold text-emerald-700">
+                                <td className="p-3 dream-amt t-ok">
                                   {available !== null ? formatCurrency(available) : <span className="text-slate-400">مفتوح</span>}
                                 </td>
                                 <td className="p-3 font-mono text-slate-600">{c.phone || '---'}</td>
@@ -1716,14 +1716,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             })()}
 
             {/* Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end">
+            <div className="p-4 bg-[#f4f7fa] border-t border-[var(--app-line)] flex items-center justify-end">
               <button
                 type="button"
                 onClick={() => {
                   setViewingRepUser(null);
                   setRepCustomerSearchTerm('');
                 }}
-                className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-bold text-xs cursor-pointer"
+                className="app-btn app-btn-ghost px-5 py-2 text-xs"
               >
                 إغلاق
               </button>
@@ -1737,14 +1737,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
             {/* Header */}
-            <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white flex items-center justify-between">
+            <div className="p-4 sm:p-5 navy-panel text-white flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black">
+                <div className="w-10 h-10 rounded-2xl bg-[var(--app-accent)] text-[#231a05] flex items-center justify-center font-black">
                   <RefreshCw className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-black text-sm sm:text-base">تقرير مطابقة ومزامنة العملاء بالمناديب</h3>
-                  <p className="text-xs text-slate-300">تم فحص قاعدة البيانات وتحديث ربط العملاء بحسابات المناديب</p>
+                  <p className="text-xs text-[#9db0c7]">تم فحص قاعدة البيانات وتحديث ربط العملاء بحسابات المناديب</p>
                 </div>
               </div>
               <button
@@ -1753,7 +1753,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   setSyncModalData(null);
                   setAutoCreateFeedback(null);
                 }}
-                className="text-slate-400 hover:text-white p-1 rounded-xl cursor-pointer"
+                className="text-[#9db0c7] hover:text-white p-2 rounded-xl cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1762,27 +1762,27 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             <div className="p-4 sm:p-5 space-y-4 flex-1 overflow-y-auto text-xs">
               {/* Feedback alert */}
               {autoCreateFeedback && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-950 rounded-2xl text-xs font-bold flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div className="p-3 panel-ok rounded-2xl text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
                   <span>{autoCreateFeedback}</span>
                 </div>
               )}
 
               {/* Stats overview */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                <div className="bg-[#f4f7fa] p-3 rounded-2xl border border-[var(--app-line)]">
                   <span className="text-slate-500 font-bold">إجمالي العملاء:</span>
-                  <div className="text-lg font-black text-slate-900 mt-0.5">{customers.length} عميل</div>
+                  <div className="text-lg font-black text-slate-900 mt-0.5 dream-amt">{customers.length} عميل</div>
                 </div>
-                <div className="bg-emerald-50 p-3 rounded-2xl border border-emerald-200">
-                  <span className="text-emerald-800 font-bold">تم ربطهم بالمندوب:</span>
-                  <div className="text-lg font-black text-emerald-800 mt-0.5">
+                <div className="panel-ok p-3 rounded-2xl border">
+                  <span className="font-bold">تم ربطهم بالمندوب:</span>
+                  <div className="text-lg font-black mt-0.5 dream-amt">
                     {customers.filter((c) => c.repId || c.salesRepName || c.repName).length} عميل
                   </div>
                 </div>
-                <div className="bg-amber-50 p-3 rounded-2xl border border-amber-200">
-                  <span className="text-amber-800 font-bold">المناديب المسجلين:</span>
-                  <div className="text-lg font-black text-amber-900 mt-0.5">
+                <div className="tint-brass p-3 rounded-2xl border border-[rgba(201,154,67,.35)]">
+                  <span className="font-bold">المناديب المسجلين:</span>
+                  <div className="text-lg font-black mt-0.5 dream-amt">
                     {users.filter((u) => u.role === 'sales_rep').length} مندوب
                   </div>
                 </div>
@@ -1793,9 +1793,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 <h4 className="font-black text-slate-900 text-xs sm:text-sm">
                   توزيع العملاء والمديونيات على حسابات المناديب المسجلة:
                 </h4>
-                <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-56 overflow-y-auto">
+                <div className="border border-[var(--app-line)] rounded-2xl overflow-hidden max-h-56 overflow-y-auto">
                   <table className="w-full text-right text-xs">
-                    <thead className="bg-slate-100 text-slate-700 font-black sticky top-0">
+                    <thead className="bg-slate-900 text-slate-200 font-black sticky top-0">
                       <tr>
                         <th className="p-2.5">المندوب</th>
                         <th className="p-2.5">الفرع</th>
@@ -1804,17 +1804,17 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         <th className="p-2.5 text-center">معاينة</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 font-semibold">
+                    <tbody className="divide-y divide-[#e3ebf3] font-semibold">
                       {syncRepBreakdown.map(({ rep, count, debts }) => (
-                        <tr key={rep.id} className="hover:bg-amber-50/40">
+                        <tr key={rep.id}>
                           <td className="p-2.5 font-black text-slate-900">{rep.name}</td>
                           <td className="p-2.5 text-slate-600">{rep.branchName}</td>
                           <td className="p-2.5 text-center">
-                            <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-[11px]">
+                            <span className="app-badge ok app-num">
                               {count} عميل
                             </span>
                           </td>
-                          <td className="p-2.5 font-mono font-bold text-rose-600">{formatCurrency(debts)}</td>
+                          <td className="p-2.5 dream-amt t-risk">{formatCurrency(debts)}</td>
                           <td className="p-2.5 text-center">
                             <button
                               type="button"
@@ -1822,7 +1822,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                                 setSyncModalData(null);
                                 setViewingRepUser(rep);
                               }}
-                              className="text-[11px] font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded-lg transition cursor-pointer"
+                              className="app-link text-[11px]"
                             >
                               عرض العملاء
                             </button>
@@ -1840,15 +1840,15 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 if (unmatched.length === 0) return null;
 
                 return (
-                  <div className="bg-amber-50 border border-amber-300 p-4 rounded-2xl space-y-3">
+                  <div className="panel-warn p-4 rounded-2xl border space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                        <AlertCircle className="w-4 h-4 shrink-0" />
                         <div>
-                          <h5 className="font-black text-amber-950 text-xs">
-                            تم رصد ({unmatched.length}) اسم مندوب بالشيت غير مسجلين في المنظومة:
+                          <h5 className="font-black text-slate-900 text-xs">
+                            تم رصد (<span className="app-num">{unmatched.length}</span>) اسم مندوب بالشيت غير مسجلين في المنظومة:
                           </h5>
-                          <p className="text-[11px] text-amber-800 mt-0.5">
+                          <p className="text-[11px] mt-0.5">
                             يمكنك إنشاء وتفعيل حسابات دخول فورية لهم بضغطة واحدة ليتم ربط عملائهم تلقائياً.
                           </p>
                         </div>
@@ -1861,7 +1861,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                           const updated = refreshCustomerRepLinks();
                           setSyncModalData({ open: true, result: updated });
                         }}
-                        className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-3.5 py-1.5 rounded-xl text-xs shadow transition flex items-center gap-1 shrink-0 cursor-pointer"
+                        className="app-btn app-btn-primary px-3.5 py-2 text-xs shrink-0 active:scale-95"
                       >
                         <Sparkles className="w-3.5 h-3.5" />
                         <span>إنشاء وتفعيل الحسابات الآن</span>
@@ -1872,7 +1872,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                       {unmatched.map((item: any, idx: number) => (
                         <span
                           key={idx}
-                          className="bg-white border border-amber-200 text-amber-900 px-2.5 py-1 rounded-xl text-[11px] font-bold shadow-2xs"
+                          className="bg-white border border-[rgba(201,154,67,.35)] app-ink-brass px-2.5 py-1 rounded-xl text-[11px] font-bold shadow-2xs"
                         >
                           {item.repName} ({item.branchName}) • {item.count} عميل
                         </span>
@@ -1884,7 +1884,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             </div>
 
             {/* Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+            <div className="p-4 bg-[#f4f7fa] border-t border-[var(--app-line)] flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => {
@@ -1892,7 +1892,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   setSyncModalData({ open: true, result: res });
                   setAutoCreateFeedback(`تمت إعادة الفحص وتحديث الربط بنجاح! تم تحديث ${res.updatedCount} عميل.`);
                 }}
-                className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-black px-4 py-2 rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
+                className="app-btn app-btn-ghost px-4 py-2 text-xs"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>إعادة الفحص الآن</span>
@@ -1904,7 +1904,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   setSyncModalData(null);
                   setAutoCreateFeedback(null);
                 }}
-                className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-bold text-xs cursor-pointer"
+                className="app-btn app-btn-ghost px-5 py-2 text-xs"
               >
                 إغلاق
               </button>
@@ -1917,28 +1917,28 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       {mergeModalData?.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-            <div className="p-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between">
+            <div className="p-5 navy-panel text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black">
+                <div className="w-10 h-10 rounded-2xl bg-[rgba(46,125,91,.25)] text-[#9fdcc2] flex items-center justify-center font-black">
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
                 <div>
                   <h3 className="font-black text-base text-white">تقرير فحص ودمج الحسابات المكررة</h3>
-                  <p className="text-xs text-slate-300 mt-0.5">تنظيف وتوحيد سجلات الموظفين والمناديب</p>
+                  <p className="text-xs text-[#9db0c7] mt-0.5">تنظيف وتوحيد سجلات الموظفين والمناديب</p>
                 </div>
               </div>
               <button
                 onClick={() => setMergeModalData(null)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
+                className="w-8 h-8 min-h-0 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="p-6 overflow-y-auto space-y-4">
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3">
-                <Check className="w-5 h-5 text-emerald-600 shrink-0" />
-                <span className="text-sm font-black text-emerald-950">{mergeModalData.message}</span>
+              <div className="p-4 panel-ok border rounded-2xl flex items-center gap-3">
+                <Check className="w-5 h-5 shrink-0" />
+                <span className="text-sm font-black text-slate-900">{mergeModalData.message}</span>
               </div>
 
               {mergeModalData.details.length > 0 && (
@@ -1948,9 +1948,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     {mergeModalData.details.map((detail, idx) => (
                       <div
                         key={idx}
-                        className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 flex items-start gap-2"
+                        className="p-3 bg-[#f4f7fa] border border-[var(--app-line)] rounded-xl text-xs font-medium text-slate-800 flex items-start gap-2"
                       >
-                        <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5">
+                        <span className="w-5 h-5 min-h-0 rounded-full tint-brass text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5">
                           {idx + 1}
                         </span>
                         <span className="leading-relaxed">{detail}</span>
@@ -1961,11 +1961,11 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               )}
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end">
+            <div className="p-4 bg-[#f4f7fa] border-t border-[var(--app-line)] flex items-center justify-end">
               <button
                 type="button"
                 onClick={() => setMergeModalData(null)}
-                className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-black text-xs cursor-pointer shadow-sm transition"
+                className="app-btn app-btn-primary px-6 py-2.5 text-xs active:scale-95"
               >
                 تم، إغلاق
               </button>

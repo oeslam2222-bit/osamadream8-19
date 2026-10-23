@@ -56,9 +56,9 @@ const MainLayout: React.FC = () => {
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
 
-  // Everyone except sales reps lands on the new dashboard after login; reps keep the catalog as their landing page.
+  // Everyone lands on the numbers command center after login.
   useEffect(() => {
-    if (currentUser && currentUser.role !== 'sales_rep') {
+    if (currentUser) {
       setActiveTab((prev) => (prev === 'catalog' ? 'home' : prev));
     }
   }, [currentUser?.id]);

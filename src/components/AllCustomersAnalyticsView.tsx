@@ -127,6 +127,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   // State: Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBranch, setSelectedBranch] = useState<string>('ALL');
+  const [selectedSupervisor, setSelectedSupervisor] = useState<string>('ALL');
   const [selectedRep, setSelectedRep] = useState<string>('ALL');
   const [selectedRegion, setSelectedRegion] = useState<string>('ALL');
   const [activityFilter, setActivityFilter] = useState<'ALL' | 'active_2026' | 'inactive_2026' | 'churn_risk' | 'new_customer'>('ALL');
@@ -138,7 +139,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
   const activeFilterCount = [
-    selectedBranch, selectedRep, selectedRegion, activityFilter, debtFilter,
+    selectedBranch, selectedSupervisor, selectedRep, selectedRegion, activityFilter, debtFilter,
     orderFilter, visitFilter, collectionRateFilter,
   ].filter((value) => value !== 'ALL').length;
 
@@ -352,6 +353,17 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     return Array.from(s);
   }, [userVisibleCustomers]);
 
+  const availableSupervisors = useMemo(() => {
+    const s = new Set<string>();
+    userVisibleCustomers.forEach((c) => {
+      if (c.supervisorName) s.add(c.supervisorName);
+    });
+    users.forEach((u) => {
+      if (u.role === 'supervisor') s.add(u.name);
+    });
+    return Array.from(s);
+  }, [userVisibleCustomers, users]);
+
   const availableReps = useMemo(() => {
     const s = new Set<string>();
     userVisibleCustomers.forEach((c) => {
@@ -376,6 +388,19 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     // Branch filter
     if (selectedBranch !== 'ALL') {
       list = list.filter((c) => isBranchMatch(c.branchName, selectedBranch));
+    }
+
+    if (selectedSupervisor !== 'ALL') {
+      list = list.filter((c) => {
+        if (isArabicNameMatch(c.supervisorName || '', selectedSupervisor)) return true;
+        const supervisorUser = users.find((u) => u.role === 'supervisor' && isArabicNameMatch(u.name, selectedSupervisor));
+        const repUser = users.find(
+          (u) =>
+            u.role === 'sales_rep' &&
+            (isArabicNameMatch(u.name, c.salesRepName || '') || isArabicNameMatch(u.name, c.repName || ''))
+        );
+        return !!(supervisorUser && repUser?.supervisorId === supervisorUser.id);
+      });
     }
 
     // Rep filter
@@ -520,7 +545,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     });
 
     return list;
-  }, [userVisibleCustomers, selectedBranch, selectedRep, selectedRegion, activityFilter, debtFilter, orderFilter, visitFilter, collectionRateFilter, searchQuery, sortBy, sortOrder]);
+  }, [userVisibleCustomers, selectedBranch, selectedSupervisor, selectedRep, selectedRegion, activityFilter, debtFilter, orderFilter, visitFilter, collectionRateFilter, searchQuery, sortBy, sortOrder, users]);
 
   // Reset pagination on filter changes
   useEffect(() => {
@@ -796,27 +821,21 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   return (
     <div className="tantawy-screen space-y-4 animate-in fade-in pb-12">
       {/* Top Header Card */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="bg-white rounded-[14px] p-4 sm:p-5 border border-[var(--app-line)] shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 border border-amber-500/20 flex items-center justify-center font-black">
+            <div className="w-10 h-10 rounded-[14px] tint-brass border border-[rgba(201,154,67,.35)] flex items-center justify-center font-black">
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
-                <span>كافة العملاء والتحليل الشامل 2026</span>
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-extrabold border border-amber-200">
-                  {filteredCustomers.length.toLocaleString()} عميل
+              <h1 className="text-lg sm:text-xl font-black t-navy flex items-center gap-2">
+                <span>العملاء</span>
+                <span className="text-xs px-2.5 py-0.5 rounded-full tint-navy app-num border border-[var(--app-line)]">
+                  {filteredCustomers.length.toLocaleString()}
                 </span>
               </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {isRep
-                  ? `ملفات وتحليلات العملاء المسندين لك (${currentUser?.name}) - مقارنة مبيعات وتحصيلات 2025 / 2026 ومتابعة الزيارات والمديونية`
-                  : isSupervisor
-                  ? `تحليل عملاء مناديب فريقك بـ (${currentUser?.branchName}) - مراقبة النشاط والمبيعات والتحصيل والزيارات`
-                  : isBranchManager
-                  ? `قاعدة عملاء (${currentUser?.branchName}) - تقييم المبيعات الشهرية والتحصيلات والديون`
-                  : 'التحليل الشامل لكافة عملاء الفروع الـ 7 - مقارنات المبيعات، التحصيلات الشهرية، ومؤشرات الأداء'}
+              <p className="text-xs t-muted mt-0.5">
+                {isRep ? 'عملاؤك' : isSupervisor ? 'عملاء الفريق' : 'قائمة العملاء'}
               </p>
             </div>
           </div>
@@ -824,22 +843,20 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-          {/* Privacy / Confidentiality Mode Toggle */}
+          {!isRep && !isSupervisor && (
           <button
             id="analytics-privacy-mode-btn"
             type="button"
             onClick={togglePrivacyMode}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition border cursor-pointer whitespace-nowrap ${
-              isPrivacyMode
-                ? 'bg-amber-500/20 text-amber-800 border-amber-500/60 shadow-xs'
-                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+            className={`app-btn min-h-[40px] px-3 py-2 text-xs whitespace-nowrap ${
+              isPrivacyMode ? 'app-btn-warn-soft' : 'app-btn-ghost'
             }`}
             title={isPrivacyMode ? 'وضع سرية البيانات نشط (المبيعات والأرصدة مخفية). اضغط للإظهار.' : 'تفعيل وضع سرية البيانات لإخفاء الأرقام المالية الحساسة أثناء العرض'}
           >
             {isPrivacyMode ? (
               <>
-                <EyeOff className="w-4 h-4 text-amber-600 animate-pulse" />
-                <span className="font-extrabold text-amber-900">سرية البيانات: نشطة</span>
+                <EyeOff className="w-4 h-4 t-warn animate-pulse" />
+                <span className="font-extrabold t-warn">سرية البيانات: نشطة</span>
               </>
             ) : (
               <>
@@ -848,6 +865,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </>
             )}
           </button>
+          )}
 
           {/* Clean & Deduplicate Button (Prevents 3000 to 6000 duplicate explosion) */}
           {isAdminOrDev && (
@@ -855,28 +873,27 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               id="analytics-deduplicate-btn"
               type="button"
               onClick={handleRunDeduplication}
-              className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-xl text-xs font-black shadow-xs transition cursor-pointer whitespace-nowrap"
+              className="app-btn app-btn-ghost px-3 py-2 text-xs shadow-xs whitespace-nowrap"
               title="فحص قاعدة البيانات ومنع أي تكرار ناتج عن تحديث الشيتات اليومية لضمان ثبات عدد العملاء (3000 عميل فريد)"
             >
-              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+              <Sparkles className="w-3.5 h-3.5 app-ink-brass" />
               <span>منع وتنقية التكرار (3,000 عميل)</span>
             </button>
           )}
 
-          {/* BI Analytics Charts Toggle */}
+          {!isRep && !isSupervisor && (
           <button
             id="analytics-toggle-charts-btn"
             type="button"
             onClick={() => setShowCharts(!showCharts)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition border cursor-pointer whitespace-nowrap ${
-              showCharts
-                ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-sm'
-                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+            className={`app-btn min-h-[40px] px-3 py-2 text-xs whitespace-nowrap ${
+              showCharts ? 'app-btn-primary' : 'app-btn-ghost'
             }`}
           >
             <BarChart3 className="w-4 h-4" />
-            <span>{showCharts ? 'إخفاء لوحة Power BI' : 'لوحة تحليلات Power BI'}</span>
+            <span>{showCharts ? 'إخفاء التحليل' : 'التحليل'}</span>
           </button>
+          )}
 
           {/* Export & Import (Admin, Dev, Branch Manager) */}
           {isAdminOrDev && (
@@ -884,36 +901,38 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               id="analytics-sync-sheet-btn"
               type="button"
               onClick={() => setIsSyncModalOpen(true)}
-              className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 px-3.5 py-2 rounded-xl text-xs font-black shadow-sm transition border border-slate-750 cursor-pointer whitespace-nowrap"
+              className="app-btn app-btn-primary px-3.5 py-2 text-xs whitespace-nowrap"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>مزامنة شيت المديونية / إكسل</span>
             </button>
           )}
 
+          {!isRep && (
           <button
             id="analytics-export-excel-btn"
             type="button"
             onClick={() => exportCustomerAnalyticsToExcel(filteredCustomers, 'كافة_العملاء_دريم')}
-            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl text-xs font-bold shadow-sm transition cursor-pointer whitespace-nowrap"
+            className="app-btn app-btn-ok px-3 py-2 text-xs whitespace-nowrap"
             title="تصدير كشف التحليل بالكامل كملف Excel"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>تصدير Excel</span>
+            <span>تصدير</span>
           </button>
+          )}
         </div>
       </div>
 
       {/* Deduplication Notice Notification Banner */}
       {dedupeNotice && (
-        <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-2xl p-3 sm:p-4 flex items-center justify-between gap-3 text-xs font-bold shadow-sm animate-in fade-in">
+        <div className="panel-ok rounded-[14px] p-3 sm:p-4 flex items-center justify-between gap-3 text-xs font-bold shadow-sm animate-in fade-in">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-[10px] tint-ok flex items-center justify-center shrink-0">
               <CheckCircle2 className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-emerald-950 font-black">{dedupeNotice}</p>
-              <p className="text-emerald-700 text-[11px] font-medium mt-0.5">
+              <p className="font-black">{dedupeNotice}</p>
+              <p className="text-[11px] font-medium mt-0.5 opacity-80">
                 النظام يقوم تلقائياً بمطابقة وتحديث البيانات اليومية دون إنشاء عملاء مكررين.
               </p>
             </div>
@@ -921,49 +940,50 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           <button
             type="button"
             onClick={() => setDedupeNotice(null)}
-            className="text-emerald-700 hover:text-emerald-950 p-1 rounded-lg hover:bg-emerald-100 transition"
+            className="p-1 rounded-lg hover:bg-[rgba(46,125,91,.12)] transition"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* Power BI Executive KPI Cards (Top Accent Colored Stripes & High Contrast) */}
+      {/* Numbers live on the home command center for reps/supervisors */}
+      {!isRep && !isSupervisor && (
       <StatGrid visible={4} className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3" moreLabel="عرض باقي المؤشرات المالية">
         {/* Total Customers */}
-        <div className="bg-white rounded-2xl p-3 border border-slate-200 border-t-4 border-t-slate-700 shadow-xs hover:shadow-md transition">
-          <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
+        <div className="bg-white rounded-[14px] p-3 border border-[var(--app-line)] shadow-xs hover:shadow-md transition">
+          <div className="text-[11px] font-bold t-muted flex items-center justify-between">
             <span>إجمالي العملاء</span>
-            <Users className="w-3.5 h-3.5 text-slate-500" />
+            <span className="w-7 h-7 rounded-[10px] tint-navy flex items-center justify-center shrink-0"><Users className="w-3.5 h-3.5" /></span>
           </div>
-          <div className="text-lg font-black text-slate-900 mt-1">
+          <div className="text-lg dream-amt t-navy mt-1">
             {kpiStats.totalCount.toLocaleString()}
           </div>
-          <div className="text-[10px] text-slate-500 mt-0.5 font-semibold">
+          <div className="text-[10px] t-muted mt-0.5 font-semibold">
             {kpiStats.active2026Count.toLocaleString()} نشط ({kpiStats.activeRate}%)
           </div>
         </div>
 
         {/* 2026 Sales & Growth */}
-        <div className="bg-white rounded-2xl p-3 border border-slate-200 border-t-4 border-t-[#0078d4] shadow-xs hover:shadow-md transition">
-          <div className="text-[11px] font-bold text-[#0078d4] flex items-center justify-between">
+        <div className="bg-white rounded-[14px] p-3 border border-[var(--app-line)] shadow-xs hover:shadow-md transition">
+          <div className="text-[11px] font-bold t-muted flex items-center justify-between">
             <span>مبيعات 2026</span>
-            <TrendingUp className="w-3.5 h-3.5 text-[#0078d4]" />
+            <span className="w-7 h-7 rounded-[10px] tint-brass flex items-center justify-center shrink-0"><TrendingUp className="w-3.5 h-3.5" /></span>
           </div>
-          <div className="text-base sm:text-lg font-black text-slate-900 mt-1 truncate" title={isPrivacyMode ? 'مخفي' : undefined}>
+          <div className="text-base sm:text-lg dream-amt t-navy mt-1 truncate" title={isPrivacyMode ? 'مخفي' : undefined}>
             {formatMoney(kpiStats.totalSales2026)}
           </div>
-          <div className="text-[10px] text-slate-600 font-bold mt-0.5 flex items-center gap-0.5">
+          <div className="text-[10px] font-bold mt-0.5 flex items-center gap-0.5">
             {kpiStats.salesGrowth >= 0 ? (
-              <span className="text-emerald-600 flex items-center font-black">
+              <span className="t-ok flex items-center font-black">
                 <ArrowUpRight className="w-3 h-3" /> +{kpiStats.salesGrowth}%
               </span>
             ) : (
-              <span className="text-rose-600 flex items-center font-black">
+              <span className="t-risk flex items-center font-black">
                 <ArrowDownRight className="w-3 h-3" /> {kpiStats.salesGrowth}%
               </span>
             )}
-            <span className="text-slate-400">عن 2025</span>
+            <span className="t-muted">عن 2025</span>
           </div>
         </div>
 
@@ -1040,9 +1060,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           </div>
         </div>
       </StatGrid>
+      )}
 
       {/* Power BI Multi-Visual Interactive Dashboard */}
-      {showCharts && (
+      {showCharts && !isRep && !isSupervisor && (
         <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-4 animate-in slide-in-from-top-3">
           {/* Visual Header & Tabs */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">

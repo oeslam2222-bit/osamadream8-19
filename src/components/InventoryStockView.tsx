@@ -287,12 +287,12 @@ export const InventoryStockView: React.FC = () => {
       
       {/* Toast Notification */}
       {actionSuccessMsg && (
-        <div className="bg-emerald-600 text-white p-3.5 rounded-2xl shadow-xl flex items-center justify-between text-xs animate-in fade-in sticky top-20 z-30">
+        <div className="bg-[var(--app-ok)] text-white p-3.5 rounded-2xl shadow-xl flex items-center justify-between text-xs animate-in fade-in sticky top-20 z-30">
           <div className="flex items-center gap-2 font-bold">
-            <CheckCircle2 className="w-5 h-5 text-emerald-200" />
+            <CheckCircle2 className="w-5 h-5 text-white/75" />
             <span>{actionSuccessMsg}</span>
           </div>
-          <button onClick={() => setActionSuccessMsg(null)} className="text-white hover:text-emerald-200">
+          <button onClick={() => setActionSuccessMsg(null)} className="text-white hover:text-white/70">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -305,24 +305,24 @@ export const InventoryStockView: React.FC = () => {
           onClick={() => setStockLevelFilter('in_branch')}
           className={`p-3.5 sm:p-4 rounded-3xl border transition cursor-pointer flex flex-col justify-between ${
             stockLevelFilter === 'in_branch'
-              ? 'bg-emerald-500/15 border-emerald-500 ring-2 ring-emerald-400'
-              : 'bg-white border-slate-200 hover:border-emerald-300'
+              ? 'bg-[rgba(46,125,91,.08)] border-[rgba(46,125,91,.4)] ring-2 ring-[rgba(46,125,91,.28)]'
+              : 'bg-white border-slate-200 hover:border-[rgba(46,125,91,.45)]'
           }`}
         >
           <div className="flex items-center justify-between">
-            <div className="w-9 h-9 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-black">
+            <div className="w-9 h-9 rounded-2xl bg-[var(--app-ok)] text-white flex items-center justify-center font-black">
               <CheckCircle2 className="w-5 h-5" />
             </div>
-            <span className="text-[10px] font-black bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-full">
+            <span className="app-badge ok">
               صرف مباشر
             </span>
           </div>
           <div className="mt-2">
             <div className="text-[11px] text-slate-500 font-bold">متوفر بمخزن الفرع</div>
-            <div className="text-xl sm:text-2xl font-black text-emerald-950">
+            <div className="text-xl sm:text-2xl font-black t-ok app-num">
               {stockMetrics.inBranchCount} <span className="text-xs font-bold text-slate-500">صنف</span>
             </div>
-            <div className="text-[10px] text-emerald-800 font-semibold mt-0.5">جاهز للتسليم الفوري بدون تحويل</div>
+            <div className="text-[10px] t-ok font-semibold mt-0.5">جاهز للتسليم الفوري بدون تحويل</div>
           </div>
         </div>
 
@@ -331,24 +331,24 @@ export const InventoryStockView: React.FC = () => {
           onClick={() => setStockLevelFilter('needs_transfer')}
           className={`p-3.5 sm:p-4 rounded-3xl border transition cursor-pointer flex flex-col justify-between ${
             stockLevelFilter === 'needs_transfer'
-              ? 'bg-blue-500/15 border-blue-500 ring-2 ring-blue-400'
-              : 'bg-white border-slate-200 hover:border-blue-300'
+              ? 'bg-[rgba(16,43,78,.06)] border-[rgba(16,43,78,.38)] ring-2 ring-[rgba(16,43,78,.25)]'
+              : 'bg-white border-slate-200 hover:border-[rgba(16,43,78,.45)]'
           }`}
         >
           <div className="flex items-center justify-between">
-            <div className="w-9 h-9 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black">
+            <div className="w-9 h-9 rounded-2xl bg-[var(--app-navy)] text-white flex items-center justify-center font-black">
               <Truck className="w-5 h-5" />
             </div>
-            <span className="text-[10px] font-black bg-blue-100 text-blue-900 px-2 py-0.5 rounded-full">
+            <span className="app-badge neutral">
               طلب تحويل
             </span>
           </div>
           <div className="mt-2">
-            <div className="text-sm sm:text-base text-blue-950 font-black">طلب تحويل — يحتاج تحويل من أكتوبر</div>
-            <div className="text-xl sm:text-2xl font-black text-blue-950">
+            <div className="text-sm sm:text-base t-navy font-black">طلب تحويل — يحتاج تحويل من أكتوبر</div>
+            <div className="text-xl sm:text-2xl font-black t-navy app-num">
               {stockMetrics.needsTransferCount} <span className="text-xs font-bold text-slate-500">صنف</span>
             </div>
-            <div className="text-[10px] text-blue-800 font-semibold mt-0.5">عجز بالفرع ومتوفر بالمخزن الرئيسي</div>
+            <div className="text-[10px] t-navy font-semibold mt-0.5">عجز بالفرع ومتوفر بالمخزن الرئيسي</div>
           </div>
         </div>
 
@@ -357,26 +357,26 @@ export const InventoryStockView: React.FC = () => {
           onClick={() => setStockLevelFilter('low_stock')}
           className={`p-3.5 sm:p-4 rounded-3xl border transition cursor-pointer flex flex-col justify-between ${
             stockLevelFilter === 'low_stock'
-              ? 'bg-amber-500/15 border-amber-500 ring-2 ring-amber-400'
-              : 'bg-white border-slate-200 hover:border-amber-300'
+              ? 'bg-[rgba(155,112,39,.08)] border-[rgba(155,112,39,.4)] ring-2 ring-[rgba(155,112,39,.28)]'
+              : 'bg-white border-slate-200 hover:border-[rgba(155,112,39,.5)]'
           }`}
         >
           <div className="flex items-center justify-between">
-            <div className="w-9 h-9 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
+            <div className="w-9 h-9 rounded-2xl bg-[var(--app-warn)] text-white flex items-center justify-center font-black">
               <AlertTriangle className="w-5 h-5" />
             </div>
             {stockMetrics.lowStockCount > 0 && (
-              <span className="text-[10px] font-black bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">
+              <span className="app-badge warn">
                 مخزون منخفض
               </span>
             )}
           </div>
           <div className="mt-2">
             <div className="text-[11px] text-slate-500 font-bold">أصناف قاربت على النفاذ</div>
-            <div className="text-xl sm:text-2xl font-black text-amber-950">
+            <div className="text-xl sm:text-2xl font-black t-warn app-num">
               {stockMetrics.lowStockCount} <span className="text-xs font-bold text-slate-500">صنف</span>
             </div>
-            <div className="text-[10px] text-amber-800 font-semibold mt-0.5">رصيد الفرع 10 كراتين أو أقل</div>
+            <div className="text-[10px] t-warn font-semibold mt-0.5">رصيد الفرع 10 كراتين أو أقل</div>
           </div>
         </div>
 
@@ -385,24 +385,24 @@ export const InventoryStockView: React.FC = () => {
           onClick={() => setStockLevelFilter('out_of_stock')}
           className={`p-3.5 sm:p-4 rounded-3xl border transition cursor-pointer flex flex-col justify-between ${
             stockLevelFilter === 'out_of_stock'
-              ? 'bg-rose-500/15 border-rose-500 ring-2 ring-rose-400'
-              : 'bg-white border-slate-200 hover:border-rose-300'
+              ? 'bg-[rgba(179,74,74,.07)] border-[rgba(179,74,74,.42)] ring-2 ring-[rgba(179,74,74,.28)]'
+              : 'bg-white border-slate-200 hover:border-[rgba(179,74,74,.5)]'
           }`}
         >
           <div className="flex items-center justify-between">
-            <div className="w-9 h-9 rounded-2xl bg-rose-600 text-white flex items-center justify-center font-black">
+            <div className="w-9 h-9 rounded-2xl bg-[var(--app-risk)] text-white flex items-center justify-center font-black">
               <ShieldAlert className="w-5 h-5" />
             </div>
-            <span className="text-[10px] font-black bg-rose-100 text-rose-900 px-2 py-0.5 rounded-full">
+            <span className="app-badge risk">
               نفذ المخزون
             </span>
           </div>
           <div className="mt-2">
             <div className="text-[11px] text-slate-500 font-bold">أصناف نفذت بالكامل</div>
-            <div className="text-xl sm:text-2xl font-black text-rose-950">
+            <div className="text-xl sm:text-2xl font-black t-risk app-num">
               {stockMetrics.outOfStockCount} <span className="text-xs font-bold text-slate-500">صنف</span>
             </div>
-            <div className="text-[10px] text-rose-800 font-semibold mt-0.5">غير متاح بالفرع أو بأكتوبر</div>
+            <div className="text-[10px] t-risk font-semibold mt-0.5">غير متاح بالفرع أو بأكتوبر</div>
           </div>
         </div>
       </div>
@@ -415,18 +415,18 @@ export const InventoryStockView: React.FC = () => {
               <div>
                 <h2 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2 flex-wrap">
                   <span>إدارة المخزون والتوافر بالفرع والمخزن الرئيسي</span>
-                  <span className="bg-amber-100 text-amber-900 text-xs px-2.5 py-0.5 rounded-full font-bold">
+                  <span className="app-badge warn">
                     {filteredProducts.length} صنف
                   </span>
                 </h2>
                 <div className="flex flex-wrap items-center gap-2 mt-2 text-[11px] font-bold">
-                  <span className="bg-slate-100 text-slate-700 border border-slate-200 rounded-full px-2.5 py-1">
+                  <span className="app-badge neutral">
                     فرعك: {currentUser?.branchName || 'غير محدد'}
                   </span>
-                  <span className="bg-blue-50 text-blue-800 border border-blue-200 rounded-full px-2.5 py-1">
+                  <span className="app-badge neutral">
                     مخزون الفرع ظاهر حسب الصلاحية
                   </span>
-                  <span className="bg-amber-50 text-amber-800 border border-amber-200 rounded-full px-2.5 py-1">
+                  <span className="app-badge warn">
                     مخزن أكتوبر الرئيسي ظاهر للجميع للحجز عند الاعتماد
                   </span>
                 </div>
@@ -437,13 +437,11 @@ export const InventoryStockView: React.FC = () => {
 
               <div className="flex items-center gap-2 flex-wrap">
                 {/* View Layout Switcher (Cards / Table) */}
-                <div className="bg-slate-100 p-1 rounded-2xl flex items-center gap-1 border border-slate-200">
+                <div className="bg-white p-1 rounded-2xl flex items-center gap-1 border border-slate-200">
                   <button
                     onClick={() => setViewLayout('cards')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                      viewLayout === 'cards'
-                        ? 'bg-white text-slate-900 shadow-xs font-black'
-                        : 'text-slate-600 hover:text-slate-900'
+                    className={`app-pill flex items-center gap-1.5 px-3 py-1.5 text-xs ${
+                      viewLayout === 'cards' ? 'on' : ''
                     }`}
                     title="عرض البطاقات الذكية (مناسب للموبايل)"
                   >
@@ -452,10 +450,8 @@ export const InventoryStockView: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setViewLayout('table')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                      viewLayout === 'table'
-                        ? 'bg-white text-slate-900 shadow-xs font-black'
-                        : 'text-slate-600 hover:text-slate-900'
+                    className={`app-pill flex items-center gap-1.5 px-3 py-1.5 text-xs ${
+                      viewLayout === 'table' ? 'on' : ''
                     }`}
                     title="عرض جدول البيانات الكامل"
                   >
@@ -467,7 +463,7 @@ export const InventoryStockView: React.FC = () => {
                 {/* Export Inventory to Excel */}
                 <button
                   onClick={() => exportProductsToExcel(filteredProducts, selectedBranchFilter)}
-                  className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer"
+                  className="btn-ghost px-3 py-2 text-xs"
                   title="تصدير شيت إكسل كامل بالمخزون"
                 >
                   <FileSpreadsheet className="w-4 h-4" />
@@ -500,7 +496,7 @@ export const InventoryStockView: React.FC = () => {
                       });
                       setShowAddModal(true);
                     }}
-                    className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold px-3 py-2 rounded-xl text-xs shadow transition cursor-pointer"
+                    className="btn-primary px-3 py-2 text-xs"
                   >
                     <Plus className="w-4 h-4" />
                     <span>إضافة صنف</span>
@@ -510,7 +506,7 @@ export const InventoryStockView: React.FC = () => {
             </div>
 
             {/* Branch scope: non-admin users are locked to their assigned branch */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3">
               <div className="flex items-center gap-2 text-xs font-black text-slate-700">
                 <Building className="h-4 w-4 text-amber-600" />
                 <span>المخزون المعروض</span>
@@ -519,7 +515,7 @@ export const InventoryStockView: React.FC = () => {
                 <select
                   value={selectedBranchFilter}
                   onChange={(event) => setSelectedBranchFilter(event.target.value)}
-                  className="min-w-56 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-amber-500"
+                  className="min-w-56 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 outline-none"
                   aria-label="اختيار فرع المخزون"
                 >
                   <option value="الكل">كل الفروع والمخزن الرئيسي</option>
@@ -528,7 +524,7 @@ export const InventoryStockView: React.FC = () => {
                   ))}
                 </select>
               ) : (
-                <span className="rounded-xl bg-amber-100 px-3 py-2 text-xs font-black text-amber-950">
+                <span className="app-badge warn">
                   {currentUser?.branchName || 'الفرع المحدد بالحساب'}
                 </span>
               )}
@@ -539,65 +535,41 @@ export const InventoryStockView: React.FC = () => {
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
               <button
                 onClick={() => setStockLevelFilter('all')}
-                className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition cursor-pointer ${
-                  stockLevelFilter === 'all'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
+                className={`pill-filter px-3 py-1.5 whitespace-nowrap ${stockLevelFilter === 'all' ? 'on' : ''}`}
               >
                 الكل ({products.length})
               </button>
               <button
                 onClick={() => setStockLevelFilter('offers')}
-                className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
-                  stockLevelFilter === 'offers'
-                    ? 'bg-rose-600 text-white shadow-xs'
-                    : 'bg-rose-50 text-rose-900 hover:bg-rose-100 border border-rose-200'
-                }`}
+                className={`pill-filter px-3 py-1.5 whitespace-nowrap flex items-center gap-1.5 ${stockLevelFilter === 'offers' ? 'on' : ''}`}
               >
-                <Flame className="w-3.5 h-3.5 text-rose-500" />
+                <Flame className="w-3.5 h-3.5" />
                 <span>عروض وخصومات ({stockMetrics.offersCount})</span>
               </button>
               <button
                 onClick={() => setStockLevelFilter('in_branch')}
-                className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
-                  stockLevelFilter === 'in_branch'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100 border border-emerald-200'
-                }`}
+                className={`pill-filter px-3 py-1.5 whitespace-nowrap flex items-center gap-1.5 ${stockLevelFilter === 'in_branch' ? 'on' : ''}`}
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>متوفر بالفرع ({stockMetrics.inBranchCount})</span>
               </button>
               <button
                 onClick={() => setStockLevelFilter('needs_transfer')}
-                className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
-                  stockLevelFilter === 'needs_transfer'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border border-blue-200'
-                }`}
+                className={`pill-filter px-3 py-1.5 whitespace-nowrap flex items-center gap-1.5 ${stockLevelFilter === 'needs_transfer' ? 'on' : ''}`}
               >
                 <Truck className="w-3.5 h-3.5" />
                 <span>يتطلب تحويل من أكتوبر ({stockMetrics.needsTransferCount})</span>
               </button>
               <button
                 onClick={() => setStockLevelFilter('low_stock')}
-                className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
-                  stockLevelFilter === 'low_stock'
-                    ? 'bg-orange-600 text-white shadow-xs'
-                    : 'bg-orange-50 text-orange-900 hover:bg-orange-100 border border-orange-200'
-                }`}
+                className={`pill-filter px-3 py-1.5 whitespace-nowrap flex items-center gap-1.5 ${stockLevelFilter === 'low_stock' ? 'on' : ''}`}
               >
                 <AlertTriangle className="w-3.5 h-3.5" />
                 <span>قارب على الانتهاء ({stockMetrics.lowStockCount})</span>
               </button>
               <button
                 onClick={() => setStockLevelFilter('out_of_stock')}
-                className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
-                  stockLevelFilter === 'out_of_stock'
-                    ? 'bg-rose-600 text-white shadow-xs'
-                    : 'bg-rose-50 text-rose-900 hover:bg-rose-100 border border-rose-200'
-                }`}
+                className={`pill-filter px-3 py-1.5 whitespace-nowrap flex items-center gap-1.5 ${stockLevelFilter === 'out_of_stock' ? 'on' : ''}`}
               >
                 <ShieldAlert className="w-3.5 h-3.5" />
                 <span>نفذ بالكامل ({stockMetrics.outOfStockCount})</span>
@@ -613,11 +585,11 @@ export const InventoryStockView: React.FC = () => {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="ابحث بالكود، اسم الصنف، القسم، التصنيف..."
-                  className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 text-xs"
+                  className="w-full pl-3 pr-9 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none text-xs"
                 />
               </div>
 
-              <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-1.5 bg-white px-3 py-2 rounded-xl border border-slate-200">
                 <span className="text-slate-500 font-bold">التصنيف:</span>
                 <select
                   value={selectedCategory}
@@ -653,40 +625,47 @@ export const InventoryStockView: React.FC = () => {
                     key={p.id}
                     className={`bg-white rounded-3xl p-4 border transition flex flex-col justify-between shadow-xs ${
                       needsTransfer
-                        ? 'border-blue-300 bg-blue-50/20'
-                        : isAvailableInBranch
-                        ? 'border-slate-200 hover:border-emerald-300'
-                        : 'border-rose-200 bg-rose-50/20'
+                        ? 'border-[rgba(16,43,78,.3)] bg-[#f7fafd]'
+                        : isTotallyOut
+                        ? 'border-[rgba(179,74,74,.35)] bg-[#fdfafa]'
+                        : isLowStock
+                        ? 'border-[rgba(155,112,39,.35)] bg-[#fdfbf5]'
+                        : 'border-slate-200 hover:border-[#b8c9db]'
                     }`}
                   >
                     <div>
                       {/* Top Header: Code, Dept & Status Badge */}
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <div className="flex items-center gap-1.5">
-                          <span className="bg-amber-100 text-amber-950 font-mono font-black text-xs px-2 py-0.5 rounded-lg border border-amber-300">
+                          <span className="bg-[#f3f6fa] text-[#526780] font-mono font-black text-xs px-2 py-0.5 rounded-lg border border-[#e3ebf3] tracking-wide">
                             {p.code}
                           </span>
-                          <span className="bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1">
-                            <DeptIcon className="w-3 h-3 text-slate-600" />
+                          <span className="app-badge neutral">
+                            <DeptIcon className="w-3 h-3" />
                             <span>{p.department || p.category}</span>
                           </span>
                         </div>
 
                         {/* Status Ribbon */}
-                        {isAvailableInBranch ? (
-                          <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            <span>متوفر بالفرع</span>
+                        {isTotallyOut ? (
+                          <span className="app-badge risk">
+                            <ShieldAlert className="w-3 h-3" />
+                            <span>نفذ</span>
                           </span>
                         ) : needsTransfer ? (
-                          <span className="bg-blue-100 text-blue-900 border border-blue-300 text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
-                            <Truck className="w-3 h-3 text-blue-600" />
+                          <span className="app-badge neutral">
+                            <Truck className="w-3 h-3" />
                             <span>طلب تحويل</span>
                           </span>
+                        ) : isLowStock ? (
+                          <span className="app-badge warn">
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>متوفر بالفرع</span>
+                          </span>
                         ) : (
-                          <span className="bg-rose-100 text-rose-900 border border-rose-300 text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
-                            <ShieldAlert className="w-3 h-3 text-rose-600" />
-                            <span>نفذ</span>
+                          <span className="app-badge ok">
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>متوفر بالفرع</span>
                           </span>
                         )}
                       </div>
@@ -697,41 +676,43 @@ export const InventoryStockView: React.FC = () => {
                       </h3>
 
                       <div className="text-xs text-slate-500 mb-3 flex flex-wrap items-center gap-2">
-                        <span>شدة الكرتونة: <strong className="text-slate-800">{p.cartonQuantity} قطعة</strong></span>
+                        <span>شدة الكرتونة: <strong className="app-num text-slate-800">{p.cartonQuantity} قطعة</strong></span>
                         <span>•</span>
-                        <span>سعر الكرتونة: <strong className="text-amber-900 font-bold">{formatCurrency(p.cartonPrice)}</strong></span>
+                        <span>سعر الكرتونة: <strong className="dream-amt t-navy">{formatCurrency(p.cartonPrice)}</strong></span>
                         {p.promoPrice ? (
-                          <span className="bg-rose-100 text-rose-800 border border-rose-200 px-2 py-0.5 rounded-lg font-black text-[11px] flex items-center gap-1">
-                            <Flame className="w-3 h-3 text-rose-600" />
+                          <span className="app-badge risk">
+                            <Flame className="w-3 h-3" />
                             <span>سعر العرض: {formatCurrency(p.promoPrice)}</span>
                           </span>
                         ) : null}
                       </div>
 
                       {/* Stock Level Banner */}
-                      <div className={`p-3 rounded-2xl mb-3 text-xs ${
-                        isAvailableInBranch
-                          ? 'bg-emerald-50 border border-emerald-200 text-emerald-950'
+                      <div className={`p-3 rounded-2xl mb-3 border text-xs ${
+                        isTotallyOut
+                          ? 'inv-panel-risk'
                           : needsTransfer
-                          ? 'bg-blue-50 border border-blue-200 text-blue-950'
-                          : 'bg-rose-50 border border-rose-200 text-rose-950'
+                          ? 'panel-navy'
+                          : isLowStock
+                          ? 'panel-warn'
+                          : 'panel-ok'
                       }`}>
                         <div className="flex items-center justify-between font-bold mb-1">
                           <span className="flex items-center gap-1">
                             <Building className="w-3.5 h-3.5" />
                             <span>مخزون الفرع الحالي ({currentActiveBranch || 'الفرع'}):</span>
                           </span>
-                          <span className="text-sm font-black">
+                          <span className="text-sm font-black app-num">
                             {branchActual} كرتونة
                           </span>
                         </div>
 
                         <div className="flex items-center justify-between text-[11px] text-slate-600 border-t border-slate-200/60 pt-1">
                           <span className="flex items-center gap-1">
-                            <Warehouse className="w-3 h-3 text-amber-700" />
+                            <Warehouse className="w-3 h-3 t-warn" />
                             <span>المخزن الرئيسي (أكتوبر):</span>
                           </span>
-                          <span className="font-bold text-slate-800">
+                          <span className="font-bold text-slate-800 app-num">
                             {p.mainWarehouseActual} كرتونة
                           </span>
                         </div>
@@ -739,15 +720,15 @@ export const InventoryStockView: React.FC = () => {
                         {/* Explanation Notice */}
                         <div className="mt-2 text-[10px] font-bold">
                           {isAvailableInBranch ? (
-                            <span className="text-emerald-800 flex items-center gap-1">
+                            <span className="flex items-center gap-1">
                               الصنف متاح بالفرع — صرف وتسليم مباشر للمندوب بدون تحويل
                             </span>
                           ) : needsTransfer ? (
-                            <span className="text-blue-800 flex items-center gap-1">
+                            <span className="flex items-center gap-1">
                               غير متوفر بالفرع — اضغط بالأسفل لطلب تحويل الكمية المطلوبة من أكتوبر
                             </span>
                           ) : (
-                            <span className="text-rose-800 flex items-center gap-1">
+                            <span className="flex items-center gap-1">
                               الرصيد منتهي بالكامل من الفرع والمخزن المركزي
                             </span>
                           )}
@@ -761,23 +742,23 @@ export const InventoryStockView: React.FC = () => {
                         (currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'branch_manager' || currentUser?.role === 'supervisor') ? (
                           <button
                             onClick={() => setStockTransferModal(p)}
-                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-black py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
+                            className="btn-primary flex-1 py-2 px-3 text-xs"
                           >
                             <Truck className="w-4 h-4" />
                             <span>طلب تحويل من أكتوبر</span>
                           </button>
                         ) : (
-                          <div className="flex-1 bg-blue-50 border border-blue-200 text-blue-900 font-bold py-2 px-3 rounded-xl text-xs text-center flex items-center justify-center gap-1.5">
-                            <Truck className="w-3.5 h-3.5 text-blue-600" />
+                          <div className="flex-1 panel-navy border font-bold py-2 px-3 rounded-xl text-xs text-center flex items-center justify-center gap-1.5">
+                            <Truck className="w-3.5 h-3.5" />
                             <span>يحتاج تحويل (يطلبه المشرف/المدير)</span>
                           </div>
                         )
                       ) : isAvailableInBranch ? (
-                        <div className="flex-1 bg-emerald-100 text-emerald-900 font-bold py-2 px-3 rounded-xl text-xs text-center border border-emerald-200">
+                        <div className="flex-1 panel-ok border font-bold py-2 px-3 rounded-xl text-xs text-center">
                           متاح للصرف المباشر
                         </div>
                       ) : (
-                        <div className="flex-1 bg-slate-100 text-slate-500 font-bold py-2 px-3 rounded-xl text-xs text-center">
+                        <div className="flex-1 bg-[#f4f7fa] t-muted border border-slate-200 font-bold py-2 px-3 rounded-xl text-xs text-center">
                           غير متاح حالياً
                         </div>
                       )}
@@ -789,7 +770,7 @@ export const InventoryStockView: React.FC = () => {
                             setSupplyModal(p);
                             setSupplyCartons(10);
                           }}
-                          className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold p-2 rounded-xl text-xs transition cursor-pointer"
+                          className="chip-btn p-2"
                           title="توريد كراتين إضافية للفرع"
                         >
                           <Plus className="w-4 h-4" />
@@ -804,7 +785,7 @@ export const InventoryStockView: React.FC = () => {
                             setFormData(p);
                             setShowAddModal(true);
                           }}
-                          className="bg-slate-100 hover:bg-slate-200 text-slate-700 p-2 rounded-xl transition cursor-pointer"
+                          className="chip-btn p-2"
                           title="تعديل بيانات الصنف"
                         >
                           <Edit2 className="w-4 h-4" />
@@ -819,7 +800,7 @@ export const InventoryStockView: React.FC = () => {
                               deleteProduct(p.id);
                             }
                           }}
-                          className="bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 p-2 rounded-xl transition cursor-pointer"
+                          className="chip-btn danger p-2"
                           title="حذف الصنف نهائياً"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -865,19 +846,19 @@ export const InventoryStockView: React.FC = () => {
                       return (
                         <tr
                           key={p.id}
-                          className={`hover:bg-amber-50/40 transition ${
+                          className={`transition ${
                             needsTransfer
-                              ? 'bg-blue-50/30'
+                              ? 'bg-[rgba(16,43,78,.045)]'
                               : isTotallyOut
-                              ? 'bg-rose-50/40'
+                              ? 'bg-[rgba(179,74,74,.055)]'
                               : isLowStock
-                              ? 'bg-orange-50/30'
+                              ? 'bg-[rgba(155,112,39,.055)]'
                               : ''
                           }`}
                         >
                           {/* Code */}
-                          <td className="p-3 font-mono font-black text-amber-900">
-                            <span className="bg-amber-100 px-2 py-0.5 rounded text-[11px] border border-amber-300">
+                          <td className="p-3">
+                            <span className="bg-[#f3f6fa] text-[#657b93] font-mono px-2 py-0.5 rounded text-[11px] border border-[#e3ebf3] tracking-wide">
                               {p.code}
                             </span>
                           </td>
@@ -886,12 +867,12 @@ export const InventoryStockView: React.FC = () => {
                           <td className="p-3">
                             <div className="font-extrabold text-slate-900 text-xs sm:text-sm">{p.name}</div>
                             <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                              <span className="bg-amber-50 text-amber-900 border border-amber-200 px-1.5 py-0.2 rounded font-black flex items-center gap-1">
-                                <DeptIcon className="w-3 h-3 text-amber-700" />
+                              <span className="bg-[#f4f7fa] text-[#45607e] border border-slate-200 px-1.5 py-0.2 rounded font-bold flex items-center gap-1">
+                                <DeptIcon className="w-3 h-3 t-warn" />
                                 <span>{p.department || p.category}</span>
                               </span>
                               {p.classification && (
-                                <span className="bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-bold">
+                                <span className="bg-[#f4f7fa] text-[#45607e] px-1.5 py-0.2 rounded font-bold">
                                   {p.classification}
                                 </span>
                               )}
@@ -899,22 +880,22 @@ export const InventoryStockView: React.FC = () => {
                           </td>
 
                           {/* Pack Quantity */}
-                          <td className="p-3 text-center font-black text-slate-900">
+                          <td className="p-3 text-center app-num text-slate-900">
                             {p.cartonQuantity} ق
                           </td>
 
                           {/* Branch Stock */}
                           <td className="p-3 text-center font-black">
                             <span
-                              className={`text-sm ${
+                              className={`text-sm app-num ${
                                 isAvailableInBranch
-                                  ? 'text-emerald-700 font-black'
-                                  : 'text-rose-600 font-black'
+                                  ? 't-ok'
+                                  : 't-risk'
                               }`}
                             >
                               {branchActual} كرتونة
                             </span>
-                            <div className="text-[10px] text-slate-400 font-normal">
+                            <div className="text-[10px] text-slate-400 font-normal tabular-nums">
                               ({branchActual * (p.cartonQuantity || 1)} ق)
                             </div>
                           </td>
@@ -922,17 +903,17 @@ export const InventoryStockView: React.FC = () => {
                           {/* Availability Status & Action Notice */}
                           <td className="p-3 text-center">
                             {isAvailableInBranch ? (
-                              <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span className="app-badge ok">
+                                <CheckCircle2 className="w-3 h-3" />
                                 <span>متوفر بالفرع (صرف مباشر)</span>
                               </span>
                             ) : needsTransfer ? (
-                              <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-900 border border-blue-300 px-2 py-0.5 rounded-full text-[10px] font-black animate-pulse">
-                                <Truck className="w-3 h-3 text-blue-600" />
+                              <span className="app-badge neutral animate-pulse">
+                                <Truck className="w-3 h-3" />
                                 <span>طلب تحويل من أكتوبر</span>
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 bg-rose-600 text-white px-2 py-0.5 rounded-full text-[10px] font-black">
+                              <span className="app-badge risk">
                                 <ShieldAlert className="w-3 h-3" />
                                 <span>نفذ تماماً</span>
                               </span>
@@ -940,22 +921,22 @@ export const InventoryStockView: React.FC = () => {
                           </td>
 
                           {/* Main Warehouse Stock */}
-                          <td className="p-3 text-center font-black text-amber-900 bg-amber-50/20">
+                          <td className="p-3 text-center app-num t-warn bg-[rgba(201,154,67,.05)]">
                             <div>{p.mainWarehouseActual} كرتونة</div>
-                            <div className="text-[10px] text-slate-400 font-normal">متاح: {p.mainWarehouseReserved} ك</div>
+                            <div className="text-[10px] text-slate-400 font-normal tabular-nums">متاح: {p.mainWarehouseReserved} ك</div>
                           </td>
 
                           {/* Carton Price */}
-                          <td className="p-3 text-left font-black text-amber-900">
+                          <td className="p-3 text-left dream-amt t-navy">
                             {formatCurrency(p.cartonPrice)}
                           </td>
 
                           {/* Promo / Offer Price */}
                           <td className="p-3 text-center font-black">
                             {p.promoPrice ? (
-                              <div className="inline-flex flex-col items-center bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-lg">
-                                <span className="text-rose-700 font-black text-xs">{formatCurrency(p.promoPrice)}</span>
-                                <span className="text-[9px] text-rose-500 font-bold">
+                              <div className="inline-flex flex-col items-center bg-[#f9eaea] border border-[rgba(179,74,74,.25)] px-2 py-0.5 rounded-lg">
+                                <span className="t-risk app-num text-xs">{formatCurrency(p.promoPrice)}</span>
+                                <span className="text-[9px] font-bold t-risk opacity-80 tabular-nums">
                                   ({formatCurrency(p.promoPiecePrice || (p.cartonQuantity ? p.promoPrice / p.cartonQuantity : p.promoPrice))} ق)
                                 </span>
                               </div>
@@ -972,7 +953,7 @@ export const InventoryStockView: React.FC = () => {
                                 needsTransfer ? (
                                   <button
                                     onClick={() => setStockTransferModal(p)}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded-lg text-xs font-black flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                    className="btn-primary px-2.5 py-1 text-xs"
                                     title="طلب تحويل كراتين من فرع أكتوبر"
                                   >
                                     <Truck className="w-3.5 h-3.5" />
@@ -981,7 +962,7 @@ export const InventoryStockView: React.FC = () => {
                                 ) : (
                                   <button
                                     onClick={() => setStockTransferModal(p)}
-                                    className="bg-slate-100 hover:bg-amber-100 text-slate-700 px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                                    className="chip-btn px-2 py-1 text-xs font-bold"
                                     title="طلب تغذية مخزون إضافية"
                                   >
                                     <Truck className="w-3.5 h-3.5" />
@@ -990,7 +971,7 @@ export const InventoryStockView: React.FC = () => {
                                 )
                               ) : (
                                 needsTransfer && (
-                                  <span className="text-[10px] text-blue-700 font-bold bg-blue-50 px-2 py-1 rounded-md border border-blue-200">
+                                  <span className="t-navy bg-[#eef3fa] px-2 py-1 rounded-md border border-slate-200 text-[10px] font-bold">
                                     يحتاج تحويل
                                   </span>
                                 )
@@ -1003,7 +984,7 @@ export const InventoryStockView: React.FC = () => {
                                     setSupplyModal(p);
                                     setSupplyCartons(10);
                                   }}
-                                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs transition cursor-pointer"
+                                  className="app-btn app-btn-ok px-2 py-1 text-xs"
                                   title="توريد كراتين إضافية للفرع"
                                 >
                                   <Plus className="w-3.5 h-3.5" />
@@ -1019,7 +1000,7 @@ export const InventoryStockView: React.FC = () => {
                                     setFormData(p);
                                     setShowAddModal(true);
                                   }}
-                                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 p-1.5 rounded-lg transition cursor-pointer"
+                                  className="chip-btn p-1.5"
                                   title="تعديل بيانات الصنف"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
@@ -1034,7 +1015,7 @@ export const InventoryStockView: React.FC = () => {
                                       deleteProduct(p.id);
                                     }
                                   }}
-                                  className="bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 p-1.5 rounded-lg transition cursor-pointer"
+                                  className="chip-btn danger p-1.5"
                                   title="حذف الصنف نهائياً"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -1062,7 +1043,7 @@ export const InventoryStockView: React.FC = () => {
                     setItemsPerPage(Number(e.target.value));
                     setCurrentPage(1);
                   }}
-                  className="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 text-slate-800 font-black focus:outline-none"
+                  className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800 font-black focus:outline-none"
                 >
                   <option value={20}>20 صنف</option>
                   <option value={50}>50 صنف</option>
@@ -1073,14 +1054,14 @@ export const InventoryStockView: React.FC = () => {
                   <option value={2500}>2500 صنف</option>
                   <option value={50000}>عرض الكل ({filteredProducts.length} صنف)</option>
                 </select>
-                <span>من إجمالي <strong className="text-slate-900">{filteredProducts.length}</strong> صنف</span>
+                <span>من إجمالي <strong className="text-slate-900 app-num">{filteredProducts.length}</strong> صنف</span>
               </div>
 
               <div className="flex items-center gap-1.5">
                 <button
                   disabled={currentPage <= 1}
                   onClick={() => setCurrentPage(1)}
-                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition font-bold"
+                  className="chip-btn px-2.5 py-1.5 text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed"
                   title="الصفحة الأولى"
                 >
                   الأولى
@@ -1089,20 +1070,20 @@ export const InventoryStockView: React.FC = () => {
                 <button
                   disabled={currentPage <= 1}
                   onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  className="chip-btn p-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                   title="الصفحة السابقة"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
 
-                <span className="px-3 py-1 bg-amber-100 text-amber-950 font-black rounded-lg text-xs">
+                <span className="navy-panel text-white font-black rounded-lg px-3 py-1 text-xs tabular-nums">
                   صفحة {currentPage} من {totalPages}
                 </span>
 
                 <button
                   disabled={currentPage >= totalPages}
                   onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  className="chip-btn p-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                   title="الصفحة التالية"
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -1111,7 +1092,7 @@ export const InventoryStockView: React.FC = () => {
                 <button
                   disabled={currentPage >= totalPages}
                   onClick={() => setCurrentPage(totalPages)}
-                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition font-bold"
+                  className="chip-btn px-2.5 py-1.5 text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed"
                   title="الصفحة الأخيرة"
                 >
                   الأخيرة
@@ -1127,7 +1108,7 @@ export const InventoryStockView: React.FC = () => {
           <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-black text-sm text-slate-900 flex items-center gap-2">
-                <Plus className="w-4 h-4 text-emerald-600" />
+                <Plus className="w-4 h-4 t-ok" />
                 <span>توريد واستلام مخزون جديد للفرع</span>
               </h3>
               <button onClick={() => setSupplyModal(null)}>
@@ -1139,7 +1120,7 @@ export const InventoryStockView: React.FC = () => {
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <div className="font-black text-slate-900">{supplyModal.name}</div>
                 <div className="text-slate-500">كود: {supplyModal.code} • شدة الكرتونة: {supplyModal.cartonQuantity} قطعة</div>
-                <div className="text-emerald-700 font-bold mt-1">الرصيد الفعلي الحالي: {supplyModal.branchStockActual} كرتونة</div>
+                <div className="t-ok font-bold mt-1 app-num">الرصيد الفعلي الحالي: {supplyModal.branchStockActual} كرتونة</div>
               </div>
 
               <div>
@@ -1151,7 +1132,7 @@ export const InventoryStockView: React.FC = () => {
                   min="1"
                   value={supplyCartons}
                   onChange={(e) => setSupplyCartons(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-base text-slate-900 focus:ring-2 focus:ring-emerald-400"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-base text-slate-900 app-num"
                 />
               </div>
 
@@ -1171,13 +1152,13 @@ export const InventoryStockView: React.FC = () => {
             <div className="flex items-center gap-2 pt-2">
               <button
                 onClick={handleExecuteSupply}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer"
+                className="btn-primary flex-1 py-2.5 text-xs"
               >
                 تأكيد إضافة الرصيد
               </button>
               <button
                 onClick={() => setSupplyModal(null)}
-                className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200 cursor-pointer"
+                className="app-btn app-btn-ghost px-4 py-2.5 text-xs"
               >
                 إلغاء
               </button>
@@ -1192,7 +1173,7 @@ export const InventoryStockView: React.FC = () => {
           <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-black text-sm text-slate-900 flex items-center gap-2">
-                <Truck className="w-4 h-4 text-amber-500" />
+                <Truck className="w-4 h-4 t-warn" />
                 <span>طلب تحويل مخزون للفرع</span>
               </h3>
               <button onClick={() => setStockTransferModal(null)}>
@@ -1207,13 +1188,13 @@ export const InventoryStockView: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-[11px]">
-                <div className="bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                <div className="bg-[rgba(201,154,67,.07)] p-2.5 rounded-xl border border-[rgba(201,154,67,.3)]">
                   <div className="text-slate-500">المخزن المركزي (أكتوبر):</div>
-                  <strong className="text-amber-900 font-bold text-sm">{stockTransferModal.mainWarehouseActual} كرتونة</strong>
+                  <strong className="t-warn font-bold text-sm app-num">{stockTransferModal.mainWarehouseActual} كرتونة</strong>
                 </div>
-                <div className="bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
+                <div className="panel-ok p-2.5 rounded-xl border">
                   <div className="text-slate-500">مخزون الفرع الحالي ({currentActiveBranch || 'الفرع'}):</div>
-                  <strong className="text-emerald-900 font-bold text-sm">{getProductBranchStock(stockTransferModal)} كرتونة</strong>
+                  <strong className="t-ok font-bold text-sm app-num">{getProductBranchStock(stockTransferModal)} كرتونة</strong>
                 </div>
               </div>
 
@@ -1227,9 +1208,9 @@ export const InventoryStockView: React.FC = () => {
                   max={stockTransferModal.mainWarehouseActual}
                   value={transferAmount}
                   onChange={(e) => setTransferAmount(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-base text-slate-900 focus:ring-2 focus:ring-amber-400"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-base text-slate-900 app-num"
                 />
-                <div className="text-[10px] text-slate-400 mt-1">
+                <div className="text-[10px] text-slate-400 mt-1 tabular-nums">
                   إجمالي القطع المعبأة داخل الكراتين: <strong>{transferAmount * (stockTransferModal.cartonQuantity || 1)} قطعة</strong>
                 </div>
               </div>
@@ -1238,13 +1219,13 @@ export const InventoryStockView: React.FC = () => {
             <div className="flex items-center gap-2 pt-2">
               <button
                 onClick={handleExecuteTransfer}
-                className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer"
+                className="btn-primary flex-1 py-2.5 text-xs"
               >
                 تأكيد التحويل المخزني
               </button>
               <button
                 onClick={() => setStockTransferModal(null)}
-                className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200 cursor-pointer"
+                className="app-btn app-btn-ghost px-4 py-2.5 text-xs"
               >
                 إلغاء
               </button>
@@ -1276,7 +1257,7 @@ export const InventoryStockView: React.FC = () => {
                     value={formData.code}
                     onChange={(e) => setFormData({ ...formData, code: e.target.value })}
                     placeholder="مثال DRM-205"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-400"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
                   />
                 </div>
 
@@ -1288,7 +1269,7 @@ export const InventoryStockView: React.FC = () => {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="اسم المنتج وبيانه"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-400"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
                   />
                 </div>
 
@@ -1378,7 +1359,7 @@ export const InventoryStockView: React.FC = () => {
                     step="0.5"
                     value={formData.cartonPrice}
                     onChange={(e) => setFormData({ ...formData, cartonPrice: parseFloat(e.target.value) || 0 })}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold app-num"
                   />
                 </div>
 
@@ -1423,7 +1404,7 @@ export const InventoryStockView: React.FC = () => {
                           setShowAddModal(false);
                         }
                       }}
-                      className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer"
+                      className="app-btn app-btn-risk-soft px-3.5 py-2 flex items-center gap-1.5"
                     >
                       <Trash2 className="w-4 h-4" />
                       <span>حذف الصنف نهائياً</span>
@@ -1434,13 +1415,13 @@ export const InventoryStockView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowAddModal(false)}
-                    className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 cursor-pointer"
+                    className="app-btn app-btn-ghost px-4 py-2 text-xs"
                   >
                     إلغاء
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-black shadow cursor-pointer"
+                    className="btn-primary px-6 py-2 text-xs"
                   >
                     حفظ الصنف
                   </button>

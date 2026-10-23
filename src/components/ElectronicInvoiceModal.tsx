@@ -391,15 +391,15 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
       <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[95vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden print:max-h-none print:shadow-none print:border-none print:w-full">
         
         {/* Top Control Bar (Hidden in Print) */}
-        <div className="bg-slate-900 text-white p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
+        <div className="ein-topbar text-[#eaf2f9] p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 text-slate-950 flex items-center justify-center font-black shadow-xs">
+            <div className="ein-brandtile w-9 h-9 flex items-center justify-center font-black">
               <FileText className="w-5 h-5" />
             </div>
             <div>
               <div className="text-xs sm:text-sm font-black flex items-center gap-2">
                 <span>فاتورة مبيعات معتمدة - شركة دريم</span>
-                <span className="bg-amber-400/20 text-amber-300 text-[11px] font-mono px-2 py-0.5 rounded-md border border-amber-400/40">
+                <span className="badge-brass-dark text-[11px] font-mono px-2 py-0.5">
                   {invoice.invoiceNumber}
                 </span>
               </div>
@@ -418,7 +418,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                   onClose();
                   if (onEditInvoice) onEditInvoice(invoice);
                 }}
-                className="flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-black transition shadow-sm cursor-pointer"
+                className="btn-brass px-3.5 py-2 text-xs cursor-pointer"
                 title="تعديل الطلبية وإضافة أصناف جديدة في السلة"
               >
                 <Pencil className="w-3.5 h-3.5" />
@@ -430,10 +430,10 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             <button
               onClick={handleDownloadBoth}
               disabled={isDownloadingBoth}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-black transition shadow-sm cursor-pointer disabled:opacity-50 active:scale-95"
+              className="btn-ondark px-3.5 py-2 text-xs cursor-pointer disabled:opacity-50 active:scale-95"
               title="تحميل ملف PDF وملف Excel معاً مباشرة على جهازك بضغطة واحدة"
             >
-              <Sparkles className="w-3.5 h-3.5 text-slate-950" />
+              <Sparkles className="w-3.5 h-3.5 t-brass" />
               <span>{isDownloadingBoth ? 'جاري التنزيل المزدوج...' : 'تحميل الاثنين (PDF + Excel) ⚡'}</span>
             </button>
 
@@ -441,7 +441,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             <button
               onClick={handleDownloadPDF}
               disabled={isDownloadingPDF}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white px-3.5 py-2 rounded-xl text-xs font-black transition shadow-sm cursor-pointer disabled:opacity-50"
+              className="btn-ondark px-3.5 py-2 text-xs cursor-pointer disabled:opacity-50"
               title="تحميل فاتورة PDF رسمية مباشرة على جهاز المندوب دون نافذة طباعة"
             >
               <Download className={`w-3.5 h-3.5 ${isDownloadingPDF ? 'animate-bounce' : ''}`} />
@@ -451,7 +451,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             {/* Excel Preview Modal Trigger */}
             <button
               onClick={() => setShowExcelPreview(true)}
-              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl text-xs font-black transition shadow-xs cursor-pointer"
+              className="btn-ondark px-3.5 py-2 text-xs cursor-pointer"
               title="معاينة شيت الإكسل المطور والمحاسبي قبل التنزيل"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -461,7 +461,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             {/* Direct Excel Download Standard */}
             <button
               onClick={() => exportElectronicInvoiceToExcel(currentInv)}
-              className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-2 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+              className="btn-ondark px-3 py-2 text-xs cursor-pointer"
               title="تصدير وتحميل شيت إكسل رسمي منسق مباشرة على جهازك"
             >
               <Download className="w-3.5 h-3.5" />
@@ -471,7 +471,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             {/* Credit Audit Modal Button */}
             <button
               onClick={() => setShowCreditAudit(true)}
-              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+              className="btn-ondark px-3 py-2 text-xs cursor-pointer"
               title="عرض جدول تدقيق الائتمان والمديونية المعتمد"
             >
               <CreditCard className="w-3.5 h-3.5" />
@@ -481,7 +481,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             {/* Print Button (Subtle/Secondary) */}
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-2.5 py-2 rounded-xl text-xs font-medium transition cursor-pointer"
+              className="btn-ondark px-2.5 py-2 text-xs cursor-pointer"
               title="طباعة ورقية"
             >
               <Printer className="w-3.5 h-3.5" />
@@ -500,7 +500,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
 
         {/* Dynamics 365 Integration Status & Action Bar (Hidden for all except Developer) */}
         {isDeveloperRole && (
-          <div className="bg-slate-900 border-t border-slate-800 px-3.5 sm:px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs print:hidden">
+          <div className="ein-topbar border-t border-[rgba(255,255,255,.08)] px-3.5 sm:px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs print:hidden">
             <div className="flex items-center gap-2.5 flex-wrap">
               <span className="text-slate-400 font-bold flex items-center gap-1.5">
                 <Server className="w-3.5 h-3.5 text-blue-400" />
@@ -513,7 +513,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                   sent = أخضر "تم الإرسال" + dynamics_order_no
                   failed = أحمر "فشل" (error text visible to developer only) */}
               {dynamicsStatus === 'sent' && (
-                <span className="inline-flex items-center gap-1.5 bg-emerald-950/90 text-emerald-300 border border-emerald-500/50 px-2.5 py-1 rounded-lg text-xs font-black shadow-xs">
+                <span className="xls-note-ok inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black shadow-xs">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                   <span>تم الإرسال</span>
                   {dynamicsOrderNo && (
@@ -525,14 +525,14 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               )}
 
               {dynamicsStatus === 'sending' && (
-                <span className="inline-flex items-center gap-1.5 bg-amber-950/90 text-amber-300 border border-amber-500/50 px-2.5 py-1 rounded-lg text-xs font-black shadow-xs">
+                <span className="xls-note-warn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black shadow-xs">
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
                   <span>جاري الإرسال</span>
                 </span>
               )}
 
               {dynamicsStatus === 'failed' && (
-                <span className="inline-flex items-center gap-1.5 bg-rose-950/90 text-rose-300 border border-rose-500/50 px-2.5 py-1 rounded-lg text-xs font-black shadow-xs">
+                <span className="xls-note-risk inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black shadow-xs">
                   <span className="w-2 h-2 rounded-full bg-rose-400"></span>
                   <span>فشل</span>
                   {dynamicsError && (
@@ -557,7 +557,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                 type="button"
                 onClick={handleSendToDynamics}
                 disabled={isSendingDynamics}
-                className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black px-3.5 py-1.5 rounded-xl text-xs transition shadow-md shadow-blue-950/50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 shrink-0 border border-blue-400/40"
+                className="btn-ondark font-black px-3.5 py-1.5 text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 shrink-0"
                 title="إرسال الطلبية إلى نظام Microsoft Dynamics (مخصص للمطور فقط)"
               >
                 {isSendingDynamics ? (
@@ -578,7 +578,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
 
         {/* Dynamics Success Toast */}
         {dynamicsSuccessToast && (
-          <div className="bg-emerald-600 text-white px-4 py-2.5 text-xs sm:text-sm font-black flex items-center justify-between shadow-md animate-fade-in print:hidden">
+          <div className="panel-ok px-4 py-2.5 text-xs sm:text-sm font-black flex items-center justify-between shadow-md animate-fade-in print:hidden">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>{dynamicsSuccessToast}</span>
@@ -594,7 +594,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
 
         {/* Dynamics Error Toast */}
         {dynamicsErrorToast && (
-          <div className="bg-rose-600 text-white px-4 py-2.5 text-xs sm:text-sm font-black flex items-center justify-between shadow-md animate-fade-in print:hidden">
+          <div className="tint-risk border-b border-[rgba(179,74,74,.28)] px-4 py-2.5 text-xs sm:text-sm font-black flex items-center justify-between shadow-md animate-fade-in print:hidden">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               <span>{dynamicsErrorToast}</span>
@@ -610,7 +610,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
 
         {/* Download Notice Notification */}
         {downloadNotice && (
-          <div className="bg-emerald-600 text-white px-4 py-2.5 text-xs sm:text-sm font-black flex items-center justify-between shadow-sm animate-fade-in print:hidden">
+          <div className="panel-ok px-4 py-2.5 text-xs sm:text-sm font-black flex items-center justify-between shadow-sm animate-fade-in print:hidden">
             <div className="flex items-center gap-2">
               <Download className="w-4 h-4 animate-bounce" />
               <span>{downloadNotice}</span>
@@ -626,8 +626,8 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
 
         {/* Quick Edit Banner on Mobile & Desktop */}
         {canEditOrder && (
-          <div className="bg-amber-500/15 border-b border-amber-400/40 px-4 py-2 flex items-center justify-between gap-2 text-xs print:hidden">
-            <span className="text-amber-800 dark:text-amber-300 font-bold">
+          <div className="panel-warn border-b-2 px-4 py-2 flex items-center justify-between gap-2 text-xs print:hidden">
+            <span className="font-bold">
               هل ترغب في تعديل كميات أو أصناف هذه الفاتورة؟
             </span>
             <button
@@ -635,7 +635,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                 onClose();
                 if (onEditInvoice) onEditInvoice(invoice);
               }}
-              className="bg-amber-400 hover:bg-amber-300 text-slate-950 px-3 py-1 rounded-lg text-xs font-black transition shadow-xs flex items-center gap-1 cursor-pointer shrink-0"
+              className="app-btn app-btn-warn-soft px-3 text-xs cursor-pointer shrink-0"
             >
               <Pencil className="w-3 h-3" />
               <span>تعديل الفاتورة الآن ✏️</span>
@@ -655,7 +655,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowCompanySettings(true)}
-                  className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
+                  className="tint-brass border px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer"
                   title="إعدادات بيانات الفاتورة للفرع"
                 >
                   <Settings className="w-3 h-3 text-amber-600" />
@@ -669,7 +669,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               {/* Right: Company Logo & Details */}
               <div className="text-center sm:text-right space-y-1">
                 <div className="flex items-center justify-center sm:justify-start gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center font-black text-sm shadow-xs">
+                  <div className="w-8 h-8 rounded-lg icon-brass flex items-center justify-center font-black text-sm shadow-xs">
                     {effectiveCompanyInfo.logoLetter || 'D'}
                   </div>
                   <div>
@@ -693,7 +693,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                   <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-800 border border-slate-200">
                     ب.ض: <strong>{effectiveCompanyInfo.taxNumber || '200-482-991'}</strong>
                   </span>
-                  <span className="bg-amber-50 border border-amber-200 px-2 py-0.5 rounded text-amber-900 font-bold">
+                  <span className="tint-brass border px-2 py-0.5 rounded font-bold">
                     الخط الساخن: <strong>{effectiveCompanyInfo.customerService || '19000 / 01000000001'}</strong>
                   </span>
                 </div>
@@ -724,27 +724,27 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
           </div>
 
           {/* Customer Appreciation Banner */}
-          <div className="bg-gradient-to-r from-amber-400/20 via-amber-400/10 to-amber-400/20 border border-amber-400/50 rounded-2xl p-2.5 text-center shadow-xs">
-            <p className="text-xs sm:text-sm font-black text-amber-950 flex items-center justify-center gap-1.5">
+          <div className="tint-brass border rounded-2xl p-2.5 text-center shadow-xs">
+            <p className="text-xs sm:text-sm font-black flex items-center justify-center gap-1.5">
               <span>✨ شكراً لتعاملكم واختياركم {companyInfo.nameArabic || 'شركة دريم للتجارة والتوزيع'} ❤️</span>
             </p>
           </div>
 
           {/* Unified Invoice & October Supply Notice Banner */}
           {currentInv.hasOctoberShortages && (
-            <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-3 sm:p-3.5 space-y-1.5 text-xs shadow-xs">
+            <div className="panel-warn border-2 rounded-2xl p-3 sm:p-3.5 space-y-1.5 text-xs shadow-xs">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
                   <span className="text-xl">🚚</span>
-                  <span className="font-black text-amber-950 text-xs sm:text-sm">
+                  <span className="font-black text-xs sm:text-sm">
                     فاتورة مبيعات موحدة (تتضمن أصنافاً مطلوب توريدها من مخزن 6 أكتوبر المركزي)
                   </span>
                 </div>
-                <span className="bg-amber-200 text-amber-950 font-black px-2.5 py-0.5 rounded-full text-[11px]">
+                <span className="tint-brass border font-black px-2.5 py-0.5 rounded-full text-[11px]">
                   {currentInv.shortageItemsCount || 0} أصناف نواقص ({currentInv.shortageCartonsCount || 0} كرتونة)
                 </span>
               </div>
-              <p className="text-[11px] text-amber-900 leading-relaxed">
+              <p className="text-[11px] leading-relaxed">
                 تم تثبيت الطلبية كـ <strong>فاتورة واحدة معتمدة</strong> للعميل؛ الأصناف المتوفرة بـ <strong>{currentInv.branchName}</strong> تصرف مباشرة، والأصناف الموضحة بالجدول أدناه كـ <strong>«طلب توريد من المخزن»</strong> تم رفع إشعار توريدها لمشرف المندوب ومدير الفرع لسحبها من مخزن 6 أكتوبر المركزي.
               </p>
             </div>
@@ -813,18 +813,18 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               <span className="text-slate-400 block text-[10px] font-bold">حالة ربط Dynamics:</span>
               <div className="mt-0.5">
                 {dynamicsStatus === 'sent' ? (
-                  <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-300 px-2 py-0.5 rounded text-[11px] font-black">
+                  <span className="app-badge ok">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                     <span>تم الإرسال</span>
                     {dynamicsOrderNo && <span className="font-mono text-[10px]">({dynamicsOrderNo})</span>}
                   </span>
                 ) : dynamicsStatus === 'sending' ? (
-                  <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-300 px-2 py-0.5 rounded text-[11px] font-black">
+                  <span className="app-badge warn">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
                     <span>جاري الإرسال</span>
                   </span>
                 ) : dynamicsStatus === 'failed' ? (
-                  <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-300 px-2 py-0.5 rounded text-[11px] font-black">
+                  <span className="app-badge risk">
                     <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
                     <span>فشل</span>
                     {isAuthorizedRole && dynamicsError && (
@@ -832,7 +832,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                     )}
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-bold">
+                  <span className="app-badge neutral">
                     <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
                     <span>لم يُرسل</span>
                   </span>
@@ -892,9 +892,9 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                     <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>
                       <td className="p-2.5 text-center text-slate-400 font-mono text-[11px]">{index + 1}</td>
                       <td className="p-2.5 font-black font-mono text-slate-800">{item.productCode}</td>
-                      <td className="p-2.5 text-center font-mono font-bold text-blue-700">
+                      <td className="p-2.5 text-center font-mono font-bold t-navy">
                         {unified ? (
-                          <span className="bg-blue-50 text-blue-800 px-2 py-0.5 rounded border border-blue-200 text-[11px]">
+                          <span className="tint-navy px-2 py-0.5 rounded border border-[#d8e2ec] text-[11px]">
                             {unified}
                           </span>
                         ) : (
@@ -912,7 +912,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                         </div>
                       </td>
                       <td className="p-2.5 text-center text-slate-600 font-bold">{cQty} ق</td>
-                      <td className="p-2.5 text-center font-black text-amber-950 bg-amber-50/60">
+                      <td className="p-2.5 text-center font-black tint-brass">
                         {item.cartonCount} ك
                       </td>
                       <td className="p-2.5 text-center font-bold text-slate-700 font-mono">
@@ -924,7 +924,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                       <td className="p-2.5 text-left font-bold text-slate-900 font-mono">
                         {item.appliedPrice && item.appliedPrice !== item.pricePerCarton ? (
                           <div>
-                            <span className="text-rose-600 font-black block">{formatCurrency(item.appliedPrice)}</span>
+                            <span className="t-risk font-black block">{formatCurrency(item.appliedPrice)}</span>
                             <span className="text-[10px] text-slate-400 line-through">{formatCurrency(item.pricePerCarton)}</span>
                           </div>
                         ) : (
@@ -936,20 +936,20 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                       </td>
                       <td className="p-2.5 text-center text-[11px]">
                         {!isShortage ? (
-                          <span className="text-[10px] text-emerald-800 font-black bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          <span className="app-badge ok text-[10px]">
                             متوفر بالفرع ✓
                           </span>
                         ) : oStock > 0 ? (
                           <div className="flex flex-col items-center gap-0.5">
-                            <span className="text-[10px] text-blue-900 font-black bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                            <span className="tint-navy border border-[#d8e2ec] text-[10px] font-black px-1.5 py-0.5 rounded">
                               متوفر في مخزن أكتوبر ({oStock} ك)
                             </span>
-                            <span className="text-[9px] text-amber-950 font-black bg-amber-200 px-1.5 py-0.2 rounded border border-amber-300 shadow-2xs">
+                            <span className="tint-brass border text-[9px] font-black px-1.5 py-0.2 rounded shadow-2xs">
                               🏷️ طلب توريد من المخزن ({shortageC} ك)
                             </span>
                           </div>
                         ) : (
-                          <span className="text-[10px] text-rose-800 font-black bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                          <span className="app-badge risk text-[10px]">
                             عجز بالمخازن
                           </span>
                         )}
@@ -963,30 +963,30 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
 
           {/* Returned Items & Credit Vouchers Summary (If any returns registered) */}
           {invoice.returnRecords && invoice.returnRecords.length > 0 && (
-            <div className="bg-purple-50/70 border border-purple-200 rounded-3xl p-4 space-y-3 print:border-slate-300">
-              <div className="flex items-center justify-between border-b border-purple-200/80 pb-2">
-                <div className="flex items-center gap-2 text-purple-950 font-black text-xs">
-                  <RotateCcw className="w-4 h-4 text-purple-700" />
+            <div className="panel-navy border rounded-3xl p-4 space-y-3 print:border-slate-300">
+              <div className="flex items-center justify-between border-b border-[#d8e2ec] pb-2">
+                <div className="flex items-center gap-2 font-black text-xs">
+                  <RotateCcw className="w-4 h-4 t-navy" />
                   <span>سجل قسائم المرتجعات المعتمدة على الفاتورة ({invoice.returnRecords.length} حركة)</span>
                 </div>
-                <span className="text-[11px] font-black bg-purple-200/80 text-purple-900 px-2.5 py-0.5 rounded-full">
+                <span className="tint-brass border text-[11px] font-black px-2.5 py-0.5 rounded-full">
                   إجمالي المرتجع: -{formatCurrency(invoice.totalRefundedAmount || 0)}
                 </span>
               </div>
 
               <div className="space-y-2.5">
                 {invoice.returnRecords.map((record, idx) => (
-                  <div key={record.id || idx} className="bg-white p-3 rounded-2xl border border-purple-100 shadow-2xs space-y-2 text-xs">
+                  <div key={record.id || idx} className="bg-white p-3 rounded-2xl border border-[#d8e2ec] shadow-2xs space-y-2 text-xs">
                     <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-black text-purple-900 bg-purple-100 px-2 py-0.5 rounded">
+                        <span className="tint-navy border border-[#d8e2ec] font-mono font-black px-2 py-0.5 rounded">
                           إذن مرتجع #{record.returnVoucherNumber}
                         </span>
                         <span className="text-slate-500 font-medium">
                           {record.date} {record.time ? `(${record.time})` : ''} • المنفذ: {record.handledBy}
                         </span>
                       </div>
-                      <div className="font-black text-purple-950">
+                      <div className="font-black app-ink-brass">
                         مبلغ الرد الدائن: {formatCurrency(record.totalRefundAmount)}
                       </div>
                     </div>
@@ -995,7 +995,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                       <div>
                         <strong>سبب الإرجاع:</strong> {record.reason}
                       </div>
-                      <div className="text-emerald-700 font-bold">
+                      <div className="t-ok font-bold">
                         {record.restockedToInventory ? '✓ تم إرجاع الكميات للمخزن الفعلي' : '⚠️ لم يتم الإرجاع للمخزن (أصناف تالفة)'}
                       </div>
                     </div>
@@ -1003,13 +1003,13 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                     {/* Returned items breakdown */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
                       {record.returnedItems.map((rItem, rIdx) => (
-                        <div key={rIdx} className="bg-purple-50/50 p-2 rounded-xl border border-purple-100 text-[11px] flex items-center justify-between">
+                        <div key={rIdx} className="row-brass p-2 rounded-xl border border-[#d8e2ec] text-[11px] flex items-center justify-between">
                           <div>
                             <div className="font-bold text-slate-900">{rItem.productName}</div>
                             <div className="text-[10px] text-slate-500 font-mono">{rItem.productCode}</div>
                           </div>
                           <div className="text-left">
-                            <span className="font-black text-purple-900 block">{rItem.cartonCount} كرتونة</span>
+                            <span className="font-black t-navy block">{rItem.cartonCount} كرتونة</span>
                             <span className="text-[10px] font-bold text-slate-600">({rItem.pieceCount} ق)</span>
                           </div>
                         </div>
@@ -1061,40 +1061,40 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             </div>
 
             {/* Calculations Totals Box */}
-            <div className="w-full sm:w-96 bg-slate-900 text-white p-4 rounded-3xl space-y-2.5 text-xs shadow-md">
+            <div className="w-full sm:w-96 navy-panel text-white p-4 rounded-3xl space-y-2.5 text-xs shadow-md">
               <div className="flex justify-between items-center text-slate-300">
                 <span>إجمالي الكراتين المطلوبة:</span>
-                <strong className="text-white font-black text-sm">{invoice.totalCartons} كرتونة</strong>
+                <strong className="text-white dream-amt text-sm">{invoice.totalCartons} كرتونة</strong>
               </div>
 
               <div className="flex justify-between items-center text-slate-300">
                 <span>المجموع الفرعي (قبل الخصم):</span>
-                <span className="font-bold">{formatCurrency(invoice.subtotal)}</span>
+                <span className="dream-amt">{formatCurrency(invoice.subtotal)}</span>
               </div>
 
               {invoice.discountAmount > 0 && (
                 <div className="flex justify-between items-center text-emerald-400">
                   <span>الخصم الممنوح ({invoice.discountPercentage}%):</span>
-                  <span className="font-bold">-{formatCurrency(invoice.discountAmount)}</span>
+                  <span className="dream-amt">-{formatCurrency(invoice.discountAmount)}</span>
                 </div>
               )}
 
-              <div className="pt-2 border-t border-slate-700 flex justify-between items-center">
+              <div className="pt-2 border-t border-[rgba(255,255,255,.14)] flex justify-between items-center">
                 <span className="font-bold text-slate-200 text-xs">إجمالي الفاتورة الصافي:</span>
-                <div className="text-lg font-black text-amber-400 font-mono">
+                <div className="text-lg dream-amt text-amber-400 font-mono">
                   {formatCurrency(invoice.estimatedGrandTotal)}
                 </div>
               </div>
 
               {/* Customer Debt & Credit Limit Breakdown */}
-              <div className="pt-2 border-t border-slate-700/80 space-y-1.5 text-[11px]">
+              <div className="pt-2 border-t border-[rgba(255,255,255,.14)] space-y-1.5 text-[11px]">
                 <div className="flex justify-between items-center text-slate-300">
                   <span>مديونية العميل السابقة:</span>
-                  <span className="font-bold font-mono">{formatCurrency(debtBefore)}</span>
+                  <span className="dream-amt font-mono">{formatCurrency(debtBefore)}</span>
                 </div>
                 <div className="flex justify-between items-center text-slate-300">
                   <span>المديونية الإجمالية بعد الفاتورة:</span>
-                  <span className={`font-black font-mono ${isExceeded ? 'text-rose-400' : 'text-emerald-400'}`}>
+                  <span className={`dream-amt font-mono ${isExceeded ? 'text-rose-400' : 'text-emerald-400'}`}>
                     {formatCurrency(debtAfter)}
                   </span>
                 </div>
@@ -1105,18 +1105,18 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                       لا يوجد حد ائتماني (سداد نقدي)
                     </span>
                   ) : (
-                    <span className="font-bold font-mono text-blue-300">{formatCurrency(creditLimit)}</span>
+                    <span className="dream-amt font-mono text-blue-300">{formatCurrency(creditLimit)}</span>
                   )}
                 </div>
                 {isExceeded && (
-                  <div className="bg-rose-950/90 border border-rose-500/80 p-2 rounded-xl text-rose-200 text-[10px] space-y-0.5 mt-1">
+                  <div className="xls-note-risk border p-2 rounded-xl text-[10px] space-y-0.5 mt-1">
                     <div className="font-black text-rose-300 flex items-center gap-1">
                       <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
                       <span>⚠️ تم تجاوز الحد الائتماني للعميل</span>
                     </div>
                     <div>
                       مبلغ السداد النقدي المطلوب فوراً:{' '}
-                      <strong className="text-amber-300 font-mono font-black">{formatCurrency(requiredDown)}</strong>
+                      <strong className="text-amber-300 dream-amt font-mono font-black">{formatCurrency(requiredDown)}</strong>
                     </div>
                   </div>
                 )}
@@ -1124,7 +1124,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowCreditAudit(true)}
-                  className="w-full mt-2 bg-blue-950/80 hover:bg-blue-900 text-blue-300 border border-blue-500/50 hover:border-blue-400 py-1.5 px-2.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  className="btn-ondark w-full mt-2 py-1.5 px-2.5 text-[10px] cursor-pointer"
                 >
                   <CreditCard className="w-3.5 h-3.5 text-blue-400" />
                   <span>فتح جدول تدقيق الائتمان والمديونية الشامل 🔍</span>
@@ -1144,7 +1144,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             <button
               onClick={handleDownloadBoth}
               disabled={isDownloadingBoth}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer disabled:opacity-50 active:scale-95"
+                className="btn-brass px-4 py-2 text-xs cursor-pointer disabled:opacity-50 active:scale-95"
               title="تحميل ملف PDF وملف Excel معاً مباشرة على جهازك"
             >
               <Sparkles className="w-3.5 h-3.5" />
@@ -1155,7 +1155,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             <button
               onClick={handleDownloadPDF}
               disabled={isDownloadingPDF}
-              className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-black px-4 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer disabled:opacity-50"
+              className="app-btn app-btn-primary px-4 py-2 text-xs cursor-pointer disabled:opacity-50"
               title="تحميل ملف PDF مباشرة على جهازك"
             >
               <Download className="w-3.5 h-3.5" />
@@ -1165,7 +1165,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             {/* Preview Excel Modal */}
             <button
               onClick={() => setShowExcelPreview(true)}
-              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer"
+              className="app-btn app-btn-ghost px-3.5 py-2 text-xs cursor-pointer"
               title="معاينة شيت الإكسيل قبل التحميل"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -1175,7 +1175,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             {/* Direct Excel Button */}
             <button
               onClick={() => exportElectronicInvoiceToExcel(currentInv)}
-              className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-xs transition cursor-pointer"
+              className="app-btn app-btn-ghost px-3.5 py-2 text-xs cursor-pointer"
               title="تحميل شيت إكسل رسمي فوري"
             >
               <Download className="w-3.5 h-3.5" />
@@ -1185,7 +1185,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             {/* Copy Invoice Number */}
             <button
               onClick={handleCopyInvoiceNumber}
-              className="flex items-center gap-1 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 px-3 py-2 rounded-xl transition cursor-pointer"
+              className="btn-ghost px-3 py-2 text-xs cursor-pointer"
             >
               <Copy className="w-3.5 h-3.5" />
               <span>{copiedInvoiceNo ? 'تم نسخ الرقم! ✓' : 'نسخ رقم الفاتورة'}</span>
@@ -1195,10 +1195,10 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             {canMakeReturn && (
               <button
                 onClick={() => setShowReturnModal(true)}
-                className="flex items-center gap-1.5 bg-purple-50 hover:bg-purple-100 text-purple-900 font-bold px-3 py-2 rounded-xl text-xs border border-purple-300 transition cursor-pointer shadow-xs"
+                className="app-btn app-btn-warn-soft px-3 py-2 text-xs cursor-pointer"
                 title="تسجيل إذن مرتجع (كلي أو جزئي) وإعادة المخزون وتعديل المديونية"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-purple-700" />
+                <RotateCcw className="w-3.5 h-3.5 t-warn" />
                 <span>إجراء مرتجع (كلي / جزئي) ↩️</span>
               </button>
             )}
@@ -1207,10 +1207,10 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             {canCancelOrder && (
               <button
                 onClick={() => setShowCancelModal(true)}
-                className="flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold px-3 py-2 rounded-xl text-xs border border-rose-300 transition cursor-pointer"
+                className="app-btn app-btn-risk-soft px-3 py-2 text-xs cursor-pointer"
                 title="إلغاء الطلبية وفك حجز المخزون"
               >
-                <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                <XCircle className="w-3.5 h-3.5 t-risk" />
                 <span>إلغاء الطلبية ❌</span>
               </button>
             )}
@@ -1219,14 +1219,14 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
           {/* Close / Action Feedback */}
           <div className="flex items-center gap-2 flex-wrap">
             {cancelFeedback && (
-              <span className="text-xs font-black text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200">
+              <span className="app-badge risk px-2.5 py-1 text-xs">
                 {cancelFeedback}
               </span>
             )}
 
             <button
               onClick={onClose}
-              className="bg-slate-900 hover:bg-slate-800 text-white font-black px-6 py-2 rounded-xl text-xs shadow transition cursor-pointer"
+              className="btn-primary px-6 py-2 text-xs cursor-pointer"
             >
               إغلاق النافذة
             </button>
@@ -1239,7 +1239,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
           <div className="fixed inset-0 z-60 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
             <div className="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl border border-rose-200 space-y-4">
               <div className="flex items-center gap-3 text-rose-700">
-                <div className="p-2.5 bg-rose-100 rounded-2xl">
+                <div className="p-2.5 tint-risk rounded-2xl">
                   <XCircle className="w-6 h-6" />
                 </div>
                 <div>
@@ -1258,7 +1258,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                   rows={2}
                   value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-rose-500"
+                  className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold text-slate-900"
                   placeholder="اكتب سبب الإلغاء..."
                 />
               </div>
@@ -1266,14 +1266,14 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               <div className="flex items-center gap-2 pt-2">
                 <button
                   onClick={handleCancelConfirm}
-                  className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-black py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
+                  className="btn-danger flex-1 py-2.5 text-xs cursor-pointer"
                 >
                   <XCircle className="w-4 h-4" />
                   <span>تأكيد الإلغاء وفك الحجز</span>
                 </button>
                 <button
                   onClick={() => setShowCancelModal(false)}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer"
+                  className="btn-ghost px-4 py-2.5 text-xs cursor-pointer"
                 >
                   تراجع
                 </button>
@@ -1323,8 +1323,8 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
         )}
 
         {returnSuccessMsg && (
-          <div className="fixed bottom-6 right-6 z-50 bg-emerald-900 text-white font-black px-4 py-3 rounded-2xl shadow-2xl border border-emerald-500 animate-in slide-in-from-bottom flex items-center gap-2 text-xs">
-            <CheckCircle className="w-4 h-4 text-emerald-400" />
+          <div className="panel-ok fixed bottom-6 right-6 z-50 font-black px-4 py-3 rounded-2xl shadow-2xl animate-in slide-in-from-bottom flex items-center gap-2 text-xs">
+            <CheckCircle className="w-4 h-4 t-ok" />
             <span>{returnSuccessMsg}</span>
           </div>
         )}

@@ -784,16 +784,16 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
     <div className="space-y-4 animate-in fade-in duration-200">
       
       {/* Top Header & Fast Action Buttons */}
-      <div className="bg-slate-900 text-white rounded-3xl p-4 sm:p-6 shadow-xl border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="navy-panel text-white rounded-3xl p-4 sm:p-6 shadow-xl border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="w-11 h-11 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shadow-md shadow-amber-400/20">
+            <div className="w-11 h-11 rounded-2xl icon-brass-dark flex items-center justify-center font-black">
               <Users className="w-6 h-6" />
             </div>
             <div>
               <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
                 <span>قاعدة بيانات وسجل العملاء</span>
-                <span className="text-xs bg-amber-400/20 text-amber-300 px-2.5 py-0.5 rounded-full border border-amber-400/30">
+                <span className="text-xs badge-brass-dark px-2.5 py-0.5 rounded-full">
                   {stats.totalCount} عميل
                 </span>
               </h2>
@@ -811,7 +811,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
           {isAdminOrDev && (
             <button
               onClick={() => setIsImportModalOpen(true)}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-md shadow-blue-900/30"
+              className="btn-brass flex-1 sm:flex-none px-3.5 py-2.5 text-xs active:scale-95 cursor-pointer"
               title="استيراد شيت 3400 عميل من Google Sheets أو Excel"
             >
               <Upload className="w-4 h-4" />
@@ -823,7 +823,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
           {isAdminOrDev && (
             <button
               onClick={handleRunSync}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-amber-300 border border-slate-700 px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-sm"
+              className="btn-ondark flex-1 sm:flex-none px-3.5 py-2.5 text-xs active:scale-95 cursor-pointer"
               title="إعادة مطابقة أسماء المناديب مع أسماء العملاء في الشيت"
             >
               <RefreshCw className="w-4 h-4" />
@@ -834,7 +834,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
           {/* Export Excel (Available for All Roles - Reps, Supervisors, Managers, Admins) */}
           <button
             onClick={handleExportSheet}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-md shadow-emerald-900/30"
+            className="btn-ondark flex-1 sm:flex-none px-3.5 py-2.5 text-xs active:scale-95 cursor-pointer"
             title="تصدير بيانات العملاء المعروضة إلى شيت إكسل"
           >
             <Download className="w-4 h-4" />
@@ -843,10 +843,10 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
           {/* Master Sheet Source Indicator (Customers strictly added from master sheet only) */}
           <div
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-900 text-amber-300 px-3.5 py-2.5 rounded-xl text-xs font-black border border-amber-400/30 shadow-sm select-none"
+            className="btn-ondark flex-1 sm:flex-none px-3.5 py-2.5 text-xs select-none cursor-default"
             title="قاعدة العملاء معتمدة ومقفولة - تضاف حصرياً من الشيت الأساسي بدون دمج"
           >
-            <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+            <CheckCircle2 className="w-4 h-4 t-brass shrink-0" />
             <span>الشيت المعتمد: {customers.length} عميل</span>
           </div>
         </div>
@@ -854,14 +854,14 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
       {/* Unregistered Reps Notification Banner (if any detected) */}
       {unregisteredReps.length > 0 && isAdminOrDev && (
-        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-300/40 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+        <div className="panel-warn rounded-2xl p-3.5 border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0">
+            <div className="w-8 h-8 rounded-xl icon-brass flex items-center justify-center font-black shrink-0">
               <UserPlus className="w-4 h-4" />
             </div>
             <div>
               <span className="font-bold text-slate-900">
-                اكتشفنا <span className="text-amber-700 font-black">{unregisteredReps.length} مندوب</span> مسجلين في بيانات العملاء ولم يتم إنشاء حسابات مستخدمين لهم بعد!
+                اكتشفنا <span className="t-warn font-black">{unregisteredReps.length} مندوب</span> مسجلين في بيانات العملاء ولم يتم إنشاء حسابات مستخدمين لهم بعد!
               </span>
               <p className="text-slate-500 text-[11px]">
                 يمكنك إنشاء حسابات دخول فورية لهم بضغطة زر واحدة حتى يتمكنوا من الدخول ومتابعة عملائهم.
@@ -870,7 +870,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
           </div>
           <button
             onClick={handleAutoCreateReps}
-            className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer shrink-0"
+            className="btn-brass px-3.5 py-2 text-xs active:scale-95 cursor-pointer shrink-0"
           >
             <Sparkles className="w-4 h-4" />
             <span>إنشاء حسابات المناديب آلياً 🚀</span>
@@ -882,13 +882,11 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       {syncFeedback?.show && (
         <div
           className={`p-3.5 rounded-2xl border text-xs font-bold flex items-center justify-between shadow-sm animate-in slide-in-from-top-2 ${
-            syncFeedback.type === 'success'
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-              : 'bg-blue-50 border-blue-200 text-blue-900'
+            syncFeedback.type === 'success' ? 'panel-ok' : 'panel-navy'
           }`}
         >
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>{syncFeedback.msg}</span>
           </div>
           <button
@@ -909,85 +907,85 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
             <span className="text-[11px] font-bold text-slate-500">
               {scopeTab === 'my_customers' ? 'عملائي المسندين' : 'إجمالي العملاء'}
             </span>
-            <div className="w-7 h-7 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+            <div className="w-7 h-7 rounded-xl tint-navy flex items-center justify-center font-bold">
               <Users className="w-3.5 h-3.5" />
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-xl font-black text-slate-900">{stats.totalCount}</div>
+            <div className="text-xl dream-amt t-navy stat-hero">{stats.totalCount}</div>
             <div className="text-[10px] text-slate-400 mt-0.5 truncate">
-              مسند لك: <span className="font-bold text-blue-600">{stats.myCustomersCount}</span> عميل
+              مسند لك: <span className="font-bold t-navy">{stats.myCustomersCount}</span> عميل
             </div>
           </div>
         </div>
 
         {/* Card 2: Total Debt (المديونية) */}
-        <div className="bg-white rounded-2xl p-3.5 border border-rose-200/80 shadow-sm flex flex-col justify-between">
+        <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-rose-900">المديونية</span>
-            <div className="w-7 h-7 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+            <span className="text-[11px] font-bold t-risk">المديونية</span>
+            <div className="w-7 h-7 rounded-xl tint-risk flex items-center justify-center font-bold">
               <AlertCircle className="w-3.5 h-3.5" />
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-xl font-black text-rose-600 truncate" title={formatCurrency(stats.totalDebt)}>
+            <div className="text-xl dream-amt t-risk stat-hero truncate" title={formatCurrency(stats.totalDebt)}>
               {formatCurrency(stats.totalDebt)}
             </div>
-            <div className="text-[10px] text-rose-700/80 font-bold mt-0.5">
+            <div className="text-[10px] t-risk font-bold mt-0.5">
               {stats.customersWithDebt} عميل مدين
             </div>
           </div>
         </div>
 
         {/* Card 3: Total Overdue & Due (المستحقات إجمالي) */}
-        <div className="bg-white rounded-2xl p-3.5 border border-amber-200/80 shadow-sm flex flex-col justify-between">
+        <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-amber-900">المستحقات إجمالي</span>
-            <div className="w-7 h-7 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
+            <span className="text-[11px] font-bold t-warn">المستحقات إجمالي</span>
+            <div className="w-7 h-7 rounded-xl tint-warn flex items-center justify-center font-bold">
               <Clock className="w-3.5 h-3.5" />
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-xl font-black text-amber-700 truncate" title={formatCurrency(stats.totalOverdueAndDue)}>
+            <div className="text-xl dream-amt t-warn stat-hero truncate" title={formatCurrency(stats.totalOverdueAndDue)}>
               {formatCurrency(stats.totalOverdueAndDue)}
             </div>
-            <div className="text-[10px] text-amber-700/80 font-bold mt-0.5">
+            <div className="text-[10px] t-warn font-bold mt-0.5">
               {stats.customersWithOverdue} متأخر ومستحق
             </div>
           </div>
         </div>
 
         {/* Card 4: Total Sales (إجمالي البيع) */}
-        <div className="bg-white rounded-2xl p-3.5 border border-sky-200/80 shadow-sm flex flex-col justify-between">
+        <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-sky-900">إجمالي البيع</span>
-            <div className="w-7 h-7 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
+            <span className="text-[11px] font-bold t-navy">إجمالي البيع</span>
+            <div className="w-7 h-7 rounded-xl tint-navy flex items-center justify-center font-bold">
               <TrendingUp className="w-3.5 h-3.5" />
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-xl font-black text-sky-700 truncate" title={formatCurrency(stats.totalSales)}>
+            <div className="text-xl dream-amt t-navy stat-hero truncate" title={formatCurrency(stats.totalSales)}>
               {formatCurrency(stats.totalSales)}
             </div>
-            <div className="text-[10px] text-sky-700/80 font-bold mt-0.5">
+            <div className="text-[10px] t-muted font-bold mt-0.5">
               مبيعات 2026 ({stats.customersWithSales} عميل)
             </div>
           </div>
         </div>
 
         {/* Card 5: Total Collections (إجمالي التحصيل) */}
-        <div className="bg-white rounded-2xl p-3.5 border border-emerald-200/80 shadow-sm flex flex-col justify-between">
+        <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-emerald-900">إجمالي التحصيل</span>
-            <div className="w-7 h-7 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+            <span className="text-[11px] font-bold t-ok">إجمالي التحصيل</span>
+            <div className="w-7 h-7 rounded-xl tint-ok flex items-center justify-center font-bold">
               <CheckCircle2 className="w-3.5 h-3.5" />
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-xl font-black text-emerald-700 truncate" title={formatCurrency(stats.totalCollections)}>
+            <div className="text-xl dream-amt t-ok stat-hero truncate" title={formatCurrency(stats.totalCollections)}>
               {formatCurrency(stats.totalCollections)}
             </div>
-            <div className="text-[10px] text-emerald-700/80 font-bold mt-0.5">
+            <div className="text-[10px] t-muted font-bold mt-0.5">
               تحصيلات 2026 ({stats.customersWithCollections} عميل)
             </div>
           </div>
@@ -997,16 +995,16 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-slate-500">الحد الائتماني</span>
-            <div className="w-7 h-7 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+            <div className="w-7 h-7 rounded-xl tint-navy flex items-center justify-center font-bold">
               <CreditCard className="w-3.5 h-3.5" />
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-xl font-black text-slate-900 truncate" title={formatCurrency(stats.totalLimit)}>
+            <div className="text-xl dream-amt t-navy stat-hero truncate" title={formatCurrency(stats.totalLimit)}>
               {formatCurrency(stats.totalLimit)}
             </div>
             <div className="text-[10px] text-slate-500 font-semibold mt-0.5 truncate">
-              المتاح: <span className="text-emerald-700 font-bold">{formatCurrency(stats.availableLimit)}</span>
+              المتاح: <span className="t-ok dream-amt">{formatCurrency(stats.availableLimit)}</span>
             </div>
           </div>
         </div>
@@ -1022,8 +1020,8 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
           }}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
             scopeTab === 'my_customers'
-              ? 'bg-amber-400 text-slate-950 shadow-sm'
-              : 'text-slate-600 hover:bg-slate-100'
+              ? 'pill-filter on'
+              : 'pill-filter'
           }`}
         >
           <UserCheck className="w-4 h-4" />
@@ -1038,8 +1036,8 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
           }}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
             scopeTab === 'branch'
-              ? 'bg-amber-400 text-slate-950 shadow-sm'
-              : 'text-slate-600 hover:bg-slate-100'
+              ? 'pill-filter on'
+              : 'pill-filter'
           }`}
         >
           <Building2 className="w-4 h-4" />
@@ -1054,8 +1052,8 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
           }}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
             scopeTab === 'all'
-              ? 'bg-amber-400 text-slate-950 shadow-sm'
-              : 'text-slate-600 hover:bg-slate-100'
+              ? 'pill-filter on'
+              : 'pill-filter'
           }`}
         >
           <Users className="w-4 h-4" />
@@ -1078,7 +1076,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 setCurrentPage(1);
               }}
               placeholder="بحث باسم العميل، الكود، المحل، الهاتف..."
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl pr-9 pl-3 py-2 text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+              className="w-full bg-white border border-slate-300 rounded-xl pr-9 pl-3 py-2 text-xs font-bold text-slate-800 placeholder:text-slate-400"
             />
             {searchQuery && (
               <button
@@ -1099,7 +1097,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 setCurrentPage(1);
               }}
               disabled={!isAdminOrDev}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500 disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
+              className="w-full bg-white border rounded-xl px-3 py-2 text-xs font-bold text-slate-800 disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
             >
               {isAdminOrDev ? (
                 <>
@@ -1126,7 +1124,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 setSelectedRepFilter(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+              className="w-full bg-white border rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
             >
               <option value={isRep ? currentUser?.id || '' : 'الكل'}>{isRep ? `مندوب: ${currentUser?.name || ''}` : `كل المناديب (${allAvailableReps.length} مندوب)`}</option>
               {!isRep && allAvailableReps.map((r) => (
@@ -1145,7 +1143,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 setDebtFilter(e.target.value as any);
                 setCurrentPage(1);
               }}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+              className="w-full bg-white border rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
             >
               <option value="all">كل حالات المديونية</option>
               <option value="has_overdue">عملاء عليهم متأخرات ومستحق ⚠️</option>
@@ -1198,7 +1196,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
               <button
                 onClick={() => handleSort('debt')}
                 className={`px-2 py-0.5 rounded-md font-bold transition ${
-                  sortField === 'debt' ? 'bg-amber-400 text-slate-950' : 'bg-white border border-slate-200'
+                  sortField === 'debt' ? 'pill-filter on' : 'pill-filter'
                 }`}
               >
                 المديونية
@@ -1206,7 +1204,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
               <button
                 onClick={() => handleSort('overdue')}
                 className={`px-2 py-0.5 rounded-md font-bold transition ${
-                  sortField === 'overdue' ? 'bg-amber-400 text-slate-950' : 'bg-white border border-slate-200'
+                  sortField === 'overdue' ? 'pill-filter on' : 'pill-filter'
                 }`}
               >
                 المستحقات
@@ -1214,7 +1212,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
               <button
                 onClick={() => handleSort('sales')}
                 className={`px-2 py-0.5 rounded-md font-bold transition ${
-                  sortField === 'sales' ? 'bg-amber-400 text-slate-950' : 'bg-white border border-slate-200'
+                  sortField === 'sales' ? 'pill-filter on' : 'pill-filter'
                 }`}
               >
                 المبيعات
@@ -1222,7 +1220,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
               <button
                 onClick={() => handleSort('collections')}
                 className={`px-2 py-0.5 rounded-md font-bold transition ${
-                  sortField === 'collections' ? 'bg-amber-400 text-slate-950' : 'bg-white border border-slate-200'
+                  sortField === 'collections' ? 'pill-filter on' : 'pill-filter'
                 }`}
               >
                 التحصيلات
@@ -1230,7 +1228,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
               <button
                 onClick={() => handleSort('limit')}
                 className={`px-2 py-0.5 rounded-md font-bold transition ${
-                  sortField === 'limit' ? 'bg-amber-400 text-slate-950' : 'bg-white border border-slate-200'
+                  sortField === 'limit' ? 'pill-filter on' : 'pill-filter'
                 }`}
               >
                 الحد الائتماني
@@ -1238,7 +1236,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
               <button
                 onClick={() => handleSort('name')}
                 className={`px-2 py-0.5 rounded-md font-bold transition ${
-                  sortField === 'name' ? 'bg-amber-400 text-slate-950' : 'bg-white border border-slate-200'
+                  sortField === 'name' ? 'pill-filter on' : 'pill-filter'
                 }`}
               >
                 الاسم
@@ -1246,7 +1244,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
               <button
                 onClick={() => handleSort('code')}
                 className={`px-2 py-0.5 rounded-md font-bold transition ${
-                  sortField === 'code' ? 'bg-amber-400 text-slate-950' : 'bg-white border border-slate-200'
+                  sortField === 'code' ? 'pill-filter on' : 'pill-filter'
                 }`}
               >
                 الكود
@@ -1258,13 +1256,13 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
         {/* Responsive Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-right border-collapse text-xs">
+          <table className="cust-table w-full text-right border-collapse text-xs">
             <thead>
               <tr className="bg-slate-900 text-white font-black text-[11px] select-none">
                 <th className="py-3 px-3 w-12 text-center">#</th>
                 <th
                   onClick={() => handleSort('code')}
-                  className="py-3 px-3 cursor-pointer hover:text-amber-300 transition"
+                  className="py-3 px-3 cursor-pointer hover:text-[#ecc987] transition"
                 >
                   <div className="flex items-center gap-1">
                     <span>كود العميل</span>
@@ -1273,7 +1271,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 </th>
                 <th
                   onClick={() => handleSort('name')}
-                  className="py-3 px-4 cursor-pointer hover:text-amber-300 transition"
+                  className="py-3 px-4 cursor-pointer hover:text-[#ecc987] transition"
                 >
                   <div className="flex items-center gap-1">
                     <span>اسم العميل / المحل</span>
@@ -1282,7 +1280,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 </th>
                 <th
                   onClick={() => handleSort('branch')}
-                  className="py-3 px-3 cursor-pointer hover:text-amber-300 transition"
+                  className="py-3 px-3 cursor-pointer hover:text-[#ecc987] transition"
                 >
                   <div className="flex items-center gap-1">
                     <span>الفرع</span>
@@ -1294,7 +1292,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 </th>
                 <th
                   onClick={() => handleSort('debt')}
-                  className="py-3 px-3 cursor-pointer hover:text-rose-400 transition text-left"
+                  className="py-3 px-3 cursor-pointer hover:text-[#ecc987] transition text-left"
                 >
                   <div className="flex items-center justify-end gap-1">
                     <span>المديونية</span>
@@ -1303,7 +1301,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 </th>
                 <th
                   onClick={() => handleSort('overdue')}
-                  className="py-3 px-3 cursor-pointer hover:text-amber-300 transition text-left"
+                  className="py-3 px-3 cursor-pointer hover:text-[#ecc987] transition text-left"
                 >
                   <div className="flex items-center justify-end gap-1">
                     <span>المستحقات إجمالي</span>
@@ -1312,7 +1310,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 </th>
                 <th
                   onClick={() => handleSort('sales')}
-                  className="py-3 px-3 cursor-pointer hover:text-sky-300 transition text-left"
+                  className="py-3 px-3 cursor-pointer hover:text-[#ecc987] transition text-left"
                 >
                   <div className="flex items-center justify-end gap-1">
                     <span>إجمالي البيع</span>
@@ -1321,7 +1319,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 </th>
                 <th
                   onClick={() => handleSort('collections')}
-                  className="py-3 px-3 cursor-pointer hover:text-emerald-300 transition text-left"
+                  className="py-3 px-3 cursor-pointer hover:text-[#ecc987] transition text-left"
                 >
                   <div className="flex items-center justify-end gap-1">
                     <span>إجمالي التحصيل</span>
@@ -1330,7 +1328,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 </th>
                 <th
                   onClick={() => handleSort('limit')}
-                  className="py-3 px-3 cursor-pointer hover:text-amber-300 transition text-left"
+                  className="py-3 px-3 cursor-pointer hover:text-[#ecc987] transition text-left"
                 >
                   <div className="flex items-center justify-end gap-1">
                     <span>الحد الائتماني</span>
@@ -1346,9 +1344,9 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
             <tbody className="divide-y divide-slate-200 font-medium">
               {paginatedCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-12 text-center text-slate-400">
+                  <td colSpan={12} data-label="" className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-3">
-                      <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                      <div className="w-14 h-14 rounded-2xl tint-warn flex items-center justify-center font-bold">
                         <Users className="w-7 h-7" />
                       </div>
                       <div>
@@ -1372,7 +1370,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                               setScopeTab('branch');
                               setCurrentPage(1);
                             }}
-                            className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                            className="btn-brass px-4 py-2 text-xs cursor-pointer shadow-sm flex items-center gap-1.5"
                           >
                             <Building2 className="w-4 h-4" />
                             <span>عرض عملاء الفرع ({currentUser?.branchName || 'الفرع'})</span>
@@ -1384,7 +1382,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                                 setScopeTab('all');
                                 setCurrentPage(1);
                               }}
-                              className="bg-slate-900 hover:bg-slate-800 text-white font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                              className="btn-primary px-4 py-2 text-xs cursor-pointer shadow-sm flex items-center gap-1.5"
                             >
                               <Users className="w-4 h-4" />
                               <span>عرض جميع عملاء الفروع ({customers.length})</span>
@@ -1412,24 +1410,24 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                   return (
                     <tr
                       key={customer.id}
-                      className={`hover:bg-slate-50 transition-colors ${
-                        isAssignedToMe ? 'bg-amber-50/30' : ''
+                      className={`transition-colors ${
+                        isAssignedToMe ? 'row-brass' : ''
                       }`}
                     >
                       {/* # */}
-                      <td className="py-3 px-3 text-center text-slate-400 font-bold text-[11px]">
+                      <td data-label="" className="py-3 px-3 text-center text-slate-400 font-bold text-[11px]">
                         {globalIdx}
                       </td>
 
                       {/* كود العميل */}
-                      <td className="py-3 px-3 font-mono font-bold text-slate-700">
+                      <td data-label="كود العميل" className="py-3 px-3 font-mono font-bold text-slate-700">
                         <span className="bg-slate-100 px-2 py-1 rounded-md text-[11px] border border-slate-200">
                           {customer.code || '---'}
                         </span>
                       </td>
 
                       {/* اسم العميل */}
-                      <td className="py-3 px-4">
+                      <td data-label="اسم العميل / المحل" className="py-3 px-4">
                         <div className="font-black text-slate-900 text-xs flex items-center gap-1.5">
                           <span>{customer.name}</span>
                         </div>
@@ -1444,7 +1442,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                       </td>
 
                       {/* الفرع */}
-                      <td className="py-3 px-3">
+                      <td data-label="الفرع" className="py-3 px-3">
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
                           <Building2 className="w-3 h-3 text-slate-500" />
                           <span>{customer.branchName || 'الفرع الرئيسي'}</span>
@@ -1452,13 +1450,13 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                       </td>
 
                       {/* المندوب */}
-                      <td className="py-3 px-3">
+                      <td data-label="المندوب" className="py-3 px-3">
                         {repName ? (
                           <div className="flex items-center gap-1.5">
                             <span
                               className={`text-[11px] font-bold px-2 py-0.5 rounded-md border ${
                                 isAssignedToMe
-                                  ? 'bg-amber-100 text-amber-900 border-amber-300 font-black'
+                                  ? 'tint-brass font-black'
                                   : 'bg-slate-100 text-slate-800 border-slate-200'
                               }`}
                             >
@@ -1473,7 +1471,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                             {isRep && (
                               <button
                                 onClick={() => handleQuickClaimRep(customer)}
-                                className="text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded border border-blue-200 transition cursor-pointer"
+                                className="btn-ghost px-1.5 py-0.5 text-[10px] cursor-pointer"
                                 title="إسناد هذا العميل لي"
                               >
                                 إسناد لي ➕
@@ -1484,88 +1482,88 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                       </td>
 
                       {/* المديونية */}
-                      <td className="py-3 px-3 text-left">
+                      <td data-label="المديونية" className="py-3 px-3 text-left">
                         <div
-                          className={`font-black text-xs ${
-                            debt > 0 ? 'text-rose-600' : 'text-slate-500'
+                          className={`dream-amt text-xs ${
+                            debt > 0 ? 't-risk' : 't-muted'
                           }`}
                         >
                           {formatCurrency(debt)}
                         </div>
                         {debt > 0 ? (
-                          <div className="text-[10px] text-rose-500 font-bold">مستحق السداد</div>
+                          <div className="text-[10px] t-risk font-bold">مستحق السداد</div>
                         ) : (
-                          <div className="text-[10px] text-emerald-600 font-bold">{formatCurrency(0)}</div>
+                          <div className="text-[10px] t-ok font-bold">{formatCurrency(0)}</div>
                         )}
                       </td>
 
                       {/* إجمالي المستحقات */}
-                      <td className="py-3 px-3 text-left">
+                      <td data-label="المستحقات إجمالي" className="py-3 px-3 text-left">
                         <div
-                          className={`font-black text-xs ${
-                            overdueAndDue > 0 ? 'text-amber-700 font-bold' : 'text-slate-500'
+                          className={`dream-amt text-xs ${
+                            overdueAndDue > 0 ? 't-warn' : 't-muted'
                           }`}
                         >
                           {formatCurrency(overdueAndDue)}
                         </div>
                         {overdueAndDue > 0 ? (
-                          <div className="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-50 text-amber-800 border border-amber-200">
+                          <div className="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-black tint-warn border">
                             <span>متأخر ومستحق ⚠️</span>
                           </div>
                         ) : (
-                          <div className="text-[10px] text-emerald-600 font-bold">خالص ✓</div>
+                          <div className="text-[10px] t-ok font-bold">خالص ✓</div>
                         )}
                       </td>
 
                       {/* إجمالي البيع */}
-                      <td className="py-3 px-3 text-left">
-                        <div className="font-black text-xs text-sky-700">
+                      <td data-label="إجمالي البيع" className="py-3 px-3 text-left">
+                        <div className="dream-amt text-xs t-navy">
                           {formatCurrency(sales)}
                         </div>
                         {sales > 0 && (
-                          <div className="text-[10px] text-sky-600 font-medium">مبيعات 2026</div>
+                          <div className="text-[10px] t-muted font-medium">مبيعات 2026</div>
                         )}
                       </td>
 
                       {/* إجمالي التحصيل */}
-                      <td className="py-3 px-3 text-left">
-                        <div className="font-black text-xs text-emerald-700">
+                      <td data-label="إجمالي التحصيل" className="py-3 px-3 text-left">
+                        <div className="dream-amt text-xs t-ok">
                           {formatCurrency(collections)}
                         </div>
                         {collections > 0 && (
-                          <div className="text-[10px] text-emerald-600 font-medium">تحصيلات 2026</div>
+                          <div className="text-[10px] t-muted font-medium">تحصيلات 2026</div>
                         )}
                       </td>
 
                       {/* الحد الائتماني */}
-                      <td className="py-3 px-3 text-left">
-                        <div className="font-black text-xs text-slate-800">
+                      <td data-label="الحد الائتماني" className="py-3 px-3 text-left">
+                        <div className="dream-amt text-xs text-slate-800">
                           {formatCurrency(limit)}
                         </div>
                       </td>
 
                       {/* المتبقي من الائتمان */}
-                      <td className="py-3 px-3 text-left">
+                      <td data-label="المتبقي من الائتمان" className="py-3 px-3 text-left">
                         {isExceeded ? (
-                          <div className="text-rose-600 font-black text-[11px] flex items-center justify-end gap-1">
+                          <div className="t-risk dream-amt text-[11px] flex items-center justify-end gap-1">
                             <AlertTriangle className="w-3.5 h-3.5" />
                             <span>تجاوز الحد ({formatCurrency(debt - limit)})</span>
                           </div>
                         ) : (
-                          <div className="text-emerald-700 font-black text-xs">
+                          <div className="dream-amt t-ok text-xs">
                             {formatCurrency(available)}
                           </div>
                         )}
                       </td>
 
                       {/* إجراءات فورية */}
-                      <td className="py-3 px-4 text-center">
+                      <td data-label="إجراءات فورية" className="py-3 px-4 text-center">
                         <div className="flex items-center justify-center gap-1.5">
                           
                           {/* Fast Order Builder Launch */}
                           <button
                             onClick={() => onOpenNewOrderForCustomer?.(customer)}
-                            className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-2.5 py-1.5 rounded-xl text-xs flex items-center gap-1 shadow-sm transition active:scale-95 cursor-pointer"
+                            className="btn-primary px-2.5 py-1.5 text-xs active:scale-95 cursor-pointer"
                             title="إنشاء طلبية / فاتورة فورية لهذا العميل"
                           >
                             <ShoppingCart className="w-3.5 h-3.5" />
@@ -1576,7 +1574,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                           {customer.phone && (
                             <a
                               href={`tel:${customer.phone}`}
-                              className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer"
+                              className="chip-btn w-7 h-7 rounded-xl cursor-pointer"
                               title={`اتصال هاتفي: ${customer.phone}`}
                             >
                               <Phone className="w-3.5 h-3.5" />
@@ -1587,7 +1585,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                           {isAdminOrDev && (
                             <button
                               onClick={() => handleOpenEdit(customer)}
-                              className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer"
+                              className="chip-btn w-7 h-7 rounded-xl cursor-pointer"
                               title="تعديل بيانات العميل والحد الائتماني والمندوب"
                             >
                               <Edit className="w-3.5 h-3.5" />
@@ -1598,7 +1596,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                           {isAdminOrDev && (
                             <button
                               onClick={() => setCustomerToDelete(customer)}
-                              className="w-7 h-7 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center transition cursor-pointer"
+                              className="chip-btn danger w-7 h-7 rounded-xl cursor-pointer"
                               title="حذف العميل"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1635,7 +1633,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
               <button
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(1)}
-                className="p-1 rounded-lg bg-white border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition cursor-pointer"
+                className="chip-btn p-1 rounded-lg disabled:opacity-30 transition cursor-pointer"
                 title="الصفحة الأولى"
               >
                 <ChevronsRight className="w-4 h-4" />
@@ -1644,20 +1642,20 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
               <button
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                className="p-1 rounded-lg bg-white border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition cursor-pointer"
+                className="chip-btn p-1 rounded-lg disabled:opacity-30 transition cursor-pointer"
                 title="السابق"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
 
-              <span className="px-3 py-1 bg-amber-400 text-slate-950 font-black rounded-lg text-xs">
+              <span className="pill-filter on px-3 py-1 text-xs">
                 {currentPage} / {totalPages}
               </span>
 
               <button
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                className="p-1 rounded-lg bg-white border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition cursor-pointer"
+                className="chip-btn p-1 rounded-lg disabled:opacity-30 transition cursor-pointer"
                 title="التالي"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -1666,7 +1664,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
               <button
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(totalPages)}
-                className="p-1 rounded-lg bg-white border border-slate-200 disabled:opacity-30 hover:bg-slate-100 transition cursor-pointer"
+                className="chip-btn p-1 rounded-lg disabled:opacity-30 transition cursor-pointer"
                 title="الصفحة الأخيرة"
               >
                 <ChevronsLeft className="w-4 h-4" />
@@ -1676,23 +1674,23 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
           <div className="flex flex-wrap items-center gap-3">
             <div>
-              المديونيات: <span className="font-black text-rose-600">{formatCurrency(stats.totalDebt)}</span>
+              المديونيات: <span className="dream-amt t-risk">{formatCurrency(stats.totalDebt)}</span>
             </div>
             <div className="text-slate-300">|</div>
             <div>
-              المستحقات: <span className="font-black text-amber-700">{formatCurrency(stats.totalOverdueAndDue)}</span>
+              المستحقات: <span className="dream-amt t-warn">{formatCurrency(stats.totalOverdueAndDue)}</span>
             </div>
             <div className="text-slate-300">|</div>
             <div>
-              المبيعات: <span className="font-black text-sky-700">{formatCurrency(stats.totalSales)}</span>
+              المبيعات: <span className="dream-amt t-navy">{formatCurrency(stats.totalSales)}</span>
             </div>
             <div className="text-slate-300">|</div>
             <div>
-              التحصيلات: <span className="font-black text-emerald-700">{formatCurrency(stats.totalCollections)}</span>
+              التحصيلات: <span className="dream-amt t-ok">{formatCurrency(stats.totalCollections)}</span>
             </div>
             <div className="text-slate-300">|</div>
             <div>
-              الحدود: <span className="font-black text-slate-900">{formatCurrency(stats.totalLimit)}</span>
+              الحدود: <span className="dream-amt text-slate-900">{formatCurrency(stats.totalLimit)}</span>
             </div>
           </div>
 
@@ -1707,7 +1705,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
             
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black shadow-md">
+                <div className="w-10 h-10 rounded-2xl navy-panel text-white flex items-center justify-center font-black">
                   <FileSpreadsheet className="w-5 h-5" />
                 </div>
                 <div>
@@ -1737,12 +1735,12 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-black text-slate-800 flex items-center gap-1.5">
-                    <Link2 className="w-4 h-4 text-blue-600" />
+                    <Link2 className="w-4 h-4 t-navy" />
                     <span>طريقة 1: لصق رابط Google Sheets المباشر</span>
                   </label>
                   {googleSheetUrl && (
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 tint-ok">
+                      <CheckCircle2 className="w-3 h-3" />
                       <span>محفوظ دائماً</span>
                     </span>
                   )}
@@ -1760,12 +1758,12 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                       }
                     }}
                     placeholder="https://docs.google.com/spreadsheets/d/..."
-                    className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                    className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
                   />
                   <button
                     onClick={handleFetchGoogleSheet}
                     disabled={isImporting || !googleSheetUrl.trim()}
-                    className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer shrink-0"
+                    className="btn-primary px-4 py-2 text-xs cursor-pointer shrink-0"
                   >
                     {isImporting ? 'جاري الجلب...' : 'جلب الشيت 🔄'}
                   </button>
@@ -1785,7 +1783,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                         }}
                         className={`text-[10px] px-2 py-0.5 rounded-lg border transition font-mono truncate max-w-[200px] cursor-pointer ${
                           googleSheetUrl === link
-                            ? 'bg-blue-100 border-blue-300 text-blue-900 font-bold'
+                            ? 'tint-navy font-bold'
                             : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
                         }`}
                         title={link}
@@ -1804,29 +1802,29 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
               {/* Option 2: Upload Excel File */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5">
                 <label className="block text-xs font-black text-slate-800 flex items-center gap-1.5">
-                  <Upload className="w-4 h-4 text-emerald-600" />
+                  <Upload className="w-4 h-4 t-ok" />
                   <span>طريقة 2: رفع ملف إكسل من جهازك (.xlsx أو .csv)</span>
                 </label>
                 <input
                   type="file"
                   accept=".xlsx, .xls, .csv"
                   onChange={handleFileUpload}
-                  className="w-full text-xs text-slate-600 file:mr-0 file:ml-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 file:cursor-pointer"
+                  className="file-brass w-full text-xs text-slate-600"
                 />
               </div>
 
               {/* Import Mode: Merge vs Replace */}
-              <div className="bg-amber-50/50 p-3.5 rounded-2xl border border-amber-200/60 space-y-2">
-                <span className="text-xs font-black text-amber-900 block">طريقة تثبيت البيانات:</span>
+              <div className="panel-warn p-3.5 rounded-2xl border space-y-2">
+                <span className="text-xs font-black t-warn block">طريقة تثبيت البيانات:</span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <label className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition ${importMode === 'merge' ? 'bg-white border-amber-500 shadow-sm' : 'bg-transparent border-amber-200'}`}>
+                  <label className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition ${importMode === 'merge' ? 'bg-white border-[#c99a43] shadow-sm' : 'bg-transparent border-slate-200'}`}>
                     <input
                       type="radio"
                       name="importMode"
                       value="merge"
                       checked={importMode === 'merge'}
                       onChange={() => setImportMode('merge')}
-                      className="text-amber-500"
+                      className="accent-[#c99a43]"
                     />
                     <div>
                       <div className="font-bold text-xs text-slate-900">دمج وتحديث السجلات (Merge)</div>
@@ -1834,18 +1832,18 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                     </div>
                   </label>
 
-                  <label className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition ${importMode === 'replace' ? 'bg-white border-rose-500 shadow-sm' : 'bg-transparent border-amber-200'}`}>
+                  <label className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition ${importMode === 'replace' ? 'bg-white border-[#b34a4a] shadow-sm' : 'bg-transparent border-slate-200'}`}>
                     <input
                       type="radio"
                       name="importMode"
                       value="replace"
                       checked={importMode === 'replace'}
                       onChange={() => setImportMode('replace')}
-                      className="text-rose-500"
+                      className="accent-[#b34a4a]"
                     />
                     <div>
-                      <div className="font-bold text-xs text-rose-900">استبدال كامل لقاعدة العملاء (Replace)</div>
-                      <div className="text-[10px] text-rose-600">مسح القديم وتنزيل الـ 3400 عميل من الشيت بالكامل</div>
+                      <div className="font-bold text-xs t-risk">استبدال كامل لقاعدة العملاء (Replace)</div>
+                      <div className="text-[10px] t-risk">مسح القديم وتنزيل الـ 3400 عميل من الشيت بالكامل</div>
                     </div>
                   </label>
                 </div>
@@ -1853,34 +1851,34 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
 
               {/* Preview of Parsed Data */}
               {importPreview && (
-                <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 space-y-3 animate-in fade-in">
-                  <div className="flex items-center gap-2 text-emerald-900 font-black text-xs">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <div className="panel-ok p-4 rounded-2xl border space-y-3 animate-in fade-in">
+                  <div className="flex items-center gap-2 font-black text-xs">
+                    <CheckCircle2 className="w-5 h-5 shrink-0" />
                     <span>تم تحليل الملف بنجاح! جاهز للتثبيت ({importPreview.customers.length} عميل)</span>
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
-                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                    <div className="bg-white p-2.5 rounded-xl border border-slate-200">
                       <div className="text-slate-500 text-[10px]">إجمالي العملاء</div>
                       <div className="text-base font-black text-slate-900">{importPreview.customers.length}</div>
                     </div>
-                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                    <div className="bg-white p-2.5 rounded-xl border border-slate-200">
                       <div className="text-slate-500 text-[10px]">عدد الفروع المكتشفة</div>
-                      <div className="text-base font-black text-blue-600">{importPreview.branches.length}</div>
+                      <div className="text-base font-black t-navy">{importPreview.branches.length}</div>
                     </div>
-                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                    <div className="bg-white p-2.5 rounded-xl border border-slate-200">
                       <div className="text-slate-500 text-[10px]">عدد المناديب المكتشفين</div>
-                      <div className="text-base font-black text-amber-600">{importPreview.reps.length}</div>
+                      <div className="text-base font-black t-warn">{importPreview.reps.length}</div>
                     </div>
-                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                    <div className="bg-white p-2.5 rounded-xl border border-slate-200">
                       <div className="text-slate-500 text-[10px]">إجمالي المديونيات</div>
-                      <div className="text-xs font-black text-rose-600">{formatCurrency(importPreview.totalDebt)}</div>
+                      <div className="text-xs font-black t-risk">{formatCurrency(importPreview.totalDebt)}</div>
                     </div>
                   </div>
 
                   <button
                     onClick={handleApplyImport}
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black py-2.5 rounded-xl text-xs shadow-lg shadow-emerald-900/20 transition cursor-pointer flex items-center justify-center gap-2"
+                    className="btn-primary w-full py-2.5 text-xs active:scale-95 cursor-pointer"
                   >
                     <Save className="w-4 h-4" />
                     <span>تثبيت الـ ({importPreview.customers.length}) عميل الآن في المنظومة</span>
@@ -1901,7 +1899,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
             
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black">
+                <div className="w-10 h-10 rounded-2xl icon-brass flex items-center justify-center font-black">
                   <Users className="w-5 h-5" />
                 </div>
                 <div>
@@ -1931,14 +1929,14 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 {/* كود العميل */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    كود العميل <span className="text-rose-500">*</span>
+                    كود العميل <span className="t-risk">*</span>
                   </label>
                   <input
                     type="text"
                     required
                     value={formData.code}
                     onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
                     placeholder="مثال: CUST-1045"
                   />
                 </div>
@@ -1946,14 +1944,14 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 {/* اسم العميل */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    اسم العميل / المحل <span className="text-rose-500">*</span>
+                    اسم العميل / المحل <span className="t-risk">*</span>
                   </label>
                   <input
                     type="text"
                     required
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
                     placeholder="مثال: سوبر ماركت الأمانة"
                   />
                 </div>
@@ -1970,7 +1968,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                   <select
                     value={formData.branchName}
                     onChange={(e) => setFormData({ ...formData, branchName: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
                   >
                     {allAvailableBranches.map((bName) => (
                       <option key={bName} value={bName}>
@@ -1996,7 +1994,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                         repName: selectedVal,
                       });
                     }}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
                   >
                     <option value="">-- غير محدد (بدون مندوب) --</option>
                     {allAvailableReps.map((r) => (
@@ -2013,14 +2011,14 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 
                 {/* إجمالي المتأخرات والمستحق */}
                 <div>
-                  <label className="block text-xs font-bold text-amber-800 mb-1">
+                  <label className="block text-xs font-bold t-warn mb-1">
                     إجمالي المتأخرات والمستحق (ج.م)
                   </label>
                   <input
                     type="number"
                     value={formData.totalOverdueAndDue}
                     onChange={(e) => setFormData({ ...formData, totalOverdueAndDue: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-amber-50/70 border border-amber-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
                     placeholder="0"
                   />
                 </div>
@@ -2034,7 +2032,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                     type="number"
                     value={formData.currentBalance}
                     onChange={(e) => setFormData({ ...formData, currentBalance: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
                     placeholder="0"
                   />
                 </div>
@@ -2048,7 +2046,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                     type="number"
                     value={formData.creditLimit}
                     onChange={(e) => setFormData({ ...formData, creditLimit: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
                     placeholder="50000"
                   />
                 </div>
@@ -2066,7 +2064,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
                     placeholder="مثال: 01012345678"
                   />
                 </div>
@@ -2080,7 +2078,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                     type="text"
                     value={formData.address}
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
                     placeholder="مثال: الفيوم - شارع الحرية"
                   />
                 </div>
@@ -2096,7 +2094,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                   type="text"
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
                   placeholder="ملاحظات التسليم، الشروط..."
                 />
               </div>
@@ -2109,13 +2107,13 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                     setIsAddModalOpen(false);
                     setEditingCustomer(null);
                   }}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                  className="btn-ghost px-4 py-2 text-xs cursor-pointer"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
-                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-6 py-2 rounded-xl text-xs shadow-md transition active:scale-95 cursor-pointer flex items-center gap-1.5"
+                  className="btn-primary px-6 py-2 text-xs active:scale-95 cursor-pointer"
                 >
                   <Save className="w-4 h-4" />
                   <span>حفظ البيانات</span>
@@ -2132,7 +2130,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       {customerToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-sm w-full p-6 text-center space-y-4">
-            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 rounded-full tint-risk flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
             <div>
@@ -2144,7 +2142,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
             <div className="flex items-center justify-center gap-2 pt-2">
               <button
                 onClick={() => setCustomerToDelete(null)}
-                className="flex-1 py-2 text-xs font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition cursor-pointer"
+                className="btn-ghost flex-1 py-2 text-xs cursor-pointer"
               >
                 إلغاء
               </button>
@@ -2158,7 +2156,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                     type: 'info',
                   });
                 }}
-                className="flex-1 py-2 text-xs font-black text-white bg-rose-600 rounded-xl hover:bg-rose-500 transition cursor-pointer shadow-md shadow-rose-900/20"
+                className="btn-danger flex-1 py-2 text-xs cursor-pointer"
               >
                 تأكيد الحذف
               </button>
