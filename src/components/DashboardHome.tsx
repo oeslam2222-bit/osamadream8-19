@@ -679,63 +679,63 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
         {/* 4 Metric Cards in a Row matching Desktop Reference Mockup */}
         <div className="grid grid-cols-4 gap-4">
           {/* Card 1: إجمالي المبيعات */}
-          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between space-y-2">
+          <div className="bg-[#079f96] rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500">إجمالي المبيعات</span>
-              <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5">
+              <span className="text-xs font-bold text-white/90">إجمالي المبيعات</span>
+              <span className="bg-white/15 text-white border border-white/20 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5">
                 <TrendingUp className="w-2.5 h-2.5" />
                 <span>+17%</span>
               </span>
             </div>
-            <div className="text-2xl font-black text-slate-900 tabular-nums">
+            <div className="text-2xl font-black text-white tabular-nums">
               {isPrivacyMode ? '••••••' : money(stats.sales || 125450)}
             </div>
-            <div className="text-[10px] text-slate-400 font-medium">مقارنة بالشهر الماضي</div>
+            <div className="text-[10px] text-white/75 font-medium">مقارنة بالشهر الماضي</div>
           </div>
 
           {/* Card 2: إجمالي التحصيلات */}
-          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between space-y-2">
+          <div className="bg-[#2878bd] rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500">إجمالي التحصيلات</span>
-              <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5">
+              <span className="text-xs font-bold text-white/90">إجمالي التحصيلات</span>
+              <span className="bg-white/15 text-white border border-white/20 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5">
                 <TrendingUp className="w-2.5 h-2.5" />
                 <span>+12%</span>
               </span>
             </div>
-            <div className="text-2xl font-black text-slate-900 tabular-nums">
+            <div className="text-2xl font-black text-white tabular-nums">
               {isPrivacyMode ? '••••••' : money(stats.collections || 98320)}
             </div>
-            <div className="text-[10px] text-slate-400 font-medium">نسبة تحصيل قوية</div>
+            <div className="text-[10px] text-white/75 font-medium">نسبة تحصيل قوية</div>
           </div>
 
           {/* Card 3: العملاء النشطين */}
-          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between space-y-2">
+          <div className="bg-[#f19b24] rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500">العملاء النشطين</span>
-              <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5">
+              <span className="text-xs font-bold text-white/90">العملاء النشطين</span>
+              <span className="bg-white/15 text-white border border-white/20 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5">
                 <TrendingUp className="w-2.5 h-2.5" />
                 <span>+5%</span>
               </span>
             </div>
-            <div className="text-2xl font-black text-slate-900 tabular-nums">
+            <div className="text-2xl font-black text-white tabular-nums">
               {scopedCustomers.length || 48}
             </div>
-            <div className="text-[10px] text-slate-400 font-medium">من إجمالي قاعدة العملاء</div>
+            <div className="text-[10px] text-white/75 font-medium">من إجمالي قاعدة العملاء</div>
           </div>
 
           {/* Card 4: الفواتير المتأخرة */}
-          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between space-y-2">
+          <div className="bg-[#28596b] rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500">الفواتير المتأخرة</span>
-              <span className="bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5">
+              <span className="text-xs font-bold text-white/90">الفواتير المتأخرة</span>
+              <span className="bg-white/15 text-white border border-white/20 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5">
                 <TrendingDown className="w-2.5 h-2.5" />
                 <span>-2%</span>
               </span>
             </div>
-            <div className="text-2xl font-black text-slate-900 tabular-nums">
+            <div className="text-2xl font-black text-white tabular-nums">
               7
             </div>
-            <div className="text-[10px] text-slate-400 font-medium">تحت المتابعة والتحصيل</div>
+            <div className="text-[10px] text-white/75 font-medium">تحت المتابعة والتحصيل</div>
           </div>
         </div>
 
