@@ -1,13 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -31,7 +27,6 @@ import {
   Search,
   ShoppingCart,
   Target,
-  TrendingDown,
   TrendingUp,
   User,
   Users,
@@ -89,6 +84,18 @@ const visitMonth = (raw?: string): { year: number; month: number } | null => {
   return null;
 };
 
+const customerDealCategory = (customer: Customer): string | null => {
+  const dealt = String(customer.dealt2026 || '').trim();
+  const eligibility = String(customer.dealEligibility || '').trim();
+
+  if (customer.hasDealtIn2026 || (dealt.includes('متعامل') && !dealt.includes('غير'))) {
+    return 'متعامل';
+  }
+  if (eligibility.includes('غير') || eligibility.includes('موقوف')) return 'غير قابل للتعامل';
+  if (eligibility.includes('قابل')) return 'قابل للتعامل';
+  return null;
+};
+
 export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab }) => {
   const {
     currentUser,
@@ -96,6 +103,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
     branches,
     customers,
     invoices = [],
+    getVisibleInvoices,
     getVisibleVisits,
     getVisibleTargets,
     isPrivacyMode
@@ -200,6 +208,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
 
   const visits = getVisibleVisits();
   const targets = getVisibleTargets();
+  const visibleInvoices = useMemo(() => getVisibleInvoices(), [getVisibleInvoices, invoices]);
 
   const scopedVisits = useMemo(() => {
     return visits.filter((v: CustomerVisit) => {
@@ -429,36 +438,45 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
   }, [stats]);
 
   const customerStatusDistribution = useMemo(() => {
-    let active = 0;
-    let inactive = 0;
-    let pending = 0;
+    const counts = new Map<string, number>([
+      ['متعامل', 0],
+      ['قابل للتعامل', 0],
+      ['غير قابل للتعامل', 0]
+    ]);
     scopedCustomers.forEach((c) => {
-      if (c.status2026 === 'active' || (c.balance ?? 0) > 0 || customerSales(c) > 0) {
-        active++;
-      } else if (c.status2026 === 'inactive' || c.dealEligibility === 'موقوف') {
-        inactive++;
-      } else {
-        pending++;
-      }
+      const category = customerDealCategory(c);
+      if (category) counts.set(category, (counts.get(category) || 0) + 1);
     });
-    const total = active + inactive + pending;
     return [
-      { name: 'نشط', value: active || 38, color: '#009488', count: active || 38 },
-      { name: 'متوقف', value: inactive || 7, color: '#ef4444', count: inactive || 7 },
-      { name: 'مؤجل', value: pending || 3, color: '#f59e0b', count: pending || 3 }
+      { name: 'متعامل', value: counts.get('متعامل') || 0, color: '#009488', count: counts.get('متعامل') || 0 },
+      { name: 'قابل للتعامل', value: counts.get('قابل للتعامل') || 0, color: '#f59e0b', count: counts.get('قابل للتعامل') || 0 },
+      { name: 'غير قابل للتعامل', value: counts.get('غير قابل للتعامل') || 0, color: '#ef4444', count: counts.get('غير قابل للتعامل') || 0 }
     ];
   }, [scopedCustomers]);
 
-  const nearestCustomers = useMemo(() => {
+  const displayedCustomers = useMemo(() => {
     return scopedCustomers.slice(0, 4);
   }, [scopedCustomers]);
 
   const recentInvoices = useMemo(() => {
-    return (invoices || []).slice(0, 4);
-  }, [invoices]);
+    return [...visibleInvoices].sort((a, b) => {
+      const dateA = new Date(a.createdAt || a.timestamp || a.date).getTime();
+      const dateB = new Date(b.createdAt || b.timestamp || b.date).getTime();
+      return (Number.isNaN(dateB) ? 0 : dateB) - (Number.isNaN(dateA) ? 0 : dateA);
+    }).slice(0, 4);
+  }, [visibleInvoices]);
 
   const upcomingVisits = useMemo(() => {
-    return scopedVisits.slice(0, 3);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return scopedVisits
+      .filter((visit) => {
+        const date = new Date(visit.date);
+        if (Number.isNaN(date.getTime()) || date < today) return false;
+        return !['منفذة', 'ملغاة', 'لم تتم'].includes(visit.status || '');
+      })
+      .sort((a, b) => new Date(`${a.date}T${a.time || '00:00'}`).getTime() - new Date(`${b.date}T${b.time || '00:00'}`).getTime())
+      .slice(0, 3);
   }, [scopedVisits]);
 
   const resetFilters = () => {
@@ -483,7 +501,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
               <span className="absolute bottom-0 left-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white" />
             </div>
             <div>
-              <div className="font-black text-slate-900 text-sm">{currentUser?.name || 'محمد أحمد'}</div>
+              <div className="font-black text-slate-900 text-sm">{currentUser?.name || 'مستخدم'}</div>
               <div className="text-[11px] text-slate-500 font-semibold">
                 {currentUser?.role === 'sales_rep' ? 'مندوب المبيعات' : currentUser?.role === 'supervisor' ? 'مشرف المبيعات' : 'إدارة المبيعات'}
               </div>
@@ -497,7 +515,6 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
             aria-label="الإشعارات"
           >
             <Bell className="w-4 h-4" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full" />
           </button>
         </div>
 
@@ -516,7 +533,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
               </div>
             </div>
             <div className="text-2xl font-black tabular-nums tracking-tight">
-              {scopedCustomers.length || 52}
+              {scopedCustomers.length}
             </div>
           </button>
 
@@ -533,7 +550,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
               </div>
             </div>
             <div className="text-2xl font-black tabular-nums tracking-tight">
-              {scopedVisits.length || 3}
+              {scopedVisits.length}
             </div>
           </button>
 
@@ -550,7 +567,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
               </div>
             </div>
             <div className="text-2xl font-black tabular-nums tracking-tight">
-              {(invoices || []).length || 8}
+              {visibleInvoices.length}
             </div>
           </button>
 
@@ -567,17 +584,17 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
               </div>
             </div>
             <div className="text-2xl font-black tabular-nums tracking-tight">
-              {Math.max(1, (invoices || []).filter((i) => i.status === 'معتمدة ومصروفة من المخزن').length) || 5}
+              {money(stats.collections)}
             </div>
           </button>
         </div>
 
-        {/* Nearest Customers Section (أقرب العملاء) */}
+        {/* Customer List */}
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-slate-900 font-black text-sm">
               <MapPin className="w-4 h-4 text-[color:var(--brand-teal)]" />
-              <span>أقرب العملاء</span>
+              <span>العملاء</span>
             </div>
             <button
               type="button"
@@ -590,8 +607,8 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           </div>
 
           <div className="space-y-2.5">
-            {nearestCustomers.map((cust, idx) => {
-              const distanceKm = [4, 6, 8, 11][idx % 4];
+            {displayedCustomers.length > 0 ? displayedCustomers.map((cust) => {
+              const dealCategory = customerDealCategory(cust);
               return (
                 <div
                   key={cust.id}
@@ -605,15 +622,23 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
                       <div className="font-bold text-slate-900 text-xs truncate">{cust.name}</div>
                       <div className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
                         <MapPin className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                        <span className="truncate">{cust.address || cust.region || 'مدينة 6 أكتوبر'} · {distanceKm} كم</span>
+                        <span className="truncate">{cust.address || cust.region || cust.branchName || 'لم يحدد العنوان'}</span>
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                      نشط
-                    </span>
+                    {dealCategory && (
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${
+                        dealCategory === 'متعامل'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : dealCategory === 'قابل للتعامل'
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200'
+                      }`}>
+                        {dealCategory}
+                      </span>
+                    )}
                     <button
                       type="button"
                       onClick={() => onNavigateToTab('visits')}
@@ -625,7 +650,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
                   </div>
                 </div>
               );
-            })}
+            }) : <p className="py-5 text-center text-xs text-slate-400">لا يوجد عملاء في النطاق الحالي</p>}
           </div>
         </div>
       </div>
@@ -677,65 +702,38 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
         </div>
 
         {/* 4 Metric Cards in a Row matching Desktop Reference Mockup */}
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           {/* Card 1: إجمالي المبيعات */}
           <div className="bg-[#079f96] rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-white/90">إجمالي المبيعات</span>
-              <span className="bg-white/15 text-white border border-white/20 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5">
-                <TrendingUp className="w-2.5 h-2.5" />
-                <span>+17%</span>
-              </span>
             </div>
             <div className="text-2xl font-black text-white tabular-nums">
-              {isPrivacyMode ? '••••••' : money(stats.sales || 125450)}
+              {money(stats.sales)}
             </div>
-            <div className="text-[10px] text-white/75 font-medium">مقارنة بالشهر الماضي</div>
+            <div className="text-[10px] text-white/75 font-medium">حسب بيانات العملاء</div>
           </div>
 
           {/* Card 2: إجمالي التحصيلات */}
           <div className="bg-[#2878bd] rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-white/90">إجمالي التحصيلات</span>
-              <span className="bg-white/15 text-white border border-white/20 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5">
-                <TrendingUp className="w-2.5 h-2.5" />
-                <span>+12%</span>
-              </span>
             </div>
             <div className="text-2xl font-black text-white tabular-nums">
-              {isPrivacyMode ? '••••••' : money(stats.collections || 98320)}
+              {money(stats.collections)}
             </div>
-            <div className="text-[10px] text-white/75 font-medium">نسبة تحصيل قوية</div>
+            <div className="text-[10px] text-white/75 font-medium">حسب بيانات العملاء</div>
           </div>
 
-          {/* Card 3: العملاء النشطين */}
+          {/* Card 3: العملاء */}
           <div className="bg-[#f19b24] rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white/90">العملاء النشطين</span>
-              <span className="bg-white/15 text-white border border-white/20 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5">
-                <TrendingUp className="w-2.5 h-2.5" />
-                <span>+5%</span>
-              </span>
+              <span className="text-xs font-bold text-white/90">العملاء</span>
             </div>
             <div className="text-2xl font-black text-white tabular-nums">
-              {scopedCustomers.length || 48}
+              {scopedCustomers.length}
             </div>
             <div className="text-[10px] text-white/75 font-medium">من إجمالي قاعدة العملاء</div>
-          </div>
-
-          {/* Card 4: الفواتير المتأخرة */}
-          <div className="bg-[#28596b] rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white/90">الفواتير المتأخرة</span>
-              <span className="bg-white/15 text-white border border-white/20 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5">
-                <TrendingDown className="w-2.5 h-2.5" />
-                <span>-2%</span>
-              </span>
-            </div>
-            <div className="text-2xl font-black text-white tabular-nums">
-              7
-            </div>
-            <div className="text-[10px] text-white/75 font-medium">تحت المتابعة والتحصيل</div>
           </div>
         </div>
 
@@ -762,17 +760,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
 
             <div className="h-56 w-full" dir="ltr">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={salesCollectionsChart} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#009488" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="#009488" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorCollections" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3882f6" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="#3882f6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
+                <BarChart data={salesCollectionsChart} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="name" reversed tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
                   <YAxis orientation="right" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => compact(Number(v))} />
@@ -780,9 +768,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
                     formatter={(val: any, name: any) => [money(Number(val)), name === 'sales' ? 'المبيعات' : 'التحصيلات']}
                     labelFormatter={(_, payload) => payload?.[0]?.payload?.full || ''}
                   />
-                  <Area type="monotone" dataKey="sales" stroke="#009488" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSales)" />
-                  <Area type="monotone" dataKey="collections" stroke="#3882f6" strokeWidth={2.5} fillOpacity={1} fill="url(#colorCollections)" />
-                </AreaChart>
+                  <Bar dataKey="sales" name="المبيعات" fill="#009488" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="collections" name="التحصيلات" fill="#3882f6" radius={[4, 4, 0, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -791,7 +779,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           <div className="col-span-4 bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between space-y-3">
             <div>
               <h3 className="font-black text-slate-900 text-sm">توزيع العملاء</h3>
-              <p className="text-[11px] text-slate-400">حالات نشاط العملاء المسجلين</p>
+              <p className="text-[11px] text-slate-400">تصنيف التعامل للعملاء المسجلين</p>
             </div>
 
             <div className="relative w-full h-40 flex items-center justify-center" dir="ltr">
@@ -812,7 +800,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-xl font-black text-slate-900">{scopedCustomers.length || 48}</span>
+                <span className="text-xl font-black text-slate-900">{scopedCustomers.length}</span>
                 <span className="text-[10px] text-slate-400 font-bold">عميل</span>
               </div>
             </div>
@@ -858,28 +846,25 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {[
-                    { id: '1', num: '#INV-00123', client: 'مؤسسة النور', date: '2026/10/20', amount: 1500, status: 'مدفوعة' },
-                    { id: '2', num: '#INV-00124', client: 'شركة الطارق', date: '2026/10/19', amount: 2800, status: 'مدفوعة' },
-                    { id: '3', num: '#INV-00125', client: 'أبو خالد', date: '2026/10/18', amount: 1200, status: 'متأخرة' },
-                    { id: '4', num: '#INV-00126', client: 'مكتبة المستقبل', date: '2026/10/17', amount: 950, status: 'مدفوعة' },
-                  ].map((row) => (
-                    <tr key={row.id} className="hover:bg-slate-50 transition">
-                      <td className="py-2.5 font-mono font-bold text-slate-600">{row.num}</td>
-                      <td className="py-2.5 font-bold text-slate-900">{row.client}</td>
-                      <td className="py-2.5 text-slate-500 tabular-nums">{row.date}</td>
-                      <td className="py-2.5 font-black text-slate-900 tabular-nums text-left">{formatCurrency(row.amount)}</td>
+                  {recentInvoices.length > 0 ? recentInvoices.map((invoice) => (
+                    <tr key={invoice.id} className="hover:bg-slate-50 transition">
+                      <td className="py-2.5 font-mono font-bold text-slate-600">{invoice.invoiceNumber}</td>
+                      <td className="py-2.5 font-bold text-slate-900">{invoice.customerName}</td>
+                      <td className="py-2.5 text-slate-500 tabular-nums">{invoice.date}</td>
+                      <td className="py-2.5 font-black text-slate-900 tabular-nums text-left">
+                        {formatCurrency(Number(invoice.estimatedGrandTotal) || 0)}
+                      </td>
                       <td className="py-2.5 text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          row.status === 'مدفوعة'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-rose-50 text-rose-700 border border-rose-200'
-                        }`}>
-                          {row.status}
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-50 text-slate-700 border border-slate-200">
+                          {invoice.status}
                         </span>
                       </td>
                     </tr>
-                  ))}
+                  )) : (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-xs text-slate-400">لا توجد فواتير مسجلة</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -899,25 +884,28 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
             </div>
 
             <div className="space-y-3">
-              {[
-                { id: 'v1', client: 'مؤسسة النور', time: '10:00 ص - 2026/10/24', loc: 'الشيخ زايد' },
-                { id: 'v2', client: 'شركة الطارق', time: '12:30 م - 2026/10/24', loc: 'مدينة 6 أكتوبر' },
-                { id: 'v3', client: 'أبو خالد', time: '03:00 م - 2026/10/24', loc: 'الهرم' },
-              ].map((visit) => (
+              {upcomingVisits.length > 0 ? upcomingVisits.map((visit) => {
+                const visitCustomer = customers.find((customer) =>
+                  customer.id === visit.customerId || customer.code === visit.customerCode
+                );
+                return (
                 <div key={visit.id} className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 space-y-1">
-                  <div className="font-bold text-slate-900 text-xs">{visit.client}</div>
+                  <div className="font-bold text-slate-900 text-xs">
+                    {visit.customerName || visitCustomer?.name || 'عميل غير محدد'}
+                  </div>
                   <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3 text-slate-400" />
-                      <span>{visit.time}</span>
+                      <span>{visit.date}{visit.time ? ` - ${visit.time}` : ''}</span>
                     </span>
                     <span className="flex items-center gap-1 text-[color:var(--brand-teal)]">
                       <MapPin className="w-3 h-3" />
-                      <span>{visit.loc}</span>
+                      <span>{visit.branchName || visitCustomer?.region || visitCustomer?.address || 'لم يحدد الموقع'}</span>
                     </span>
                   </div>
                 </div>
-              ))}
+                );
+              }) : <p className="py-5 text-center text-xs text-slate-400">لا توجد زيارات قادمة</p>}
             </div>
 
             <button
