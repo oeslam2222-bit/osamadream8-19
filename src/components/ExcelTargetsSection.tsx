@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { AlertCircle, CheckCircle2, Download, Loader2, Target, Upload } from 'lucide-react';
 import { parseTargetExcel as parseTargetExcelFromFile, fetchTargetsFromGoogleSheetUrl, generateSampleCustomerTargetTemplate } from '../services/excelService';
 import { TargetRecord } from '../types';
@@ -16,9 +16,9 @@ export const ExcelTargetsSection: React.FC<Props> = ({ saveTargets }) => {
     try {
       let r:TargetRecord[];
       if(src==='file'&&file) r=await parseTargetExcelFromFile(file);
-      else if(src==='sheets'&&url.trim()) { const g=await fetchTargetsFromGoogleSheetUrl(url.trim()); r=g.targets||[]; }
+      else if(src==='sheets'&&url.trim()) { r=await fetchTargetsFromGoogleSheetUrl(url.trim()); }
       else throw new Error('يرجى اختيار ملف أو إدخال رابط Google Sheet');
-      setS(p=>({...p,data:r,totalRows:r.length,isLoading:false,success:r.length>0?`تم قراءة ${r.length} سجل تارجت بنجاح.`:null,error:[]}));
+      setS(p=>({...p,data:r,totalRows:r.length,isLoading:false,success:r.length>0?`تم قراءة ${r.length} سجل تارجت بنجاح.`:null,error:null}));
     } catch(e:any){setS(p=>({...p,isLoading:false,error:e.message||'فشل في استيراد التارجت'}));}
   };
 
@@ -89,7 +89,7 @@ export const ExcelTargetsSection: React.FC<Props> = ({ saveTargets }) => {
               </tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {s.data.slice(0,50).map((t,i)=>(<tr key={t.id||i} className="hover:bg-slate-50/50">
-                  <td className="p-3 text-slate-400">{i+1}</td><td className="p-3 font-mono font-bold">{t.repName}</td><td className="p-3">{t.branchName}</td><td className="p-3">{t.customerName}</td><td className="p-3 text-slate-700">{Number(t.salesTarget||0).toLocaleString()}</td><td className="p-3 text-slate-700">{Number(t.collectionTarget||0).toLocaleString()}</td><td className="p-3">{t.month}/{t.year}</td>
+                  <td className="p-3 text-slate-400">{i+1}</td>                  <td className="p-3 font-mono font-bold">{t.repName}</td><td className="p-3">{t.branch}</td><td className="p-3">{t.notes ?? '-'}</td><td className="p-3 text-slate-700">{Number(t.salesTarget||0).toLocaleString()}</td><td className="p-3 text-slate-700">{Number(t.collectionTarget||0).toLocaleString()}</td><td className="p-3">{t.month}/{t.year}</td>
                 </tr>))}
               </tbody>
             </table>
