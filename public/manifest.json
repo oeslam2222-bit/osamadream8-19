@@ -1,16 +1,16 @@
 {
   "id": "/",
-  "name": "مجموعة الطنطاوي للتجارة والتوزيع | TANTAWY GROUP",
-  "short_name": "الطنطاوي",
-  "description": "منظومة المبيعات وإدارة المخزون والكتالوج والفواتير لمجموعة الطنطاوي للتجارة والتوزيع",
+  "name": "طنطاوي جروب | Tantawy Group",
+  "short_name": "طنطاوي جروب",
+  "description": "منظومة المبيعات وإدارة المخزون والكتالوج والفواتير والتحصيلات لمجموعة الطنطاوي",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "dir": "rtl",
   "lang": "ar",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#0f2b38",
+  "theme_color": "#0f2b38",
   "prefer_related_applications": false,
   "icons": [
     {

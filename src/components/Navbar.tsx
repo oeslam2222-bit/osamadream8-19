@@ -217,21 +217,20 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Brand & Logo (mobile / tablet) */}
           <div className="flex items-center gap-2 sm:gap-3 lg:hidden">
-            <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-full bg-white p-0.5 border-2 border-amber-400 shadow-md shadow-amber-500/20 flex items-center justify-center shrink-0 overflow-hidden">
-              <img src="/pwa-192x192.png" alt="مجموعة الطنطاوي - TANTAWY GROUP" className="h-full w-full object-contain" />
+            <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-2xl bg-[#0f2b38] p-1 border-2 border-teal-500 shadow-md shadow-teal-500/20 flex items-center justify-center shrink-0 overflow-hidden">
+              <img src="/icon.svg" alt="طنطاوي جروب - Tantawy Group" className="h-full w-full object-contain" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
                 <h1 className="font-black text-sm sm:text-lg tracking-tight text-slate-900 flex items-center gap-1">
-                  <span>مجموعة الطنطاوي</span>
-                  <span className="text-amber-700 text-xs sm:text-sm font-bold hidden xs:inline">للتجارة والتوزيع</span>
+                  <span>طنطاوي جروب</span>
                 </h1>
-                <span className="hidden md:inline-block px-2 py-0.5 text-[10px] font-extrabold bg-amber-50 text-amber-800 rounded-md border border-amber-300">
+                <span className="hidden md:inline-block px-2 py-0.5 text-[10px] font-extrabold bg-teal-50 text-teal-800 rounded-md border border-teal-300">
                   TANTAWY GROUP
                 </span>
               </div>
               <p className="text-[10px] sm:text-[11px] text-slate-500 hidden sm:block">
-                المنظومة الذكية لإدارة المبيعات والفروع الـ 7 ومخزن أكتوبر المركزي
+                تطبيق مبيعات والتحصيلات • لوحة بسيطة لإدارة أقوى
               </p>
             </div>
           </div>
@@ -536,7 +535,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              <img src="/pwa-192x192.png" alt="مجموعة الطنطاوي" className="w-9 h-9 rounded-xl bg-white p-0.5 object-contain shadow-xs" />
+              <img src="/icon.svg" alt="طنطاوي جروب" className="w-9 h-9 rounded-xl object-contain shadow-xs border border-teal-500/30" />
             </div>
 
             {/* Nav Icon Rail */}
@@ -582,10 +581,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           <>
             <div className="flex items-center justify-between pb-4 border-b border-white/10 px-1">
               <div className="flex items-center gap-2.5">
-                <img src="/pwa-192x192.png" alt="مجموعة الطنطاوي" className="w-10 h-10 rounded-xl bg-white p-1 object-contain shrink-0" />
+                <img src="/icon.svg" alt="طنطاوي جروب" className="w-10 h-10 rounded-xl object-contain shrink-0 border border-teal-500/30 shadow-xs" />
                 <div>
-                  <div className="font-black text-sm text-white">مجموعة الطنطاوي</div>
-                  <div className="text-[10px] text-blue-200">نظام المبيعات والتوزيع</div>
+                  <div className="font-black text-sm text-white">طنطاوي جروب</div>
+                  <div className="text-[10px] text-teal-300 font-semibold">Tantawy Group</div>
                 </div>
               </div>
               <button
@@ -644,50 +643,51 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
       </aside>
 
-      <nav className="tantawy-mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-slate-200 flex items-center justify-around py-1.5 shadow-2xl safe-area-inset-bottom print:hidden" aria-label="التنقل">
+      <nav className="tantawy-mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 flex items-center justify-around py-2 px-1 shadow-xl safe-area-inset-bottom print:hidden" aria-label="التنقل">
         {currentUser.role === 'legal_advisor' ? (
           <button
             onClick={() => setActiveTab('legal_advisor')}
-            className="flex items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-xs font-black text-white bg-[#0f233d] shadow-md my-0.5"
+            className="flex items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-xs font-black text-white bg-[#0f2b38] shadow-md my-0.5 cursor-pointer"
           >
             <Scale className="w-4 h-4 text-amber-400" />
-            <span>لوحة الشؤون القانونية والمتابعة القضائية</span>
+            <span>لوحة الشؤون القانونية</span>
           </button>
         ) : (
-          filteredNavItems
-            .filter((item) => ['home', 'catalog', 'all_customers', 'invoices'].includes(item.id))
-            .map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  aria-current={isActive ? 'page' : undefined}
-                  className={`relative flex flex-col items-center justify-center rounded-xl px-1 text-[10px] font-bold transition ${isActive ? 'text-[#102b4e]' : 'text-slate-500'}`}
-                >
-                  <Icon className="w-5 h-5 mb-0.5" />
-                  <span className="max-w-[72px] truncate">{item.label}</span>
+          [
+            { id: 'home', label: 'الرئيسية', icon: Home },
+            { id: 'all_customers', label: 'العملاء', icon: Users },
+            { id: 'invoices', label: 'الفواتير', icon: Receipt },
+            { id: 'visits', label: 'الزيارات', icon: CalendarCheck },
+            { id: 'catalog', label: 'الكتالوج', icon: Boxes, badge: cartSummary.itemCount },
+          ].map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id || (item.id === 'all_customers' && activeTab === 'customers');
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveTab(item.id)}
+                aria-current={isActive ? 'page' : undefined}
+                className={`relative flex flex-col items-center justify-center flex-1 py-1 px-1 transition cursor-pointer min-h-[44px] ${
+                  isActive ? 'text-[color:var(--brand-teal)] font-black' : 'text-slate-400 hover:text-slate-600 font-bold'
+                }`}
+              >
+                <div className="relative">
+                  <Icon className={`w-5 h-5 mb-1 transition-transform ${isActive ? 'scale-110 text-[color:var(--brand-teal)] stroke-[2.5]' : 'stroke-[1.8]'}`} />
                   {item.badge && item.badge > 0 ? (
-                    <span className="absolute top-0 right-2 min-w-4 rounded-full bg-rose-500 px-1 text-[9px] text-white">{item.badge}</span>
+                    <span className="absolute -top-1 -right-2 min-w-4 h-4 rounded-full bg-[color:var(--brand-amber)] text-slate-950 font-black text-[9px] flex items-center justify-center px-1">
+                      {item.badge}
+                    </span>
                   ) : null}
-                </button>
-              );
-            })
+                </div>
+                <span className="text-[10px] tracking-tight truncate">{item.label}</span>
+                {isActive && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--brand-teal)] mt-0.5" />
+                )}
+              </button>
+            );
+          })
         )}
-        <button
-          type="button"
-          onClick={onOpenCart}
-          className="relative flex flex-col items-center justify-center rounded-xl px-1 text-[10px] font-bold text-slate-500"
-        >
-          <ShoppingCart className="w-5 h-5 mb-0.5" />
-          <span>السلة</span>
-          {cartSummary.itemCount > 0 ? (
-            <span className="absolute top-0 right-2 min-w-4 rounded-full bg-[var(--app-accent)] px-1 text-[9px] font-black text-[#231a05]">
-              {cartSummary.itemCount}
-            </span>
-          ) : null}
-        </button>
       </nav>
 
       {/* PWA Install Modal */}

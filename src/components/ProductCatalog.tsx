@@ -11,6 +11,7 @@ import {
   Filter,
   Flame,
   Grid,
+  LayoutGrid,
   Info,
   Layers,
   List,
@@ -589,7 +590,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setSelectedStatus('الكل');
     setStockAvailabilityFilter('all');
     setSortBy('default');
-    setShowAllExplicitly(false);
+    setShowAllExplicitly(true);
   };
 
   const cartSummary = useMemo(() => {
@@ -840,629 +841,80 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
       )}
 
-      {/* Compact Status & Quick Scope Bar (Clean & Lightweight) */}
-      <div className="bg-white border border-[color:var(--app-line)] rounded-2xl p-2.5 sm:p-3 shadow-xs flex flex-wrap items-center justify-between gap-2 text-xs">
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Branch Chip */}
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-[var(--app-line)] px-2.5 py-1 rounded-xl font-bold text-slate-700">
-            <Building className="w-3.5 h-3.5 text-amber-600" />
+      {/* Top Scope & Branch Bar (Minimal, Single-Row) */}
+      <div className="bg-white border border-[color:var(--app-line)] rounded-xl p-2.5 sm:p-3 shadow-xs flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 text-slate-700 font-bold">
+            <Building className="w-4 h-4 text-[color:var(--app-blue)]" />
             <span>فرع:</span>
-            <span className="font-black text-[#0f233d]">{currentActiveBranch || 'الفرع الرئيسي'}</span>
+            <span className="font-black text-slate-900">{currentActiveBranch || 'الفرع الرئيسي'}</span>
           </div>
 
-          {/* Offline Cache Status Chip */}
-          <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 px-2.5 py-1 rounded-xl font-bold">
-            <Download className="w-3.5 h-3.5 text-emerald-600" />
-            <span>أوفلاين:</span>
-            <span className="font-black">{cacheStats.count} صورة</span>
-          </div>
-
-          {/* Quick Offline Cache Action Button */}
-          <button
-            onClick={handleCacheAllImages}
-            disabled={isCaching || products.length === 0}
-            className="text-[11px] font-bold text-[#0f233d] hover:text-amber-700 underline px-1 cursor-pointer disabled:opacity-50"
-            title="تحديث صور الكتالوج للعمل أوفلاين"
-          >
-            {isCaching ? 'جاري التحميل...' : 'تحديث الصور أوفلاين'}
-          </button>
-        </div>
-
-        {/* Branch Switcher for Admin / Developer */}
-        {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
-          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
-            <span>تبديل:</span>
-            <select
-              aria-label="تبديل الفرع"
-              value={selectedBranchFilter}
-              onChange={(e) => setSelectedBranchFilter(e.target.value)}
-              className="bg-slate-50 border border-[var(--app-line)] text-slate-900 font-black rounded-lg px-2 py-1 text-xs"
-            >
-              <option value="الكل">كل الفروع (الرئيسي)</option>
-              {branches
-                .filter((b) => !b.isMainWarehouse && !b.name.includes('المخزن المركزي'))
-                .map((b) => (
-                  <option key={b.id} value={b.name}>
-                    {b.name}
-                  </option>
-                ))}
-            </select>
-          </div>
-        )}
-      </div>
-
-      {/* Unified, Clean Search & Quick Filters Bar - Simplified for Mobile with high touch targets */}
-      <div className="rounded-2xl border border-[color:var(--app-line)] bg-white p-2.5 sm:p-4 space-y-2.5 sm:space-y-3 shadow-sm">
-        <div className="flex items-center justify-between gap-2 md:hidden">
-          <div className="flex items-center gap-2 min-w-0">
-            <SlidersHorizontal className="w-4 h-4 text-slate-700 shrink-0" />
-            <span className="text-sm font-black text-slate-900 truncate">البحث والتصفية</span>
-            {(selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل' || stockAvailabilityFilter !== 'all') && (
-              <span className="rounded-full bg-[color:var(--app-accent)]/15 px-2 py-0.5 text-[10px] font-black text-[#8a6420]">مفعّل</span>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => setIsFilterPanelOpen((open) => !open)}
-            className="flex h-10 shrink-0 items-center gap-1.5 rounded-[10px] bg-[color:var(--app-navy)] px-3 text-xs font-black text-white transition hover:bg-[#0d2340] active:scale-95"
-            aria-expanded={isFilterPanelOpen}
-            aria-controls="catalog-filters"
-          >
-            {isFilterPanelOpen ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
-            {isFilterPanelOpen ? 'إخفاء' : 'الاختيارات'}
-          </button>
-        </div>
-
-        <div id="catalog-filters" className={`${isFilterPanelOpen ? 'block' : 'hidden'} md:block`}>
-        {/* Main Search Row */}
-        <div className="flex flex-col md:flex-row items-stretch gap-2">
-          {/* Main search input */}
-          <div className="relative flex-1">
-            <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[color:var(--app-muted)]" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="ابحث بالكود، الكود الموحد (#)، اسم الصنف، الماركة..."
-              className="w-full h-11 sm:h-12 pl-10 pr-10 bg-white text-slate-900 placeholder-slate-400 border border-[color:var(--app-line)] rounded-[10px] text-sm sm:text-base font-medium shadow-none"
-            />
-            {searchTerm ? (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute left-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 w-9 h-9 flex items-center justify-center cursor-pointer"
-                aria-label="مسح البحث"
+          {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+            <div className="flex items-center gap-1.5 border-r border-slate-200 pr-2 mr-2">
+              <span className="text-slate-500 font-medium text-[11px]">تبديل:</span>
+              <select
+                aria-label="تبديل الفرع"
+                value={selectedBranchFilter}
+                onChange={(e) => setSelectedBranchFilter(e.target.value)}
+                className="bg-slate-50 border border-[color:var(--app-line)] text-slate-800 font-bold rounded-md px-2 py-1 text-xs"
               >
-                <X className="w-5 h-5" />
-              </button>
-            ) : (
-              <Barcode className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" aria-hidden="true" />
-            )}
-          </div>
-
-          {/* Smart Search Suggestions Dropdown */}
-          {smartSuggestions.length > 0 && (
-            <div className="absolute left-0 right-0 mt-1 z-50 bg-white border border-[color:var(--app-line)] rounded-[10px] shadow-2xl max-h-80 overflow-y-auto animate-in fade-in slide-in-from-top-2">
-              <div className="px-3 py-1.5 text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-50">
-                نتائج المقترحة ({smartSuggestions.length})
-              </div>
-              {smartSuggestions.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => handleSelectSuggestion(p)}
-                  className="w-full text-right px-4 py-2.5 text-sm hover:bg-[#f2f6fa] transition border-b border-slate-50/50 last:border-0 group"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="font-black text-slate-900 truncate">{p.name}</div>
-                      <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold">
-                        <span>{p.code}</span>
-                        {p.unifiedCode && <span className="text-[#1e5f9d]">#{p.unifiedCode.replace('#', '')}</span>}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 text-[color:var(--app-ok)] font-black text-xs">
-                      <CheckCircle2 className="w-3 h-3 shrink-0" />
-                      <span className="tabular-nums">{getProductBranchStock(p)} ك</span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-              {smartSuggestions.length === 0 && (
-                <div className="px-4 py-3 text-xs text-slate-400 text-center">لا توجد نتائج مطابقة</div>
-              )}
+                <option value="الكل">كل الفروع</option>
+                {branches
+                  .filter((b) => !b.isMainWarehouse && !b.name.includes('المخزن المركزي'))
+                  .map((b) => (
+                    <option key={b.id} value={b.name}>
+                      {b.name}
+                    </option>
+                  ))}
+              </select>
             </div>
           )}
-
-          {/* Data Confidentiality Toggle (سرية البيانات) */}
-          <button
-            type="button"
-            onClick={toggleConfidentialMode}
-            className={`h-11 sm:h-12 px-3 sm:px-4 rounded-[10px] font-black text-xs flex items-center justify-center gap-2 transition shrink-0 cursor-pointer ${
-              isConfidentialMode
-                ? 'bg-[#f7f0e1] text-[color:var(--app-warn)] ring-1 ring-[#e6d9b8]'
-                : 'bg-white hover:bg-slate-50 text-slate-700 border border-[color:var(--app-line)]'
-            }`}
-            title={isConfidentialMode ? 'وضع سرية البيانات مفعّل (الأسعار محجوبة أمام العملاء) - انقر للإظهار' : 'تفعيل وضع سرية البيانات أمام العملاء (إخفاء الأسعار والمديونيات)'}
-          >
-            <ShieldCheck className={`w-4 h-4 ${isConfidentialMode ? 'text-[color:var(--app-warn)]' : 'text-slate-400'}`} />
-            <span className="whitespace-nowrap">
-              {isConfidentialMode ? 'سرية البيانات: مفعّلة' : 'سرية البيانات'}
-            </span>
-          </button>
         </div>
 
-        {/* Dropdown Filters Toolbar */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-3 border-t border-slate-100 text-xs">
-          {/* Stock Status Dropdown */}
-          <div className="relative">
-            <select
-              aria-label="تصفية حالة المخزون"
-              value={stockAvailabilityFilter}
-              onChange={(e) => setStockAvailabilityFilter(e.target.value as any)}
-              className="w-full h-11 px-2.5 bg-white text-slate-800 border border-[color:var(--app-line)] rounded-[10px] font-bold cursor-pointer text-xs"
-            >
-              <option value="all">كل حالات المخزون ({stockCounts.all})</option>
-              <option value="offers">عروض وتخفيضات خاصة ({stockCounts.offers})</option>
-              <option value="in_branch">متوفر بالفرع ({stockCounts.inBranch})</option>
-              <option value="in_warehouse">مخزن أكتوبر المركزي ({stockCounts.inWarehouse})</option>
-              <option value="out_of_branch_only">متاح بأكتوبر فقط ({stockCounts.outOfBranchOnly})</option>
-              <option value="low_stock">قاربت على النفاذ ({stockCounts.lowStock})</option>
-              <option value="high_stock">متوفر بكثرة ({stockCounts.highStock})</option>
-              <option value="out_of_stock">بدون مخزون / منتهية ({stockCounts.outOfStock})</option>
-            </select>
-          </div>
-
-          {/* Priority & Offers Dropdown */}
-          <div className="relative">
-            <select
-              aria-label="تصفية الطلب والعروض"
-              value={selectedPriority !== 'الكل' ? `priority_${selectedPriority}` : selectedStatus !== 'الكل' ? `status_${selectedStatus}` : 'all'}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val.startsWith('priority_')) {
-                  setSelectedPriority(val.replace('priority_', ''));
-                  setSelectedStatus('الكل');
-                } else if (val.startsWith('status_')) {
-                  setSelectedStatus(val.replace('status_', ''));
-                  setSelectedPriority('الكل');
-                } else {
-                  setSelectedPriority('الكل');
-                  setSelectedStatus('الكل');
-                }
-              }}
-              className="w-full h-11 px-2.5 bg-white text-slate-800 border border-[color:var(--app-line)] rounded-[10px] font-bold cursor-pointer text-xs"
-            >
-              <option value="all">كل الأصناف والعروض</option>
-              <option value="priority_مرتفع">الأكثر طلباً</option>
-              <option value="status_عرض ترويجي">عروض ترويجية</option>
-              <option value="status_راكد">أصناف راكدة</option>
-              <option value="status_نواقص">نواقص مطلوب توفيرها</option>
-            </select>
-          </div>
-
-          {/* Sort & View Mode Dropdown */}
-          <div className="flex items-center gap-1">
-            <select
-              aria-label="ترتيب المنتجات"
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="flex-1 h-11 px-2.5 bg-white text-slate-800 border border-[color:var(--app-line)] rounded-[10px] font-bold cursor-pointer text-xs"
-            >
-              <option value="default">الترتيب: الافتراضي</option>
-              <option value="branch_stock_desc">مخزون الفرع: الأكثر للأقل</option>
-              <option value="branch_stock_asc">مخزون الفرع: الأقل للأكثر</option>
-              <option value="october_stock_desc">مخزن أكتوبر: الأكثر للأقل</option>
-              <option value="october_stock_asc">مخزن أكتوبر: الأقل للأكثر</option>
-              <option value="total_stock_desc">إجمالي المخزون (الفرع + أكتوبر)</option>
-              <option value="priority">الأكثر طلباً</option>
-              <option value="price_asc">السعر: الأقل سعراً</option>
-              <option value="price_desc">السعر: الأعلى سعراً</option>
-              <option value="name_asc">الاسم: أبجدياً (أ - ي)</option>
-            </select>
-
-            {/* View Mode Switcher (Visible on Mobile, Tablet & Desktop) */}
-            <div className="flex items-center bg-[#f4f7fa] p-0.5 rounded-[10px] border border-[color:var(--app-line)] h-11 shrink-0">
-              <button
-                onClick={() => {
-                  setViewMode('grid');
-                  setGridDensity('comfortable');
-                }}
-                className={`px-2.5 h-9 rounded-[8px] text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
-                  viewMode === 'grid' && gridDensity === 'comfortable'
-                    ? 'bg-[color:var(--app-navy)] text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
-                title="عرض مريح (بطاقة واسعة ومقروءة للموبايل)"
-              >
-                <Maximize2 className="w-3.5 h-3.5" />
-                <span className="text-xs font-bold">مريح</span>
-              </button>
-              <button
-                onClick={() => {
-                  setViewMode('grid');
-                  setGridDensity('compact');
-                }}
-                className={`px-2.5 h-9 rounded-[8px] text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
-                  viewMode === 'grid' && gridDensity === 'compact'
-                    ? 'bg-[color:var(--app-navy)] text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
-                title="عرض مزدوج (بطاقتين بالصف)"
-              >
-                <Grid className="w-3.5 h-3.5" />
-                <span className="text-xs font-bold">مزدوج</span>
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`px-2.5 h-9 rounded-[8px] text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
-                  viewMode === 'list'
-                    ? 'bg-[color:var(--app-navy)] text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
-                title="عرض جدول تفصيلي"
-              >
-                <List className="w-3.5 h-3.5" />
-                <span className="text-xs font-bold">جدول</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Stock Status Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar pt-3 border-t border-[color:var(--app-line)]">
-          <button
-            onClick={() => setStockAvailabilityFilter('all')}
-            className={`relative min-h-[44px] px-4 rounded-[10px] text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 ${
-              stockAvailabilityFilter === 'all'
-                ? 'bg-[color:var(--app-navy)] text-white shadow-[inset_0_-3px_0_var(--app-accent)]'
-                : 'bg-white text-slate-600 border border-[color:var(--app-line)] hover:text-slate-900 hover:border-[#b8c9db]'
-            }`}
-          >
-            الكل ({stockCounts.all})
-          </button>
-          <button
-            id="filter-offers-pill-btn"
-            onClick={() => setStockAvailabilityFilter('offers')}
-            className={`relative min-h-[44px] px-4 rounded-[10px] text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
-              stockAvailabilityFilter === 'offers'
-                ? 'bg-[color:var(--app-navy)] text-white shadow-[inset_0_-3px_0_var(--app-accent)]'
-                : 'bg-white text-slate-600 border border-[color:var(--app-line)] hover:text-slate-900 hover:border-[#b8c9db]'
-            }`}
-          >
-            <span>عروض وتخفيضات</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
-              stockAvailabilityFilter === 'offers' ? 'bg-[color:var(--app-accent)]/25 text-[color:var(--app-accent)]' : 'bg-[#f2f6fa] text-[color:var(--app-muted)] border border-[color:var(--app-line)]'
-            }`}>
-              {stockCounts.offers}
-            </span>
-          </button>
-          <button
-            onClick={() => setStockAvailabilityFilter('in_branch')}
-            className={`relative min-h-[44px] px-4 rounded-[10px] text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
-              stockAvailabilityFilter === 'in_branch'
-                ? 'bg-[color:var(--app-navy)] text-white shadow-[inset_0_-3px_0_var(--app-accent)]'
-                : 'bg-white text-slate-600 border border-[color:var(--app-line)] hover:text-slate-900 hover:border-[#b8c9db]'
-            }`}
-          >
-            <span>بالفرع</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
-              stockAvailabilityFilter === 'in_branch' ? 'bg-[color:var(--app-accent)]/25 text-[color:var(--app-accent)]' : 'bg-[#f2f6fa] text-[color:var(--app-muted)] border border-[color:var(--app-line)]'
-            }`}>{stockCounts.inBranch}</span>
-          </button>
-          <button
-            onClick={() => setStockAvailabilityFilter('in_warehouse')}
-            className={`relative min-h-[44px] px-4 rounded-[10px] text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
-              stockAvailabilityFilter === 'in_warehouse'
-                ? 'bg-[color:var(--app-navy)] text-white shadow-[inset_0_-3px_0_var(--app-accent)]'
-                : 'bg-white text-slate-600 border border-[color:var(--app-line)] hover:text-slate-900 hover:border-[#b8c9db]'
-            }`}
-          >
-            <span>مخزن أكتوبر</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
-              stockAvailabilityFilter === 'in_warehouse' ? 'bg-[color:var(--app-accent)]/25 text-[color:var(--app-accent)]' : 'bg-[#f2f6fa] text-[color:var(--app-muted)] border border-[color:var(--app-line)]'
-            }`}>{stockCounts.inWarehouse}</span>
-          </button>
-          <button
-            onClick={() => setStockAvailabilityFilter('out_of_branch_only')}
-            className={`relative min-h-[44px] px-4 rounded-[10px] text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
-              stockAvailabilityFilter === 'out_of_branch_only'
-                ? 'bg-[color:var(--app-navy)] text-white shadow-[inset_0_-3px_0_var(--app-accent)]'
-                : 'bg-white text-slate-600 border border-[color:var(--app-line)] hover:text-slate-900 hover:border-[#b8c9db]'
-            }`}
-          >
-            <span>بأكتوبر فقط</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
-              stockAvailabilityFilter === 'out_of_branch_only' ? 'bg-[color:var(--app-accent)]/25 text-[color:var(--app-accent)]' : 'bg-[#f2f6fa] text-[color:var(--app-muted)] border border-[color:var(--app-line)]'
-            }`}>{stockCounts.outOfBranchOnly}</span>
-          </button>
-          <button
-            onClick={() => setStockAvailabilityFilter('low_stock')}
-            className={`relative min-h-[44px] px-4 rounded-[10px] text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
-              stockAvailabilityFilter === 'low_stock'
-                ? 'bg-[color:var(--app-navy)] text-white shadow-[inset_0_-3px_0_var(--app-accent)]'
-                : 'bg-white text-slate-600 border border-[color:var(--app-line)] hover:text-slate-900 hover:border-[#b8c9db]'
-            }`}
-          >
-            <span>قارب على النفاذ</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
-              stockAvailabilityFilter === 'low_stock' ? 'bg-[color:var(--app-accent)]/25 text-[color:var(--app-accent)]' : 'bg-[#f2f6fa] text-[color:var(--app-muted)] border border-[color:var(--app-line)]'
-            }`}>{stockCounts.lowStock}</span>
-          </button>
-          <button
-            onClick={() => setStockAvailabilityFilter('out_of_stock')}
-            className={`relative min-h-[44px] px-4 rounded-[10px] text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 ${
-              stockAvailabilityFilter === 'out_of_stock'
-                ? 'bg-[color:var(--app-navy)] text-white shadow-[inset_0_-3px_0_var(--app-accent)]'
-                : 'bg-white text-slate-600 border border-[color:var(--app-line)] hover:text-slate-900 hover:border-[#b8c9db]'
-            }`}
-          >
-            <span>بدون مخزون (منتهية)</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
-              stockAvailabilityFilter === 'out_of_stock' ? 'bg-[color:var(--app-accent)]/25 text-[color:var(--app-accent)]' : 'bg-[#f2f6fa] text-[color:var(--app-muted)] border border-[color:var(--app-line)]'
-            }`}>{stockCounts.outOfStock}</span>
-          </button>
-        </div>
-
-        {/* Active Filter Reset Pill if filtered */}
-        {(searchTerm || selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل' || selectedPriority !== 'الكل' || selectedStatus !== 'الكل' || stockAvailabilityFilter !== 'all' || sortBy !== 'default') && (
-          <div className="flex items-center justify-between pt-3 border-t border-[color:var(--app-line)] text-xs">
-            <span className="text-slate-500 text-[11px]">
-              النتائج المطابقة: <strong className="text-slate-900 font-black">{filteredProducts.length}</strong> صنف
-            </span>
+        {/* Admin/Developer Excel Sheet Actions */}
+        {isAdminOrDev && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                setSearchTerm('');
-                setSelectedOfficialDept('الكل');
-                setSelectedSubCategory('الكل');
-                setSelectedPriority('الكل');
-                setSelectedStatus('الكل');
-                setStockAvailabilityFilter('all');
-                setSortBy('default');
-              }}
-              className="text-rose-600 hover:text-rose-700 font-bold cursor-pointer text-xs"
+              onClick={() => setIsUploadBoxOpen((prev) => !prev)}
+              className="flex items-center gap-1 text-[11px] font-bold text-[color:var(--app-navy)] hover:text-[color:var(--app-blue)] bg-slate-50 hover:bg-slate-100 border border-[color:var(--app-line)] px-2.5 py-1 rounded-md transition cursor-pointer"
             >
-              إلغاء التصفية الشاملة
+              <Upload className="w-3.5 h-3.5 text-amber-600" />
+              <span>{isUploadBoxOpen ? 'إغلاق نافذة الرفع' : 'رفع شيت إكسل / درايف'}</span>
             </button>
           </div>
         )}
-        </div>
       </div>
 
-      {/* Confidentiality Reminder Banner */}
-      {isConfidentialMode && (
-        <div className="bg-[#fdf8ed] border border-[#e8dcba] text-slate-950 p-3 sm:p-3.5 rounded-2xl flex items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[color:var(--app-accent)] text-[#231a05] flex items-center justify-center font-black shrink-0 shadow-xs">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5">
-                <span>وضع سرية البيانات مفعّل</span>
-                <span className="bg-[color:var(--app-navy)] text-white text-[10px] font-black px-2 py-0.2 rounded-full">محمي</span>
-              </div>
-              <p className="text-[11px] text-slate-700 font-medium">
-                تم حجب أسعار الكراتين والقطع ومديونيات العملاء بنجاح لضمان الخصوصية التامة عند عرض الشاشة أمام العملاء.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={toggleConfidentialMode}
-            className="text-xs font-black text-slate-900 hover:bg-[#fdf8ed] bg-white border border-[color:var(--app-line)] px-3 py-1.5 rounded-[10px] hover:shadow-sm transition cursor-pointer shrink-0"
-          >
-            إلغاء السرية وإظهار الأسعار
-          </button>
-        </div>
-      )}
-
-      {/* Main Full-Width Catalog Container (Amazon / Noon Clean Layout) */}
-      <div className="w-full space-y-4 min-w-0 mt-4">
-          {!isFiltered ? (
-            /* Smart Slicer Hub: When no filter is active, products and images are hidden until user searches or picks Item Group / Family */
-            <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-6" id="smart-slicer-hub">
-              {/* Header Banner */}
-              <div className="bg-[color:var(--app-navy)] text-white rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[color:var(--app-ok)] animate-pulse" />
-                    <h3 className="text-base sm:text-lg font-black text-white">
-                      محطة المبيعات والفلترة الذكية
-                    </h3>
-                  </div>
-                  <p className="text-xs text-[color:var(--app-accent)] font-medium">
-                    اختر المجموعة الرئيسية أو العائلة أو ابحث بكود الصنف لإظهار المنتجات والصور فوراً دون استهلاك باقة الموبايل.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => setShowAllExplicitly(true)}
-                  className="bg-white hover:bg-[#f4f7fa] text-[color:var(--app-navy)] px-3.5 py-2 rounded-[10px] text-xs font-black border border-[color:var(--app-line)] transition cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
-                >
-                  <Eye className="w-4 h-4 text-[#8a6420]" />
-                  <span>استعراض كافة الأصناف ({products.length})</span>
-                </button>
-              </div>
-
-              {/* 1. المجموعة الرئيسية (Item Group) */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-[8px] bg-[color:var(--app-navy)] text-[color:var(--app-accent)] flex items-center justify-center font-black text-xs shadow-xs">
-                      1
-                    </div>
-                    <h4 className="font-black text-slate-900 text-sm sm:text-base">
-                      المجموعة الرئيسية (Item Group)
-                    </h4>
-                  </div>
-                  <span className="text-[11px] text-slate-500 font-bold">
-                    {dynamicItemGroups.length} مجموعات
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-                  {dynamicItemGroups.map((group) => {
-                    const count = deptCounts[group] || 0;
-                    return (
-                      <button
-                        key={group}
-                        onClick={() => {
-                          setSelectedOfficialDept(group);
-                          setSelectedSubCategory('الكل');
-                        }}
-                        className="p-3 rounded-[10px] border border-[color:var(--app-line)] bg-white hover:border-[#b8c9db] hover:shadow-[0_6px_18px_rgba(15,40,70,.08)] transition text-right flex flex-col justify-between group cursor-pointer active:scale-[0.98]"
-                      >
-                        <div className="font-black text-slate-900 text-xs sm:text-sm line-clamp-2">
-                          {group}
-                        </div>
-                        <div className="mt-2.5 flex items-center justify-between text-[11px] text-[color:var(--app-muted)] font-bold">
-                          <span>عرض الأصناف</span>
-                          <span className="font-mono font-black bg-[#f2f6fa] px-2 py-0.5 rounded-[6px] border border-[color:var(--app-line)] text-slate-700 group-hover:text-[color:var(--app-navy)] group-hover:border-[#b8c9db]">
-                            {count}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 2. عائلات الأصناف (Product Families) */}
-              {subCategories.length > 0 && (
-                <div className="space-y-3 pt-3 border-t border-slate-150">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-[8px] bg-[color:var(--app-navy)] text-[color:var(--app-accent)] flex items-center justify-center font-black text-xs shadow-xs">
-                        2
-                      </div>
-                      <h4 className="font-black text-slate-900 text-sm sm:text-base">
-                        عائلات الأصناف (Product Families)
-                      </h4>
-                    </div>
-                    <span className="text-[11px] text-slate-500 font-bold">
-                      {subCategories.length} عائلة
-                    </span>
-                  </div>
-
-                  <div className="flex flex-wrap gap-1.5">
-                    {subCategories.slice(0, 20).map((fam) => (
-                      <button
-                        key={fam}
-                        onClick={() => setSelectedSubCategory(fam)}
-                        className="px-3 py-2 rounded-[10px] text-xs font-bold bg-white border border-[color:var(--app-line)] hover:border-[#b8c9db] hover:shadow-sm text-slate-800 hover:text-[color:var(--app-navy)] transition cursor-pointer active:scale-95"
-                      >
-                        {fam}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Quick Filter Shortcuts */}
-              <div className="space-y-2 pt-3 border-t border-slate-150">
-                <div className="text-xs font-black text-slate-900">فلاتر وصول سريعة ومميزة:</div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  <button
-                    onClick={() => setStockAvailabilityFilter('offers')}
-                    className="p-2.5 min-h-[44px] rounded-[10px] border border-[rgba(179,74,74,.25)] bg-white hover:shadow-sm text-[color:var(--app-risk)] font-black transition cursor-pointer text-center"
-                  >
-                    عروض وتخفيضات ({stockCounts.offers})
-                  </button>
-                  <button
-                    onClick={() => setStockAvailabilityFilter('in_branch')}
-                    className="p-2.5 min-h-[44px] rounded-[10px] border border-[rgba(46,125,91,.22)] bg-white hover:shadow-sm text-[color:var(--app-ok)] font-black transition cursor-pointer text-center"
-                  >
-                    متوفر بالفرع ({stockCounts.inBranch})
-                  </button>
-                  <button
-                    onClick={() => setSelectedPriority('عالي')}
-                    className="p-2.5 min-h-[44px] rounded-[10px] border border-[rgba(155,112,39,.25)] bg-white hover:shadow-sm text-[color:var(--app-warn)] font-black transition cursor-pointer text-center"
-                  >
-                    الأكثر طلباً وتركيزاً
-                  </button>
-                  <button
-                    onClick={() => setStockAvailabilityFilter('in_warehouse')}
-                    className="p-2.5 min-h-[44px] rounded-[10px] border border-[color:var(--app-line)] bg-white hover:shadow-sm text-[color:var(--app-navy)] font-black transition cursor-pointer text-center"
-                  >
-                    متاح بأكتوبر ({stockCounts.inWarehouse})
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Active Filter Bar */}
-              <div className="bg-[color:var(--app-navy)] text-white p-3 sm:p-3.5 rounded-2xl flex items-center justify-between gap-3 text-xs border border-[#0b2140] shadow-sm">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-2 h-2 rounded-full bg-[color:var(--app-accent)] shrink-0" />
-                  <div className="truncate font-bold text-slate-200">
-                    <span>نتائج الفلترة: </span>
-                    <strong className="text-[color:var(--app-accent)] font-black">{filteredProducts.length}</strong> صنف
-                    {searchTerm && <span className="text-slate-400 text-[11px] mr-1.5 font-normal">بحث: &quot;{searchTerm}&quot;</span>}
-                    {selectedOfficialDept !== 'الكل' && <span className="text-amber-200 text-[11px] mr-1.5 font-normal">��لمج��وعة: {selectedOfficialDept}</span>}
-                    {selectedSubCategory !== 'الكل' && <span className="text-slate-300 opacity-80 text-[11px] mr-1.5 font-normal">العائلة: {selectedSubCategory}</span>}
-                  </div>
-                </div>
-
-                <button
-                  onClick={resetAllFilters}
-                  className="bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-[10px] text-[11px] font-black transition cursor-pointer flex items-center gap-1 shrink-0 border border-white/20"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  <span>إلغاء والعودة للمجموعات</span>
-                </button>
-              </div>
-
-              {/* 21 Official Departments & Subcategories / Classifications Slicer Panel */}
-              <DepartmentCategorySlicer
-        products={products}
-        selectedDepartment={selectedOfficialDept}
-        onSelectDepartment={(dept) => {
-          setSelectedOfficialDept(dept);
-          setSelectedSubCategory('الكل');
-        }}
-        selectedClassification={selectedSubCategory}
-        onSelectClassification={(classification) => setSelectedSubCategory(classification)}
-        className={`${isFilterPanelOpen ? 'block' : 'hidden'} md:block`}
-      />
-
-      {/* Fresh Upload / Setup Box (Visible ONLY to Admin and Developer) */}
+      {/* Admin/Developer Upload Box */}
       {isAdminOrDev && isUploadBoxOpen && (
-        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-[color:var(--app-line)] shadow-md space-y-4 animate-in fade-in">
-          <div className="flex items-center justify-between border-b border-[color:var(--app-line)] pb-3">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[color:var(--app-line)] shadow-sm space-y-3 animate-in fade-in">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-[#f7f0e1] text-[color:var(--app-warn)] flex items-center justify-center font-black">
-                <Upload className="w-4 h-4" />
-              </div>
-              <h3 className="font-black text-slate-900 text-base">رفع شيت الأصناف وربط الصور من جديد</h3>
+              <FileSpreadsheet className="w-4 h-4 text-amber-600" />
+              <h3 className="font-black text-slate-900 text-sm">تحديث شيت الكتالوج والأسعار</h3>
             </div>
-            <button
-              onClick={() => setIsUploadBoxOpen(false)}
-              className="text-slate-400 hover:text-slate-700 p-1"
-            >
-              <X className="w-5 h-5" />
+            <button onClick={() => setIsUploadBoxOpen(false)} className="text-slate-400 hover:text-slate-700 p-1">
+              <X className="w-4 h-4" />
             </button>
           </div>
 
           {uploadError && (
-            <div className="p-3 bg-[#fdf5f5] border border-[rgba(179,74,74,.25)] text-[color:var(--app-risk)] text-xs rounded-xl font-bold">
+            <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg font-bold">
               {uploadError}
             </div>
           )}
-
           {uploadSuccess && (
-            <div className="p-3 bg-[#e8f3ee] border border-[rgba(46,125,91,.22)] text-[color:var(--app-ok)] text-xs rounded-xl font-bold">
+            <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-lg font-bold">
               {uploadSuccess}
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Direct Excel File Upload */}
-            <div className="p-4 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300 text-center space-y-2">
-              <FileSpreadsheet className="w-8 h-8 text-[color:var(--app-warn)] mx-auto" />
-              <div className="font-black text-slate-800 text-sm">رفع ملف Excel أو CSV من الهاتف/الكمبيوتر</div>
-              <p className="text-xs text-slate-500">يدعم كافة أعمدة شيت شركة دريم طنطاوي (كود، اسم، كرتونة، أسعار، صور)</p>
-              
-              <label className="inline-block bg-[color:var(--app-navy)] hover:bg-[#0d2340] text-white font-black px-4 py-2 rounded-[10px] text-xs cursor-pointer shadow transition mt-2">
-                <span>{isUploading ? 'جاري الرفع...' : 'اختيار ملف الإكسل'}</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <div className="p-3 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-center space-y-2">
+              <div className="font-bold text-slate-800">رفع ملف Excel أو CSV</div>
+              <label className="inline-block bg-[color:var(--app-navy)] hover:bg-[#0d2340] text-white font-bold px-3 py-1.5 rounded-lg text-xs cursor-pointer shadow-xs transition">
+                <span>{isUploading ? 'جاري الرفع...' : 'اختيار ملف من الجهاز'}</span>
                 <input
                   type="file"
                   accept=".xlsx, .xls, .csv"
@@ -1477,29 +929,26 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               </label>
             </div>
 
-            {/* Google Sheets Live Link */}
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 text-right">
-              <div className="flex items-center gap-2">
-                <Link className="w-4 h-4 text-[color:var(--app-ok)]" />
-                <span className="font-black text-slate-800 text-sm">ربط مباشر مع Google Sheets</span>
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+              <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                <Link className="w-3.5 h-3.5 text-emerald-600" />
+                <span>مزامنة مباشرة عبر Google Sheets</span>
               </div>
-              <p className="text-xs text-slate-500">انسخ رابط شيت جوجل درايف والصقه هنا للمزامنة المباشرة</p>
-              
-              <div className="flex gap-2">
+              <div className="flex gap-1.5">
                 <input
                   type="url"
                   value={googleSheetInput}
                   onChange={(e) => setGoogleSheetInput(e.target.value)}
                   placeholder="https://docs.google.com/spreadsheets/d/..."
-                  className="flex-1 px-3 py-2 bg-white border border-[color:var(--app-line)] rounded-[10px] text-xs"
+                  className="flex-1 px-2.5 py-1.5 bg-white border border-[color:var(--app-line)] rounded-lg text-xs"
                 />
                 <button
                   type="button"
                   onClick={handleGoogleSheetSync}
                   disabled={isUploading}
-                  className="bg-[color:var(--app-ok)] hover:bg-[#256a4c] text-white font-bold px-3 py-2 rounded-[10px] text-xs transition cursor-pointer disabled:opacity-50"
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer disabled:opacity-50"
                 >
-                  {isUploading ? 'مزامنة...' : 'سحب البيانات'}
+                  {isUploading ? 'مزامنة...' : 'سحب'}
                 </button>
               </div>
             </div>
@@ -1507,275 +956,453 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
       )}
 
-      {/* Product Display (Grid View - Comfortable / Compact responsive layouts) */}
-      {viewMode === 'grid' ? (
-        <div
-          className={
-            gridDensity === 'comfortable'
-              ? 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 2xl:grid-cols-4 gap-2.5 sm:gap-4'
-              : 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 2xl:grid-cols-4 gap-2 sm:gap-3.5'
-          }
-        >
-          {displayedProducts.map((product, idx) => {
-            const isPromo = product.promoPrice && product.promoPrice > 0;
-            const dynamicBranchStock = getProductBranchStock(product);
-            const hasBranchStock = dynamicBranchStock > 0;
-            const octoberAvail =
-              typeof product.mainWarehouseReserved === 'number'
-                ? Math.max(0, product.mainWarehouseReserved)
-                : product.mainWarehouseActual || 0;
-            const hasMainWhStock = octoberAvail > 0 || (product.mainWarehouseActual || 0) > 0;
-            const totalCartonsAvailable = dynamicBranchStock + octoberAvail;
-            const orderState = getCardState(product.id);
-            const isComfortable = gridDensity === 'comfortable';
-
-            return (
-              <div
-                id={`prod-${product.id}`}
-                key={product.id}
-                className="bg-white rounded-2xl overflow-hidden border border-[color:var(--app-line)] shadow-sm hover:shadow-[0_10px_28px_rgba(15,40,70,.12)] hover:border-[#bfcfdb] hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between group relative"
+      {/* Main Search & Modern Controls Bar (Amazon / Noon Clean Layout) */}
+      <div className="bg-white rounded-xl border border-[color:var(--app-line)] p-2.5 sm:p-3 shadow-xs space-y-2.5">
+        <div className="flex items-center gap-2 relative">
+          {/* Main Search Input */}
+          <div className="relative flex-1">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setShowSuggestions(true);
+              }}
+              onFocus={() => setShowSuggestions(true)}
+              placeholder="ابحث بالاسم، الكود (#)، الماركة، أو القسم..."
+              className="w-full h-10 sm:h-11 pl-9 pr-9 bg-slate-50 focus:bg-white text-slate-900 placeholder-slate-400 border border-[color:var(--app-line)] focus:border-[color:var(--app-blue)] rounded-lg text-xs sm:text-sm font-medium transition"
+            />
+            {searchTerm ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setShowSuggestions(false);
+                }}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 w-6 h-6 flex items-center justify-center cursor-pointer"
+                title="مسح البحث"
               >
-                {/* Top Image & Floating Badges */}
-                <div
-                  className={`relative ${
-                    isComfortable ? 'h-44 sm:h-52' : 'h-32 sm:h-40'
-                  } bg-[#f2f6fa] overflow-hidden cursor-pointer flex items-center justify-center border-b border-[#e3ebf3]`}
-                  onClick={() => setSelectedProductForModal(product)}
+                <X className="w-4 h-4" />
+              </button>
+            ) : (
+              <Barcode className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" />
+            )}
+          </div>
+
+          {/* Smart Search Suggestions Dropdown */}
+          {smartSuggestions.length > 0 && showSuggestions && (
+            <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white border border-[color:var(--app-line)] rounded-xl shadow-xl max-h-72 overflow-y-auto">
+              <div className="p-2 text-[10px] font-bold text-slate-400 border-b border-slate-100 flex items-center justify-between">
+                <span>اقتراحات سريعة ({smartSuggestions.length})</span>
+                <button
+                  type="button"
+                  onClick={() => setShowSuggestions(false)}
+                  className="text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
-                  {/* Image with quick lazy/eager loading */}
-                  <ProductImage
-                    product={product}
-                    cloudinaryConfig={cloudinaryConfig}
-                    targetSize={isComfortable ? 320 : 220}
-                    sizeVariant="card"
-                    priority={idx < 4}
-                    containerClassName="w-full h-full"
-                    className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                  />
-
-                  {/* Product Code Badge */}
-                  <div className="absolute top-2 right-2 z-10">
-                    <div className="bg-white/95 text-[#657b93] border border-[color:var(--app-line)] font-mono text-[10px] font-bold px-2 py-0.5 rounded-lg backdrop-blur-sm tracking-wide">
-                      {product.code}
-                    </div>
-                  </div>
-
-                  {/* Single Promo/Priority Badge */}
-                  {isPromo ? (
-                    <div className="absolute top-2 left-2 bg-white/95 text-[color:var(--app-risk)] border border-[rgba(179,74,74,.25)] text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <Flame className="w-3 h-3" />
-                      <span>عرض خاص</span>
-                    </div>
-                  ) : product.salesPriority === 'مرتفع' ? (
-                    <div className="absolute top-2 left-2 bg-white/95 text-[#8a6420] border border-[rgba(201,154,67,.4)] text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <Star className="w-3 h-3 fill-[color:var(--app-accent)]" />
-                      <span>الأكثر طلباً</span>
-                    </div>
-                  ) : null}
-
-                  {/* Pack Size Pill */}
-                  <div className="absolute bottom-2 right-2 bg-white/95 text-[#657b93] border border-[color:var(--app-line)] text-[10px] font-bold px-2 py-0.5 rounded-lg backdrop-blur-sm">
-                    الشدة: <strong className="text-[#8a6420] font-mono">{product.cartonQuantity || 1} ق</strong>
-                  </div>
-                </div>
-
-                {/* Body Details */}
-                <div className={`p-3 sm:p-3.5 flex-1 flex flex-col justify-between space-y-${isComfortable ? '3' : '2'}`}>
-                  {/* Category & Title */}
-                  <div className="space-y-1.5">
-                    {/* Single consolidated department badge */}
-                    <div className="flex items-center gap-1">
-                      {(() => {
-                        const deptMeta = getDepartmentMeta(product.department || product.category);
-                        const DeptIcon = deptMeta.icon;
-                        return (
-                          <span
-                            className="bg-[#f2f6fa] text-[#657b93] border border-[#e3ebf3] font-bold px-2 py-0.5 rounded-md text-[10px] truncate max-w-[160px] flex items-center gap-1"
-                            title={`${deptMeta.nameArabic} - ${product.department || ''}`}
-                          >
-                            <DeptIcon className="w-3 h-3 text-[color:var(--app-muted)] shrink-0" />
-                            <span>{product.department || product.category || 'عام'}</span>
-                          </span>
-                        );
-                      })()}
-                    </div>
-
-                    <h3
-                      onClick={() => setSelectedProductForModal(product)}
-                      className="font-black text-slate-900 text-sm leading-snug line-clamp-2 hover:text-[#8a6420] cursor-pointer transition min-h-[36px]"
-                      title={product.name}
-                    >
-                      {product.name}
-                    </h3>
-                  </div>
-
-                  {/* Stock & Pricing Combined Section */}
-                  <div className="space-y-1.5">
-                    {/* Single-line stock status */}
-                    <div className="flex items-center justify-between text-xs">
-                      {totalCartonsAvailable <= 0 ? (
-                        <span className="text-[color:var(--app-risk)] font-bold flex items-center gap-1">
-                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                          غير متوفر
-                        </span>
-                      ) : dynamicBranchStock <= 0 && octoberAvail > 0 ? (
-                        <span className="text-[#1e5f9d] font-bold flex items-center gap-1">
-                          <Truck className="w-3.5 h-3.5 shrink-0" />
-                          أكتوبر: {octoberAvail} ك
-                        </span>
-                      ) : dynamicBranchStock <= 5 && dynamicBranchStock > 0 ? (
-                        <span className="text-[color:var(--app-warn)] font-bold flex items-center gap-1">
-                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                          محدود: {dynamicBranchStock} ك
-                        </span>
-                      ) : (
-                        <span className="text-[color:var(--app-ok)] font-bold flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                          متوفر: {dynamicBranchStock} ك
-                        </span>
-                      )}
-                      {hasMainWhStock && (
-                        <span className="text-slate-500 font-medium text-[11px]">
-                          أكتوبر: {octoberAvail} ك
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Pricing — single row */}
-                    <div className="flex items-baseline sm:items-center justify-between bg-white rounded-[10px] px-2.5 py-1.5 border border-[color:var(--app-line)]">
-                      <div>
-                        <span className="text-[11px] text-[color:var(--app-muted)] font-bold block">الكرتونة</span>
-                        <span className="text-[color:var(--app-navy)] font-black text-[21px] leading-none tracking-[-.3px] tabular-nums sm:text-sm sm:leading-snug">
-                          {isConfidentialMode ? (
-                            <span className="font-mono text-slate-400 text-xs tracking-widest bg-[#f2f6fa] px-1.5 py-0.5 rounded">••••••</span>
-                          ) : (
-                            formatCurrency(product.cartonPrice)
-                          )}
-                        </span>
-                      </div>
-                      <div className="text-left">
-                        <span className="text-[11px] text-[color:var(--app-muted)] font-bold block">القطعة</span>
-                        <span className="text-xs font-extrabold text-slate-700 tabular-nums">
-                          {isConfidentialMode ? (
-                            <span className="font-mono text-slate-400 text-xs tracking-widest bg-[#f2f6fa] px-1.5 py-0.5 rounded">••••••</span>
-                          ) : (
-                            formatCurrency(product.piecePrice)
-                          )}
-                        </span>
-                      </div>
-                      {product.promoPrice ? (
-                        <span className="text-xs font-black text-[color:var(--app-risk)] tabular-nums flex items-center gap-0.5">
-                          <Flame className="w-3 h-3" />
-                          {isConfidentialMode ? (
-                            <span className="font-mono text-[color:var(--app-risk)] opacity-70 text-xs tracking-widest">•••</span>
-                          ) : (
-                            formatCurrency(product.promoPrice)
-                          )}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  {/* Order Controls Section: 2 Clean Rows (Relieves crowding and makes Add prominent) */}
-                  <div className="space-y-2 pt-1 border-t border-[color:var(--app-line)]">
-                    {/* Row 1: Quantity Stepper & Unit Switcher */}
-                    <div className="flex items-center justify-between gap-1.5">
-                      {/* Stepper with comfortable touch targets */}
-                      <div className="flex items-center bg-[#f8fbfe] rounded-[10px] border border-[color:var(--app-line)] p-0.5 shrink-0">
-                        <button
-                          type="button"
-                          disabled={totalCartonsAvailable <= 0 || orderState.quantity <= 1}
-                          onClick={() => adjustCardQuantity(product.id, -1)}
-                          className="w-11 h-11 sm:w-8 sm:h-8 flex items-center justify-center text-slate-800 active:bg-[#eef3f9] rounded-[8px] font-black disabled:opacity-30 cursor-pointer hover:text-[color:var(--app-navy)]"
-                          title="إنقاص (-1)"
-                          aria-label="إنقاص الكمية"
-                        >
-                          <Minus className="w-3.5 h-3.5 stroke-[2.5]" />
-                        </button>
-
-                        <input
-                          type="number"
-                          min="1"
-                          disabled={totalCartonsAvailable <= 0}
-                          value={orderState.quantity}
-                          onChange={(e) => {
-                            const parsed = parseInt(e.target.value, 10);
-                            setCardQuantityDirect(product.id, parsed);
-                          }}
-                          className="w-10 sm:w-11 h-11 sm:h-8 text-center font-black text-xs sm:text-sm text-slate-950 bg-white border border-[color:var(--app-line)] rounded-[8px] tabular-nums"
-                          aria-label="الكمية المطلوبة"
-                        />
-
-                        <button
-                          type="button"
-                          disabled={totalCartonsAvailable <= 0}
-                          onClick={() => adjustCardQuantity(product.id, 1)}
-                          className="w-11 h-11 sm:w-8 sm:h-8 flex items-center justify-center text-slate-800 active:bg-[#eef3f9] rounded-[8px] font-black disabled:opacity-30 cursor-pointer hover:text-[color:var(--app-navy)]"
-                          title="زيادة (+1)"
-                          aria-label="زيادة الكمية"
-                        >
-                          <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                        </button>
-                      </div>
-
-                      {/* Unit Switcher: Carton vs Piece */}
-                      <div className="flex items-center bg-[#f8fbfe] p-0.5 rounded-[10px] border border-[color:var(--app-line)] text-[11px] font-bold flex-1">
-                        <button
-                          type="button"
-                          onClick={() => updateCardType(product.id, 'carton')}
-                          className={`flex-1 h-11 sm:h-7 rounded-[8px] transition cursor-pointer text-center ${
-                            orderState.type === 'carton'
-                              ? 'bg-[color:var(--app-navy)] text-white font-black shadow-sm'
-                              : 'text-[color:var(--app-muted)] hover:text-slate-900'
-                          }`}
-                        >
-                          كرتونة
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => updateCardType(product.id, 'piece')}
-                          className={`flex-1 h-11 sm:h-7 rounded-[8px] transition cursor-pointer text-center ${
-                            orderState.type === 'piece'
-                              ? 'bg-[color:var(--app-navy)] text-white font-black shadow-sm'
-                              : 'text-[color:var(--app-muted)] hover:text-slate-900'
-                          }`}
-                        >
-                          قطعة
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Row 2: Full-Width Prominent "Add to Cart" Button */}
-                    {totalCartonsAvailable > 0 ? (
-                      <button
-                        type="button"
-                        onClick={() => handleQuickAddWithState(product)}
-                        className="w-full bg-[color:var(--app-navy)] hover:bg-[#0d2340] active:scale-[0.98] text-white font-black h-12 sm:h-11 px-3 rounded-[10px] text-xs sm:text-sm shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
-                        aria-label={`إضافة ${orderState.quantity} ${orderState.type === 'carton' ? 'كرتونة' : 'قطعة'}`}
-                      >
-                        <ShoppingCart className="w-4 h-4 stroke-[2.5] shrink-0" />
-                        <span className="font-black text-xs sm:text-sm tracking-wide whitespace-nowrap">
-                          إضافة للسلة ({orderState.quantity} {orderState.type === 'carton' ? 'كرتونة' : 'قطعة'})
-                        </span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled
-                        className="w-full bg-[#fdf5f5] border border-[rgba(179,74,74,.3)] text-[color:var(--app-risk)] font-black h-11 px-3 rounded-[10px] text-xs flex items-center justify-center cursor-not-allowed"
-                      >
-                        <span className="flex items-center gap-1.5 whitespace-nowrap">
-                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                          غير متوفر بالرصيد حالياً
-                        </span>
-                      </button>
-                    )}
-                  </div>
-                </div>
+                  إغلاق
+                </button>
               </div>
+              {smartSuggestions.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    handleSelectSuggestion(p);
+                    setShowSuggestions(false);
+                  }}
+                  className="w-full text-right px-3 py-2 text-xs hover:bg-slate-50 flex items-center justify-between border-b border-slate-50 last:border-0 cursor-pointer"
+                >
+                  <div className="truncate min-w-0 flex-1 ml-2">
+                    <span className="font-bold text-slate-900 block truncate">{p.name}</span>
+                    <span className="text-[10px] text-slate-500 font-mono">{p.code} {p.unifiedCode ? `(#${p.unifiedCode.replace('#', '')})` : ''}</span>
+                  </div>
+                  <span className="text-emerald-700 font-bold text-[11px] shrink-0">{getProductBranchStock(p)} ك بالفرع</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Sort Dropdown */}
+          <select
+            aria-label="ترتيب المنتجات"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="hidden sm:block h-10 sm:h-11 px-2.5 bg-slate-50 border border-[color:var(--app-line)] rounded-lg text-xs font-bold text-slate-700 cursor-pointer"
+          >
+            <option value="default">الترتيب الافتراضي</option>
+            <option value="priority">الأكثر طلباً ⭐</option>
+            <option value="branch_stock_desc">مخزون الفرع: الأكثر أولاً</option>
+            <option value="price_asc">السعر: من الأقل للأعلى</option>
+            <option value="price_desc">السعر: من الأعلى للأقل</option>
+            <option value="name_asc">الاسم (أ - ي)</option>
+          </select>
+
+          {/* Confidentiality Toggle (Privacy Mode) */}
+          <button
+            type="button"
+            onClick={toggleConfidentialMode}
+            className={`h-10 sm:h-11 px-2.5 sm:px-3 rounded-lg border text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+              isConfidentialMode
+                ? 'bg-amber-50 text-amber-800 border-amber-300'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-[color:var(--app-line)]'
+            }`}
+            title={isConfidentialMode ? 'وضع السرية مفعّل (الأسعار محجوبة أمام العميل) - انقر للإظهار' : 'إخفاء الأسعار أمام العميل (وضع السرية)'}
+          >
+            <ShieldCheck className={`w-4 h-4 ${isConfidentialMode ? 'text-amber-600' : 'text-slate-400'}`} />
+            <span className="hidden md:inline">{isConfidentialMode ? 'الأسعار محجوبة' : 'وضع السرية'}</span>
+          </button>
+
+          {/* View Mode Toggle */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-[color:var(--app-line)] h-10 sm:h-11 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('grid');
+                setGridDensity('comfortable');
+              }}
+              className={`px-2 h-8 rounded text-xs font-bold transition cursor-pointer ${
+                viewMode === 'grid' && gridDensity === 'comfortable' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'
+              }`}
+              title="عرض مريح للمنتجات"
+            >
+              <Grid className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('grid');
+                setGridDensity('compact');
+              }}
+              className={`px-2 h-8 rounded text-xs font-bold transition cursor-pointer ${
+                viewMode === 'grid' && gridDensity === 'compact' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'
+              }`}
+              title="عرض مكثف"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`px-2 h-8 rounded text-xs font-bold transition cursor-pointer ${
+                viewMode === 'list' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'
+              }`}
+              title="عرض جدول"
+            >
+              <List className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Amazon & Noon Horizontal Category Scroll Bar */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1">
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedOfficialDept('الكل');
+              setSelectedSubCategory('الكل');
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition shrink-0 cursor-pointer ${
+              selectedOfficialDept === 'الكل'
+                ? 'bg-[color:var(--app-navy)] text-white shadow-xs'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-[color:var(--app-line)]'
+            }`}
+          >
+            الكل ({products.length})
+          </button>
+          {dynamicItemGroups.map((group) => {
+            const count = deptCounts[group] || 0;
+            const isSelected = selectedOfficialDept === group;
+            return (
+              <button
+                key={group}
+                type="button"
+                onClick={() => {
+                  setSelectedOfficialDept(isSelected ? 'الكل' : group);
+                  setSelectedSubCategory('الكل');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                  isSelected
+                    ? 'bg-[color:var(--app-navy)] text-white shadow-xs'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-[color:var(--app-line)]'
+                }`}
+              >
+                <span>{group}</span>
+                <span className={`text-[10px] font-mono px-1 rounded ${isSelected ? 'bg-white/20 text-white' : 'text-slate-400'}`}>
+                  {count}
+                </span>
+              </button>
             );
           })}
         </div>
+
+        {/* Quick Stock Filters & Results Count Strip */}
+        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 text-xs">
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+            <button
+              type="button"
+              onClick={() => setStockAvailabilityFilter('all')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
+                stockAvailabilityFilter === 'all' ? 'bg-slate-200 text-slate-900' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              الكل
+            </button>
+            <button
+              type="button"
+              onClick={() => setStockAvailabilityFilter('in_branch')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
+                stockAvailabilityFilter === 'in_branch' ? 'bg-emerald-100 text-emerald-800' : 'text-slate-600 hover:text-emerald-700'
+              }`}
+            >
+              متوفر بالفرع ({stockCounts.inBranch})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStockAvailabilityFilter('in_warehouse')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
+                stockAvailabilityFilter === 'in_warehouse' ? 'bg-blue-100 text-blue-800' : 'text-slate-600 hover:text-blue-700'
+              }`}
+            >
+              مخزن أكتوبر ({stockCounts.inWarehouse})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStockAvailabilityFilter('offers')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
+                stockAvailabilityFilter === 'offers' ? 'bg-amber-100 text-amber-800' : 'text-slate-600 hover:text-amber-700'
+              }`}
+            >
+              عروض خاصة 🔥 ({stockCounts.offers})
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-slate-500 text-[11px] font-medium hidden sm:inline">
+              مطابق: <strong className="text-slate-900 font-bold">{filteredProducts.length}</strong> صنف
+            </span>
+            {(searchTerm || selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل' || stockAvailabilityFilter !== 'all' || sortBy !== 'default') && (
+              <button
+                type="button"
+                onClick={resetAllFilters}
+                className="text-rose-600 hover:text-rose-700 text-[11px] font-bold whitespace-nowrap flex items-center gap-1 cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+                <span>إلغاء التصفية</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Catalog Product Grid (Amazon/Noon Web + Taager/Raneen Mobile) */}
+      <div className="w-full min-w-0">
+        {viewMode === 'grid' ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5 sm:gap-3.5">
+            {displayedProducts.map((product, idx) => {
+              const isPromo = product.promoPrice && product.promoPrice > 0;
+              const dynamicBranchStock = getProductBranchStock(product);
+              const octoberAvail =
+                typeof product.mainWarehouseReserved === 'number'
+                  ? Math.max(0, product.mainWarehouseReserved)
+                  : product.mainWarehouseActual || 0;
+              const totalCartonsAvailable = dynamicBranchStock + octoberAvail;
+              const orderState = getCardState(product.id);
+
+              return (
+                <div
+                  id={`prod-${product.id}`}
+                  key={product.id}
+                  className="bg-white rounded-xl overflow-hidden border border-[color:var(--app-line)] shadow-xs hover:shadow-md hover:border-slate-300 transition-all duration-200 flex flex-col justify-between group relative"
+                >
+                  {/* 1:1 Aspect-Square Image Box with object-contain (No distorted or cropped cookware) */}
+                  <div
+                    className="relative aspect-square bg-white overflow-hidden cursor-pointer flex items-center justify-center p-2.5 border-b border-slate-100"
+                    onClick={() => setSelectedProductForModal(product)}
+                  >
+                    <ProductImage
+                      product={product}
+                      cloudinaryConfig={cloudinaryConfig}
+                      targetSize={280}
+                      sizeVariant="card"
+                      priority={idx < 6}
+                      containerClassName="w-full h-full flex items-center justify-center"
+                      className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
+                    />
+
+                    {/* Clean Code Tag */}
+                    <div className="absolute top-2 right-2 z-10">
+                      <span className="bg-white/90 text-slate-600 border border-slate-200 font-mono text-[9px] font-bold px-1.5 py-0.5 rounded backdrop-blur-xs">
+                        {product.code}
+                      </span>
+                    </div>
+
+                    {/* Single Promo or Priority Badge */}
+                    {isPromo ? (
+                      <div className="absolute top-2 left-2 z-10 bg-rose-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-xs">
+                        <Flame className="w-2.5 h-2.5" />
+                        <span>عرض</span>
+                      </div>
+                    ) : product.salesPriority === 'مرتفع' ? (
+                      <div className="absolute top-2 left-2 z-10 bg-amber-500 text-slate-950 text-[9px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-xs">
+                        <Star className="w-2.5 h-2.5 fill-slate-950" />
+                        <span>مميز</span>
+                      </div>
+                    ) : null}
+
+                    {/* Pack size indicator */}
+                    <div className="absolute bottom-2 right-2 bg-white/90 text-slate-600 border border-slate-200 text-[9px] font-bold px-1.5 py-0.5 rounded backdrop-blur-xs">
+                      الشدة: <span className="font-mono text-amber-700">{product.cartonQuantity || 1} ق</span>
+                    </div>
+                  </div>
+
+                  {/* Body Details */}
+                  <div className="p-2.5 sm:p-3 flex-1 flex flex-col justify-between space-y-2">
+                    {/* Category & Title */}
+                    <div className="space-y-1">
+                      <div className="text-[10px] text-slate-400 font-semibold truncate">
+                        {product.department || product.category || 'عام'}
+                      </div>
+                      <h3
+                        onClick={() => setSelectedProductForModal(product)}
+                        className="font-bold text-slate-900 text-xs sm:text-sm leading-snug line-clamp-2 hover:text-[color:var(--app-blue)] cursor-pointer transition min-h-[36px]"
+                        title={product.name}
+                      >
+                        {product.name}
+                      </h3>
+                    </div>
+
+                    {/* Stock & Pricing */}
+                    <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                      {/* Stock availability */}
+                      <div className="flex items-center justify-between text-[11px]">
+                        {totalCartonsAvailable <= 0 ? (
+                          <span className="text-rose-600 font-bold flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            غير متوفر
+                          </span>
+                        ) : dynamicBranchStock > 0 ? (
+                          <span className="text-emerald-700 font-bold flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" />
+                            متوفر: {dynamicBranchStock} ك
+                          </span>
+                        ) : (
+                          <span className="text-[color:var(--app-blue)] font-bold flex items-center gap-1">
+                            <Truck className="w-3 h-3" />
+                            أكتوبر: {octoberAvail} ك
+                          </span>
+                        )}
+                        {octoberAvail > 0 && dynamicBranchStock > 0 && (
+                          <span className="text-slate-400 text-[10px]">أكتوبر: {octoberAvail}</span>
+                        )}
+                      </div>
+
+                      {/* Pricing Row */}
+                      <div className="bg-slate-50 rounded-lg p-2 border border-slate-150 flex items-baseline justify-between">
+                        <div>
+                          <span className="text-[10px] text-slate-400 font-bold block leading-none">الكرتونة</span>
+                          <span className="text-[color:var(--app-navy)] font-black text-sm sm:text-base tabular-nums">
+                            {isConfidentialMode ? '••••••' : formatCurrency(product.cartonPrice)}
+                          </span>
+                        </div>
+                        <div className="text-left">
+                          <span className="text-[10px] text-slate-400 font-bold block leading-none">القطعة</span>
+                          <span className="text-xs font-bold text-slate-600 tabular-nums">
+                            {isConfidentialMode ? '••' : `${formatCurrency(product.piecePrice)} / ق`}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Order Controls: Stepper & Add */}
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex items-center justify-between gap-1">
+                        {/* Stepper */}
+                        <div className="flex items-center bg-slate-50 rounded-lg border border-[color:var(--app-line)] p-0.5">
+                          <button
+                            type="button"
+                            disabled={totalCartonsAvailable <= 0 || orderState.quantity <= 1}
+                            onClick={() => adjustCardQuantity(product.id, -1)}
+                            className="w-7 h-7 flex items-center justify-center text-slate-700 hover:text-slate-900 rounded disabled:opacity-30 cursor-pointer"
+                            aria-label="إنقاص"
+                          >
+                            <Minus className="w-3 h-3 stroke-[2.5]" />
+                          </button>
+                          <input
+                            type="number"
+                            min="1"
+                            disabled={totalCartonsAvailable <= 0}
+                            value={orderState.quantity}
+                            onChange={(e) => {
+                              const parsed = parseInt(e.target.value, 10);
+                              setCardQuantityDirect(product.id, parsed);
+                            }}
+                            className="w-8 h-7 text-center font-bold text-xs text-slate-900 bg-white border border-slate-200 rounded tabular-nums"
+                            aria-label="الكمية"
+                          />
+                          <button
+                            type="button"
+                            disabled={totalCartonsAvailable <= 0}
+                            onClick={() => adjustCardQuantity(product.id, 1)}
+                            className="w-7 h-7 flex items-center justify-center text-slate-700 hover:text-slate-900 rounded disabled:opacity-30 cursor-pointer"
+                            aria-label="زيادة"
+                          >
+                            <Plus className="w-3 h-3 stroke-[2.5]" />
+                          </button>
+                        </div>
+
+                        {/* Unit Switcher */}
+                        <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px] font-bold flex-1">
+                          <button
+                            type="button"
+                            onClick={() => updateCardType(product.id, 'carton')}
+                            className={`flex-1 h-7 rounded transition cursor-pointer text-center ${
+                              orderState.type === 'carton'
+                                ? 'bg-[color:var(--app-navy)] text-white shadow-xs'
+                                : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                          >
+                            كرتونة
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateCardType(product.id, 'piece')}
+                            className={`flex-1 h-7 rounded transition cursor-pointer text-center ${
+                              orderState.type === 'piece'
+                                ? 'bg-[color:var(--app-navy)] text-white shadow-xs'
+                                : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                          >
+                            قطعة
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Add Button */}
+                      {totalCartonsAvailable > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => handleQuickAddWithState(product)}
+                          className="w-full bg-[color:var(--app-navy)] hover:bg-[#0d2340] active:scale-[0.98] text-white font-bold h-9 px-2 rounded-lg text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
+                          <span>أضف للطلبية</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled
+                          className="w-full bg-slate-100 border border-slate-200 text-slate-400 font-bold h-9 px-2 rounded-lg text-xs flex items-center justify-center cursor-not-allowed"
+                        >
+                          غير متوفر
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
       ) : (
         /* Amazon Dense Table View for Fast Order Entry */
         <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
@@ -2060,9 +1687,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           </div>
         </div>
       )}
-            </>
-          )}
-        </div>
+    </div>
 
       {/* Modern Cart Drawer for Desktop (Amazon / Noon) & Bottom Sheet for Mobile (Taager / Raneen) */}
       <ModernCartDrawer

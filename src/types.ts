@@ -347,6 +347,11 @@ export interface Customer {
   visitCount2026?: number;           // عدد الزيارات المنفذة في 2026
   visitHistory?: CustomerVisit[];    // سجل تفاصيل الزيارات
 
+  // --- الشؤون القانونية والتحويل القضائي ---
+  isLegalPending?: boolean;          // محول للشؤون القانونية
+  legalStatus?: string;              // حالة النزاع أو التسوية (pending, settlement, resolved, etc.)
+  legalNotes?: string;               // إفادة المستشار القانوني
+
   notes?: string;
   createdAt?: string;
 }

@@ -29,7 +29,8 @@ import {
   PlusCircle,
   ExternalLink,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  Building2
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -71,6 +72,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewSegment, setViewSegment] = useState<'all' | 'invoices' | 'collections'>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('الكل');
   const [selectedRepFilter, setSelectedRepFilter] = useState<string>('الكل');
   const [rejectModalInvoiceId, setRejectModalInvoiceId] = useState<string | null>(null);
@@ -177,9 +179,15 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         return false;
       }
 
+      // 5. Segment filter (Invoices vs Collections)
+      if (viewSegment === 'collections') {
+        const isCollectionRelevant = inv.paymentMethod === 'نقدي (كاش)' || inv.status === 'معتمدة ومصروفة من المخزن' || inv.status === 'معتمدة';
+        if (!isCollectionRelevant) return false;
+      }
+
       return true;
     });
-  }, [userVisibleInvoices, searchTerm, selectedStatus, selectedRepFilter]);
+  }, [userVisibleInvoices, searchTerm, selectedStatus, selectedRepFilter, viewSegment]);
 
   // Aggregate Metrics
   const metrics = useMemo(() => {
@@ -339,6 +347,39 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             >
               <Plus className="w-4 h-4" />
               <span>إنشاء فاتورة / طلبية جديدة</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Segmented Control [الفواتير | التحصيلات] matching architectural mockup */}
+        <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
+          <div className="inline-flex p-1 rounded-2xl bg-slate-100 border border-slate-200 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setViewSegment('invoices')}
+              className={`px-4 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                viewSegment === 'invoices' ? 'bg-teal-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              الفواتير
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewSegment('collections')}
+              className={`px-4 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                viewSegment === 'collections' ? 'bg-teal-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              التحصيلات
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewSegment('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                viewSegment === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              عرض الكل
             </button>
           </div>
         </div>
@@ -542,8 +583,147 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             <p className="text-xs text-slate-400">اضغط على زر (إنشاء فاتورة / طلبية جديدة) لإصدار فاتورة جديدة للعميل</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
+          <>
+            {/* Dedicated Mobile Cards Layout matching Tantawy Group Mockup */}
+            <div className="md:hidden p-3 flex flex-col gap-3">
+              {displayedInvoices.map((invoice) => {
+                const style = statusStyles[invoice.status] || {
+                  bg: 'app-badge neutral',
+                  label: invoice.status
+                };
+                const isPending =
+                  invoice.status === 'قيد مراجعة المشرف' ||
+                  invoice.status === 'معلقة بانتظار اعتماد الفرع' ||
+                  invoice.status === 'قيد المراجعة' ||
+                  invoice.status === 'مسودة';
+
+                const isOwnerRep = currentUser?.role === 'sales_rep' && (invoice.repId === currentUser.id || invoice.repName === currentUser.name);
+
+                const canEditPending = Boolean(
+                  onEditInvoice &&
+                  isPending &&
+                  (isOwnerRep || currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer')
+                );
+
+                const canApprove =
+                  (currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer') &&
+                  isPending;
+
+                return (
+                  <div
+                    key={invoice.id}
+                    className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 space-y-3 hover:border-teal-500/50 transition"
+                  >
+                    {/* Header: Number + Status */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-black text-xs px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 border border-slate-200">
+                          #{invoice.invoiceNumber}
+                        </span>
+                        {invoice.isShortageInvoice && (
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                            نواقص
+                          </span>
+                        )}
+                      </div>
+                      <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-black ${style.bg} ${style.text || ''}`}>
+                        {style.label || invoice.status}
+                      </span>
+                    </div>
+
+                    {/* Customer & Rep Details */}
+                    <div>
+                      <div className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                        <span className="truncate">{invoice.customerName}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-medium mt-1 flex items-center gap-2 flex-wrap">
+                        <span>المندوب: <strong className="text-slate-700">{invoice.repName}</strong></span>
+                        <span>·</span>
+                        <span>{invoice.branchName}</span>
+                        <span>·</span>
+                        <span className="font-mono">{invoice.date}</span>
+                      </div>
+                    </div>
+
+                    {/* Stats Strip */}
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                      <div>
+                        <div className="text-[10px] text-slate-400 font-bold">الكميات المطلوبة</div>
+                        <div className="text-xs font-black text-slate-800 mt-0.5">
+                          {invoice.totalCartons} كرتونة ({invoice.totalPieces} قطعة)
+                        </div>
+                      </div>
+                      <div className="text-left">
+                        <div className="text-[10px] text-slate-400 font-bold">إجمالي الفاتورة</div>
+                        <div className="text-sm font-black text-teal-700 mt-0.5 font-mono">
+                          {formatCurrency(invoice.estimatedGrandTotal)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions Strip */}
+                    <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-slate-100">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onViewInvoice(invoice)}
+                          className="h-8 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs flex items-center gap-1 transition shadow-xs cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>عرض</span>
+                        </button>
+
+                        {canEditPending && onEditInvoice && (
+                          <button
+                            type="button"
+                            onClick={() => onEditInvoice(invoice)}
+                            className="h-8 px-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-xs flex items-center gap-1 transition cursor-pointer"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            <span>تعديل</span>
+                          </button>
+                        )}
+
+                        {canApprove && (
+                          <button
+                            type="button"
+                            onClick={() => handleApproveClick(invoice.id)}
+                            className="h-8 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 transition cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>اعتماد</span>
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => downloadInvoicePDF(invoice)}
+                          className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer"
+                          title="تحميل PDF"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewExcelInvoice(invoice)}
+                          className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer"
+                          title="معاينة إكسل"
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-right text-xs">
               <thead className="bg-slate-900 text-slate-200 font-bold">
                 <tr>
                   <th className="p-3.5">رقم الفاتورة</th>
@@ -935,7 +1115,20 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               </tbody>
             </table>
           </div>
+          </>
         )}
+
+      {/* Mobile Floating Action Button to create order */}
+      <div className="md:hidden fixed bottom-20 left-4 z-40">
+        <button
+          type="button"
+          onClick={onOpenNewOrder}
+          className="w-12 h-12 rounded-full bg-teal-600 hover:bg-teal-700 text-white shadow-xl flex items-center justify-center cursor-pointer active:scale-95 transition"
+          aria-label="فاتورة جديدة"
+        >
+          <Plus className="w-6 h-6" />
+        </button>
+      </div>
 
         {/* Pagination & Progressive Loading Controller */}
         {accessibleInvoices.length > 0 && (

@@ -1,41 +1,59 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
   <defs>
-    <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#fef08a" />
-      <stop offset="25%" stop-color="#facc15" />
-      <stop offset="50%" stop-color="#f59e0b" />
-      <stop offset="85%" stop-color="#d97706" />
-      <stop offset="100%" stop-color="#92400e" />
+    <!-- Deep Slate Teal Background Gradient -->
+    <linearGradient id="iconBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f2b38" />
+      <stop offset="100%" stop-color="#081a23" />
     </linearGradient>
-    <radialGradient id="goldSheen" cx="35%" cy="30%" r="65%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.45" />
-      <stop offset="40%" stop-color="#fde047" stop-opacity="0.1" />
-      <stop offset="100%" stop-color="#000000" stop-opacity="0.35" />
-    </radialGradient>
-    <filter id="emblemShadow" x="-10%" y="-10%" width="125%" height="125%">
-      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#78350f" flood-opacity="0.3" />
-      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.2" />
+
+    <!-- Vibrant Teal Leaf Gradients -->
+    <linearGradient id="iconTealCenter" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2dd4bf" />
+      <stop offset="100%" stop-color="#009488" />
+    </linearGradient>
+
+    <linearGradient id="iconTealLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14b8a6" />
+      <stop offset="100%" stop-color="#0d9488" />
+    </linearGradient>
+
+    <linearGradient id="iconTealRight" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+
+    <filter id="iconGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#009488" flood-opacity="0.4" />
     </filter>
   </defs>
 
-  <rect x="24" y="24" width="464" height="464" rx="120" fill="url(#goldGradient)" filter="url(#emblemShadow)" />
-  <rect x="24" y="24" width="464" height="464" rx="120" fill="url(#goldSheen)" />
-  <rect x="34" y="34" width="444" height="444" rx="110" fill="none" stroke="#fef9c3" stroke-width="4" stroke-opacity="0.6" />
+  <!-- Squircle Rounded Base -->
+  <rect width="512" height="512" rx="128" fill="url(#iconBg)" />
 
-  <text x="256" y="345" 
-        font-family="'Cairo', 'Tajawal', 'IBM Plex Sans Arabic', 'Arial Black', sans-serif" 
-        font-size="285" 
-        font-weight="900" 
-        fill="#0f172a"
-        text-anchor="middle"
-        letter-spacing="-2px">ط</text>
+  <!-- Inner subtle border -->
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="none" stroke="#1e4e64" stroke-width="4" stroke-opacity="0.6" />
 
+  <!-- Tantawy Sprout / 3-Leaf Emblem Large Centered -->
+  <g filter="url(#iconGlow)" transform="translate(0, 30)">
+    <!-- Center Leaf (Tallest) -->
+    <path d="M 256 60 C 282 120, 302 195, 280 260 C 268 290, 244 290, 232 260 C 210 195, 230 120, 256 60 Z" fill="url(#iconTealCenter)" />
+
+    <!-- Left Leaf (Curved) -->
+    <path d="M 235 275 C 185 268, 110 230, 92 145 C 155 135, 212 185, 235 242 Z" fill="url(#iconTealLeft)" />
+
+    <!-- Right Leaf (Curved) -->
+    <path d="M 277 275 C 327 268, 402 230, 420 145 C 357 135, 300 185, 277 242 Z" fill="url(#iconTealRight)" />
+
+    <!-- Base Stem Node / Sprout Base -->
+    <ellipse cx="256" cy="295" rx="20" ry="15" fill="#2dd4bf" />
+  </g>
+
+  <!-- Micro Brand Subtext -->
   <text x="256" y="445" 
         font-family="'Cairo', system-ui, sans-serif" 
-        font-size="16" 
-        font-weight="800" 
-        fill="#451a03" 
-        letter-spacing="5px" 
+        font-size="34" 
+        font-weight="900" 
+        fill="#ffffff" 
         text-anchor="middle"
-        opacity="0.85">TANTAWY</text>
+        letter-spacing="-0.5px">طنطاوي جروب</text>
 </svg>

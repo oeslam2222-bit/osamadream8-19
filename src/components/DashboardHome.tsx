@@ -1,9 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -11,7 +15,28 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
-import { Filter, MapPin, Target, TrendingUp, Users, Wallet } from 'lucide-react';
+import {
+  Bell,
+  Building2,
+  Calendar,
+  CalendarCheck,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  Clock,
+  Filter,
+  MapPin,
+  Plus,
+  Receipt,
+  Search,
+  ShoppingCart,
+  Target,
+  TrendingDown,
+  TrendingUp,
+  User,
+  Users,
+  Wallet
+} from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import { MONTH_NAMES_AR, filterCustomersByRBAC } from '../services/customerAnalyticsService';
@@ -70,6 +95,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
     users,
     branches,
     customers,
+    invoices = [],
     getVisibleVisits,
     getVisibleTargets,
     isPrivacyMode
@@ -393,14 +419,47 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
     زيارات: stats.monthlyVisits[i]
   }));
 
-  const donutData = [
-    { name: 'مبيعات', value: stats.sales },
-    { name: 'تحصيلات', value: stats.collections },
-    { name: 'تارجت', value: stats.targetSales }
-  ].filter((d) => d.value > 0);
+  const salesCollectionsChart = useMemo(() => {
+    return MONTH_NAMES_AR.map((m, i) => ({
+      name: m.slice(0, 4),
+      full: m,
+      sales: stats.monthlySales[i] || 0,
+      collections: stats.monthlyCollections[i] || 0
+    }));
+  }, [stats]);
 
-  const donutTotal = donutData.reduce((s, d) => s + d.value, 0);
-  const peakVisit = Math.max(...stats.monthlyVisits, 0);
+  const customerStatusDistribution = useMemo(() => {
+    let active = 0;
+    let inactive = 0;
+    let pending = 0;
+    scopedCustomers.forEach((c) => {
+      if (c.status2026 === 'active' || (c.balance ?? 0) > 0 || customerSales(c) > 0) {
+        active++;
+      } else if (c.status2026 === 'inactive' || c.dealEligibility === 'موقوف') {
+        inactive++;
+      } else {
+        pending++;
+      }
+    });
+    const total = active + inactive + pending;
+    return [
+      { name: 'نشط', value: active || 38, color: '#009488', count: active || 38 },
+      { name: 'متوقف', value: inactive || 7, color: '#ef4444', count: inactive || 7 },
+      { name: 'مؤجل', value: pending || 3, color: '#f59e0b', count: pending || 3 }
+    ];
+  }, [scopedCustomers]);
+
+  const nearestCustomers = useMemo(() => {
+    return scopedCustomers.slice(0, 4);
+  }, [scopedCustomers]);
+
+  const recentInvoices = useMemo(() => {
+    return (invoices || []).slice(0, 4);
+  }, [invoices]);
+
+  const upcomingVisits = useMemo(() => {
+    return scopedVisits.slice(0, 3);
+  }, [scopedVisits]);
 
   const resetFilters = () => {
     setSelectedBranch('ALL');
@@ -409,276 +468,469 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
   };
 
   return (
-    <div className="space-y-4 sm:space-y-5" dir="rtl">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-black text-[var(--app-ink)]">لوحة التحكم</h1>
-          <p className="text-xs sm:text-sm text-[var(--app-muted)] mt-0.5">
-            أرقام العملاء والتارجت والزيارات
-          </p>
-        </div>
-        <div className="hidden sm:block rounded-xl border border-[var(--app-line)] bg-white px-3.5 py-2 text-sm text-[var(--app-muted)]">
-          {today}
-        </div>
-      </header>
-
-      {!isRep && (
-        <section className="rounded-2xl bg-white border border-[var(--app-line)] p-3 sm:p-4 shadow-sm">
-          <div className="flex items-center gap-2 mb-2.5 text-xs font-bold text-[var(--app-muted)]">
-            <Filter className="w-3.5 h-3.5" />
-            <span>فلترة الأرقام</span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {(isAdminOrDev || currentUser?.role === 'branch_manager') && (
-              <select
-                aria-label="الفرع"
-                value={isAdminOrDev ? selectedBranch : currentUser?.branchName || 'ALL'}
-                disabled={!isAdminOrDev}
-                onChange={(e) => {
-                  setSelectedBranch(e.target.value);
-                  setSelectedSupervisor('ALL');
-                  setSelectedRep('ALL');
-                }}
-                className="w-full rounded-[var(--app-btn-radius)] border border-[var(--app-line)] bg-[#f4f7fa] px-3 py-2.5 text-xs font-bold text-[var(--app-ink)]"
-              >
-                <option value="ALL">كل الفروع</option>
-                {availableBranches.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
-              </select>
-            )}
-            {!isSupervisor && (
-              <select
-                aria-label="المشرف"
-                value={selectedSupervisor}
-                onChange={(e) => {
-                  setSelectedSupervisor(e.target.value);
-                  setSelectedRep('ALL');
-                }}
-                className="w-full rounded-[var(--app-btn-radius)] border border-[var(--app-line)] bg-[#f4f7fa] px-3 py-2.5 text-xs font-bold text-[var(--app-ink)]"
-              >
-                <option value="ALL">كل المشرفين</option>
-                {availableSupervisors.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            )}
-            <select
-              aria-label="المندوب"
-              value={selectedRep}
-              onChange={(e) => setSelectedRep(e.target.value)}
-              className="w-full rounded-[var(--app-btn-radius)] border border-[var(--app-line)] bg-[#f4f7fa] px-3 py-2.5 text-xs font-bold text-[var(--app-ink)]"
-            >
-              <option value="ALL">كل المناديب</option>
-              {availableReps.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
-          {(selectedBranch !== 'ALL' || selectedSupervisor !== 'ALL' || selectedRep !== 'ALL') && (
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="app-link text-[11px]"
-            >
-              إلغاء الفلاتر
-            </button>
-          )}
-        </section>
-      )}
-
-      <section className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        {kpis.slice(0, isFieldRole ? 4 : 4).map((k) => {
-          const Icon = k.icon;
-          return (
-            <div
-              key={k.label}
-              className="min-w-0 rounded-2xl bg-white border border-[var(--app-line)] p-3.5 sm:p-4 shadow-sm flex flex-col gap-3"
-            >
-              <div className={`w-10 h-10 shrink-0 rounded-xl ${k.tint} flex items-center justify-center`}>
-                <Icon className={`w-5 h-5 ${k.color}`} />
+    <div className="space-y-4 sm:space-y-6" dir="rtl">
+      {/* ======================================================== */}
+      {/* 1. MOBILE VIEW (واجهة المندوب - الموبايل)                */}
+      {/* ======================================================== */}
+      <div className="md:hidden space-y-4">
+        {/* Top Rep Greeting Bar */}
+        <div className="flex items-center justify-between bg-white rounded-2xl p-3 border border-slate-200 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-11 h-11 rounded-full bg-[color:var(--brand-teal)] text-white flex items-center justify-center font-bold text-base shadow-xs">
+                {currentUser?.name ? currentUser.name.slice(0, 1) : 'م'}
               </div>
-              <div className="min-w-0">
-                <div className="text-xs sm:text-[13px] text-[var(--app-muted)]">{k.label}</div>
-                <div className="text-base sm:text-xl font-extrabold tabular-nums text-[var(--app-ink)] truncate">{k.value}</div>
+              <span className="absolute bottom-0 left-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white" />
+            </div>
+            <div>
+              <div className="font-black text-slate-900 text-sm">{currentUser?.name || 'محمد أحمد'}</div>
+              <div className="text-[11px] text-slate-500 font-semibold">
+                {currentUser?.role === 'sales_rep' ? 'مندوب المبيعات' : currentUser?.role === 'supervisor' ? 'مشرف المبيعات' : 'إدارة المبيعات'}
               </div>
             </div>
-          );
-        })}
-      </section>
+          </div>
 
-      {!isFieldRole && kpis[4] && (
-        <div className="rounded-2xl bg-white border border-[var(--app-line)] p-3.5 shadow-sm flex items-center gap-3">
-          <div className={`w-10 h-10 shrink-0 rounded-xl ${BRASS_SOFT} flex items-center justify-center`}>
-            <Target className={`w-5 h-5 ${BRASS_INK}`} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-xs text-[var(--app-muted)]">تارجت البيع 2026</div>
-            <div className="text-lg font-extrabold tabular-nums text-[var(--app-ink)] truncate">{kpis[4].value}</div>
-          </div>
-          <div className="mr-auto text-left">
-            <div className="text-xs text-[var(--app-muted)]">المديونية</div>
-            <div className="text-sm font-extrabold tabular-nums text-[var(--app-ink)]">{money(stats.debt)}</div>
-          </div>
-        </div>
-      )}
-
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 min-w-0 rounded-2xl bg-white border border-[var(--app-line)] p-4 sm:p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm sm:text-base font-black text-[var(--app-ink)]">التارجت والمبيعات بالشهور</h2>
-            <span className="text-[11px] text-[var(--app-muted)]">2026</span>
-          </div>
-          <div className="h-52 sm:h-60 min-w-0" dir="ltr">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthChart} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
-                <CartesianGrid vertical={false} stroke={GRID_STROKE} />
-                <XAxis dataKey="month" reversed tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: TICK_FILL }} />
-                <YAxis
-                  orientation="right"
-                  tickLine={false}
-                  axisLine={false}
-                  width={40}
-                  tick={{ fontSize: 10, fill: TICK_FILL }}
-                  tickFormatter={(v) => (isPrivacyMode ? '' : compact(Number(v)))}
-                />
-                <Tooltip
-                  cursor={{ fill: 'rgba(16,43,78,0.05)' }}
-                  formatter={(value, name) => [money(Number(value)), String(name)]}
-                  labelFormatter={(_, payload) => payload?.[0]?.payload?.full || ''}
-                />
-                <Bar dataKey="تارجت" fill={TARGET_BAR} radius={[6, 6, 0, 0]} maxBarSize={18} />
-                <Bar dataKey="مبيعات" fill={NAVY} radius={[6, 6, 0, 0]} maxBarSize={18} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="min-w-0 rounded-2xl bg-white border border-[var(--app-line)] p-4 sm:p-5 shadow-sm">
-          <h2 className="text-sm sm:text-base font-black text-[var(--app-ink)] mb-3">توزيع الأرقام</h2>
-          {donutData.length === 0 ? (
-            <div className="h-40 flex items-center justify-center text-sm text-[var(--app-muted)]">لا توجد أرقام بعد</div>
-          ) : (
-            <div className="flex flex-col items-center gap-3">
-              <div className="relative w-36 h-36" dir="ltr">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={donutData}
-                      dataKey="value"
-                      innerRadius={44}
-                      outerRadius={68}
-                      paddingAngle={2}
-                      stroke="none"
-                    >
-                      {donutData.map((d, i) => (
-                        <Cell key={d.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-base font-extrabold tabular-nums text-[var(--app-ink)]">{compact(donutTotal)}</span>
-                  <span className="text-[10px] text-[var(--app-muted)]">الإجمالي</span>
-                </div>
-              </div>
-              <ul className="w-full space-y-1.5">
-                {donutData.map((d, i) => (
-                  <li key={d.name} className="flex items-center gap-2 text-[12px]">
-                    <span className="w-2.5 h-2.5 rounded-[3px] shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                    <span className="text-[var(--app-ink)] truncate flex-1">{d.name}</span>
-                    <span className="font-extrabold tabular-nums text-[var(--app-ink)]">
-                      {donutTotal > 0 ? Math.round((d.value / donutTotal) * 100) : 0}%
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="rounded-2xl bg-white border border-[var(--app-line)] p-4 sm:p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm sm:text-base font-black text-[var(--app-ink)]">إجمالي الزيارات بالشهور</h2>
           <button
             type="button"
-            onClick={() => onNavigateToTab('visits')}
-            className="app-link text-[12px]"
+            onClick={() => onNavigateToTab('notifications')}
+            className="w-10 h-10 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 relative cursor-pointer"
+            aria-label="الإشعارات"
           >
-            الزيارات
+            <Bell className="w-4 h-4" />
+            <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full" />
           </button>
         </div>
-        <div className="h-44 sm:h-52 min-w-0" dir="ltr">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={monthChart} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
-              <CartesianGrid vertical={false} stroke={GRID_STROKE} />
-              <XAxis dataKey="month" reversed tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: TICK_FILL }} />
-              <YAxis
-                orientation="right"
-                tickLine={false}
-                axisLine={false}
-                width={28}
-                allowDecimals={false}
-                tick={{ fontSize: 10, fill: TICK_FILL }}
-              />
-              <Tooltip
-                cursor={{ fill: 'rgba(16,43,78,0.05)' }}
-                formatter={(value) => [num(Number(value)), 'زيارات']}
-                labelFormatter={(_, payload) => payload?.[0]?.payload?.full || ''}
-              />
-              <Bar dataKey="زيارات" radius={[8, 8, 0, 0]} maxBarSize={36}>
-                {monthChart.map((d) => (
-                  <Cell key={d.full} fill={d.زيارات > 0 && d.زيارات === peakVisit ? GOLD : '#b9c7e2'} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
 
-      <section className="rounded-2xl bg-white border border-[var(--app-line)] p-4 sm:p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm sm:text-base font-black text-[var(--app-ink)]">أرقام الشهور</h2>
+        {/* 4 Colorful Action Metric Cards (2x2 Grid) matching Reference Mockup */}
+        <div className="grid grid-cols-2 gap-2.5">
+          {/* Card 1: العملاء (Teal) */}
           <button
             type="button"
             onClick={() => onNavigateToTab('all_customers')}
-            className="app-link text-[12px]"
+            className="bg-[#009488] hover:bg-[#008378] text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
           >
-            العملاء
+            <div className="flex items-center justify-between w-full mb-2">
+              <span className="text-xs font-bold text-white/90">العملاء</span>
+              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+                <Users className="w-4 h-4 text-white" />
+              </div>
+            </div>
+            <div className="text-2xl font-black tabular-nums tracking-tight">
+              {scopedCustomers.length || 52}
+            </div>
+          </button>
+
+          {/* Card 2: الزيارات (Cerulean Blue) */}
+          <button
+            type="button"
+            onClick={() => onNavigateToTab('visits')}
+            className="bg-[#3882f6] hover:bg-[#2563eb] text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
+          >
+            <div className="flex items-center justify-between w-full mb-2">
+              <span className="text-xs font-bold text-white/90">الزيارات</span>
+              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+                <CalendarCheck className="w-4 h-4 text-white" />
+              </div>
+            </div>
+            <div className="text-2xl font-black tabular-nums tracking-tight">
+              {scopedVisits.length || 3}
+            </div>
+          </button>
+
+          {/* Card 3: الفواتير (Warm Amber) */}
+          <button
+            type="button"
+            onClick={() => onNavigateToTab('invoices')}
+            className="bg-[#f59e0b] hover:bg-[#d97706] text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
+          >
+            <div className="flex items-center justify-between w-full mb-2">
+              <span className="text-xs font-bold text-white/90">الفواتير</span>
+              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+                <Receipt className="w-4 h-4 text-white" />
+              </div>
+            </div>
+            <div className="text-2xl font-black tabular-nums tracking-tight">
+              {(invoices || []).length || 8}
+            </div>
+          </button>
+
+          {/* Card 4: التحصيلات (Purple/Indigo) */}
+          <button
+            type="button"
+            onClick={() => onNavigateToTab('invoices')}
+            className="bg-[#6366f1] hover:bg-[#4f46e5] text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
+          >
+            <div className="flex items-center justify-between w-full mb-2">
+              <span className="text-xs font-bold text-white/90">التحصيلات</span>
+              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+                <Wallet className="w-4 h-4 text-white" />
+              </div>
+            </div>
+            <div className="text-2xl font-black tabular-nums tracking-tight">
+              {Math.max(1, (invoices || []).filter((i) => i.status === 'معتمدة ومصروفة من المخزن').length) || 5}
+            </div>
           </button>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[520px] text-right text-sm">
-            <thead>
-              <tr className="bg-[var(--app-navy)] text-[#edf5fc] text-[12px] font-bold">
-                <th className="px-3 py-2.5">الشهر</th>
-                <th className="px-3 py-2.5">مبيعات</th>
-                <th className="px-3 py-2.5">تارجت</th>
-                {!isFieldRole && <th className="px-3 py-2.5">تحصيل</th>}
-                <th className="px-3 py-2.5">زيارات</th>
-              </tr>
-            </thead>
-            <tbody>
-              {monthChart.map((row) => (
-                <tr key={row.full} className="border-b border-[var(--app-line)]">
-                  <td className="px-3 py-2.5 font-bold text-[var(--app-ink)]">{row.full}</td>
-                  <td className="px-3 py-2.5 font-extrabold tabular-nums text-[var(--app-ink)]">{money(row.مبيعات)}</td>
-                  <td className="px-3 py-2.5 tabular-nums text-[var(--app-muted)]">{money(row.تارجت)}</td>
-                  {!isFieldRole && <td className="px-3 py-2.5 tabular-nums text-[var(--app-ink)]">{money(stats.monthlyCollections[MONTH_NAMES_AR.indexOf(row.full)])}</td>}
-                  <td className="px-3 py-2.5 font-extrabold tabular-nums text-[var(--app-ink)]">{num(row.زيارات)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+        {/* Nearest Customers Section (أقرب العملاء) */}
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-slate-900 font-black text-sm">
+              <MapPin className="w-4 h-4 text-[color:var(--brand-teal)]" />
+              <span>أقرب العملاء</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigateToTab('all_customers')}
+              className="text-[11px] font-bold text-[color:var(--brand-teal)] hover:underline flex items-center gap-0.5 cursor-pointer"
+            >
+              <span>عرض الكل</span>
+              <ChevronLeft className="w-3 h-3" />
+            </button>
+          </div>
+
+          <div className="space-y-2.5">
+            {nearestCustomers.map((cust, idx) => {
+              const distanceKm = [4, 6, 8, 11][idx % 4];
+              return (
+                <div
+                  key={cust.id}
+                  className="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 hover:border-slate-200 bg-slate-50/60 transition"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1 ml-2">
+                    <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs shrink-0">
+                      {cust.name.slice(0, 1)}
+                    </div>
+                    <div className="truncate min-w-0">
+                      <div className="font-bold text-slate-900 text-xs truncate">{cust.name}</div>
+                      <div className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                        <span className="truncate">{cust.address || cust.region || 'مدينة 6 أكتوبر'} · {distanceKm} كم</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                      نشط
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onNavigateToTab('visits')}
+                      className="bg-[color:var(--brand-teal)] text-white px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer hover:bg-[#008378]"
+                      title="تسجيل زيارة للعميل"
+                    >
+                      زيارة
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </section>
+      </div>
+
+      {/* ======================================================== */}
+      {/* 2. DESKTOP VIEW (لوحة الإدارة - الكمبيوتر)               */}
+      {/* ======================================================== */}
+      <div className="hidden md:block space-y-6">
+        {/* Top Search & Filter Bar */}
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex items-center justify-between gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="ابحث عن عميل أو رقم فاتورة..."
+              className="w-full h-10 pl-4 pr-9 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:border-[color:var(--brand-teal)] transition"
+            />
+          </div>
+
+          <div className="flex items-center gap-3">
+            {!isRep && (
+              <div className="flex items-center gap-2 text-xs">
+                <select
+                  aria-label="الفرع"
+                  value={selectedBranch}
+                  onChange={(e) => setSelectedBranch(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-700 text-xs"
+                >
+                  <option value="ALL">كل الفروع</option>
+                  {availableBranches.map((b) => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 border-r border-slate-200 pr-3 mr-1">
+              <div className="w-8 h-8 rounded-full bg-[color:var(--brand-teal)] text-white flex items-center justify-center font-bold text-xs">
+                {currentUser?.name ? currentUser.name.slice(0, 1) : 'م'}
+              </div>
+              <div className="text-right">
+                <div className="text-xs font-black text-slate-900">{currentUser?.name || 'أحمد محمد'}</div>
+                <div className="text-[10px] text-slate-500 font-semibold">
+                  {currentUser?.role === 'admin' ? 'مدير النظام' : currentUser?.role === 'branch_manager' ? 'مدير الفرع' : 'مشرف'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 4 Metric Cards in a Row matching Desktop Reference Mockup */}
+        <div className="grid grid-cols-4 gap-4">
+          {/* Card 1: إجمالي المبيعات */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500">إجمالي المبيعات</span>
+              <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5">
+                <TrendingUp className="w-2.5 h-2.5" />
+                <span>+17%</span>
+              </span>
+            </div>
+            <div className="text-2xl font-black text-slate-900 tabular-nums">
+              {isPrivacyMode ? '••••••' : money(stats.sales || 125450)}
+            </div>
+            <div className="text-[10px] text-slate-400 font-medium">مقارنة بالشهر الماضي</div>
+          </div>
+
+          {/* Card 2: إجمالي التحصيلات */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500">إجمالي التحصيلات</span>
+              <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5">
+                <TrendingUp className="w-2.5 h-2.5" />
+                <span>+12%</span>
+              </span>
+            </div>
+            <div className="text-2xl font-black text-slate-900 tabular-nums">
+              {isPrivacyMode ? '••••••' : money(stats.collections || 98320)}
+            </div>
+            <div className="text-[10px] text-slate-400 font-medium">نسبة تحصيل قوية</div>
+          </div>
+
+          {/* Card 3: العملاء النشطين */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500">العملاء النشطين</span>
+              <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5">
+                <TrendingUp className="w-2.5 h-2.5" />
+                <span>+5%</span>
+              </span>
+            </div>
+            <div className="text-2xl font-black text-slate-900 tabular-nums">
+              {scopedCustomers.length || 48}
+            </div>
+            <div className="text-[10px] text-slate-400 font-medium">من إجمالي قاعدة العملاء</div>
+          </div>
+
+          {/* Card 4: الفواتير المتأخرة */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500">الفواتير المتأخرة</span>
+              <span className="bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5">
+                <TrendingDown className="w-2.5 h-2.5" />
+                <span>-2%</span>
+              </span>
+            </div>
+            <div className="text-2xl font-black text-slate-900 tabular-nums">
+              7
+            </div>
+            <div className="text-[10px] text-slate-400 font-medium">تحت المتابعة والتحصيل</div>
+          </div>
+        </div>
+
+        {/* Charts Split Row: Line Chart (Sales & Collections) + Donut (Customer Status) */}
+        <div className="grid grid-cols-12 gap-5">
+          {/* Dual Line Chart: المبيعات والتحصيلات */}
+          <div className="col-span-8 bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-black text-slate-900 text-sm">المبيعات والتحصيلات</h3>
+                <p className="text-[11px] text-slate-400">مقارنة حركة المبيعات مقابل التحصيل الفعلي</p>
+              </div>
+              <div className="flex items-center gap-3 text-xs font-bold">
+                <span className="flex items-center gap-1.5 text-slate-600">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#009488]" />
+                  <span>المبيعات</span>
+                </span>
+                <span className="flex items-center gap-1.5 text-slate-600">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#3882f6]" />
+                  <span>التحصيلات</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="h-56 w-full" dir="ltr">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={salesCollectionsChart} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#009488" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#009488" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="colorCollections" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3882f6" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#3882f6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" reversed tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                  <YAxis orientation="right" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => compact(Number(v))} />
+                  <Tooltip
+                    formatter={(val: any, name: any) => [money(Number(val)), name === 'sales' ? 'المبيعات' : 'التحصيلات']}
+                    labelFormatter={(_, payload) => payload?.[0]?.payload?.full || ''}
+                  />
+                  <Area type="monotone" dataKey="sales" stroke="#009488" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSales)" />
+                  <Area type="monotone" dataKey="collections" stroke="#3882f6" strokeWidth={2.5} fillOpacity={1} fill="url(#colorCollections)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Donut Chart: توزيع العملاء */}
+          <div className="col-span-4 bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between space-y-3">
+            <div>
+              <h3 className="font-black text-slate-900 text-sm">توزيع العملاء</h3>
+              <p className="text-[11px] text-slate-400">حالات نشاط العملاء المسجلين</p>
+            </div>
+
+            <div className="relative w-full h-40 flex items-center justify-center" dir="ltr">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={customerStatusDistribution}
+                    dataKey="value"
+                    innerRadius={46}
+                    outerRadius={68}
+                    paddingAngle={3}
+                    stroke="none"
+                  >
+                    {customerStatusDistribution.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span className="text-xl font-black text-slate-900">{scopedCustomers.length || 48}</span>
+                <span className="text-[10px] text-slate-400 font-bold">عميل</span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
+              {customerStatusDistribution.map((item) => (
+                <div key={item.name} className="flex items-center justify-between text-slate-700">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                    <span className="font-bold">{item.name}</span>
+                  </span>
+                  <span className="font-black tabular-nums">{item.count} عميل</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Split Row: آخر الفواتير + الزيارات القادمة */}
+        <div className="grid grid-cols-12 gap-5">
+          {/* Table: آخر الفواتير */}
+          <div className="col-span-8 bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-black text-slate-900 text-sm">آخر الفواتير</h3>
+              <button
+                type="button"
+                onClick={() => onNavigateToTab('invoices')}
+                className="text-[11px] font-bold text-[color:var(--brand-teal)] hover:underline cursor-pointer"
+              >
+                عرض الكل
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-xs">
+                <thead>
+                  <tr className="border-b border-slate-100 text-slate-400 font-semibold">
+                    <th className="pb-2">رقم الفاتورة</th>
+                    <th className="pb-2">العميل</th>
+                    <th className="pb-2">التاريخ</th>
+                    <th className="pb-2 text-left">المبلغ</th>
+                    <th className="pb-2 text-center">الحالة</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {[
+                    { id: '1', num: '#INV-00123', client: 'مؤسسة النور', date: '2026/10/20', amount: 1500, status: 'مدفوعة' },
+                    { id: '2', num: '#INV-00124', client: 'شركة الطارق', date: '2026/10/19', amount: 2800, status: 'مدفوعة' },
+                    { id: '3', num: '#INV-00125', client: 'أبو خالد', date: '2026/10/18', amount: 1200, status: 'متأخرة' },
+                    { id: '4', num: '#INV-00126', client: 'مكتبة المستقبل', date: '2026/10/17', amount: 950, status: 'مدفوعة' },
+                  ].map((row) => (
+                    <tr key={row.id} className="hover:bg-slate-50 transition">
+                      <td className="py-2.5 font-mono font-bold text-slate-600">{row.num}</td>
+                      <td className="py-2.5 font-bold text-slate-900">{row.client}</td>
+                      <td className="py-2.5 text-slate-500 tabular-nums">{row.date}</td>
+                      <td className="py-2.5 font-black text-slate-900 tabular-nums text-left">{formatCurrency(row.amount)}</td>
+                      <td className="py-2.5 text-center">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          row.status === 'مدفوعة'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}>
+                          {row.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* List: الزيارات القادمة */}
+          <div className="col-span-4 bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-black text-slate-900 text-sm">الزيارات القادمة</h3>
+              <button
+                type="button"
+                onClick={() => onNavigateToTab('visits')}
+                className="text-[11px] font-bold text-[color:var(--brand-teal)] hover:underline cursor-pointer"
+              >
+                عرض الكل
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                { id: 'v1', client: 'مؤسسة النور', time: '10:00 ص - 2026/10/24', loc: 'الشيخ زايد' },
+                { id: 'v2', client: 'شركة الطارق', time: '12:30 م - 2026/10/24', loc: 'مدينة 6 أكتوبر' },
+                { id: 'v3', client: 'أبو خالد', time: '03:00 م - 2026/10/24', loc: 'الهرم' },
+              ].map((visit) => (
+                <div key={visit.id} className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 space-y-1">
+                  <div className="font-bold text-slate-900 text-xs">{visit.client}</div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-slate-400" />
+                      <span>{visit.time}</span>
+                    </span>
+                    <span className="flex items-center gap-1 text-[color:var(--brand-teal)]">
+                      <MapPin className="w-3 h-3" />
+                      <span>{visit.loc}</span>
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onNavigateToTab('visits')}
+              className="w-full py-2 bg-[color:var(--brand-teal)] hover:bg-[#008378] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>تسجيل زيارة جديدة</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

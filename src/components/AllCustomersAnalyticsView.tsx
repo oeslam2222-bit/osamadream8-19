@@ -1624,20 +1624,140 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               const col26 = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, c.totalOverallCollections || 0, monthlyColsSum);
               const colRate = s26 > 0 ? Math.round((col26 / s26) * 100) : 0;
               const guaranteeInfo = getGuaranteeBadge(c.guaranteeDocs, c.guaranteeAmount, limit);
-              return <button type="button" key={c.id || c.code} onClick={() => setSelectedCustomer(c)} className="text-right bg-white rounded-2xl border border-slate-200 p-4 shadow-sm active:bg-amber-50 transition" aria-label={`عرض تفاصيل ${c.name}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0"><div className="font-black text-slate-900 truncate">{c.name}</div><div className="text-[11px] text-slate-500 mt-1">{c.code || '---'} · {c.branchName || 'بدون فرع'}</div></div>
-                  <span className="shrink-0 text-[10px] font-bold text-slate-400">#{(currentPage - 1) * pageSize + index + 1}</span>
+              
+              // Avatar initial & background color
+              const firstLetter = (c.name || 'ع').trim().charAt(0);
+              const avatarColors = [
+                'bg-teal-600 text-white',
+                'bg-blue-600 text-white',
+                'bg-amber-500 text-white',
+                'bg-indigo-600 text-white',
+                'bg-slate-700 text-white'
+              ];
+              const avatarBg = avatarColors[(c.code ? c.code.charCodeAt(c.code.length - 1) : index) % avatarColors.length];
+
+              // Customer Status logic
+              const isLegal = c.isLegalPending || (c.legalStatus && c.legalStatus !== 'none');
+              const isActive = s26 > 0 || (c.lastVisitDate && new Date(c.lastVisitDate) > new Date(Date.now() - 60*24*60*60*1000));
+
+              return (
+                <div
+                  key={c.id || c.code}
+                  className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-3.5 space-y-3 hover:border-teal-500/50 transition"
+                >
+                  {/* Card Header: Avatar + Info + Status */}
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm shrink-0 shadow-xs ${avatarBg}`}>
+                        {firstLetter}
+                      </div>
+                      <div className="min-w-0">
+                        <div
+                          onClick={() => setSelectedCustomer(c)}
+                          className="font-black text-slate-900 text-sm truncate cursor-pointer hover:text-teal-700 transition"
+                        >
+                          {c.name}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium mt-0.5 flex-wrap">
+                          <span className="font-mono bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-bold">{c.code || '---'}</span>
+                          <span>·</span>
+                          <span>{c.branchName || c.region || 'بدون فرع'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 flex flex-col items-end gap-1">
+                      {isLegal ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200">
+                          <ShieldAlert className="w-3 h-3 text-rose-600" />
+                          <span>شؤون قانونية</span>
+                        </span>
+                      ) : isActive ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          <span>نشط</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200">
+                          <span>متوقف</span>
+                        </span>
+                      )}
+                      <span className="text-[10px] font-mono text-slate-400">#{(currentPage - 1) * pageSize + index + 1}</span>
+                    </div>
+                  </div>
+
+                  {/* 3-Column Financial Metrics Bar */}
+                  <div className="grid grid-cols-3 gap-1.5 pt-1">
+                    <div className="rounded-xl bg-purple-50/70 border border-purple-100/80 p-2 text-right">
+                      <div className="text-[9px] text-purple-700 font-bold">المديونية</div>
+                      <div className="font-black text-purple-900 text-xs sm:text-sm mt-0.5 truncate" title={isPrivacyMode ? 'مخفي' : formatMoney(bal)}>
+                        {formatMoney(bal)}
+                      </div>
+                      {isOverLimit && <div className="text-[8px] text-rose-600 font-bold mt-0.5">تجاوز الحد</div>}
+                    </div>
+
+                    <div className="rounded-xl bg-rose-50/70 border border-rose-100/80 p-2 text-right">
+                      <div className="text-[9px] text-rose-700 font-bold">المستحقات</div>
+                      <div className="font-black text-rose-900 text-xs sm:text-sm mt-0.5 truncate">
+                        {formatMoney(overdue)}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl bg-teal-50/70 border border-teal-100/80 p-2 text-right">
+                      <div className="text-[9px] text-teal-700 font-bold">مبيعات 2026</div>
+                      <div className="font-black text-teal-900 text-xs sm:text-sm mt-0.5 truncate">
+                        {formatMoney(s26)}
+                      </div>
+                      {colRate > 0 && <div className="text-[8px] text-emerald-700 font-bold mt-0.5">سداد {colRate}%</div>}
+                    </div>
+                  </div>
+
+                  {/* Warning banner if big debt without phone */}
+                  {!c.phone && bal >= 1000000 && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[10px] font-bold text-amber-900 flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>عميل بمديونية كبيرة بدون رقم هاتف مسجل</span>
+                    </div>
+                  )}
+
+                  {/* Quick Action Footer Strip */}
+                  <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-slate-100">
+                    <div className="flex items-center gap-1.5">
+                      {c.phone ? (
+                        <a
+                          href={`tel:${c.phone}`}
+                          className="h-8 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] flex items-center gap-1 transition"
+                          title="اتصال هاتفي بالعميل"
+                        >
+                          <Phone className="w-3.5 h-3.5 text-teal-600" />
+                          <span>اتصال</span>
+                        </a>
+                      ) : null}
+
+                      {onOpenNewOrderForCustomer && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenNewOrderForCustomer(c)}
+                          className="h-8 px-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-[11px] flex items-center gap-1 transition shadow-xs cursor-pointer"
+                          title="بدء طلبية بيع جديدة"
+                        >
+                          <ShoppingCart className="w-3.5 h-3.5" />
+                          <span>+ طلبية</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCustomer(c)}
+                      className="h-8 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-teal-700 font-black text-xs flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <span>التفاصيل</span>
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 mt-4">
-                  <div className="rounded-xl bg-purple-50 border border-purple-100 p-2.5"><div className="text-[10px] text-purple-600 font-bold">المديونية</div><div className="font-black text-purple-900 mt-1 text-sm sm:text-base truncate" title={isPrivacyMode ? 'مخفي' : formatMoney(bal)}>{formatMoney(bal)}</div>{isOverLimit && <div className="text-[9px] text-rose-700 font-bold mt-1">متجاوز الحد</div>}</div>
-                  <div className="rounded-xl bg-rose-50 border border-rose-100 p-2.5"><div className="text-[10px] text-rose-600 font-bold">المستحقات</div><div className="font-black text-rose-900 mt-1">{formatMoney(overdue)}</div></div>
-                  <div className="rounded-xl bg-blue-50 border border-blue-100 p-2.5"><div className="text-[10px] text-blue-600 font-bold">مبيعات 2026</div><div className="font-black text-blue-900 mt-1">{formatMoney(s26)}</div></div>
-                  <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-2.5"><div className="text-[10px] text-emerald-600 font-bold">التحصيل</div><div className="font-black text-emerald-900 mt-1">{formatMoney(col26)}</div><div className="text-[9px] text-emerald-700 font-bold mt-1">نسبة السداد {colRate}%</div></div>
-                </div>
-                {!c.phone && bal >= 1000000 && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-[10px] font-bold leading-5 text-amber-900"><span className="font-black">تنبيه تشغيلي:</span> عميل بمديونية كبيرة بدون وسيلة تواصل مسجلة</div>}
-  <div className="mt-3 flex items-center justify-between gap-2"><span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border ${guaranteeInfo.color}`}><ShieldCheck className="w-3 h-3" />{guaranteeInfo.label}</span><span className="text-[11px] text-amber-700 font-black">عرض التفاصيل ←</span></div>
-              </button>;
+              );
             })}
           </div>
           <div className="hidden md:block overflow-x-auto">

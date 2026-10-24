@@ -19,18 +19,24 @@
 }
 
 :root {
-  --app-ink: #17283d;
-  --app-navy: #102b4e;
-  --app-blue: #1e5f9d;
-  --app-blue-soft: #e8f1fa;
-  --app-canvas: #eef3f8;
-  --app-line: #d8e2ec;
-  --app-muted: #6d7e91;
-  --app-accent: #c99a43;
-  /* Unified identity tokens — from designs/product_catalog/a_unified */
-  --app-ok: #2e7d5b;    /* success / in-stock */
-  --app-warn: #9b7027;  /* low stock / caution */
-  --app-risk: #b34a4a;  /* out of stock / danger */
+  --app-ink: #0f172a;
+  --app-navy: #0f2b38;
+  --app-blue: #3882f6;
+  --app-blue-soft: #eff6ff;
+  --app-canvas: #f8fafc;
+  --app-line: #e2e8f0;
+  --app-muted: #64748b;
+  --app-accent: #009488;
+  /* Tantawy Group Reference Design Tokens */
+  --brand-teal: #009488;
+  --brand-teal-dark: #0f2b38;
+  --brand-teal-light: #e6f7f5;
+  --brand-blue: #3882f6;
+  --brand-amber: #f59e0b;
+  --brand-purple: #6366f1;
+  --app-ok: #009488;    /* success / teal */
+  --app-warn: #f59e0b;  /* caution / amber */
+  --app-risk: #ef4444;  /* risk / red */
   --app-radius: 14px;
   --app-btn-radius: 10px;
 }
@@ -158,13 +164,25 @@ button svg,
 }
 
 @media (min-width: 768px) and (max-width: 1023px) {
-  [class*="grid-cols-4"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  [class*="grid-cols-4"]:not(.keep-grid) { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }
 
 @media (max-width: 420px) {
-  [class*="grid-cols-2"] { grid-template-columns: minmax(0, 1fr) !important; }
   .text-2xl { font-size: 1.25rem !important; }
   .text-xl { font-size: 1.1rem !important; }
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+img, video {
+  max-width: 100%;
+}
+
+.page-content {
+  width: 100%;
+  min-width: 0;
 }
 
 .safe-area-inset-bottom { padding-bottom: env(safe-area-inset-bottom); }

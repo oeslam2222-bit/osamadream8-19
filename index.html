@@ -2,65 +2,39 @@
 <html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <!--
-      Content Security Policy: the app ships no inline scripts, so anything trying
-      to inject code through the DOM or a stored value has nowhere to run.
-      'unsafe-inline' stays for styles only, because React and Tailwind set
-      element styles at runtime.
-
-      No frame-ancestors here on purpose: browsers ignore that directive when it
-      arrives in a <meta> tag (Chrome logs "directive 'frame-ancestors' is ignored
-      when delivered via a <meta> element"), so it was never actually protecting
-      anything — it was only producing a warning. Real clickjacking protection has
-      to be an HTTP response header set by the host:
-        Content-Security-Policy: frame-ancestors 'none'
-        X-Frame-Options: DENY
-    -->
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self';
-               script-src 'self';
-               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-               font-src 'self' data: https://fonts.gstatic.com;
-               img-src 'self' data: blob: https:;
-               connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.googleapis.com https://docs.google.com https://drive.google.com https://*.cloudinary.com https://res.cloudinary.com https://*.powerplatform.com;
-               worker-src 'self' blob:;
-               object-src 'none';
-               base-uri 'self';
-               form-action 'self'"
-    />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>مجموعة الطنطاوي للتجارة والتوزيع | TANTAWY GROUP</title>
-    <meta name="description" content="منظومة متكاملة لمجموعة الطنطاوي للتجارة والتوزيع: عرض الكتالوج مع ضغط صور جوجل درايف وتوفير الباقة، إدارة المخزون ومنع الحجز المزدوج للمناديب، دورة اعتماد وصرف الطلبيات من المشرف ومدير الفرع، إنشاء فواتير إلكترونية، وتصدير إكسل وتثبيت التطبيق على الموبايل." />
-    <meta property="og:title" content="مجموعة الطنطاوي للتجارة والتوزيع | TANTAWY GROUP" />
-    <meta property="og:description" content="منظومة متكاملة لمجموعة الطنطاوي للتجارة والتوزيع: عرض الكتالوج مع ضغط صور جوجل درايف وتوفير الباقة، إدارة المخزون ومنع الحجز المزدوج للمناديب، دورة اعتماد وصرف الطلبيات من المشرف ومدير الفرع، إنشاء فواتير إلكترونية، وتصدير إكسل وتثبيت التطبيق على الموبايل." />
+    <title>طنطاوي جروب | Tantawy Group - منظومة المبيعات والتحصيلات</title>
+    <meta name="description" content="منظومة متكاملة لمجموعة الطنطاوي للتجارة والتوزيع: عرض الكتالوج، إدارة المخزون، دورة اعتماد وصرف الطلبيات، الفواتير والتحصيلات والزيارات." />
+    <meta property="og:title" content="طنطاوي جروب | Tantawy Group" />
+    <meta property="og:description" content="منظومة متكاملة لمجموعة الطنطاوي للتجارة والتوزيع: عرض الكتالوج، إدارة المخزون، دورة اعتماد وصرف الطلبيات، الفواتير والتحصيلات والزيارات." />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="shortcut icon" href="/favicon.png" />
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#0f2b38" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="الطنطاوي" />
-    <meta name="application-name" content="الطنطاوي" />
+    <meta name="apple-mobile-web-app-title" content="طنطاوي جروب" />
+    <meta name="application-name" content="طنطاوي جروب" />
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700;800;900&display=swap" rel="stylesheet">
   </head>
-  <body class="bg-slate-50 text-slate-900 font-['Cairo',system-ui,sans-serif] antialiased selection:bg-amber-500 selection:text-white min-h-screen">
+  <body class="bg-slate-50 text-slate-900 font-['Cairo',system-ui,sans-serif] antialiased selection:bg-teal-500 selection:text-white min-h-screen">
     <div id="root">
-      <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f8fafc; color: #0f172a; font-family: 'Cairo', system-ui, -apple-system, sans-serif; text-align: center; padding: 24px;">
-        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 28px; padding: 32px 28px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.03); max-width: 340px; width: 100%; display: flex; flex-direction: column; align-items: center;">
-          <div style="width: 84px; height: 84px; border-radius: 22px; background: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 16px -2px rgba(217, 119, 6, 0.18); margin-bottom: 18px; overflow: hidden; padding: 6px; border: 2px solid #f59e0b;">
-            <img src="/tantawy-brand-logo.svg" alt="مجموعة الطنطاوي" style="width: 100%; height: 100%; object-fit: contain;" />
+      <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0f2b38; color: #ffffff; font-family: 'Cairo', system-ui, -apple-system, sans-serif; text-align: center; padding: 24px;">
+        <div style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 28px; padding: 36px 30px; box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5); max-width: 340px; width: 100%; display: flex; flex-direction: column; align-items: center; backdrop-filter: blur(10px);">
+          <div style="width: 88px; height: 88px; border-radius: 24px; background: #0b1f29; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px -4px rgba(0, 148, 136, 0.4); margin-bottom: 18px; overflow: hidden; padding: 8px; border: 2px solid #009488;">
+            <img src="/icon.svg" alt="طنطاوي جروب" style="width: 100%; height: 100%; object-fit: contain;" />
           </div>
-          <h2 style="font-size: 19px; font-weight: 900; margin: 0 0 6px 0; color: #0f172a; letter-spacing: -0.3px;">مجموعة الطنطاوي</h2>
-          <span style="font-size: 11px; font-weight: 800; color: #d97706; letter-spacing: 1.5px; margin-bottom: 14px; text-transform: uppercase;">Tantawy Group</span>
-          <p style="font-size: 12px; color: #64748b; margin: 0 0 20px 0; font-weight: 600;">جاري تحميل منظومة المبيعات والكتالوج...</p>
-          <div style="width: 180px; height: 5px; background: #f1f5f9; border-radius: 999px; overflow: hidden; position: relative;">
-            <div style="width: 45%; height: 100%; background: linear-gradient(90deg, #f59e0b, #d97706); border-radius: 999px; animation: loading 1.2s infinite ease-in-out;"></div>
+          <h2 style="font-size: 20px; font-weight: 900; margin: 0 0 4px 0; color: #ffffff; letter-spacing: -0.3px;">طنطاوي جروب</h2>
+          <span style="font-size: 11px; font-weight: 800; color: #2dd4bf; letter-spacing: 2px; margin-bottom: 16px; text-transform: uppercase;">Tantawy Group</span>
+          <p style="font-size: 12px; color: #94a3b8; margin: 0 0 22px 0; font-weight: 600;">جاري تحميل منظومة المبيعات والكتالوج...</p>
+          <div style="width: 180px; height: 5px; background: rgba(255, 255, 255, 0.1); border-radius: 999px; overflow: hidden; position: relative;">
+            <div style="width: 45%; height: 100%; background: linear-gradient(90deg, #009488, #2dd4bf); border-radius: 999px; animation: loading 1.2s infinite ease-in-out;"></div>
           </div>
         </div>
         <style>

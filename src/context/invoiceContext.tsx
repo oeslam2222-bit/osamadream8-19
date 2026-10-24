@@ -31,27 +31,38 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
 
   const addToCart = useCallback((item: CartItem) => {
     setCartState(prev => {
-      const existing = prev.find(i => i.productId === item.productId);
+      const existing = prev.find(i => i.product.id === item.product.id);
       if (existing) {
-        return prev.map(i => i.productId === item.productId ? { ...i, quantity: i.quantity + item.quantity } : i);
+        return prev.map(i => i.product.id === item.product.id ? {
+          ...i,
+          cartonCount: i.cartonCount + item.cartonCount,
+          pieceCount: i.pieceCount + item.pieceCount,
+          totalPieces: i.totalPieces + item.totalPieces,
+          totalPrice: i.totalPrice + item.totalPrice
+        } : i);
       }
       return [...prev, item];
     });
   }, []);
 
   const removeFromCart = useCallback((productId: string) => {
-    setCartState(prev => prev.filter(i => i.productId !== productId));
+    setCartState(prev => prev.filter(i => i.product.id !== productId));
   }, []);
 
   const updateCartItem = useCallback((productId: string, quantity: number) => {
-    setCartState(prev => prev.map(i => i.productId === productId ? { ...i, quantity } : i));
+    setCartState(prev => prev.map(i => i.product.id === productId ? {
+      ...i,
+      cartonCount: quantity,
+      totalPieces: quantity * (i.cartonQuantity || 1),
+      totalPrice: quantity * i.unitPrice
+    } : i));
   }, []);
 
   const clearCart = useCallback(() => setCartState([]), []);
 
   const getCartSummary = useCallback(() => {
-    const itemCount = cart.reduce((acc, item) => acc + item.quantity, 0);
-    const grandTotal = cart.reduce((acc, item) => acc + (item.quantity * (item.pricePerCarton || 0)), 0);
+    const itemCount = cart.reduce((acc, item) => acc + item.cartonCount, 0);
+    const grandTotal = cart.reduce((acc, item) => acc + (item.totalPrice || 0), 0);
     return { itemCount, grandTotal };
   }, [cart]);
 
@@ -63,11 +74,22 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
         invoiceNumber: `INV-${Date.now()}`,
         customerId: orderData.customerId || '',
         customerName: orderData.customerName || 'عميل',
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toLocaleTimeString('ar-EG'),
         items: orderData.items || [],
-        total: orderData.total || 0,
+        subtotal: orderData.total || 0,
+        totalCartons: orderData.totalCartons || 0,
+        totalPieces: orderData.totalPieces || 0,
+        discountPercentage: 0,
+        discountAmount: 0,
+        taxPercentage: 0,
+        taxAmount: 0,
+        estimatedGrandTotal: orderData.total || 0,
+        paymentMethod: 'نقدي (كاش)',
         status: 'قيد مراجعة المشرف',
         createdAt: new Date().toISOString(),
         branchName: orderData.branchName || '',
+        repId: orderData.repId || '',
         repName: orderData.repName || '',
       };
       setInvoicesState(prev => [...prev, newInvoice]);
