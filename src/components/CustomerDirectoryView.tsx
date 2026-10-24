@@ -902,7 +902,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
         
         {/* Card 1: Total Customers */}
-        <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div className="bg-[#eef6f8] rounded-2xl p-3.5 border border-[#d4e7eb] shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-slate-500">
               {scopeTab === 'my_customers' ? 'عملائي المسندين' : 'إجمالي العملاء'}
@@ -920,7 +920,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         </div>
 
         {/* Card 2: Total Debt (المديونية) */}
-        <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div className="bg-[#fff1f2] rounded-2xl p-3.5 border border-[#fecdd3] shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold t-risk">المديونية</span>
             <div className="w-7 h-7 rounded-xl tint-risk flex items-center justify-center font-bold">
@@ -938,7 +938,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         </div>
 
         {/* Card 3: Total Overdue & Due (المستحقات إجمالي) */}
-        <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div className="bg-[#fff7e8] rounded-2xl p-3.5 border border-[#f4ddb0] shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold t-warn">المستحقات إجمالي</span>
             <div className="w-7 h-7 rounded-xl tint-warn flex items-center justify-center font-bold">
@@ -956,7 +956,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         </div>
 
         {/* Card 4: Total Sales (إجمالي البيع) */}
-        <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div className="bg-[#eef4ff] rounded-2xl p-3.5 border border-[#d4e1f5] shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold t-navy">إجمالي البيع</span>
             <div className="w-7 h-7 rounded-xl tint-navy flex items-center justify-center font-bold">
@@ -974,7 +974,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         </div>
 
         {/* Card 5: Total Collections (إجمالي التحصيل) */}
-        <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div className="bg-[#eaf7f1] rounded-2xl p-3.5 border border-[#cde9da] shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold t-ok">إجمالي التحصيل</span>
             <div className="w-7 h-7 rounded-xl tint-ok flex items-center justify-center font-bold">
@@ -992,7 +992,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         </div>
 
         {/* Card 6: Credit Limit (الحد الائتماني) */}
-        <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div className="bg-[#f2f5f9] rounded-2xl p-3.5 border border-[#dbe3ed] shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-slate-500">الحد الائتماني</span>
             <div className="w-7 h-7 rounded-xl tint-navy flex items-center justify-center font-bold">
