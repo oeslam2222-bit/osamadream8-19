@@ -7,6 +7,9 @@ import { deduplicateAndMergeCustomers } from './customerDeduplicationService';
 import { isSummaryOrTotalRow } from './customerFinancialService';
 import { resolveCustomerDuesValue } from './customerDues';
 
+export { parsePromotionsFromExcelBuffer, parsePromotionsFromGoogleSheet } from './promotionService';
+export { parseTargetExcel, fetchTargetsFromGoogleSheetUrl } from './targetService';
+
 /**
  * Preserves the product code exactly as supplied by the sheet, including prefixes
  * such as DRM- and any meaningful separators, while strictly discarding placeholder dashes or nulls.
@@ -2731,7 +2734,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
         ...previous,
         ...customer,
         name: customer.name.startsWith('عميل رقم ') ? previous.name : customer.name,
-        storeName: customer.storeName.startsWith('محل / سوبر ماركت ') ? previous.storeName : customer.storeName,
+        storeName: (customer.storeName || '').startsWith('محل / سوبر ماركت ') ? previous.storeName : customer.storeName,
         repName: customer.repName || previous.repName,
         salesRepName: customer.salesRepName || previous.salesRepName,
         branchName: customer.branchName || previous.branchName,
