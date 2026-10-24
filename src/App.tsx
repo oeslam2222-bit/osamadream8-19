@@ -49,7 +49,7 @@ const TabLoadingSkeleton = () => (
     </div>
     <div className="text-center">
       <h3 className="font-black text-slate-800 text-sm">جاري تحميل البيانات...</h3>
-      <p className="text-xs text-slate-400 mt-1">يتم جلب محتويات القسم وتجهيزها بأعلى سرعة</p>
+      <p className="text-xs text-slate-500 mt-1">يتم جلب محتويات القسم وتجهيزها بأعلى سرعة</p>
     </div>
   </div>
 );
