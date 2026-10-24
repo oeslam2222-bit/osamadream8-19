@@ -98,6 +98,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setIsInstallModalOpen
   } = useApp();
 
+  // Smart Search Suggestions & Right Flexible Panel States
+  const [searchSuggestions, setSearchSuggestions] = useState<Product[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  const [rightPanelType, setRightPanelType] = useState<'product' | 'cart' | 'customer' | null>(null);
+  const [rightPanelData, setRightPanelData] = useState<Product | Customer | null>(null);
+
   // Lazy & Smart Cashier View States
   const [showAllExplicitly, setShowAllExplicitly] = useState(true);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
@@ -331,6 +338,20 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   }, [products, selectedOfficialDept, dynamicItemGroups]);
 
   const visibleProducts = getVisibleProducts();
+
+  // Smart suggestions derived from visible products matching search term (declared after searchTerm & visibleProducts)
+  const smartSuggestions = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q || !showSuggestions) return [];
+    const cleanQ = q.replace('#', '').trim();
+    return visibleProducts.filter((p) => {
+      const codeMatch = p.code.toLowerCase().includes(q) || p.code.toLowerCase().includes(cleanQ);
+      const unifiedMatch = Boolean(p.unifiedCode && (p.unifiedCode.toLowerCase().includes(cleanQ) || p.unifiedCode.toLowerCase().includes(q)));
+      const nameMatch = p.name.toLowerCase().includes(q);
+      const barcodeMatch = Boolean(p.barcode && p.barcode.includes(q));
+      return codeMatch || unifiedMatch || nameMatch || barcodeMatch;
+    }).slice(0, 8);
+  }, [searchTerm, showSuggestions, visibleProducts]);
 
   // Active branch context for stock resolution: specific user's branch for reps/supervisors, or global filter for admin
   const currentActiveBranch = useMemo(() => {
@@ -621,6 +642,25 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setTimeout(() => setAddedItemToast(null), 2500);
   };
 
+  const handleSelectSuggestion = (product: Product) => {
+    setSearchTerm(product.name);
+    setShowSuggestions(false);
+    setRightPanelType('product');
+    setRightPanelData(product);
+    setRightPanelOpen(true);
+    // Scroll to product if it's in the visible list
+    setTimeout(() => {
+      const el = document.getElementById(`prod-${product.id}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+  };
+
+  const openRightPanel = (type: 'product' | 'cart' | 'customer', data: Product | Customer | null = null) => {
+    setRightPanelType(type);
+    setRightPanelData(data);
+    setRightPanelOpen(true);
+  };
+
   const handleDirectAdd = (product: Product, type: 'carton' | 'piece', count = 1) => {
     const res = addToCart(product, type, count);
     if (!res.success) {
@@ -898,6 +938,39 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <Barcode className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" aria-hidden="true" />
             )}
           </div>
+
+          {/* Smart Search Suggestions Dropdown */}
+          {smartSuggestions.length > 0 && (
+            <div className="absolute left-0 right-0 mt-1 z-50 bg-white border border-[color:var(--app-line)] rounded-[10px] shadow-2xl max-h-80 overflow-y-auto animate-in fade-in slide-in-from-top-2">
+              <div className="px-3 py-1.5 text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-50">
+                نتائج المقترحة ({smartSuggestions.length})
+              </div>
+              {smartSuggestions.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => handleSelectSuggestion(p)}
+                  className="w-full text-right px-4 py-2.5 text-sm hover:bg-[#f2f6fa] transition border-b border-slate-50/50 last:border-0 group"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-black text-slate-900 truncate">{p.name}</div>
+                      <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold">
+                        <span>{p.code}</span>
+                        {p.unifiedCode && <span className="text-[#1e5f9d]">#{p.unifiedCode.replace('#', '')}</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 text-[color:var(--app-ok)] font-black text-xs">
+                      <CheckCircle2 className="w-3 h-3 shrink-0" />
+                      <span className="tabular-nums">{getProductBranchStock(p)} ك</span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+              {smartSuggestions.length === 0 && (
+                <div className="px-4 py-3 text-xs text-slate-400 text-center">لا توجد نتائج مطابقة</div>
+              )}
+            </div>
+          )}
 
           {/* Data Confidentiality Toggle (سرية البيانات) */}
           <button
@@ -1458,6 +1531,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
             return (
               <div
+                id={`prod-${product.id}`}
                 key={product.id}
                 className="bg-white rounded-2xl overflow-hidden border border-[color:var(--app-line)] shadow-sm hover:shadow-[0_10px_28px_rgba(15,40,70,.12)] hover:border-[#bfcfdb] hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between group relative"
               >
@@ -1730,7 +1804,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     : (product.mainWarehouseActual || 0);
 
                   return (
-                    <tr key={product.id} className="transition">
+                    <tr id={`prod-${product.id}`} key={product.id} className="transition">
                       <td className="p-2.5">
                         <div className="flex items-center gap-2">
                           <ProductImage
@@ -2457,6 +2531,334 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Right Flexible Sidebar Panel - Slide-in from Right (Amazon / Taager / Raneen Style) */}
+      {rightPanelOpen && (
+        <div className="fixed inset-0 z-[60] bg-slate-950/60 backdrop-blur-sm flex items-center justify-end animate-in fade-in" onClick={(e) => { if (e.target === e.currentTarget) setRightPanelOpen(false); }}>
+          {/* Backdrop Click to Close */}
+          <div className="absolute inset-0 z-0" />
+          <div className={`relative z-10 w-full md:w-96 lg:w-100 h-full bg-white shadow-2xl border-l border-[color:var(--app-line)] transform transition-transform duration-300 ease-out flex flex-col animate-in slide-in-from-right-4 sm:unrounded-sm`}>
+            {/* Panel Header */}
+            <div className="bg-white p-4 sm:p-5 border-b border-[color:var(--app-line)] flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-2xl bg-[#0f233d] text-amber-400 flex items-center justify-center font-black shadow-sm shrink-0">
+                  {rightPanelType === 'product' ? <Package /> : rightPanelType === 'cart' ? <ShoppingCart /> : <User />}
+                </div>
+                <div>
+                  <span className="text-[10px] font-black tracking-wider uppercase text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                    {rightPanelType === 'product' ? 'تفاصيل الصنف' : rightPanelType === 'cart' ? 'سلة الطلبية' : 'معلومات العميل'}
+                  </span>
+                  <h3 className="text-sm font-black text-slate-900 leading-tight">
+                    {rightPanelType === 'product' ? (rightPanelData as Product)?.name || 'الصنف المختار' : rightPanelType === 'cart' ? 'مراجعة الأصناف قبل الدفع' : (rightPanelData as Customer)?.name || 'العميل المختار'}
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setRightPanelOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Panel Content - Scrollable */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+              {/* Product Details Panel */}
+              {rightPanelType === 'product' && rightPanelData && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="h-48 bg-slate-50 rounded-3xl overflow-hidden border border-slate-200 flex items-center justify-center relative">
+                      <ProductImage
+                        product={rightPanelData as Product}
+                        cloudinaryConfig={cloudinaryConfig}
+                        targetSize={600}
+                        sizeVariant="card"
+                        containerClassName="w-full h-full"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute top-2 right-2 bg-white/95 text-[#657b93] border border-[color:var(--app-line)] font-mono text-[10px] font-bold px-2 py-0.5 rounded-lg backdrop-blur-sm">
+                        {(rightPanelData as Product).code}
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        <Tag className="w-3 h-3 shrink-0" />
+                        <span>القسم / المجموعة</span>
+                      </div>
+                      <span className="text-sm text-slate-700 font-medium">{ (rightPanelData as Product).department || (rightPanelData as Product).category || 'عام' }</span>
+
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        <Warehouse className="w-3 h-3 shrink-0" />
+                        <span>الكود الموحد</span>
+                      </div>
+                      <span className="text-sm font-mono font-black text-[#1e5f9d]">
+                        #{(rightPanelData as Product).unifiedCode?.replace('#', '') || '—'}
+                      </span>
+
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        <Barcode className="w-3 h-3 shrink-0" />
+                        <span>الباركود</span>
+                      </div>
+                      <span className="text-sm text-slate-700 font-medium">{ (rightPanelData as Product).barcode || 'غير متاح' }</span>
+                    </div>
+                  </div>
+
+                  {/* Stock & Pricing */}
+                  <div className="bg-[#f8fbfe] border border-[color:var(--app-line)] rounded-3xl p-4 shadow-sm">
+                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase mb-1">
+                      <span>رصيد الفرع</span>
+                      <span className={getProductBranchStock(rightPanelData as Product) > 0 ? 'text-[color:var(--app-ok)] font-black' : 'text-[color:var(--app-risk)] font-bold'}>
+                        {getProductBranchStock(rightPanelData as Product)} كرتونة
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase mb-3">
+                      <span>مخزن أكتوبر المركزي</span>
+                      <span className="text-[#1e5f9d] font-black">
+                        {(rightPanelData as Product).mainWarehouseActual || 0} كرتونة
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-[10px] text-[color:var(--app-muted)] font-bold block uppercase">سعر الكرتونة</span>
+                        <span className="text-[color:var(--app-navy)] font-black tabular-nums text-lg">{formatCurrency((rightPanelData as Product).cartonPrice)} ج</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-[color:var(--app-muted)] font-bold block uppercase">سعر القطعة</span>
+                        <span className="text-xs font-extrabold text-slate-700 tabular-nums">{formatCurrency((rightPanelData as Product).piecePrice)} ج</span>
+                      </div>
+                    </div>
+                    {(rightPanelData as Product).promoPrice && (
+                      <div className="mt-3 bg-[#fdf5f5] border border-[rgba(179,74,74,.25)] rounded-[10px] p-3 flex items-center gap-2">
+                        <Flame className="w-4 h-4 text-[color:var(--app-risk)] shrink-0" />
+                        <div>
+                          <span className="text-[10px] text-[color:var(--app-risk)] font-bold block uppercase">سعر العرض للكرتونة</span>
+                          <span className="font-black text-[color:var(--app-risk)] tabular-nums">{formatCurrency((rightPanelData as Product).promoPrice)} ج</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quick Add from Panel */}
+                  <div className="pt-2 border-t border-slate-100">
+                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase mb-2">
+                      <span>الكمية والوحدة</span>
+                    </div>
+                    <div className="flex items-center bg-[#f8fbfe] rounded-[10px] border border-[color:var(--app-line)] p-0.5 shrink-0 w-full max-w-xs">
+                      <button
+                        type="button"
+                        disabled={getProductBranchStock(rightPanelData as Product) <= 0 || getCardState((rightPanelData as Product).id).quantity <= 1}
+                        onClick={() => adjustCardQuantity((rightPanelData as Product).id, -1)}
+                        className="w-10 h-10 flex items-center justify-center text-slate-800 active:bg-[#eef3f9] rounded-[8px] font-black disabled:opacity-30 cursor-pointer"
+                      >
+                        <Minus className="w-3.5 h-3.5 stroke-[2.5]" />
+                      </button>
+                      <input
+                        type="number"
+                        min="1"
+                        disabled={getProductBranchStock(rightPanelData as Product) <= 0}
+                        value={getCardState((rightPanelData as Product).id).quantity}
+                        onChange={(e) => {
+                          const parsed = parseInt(e.target.value, 10);
+                          setCardQuantityDirect((rightPanelData as Product).id, parsed);
+                        }}
+                        className="w-12 text-center font-black text-sm text-slate-950 bg-white border border-[color:var(--app-line)] rounded-[8px] tabular-nums"
+                      />
+                      <button
+                        type="button"
+                        disabled={getProductBranchStock(rightPanelData as Product) <= 0}
+                        onClick={() => adjustCardQuantity((rightPanelData as Product).id, 1)}
+                        className="w-10 h-10 flex items-center justify-center text-slate-800 active:bg-[#eef3f9] rounded-[8px] font-black disabled:opacity-30 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                      </button>
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => updateCardType((rightPanelData as Product).id, 'carton')}
+                        className={`flex-1 h-11 rounded-[10px] transition cursor-pointer text-center text-xs font-bold ${
+                          getCardState((rightPanelData as Product).id).type === 'carton'
+                            ? 'bg-[color:var(--app-navy)] text-white font-black shadow-sm'
+                            : 'text-[color:var(--app-muted)] hover:text-slate-900'
+                        }`}
+                      >
+                        كرتونة
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateCardType((rightPanelData as Product).id, 'piece')}
+                        className={`flex-1 h-11 rounded-[10px] transition cursor-pointer text-center text-xs font-bold ${
+                          getCardState((rightPanelData as Product).id).type === 'piece'
+                            ? 'bg-[color:var(--app-navy)] text-white font-black shadow-sm'
+                            : 'text-[color:var(--app-muted)] hover:text-slate-900'
+                        }`}
+                      >
+                        قطعة
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={getProductBranchStock(rightPanelData as Product) <= 0}
+                      onClick={() => {
+                        const count = getCardState((rightPanelData as Product).id).quantity;
+                        handleDirectAdd(rightPanelData as Product, 'carton', count);
+                        setRightPanelOpen(false);
+                        setAddedItemToast({ name: (rightPanelData as Product).name, count: `${count} ${getCardState((rightPanelData as Product).id).type === 'carton' ? 'كرتونة' : 'قطعة'}` });
+                        setTimeout(() => setAddedItemToast(null), 2500);
+                      }}
+                      className="w-full bg-[color:var(--app-navy)] hover:bg-[#0d2340] active:scale-[0.98] text-white font-black h-11 px-3 rounded-[10px] text-sm shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ShoppingCart className="w-4 h-4 stroke-[2.5] shrink-0" />
+                      <span className="font-black tracking-wide whitespace-nowrap">أضف للطلبية</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Cart Summary Panel */}
+              {rightPanelType === 'cart' && (
+                <div className="space-y-4">
+                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                    <ShoppingCart className="w-3 h-3 shrink-0" />
+                    <span>{cart.length} صنف في سلة الطلبية</span>
+                  </div>
+                  {cart.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400">
+                      <Package className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+                      <p className="text-sm font-medium">سلة الطلبية فارغة حالياً</p>
+                      <p className="text-xs text-slate-400 mt-1">أضف أصناف من الكتالوج لبدء طلبك.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                      {cart.map((item) => (
+                        <div key={item.product.id} className="flex items-center justify-between gap-3 p-3 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-[#f2f6fa] overflow-hidden flex items-center justify-center border border-slate-200">
+                              <ProductImage
+                                product={item.product}
+                                cloudinaryConfig={cloudinaryConfig}
+                                targetSize={200}
+                                sizeVariant="thumbnail"
+                                containerClassName="w-full h-full"
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="font-black text-slate-900 text-sm truncate">{item.product.name}</div>
+                              <div className="text-[10px] text-slate-500 font-bold flex items-center gap-1">
+                                <span>{item.product.code}</span>
+                                {item.product.unifiedCode && <span className="text-[#1e5f9d]">#{item.product.unifiedCode.replace('#', '')}</span>}
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-medium mt-0.5">
+                                {item.cartonCount} كرتونة • {item.pieceCount} قطعة
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-black text-slate-900 tabular-nums text-sm">{formatCurrency(item.totalPrice)} ج</div>
+                            <div className="text-[10px] text-slate-400 font-medium">{item.totalPieces} قطعة إجمالاً</div>
+                          </div>
+                        </div>
+                      ))}
+                    <div className="mt-4 pt-4 border-t border-slate-100">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-700 mb-2">
+                        <span>الإجمالي الفرعي</span>
+                        <span className="text-slate-900">{formatCurrency(cartSummary.subtotal)} ج</span>
+                      </div>
+                      {cartSummary.discountAmount > 0 && (
+                        <div className="flex items-center justify-between text-xs text-[color:var(--app-risk)] font-bold mb-2">
+                          <span>الخصم</span>
+                          <span>- {formatCurrency(cartSummary.discountAmount)} ج</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between text-sm font-black text-[color:var(--app-navy)] pt-2 border-t border-slate-100">
+                        <span>الإجمالي النهائي</span>
+                        <span className="tabular-nums">{formatCurrency(cartSummary.grandTotal)} ج</span>
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <button
+                        onClick={() => setIsCartDrawerOpen(true)}
+                        className="w-full bg-[color:var(--app-navy)] hover:bg-[#0d2340] text-white font-black py-3 rounded-[10px] text-sm shadow-sm transition cursor-pointer flex items-center justify-center gap-2"
+                      >
+                        <ShoppingCart className="w-4 h-4" />
+                        <span>عرض السلة completa وتأكيد الطلب</span>
+                      </button>
+                    </div>
+                  </div>)}
+                </div>
+              )}
+
+              {/* Customer Info Panel */}
+              {rightPanelType === 'customer' && rightPanelData && (
+                <div className="space-y-4">
+                  <div className="bg-[#fdf8ed] border border-[#e8dcba] rounded-3xl p-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-2xl bg-[color:var(--app-navy)] text-[color:var(--app-accent)] flex items-center justify-center font-black shrink-0 shadow-sm">
+                        <User className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">اسم العميل / المحل</div>
+                        <div className="font-black text-slate-950 text-sm">{ (rightPanelData as Customer).name }</div>
+                        <div className="text-[10px] text-slate-500 font-medium mt-0.5">
+                          { (rightPanelData as Customer).code && `كود العميل: ${(rightPanelData as Customer).code}` }
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div className="bg-slate-50 p-2.5 rounded-[10px]">
+                        <div className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">الفرع</div>
+                        <div className="text-sm font-bold text-slate-900">{ (rightPanelData as Customer).branchName }</div>
+                      </div>
+                      <div className="bg-slate-50 p-2.5 rounded-[10px]">
+                        <div className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">المندوب المسؤول</div>
+                        <div className="text-sm font-bold text-slate-900">{ (rightPanelData as Customer).salesRepName || (rightPanelData as Customer).repName || '—' }</div>
+                      </div>
+                      <div className="bg-slate-50 p-2.5 rounded-[10px]">
+                        <div className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">الهاتف</div>
+                        <div className="text-sm font-bold text-slate-900">{ (rightPanelData as Customer).phone }</div>
+                      </div>
+                      <div className="bg-slate-50 p-2.5 rounded-[10px]">
+                        <div className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">المديونية الحالية</div>
+                        <div className="text-sm font-black text-[color:var(--app-risk)] tabular-nums">
+                          {isConfidentialMode ? '•••••• (محمي)' : formatCurrency((rightPanelData as Customer).currentBalance || 0)} ج
+                        </div>
+                      </div>
+                    </div>
+                    {(rightPanelData as Customer).address && (
+                      <div className="mt-3 bg-white border border-slate-100 rounded-[10px] p-3">
+                        <div className="text-[10px] text-slate-400 font-bold uppercase mb-1">العنوان</div>
+                        <div className="text-sm text-slate-700 font-medium">{ (rightPanelData as Customer).address }</div>
+                      </div>
+                    )}
+                    {(rightPanelData as Customer).notes && (
+                      <div className="mt-3 bg-[#f2f6fa] border border-[color:var(--app-line)] rounded-[10px] p-3">
+                        <div className="text-[10px] text-slate-400 font-bold uppercase mb-1">ملاحظات</div>
+                        <div className="text-sm text-slate-700 font-medium">{ (rightPanelData as Customer).notes }</div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setRightPanelType('cart'); setRightPanelData(null); }}
+                      className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-2.5 rounded-[10px] text-sm transition cursor-pointer"
+                    >
+                      عرض السلة
+                    </button>
+                    <button
+                      onClick={() => { setIsCartDrawerOpen(true); setRightPanelOpen(false); }}
+                      className="flex-1 bg-[color:var(--app-navy)] hover:bg-[#0d2340] text-white font-bold py-2.5 rounded-[10px] text-sm transition cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      <span>إتمام الطلب</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
