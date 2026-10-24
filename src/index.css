@@ -1,6 +1,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
+@layer utilities {
+  /* Typographic scale helpers (use instead of ad-hoc font-black). */
+  .t-h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+  .t-h2 { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; line-height: 1.25; }
+  .t-h3 { font-size: 1.05rem; font-weight: 700; line-height: 1.3; }
+  .t-body { font-size: .9rem; font-weight: 500; line-height: 1.5; }
+  .t-caption { font-size: .75rem; font-weight: 500; color: var(--app-muted); line-height: 1.4; }
+  .t-mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+}
+
 @layer base {
   html, body {
     font-family: 'Cairo', 'Tajawal', 'IBM Plex Sans Arabic', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans Arabic', sans-serif;
@@ -39,11 +49,33 @@
   --app-risk: #ef4444;  /* risk / red */
   --app-radius: 14px;
   --app-btn-radius: 10px;
+  /* Design-system scale (added for visual consistency) */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 24px;
+  --r-pill: 999px;
+  --sh-sm: 0 1px 2px rgba(15, 23, 42, .06);
+  --sh-md: 0 4px 12px rgba(15, 23, 42, .08);
+  --sh-lg: 0 12px 32px rgba(15, 23, 42, .12);
+  --ease: .18s ease;
+  --focus-ring: 0 0 0 3px rgba(0, 148, 136, .35);
 }
 
 /* Mobile & Touch Performance Optimization */
 * {
   -webkit-tap-highlight-color: transparent;
+}
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--r-sm);
+}
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 /* Keep every interactive control comfortable for touch users. */
