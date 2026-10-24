@@ -112,6 +112,11 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(50);
 
+  // Merged UI state (drawer + selection) — UI only
+  const [drawerCustomer, setDrawerCustomer] = useState<Customer | null>(null);
+  const [drawerTab, setDrawerTab] = useState<'financial' | 'visits' | 'orders'>('financial');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -898,117 +903,40 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         </div>
       )}
 
-      {/* Statistics Cards - 6 Core Financial & Customer KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
-        
-        {/* Card 1: Total Customers */}
-        <div className="bg-[#eef6f8] rounded-2xl p-3.5 border border-[#d4e7eb] shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500">
-              {scopeTab === 'my_customers' ? 'عملائي المسندين' : 'إجمالي العملاء'}
-            </span>
-            <div className="w-7 h-7 rounded-xl tint-navy flex items-center justify-center font-bold">
-              <Users className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="mt-2">
-            <div className="text-xl dream-amt t-navy stat-hero">{stats.totalCount}</div>
-            <div className="text-[10px] text-slate-400 mt-0.5 truncate">
-              مسند لك: <span className="font-bold t-navy">{stats.myCustomersCount}</span> عميل
-            </div>
-          </div>
-        </div>
+      {/* Hero KPI strip (merged) — at most 5 tiles */}
+      <div className="kpi-strip grid grid-cols-2 md:grid-cols-5 gap-2.5">
+        <div className="kp"><span className="lbl">عدد العملاء</span><span className="val">{stats.totalCount}</span></div>
+        <div className="kp"><span className="lbl">مبيعات 2026</span><span className="val">{formatCurrency(stats.totalSales)}</span></div>
+        <div className="kp"><span className="lbl">تحصيلات 2026</span><span className="val">{formatCurrency(stats.totalCollections)}</span></div>
+        <div className="kp"><span className="lbl">المديونية النهائية</span><span className="val">{formatCurrency(stats.totalDebt)}</span></div>
+        <div className="kp"><span className="lbl">متوسط المبيعات الشهرية</span><span className="val">{formatCurrency(stats.totalSales / 12)}</span></div>
+      </div>
 
-        {/* Card 2: Total Debt (المديونية) */}
-        <div className="bg-[#fff1f2] rounded-2xl p-3.5 border border-[#fecdd3] shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold t-risk">المديونية</span>
-            <div className="w-7 h-7 rounded-xl tint-risk flex items-center justify-center font-bold">
-              <AlertCircle className="w-3.5 h-3.5" />
+      {/* Segment counter cards row (v2 style) */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
+        {[
+          { label: 'نقداً', count: scopedCustomers.filter((c) => Number(c.currentBalance ?? c.balance ?? 0) <= 0).length, color: '#2e7d5b', filter: 'zero_debt' },
+          { label: 'متعثر', count: scopedCustomers.filter((c) => resolveCustomerDuesValue(c) > 0).length, color: '#b34a4a', filter: 'has_overdue' },
+          { label: 'مخاطرة', count: scopedCustomers.filter((c) => { const d = Number(c.currentBalance ?? c.balance ?? 0); const l = Number(c.creditLimit || 0); return l > 0 && d > l; }).length, color: '#9b7027', filter: 'exceeded_limit' },
+          { label: 'مشكوك فيه', count: scopedCustomers.filter((c) => !!c.isLegalPending).length, color: '#6d7e91', filter: 'has_debt' },
+          { label: 'مهدد توقف الشحن', count: scopedCustomers.filter((c) => !c.hasDealtIn2026).length, color: '#c99a43', filter: 'all' },
+        ].map((seg) => (
+          <button
+            key={seg.label}
+            type="button"
+            onClick={() => { setDebtFilter(seg.filter as any); setCurrentPage(1); }}
+            className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm text-right cursor-pointer"
+            style={{ borderTop: `3px solid ${seg.color}` }}
+          >
+            <div className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full" style={{ background: seg.color }} />
+              {seg.label}
             </div>
-          </div>
-          <div className="mt-2">
-            <div className="text-xl dream-amt t-risk stat-hero truncate" title={formatCurrency(stats.totalDebt)}>
-              {formatCurrency(stats.totalDebt)}
+            <div className="text-2xl font-black tabular-nums mt-1" style={{ color: seg.color }}>
+              {seg.count}
             </div>
-            <div className="text-[10px] t-risk font-bold mt-0.5">
-              {stats.customersWithDebt} عميل مدين
-            </div>
-          </div>
-        </div>
-
-        {/* Card 3: Total Overdue & Due (المستحقات إجمالي) */}
-        <div className="bg-[#fff7e8] rounded-2xl p-3.5 border border-[#f4ddb0] shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold t-warn">المستحقات إجمالي</span>
-            <div className="w-7 h-7 rounded-xl tint-warn flex items-center justify-center font-bold">
-              <Clock className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="mt-2">
-            <div className="text-xl dream-amt t-warn stat-hero truncate" title={formatCurrency(stats.totalOverdueAndDue)}>
-              {formatCurrency(stats.totalOverdueAndDue)}
-            </div>
-            <div className="text-[10px] t-warn font-bold mt-0.5">
-              {stats.customersWithOverdue} متأخر ومستحق
-            </div>
-          </div>
-        </div>
-
-        {/* Card 4: Total Sales (إجمالي البيع) */}
-        <div className="bg-[#eef4ff] rounded-2xl p-3.5 border border-[#d4e1f5] shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold t-navy">إجمالي البيع</span>
-            <div className="w-7 h-7 rounded-xl tint-navy flex items-center justify-center font-bold">
-              <TrendingUp className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="mt-2">
-            <div className="text-xl dream-amt t-navy stat-hero truncate" title={formatCurrency(stats.totalSales)}>
-              {formatCurrency(stats.totalSales)}
-            </div>
-            <div className="text-[10px] t-muted font-bold mt-0.5">
-              مبيعات 2026 ({stats.customersWithSales} عميل)
-            </div>
-          </div>
-        </div>
-
-        {/* Card 5: Total Collections (إجمالي التحصيل) */}
-        <div className="bg-[#eaf7f1] rounded-2xl p-3.5 border border-[#cde9da] shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold t-ok">إجمالي التحصيل</span>
-            <div className="w-7 h-7 rounded-xl tint-ok flex items-center justify-center font-bold">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="mt-2">
-            <div className="text-xl dream-amt t-ok stat-hero truncate" title={formatCurrency(stats.totalCollections)}>
-              {formatCurrency(stats.totalCollections)}
-            </div>
-            <div className="text-[10px] t-muted font-bold mt-0.5">
-              تحصيلات 2026 ({stats.customersWithCollections} عميل)
-            </div>
-          </div>
-        </div>
-
-        {/* Card 6: Credit Limit (الحد الائتماني) */}
-        <div className="bg-[#f2f5f9] rounded-2xl p-3.5 border border-[#dbe3ed] shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500">الحد الائتماني</span>
-            <div className="w-7 h-7 rounded-xl tint-navy flex items-center justify-center font-bold">
-              <CreditCard className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="mt-2">
-            <div className="text-xl dream-amt t-navy stat-hero truncate" title={formatCurrency(stats.totalLimit)}>
-              {formatCurrency(stats.totalLimit)}
-            </div>
-            <div className="text-[10px] text-slate-500 font-semibold mt-0.5 truncate">
-              المتاح: <span className="t-ok dream-amt">{formatCurrency(stats.availableLimit)}</span>
-            </div>
-          </div>
-        </div>
-
+          </button>
+        ))}
       </div>
 
       {/* Navigation Scope Tabs (For Reps, Branch Managers & Admins) */}
@@ -1075,7 +1003,7 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="بحث باسم العميل، الكود، المحل، الهاتف..."
+              placeholder="ابحث بالاسم أو الكود أو التليفون..."
               className="w-full bg-white border border-slate-300 rounded-xl pr-9 pl-3 py-2 text-xs font-bold text-slate-800 placeholder:text-slate-400"
             />
             {searchQuery && (
@@ -1156,547 +1084,441 @@ export const CustomerDirectoryView: React.FC<CustomerDirectoryViewProps> = ({
         </div>
       </div>
 
-      {/* Main Customers Table */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        
-        {/* Table Header Bar */}
-        <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
-          <div className="text-xs font-black text-slate-700 flex items-center gap-2">
-            <span>سجل العملاء التفاعلي</span>
-            <span className="text-[11px] font-bold text-slate-400">
-              (معروض {sortedCustomers.length} من {scopedCustomers.length})
-            </span>
-          </div>
-
-          {/* Sort Controls & Page Size Selector */}
-          <div className="flex items-center gap-3 text-xs">
-            
-            {/* Page Size Selector */}
-            <div className="flex items-center gap-1.5 text-slate-500">
-              <span className="text-[11px]">عرض:</span>
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                className="bg-white border border-slate-300 rounded-lg px-2 py-0.5 text-xs font-bold text-slate-800 focus:outline-none"
-              >
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-                <option value={200}>200</option>
-                <option value={500}>500</option>
-                <option value={99999}>الكل ({sortedCustomers.length})</option>
-              </select>
-            </div>
-
-            {/* Sort Buttons */}
-            <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
-              <span>ترتيب:</span>
-              <button
-                onClick={() => handleSort('debt')}
-                className={`px-2 py-0.5 rounded-md font-bold transition ${
-                  sortField === 'debt' ? 'pill-filter on' : 'pill-filter'
-                }`}
-              >
-                المديونية
-              </button>
-              <button
-                onClick={() => handleSort('overdue')}
-                className={`px-2 py-0.5 rounded-md font-bold transition ${
-                  sortField === 'overdue' ? 'pill-filter on' : 'pill-filter'
-                }`}
-              >
-                المستحقات
-              </button>
-              <button
-                onClick={() => handleSort('sales')}
-                className={`px-2 py-0.5 rounded-md font-bold transition ${
-                  sortField === 'sales' ? 'pill-filter on' : 'pill-filter'
-                }`}
-              >
-                المبيعات
-              </button>
-              <button
-                onClick={() => handleSort('collections')}
-                className={`px-2 py-0.5 rounded-md font-bold transition ${
-                  sortField === 'collections' ? 'pill-filter on' : 'pill-filter'
-                }`}
-              >
-                التحصيلات
-              </button>
-              <button
-                onClick={() => handleSort('limit')}
-                className={`px-2 py-0.5 rounded-md font-bold transition ${
-                  sortField === 'limit' ? 'pill-filter on' : 'pill-filter'
-                }`}
-              >
-                الحد الائتماني
-              </button>
-              <button
-                onClick={() => handleSort('name')}
-                className={`px-2 py-0.5 rounded-md font-bold transition ${
-                  sortField === 'name' ? 'pill-filter on' : 'pill-filter'
-                }`}
-              >
-                الاسم
-              </button>
-              <button
-                onClick={() => handleSort('code')}
-                className={`px-2 py-0.5 rounded-md font-bold transition ${
-                  sortField === 'code' ? 'pill-filter on' : 'pill-filter'
-                }`}
-              >
-                الكود
-              </button>
-            </div>
-
-          </div>
-        </div>
-
-        {/* Responsive Table */}
-        <div className="overflow-x-auto">
-          <table className="cust-table w-full text-right border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-900 text-white font-black text-[11px] select-none">
-                <th className="py-3 px-3 w-12 text-center">#</th>
-                <th
-                  onClick={() => handleSort('code')}
-                  className="py-3 px-3 cursor-pointer hover:text-[#ecc987] transition"
-                >
-                  <div className="flex items-center gap-1">
-                    <span>كود العميل</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                  </div>
-                </th>
-                <th
-                  onClick={() => handleSort('name')}
-                  className="py-3 px-4 cursor-pointer hover:text-[#ecc987] transition"
-                >
-                  <div className="flex items-center gap-1">
-                    <span>اسم العميل / المحل</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                  </div>
-                </th>
-                <th
-                  onClick={() => handleSort('branch')}
-                  className="py-3 px-3 cursor-pointer hover:text-[#ecc987] transition"
-                >
-                  <div className="flex items-center gap-1">
-                    <span>الفرع</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                  </div>
-                </th>
-                <th className="py-3 px-3">
-                  <span>المندوب</span>
-                </th>
-                <th
-                  onClick={() => handleSort('debt')}
-                  className="py-3 px-3 cursor-pointer hover:text-[#ecc987] transition text-left"
-                >
-                  <div className="flex items-center justify-end gap-1">
-                    <span>المديونية</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                  </div>
-                </th>
-                <th
-                  onClick={() => handleSort('overdue')}
-                  className="py-3 px-3 cursor-pointer hover:text-[#ecc987] transition text-left"
-                >
-                  <div className="flex items-center justify-end gap-1">
-                    <span>المستحقات إجمالي</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                  </div>
-                </th>
-                <th
-                  onClick={() => handleSort('sales')}
-                  className="py-3 px-3 cursor-pointer hover:text-[#ecc987] transition text-left"
-                >
-                  <div className="flex items-center justify-end gap-1">
-                    <span>إجمالي البيع</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                  </div>
-                </th>
-                <th
-                  onClick={() => handleSort('collections')}
-                  className="py-3 px-3 cursor-pointer hover:text-[#ecc987] transition text-left"
-                >
-                  <div className="flex items-center justify-end gap-1">
-                    <span>إجمالي التحصيل</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                  </div>
-                </th>
-                <th
-                  onClick={() => handleSort('limit')}
-                  className="py-3 px-3 cursor-pointer hover:text-[#ecc987] transition text-left"
-                >
-                  <div className="flex items-center justify-end gap-1">
-                    <span>الحد الائتماني</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                  </div>
-                </th>
-                <th className="py-3 px-3 text-left">
-                  <span>المتبقي من الائتمان</span>
-                </th>
-                <th className="py-3 px-4 text-center">إجراءات فورية</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 font-medium">
-              {paginatedCustomers.length === 0 ? (
-                <tr>
-                  <td colSpan={12} data-label="" className="py-12 text-center text-slate-400">
-                    <div className="flex flex-col items-center justify-center gap-3">
-                      <div className="w-14 h-14 rounded-2xl tint-warn flex items-center justify-center font-bold">
-                        <Users className="w-7 h-7" />
-                      </div>
-                      <div>
-                        <p className="font-black text-slate-700 text-sm">
-                          {scopeTab === 'my_customers'
-                            ? 'لا يوجد عملاء مسندين لحسابك حالياً في هذا التبويب'
-                            : 'لا توجد نتائج تطابق خيارات البحث'}
-                        </p>
-                        <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-                          {scopeTab === 'my_customers'
-                            ? (isRep ? 'تأكد من أن اسم المندوب في ملف شيت العملاء يطابق اسم حسابك تماماً، أو أضف عميلاً جديداً.' : 'يمكنك استعراض عملاء الفرع أو تعديل الفلاتر.')
-                            : 'جرب إزالة الفلاتر أو تغيير كلمة البحث لعرض العملاء.'}
-                        </p>
-                      </div>
-
-                      {scopeTab === 'my_customers' && !isRep && (
-                        <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setScopeTab('branch');
-                              setCurrentPage(1);
-                            }}
-                            className="btn-brass px-4 py-2 text-xs cursor-pointer shadow-sm flex items-center gap-1.5"
-                          >
-                            <Building2 className="w-4 h-4" />
-                            <span>عرض عملاء الفرع ({currentUser?.branchName || 'الفرع'})</span>
-                          </button>
-                          {isAdminOrDev && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setScopeTab('all');
-                                setCurrentPage(1);
-                              }}
-                              className="btn-primary px-4 py-2 text-xs cursor-pointer shadow-sm flex items-center gap-1.5"
-                            >
-                              <Users className="w-4 h-4" />
-                              <span>عرض جميع عملاء الفروع ({customers.length})</span>
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                paginatedCustomers.map((customer, index) => {
-                  const globalIdx = (currentPage - 1) * pageSize + index + 1;
-                  const debt = Number(customer.currentBalance ?? customer.balance ?? 0);
-                  const overdueAndDue = resolveCustomerDuesValue(customer);
-                  const mSalesSum = customer.monthlySales2026 ? Object.values(customer.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-                  const sales = Math.max(Number(customer.sales2026 || 0), Number(customer.totalMonthlySales || 0), Number(customer.totalOverallSales || 0), mSalesSum);
-                  const collections = resolveCollectionsMagnitude(customer);
-                  const limit = Number(customer.creditLimit || 0);
-                  const available = Math.max(0, limit - debt);
-                  const isExceeded = limit > 0 && debt > limit;
-                  const repName = customer.salesRepName || customer.repName || '';
-                  const isAssignedToMe = currentUser ? doesCustomerBelongToRep(customer, currentUser) : false;
-
-                  return (
-                    <tr
-                      key={customer.id}
-                      className={`transition-colors ${
-                        isAssignedToMe ? 'row-brass' : ''
-                      }`}
-                    >
-                      {/* # */}
-                      <td data-label="" className="py-3 px-3 text-center text-slate-400 font-bold text-[11px]">
-                        {globalIdx}
-                      </td>
-
-                      {/* كود العميل */}
-                      <td data-label="كود العميل" className="py-3 px-3 font-mono font-bold text-slate-700">
-                        <span className="bg-slate-100 px-2 py-1 rounded-md text-[11px] border border-slate-200">
-                          {customer.code || '---'}
-                        </span>
-                      </td>
-
-                      {/* اسم العميل */}
-                      <td data-label="اسم العميل / المحل" className="py-3 px-4">
-                        <div className="font-black text-slate-900 text-xs flex items-center gap-1.5">
-                          <span>{customer.name}</span>
-                        </div>
-                        {customer.storeName && customer.storeName !== customer.name && (
-                          <div className="text-[11px] text-slate-500 font-medium">{customer.storeName}</div>
-                        )}
-                        {customer.phone && (
-                          <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5" dir="ltr">
-                            <span>📞 {customer.phone}</span>
-                          </div>
-                        )}
-                      </td>
-
-                      {/* الفرع */}
-                      <td data-label="الفرع" className="py-3 px-3">
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
-                          <Building2 className="w-3 h-3 text-slate-500" />
-                          <span>{customer.branchName || 'الفرع الرئيسي'}</span>
-                        </span>
-                      </td>
-
-                      {/* المندوب */}
-                      <td data-label="المندوب" className="py-3 px-3">
-                        {repName ? (
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className={`text-[11px] font-bold px-2 py-0.5 rounded-md border ${
-                                isAssignedToMe
-                                  ? 'tint-brass font-black'
-                                  : 'bg-slate-100 text-slate-800 border-slate-200'
-                              }`}
-                            >
-                              {isAssignedToMe ? `⭐ ${repName} (أنت)` : repName}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
-                              غير محدد
-                            </span>
-                            {isRep && (
-                              <button
-                                onClick={() => handleQuickClaimRep(customer)}
-                                className="btn-ghost px-1.5 py-0.5 text-[10px] cursor-pointer"
-                                title="إسناد هذا العميل لي"
-                              >
-                                إسناد لي ➕
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </td>
-
-                      {/* المديونية */}
-                      <td data-label="المديونية" className="py-3 px-3 text-left">
-                        <div
-                          className={`dream-amt text-xs ${
-                            debt > 0 ? 't-risk' : 't-muted'
-                          }`}
-                        >
-                          {formatCurrency(debt)}
-                        </div>
-                        {debt > 0 ? (
-                          <div className="text-[10px] t-risk font-bold">مستحق السداد</div>
-                        ) : (
-                          <div className="text-[10px] t-ok font-bold">{formatCurrency(0)}</div>
-                        )}
-                      </td>
-
-                      {/* إجمالي المستحقات */}
-                      <td data-label="المستحقات إجمالي" className="py-3 px-3 text-left">
-                        <div
-                          className={`dream-amt text-xs ${
-                            overdueAndDue > 0 ? 't-warn' : 't-muted'
-                          }`}
-                        >
-                          {formatCurrency(overdueAndDue)}
-                        </div>
-                        {overdueAndDue > 0 ? (
-                          <div className="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-black tint-warn border">
-                            <span>متأخر ومستحق ⚠️</span>
-                          </div>
-                        ) : (
-                          <div className="text-[10px] t-ok font-bold">خالص ✓</div>
-                        )}
-                      </td>
-
-                      {/* إجمالي البيع */}
-                      <td data-label="إجمالي البيع" className="py-3 px-3 text-left">
-                        <div className="dream-amt text-xs t-navy">
-                          {formatCurrency(sales)}
-                        </div>
-                        {sales > 0 && (
-                          <div className="text-[10px] t-muted font-medium">مبيعات 2026</div>
-                        )}
-                      </td>
-
-                      {/* إجمالي التحصيل */}
-                      <td data-label="إجمالي التحصيل" className="py-3 px-3 text-left">
-                        <div className="dream-amt text-xs t-ok">
-                          {formatCurrency(collections)}
-                        </div>
-                        {collections > 0 && (
-                          <div className="text-[10px] t-muted font-medium">تحصيلات 2026</div>
-                        )}
-                      </td>
-
-                      {/* الحد الائتماني */}
-                      <td data-label="الحد الائتماني" className="py-3 px-3 text-left">
-                        <div className="dream-amt text-xs text-slate-800">
-                          {formatCurrency(limit)}
-                        </div>
-                      </td>
-
-                      {/* المتبقي من الائتمان */}
-                      <td data-label="المتبقي من الائتمان" className="py-3 px-3 text-left">
-                        {isExceeded ? (
-                          <div className="t-risk dream-amt text-[11px] flex items-center justify-end gap-1">
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            <span>تجاوز الحد ({formatCurrency(debt - limit)})</span>
-                          </div>
-                        ) : (
-                          <div className="dream-amt t-ok text-xs">
-                            {formatCurrency(available)}
-                          </div>
-                        )}
-                      </td>
-
-                      {/* إجراءات فورية */}
-                      <td data-label="إجراءات فورية" className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          
-                          {/* Fast Order Builder Launch */}
-                          <button
-                            onClick={() => onOpenNewOrderForCustomer?.(customer)}
-                            className="btn-primary px-2.5 py-1.5 text-xs active:scale-95 cursor-pointer"
-                            title="إنشاء طلبية / فاتورة فورية لهذا العميل"
-                          >
-                            <ShoppingCart className="w-3.5 h-3.5" />
-                            <span>طلب 🛒</span>
-                          </button>
-
-                          {/* Phone / WhatsApp if phone exists */}
-                          {customer.phone && (
-                            <a
-                              href={`tel:${customer.phone}`}
-                              className="chip-btn w-7 h-7 rounded-xl cursor-pointer"
-                              title={`اتصال هاتفي: ${customer.phone}`}
-                            >
-                              <Phone className="w-3.5 h-3.5" />
-                            </a>
-                          )}
-
-                          {/* Edit Customer (Admin & Dev only) */}
-                          {isAdminOrDev && (
-                            <button
-                              onClick={() => handleOpenEdit(customer)}
-                              className="chip-btn w-7 h-7 rounded-xl cursor-pointer"
-                              title="تعديل بيانات العميل والحد الائتماني والمندوب"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-
-                          {/* Delete Customer (Admins only) */}
-                          {isAdminOrDev && (
-                            <button
-                              onClick={() => setCustomerToDelete(customer)}
-                              className="chip-btn danger w-7 h-7 rounded-xl cursor-pointer"
-                              title="حذف العميل"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-
-                        </div>
-                      </td>
-
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Table Footer with Pagination Controls */}
-        <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-3">
-          
-          <div className="flex items-center gap-2">
-            <span>
-              عرض <span className="font-bold text-slate-800">{(currentPage - 1) * pageSize + 1}</span> إلى{' '}
-              <span className="font-bold text-slate-800">
-                {Math.min(currentPage * pageSize, sortedCustomers.length)}
-              </span>{' '}
-              من أصل <span className="font-black text-slate-900">{sortedCustomers.length}</span> عميل
-            </span>
-          </div>
-
-          {/* Pagination Buttons */}
-          {totalPages > 1 && pageSize < 99999 && (
-            <div className="flex items-center gap-1">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(1)}
-                className="chip-btn p-1 rounded-lg disabled:opacity-30 transition cursor-pointer"
-                title="الصفحة الأولى"
-              >
-                <ChevronsRight className="w-4 h-4" />
-              </button>
-
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                className="chip-btn p-1 rounded-lg disabled:opacity-30 transition cursor-pointer"
-                title="السابق"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-
-              <span className="pill-filter on px-3 py-1 text-xs">
-                {currentPage} / {totalPages}
-              </span>
-
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                className="chip-btn p-1 rounded-lg disabled:opacity-30 transition cursor-pointer"
-                title="التالي"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(totalPages)}
-                className="chip-btn p-1 rounded-lg disabled:opacity-30 transition cursor-pointer"
-                title="الصفحة الأخيرة"
-              >
-                <ChevronsLeft className="w-4 h-4" />
-              </button>
+      {/* Results header (merged) */}
+      <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm flex items-center justify-between flex-wrap gap-2">
+        <span className="text-xs font-black text-slate-700">
+          عرض {sortedCustomers.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, sortedCustomers.length)} من {sortedCustomers.length} عميل
+        </span>
+        <div className="flex items-center gap-2 flex-wrap">
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-[#8a6420]">تم تحديد <b>{selectedIds.size}</b></span>
+              <button type="button" className="btn-ondark px-2.5 py-1 text-[11px] cursor-pointer" onClick={() => setSelectedIds(new Set())}>إلغاء التحديد</button>
             </div>
           )}
+          <span className="text-[11px] text-slate-500">عدد الصفوف</span>
+          <select
+            value={pageSize}
+            onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+            className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-800"
+          >
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+            <option value={200}>200</option>
+            <option value={500}>500</option>
+            <option value={99999}>الكل</option>
+          </select>
+        </div>
+      </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div>
-              المديونيات: <span className="dream-amt t-risk">{formatCurrency(stats.totalDebt)}</span>
-            </div>
-            <div className="text-slate-300">|</div>
-            <div>
-              المستحقات: <span className="dream-amt t-warn">{formatCurrency(stats.totalOverdueAndDue)}</span>
-            </div>
-            <div className="text-slate-300">|</div>
-            <div>
-              المبيعات: <span className="dream-amt t-navy">{formatCurrency(stats.totalSales)}</span>
-            </div>
-            <div className="text-slate-300">|</div>
-            <div>
-              التحصيلات: <span className="dream-amt t-ok">{formatCurrency(stats.totalCollections)}</span>
-            </div>
-            <div className="text-slate-300">|</div>
-            <div>
-              الحدود: <span className="dream-amt text-slate-900">{formatCurrency(stats.totalLimit)}</span>
+      {/* Compact customer rows (merged) */}
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+        {paginatedCustomers.length === 0 ? (
+          <div className="py-12 text-center text-slate-400">
+            <div className="flex flex-col items-center justify-center gap-3">
+              <div className="w-14 h-14 rounded-2xl tint-warn flex items-center justify-center font-bold">
+                <Users className="w-7 h-7" />
+              </div>
+              <p className="font-black text-slate-700 text-sm">
+                {scopeTab === 'my_customers' ? 'لا يوجد عملاء مسندين لحسابك حالياً في هذا التبويب' : 'لا توجد نتائج تطابق خيارات البحث'}
+              </p>
             </div>
           </div>
+        ) : (
+          <div className="divide-y divide-slate-200">
+            {paginatedCustomers.map((customer) => {
+              const debt = Number(customer.currentBalance ?? customer.balance ?? 0);
+              const overdueAndDue = resolveCustomerDuesValue(customer);
+              const limit = Number(customer.creditLimit || 0);
+              const isExceeded = limit > 0 && debt > limit;
+              const repName = customer.salesRepName || customer.repName || '';
+              const lastVisit = customer.lastVisitDate || '—';
+              const checked = selectedIds.has(customer.id);
+              const status = debt <= 0 ? 'نشط' : (isExceeded ? 'مهدد توقف' : (overdueAndDue > 0 ? 'متعثر' : 'نشط'));
+              const statusClass = status === 'نشط' ? 'ok' : (status === 'مهدد توقف' ? 'warn' : 'risk');
+              const initials = (customer.name || '').trim().slice(0, 2);
+              return (
+                <div key={customer.id}>
+                  {/* Desktop compact row */}
+                  <div className="hidden md:grid grid-cols-[40px_96px_minmax(180px,1fr)_120px_120px_96px_96px_120px_40px] gap-2 items-center px-4 py-3 hover:bg-slate-50 transition-colors">
+                    <label className="flex items-center justify-center cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          const next = new Set(selectedIds);
+                          if (e.target.checked) next.add(customer.id); else next.delete(customer.id);
+                          setSelectedIds(next);
+                        }}
+                        className="w-4 h-4 accent-[#102b4e]"
+                      />
+                    </label>
+                    <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-md border border-slate-200 text-center">
+                      {customer.code || '---'}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="font-black text-slate-900 text-xs truncate">{customer.name}</div>
+                      <div className="text-[10px] text-slate-500 truncate">{customer.branchName || 'الفرع الرئيسي'} · {repName || 'غير محدد'}</div>
+                    </div>
+                    <div className="text-left">
+                      <div className="text-[9px] font-bold text-slate-400">مديونية</div>
+                      <div className={`dream-amt text-xs ${debt > 0 ? 't-risk' : 't-muted'}`}>{formatCurrency(debt)}</div>
+                    </div>
+                    <div className="text-left">
+                      <div className="text-[9px] font-bold text-slate-400">مستحقات</div>
+                      <div className={`dream-amt text-xs ${overdueAndDue > 0 ? 't-warn' : 't-muted'}`}>{formatCurrency(overdueAndDue)}</div>
+                    </div>
+                    <div className="text-[10px] text-slate-400 tabular-nums text-left">{lastVisit}</div>
+                    <span className={`app-badge ${statusClass}`}>{status}</span>
+                    <button
+                      type="button"
+                      onClick={() => onOpenNewOrderForCustomer?.(customer)}
+                      className="btn-primary px-2.5 py-1.5 text-[11px] rounded-full cursor-pointer"
+                    >
+                      طلب جديد +
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setDrawerCustomer(customer); setDrawerTab('financial'); }}
+                      className="chip-btn w-8 h-8 rounded-xl cursor-pointer"
+                      title="المزيد"
+                    >
+                      •••
+                    </button>
+                  </div>
 
+                  {/* Mobile stacked card */}
+                  <div className="md:hidden p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <label className="w-9 h-9 rounded-full border border-slate-300 flex items-center justify-center bg-white">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const next = new Set(selectedIds);
+                            if (e.target.checked) next.add(customer.id); else next.delete(customer.id);
+                            setSelectedIds(next);
+                          }}
+                          className="w-4 h-4 accent-[#102b4e]"
+                        />
+                      </label>
+                      <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
+                        {customer.code || '---'}
+                      </span>
+                      <span className="font-black text-slate-900 text-sm flex-1 truncate">{customer.name}</span>
+                      <span className={`app-badge ${statusClass}`}>{status}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500">{customer.branchName || 'الفرع الرئيسي'} · {repName || 'غير محدد'}</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-slate-50 rounded-xl p-2">
+                        <div className="text-[9px] font-bold text-slate-400">مديونية</div>
+                        <div className={`dream-amt text-sm ${debt > 0 ? 't-risk' : 't-muted'}`}>{formatCurrency(debt)}</div>
+                      </div>
+                      <div className="bg-slate-50 rounded-xl p-2">
+                        <div className="text-[9px] font-bold text-slate-400">مستحقات</div>
+                        <div className={`dream-amt text-sm ${overdueAndDue > 0 ? 't-warn' : 't-muted'}`}>{formatCurrency(overdueAndDue)}</div>
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-slate-400 tabular-nums">آخر زيارة: {lastVisit}</div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onOpenNewOrderForCustomer?.(customer)}
+                        className="btn-primary flex-1 h-11 text-xs rounded-full cursor-pointer"
+                      >
+                        طلب جديد +
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setDrawerCustomer(customer); setDrawerTab('financial'); }}
+                        className="chip-btn w-11 h-11 rounded-xl cursor-pointer"
+                      >
+                        •••
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Pagination footer */}
+        <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-3">
+          <div>
+            عرض <span className="font-bold text-slate-800">{sortedCustomers.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}</span> إلى{' '}
+            <span className="font-bold text-slate-800">{Math.min(currentPage * pageSize, sortedCustomers.length)}</span>{' '}
+            من أصل <span className="font-black text-slate-900">{sortedCustomers.length}</span> عميل
+          </div>
+          {totalPages > 1 && pageSize < 99999 && (
+            <div className="flex items-center gap-1">
+              <button disabled={currentPage === 1} onClick={() => setCurrentPage(1)} className="chip-btn p-1 rounded-lg disabled:opacity-30 cursor-pointer"><ChevronsRight className="w-4 h-4" /></button>
+              <button disabled={currentPage === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} className="chip-btn p-1 rounded-lg disabled:opacity-30 cursor-pointer"><ChevronRight className="w-4 h-4" /></button>
+              <span className="pill-filter on px-3 py-1 text-xs">{currentPage} / {totalPages}</span>
+              <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} className="chip-btn p-1 rounded-lg disabled:opacity-30 cursor-pointer"><ChevronLeft className="w-4 h-4" /></button>
+              <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(totalPages)} className="chip-btn p-1 rounded-lg disabled:opacity-30 cursor-pointer"><ChevronsLeft className="w-4 h-4" /></button>
+            </div>
+          )}
         </div>
-
       </div>
+
+      {/* Analytics as collapsible disclose sections (closed default) */}
+      <details className="disclose">
+        <summary>أعلى ٥ عملاء بمبيعات ٢٠٢٦ <span className="count">{Math.min(5, sortedCustomers.length)}</span></summary>
+        <div className="disclose-body">
+          <div className="space-y-2">
+            {[...sortedCustomers]
+              .sort((a, b) => {
+                const sa = a.monthlySales2026 ? Object.values(a.monthlySales2026).reduce((x, v) => x + (Number(v) || 0), 0) : 0;
+                const sb = b.monthlySales2026 ? Object.values(b.monthlySales2026).reduce((x, v) => x + (Number(v) || 0), 0) : 0;
+                return Math.max(Number(b.sales2026||0), Number(b.totalMonthlySales||0), Number(b.totalOverallSales||0), sb) - Math.max(Number(a.sales2026||0), Number(a.totalMonthlySales||0), Number(a.totalOverallSales||0), sa);
+              })
+              .slice(0, 5)
+              .map((c, i) => {
+                const mSum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((x, v) => x + (Number(v) || 0), 0) : 0;
+                const sales = Math.max(Number(c.sales2026 || 0), Number(c.totalMonthlySales || 0), Number(c.totalOverallSales || 0), mSum);
+                const maxSales = 1;
+                return (
+                  <div key={c.id} className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-[#8a6420] w-5">{i + 1}</span>
+                    <span className="text-xs font-bold text-slate-700 flex-1 truncate">{c.name}</span>
+                    <div className="w-32 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#102b4e] rounded-full" style={{ width: `${Math.min(100, (sales / (sortedCustomers.reduce((mx, cc) => {
+                        const mm = cc.monthlySales2026 ? Object.values(cc.monthlySales2026).reduce((x, v) => x + (Number(v) || 0), 0) : 0;
+                        return Math.max(mx, Math.max(Number(cc.sales2026 || 0), Number(cc.totalMonthlySales || 0), Number(cc.totalOverallSales || 0), mm));
+                      }, 1) || 1)) * 100)}%` }} />
+                    </div>
+                    <span className="text-[11px] font-bold text-[#102b4e] tabular-nums">{formatCurrency(sales)}</span>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      </details>
+
+      <details className="disclose">
+        <summary>توزيع حسب الصحة المالية <span className="count">{scopedCustomers.length}</span></summary>
+        <div className="disclose-body">
+          <div className="space-y-2">
+            {[
+              { label: 'نقداً', count: scopedCustomers.filter((c) => Number(c.currentBalance ?? c.balance ?? 0) <= 0).length, color: '#2e7d5b' },
+              { label: 'متعثر', count: scopedCustomers.filter((c) => resolveCustomerDuesValue(c) > 0).length, color: '#b34a4a' },
+              { label: 'مخاطرة', count: scopedCustomers.filter((c) => { const d = Number(c.currentBalance ?? c.balance ?? 0); const l = Number(c.creditLimit || 0); return l > 0 && d > l; }).length, color: '#9b7027' },
+              { label: 'مشكوك فيه', count: scopedCustomers.filter((c) => !!c.isLegalPending).length, color: '#6d7e91' },
+              { label: 'مهدد توقف الشحن', count: scopedCustomers.filter((c) => !c.hasDealtIn2026).length, color: '#c99a43' },
+            ].map((seg) => {
+              const pct = scopedCustomers.length ? (seg.count / scopedCustomers.length) * 100 : 0;
+              return (
+                <div key={seg.label} className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-700 w-20">{seg.label}</span>
+                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: seg.color }} />
+                  </div>
+                  <span className="text-[11px] font-bold tabular-nums" style={{ color: seg.color }}>{seg.count}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </details>
+
+      <details className="disclose">
+        <summary>فئات الأعمار المالية <span className="count">4</span></summary>
+        <div className="disclose-body">
+          <div className="space-y-2">
+            {[
+              { label: 'حتى 30 يوم', count: scopedCustomers.filter((c) => resolveCustomerDuesValue(c) > 0 && resolveCustomerDuesValue(c) <= 30000).length, color: '#2e7d5b' },
+              { label: '31-60 يوم', count: scopedCustomers.filter((c) => { const d = resolveCustomerDuesValue(c); return d > 30000 && d <= 60000; }).length, color: '#9b7027' },
+              { label: '61-90 يوم', count: scopedCustomers.filter((c) => { const d = resolveCustomerDuesValue(c); return d > 60000 && d <= 90000; }).length, color: '#b34a4a' },
+              { label: 'أكثر من 90 يوم', count: scopedCustomers.filter((c) => resolveCustomerDuesValue(c) > 90000).length, color: '#6d7e91' },
+            ].map((b) => {
+              const max = Math.max(1, scopedCustomers.length);
+              const pct = (b.count / max) * 100;
+              return (
+                <div key={b.label} className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-700 w-24">{b.label}</span>
+                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: b.color }} />
+                  </div>
+                  <span className="text-[11px] font-bold tabular-nums" style={{ color: b.color }}>{b.count}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </details>
+
+      <details className="disclose">
+        <summary>فرع بهم أعلى مديونية <span className="count">{new Set(scopedCustomers.map((c) => c.branchName)).size}</span></summary>
+        <div className="disclose-body">
+          <div className="space-y-2">
+            {Object.entries(
+              scopedCustomers.reduce((acc, c) => {
+                const key = c.branchName || 'الفرع الرئيسي';
+                acc[key] = (acc[key] || 0) + Number(c.currentBalance ?? c.balance ?? 0);
+                return acc;
+              }, {} as Record<string, number>)
+            )
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 6)
+              .map(([branch, amt]) => {
+                const max = Math.max(1, ...Object.values(scopedCustomers.reduce((acc, c) => {
+                  const key = c.branchName || 'الفرع الرئيسي';
+                  acc[key] = (acc[key] || 0) + Number(c.currentBalance ?? c.balance ?? 0);
+                  return acc;
+                }, {} as Record<string, number>)));
+                const pct = (amt / max) * 100;
+                return (
+                  <div key={branch} className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-700 flex-1 truncate">{branch}</span>
+                    <div className="w-32 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#b34a4a] rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-[11px] font-bold t-risk tabular-nums">{formatCurrency(amt)}</span>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      </details>
+
+      {/* Detail drawer (merged) */}
+      {drawerCustomer && (
+        <>
+          <div className="fixed inset-0 bg-slate-950/40 z-40" onClick={() => setDrawerCustomer(null)} />
+          <div className="fixed top-0 bottom-0 left-0 w-full md:w-[480px] bg-white z-50 flex flex-col shadow-2xl animate-in slide-in-from-left duration-300">
+            <div className="p-4 border-b border-slate-200 bg-gradient-to-b from-white to-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#102b4e] text-white flex items-center justify-center font-black text-lg shadow-inner">
+                  {(drawerCustomer.name || '').trim().slice(0, 2)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-black text-[#102b4e] text-base truncate">{drawerCustomer.name}</div>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                      {drawerCustomer.code || '---'}
+                    </span>
+                    <span className={`app-badge ${(() => {
+                      const d = Number(drawerCustomer.currentBalance ?? drawerCustomer.balance ?? 0);
+                      const l = Number(drawerCustomer.creditLimit || 0);
+                      const o = resolveCustomerDuesValue(drawerCustomer);
+                      if (d <= 0) return 'ok';
+                      if (l > 0 && d > l) return 'warn';
+                      if (o > 0) return 'risk';
+                      return 'ok';
+                    })()}`}>
+                      {(() => {
+                        const d = Number(drawerCustomer.currentBalance ?? drawerCustomer.balance ?? 0);
+                        const l = Number(drawerCustomer.creditLimit || 0);
+                        const o = resolveCustomerDuesValue(drawerCustomer);
+                        if (d <= 0) return 'نشط';
+                        if (l > 0 && d > l) return 'مهدد توقف';
+                        if (o > 0) return 'متعثر';
+                        return 'نشط';
+                      })()}
+                    </span>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setDrawerCustomer(null)} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-1 px-4 pt-3 border-b border-slate-200">
+              {[
+                { id: 'financial', label: 'مالي' },
+                { id: 'visits', label: 'زيارات' },
+                { id: 'orders', label: 'طلبات' },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setDrawerTab(t.id as any)}
+                  className={`px-3 py-2 text-xs font-bold rounded-t-lg cursor-pointer ${drawerTab === t.id ? 'bg-slate-100 text-[#102b4e] border-b-2 border-[#c99a43]' : 'text-slate-500'}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {drawerTab === 'financial' && (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-slate-50 rounded-xl p-3">
+                      <div className="text-[10px] font-bold text-slate-400">مديونية</div>
+                      <div className="dream-amt text-base t-risk">{formatCurrency(Number(drawerCustomer.currentBalance ?? drawerCustomer.balance ?? 0))}</div>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-3">
+                      <div className="text-[10px] font-bold text-slate-400">مستحقات</div>
+                      <div className="dream-amt text-base t-warn">{formatCurrency(resolveCustomerDuesValue(drawerCustomer))}</div>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-3">
+                      <div className="text-[10px] font-bold text-slate-400">قيد</div>
+                      <div className="dream-amt text-base text-slate-800">{formatCurrency(Number(drawerCustomer.currentBalance ?? drawerCustomer.balance ?? 0))}</div>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-3">
+                      <div className="text-[10px] font-bold text-slate-400">تحصيل ٢٠٢٦</div>
+                      <div className="dream-amt text-base t-ok">{formatCurrency(Number(drawerCustomer.collections2026 || drawerCustomer.totalMonthlyCollections || 0))}</div>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-3">
+                      <div className="text-[10px] font-bold text-slate-400">إجمالي البيع</div>
+                      <div className="dream-amt text-base t-navy">{formatCurrency(Math.max(Number(drawerCustomer.sales2026 || 0), Number(drawerCustomer.totalMonthlySales || 0), Number(drawerCustomer.totalOverallSales || 0)))}</div>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-3">
+                      <div className="text-[10px] font-bold text-slate-400">إجمالي التحصيل</div>
+                      <div className="dream-amt text-base t-ok">{formatCurrency(Number(drawerCustomer.collections2026 || drawerCustomer.totalMonthlyCollections || 0))}</div>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-3">
+                      <div className="text-[10px] font-bold text-slate-400">حد ائتمان</div>
+                      <div className="dream-amt text-base text-slate-800">{formatCurrency(Number(drawerCustomer.creditLimit || 0))}</div>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-3">
+                      <div className="text-[10px] font-bold text-slate-400">المتبقي من الائتمان</div>
+                      <div className="dream-amt text-base t-ok">{formatCurrency(Math.max(0, Number(drawerCustomer.creditLimit || 0) - Number(drawerCustomer.currentBalance ?? drawerCustomer.balance ?? 0)))}</div>
+                    </div>
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    <div>الفرع: {drawerCustomer.branchName || 'الفرع الرئيسي'}</div>
+                    <div>المندوب: {drawerCustomer.salesRepName || drawerCustomer.repName || 'غير محدد'}</div>
+                    <div>الهاتف: {drawerCustomer.phone || '—'}</div>
+                    <div>العنوان: {drawerCustomer.address || '—'}</div>
+                  </div>
+                </>
+              )}
+
+              {drawerTab === 'visits' && (
+                <div className="space-y-2">
+                  {(drawerCustomer.visitHistory || []).slice(0, 3).length === 0 ? (
+                    <div className="text-xs text-slate-400">لا توجد زيارات مسجلة. آخر زيارة: {drawerCustomer.lastVisitDate || '—'}</div>
+                  ) : (
+                    (drawerCustomer.visitHistory || []).slice(0, 3).map((v, i) => (
+                      <div key={i} className="border border-slate-200 rounded-xl p-3">
+                        <div className="text-[11px] font-bold text-slate-500 tabular-nums">{(v as any).date || (v as any).visitDate || '—'}</div>
+                        <div className="text-xs font-black text-slate-800 mt-1">{(v as any).notes || (v as any).summary || 'زيارة'}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {drawerTab === 'orders' && (
+                <div className="text-xs text-slate-400">طلبات العميل تُعرض في صفحة الفواتير. استخدم "طلب جديد" لإنشاء طلبية.</div>
+              )}
+            </div>
+
+            <div className="p-3 border-t border-slate-200 bg-white flex items-center gap-2">
+              <button type="button" onClick={() => { onOpenNewOrderForCustomer?.(drawerCustomer); setDrawerCustomer(null); }} className="btn-primary flex-1 py-2 text-xs cursor-pointer">طلب جديد</button>
+              <button type="button" onClick={() => setDrawerCustomer(null)} className="btn-ghost flex-1 py-2 text-xs cursor-pointer">زيارة جديدة</button>
+              {drawerCustomer.phone && (
+                <a href={`tel:${drawerCustomer.phone}`} className="btn-ghost px-3 py-2 text-xs cursor-pointer">اتصال</a>
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Import Modal for 3400+ Customers (Google Sheets & Excel - Admin & Developer Only) */}
       {isAdminOrDev && isImportModalOpen && (

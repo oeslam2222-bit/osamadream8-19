@@ -357,7 +357,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Profile Popup Menu */}
               {showProfileMenu && (
-                <div className="absolute left-0 sm:right-0 mt-2 w-80 bg-slate-900 border border-slate-750 rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in slide-in-from-top-2 text-xs">
+                <div className="fixed inset-x-2 top-16 sm:absolute sm:inset-x-auto sm:left-0 mt-2 w-auto sm:w-80 max-h-[70vh] overflow-y-auto bg-slate-900 border border-slate-750 rounded-2xl shadow-2xl p-3 z-[60] animate-in fade-in slide-in-from-top-2 text-xs">
                   <div className="flex items-center gap-3 p-2 bg-slate-950 rounded-xl border border-slate-800 mb-2.5">
                     <img
                       src={currentUser.avatar || '/pwa-192x192.png'}
@@ -464,6 +464,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Mobile-only quick logout — visible affordance for phone users */}
+            <button
+              type="button"
+              onClick={() => logout()}
+              title="تسجيل الخروج"
+              aria-label="تسجيل الخروج من التطبيق"
+              className="lg:hidden flex items-center justify-center w-11 h-11 shrink-0 rounded-xl border border-[var(--app-line)] bg-white text-[var(--app-risk)] hover:bg-[#fdf1f1] active:scale-95 transition cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
 
             {/* Top Bar Cart Button — desktop only; mobile uses bottom nav */}
             <button
