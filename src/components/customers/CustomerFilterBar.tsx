@@ -16,11 +16,13 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
+import { Customer } from '../../types';
 import {
   ActivityFilter,
   CollectionRateFilter,
   CustomerFilterPresetId,
   CUSTOMER_FILTER_PRESETS,
+  DealtFilter,
   DebtFilter,
   EligibilityFilter,
   OrderFilter,
@@ -35,6 +37,7 @@ export interface CustomerFilterBarState {
   selectedRegion: string;
   eligibilityFilter: EligibilityFilter;
   debtStatusFilter: string;
+  dealtFilter: DealtFilter;
   debtFilter: DebtFilter;
   activityFilter: ActivityFilter;
   orderFilter: OrderFilter;
@@ -65,6 +68,19 @@ interface CustomerFilterBarProps {
   onSortChange: (value: string) => void;
   resultCount: number;
   scopedCount: number;
+  suggestions?: CustomerSearchSuggestion[];
+  onSelectSuggestion?: (customer: Customer) => void;
+}
+
+export interface CustomerSearchSuggestion {
+  id: string;
+  code: string;
+  name: string;
+  phone?: string;
+  region?: string;
+  balanceLabel: string;
+  status: { label: string; tone: 'ok' | 'warn' | 'risk' | 'muted' };
+  customer: Customer;
 }
 
 const PRESET_ICONS: Record<CustomerFilterPresetId, React.ComponentType<{ className?: string }>> = {
@@ -107,6 +123,11 @@ const VISIT_LABELS: Record<string, string> = {
   not_visited: 'لم يُزَر',
 };
 
+const DEALT_LABELS: Record<string, string> = {
+  dealt_2026: 'متعامل 2026',
+  not_dealt_2026: 'غير متعامل',
+};
+
 const COLLECTION_LABELS: Record<string, string> = {
   high_80: 'تحصيل ممتاز (≥80%)',
   medium_30_79: 'تحصيل متوسط (30%-79%)',
@@ -142,8 +163,11 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
   onSortChange,
   resultCount,
   scopedCount,
+  suggestions = [],
+  onSelectSuggestion,
 }) => {
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
 
   const advancedCount = [
     value.selectedBranch,
@@ -151,7 +175,6 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
     value.selectedRep,
     value.selectedRegion,
     value.eligibilityFilter,
-    value.debtStatusFilter,
   ].filter((item) => item !== 'ALL').length;
 
   const activeTags = useMemo(() => {
@@ -163,6 +186,7 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
     if (value.selectedRegion !== 'ALL') tags.push({ key: 'selectedRegion', label: `المنطقة: ${value.selectedRegion}` });
     if (value.eligibilityFilter !== 'ALL') tags.push({ key: 'eligibilityFilter', label: `التصنيف: ${value.eligibilityFilter}` });
     if (value.debtStatusFilter !== 'ALL') tags.push({ key: 'debtStatusFilter', label: `حالة السداد: ${value.debtStatusFilter}` });
+    if (value.dealtFilter !== 'ALL') tags.push({ key: 'dealtFilter', label: DEALT_LABELS[value.dealtFilter] || value.dealtFilter });
     if (value.debtFilter !== 'ALL') tags.push({ key: 'debtFilter', label: DEBT_LABELS[value.debtFilter] || value.debtFilter });
     if (value.activityFilter !== 'ALL') tags.push({ key: 'activityFilter', label: ACTIVITY_LABELS[value.activityFilter] || value.activityFilter });
     if (value.orderFilter !== 'ALL') tags.push({ key: 'orderFilter', label: ORDER_LABELS[value.orderFilter] || value.orderFilter });
@@ -230,6 +254,9 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
           onChange={(event) => onChange({ searchQuery: event.target.value })}
           placeholder="ابحث بالاسم، كود العميل، الهاتف، المنطقة، المندوب أو أوراق الضمان..."
           aria-label="البحث في العملاء"
+          autoComplete="off"
+          onFocus={() => setSearchFocused(true)}
+          onBlur={() => window.setTimeout(() => setSearchFocused(false), 140)}
         />
         {value.searchQuery && (
           <button
@@ -240,6 +267,41 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
           >
             <X className="w-3.5 h-3.5" />
           </button>
+        )}
+
+        {searchFocused && value.searchQuery.trim() && suggestions.length > 0 && (
+          <ul className="cf-suggest" role="listbox" aria-label="اقتراحات العملاء">
+            {suggestions.map((suggestion) => (
+              <li key={suggestion.id}>
+                <button
+                  type="button"
+                  role="option"
+                  className="cf-suggest-item"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    onSelectSuggestion?.(suggestion.customer);
+                    setSearchFocused(false);
+                  }}
+                >
+                  <span className="cf-suggest-avatar" aria-hidden="true">
+                    {suggestion.name.slice(0, 1)}
+                  </span>
+                  <span className="cf-suggest-text">
+                    <span className="cf-suggest-name">{suggestion.name}</span>
+                    <span className="cf-suggest-meta">
+                      {suggestion.code}
+                      {suggestion.region ? ` • ${suggestion.region}` : ''}
+                    </span>
+                  </span>
+                  <span className="cf-suggest-side">
+                    <span className={`pill pill-${suggestion.status.tone}`}>{suggestion.status.label}</span>
+                    <span className="cf-suggest-amount app-num">{suggestion.balanceLabel}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+            <li className="cf-suggest-hint">أول 5 نتائج مطابقة — اضغط أي عميل لعرض ملفه</li>
+          </ul>
         )}
       </div>
 
@@ -267,6 +329,59 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
         })}
       </div>
 
+      {/* فلاتر سريعة ظاهرة دائماً */}
+      <div className="cf-quick">
+        <label className="cf-field cf-field-quick">
+          <span>التعامل</span>
+          <select
+            value={value.dealtFilter}
+            onChange={(event) => onChange({ dealtFilter: event.target.value as DealtFilter })}
+          >
+            <option value="ALL">الكل</option>
+            <option value="dealt_2026">متعامل 2026</option>
+            <option value="not_dealt_2026">غير متعامل</option>
+          </select>
+        </label>
+
+        {options.debtStatuses.length > 0 && (
+          <label className="cf-field cf-field-quick">
+            <span>حالة السداد</span>
+            <select
+              value={value.debtStatusFilter}
+              onChange={(event) => onChange({ debtStatusFilter: event.target.value })}
+            >
+              <option value="ALL">كل الحالات</option>
+              {options.debtStatuses.map((status) => (
+                <option key={status} value={status}>{status}</option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        {options.regions.length > 0 && (
+          <label className="cf-field cf-field-quick">
+            <span>المنطقة</span>
+            <select
+              value={value.selectedRegion}
+              onChange={(event) => onChange({ selectedRegion: event.target.value })}
+            >
+              <option value="ALL">جميع المناطق</option>
+              {options.regions.map((region) => (
+                <option key={region} value={region}>{region}</option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        <label className="cf-field cf-field-quick">
+          <span>الترتيب</span>
+          <select value={sortValue} onChange={(event) => onSortChange(event.target.value)}>
+            {SORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+      </div>
       {/* الفلاتر المتقدمة */}
       {advancedOpen && (
         <div id="customer-advanced-filters" className="cf-advanced">
@@ -316,21 +431,6 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
               </label>
             )}
 
-            {options.regions.length > 0 && (
-              <label className="cf-field">
-                <span>المنطقة</span>
-                <select
-                  value={value.selectedRegion}
-                  onChange={(event) => onChange({ selectedRegion: event.target.value })}
-                >
-                  <option value="ALL">جميع المناطق</option>
-                  {options.regions.map((region) => (
-                    <option key={region} value={region}>{region}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-
             <label className="cf-field">
               <span>التصنيف</span>
               <select
@@ -343,29 +443,6 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
               </select>
             </label>
 
-            {options.debtStatuses.length > 0 && (
-              <label className="cf-field">
-                <span>حالة السداد</span>
-                <select
-                  value={value.debtStatusFilter}
-                  onChange={(event) => onChange({ debtStatusFilter: event.target.value })}
-                >
-                  <option value="ALL">كل الحالات</option>
-                  {options.debtStatuses.map((status) => (
-                    <option key={status} value={status}>{status}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-
-            <label className="cf-field">
-              <span>الترتيب</span>
-              <select value={sortValue} onChange={(event) => onSortChange(event.target.value)}>
-                {SORT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </label>
           </div>
         </div>
       )}

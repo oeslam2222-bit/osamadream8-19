@@ -202,3 +202,49 @@ export const resolveActivePresetId = (state: {
   });
   return found ? found.id : 'all';
 };
+
+/* -------------------------------------------------------------------------- */
+/*                     متعامل / غير متعامل + توصيف الحالة                     */
+/* -------------------------------------------------------------------------- */
+
+export type DealtFilter = 'ALL' | 'dealt_2026' | 'not_dealt_2026';
+
+/**
+ * «متعامل» = سحب طلبية في 2026 أو اتسجل له تعامل صريح في شيت العملاء.
+ * الفلتر القديم كان بيعتمد على activityFilter؛ ده بُعد مستقل عشان عمود
+ * «التعامل» يبقى واضح ومباشر زي ما الشاشة المرجعية بتطلب.
+ */
+export const isDealtCustomer = (c: Customer): boolean => {
+  if (c.hasDealtIn2026) return true;
+  if ((c.sales2026 || 0) > 0) return true;
+  const flag = (c.dealt2026 || '').trim();
+  return flag === 'متعامل' || flag === 'نعم';
+};
+
+export const matchesDealtFilter = (c: Customer, filter: DealtFilter): boolean => {
+  if (filter === 'ALL') return true;
+  return filter === 'dealt_2026' ? isDealtCustomer(c) : !isDealtCustomer(c);
+};
+
+export type CustomerTone = 'ok' | 'warn' | 'risk' | 'muted';
+
+/** لون واسم حالة السداد الموحّد للجدول ولوحة التفاصيل. */
+export const getCustomerStatusBadge = (
+  c: Customer
+): { label: string; tone: CustomerTone } => {
+  const raw = (c.debtStatus || '').trim();
+  const overdue = getCustomerOverdue(c);
+
+  if (/متعثر|متأخر|تأخر/.test(raw)) return { label: raw, tone: 'risk' };
+  if (/متابعة|بحاجة/.test(raw)) return { label: raw, tone: 'warn' };
+  if (/منتظم|منظم/.test(raw)) return { label: raw, tone: 'ok' };
+  if (raw) return { label: raw, tone: overdue > 0 ? 'risk' : 'muted' };
+  return overdue > 0 ? { label: 'متأخر', tone: 'risk' } : { label: 'منتظم', tone: 'ok' };
+};
+
+/** نسبة استخدام الحد الائتماني (0 لملوش حد). */
+export const getCreditUsagePercent = (c: Customer): number => {
+  const limit = c.creditLimit || 0;
+  if (limit <= 0) return 0;
+  return Math.min(999, Math.round((getCustomerBalance(c) / limit) * 100));
+};
