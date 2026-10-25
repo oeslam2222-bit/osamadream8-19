@@ -311,26 +311,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
 
-            {/* Quick Company / Branch Header Button for Admin, Developer, Branch Manager, Supervisor */}
-            {['admin', 'developer', 'branch_manager', 'supervisor'].includes(currentUser.role) && (
-              <button
-                type="button"
-                onClick={() => setIsCompanyModalOpen(true)}
-                className="hidden xl:flex items-center gap-1.5 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 border border-[var(--app-line)] px-3 h-11 rounded-xl text-xs font-bold transition cursor-pointer"
-                title={
-                  currentUser.role === 'admin' || currentUser.role === 'developer'
-                    ? 'إعدادات بيانات الفاتورة للشركة والفروع'
-                    : `إعدادات بيانات فاتورة فرعك (${currentUser.branchName})`
-                }
-              >
-                <Building2 className="w-3.5 h-3.5 text-[var(--app-accent)]" />
-                <span>
-                  {currentUser.role === 'admin' || currentUser.role === 'developer'
-                    ? 'إعدادات بيانات الفاتورة'
-                    : 'إعدادات بيانات الفاتورة'}
-                </span>
-              </button>
-            )}
+
 
             {/* User Profile Menu with Logout */}
             <div className="relative">
@@ -419,24 +400,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </button>
                       ))}
                     </div>
-                    {/* Edit Company Info & Header Details */}
-                    {['admin', 'developer', 'branch_manager', 'supervisor'].includes(currentUser.role) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowProfileMenu(false);
-                          setIsCompanyModalOpen(true);
-                        }}
-                        className="w-full bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[44px]"
-                      >
-                        <Building2 className="w-4 h-4 text-amber-400" />
-                        <span>
-                          {currentUser.role === 'admin' || currentUser.role === 'developer'
-                            ? 'إعدادات بيانات الفاتورة (الشركة / الفروع)'
-                            : `إعدادات بيانات الفاتورة (${currentUser.branchName})`}
-                        </span>
-                      </button>
-                    )}
+
 
                     <button
                       type="button"
