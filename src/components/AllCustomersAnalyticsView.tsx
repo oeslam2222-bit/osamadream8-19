@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Users,
   Search,
@@ -776,7 +776,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       { name: 'كاش / فوري', value: cashCount, color: '#10B981' },
       { name: 'على دفعات', value: installmentsCount, color: '#F59E0B' },
       { name: 'شيكات بنكية', value: chequesCount, color: '#6366F1' },
-      { name: 'آجل تجاري', value: creditCount, color: '#0EA5E9' },
+      { name: 'آجل تجا��ي', value: creditCount, color: '#0EA5E9' },
     ].filter((d) => d.value > 0);
   }, [filteredCustomers]);
 
@@ -1257,20 +1257,29 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </div>
               <div className="h-64 sm:h-72 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={kpiStats.monthlyChartData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748B' }} />
+                  <BarChart
+                    data={kpiStats.monthlyChartData}
+                    margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
+                    barGap={4}
+                    barCategoryGap="28%"
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E8F0F7" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#35546f', fontWeight: 700 }} />
                     <YAxis
-                      tick={{ fontSize: 10, fill: '#64748B' }}
+                      tick={{ fontSize: 10, fill: '#35546f' }}
                       tickFormatter={(v) => (isPrivacyMode ? '•••' : `${(v / 1000).toFixed(0)}k`)}
+                      axisLine={false}
+                      tickLine={false}
                     />
                     <Tooltip
                       formatter={(val: any) => formatMoney(Number(val) || 0)}
-                      contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '12px', border: 'none' }}
+                      contentStyle={{ backgroundColor: '#0d4778', color: '#fff', borderRadius: '12px', border: 'none', fontFamily: 'inherit' }}
+                      labelStyle={{ color: '#dff3ff', fontWeight: 800 }}
                     />
-                    <Legend />
-                    <Bar dataKey="مبيعات 2026" fill="#0284c7" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="تحصيلات 2026" fill="#10B981" radius={[4, 4, 0, 0]} />
+                    <Legend wrapperStyle={{ fontSize: 11, fontWeight: 800, color: '#244766' }} />
+                    {/* The two series intentionally stay adjacent: sales first, then collections. */}
+                    <Bar dataKey="مبيعات 2026" name="المبيعات" fill="#1677ff" radius={[5, 5, 0, 0]} />
+                    <Bar dataKey="تحصيلات 2026" name="التحصيل" fill="#16b77b" radius={[5, 5, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -2895,7 +2904,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                             لا توجد حركات بيع أو تحصيل مسجلة لهذا العميل خلال أشهر 2026
                           </div>
                           <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                            العميل مسجل حالياً بدون فواتير أو سدادات خلال العام الحالي، يمكنك إنشاء طلبية جديدة أو تسجيل زيارة ميدانية لتنشيط التعامل.
+                            ا��عميل مسجل حالياً بدون فواتير أو سدادات خلال العام الحالي، يمكنك إنشاء طلبية جديدة أو تسجيل زيارة ميدانية لتنشيط التعامل.
                           </p>
                         </div>
                         <button
