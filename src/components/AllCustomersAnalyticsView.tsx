@@ -2,8 +2,6 @@
 import {
   Users,
   Search,
-  Filter,
-  SlidersHorizontal,
   ArrowUpDown,
   Download,
   Upload,
@@ -35,6 +33,8 @@ import {
   X,
   FileSpreadsheet,
   Clock,
+  Columns3,
+  RotateCcw,
   ArrowUpRight,
   ArrowDownRight,
   ShieldCheck,
@@ -63,10 +63,10 @@ import {
   Area,
   PieChart as RechartsPieChart,
   Pie,
-  Cell
+  Cell,
+  LabelList
 } from 'recharts';
 import { useApp } from '../context/AppContext';
-import { StatGrid } from './ui/StatGrid';
 import { Customer, CustomerVisit, User, Invoice, OrderStatus } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import {
@@ -74,11 +74,64 @@ import {
   filterCustomersByRBAC,
   fetchDetailedCustomersFromGoogleSheet,
   parseDetailedCustomersExcel,
-  exportCustomerAnalyticsToExcel,
   downloadCustomerAnalyticsTemplate
 } from '../services/customerAnalyticsService';
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
+import {
+  ActivityFilter,
+  CollectionRateFilter,
+  DealtFilter,
+  DebtFilter,
+  EligibilityFilter,
+  OrderFilter,
+  VisitFilter,
+  getCreditUsagePercent,
+  getCustomerBalance,
+  getCustomerCollectionRate,
+  getCustomerOverdue,
+  getCustomerStatusBadge,
+  getCustomerDealtBadge,
+  getEligibilityBadge,
+  isDealtCustomer,
+  matchesActivityFilter,
+  matchesCollectionRateFilter,
+  matchesDealtFilter,
+  matchesDebtFilter,
+  matchesEligibilityFilter,
+  matchesOrderFilter,
+  matchesVisitFilter,
+} from '../services/customerFilterPredicates';
+import { CustomerFilterBar, CustomerFilterBarState } from './customers/CustomerFilterBar';
+import { CustomerQuickDrawer } from './customers/CustomerQuickDrawer';
+import { CustomerTableSettings } from './customers/CustomerTableSettings';
+import {
+  CUSTOMER_COLUMNS,
+  CustomerColumnKey,
+  getCustomerPaid,
+  getCustomerSales2026,
+  getDefaultVisibleColumns,
+  loadVisibleColumns,
+  saveVisibleColumns,
+} from '../services/customerTableSchema';
 import { getSavedSourceUrl, saveSingleSourceUrl, getSavedSheetHistory } from '../services/dataSourceService';
+
+const truncateLabel = (value: string, max = 16): string =>
+  value.length > max ? `${value.slice(0, max)}…` : value;
+
+/** تيك الرسم العمودي: اسم العميل فوق الكود — بشكل مقروء ومظبوط في RTL */
+const TopDebtAxisTick: React.FC<any> = ({ x, y, payload }) => {
+  const item = payload?.payload || {};
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text x={0} y={13} textAnchor="middle" fontSize={9} fontWeight={800} fill="#33475e">
+        {truncateLabel(item.name || '')}
+      </text>
+      <text x={0} y={25} textAnchor="middle" fontSize={8.5} fontWeight={700} fill="#93a4b8">
+        {item.code || ''}
+      </text>
+    </g>
+  );
+};
 
 interface AllCustomersAnalyticsViewProps {
   onOpenNewOrderForCustomer?: (customer: Customer) => void;
@@ -130,31 +183,26 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [selectedSupervisor, setSelectedSupervisor] = useState<string>('ALL');
   const [selectedRep, setSelectedRep] = useState<string>('ALL');
   const [selectedRegion, setSelectedRegion] = useState<string>('ALL');
-  const [activityFilter, setActivityFilter] = useState<'ALL' | 'active_2026' | 'inactive_2026' | 'churn_risk' | 'new_customer'>('ALL');
-  const [debtFilter, setDebtFilter] = useState<'ALL' | 'has_debt' | 'zero_debt' | 'over_limit' | 'has_overdue'>('ALL');
-  const [eligibilityFilter, setEligibilityFilter] = useState<'ALL' | 'قابل' | 'غير قابل'>('ALL');
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>('ALL');
+  const [debtFilter, setDebtFilter] = useState<DebtFilter>('ALL');
+  const [eligibilityFilter, setEligibilityFilter] = useState<EligibilityFilter>('ALL');
   const [debtStatusFilter, setDebtStatusFilter] = useState<string>('ALL');
-  const [orderFilter, setOrderFilter] = useState<'ALL' | 'has_order' | 'active_order' | 'no_order'>('ALL');
-  const [visitFilter, setVisitFilter] = useState<'ALL' | 'visited_2026' | 'not_visited'>('ALL');
+  const [dealtFilter, setDealtFilter] = useState<DealtFilter>('ALL');
+  const [orderFilter, setOrderFilter] = useState<OrderFilter>('ALL');
+  const [visitFilter, setVisitFilter] = useState<VisitFilter>('ALL');
 
-  const [collectionRateFilter, setCollectionRateFilter] = useState<'ALL' | 'high_80' | 'medium_30_79' | 'low_zero'>('ALL');
-  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
-
-  const activeFilterCount = [
-    selectedBranch, selectedSupervisor, selectedRep, selectedRegion, activityFilter, debtFilter,
-    orderFilter, visitFilter, collectionRateFilter,
-  ].filter((value) => value !== 'ALL').length;
+  const [collectionRateFilter, setCollectionRateFilter] = useState<CollectionRateFilter>('ALL');
 
   // Power BI Visuals Tab
   const [activeChartTab, setActiveChartTab] = useState<'monthly' | 'branches' | 'reps' | 'payment_guarantee'>('monthly');
 
   // Sorting
-  const [sortBy, setSortBy] = useState<'name' | 'code' | 'balance' | 'overdue' | 'creditLimit' | 'sales2026' | 'collections2026' | 'lastVisit' | 'order'>('sales2026');
+  const [sortBy, setSortBy] = useState<'name' | 'code' | 'balance' | 'overdue' | 'creditLimit' | 'sales2026' | 'collections2026' | 'lastVisit' | 'order'>('balance');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // Pagination for high-performance (4000+ items)
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState<number>(25);
+  const [pageSize, setPageSize] = useState<number>(10);
 
   // BI Charts Toggle
   const [showCharts, setShowCharts] = useState(false);
@@ -164,6 +212,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
   // Selected Customer for Detailed 360 Drawer/Modal
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [quickCustomer, setQuickCustomer] = useState<Customer | null>(null);
+
+  // إعدادات الجدول: الأعمدة الظاهرة + الفلاتر المخصصة (بتتحفظ لكل مستخدم)
+  const [visibleColumns, setVisibleColumns] = useState<CustomerColumnKey[]>(() =>
+    loadVisibleColumns(currentUser?.id)
+  );
+  const [isTableSettingsOpen, setIsTableSettingsOpen] = useState(false);
 
   // Customer Dossier Edit state (Credit, Guarantee, Overdue, Next Visit)
   const [isEditingDossier, setIsEditingDossier] = useState(false);
@@ -392,7 +447,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   }, [userVisibleCustomers]);
 
   // 2. Multi-Filter & Search Pipeline
-  const filteredCustomers = useMemo(() => {
+  //    المرحلة (أ): الفلاتر التنظيمية + البحث النصي.
+  //    بتتحسب مرة واحدة وبتتعاد استخدامها في عدّادات الشرائح السريعة،
+  //    عشان رقم الشريحة يطابق عدد النتائج الفعلي بالظبط.
+  const contextCustomers = useMemo(() => {
     let list = userVisibleCustomers;
 
     // Branch filter
@@ -428,12 +486,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
     // Deal eligibility filter (قابل / غير قابل)
     if (eligibilityFilter !== 'ALL') {
-      list = list.filter((c) => {
-        const v = (c.dealEligibility || '').trim();
-        if (!v) return false;
-        const isNotEligible = v.includes('غير') || v.includes('موقوف');
-        return eligibilityFilter === 'غير قابل' ? isNotEligible : v.includes('قابل') && !isNotEligible;
-      });
+      list = list.filter((c) => matchesEligibilityFilter(c, eligibilityFilter));
     }
 
     // Payment status / reason filter (حالة السداد)
@@ -441,71 +494,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       list = list.filter((c) => (c.debtStatus || '') === debtStatusFilter);
     }
 
-    // Activity 2026 filter
-    if (activityFilter !== 'ALL') {
-      if (activityFilter === 'active_2026') {
-        list = list.filter((c) => c.hasDealtIn2026 || (c.sales2026 && c.sales2026 > 0));
-      } else if (activityFilter === 'inactive_2026') {
-        list = list.filter((c) => !c.hasDealtIn2026 && (!c.sales2026 || c.sales2026 === 0));
-      } else if (activityFilter === 'churn_risk') {
-        list = list.filter((c) => c.status2026 === 'churn_risk' || (c.sales2025 && c.sales2025 > 0 && (!c.sales2026 || c.sales2026 === 0)));
-      } else if (activityFilter === 'new_customer') {
-        list = list.filter((c) => c.status2026 === 'new_customer' || (c.sales2026 && c.sales2026 > 0 && !c.sales2025));
-      }
-    }
-
-    // Debt filter
-    if (debtFilter !== 'ALL') {
-      if (debtFilter === 'has_debt') {
-        list = list.filter((c) => (c.currentBalance ?? c.balance ?? 0) > 0);
-      } else if (debtFilter === 'zero_debt') {
-        list = list.filter((c) => (c.currentBalance ?? c.balance ?? 0) <= 0);
-      } else if (debtFilter === 'over_limit') {
-        list = list.filter((c) => {
-          const limit = c.creditLimit || 0;
-          const bal = c.currentBalance ?? c.balance ?? 0;
-          return limit > 0 && bal > limit;
-        });
-      } else if (debtFilter === 'has_overdue') {
-        list = list.filter((c) => {
-          const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
-          return overdue > 0;
-        });
-      }
-    }
-
-    // Order filter (أمر البيع وطلبيات العميل)
-    if (orderFilter !== 'ALL') {
-      list = list.filter((c) => {
-        const orderSummary = getCustomerOrderSummary(c);
-        if (orderFilter === 'has_order') return orderSummary.hasOrder;
-        if (orderFilter === 'active_order') return orderSummary.hasActiveOrder;
-        if (orderFilter === 'no_order') return !orderSummary.hasOrder;
-        return true;
-      });
-    }
-
-    // Collection Rate filter (كفاءة التحصيل)
-    if (collectionRateFilter !== 'ALL') {
-      list = list.filter((c) => {
-        const s = c.sales2026 || c.totalMonthlySales || 0;
-        const col = Math.max(Math.abs(Number(c.collections2026) || 0), Math.abs(Number(c.totalMonthlyCollections) || 0), Math.abs(Number(c.totalOverallCollections) || 0));
-        const rate = s > 0 ? (col / s) * 100 : col > 0 ? 100 : 0;
-        if (collectionRateFilter === 'high_80') return rate >= 80;
-        if (collectionRateFilter === 'medium_30_79') return rate >= 30 && rate < 80;
-        if (collectionRateFilter === 'low_zero') return rate < 30;
-        return true;
-      });
-    }
-
-    // Visit filter (تاريخ الزيارات)
-    if (visitFilter !== 'ALL') {
-      list = list.filter((c) => {
-        const hasVisit = !!c.lastVisitDate || (c.visitCount2026 && c.visitCount2026 > 0);
-        if (visitFilter === 'visited_2026') return hasVisit;
-        if (visitFilter === 'not_visited') return !hasVisit;
-        return true;
-      });
+    // متعامل / غير متعامل
+    if (dealtFilter !== 'ALL') {
+      list = list.filter((c) => matchesDealtFilter(c, dealtFilter));
     }
 
     // Search query (normalized Arabic for resilient match)
@@ -528,6 +519,44 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           guaranteeNorm.includes(qNorm)
         );
       });
+    }
+
+    return list;
+  }, [
+    userVisibleCustomers,
+    selectedBranch,
+    selectedSupervisor,
+    selectedRep,
+    selectedRegion,
+    eligibilityFilter,
+    debtStatusFilter,
+    dealtFilter,
+    searchQuery,
+    users,
+  ]);
+
+  // المرحلة (ب): شرائح المديونية/النشاط/الطلبيات/التحصيل/الزيارات + الترتيب.
+  const filteredCustomers = useMemo(() => {
+    let list = contextCustomers;
+
+    if (debtFilter !== 'ALL') {
+      list = list.filter((c) => matchesDebtFilter(c, debtFilter));
+    }
+
+    if (activityFilter !== 'ALL') {
+      list = list.filter((c) => matchesActivityFilter(c, activityFilter));
+    }
+
+    if (orderFilter !== 'ALL') {
+      list = list.filter((c) => matchesOrderFilter(orderFilter, getCustomerOrderSummary(c)));
+    }
+
+    if (collectionRateFilter !== 'ALL') {
+      list = list.filter((c) => matchesCollectionRateFilter(c, collectionRateFilter));
+    }
+
+    if (visitFilter !== 'ALL') {
+      list = list.filter((c) => matchesVisitFilter(c, visitFilter));
     }
 
     // Sorting
@@ -570,12 +599,162 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     });
 
     return list;
-  }, [userVisibleCustomers, selectedBranch, selectedSupervisor, selectedRep, selectedRegion, activityFilter, debtFilter, eligibilityFilter, debtStatusFilter, orderFilter, visitFilter, collectionRateFilter, searchQuery, sortBy, sortOrder, users]);
+  }, [contextCustomers, debtFilter, activityFilter, orderFilter, collectionRateFilter, visitFilter, sortBy, sortOrder]);
+
+  // اقتراحات البحث الذكي: أول 5 عملاء مطابقين للحرف/الكود المكتوب
+  const searchSuggestions = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    return [...contextCustomers]
+      .sort((a, b) => getCustomerBalance(b) - getCustomerBalance(a))
+      .slice(0, 5)
+      .map((customer) => ({
+        id: customer.id || customer.code,
+        code: customer.code,
+        name: customer.name,
+        phone: customer.phone,
+        region: customer.region || customer.branchName,
+        balanceLabel: formatMoney(getCustomerBalance(customer)),
+        status: getCustomerStatusBadge(customer),
+        customer,
+      }));
+  }, [contextCustomers, searchQuery, isPrivacyMode]);
+
+  const debtCustomersCount = useMemo(
+    () => contextCustomers.filter((c) => getCustomerBalance(c) > 0).length,
+    [contextCustomers]
+  );
+
+  const overdueCustomersCount = useMemo(
+    () => filteredCustomers.filter((c) => getCustomerOverdue(c) > 0).length,
+    [filteredCustomers]
+  );
+
+  // توزيع العملاء حسب تصنيف التعامل — التصنيفات الثلاثة الموجودة في عمود الشيت «قابل / غير»
+  const eligibilityDistribution = useMemo(() => {
+    let eligible = 0;
+    let notEligible = 0;
+    let dealt = 0;
+    let unknown = 0;
+
+    filteredCustomers.forEach((c) => {
+      const raw = (c.dealEligibility || '').trim();
+      if (!raw) unknown += 1;
+      else if (raw.includes('غير') || raw.includes('موقوف')) notEligible += 1;
+      else if (raw.includes('متعامل')) dealt += 1;
+      else if (raw.includes('قابل')) eligible += 1;
+      else unknown += 1;
+    });
+
+    return [
+      { name: 'قابل للتعامل', value: eligible, color: '#1F9D74' },
+      { name: 'غير قابل', value: notEligible, color: '#E05B5B' },
+      { name: 'متعامل', value: dealt, color: '#2F6FD0' },
+      { name: 'غير محدد', value: unknown, color: '#8FA0B8' },
+    ].filter((bucket) => bucket.value > 0);
+  }, [filteredCustomers]);
+
+  // أعلى 5 عملاء في المديونية الحالية (اسم + كود + مبلغ)
+  const topDebtCustomers = useMemo(
+    () =>
+      [...filteredCustomers]
+        .filter((c) => getCustomerBalance(c) > 0)
+        .sort((a, b) => getCustomerBalance(b) - getCustomerBalance(a))
+        .slice(0, 5)
+        .map((c) => ({
+          code: c.code || '---',
+          name: c.name,
+          debt: getCustomerBalance(c),
+          customer: c,
+        })),
+    [filteredCustomers]
+  );
+
+  const distributionTotal = eligibilityDistribution.reduce((sum, item) => sum + item.value, 0);
+
+  // اختصار الأرقام الكبيرة فوق أعمدة الرسم (1.82 مليون / 840 ألف)
+  const formatCompactAmount = (value: number): string => {
+    if (isPrivacyMode) return '•••';
+    const abs = Math.abs(value);
+    if (abs >= 1000000) return `${(value / 1000000).toFixed(2)} مليون`;
+    if (abs >= 1000) return `${Math.round(value / 1000)} ألف`;
+    return String(Math.round(value));
+  };
 
   // Reset pagination on filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedBranch, selectedRep, selectedRegion, selectedSupervisor, activityFilter, debtFilter, eligibilityFilter, debtStatusFilter, orderFilter, visitFilter, collectionRateFilter, searchQuery, pageSize]);
+  }, [selectedBranch, selectedRep, selectedRegion, selectedSupervisor, activityFilter, debtFilter, eligibilityFilter, debtStatusFilter, orderFilter, visitFilter, collectionRateFilter, dealtFilter, searchQuery, pageSize]);
+
+  const handleFilterChange = (patch: Partial<CustomerFilterBarState>) => {
+    if (patch.searchQuery !== undefined) setSearchQuery(patch.searchQuery);
+    if (patch.selectedBranch !== undefined) setSelectedBranch(patch.selectedBranch);
+    if (patch.selectedSupervisor !== undefined) setSelectedSupervisor(patch.selectedSupervisor);
+    if (patch.selectedRep !== undefined) setSelectedRep(patch.selectedRep);
+    if (patch.selectedRegion !== undefined) setSelectedRegion(patch.selectedRegion);
+    if (patch.eligibilityFilter !== undefined) setEligibilityFilter(patch.eligibilityFilter);
+    if (patch.debtStatusFilter !== undefined) setDebtStatusFilter(patch.debtStatusFilter);
+    if (patch.dealtFilter !== undefined) setDealtFilter(patch.dealtFilter);
+    if (patch.debtFilter !== undefined) setDebtFilter(patch.debtFilter);
+    if (patch.activityFilter !== undefined) setActivityFilter(patch.activityFilter);
+    if (patch.orderFilter !== undefined) setOrderFilter(patch.orderFilter);
+    if (patch.visitFilter !== undefined) setVisitFilter(patch.visitFilter);
+    if (patch.collectionRateFilter !== undefined) setCollectionRateFilter(patch.collectionRateFilter);
+  };
+
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setSelectedBranch('ALL');
+    setSelectedRep('ALL');
+    setSelectedRegion('ALL');
+    setSelectedSupervisor('ALL');
+    setEligibilityFilter('ALL');
+    setDebtStatusFilter('ALL');
+    setDealtFilter('ALL');
+    setDebtFilter('ALL');
+    setActivityFilter('ALL');
+    setOrderFilter('ALL');
+    setVisitFilter('ALL');
+    setCollectionRateFilter('ALL');
+  };
+
+  const handleSortChange = (value: string) => {
+    const [field, order] = value.split(':');
+    setSortBy(field as typeof sortBy);
+    setSortOrder(order === 'asc' ? 'asc' : 'desc');
+  };
+
+  const filterBarValue: CustomerFilterBarState = {
+    searchQuery,
+    selectedBranch,
+    selectedSupervisor,
+    selectedRep,
+    selectedRegion,
+    eligibilityFilter,
+    debtStatusFilter,
+    dealtFilter,
+    debtFilter,
+    activityFilter,
+    orderFilter,
+    visitFilter,
+    collectionRateFilter,
+  };
+
+  // حفظ تلقائي في إعدادات المستخدم
+  useEffect(() => {
+    saveVisibleColumns(visibleColumns, currentUser?.id);
+  }, [visibleColumns, currentUser?.id]);
+
+  const visibleColumnDefs = useMemo(
+    () => CUSTOMER_COLUMNS.filter((column) => column.locked || visibleColumns.includes(column.key)),
+    [visibleColumns]
+  );
+
+  const openTableSettings = () => setIsTableSettingsOpen(true);
+
+  const handleToggleColumn = (key: CustomerColumnKey) => {
+    setVisibleColumns((prev) => (prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]));
+  };
+
 
   // Paginated Items
   const paginatedCustomers = useMemo(() => {
@@ -694,35 +873,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       monthlyChartData,
     };
   }, [filteredCustomers]);
-
-  // Segment counters (presentation-only aggregation over the role-scoped list)
-  const segmentStats = useMemo(() => {
-    let cash = 0;
-    let overdue = 0;
-    let overLimit = 0;
-    let doubtful = 0;
-    let churn = 0;
-
-    userVisibleCustomers.forEach((c) => {
-      const bal = c.currentBalance ?? c.balance ?? 0;
-      const od = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
-      const limit = c.creditLimit || 0;
-      const monthlySum = c.monthlySales2026
-        ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0)
-        : 0;
-      const s26 = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, monthlySum);
-      const s25 = c.sales2025 || 0;
-      const isActive = Boolean(c.hasDealtIn2026) || s26 > 0;
-
-      if (bal <= 0) cash++;
-      if (od > 0) overdue++;
-      if (limit > 0 && bal > limit) overLimit++;
-      if (!isActive && s25 > 0) churn++;
-      if (!isActive && s25 <= 0) doubtful++;
-    });
-
-    return { cash, overdue, overLimit, doubtful, churn, total: userVisibleCustomers.length };
-  }, [userVisibleCustomers]);
 
   // Power BI Visuals Computations (Branches, Top Reps, Payment Terms Distribution)
   const branchAnalyticsData = useMemo(() => {
@@ -872,13 +1022,189 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     }
   };
 
+  const columnAlignClass = (align: 'start' | 'center' | 'end') =>
+    align === 'end' ? 'text-left' : align === 'center' ? 'text-center' : 'text-right';
+
+  /** خلية العمود — كل عرض في مكان واحد، والجدول بيتبني حسب الأعمدة المختارة. */
+  const renderCustomerCell = (key: CustomerColumnKey, c: Customer) => {
+    const bal = getCustomerBalance(c);
+    const overdue = getCustomerOverdue(c);
+    const limit = c.creditLimit || 0;
+    const usage = getCreditUsagePercent(c);
+    const statusBadge = getCustomerStatusBadge(c);
+    const lastTouch = c.lastVisitDate || c.lastOrderDate || c.lastCollectionDate;
+    const lastTouchInfo = getRelativeTimeArabic(lastTouch);
+
+    switch (key) {
+      case 'code':
+        return <span className="font-mono font-black text-slate-700">{c.code || '---'}</span>;
+
+      case 'name':
+        return (
+          <div className="min-w-[175px]">
+            <div className="font-black text-slate-900 group-hover:text-[var(--app-accent)] transition">
+              {c.name}
+            </div>
+            <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-400">
+              {c.phone ? (
+                <span dir="ltr" className="flex items-center gap-1">
+                  <Phone className="w-3 h-3" />
+                  {c.phone}
+                </span>
+              ) : (
+                <span>بدون هاتف</span>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'region':
+        return (
+          <>
+            <div className="font-bold text-slate-700">{c.region || c.district || c.branchName || '—'}</div>
+            <div className="text-[11px] text-slate-500">
+              {c.branchName && c.branchName !== c.region
+                ? c.branchName
+                : c.salesRepName || c.repName || '—'}
+            </div>
+          </>
+        );
+
+      case 'rep':
+        return <span className="font-bold text-slate-700">{c.salesRepName || c.repName || 'غير محدد'}</span>;
+
+      case 'branch':
+        return <span className="text-slate-700">{c.branchName || '—'}</span>;
+
+      case 'phone':
+        return c.phone ? (
+          <a
+            href={`tel:${c.phone}`}
+            onClick={(event) => event.stopPropagation()}
+            dir="ltr"
+            className="font-mono font-bold text-slate-600 hover:text-[var(--app-accent)]"
+          >
+            {c.phone}
+          </a>
+        ) : (
+          <span className="text-slate-400">—</span>
+        );
+
+      case 'debt':
+        return (
+          <div className="min-w-[170px]">
+            <div className={`font-black ${bal > 0 ? 'text-[var(--app-navy)]' : 'text-slate-400'}`}>
+              {formatMoney(bal)}
+            </div>
+            <div className="cdebt-bar" aria-hidden="true">
+              <span
+                className={usage > 100 ? 'is-over' : usage >= 80 ? 'is-high' : 'is-ok'}
+                style={{ width: `${Math.min(100, Math.max(limit > 0 ? 3 : 0, usage))}%` }}
+              />
+            </div>
+            <div className="cdebt-foot">
+              <span>{limit > 0 ? `الحد: ${formatMoney(limit)}` : 'بدون حد ائتماني'}</span>
+              {limit > 0 && <span className={usage > 100 ? 't-risk' : 't-muted'}>{usage}%</span>}
+            </div>
+          </div>
+        );
+
+      case 'creditLimit':
+        return <span className="app-num text-slate-600">{limit > 0 ? formatMoney(limit) : 'بدون حد'}</span>;
+
+      case 'paid':
+        return <span className="app-num font-black t-ok">{formatMoney(getCustomerPaid(c))}</span>;
+
+      case 'overdue':
+        return (
+          <>
+            <div className={`font-black ${overdue > 0 ? 't-risk' : 'text-slate-400'}`}>
+              {formatMoney(overdue)}
+            </div>
+            {overdue > 0 && <span className="text-[9px] font-extrabold t-risk">واجب التحصيل</span>}
+          </>
+        );
+
+      case 'collectionRate': {
+        const rate = Math.round(getCustomerCollectionRate(c));
+        return (
+          <div className="min-w-[80px]">
+            <div className="app-num font-black text-slate-700">{rate}%</div>
+            <div className="cdebt-bar" aria-hidden="true">
+              <span
+                className={rate >= 80 ? 'is-ok' : rate >= 30 ? 'is-high' : 'is-over'}
+                style={{ width: `${Math.min(100, Math.max(3, rate))}%` }}
+              />
+            </div>
+          </div>
+        );
+      }
+
+      case 'status':
+        return <span className={`pill pill-${statusBadge.tone}`}>{statusBadge.label}</span>;
+
+      case 'dealt': {
+        const dealtBadge = getCustomerDealtBadge(c);
+        return (
+          <div className="flex flex-col items-center gap-0.5">
+            <span className={`pill pill-${dealtBadge.tone}`}>{dealtBadge.label}</span>
+            {dealtBadge.raw && dealtBadge.raw !== dealtBadge.label && (
+              <span className="text-[9px] font-bold text-slate-400">{dealtBadge.raw}</span>
+            )}
+          </div>
+        );
+      }
+
+      case 'eligibility': {
+        const badge = getEligibilityBadge(c);
+        return <span className={`pill pill-${badge.tone}`}>{badge.label}</span>;
+      }
+
+      case 'paymentTerms':
+        return <span className="text-slate-600">{c.paymentTerms || 'غير محدد'}</span>;
+
+      case 'activityType':
+        return <span className="text-slate-600">{c.activityType || 'غير محدد'}</span>;
+
+      case 'guarantee':
+        return <span className="text-slate-600">{c.guaranteeDocs || 'لا يوجد'}</span>;
+
+      case 'sales2026':
+        return <span className="app-num font-black text-[var(--app-navy)]">{formatMoney(getCustomerSales2026(c))}</span>;
+
+      case 'collections2026':
+        return <span className="app-num font-black t-ok">{formatMoney(Math.abs(Number(c.collections2026) || 0))}</span>;
+
+      case 'lastTouch':
+        return lastTouch ? (
+          <>
+            <div className="font-bold text-slate-600 text-[11px]">
+              {new Date(lastTouch).toLocaleDateString('ar-EG')}
+            </div>
+            <div className="text-[10px] t-muted">{lastTouchInfo.text}</div>
+          </>
+        ) : (
+          <span className="text-slate-400 text-[11px]">لا يوجد</span>
+        );
+
+      case 'visits':
+        return <span className="app-num font-black text-slate-700">{c.visitCount2026 || 0}</span>;
+
+      case 'orders':
+        return <span className="app-num font-black text-slate-700">{c.totalOrdersCount || 0}</span>;
+
+      default:
+        return <span className="text-slate-400">—</span>;
+    }
+  };
+
   return (
     <div className="tantawy-screen space-y-4 animate-in fade-in pb-12">
       {/* Top Header Card */}
-      <div className="bg-white rounded-[14px] p-4 sm:p-5 border border-[var(--app-line)] shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="cust-hero rounded-[14px] p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-[14px] tint-brass border border-[rgba(201,154,67,.35)] flex items-center justify-center font-black">
+            <div className="cust-hero-icon w-10 h-10 rounded-[14px] flex items-center justify-center font-black">
               <Users className="w-5 h-5" />
             </div>
             <div>
@@ -921,6 +1247,20 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           </button>
           )}
 
+          {/* تخصيص أعمدة الجدول */}
+          <button
+            type="button"
+            onClick={openTableSettings}
+            className="app-btn app-btn-ghost px-3 py-2 text-xs whitespace-nowrap"
+            title="إظهار/إخفاء أعمدة الجدول — بيتحفظ في إعداداتك"
+          >
+            <Columns3 className="w-3.5 h-3.5" />
+            <span>الأعمدة</span>
+            <span className="app-num text-[10px] bg-slate-100 border border-slate-200 rounded-full px-1.5 py-0.5">
+              {visibleColumnDefs.length}
+            </span>
+          </button>
+
           {/* Clean & Deduplicate Button (Prevents 3000 to 6000 duplicate explosion) */}
           {isAdminOrDev && (
             <button
@@ -945,11 +1285,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             }`}
           >
             <BarChart3 className="w-4 h-4" />
-            <span>{showCharts ? 'إخفاء التحليل' : 'التحليل'}</span>
+            <span>{showCharts ? 'إخفاء التحليل التفصيلي' : 'تحليل تفصيلي'}</span>
           </button>
           )}
 
-          {/* Export & Import (Admin, Dev, Branch Manager) */}
+          {/* مزامنة شيت العملاء والمديونية (Admin / Dev / Branch Manager) */}
           {isAdminOrDev && (
             <button
               id="analytics-sync-sheet-btn"
@@ -962,18 +1302,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </button>
           )}
 
-          {!isRep && (
-          <button
-            id="analytics-export-excel-btn"
-            type="button"
-            onClick={() => exportCustomerAnalyticsToExcel(filteredCustomers, 'كافة_العملاء_دريم')}
-            className="app-btn app-btn-ok px-3 py-2 text-xs whitespace-nowrap"
-            title="تصدير كشف التحليل بالكامل كملف Excel"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>تصدير</span>
-          </button>
-          )}
         </div>
       </div>
 
@@ -1001,186 +1329,177 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
       )}
 
-      {/* Numbers live on the home command center for reps/supervisors */}
+      {/* KPI Cards — ألوان متناسقة مع هوية التطبيق */}
       {!isRep && !isSupervisor && (
-      <StatGrid visible={4} className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3" moreLabel="عرض باقي المؤشرات المالية">
-        {/* Total Customers */}
-        <div className="bg-white rounded-[14px] p-3 border border-[var(--app-line)] shadow-xs hover:shadow-md transition">
-          <div className="text-[11px] font-bold t-muted flex items-center justify-between">
-            <span>إجمالي العملاء</span>
-            <span className="w-7 h-7 rounded-[10px] tint-navy flex items-center justify-center shrink-0"><Users className="w-3.5 h-3.5" /></span>
-          </div>
-          <div className="text-lg dream-amt t-navy mt-1">
-            {kpiStats.totalCount.toLocaleString()}
-          </div>
-          <div className="text-[10px] t-muted mt-0.5 font-semibold">
-            {kpiStats.active2026Count.toLocaleString()} نشط ({kpiStats.activeRate}%)
-          </div>
-        </div>
-
-        {/* 2026 Sales & Growth */}
-        <div className="bg-white rounded-[14px] p-3 border border-[var(--app-line)] shadow-xs hover:shadow-md transition">
-          <div className="text-[11px] font-bold t-muted flex items-center justify-between">
-            <span>مبيعات 2026</span>
-            <span className="w-7 h-7 rounded-[10px] tint-brass flex items-center justify-center shrink-0"><TrendingUp className="w-3.5 h-3.5" /></span>
-          </div>
-          <div className="text-base sm:text-lg dream-amt t-navy mt-1 truncate" title={isPrivacyMode ? 'مخفي' : undefined}>
-            {formatMoney(kpiStats.totalSales2026)}
-          </div>
-          <div className="text-[10px] font-bold mt-0.5 flex items-center gap-0.5">
-            {kpiStats.salesGrowth >= 0 ? (
-              <span className="t-ok flex items-center font-black">
-                <ArrowUpRight className="w-3 h-3" /> +{kpiStats.salesGrowth}%
+        <div className="ckpi-grid">
+          <article className="ckpi ckpi-navy">
+            <span className="ckpi-icon"><Users className="w-5 h-5" /></span>
+            <div className="ckpi-text">
+              <span className="ckpi-label">عدد العملاء</span>
+              <strong className="ckpi-value app-num">{kpiStats.totalCount.toLocaleString()}</strong>
+              <span className="ckpi-hint">
+                {kpiStats.active2026Count.toLocaleString()} متعامل نشط ({kpiStats.activeRate}%)
               </span>
-            ) : (
-              <span className="t-risk flex items-center font-black">
-                <ArrowDownRight className="w-3 h-3" /> {kpiStats.salesGrowth}%
+            </div>
+          </article>
+
+          <article className="ckpi ckpi-violet">
+            <span className="ckpi-icon"><DollarSign className="w-5 h-5" /></span>
+            <div className="ckpi-text">
+              <span className="ckpi-label">إجمالي المسدد</span>
+              <strong className="ckpi-value app-num">{formatMoney(kpiStats.totalCollections2026)}</strong>
+              <span className="ckpi-hint">تحصيلات 2026 من إجمالي المديونية</span>
+            </div>
+          </article>
+
+          <article className="ckpi ckpi-blue">
+            <span className="ckpi-icon"><Receipt className="w-5 h-5" /></span>
+            <div className="ckpi-text">
+              <span className="ckpi-label">المتبقي للتحصيل</span>
+              <strong className="ckpi-value app-num">{formatMoney(kpiStats.totalOverdue)}</strong>
+              <span className="ckpi-hint">متأخرات ومستحقات واجبة السداد</span>
+            </div>
+          </article>
+
+          <article className="ckpi ckpi-green">
+            <span className="ckpi-icon"><CreditCard className="w-5 h-5" /></span>
+            <div className="ckpi-text">
+              <span className="ckpi-label">إجمالي المديونية</span>
+              <strong className="ckpi-value app-num">{formatMoney(kpiStats.totalDebt)}</strong>
+              <span className="ckpi-hint">
+                {kpiStats.overLimitCount.toLocaleString()} عميل متجاوز الحد الائتماني
               </span>
-            )}
-            <span className="t-muted">عن 2025</span>
-          </div>
-        </div>
+            </div>
+          </article>
 
-        {/* 2026 Collections */}
-        <div className="bg-white rounded-[14px] p-3 border border-[var(--app-line)] border-t-[3px] border-t-[var(--app-ok)] shadow-xs hover:shadow-md transition">
-          <div className="text-[11px] font-bold t-ok flex items-center justify-between">
-            <span>تحصيلات 2026</span>
-            <span className="w-7 h-7 rounded-[10px] tint-ok flex items-center justify-center shrink-0"><DollarSign className="w-3.5 h-3.5" /></span>
-          </div>
-          <div className="text-base sm:text-lg app-num t-navy mt-1 truncate" title={isPrivacyMode ? 'مخفي' : undefined}>
-            {formatMoney(kpiStats.totalCollections2026)}
-          </div>
-          <div className="text-[10px] t-ok font-bold mt-0.5">
-            {kpiStats.collectionRate}% نسبة التحصيل
-          </div>
+          <article className="ckpi ckpi-rose">
+            <span className="ckpi-icon"><AlertTriangle className="w-5 h-5" /></span>
+            <div className="ckpi-text">
+              <span className="ckpi-label">العملاء المتأخرون</span>
+              <strong className="ckpi-value app-num">{overdueCustomersCount.toLocaleString()}</strong>
+              <span className="ckpi-hint">
+                {kpiStats.totalCount > 0
+                  ? `${Math.round((overdueCustomersCount / kpiStats.totalCount) * 100)}% من العملاء الحاليين`
+                  : 'لا توجد بيانات'}
+              </span>
+            </div>
+          </article>
         </div>
-
-        {/* Current Debt */}
-        <div className="bg-white rounded-[14px] p-3 border border-[var(--app-line)] border-t-[3px] border-t-[var(--app-navy)] shadow-xs hover:shadow-md transition">
-          <div className="text-[11px] font-bold t-navy flex items-center justify-between">
-            <span>المديونية الحالية</span>
-            <span className="w-7 h-7 rounded-[10px] tint-navy flex items-center justify-center shrink-0"><CreditCard className="w-3.5 h-3.5" /></span>
-          </div>
-          <div className="text-base sm:text-lg app-num t-navy mt-1 truncate" title={isPrivacyMode ? 'مخفي' : undefined}>
-            {formatMoney(kpiStats.totalDebt)}
-          </div>
-          <div className="text-[10px] t-muted font-semibold mt-0.5">
-            إجمالي رصيد العملاء
-          </div>
-        </div>
-
-        {/* Overdue & Due Balances */}
-        <div className={`bg-white rounded-[14px] p-3 border border-[var(--app-line)] border-t-[3px] shadow-xs hover:shadow-md transition ${kpiStats.totalOverdue > 0 ? 'border-t-[var(--app-risk)]' : 'border-t-slate-300'}`}>
-          <div className={`text-[11px] font-bold flex items-center justify-between ${kpiStats.totalOverdue > 0 ? 't-risk' : 't-muted'}`}>
-            <span>المستحقات والمتأخرات</span>
-            {kpiStats.totalOverdue > 0 ? <AlertCircle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5 t-ok" />}
-          </div>
-          <div className={`text-base sm:text-lg app-num mt-1 truncate ${kpiStats.totalOverdue > 0 ? 't-risk' : 't-navy'}`} title={isPrivacyMode ? 'مخفي' : undefined}>
-            {formatMoney(kpiStats.totalOverdue)}
-          </div>
-          <div className={`text-[10px] font-bold mt-0.5 ${kpiStats.totalOverdue > 0 ? 't-risk' : 't-ok'}`}>
-            {kpiStats.totalOverdue > 0 ? 'واجبة التحصيل الفوري' : 'لا توجد مستحقات'}
-          </div>
-        </div>
-
-        {/* Credit Limit & Guarantees */}
-        <div className="bg-white rounded-[14px] p-3 border border-[var(--app-line)] border-t-[3px] border-t-[var(--app-accent)] shadow-xs hover:shadow-md transition">
-          <div className="text-[11px] font-bold t-warn flex items-center justify-between">
-            <span>الحد والضمانات</span>
-            <span className="w-7 h-7 rounded-[10px] tint-brass flex items-center justify-center shrink-0"><ShieldCheck className="w-3.5 h-3.5" /></span>
-          </div>
-          <div className="text-base sm:text-lg app-num t-navy mt-1 truncate" title={isPrivacyMode ? 'مخفي' : undefined}>
-            {formatMoney(kpiStats.totalCreditLimit)}
-          </div>
-          <div className="text-[10px] t-muted font-bold mt-0.5 flex items-center justify-between">
-            <span className="t-ok font-bold">{kpiStats.guaranteedCount} بضمان</span>
-            {kpiStats.overLimitCount > 0 && (
-              <span className="t-risk font-bold">({kpiStats.overLimitCount} تجاوز)</span>
-            )}
-          </div>
-        </div>
-
-        {/* Sales Orders */}
-        <div className="bg-white rounded-[14px] p-3 border border-[var(--app-line)] border-t-[3px] border-t-[var(--app-navy)] shadow-xs hover:shadow-md transition">
-          <div className="text-[11px] font-bold t-navy flex items-center justify-between">
-            <span>أوامر البيع والطلبيات</span>
-            <span className="w-7 h-7 rounded-[10px] tint-navy flex items-center justify-center shrink-0"><ShoppingCart className="w-3.5 h-3.5" /></span>
-          </div>
-          <div className="text-base sm:text-lg app-num t-navy mt-1 truncate">
-            {kpiStats.customersWithOrdersCount} عميل
-          </div>
-          <div className="text-[10px] t-muted font-bold mt-0.5 truncate" title={isPrivacyMode ? 'مخفي' : undefined}>
-            قيمة: {formatMoney(kpiStats.totalOrdersValue)}
-          </div>
-        </div>
-      </StatGrid>
       )}
 
-      {/* Segment counters — one click filters the directory */}
+      {/* الرسوم: توزيع تصنيف التعامل (قابل / غير قابل) + أعلى 5 عملاء مديونية */}
       {!isRep && !isSupervisor && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-          {[
-            {
-              key: 'cash',
-              label: 'نقداً',
-              hint: 'بدون مديونية',
-              count: segmentStats.cash,
-              color: 'var(--app-ok)',
-              active: debtFilter === 'zero_debt',
-              onClick: () => setDebtFilter(debtFilter === 'zero_debt' ? 'ALL' : 'zero_debt'),
-            },
-            {
-              key: 'overdue',
-              label: 'متعثر',
-              hint: 'مستحقات متأخرة',
-              count: segmentStats.overdue,
-              color: 'var(--app-risk)',
-              active: debtFilter === 'has_overdue',
-              onClick: () => setDebtFilter(debtFilter === 'has_overdue' ? 'ALL' : 'has_overdue'),
-            },
-            {
-              key: 'overLimit',
-              label: 'مخاطرة',
-              hint: 'تجاوز الحد الائتماني',
-              count: segmentStats.overLimit,
-              color: 'var(--app-risk)',
-              active: debtFilter === 'over_limit',
-              onClick: () => setDebtFilter(debtFilter === 'over_limit' ? 'ALL' : 'over_limit'),
-            },
-            {
-              key: 'doubtful',
-              label: 'مشكوك فيه',
-              hint: 'بلا تعامل ٢٠٢٦',
-              count: segmentStats.doubtful,
-              color: 'var(--app-accent)',
-              active: activityFilter === 'inactive_2026',
-              onClick: () => setActivityFilter(activityFilter === 'inactive_2026' ? 'ALL' : 'inactive_2026'),
-            },
-            {
-              key: 'churn',
-              label: 'مهدد توقف الشحن',
-              hint: 'توقّف بعد ٢٠٢٥',
-              count: segmentStats.churn,
-              color: 'var(--app-warn)',
-              active: activityFilter === 'churn_risk',
-              onClick: () => setActivityFilter(activityFilter === 'churn_risk' ? 'ALL' : 'churn_risk'),
-            },
-          ].map((seg) => (
-            <button
-              key={seg.key}
-              type="button"
-              onClick={seg.onClick}
-              aria-pressed={seg.active}
-              style={{ borderTopWidth: 3, borderTopColor: seg.color }}
-              className={`text-right w-full bg-white rounded-[14px] border border-[var(--app-line)] px-3 py-2.5 transition cursor-pointer hover:shadow-md ${
-                seg.active ? 'ring-2 ring-[var(--app-accent)] bg-[#fffdf7]' : ''
-              }`}
-            >
-              <div className="text-[11px] font-bold t-muted">{seg.label}</div>
-              <div className="app-num text-xl t-navy leading-tight mt-0.5">{seg.count.toLocaleString()}</div>
-              <div className="text-[10px] t-muted font-semibold truncate">{seg.hint}</div>
-            </button>
-          ))}
+        <div className="cchart-row">
+          <section className="cchart-card">
+            <header className="cchart-head">
+              <h3>توزيع العملاء حسب تصنيف التعامل (قابل / غير قابل)</h3>
+              <span className="cchart-chip">{distributionTotal.toLocaleString()} عميل</span>
+            </header>
+            <div className="cchart-body">
+              <div className="cchart-donut">
+                <ResponsiveContainer width="100%" height={240}>
+                  <RechartsPieChart>
+                    <Pie
+                      data={eligibilityDistribution}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={62}
+                      outerRadius={90}
+                      paddingAngle={3}
+                      stroke="none"
+                    >
+                      {eligibilityDistribution.map((entry) => (
+                        <Cell key={`status-${entry.name}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(val: any) => `${Number(val).toLocaleString()} عميل`}
+                      contentStyle={{ backgroundColor: '#0F2B38', color: '#fff', borderRadius: '12px', border: 'none' }}
+                    />
+                  </RechartsPieChart>
+                </ResponsiveContainer>
+                <div className="cchart-donut-center">
+                  <strong className="app-num">{distributionTotal.toLocaleString()}</strong>
+                  <span>عميل</span>
+                </div>
+              </div>
+
+              <ul className="cchart-legend">
+                {eligibilityDistribution.map((item) => {
+                  const pct = distributionTotal > 0 ? (item.value / distributionTotal) * 100 : 0;
+                  return (
+                    <li key={`legend-${item.name}`}>
+                      <span className="cchart-dot" style={{ backgroundColor: item.color }} />
+                      <span className="cchart-legend-name">{item.name}</span>
+                      <span className="cchart-legend-pct app-num">{pct.toFixed(1)}%</span>
+                      <span className="cchart-legend-val app-num">{item.value.toLocaleString()}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </section>
+
+          <section className="cchart-card">
+            <header className="cchart-head">
+              <h3>أعلى 5 عملاء في المديونية الحالية</h3>
+              <span className="cchart-chip">بالجنيه المصري</span>
+            </header>
+            {topDebtCustomers.length > 0 ? (
+              <div className="cchart-bars">
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={topDebtCustomers} margin={{ top: 12, right: 6, left: 6, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8eef5" />
+                    <XAxis
+                      dataKey="code"
+                      tick={<TopDebtAxisTick />}
+                      height={34}
+                      interval={0}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      width={56}
+                      tick={{ fontSize: 9, fontWeight: 700, fill: '#93a4b8' }}
+                      tickFormatter={(value: any) => formatCompactAmount(Number(value))}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      formatter={(val: any) => [formatMoney(Number(val)), 'المديونية']}
+                      labelFormatter={(_label: any, payload: any) => {
+                        if (!payload || !payload[0]) return '';
+                        const item = payload[0].payload;
+                        return `${item.name} — ${item.code}`;
+                      }}
+                      contentStyle={{ backgroundColor: '#0F2B38', color: '#fff', borderRadius: '12px', border: 'none' }}
+                    />
+                    <Bar
+                      dataKey="debt"
+                      fill="#2F6FD0"
+                      radius={[8, 8, 0, 0]}
+                      barSize={46}
+                      cursor="pointer"
+                      onClick={(data: any) => {
+                        if (data && data.payload && data.payload.customer) {
+                          setQuickCustomer(data.payload.customer);
+                        }
+                      }}
+                    >
+                      <LabelList
+                        dataKey="debt"
+                        position="top"
+                        formatter={(val: any) => formatCompactAmount(Number(val))}
+                        style={{ fontSize: 9, fontWeight: 900, fill: '#1b3652' }}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="cchart-empty">لا توجد مديونيات مطابقة للفلاتر الحالية</div>
+            )}
+          </section>
         </div>
       )}
 
@@ -1394,390 +1713,41 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
       )}
 
-      {/* Mobile search and compact filter access */}
-      <div className="md:hidden bg-white rounded-2xl p-3 border border-slate-200 shadow-sm flex gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ابحث عن عميل أو كود..."
-            className="w-full pr-9 pl-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-amber-500 focus:outline-none"
-            aria-label="البحث عن عميل"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => setIsMobileFiltersOpen(true)}
-          className="relative shrink-0 rounded-xl bg-slate-900 text-white px-3 font-black text-xs flex items-center gap-1.5"
-          aria-label="فتح فلاتر العملاء"
-        >
-          <SlidersHorizontal className="w-4 h-4" />
-          <span>فلترة</span>
-          {activeFilterCount > 0 && <span className="bg-amber-400 text-slate-950 rounded-full min-w-5 h-5 px-1 flex items-center justify-center">{activeFilterCount}</span>}
-        </button>
-      </div>
-
-      {/* Power BI Expanded Slicers & Multi-Filter Bar */}
-      <div className="hidden md:block bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200 shadow-sm space-y-3">
-        {/* Row 1: Search & Primary Selectors */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2.5">
-          {/* Search Input */}
-          <div className="relative flex-1">
-            <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              id="analytics-search-input"
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="بحث بالاسم، كود العميل، الهاتف، المنطقة، المندوب، أوراق الضمان..."
-              className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-amber-500 focus:outline-none transition"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          {/* Branch Filter (Admin & Dev) */}
-          {isAdminOrDev && (
-            <select
-              id="analytics-branch-select"
-              value={selectedBranch}
-              onChange={(e) => {
-                setSelectedBranch(e.target.value);
-                setSelectedRep('ALL');
-              }}
-              className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-amber-500"
-            >
-              <option value="ALL">جميع الفروع (الكل)</option>
-              {availableBranches.map((b) => (
-                <option key={b} value={b}>{b}</option>
-              ))}
-            </select>
-          )}
-
-          {/* Rep Filter (Admin, Dev, Manager, Supervisor) */}
-          {!isRep && (
-            <select
-              id="analytics-rep-select"
-              value={selectedRep}
-              onChange={(e) => setSelectedRep(e.target.value)}
-              className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-amber-500"
-            >
-              <option value="ALL">جميع المناديب</option>
-              {availableReps.map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          )}
-
-          {/* Region Filter */}
-          {availableRegions.length > 0 && (
-            <select
-              id="analytics-region-select"
-              value={selectedRegion}
-              onChange={(e) => setSelectedRegion(e.target.value)}
-              className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-amber-500"
-            >
-              <option value="ALL">جميع المناطق</option>
-              {availableRegions.map((reg) => (
-                <option key={reg} value={reg}>{reg}</option>
-              ))}
-            </select>
-          )}
-
-          {/* Supervisor Filter */}
-          {availableSupervisors.length > 0 && !isRep && (
-            <select
-              id="analytics-supervisor-select"
-              value={selectedSupervisor}
-              onChange={(e) => setSelectedSupervisor(e.target.value)}
-              className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-amber-500"
-            >
-              <option value="ALL">جميع المشرفين</option>
-              {availableSupervisors.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          )}
-
-          {/* Deal Eligibility Filter (قابل / غير قابل) */}
-          <select
-            id="analytics-eligibility-select"
-            value={eligibilityFilter}
-            onChange={(e) => setEligibilityFilter(e.target.value as 'ALL' | 'قابل' | 'غير قابل')}
-            className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-amber-500"
-            title="تصنيف العميل: قابل للتعامل / غير قابل"
-          >
-            <option value="ALL">التصنيف: الكل</option>
-            <option value="قابل">قابل للتعامل</option>
-            <option value="غير قابل">غير قابل / موقوف</option>
-          </select>
-
-          {/* Payment status / reason filter */}
-          {availableDebtStatuses.length > 0 && (
-            <select
-              id="analytics-debt-status-select"
-              value={debtStatusFilter}
-              onChange={(e) => setDebtStatusFilter(e.target.value)}
-              className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-amber-500"
-              title="حالة السداد / سبب عدم السداد"
-            >
-              <option value="ALL">حالة السداد: الكل</option>
-              {availableDebtStatuses.map((st) => (
-                <option key={st} value={st}>{st}</option>
-              ))}
-            </select>
-          )}
-
-          {/* Sort preset */}
-          <select
-            id="analytics-sort-select"
-            value={`${sortBy}:${sortOrder}`}
-            onChange={(e) => {
-              const [field, order] = e.target.value.split(':');
-              setSortBy(
-                field as 'name' | 'code' | 'balance' | 'overdue' | 'creditLimit' | 'sales2026' | 'collections2026' | 'lastVisit' | 'order'
-              );
-              setSortOrder(order as 'asc' | 'desc');
-            }}
-            className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-amber-500"
-            title="ترتيب العملاء"
-          >
-            <option value="sales2026:desc">الترتيب: الأعلى مبيعاً</option>
-            <option value="balance:desc">الترتيب: الأكثر مديونية</option>
-            <option value="overdue:desc">الترتيب: الأكثر تأخراً</option>
-            <option value="lastVisit:asc">الترتيب: الأقدم زيارة</option>
-            <option value="name:asc">الترتيب: الاسم (أ - ي)</option>
-          </select>
-
-          {/* Reset All Filters Button */}          <button
-            type="button"
-            onClick={() => {
-              setSearchQuery('');
-              setSelectedBranch('ALL');
-              setSelectedRep('ALL');
-              setSelectedRegion('ALL');
-              setSelectedSupervisor('ALL');
-              setEligibilityFilter('ALL');
-              setDebtStatusFilter('ALL');
-              setCollectionRateFilter('ALL');
-              setDebtFilter('ALL');
-              setActivityFilter('ALL');
-              setOrderFilter('ALL');
-              setVisitFilter('ALL');
-            }}
-            className="px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition cursor-pointer whitespace-nowrap"
-            title="إعادة ضبط جميع الفلاتر"
-          >
-            إلغاء الفلاتر
-          </button>
-        </div>
-
-        {/* Sub-Filters Slicers Grid (Power BI Style Chiclets) */}
-        <div className="flex flex-col gap-2.5 pt-2 border-t border-slate-100">
-          {/* Slicer Row 1: Collection Rate */}
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            {/* Collection Performance Slicer */}
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              <span className="text-[11px] font-bold text-slate-500 ml-1">كفاءة التحصيل:</span>
-              <button
-                type="button"
-                onClick={() => setCollectionRateFilter('ALL')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  collectionRateFilter === 'ALL' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                الكل
-              </button>
-              <button
-                type="button"
-                onClick={() => setCollectionRateFilter('high_80')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  collectionRateFilter === 'high_80' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-800'
-                }`}
-              >
-                تحصيل ممتاز (≥80%)
-              </button>
-              <button
-                type="button"
-                onClick={() => setCollectionRateFilter('medium_30_79')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  collectionRateFilter === 'medium_30_79' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-800'
-                }`}
-              >
-                تحصيل متوسط (30%-79%)
-              </button>
-              <button
-                type="button"
-                onClick={() => setCollectionRateFilter('low_zero')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  collectionRateFilter === 'low_zero' ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-800'
-                }`}
-              >
-                ضعيف أو صفر ({'<'}30%)
-              </button>
-            </div>
-          </div>
-
-          {/* Slicer Row 2: Debt, Activity, Orders & Visits */}
-          <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-100">
-            {/* Debt & Overdue Filter Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              <span className="text-[11px] font-bold text-slate-500 ml-1">المديونية والمستحقات:</span>
-              <button
-                type="button"
-                onClick={() => setDebtFilter('ALL')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  debtFilter === 'ALL' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                الكل
-              </button>
-              <button
-                type="button"
-                onClick={() => setDebtFilter('has_debt')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  debtFilter === 'has_debt' ? 'bg-purple-700 text-white' : 'bg-purple-50 text-purple-700'
-                }`}
-              >
-                عليه مديونية
-              </button>
-              <button
-                type="button"
-                onClick={() => setDebtFilter('has_overdue')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  debtFilter === 'has_overdue' ? 'bg-rose-600 text-white shadow-xs' : 'bg-rose-50 text-rose-700'
-                }`}
-              >
-                مستحقات واجبة السداد
-              </button>
-              <button
-                type="button"
-                onClick={() => setDebtFilter('over_limit')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  debtFilter === 'over_limit' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-700'
-                }`}
-              >
-                متجاوز الحد الائتماني
-              </button>
-              <button
-                type="button"
-                onClick={() => setDebtFilter('zero_debt')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  debtFilter === 'zero_debt' ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                خالص الرصيد
-              </button>
-            </div>
-
-            {/* Activity 2026 & Orders & Visits */}
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              <span className="text-[11px] font-bold text-slate-500 ml-1">حالة 2026 والطلبيات:</span>
-              <button
-                type="button"
-                onClick={() => setActivityFilter('ALL')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  activityFilter === 'ALL' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                الكل
-              </button>
-              <button
-                type="button"
-                onClick={() => setActivityFilter('active_2026')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  activityFilter === 'active_2026' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-700'
-                }`}
-              >
-                نشط 2026
-              </button>
-              <button
-                type="button"
-                onClick={() => setActivityFilter('churn_risk')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  activityFilter === 'churn_risk' ? 'bg-rose-600 text-white shadow-xs' : 'bg-rose-50 text-rose-700'
-                }`}
-              >
-                مهدد بالتوقف
-              </button>
-              <button
-                type="button"
-                onClick={() => setActivityFilter('new_customer')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  activityFilter === 'new_customer' ? 'bg-blue-600 text-white shadow-xs' : 'bg-blue-50 text-blue-700'
-                }`}
-              >
-                عميل جديد
-              </button>
-              <button
-                type="button"
-                onClick={() => setOrderFilter(orderFilter === 'has_order' ? 'ALL' : 'has_order')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  orderFilter === 'has_order' ? 'bg-teal-700 text-white shadow-xs' : 'bg-teal-50 text-teal-800'
-                }`}
-              >
-                لديه طلبية
-              </button>
-              <button
-                type="button"
-                onClick={() => setVisitFilter(visitFilter === 'visited_2026' ? 'ALL' : 'visited_2026')}
-                className={`px-2 py-0.8 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                  visitFilter === 'visited_2026' ? 'bg-purple-700 text-white shadow-xs' : 'bg-purple-50 text-purple-800'
-                }`}
-              >
-                تمت زيارته
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {isMobileFiltersOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-slate-950/40 flex items-end" role="dialog" aria-modal="true" aria-label="فلاتر العملاء">
-          <div className="w-full bg-white rounded-t-3xl p-4 pb-8 max-h-[85vh] overflow-y-auto" dir="rtl">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="font-black text-slate-900">فلترة العملاء</h2>
-                <p className="text-[11px] text-slate-500 mt-1">قلّل النتائج للوصول للحساب المطلوب بسرعة</p>
-              </div>
-              <button type="button" onClick={() => setIsMobileFiltersOpen(false)} className="size-9 rounded-xl bg-slate-100 flex items-center justify-center" aria-label="إغلاق الفلاتر"><X className="w-4 h-4" /></button>
-            </div>
-            <div className="grid grid-cols-1 gap-3">
-              {isAdminOrDev && <label className="text-xs font-bold text-slate-600">الفرع<select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><option value="ALL">كل الفروع</option>{availableBranches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}</select></label>}
-              {isAdminOrDev && <label className="text-xs font-bold text-slate-600">المندوب<select value={selectedRep} onChange={(e) => setSelectedRep(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><option value="ALL">كل المناديب</option>{availableReps.map((rep) => <option key={rep} value={rep}>{rep}</option>)}</select></label>}
-              <label className="text-xs font-bold text-slate-600">حالة المديونية<select value={debtFilter} onChange={(e) => setDebtFilter(e.target.value as typeof debtFilter)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><option value="ALL">كل الحالات</option><option value="has_debt">عليه مديونية</option><option value="has_overdue">مستحقات واجبة السداد</option><option value="over_limit">متجاوز الحد الائتماني</option><option value="zero_debt">خالص الرصيد</option></select></label>
-              <label className="text-xs font-bold text-slate-600">النشاط والطلبيات<select value={activityFilter} onChange={(e) => setActivityFilter(e.target.value as typeof activityFilter)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><option value="ALL">كل العملاء</option><option value="active_2026">متعامل 2026</option><option value="inactive_2026">غير متعامل</option><option value="churn_risk">مهدد بالتوقف</option><option value="new_customer">عميل جديد</option></select></label>
-              {!isRep && availableSupervisors.length > 0 && (
-                <label className="text-xs font-bold text-slate-600">المشرف<select value={selectedSupervisor} onChange={(e) => setSelectedSupervisor(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><option value="ALL">كل المشرفين</option>{availableSupervisors.map((s) => <option key={s} value={s}>{s}</option>)}</select></label>
-              )}
-              <label className="text-xs font-bold text-slate-600">التصنيف<select value={eligibilityFilter} onChange={(e) => setEligibilityFilter(e.target.value as typeof eligibilityFilter)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><option value="ALL">الكل</option><option value="قابل">قابل للتعامل</option><option value="غير قابل">غير قابل / موقوف</option></select></label>
-              {availableDebtStatuses.length > 0 && (
-                <label className="text-xs font-bold text-slate-600">حالة السداد<select value={debtStatusFilter} onChange={(e) => setDebtStatusFilter(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><option value="ALL">كل الحالات</option>{availableDebtStatuses.map((st) => <option key={st} value={st}>{st}</option>)}</select></label>
-              )}
-              <label className="text-xs font-bold text-slate-600">الترتيب<select value={`${sortBy}:${sortOrder}`} onChange={(e) => { const [field, order] = e.target.value.split(':'); setSortBy(field as typeof sortBy); setSortOrder(order as typeof sortOrder); }} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><option value="sales2026:desc">الأعلى مبيعاً</option><option value="balance:desc">الأكثر مديونية</option><option value="overdue:desc">الأكثر تأخراً</option><option value="lastVisit:asc">الأقدم زيارة</option><option value="name:asc">الاسم (أ - ي)</option></select></label>
-            </div>
-            <button type="button" onClick={() => setIsMobileFiltersOpen(false)} className="mt-5 w-full rounded-xl bg-amber-500 py-3 font-black text-slate-950">عرض {filteredCustomers.length.toLocaleString()} عميل</button>
-          </div>
-        </div>
-      )}
+      {/* شريط فلترة العملاء: بحث ذكي + ترتيب المديونية + فلاتر متقدمة */}
+      <CustomerFilterBar
+        value={filterBarValue}
+        onChange={handleFilterChange}
+        onReset={handleResetFilters}
+        options={{
+          branches: availableBranches,
+          supervisors: availableSupervisors,
+          reps: availableReps,
+          regions: availableRegions,
+          debtStatuses: availableDebtStatuses,
+        }}
+        canFilterBranch={isAdminOrDev}
+        canFilterRep={!isRep}
+        canFilterSupervisor={!isRep}
+        debtCustomersCount={debtCustomersCount}
+        suggestions={searchSuggestions}
+        onSelectSuggestion={(customer) => setQuickCustomer(customer)}
+        sortValue={`${sortBy}:${sortOrder}`}
+        onSortChange={handleSortChange}
+        resultCount={filteredCustomers.length}
+        scopedCount={userVisibleCustomers.length}
+      />
 
       {/* Main Customers Table Card (Fast, Virtual-friendly, Paginated) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {/* Table Controls Top */}
         <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs text-slate-500">
-          <div className="flex items-center gap-2 font-bold">
-            <span>عرض الصفحة: {currentPage} من {totalPages}</span>
+          <div className="flex items-center gap-2 font-bold flex-wrap">
+            <span className="text-[11px]">الصفحة {currentPage} من {totalPages}</span>
             <span className="text-slate-300">|</span>
-            <span>النتائج: {filteredCustomers.length.toLocaleString()} عميل</span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#e6f7f5] text-[#046b62] border border-[#c4ebe6] px-2 py-0.5 text-[11px] font-black">
+              <Users className="w-3 h-3" />
+              {filteredCustomers.length.toLocaleString()} عميل مطابق
+            </span>
           </div>
 
           {/* Page Size Selector */}
@@ -1788,24 +1758,37 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               onChange={(e) => setPageSize(Number(e.target.value))}
               className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-800"
             >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
               <option value={25}>25</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
-              <option value={250}>250</option>
             </select>
           </div>
         </div>
 
         {/* Table Content */}
         {paginatedCustomers.length === 0 ? (
-          <div className="py-16 text-center text-slate-400 space-y-3">
-            <Users className="w-12 h-12 mx-auto text-slate-300 stroke-1" />
-            <div className="font-black text-slate-700">لا يوجد عملاء مطابقين لمعايير البحث الحالية</div>
-            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+          <div className="py-12 px-6 text-center">
+            <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#c4ebe6] bg-gradient-to-br from-[#f4fbfd] to-[#e6f7f5] text-[var(--app-ok)]">
+              <Users className="h-7 w-7" />
+            </div>
+            <div className="text-sm font-black text-slate-800">لا يوجد عملاء مطابقين للفلاتر الحالية</div>
+            <p className="mx-auto mt-1 max-w-md text-xs font-medium leading-relaxed text-slate-500">
               {customers.length === 0
                 ? 'قاعدة البيانات خالية حالياً. يمكن للمسؤول استيراد بيانات العملاء عبر إكسل أو شيت المديونية.'
-                : 'جرب تعديل خيارات التصفية أو مسح كلمة البحث لرؤية النتائج.'}
+                : 'جرّب تعديل الفلاتر أو مسح البحث لرؤية النتائج.'}
             </p>
+            {customers.length > 0 && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="app-btn app-btn-primary mx-auto mt-4 px-4 py-2 text-xs"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>مسح كل الفلاتر</span>
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -1835,7 +1818,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
               // Customer Status logic
               const isLegal = c.isLegalPending || (c.legalStatus && c.legalStatus !== 'none');
-              const isActive = s26 > 0 || (c.lastVisitDate && new Date(c.lastVisitDate) > new Date(Date.now() - 60*24*60*60*1000));
+              const statusBadge = getCustomerStatusBadge(c);
+              const dealtBadge = getCustomerDealtBadge(c);
+              const creditUsage = getCreditUsagePercent(c);
+              const paidAmount = Math.max(
+                Math.abs(Number(c.collections2026) || 0),
+                Math.abs(Number(c.totalMonthlyCollections) || 0),
+                Math.abs(Number(c.totalOverallCollections) || 0)
+              );
 
               return (
                 <div
@@ -1850,7 +1840,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       </div>
                       <div className="min-w-0">
                         <div
-                          onClick={() => setSelectedCustomer(c)}
+                          onClick={() => setQuickCustomer(c)}
                           className="font-black text-slate-900 text-sm truncate cursor-pointer hover:text-teal-700 transition"
                         >
                           {c.name}
@@ -1869,41 +1859,42 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                           <ShieldAlert className="w-3 h-3 text-rose-600" />
                           <span>شؤون قانونية</span>
                         </span>
-                      ) : isActive ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                          <span>نشط</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200">
-                          <span>متوقف</span>
-                        </span>
-                      )}
+                      ) : null}
+                      <span className={`pill pill-${statusBadge.tone}`}>{statusBadge.label}</span>
+                      <span className={`pill pill-${dealtBadge.tone}`}>{dealtBadge.label}</span>
                       <span className="text-[10px] font-mono text-slate-400">#{(currentPage - 1) * pageSize + index + 1}</span>
                     </div>
                   </div>
 
                   {/* 3-Column Financial Metrics Bar */}
                   <div className="grid grid-cols-3 gap-1.5 pt-1">
-                    <div className="rounded-xl bg-purple-50/70 border border-purple-100/80 p-2 text-right">
-                      <div className="text-[9px] text-purple-700 font-bold">المديونية</div>
+                    <div className="rounded-xl bg-[#eef3f8]/80 border border-[#dbe5f0] p-2 text-right">
+                      <div className="text-[9px] text-[#1b3652] font-bold">المديونية</div>
                       <div className="font-black text-[var(--app-navy)] text-xs sm:text-sm mt-0.5 truncate" title={isPrivacyMode ? 'مخفي' : formatMoney(bal)}>
                         {formatMoney(bal)}
                       </div>
-                      {isOverLimit && <div className="text-[8px] text-rose-600 font-bold mt-0.5">تجاوز الحد</div>}
+                      <div className="cdebt-bar" aria-hidden="true">
+                        <span
+                          className={creditUsage > 100 ? 'is-over' : creditUsage >= 80 ? 'is-high' : 'is-ok'}
+                          style={{ width: `${Math.min(100, Math.max(limit > 0 ? 3 : 0, creditUsage))}%` }}
+                        />
+                      </div>
+                      <div className={`text-[8px] font-bold mt-0.5 ${creditUsage > 100 ? 'text-rose-600' : 'text-slate-500'}`}>
+                        {limit > 0 ? `حد ${formatMoney(limit)} · ${creditUsage}%` : 'بدون حد'}
+                      </div>
                     </div>
 
-                    <div className="rounded-xl bg-rose-50/70 border border-rose-100/80 p-2 text-right">
-                      <div className="text-[9px] text-rose-700 font-bold">المستحقات</div>
+                    <div className="rounded-xl bg-[#fdeeee]/80 border border-[#f3cccc] p-2 text-right">
+                      <div className="text-[9px] text-[#b03d3d] font-bold">المستحقات</div>
                       <div className="font-black text-rose-900 text-xs sm:text-sm mt-0.5 truncate">
                         {formatMoney(overdue)}
                       </div>
                     </div>
 
-                    <div className="rounded-xl bg-teal-50/70 border border-teal-100/80 p-2 text-right">
-                      <div className="text-[9px] text-teal-700 font-bold">مبيعات 2026</div>
+                    <div className="rounded-xl bg-[#e8f6ef]/80 border border-[#c7e9d9] p-2 text-right">
+                      <div className="text-[9px] text-[#157a58] font-bold">إجمالي المسدد</div>
                       <div className="font-black text-teal-900 text-xs sm:text-sm mt-0.5 truncate">
-                        {formatMoney(s26)}
+                        {formatMoney(paidAmount)}
                       </div>
                       {colRate > 0 && <div className="text-[8px] text-emerald-700 font-bold mt-0.5">سداد {colRate}%</div>}
                     </div>
@@ -1946,7 +1937,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
                     <button
                       type="button"
-                      onClick={() => setSelectedCustomer(c)}
+                      onClick={() => setQuickCustomer(c)}
                       className="h-8 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-teal-700 font-black text-xs flex items-center gap-1 transition cursor-pointer"
                     >
                       <span>التفاصيل</span>
@@ -1958,353 +1949,99 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             })}
           </div>
           <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-right border-collapse text-xs">
+            <table className="cust-table w-full text-right border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-100 text-slate-700 font-extrabold border-b border-slate-200 whitespace-nowrap">
                   <th className="p-3 text-center w-10">#</th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'code') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('code'); setSortOrder('asc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition"
-                  >
-                    <div className="flex items-center gap-1">
-                      <span>الكود</span>
-                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'name') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('name'); setSortOrder('asc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition min-w-[180px]"
-                  >
-                    <div className="flex items-center gap-1">
-                      <span>اسم العميل / المحل</span>
-                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                    </div>
-                  </th>
-                  <th className="p-3">الفرع / المندوب</th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'balance') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('balance'); setSortOrder('desc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition text-left"
-                  >
-                    <div className="flex items-center justify-end gap-1 t-navy">
-                      <span>المديونية (ج.م)</span>
-                      <ArrowUpDown className="w-3 h-3" />
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'overdue') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('overdue'); setSortOrder('desc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition text-left"
-                  >
-                    <div className="flex items-center justify-end gap-1 t-risk">
-                      <span>المستحقات (ج.م)</span>
-                      <ArrowUpDown className="w-3 h-3" />
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'creditLimit') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('creditLimit'); setSortOrder('desc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition text-left"
-                  >
-                    <div className="flex items-center justify-end gap-1 text-slate-700">
-                      <span>الحد الائتماني</span>
-                      <ArrowUpDown className="w-3 h-3" />
-                    </div>
-                  </th>
-                  <th className="p-3 text-center">أوراق الضمان</th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'sales2026') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('sales2026'); setSortOrder('desc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition text-left"
-                  >
-                    <div className="flex items-center justify-end gap-1 t-navy">
-                      <span>البيع 2026</span>
-                      <ArrowUpDown className="w-3 h-3" />
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'collections2026') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('collections2026'); setSortOrder('desc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition text-left"
-                  >
-                    <div className="flex items-center justify-end gap-1 t-ok">
-                      <span>التحصيل 2026</span>
-                      <ArrowUpDown className="w-3 h-3" />
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'lastVisit') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('lastVisit'); setSortOrder('desc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition text-center"
-                  >
-                    <div className="flex items-center justify-center gap-1 t-muted">
-                      <span>تاريخ آخر زيارة</span>
-                      <ArrowUpDown className="w-3 h-3" />
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'order') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('order'); setSortOrder('desc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition text-center"
-                  >
-                    <div className="flex items-center justify-center gap-1 t-muted">
-                      <span>أمر البيع / الطلبية</span>
-                      <ArrowUpDown className="w-3 h-3" />
-                    </div>
-                  </th>
+                  {visibleColumnDefs.map((def) =>
+                    def.sortKey ? (
+                      <th
+                        key={def.key}
+                        onClick={() => {
+                          if (sortBy === def.sortKey) {
+                            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setSortBy(def.sortKey as typeof sortBy);
+                            setSortOrder(def.sortKey === 'name' || def.sortKey === 'code' ? 'asc' : 'desc');
+                          }
+                        }}
+                        className={`p-3 cursor-pointer hover:bg-slate-200/60 transition ${columnAlignClass(def.align)}`}
+                      >
+                        <div className={`cf-th-inner ${def.align === 'start' ? 'cf-th-inner-start' : ''}`}>
+                          <span>{def.label}</span>
+                          <ArrowUpDown className="w-3 h-3 text-[#a9c4de]" />
+                        </div>
+                      </th>
+                    ) : (
+                      <th key={def.key} className={`p-3 ${columnAlignClass(def.align)}`}>
+                        {def.label}
+                      </th>
+                    )
+                  )}
                   <th className="p-3 text-center">الإجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginatedCustomers.map((c, index) => {
-                  const globalIdx = (currentPage - 1) * pageSize + index + 1;
-                  const bal = c.currentBalance ?? c.balance ?? 0;
-                  const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
-                  const limit = c.creditLimit || 0;
-                  const isOverLimit = limit > 0 && bal > limit;
-                  const monthlySalesSum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-                  const s26 = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, monthlySalesSum);
-                  const monthlyColsSum = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-                  const col26 = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, c.totalOverallCollections || 0, monthlyColsSum);
-                  const colRate = s26 > 0 ? Math.round((col26 / s26) * 100) : (col26 > 0 ? 100 : 0);
-                  const guaranteeInfo = getGuaranteeBadge(c.guaranteeDocs, c.guaranteeAmount, limit);
-                  const visitTime = getRelativeTimeArabic(c.lastVisitDate);
-                  const orderSummary = getCustomerOrderSummary(c);
+                {paginatedCustomers.map((c, index) => (
+                  <tr
+                    key={c.id || c.code}
+                    onClick={() => setQuickCustomer(c)}
+                    className="hover:bg-[#fbf8f1] transition cursor-pointer group"
+                  >
+                    <td className="p-3 text-center font-bold text-slate-400">
+                      {(currentPage - 1) * pageSize + index + 1}
+                    </td>
 
-                  return (
-                    <tr
-                      key={c.id || c.code}
-                      onClick={() => setSelectedCustomer(c)}
-                      className="hover:bg-[#fbf8f1] transition cursor-pointer group"
-                    >
-                      <td className="p-3 text-center font-bold text-slate-400">
-                        {globalIdx}
+                    {visibleColumnDefs.map((def) => (
+                      <td
+                        key={def.key}
+                        className={`p-3 ${columnAlignClass(def.align)} ${
+                          def.key === 'name' || def.key === 'region' ? '' : 'whitespace-nowrap'
+                        }`}
+                      >
+                        {renderCustomerCell(def.key, c)}
                       </td>
+                    ))}
 
-                      <td className="p-3 font-mono font-black text-slate-700 whitespace-nowrap">
-                        {c.code || '---'}
-                      </td>
-
-                      <td className="p-3">
-                        <div className="font-black text-slate-900 group-hover:text-[var(--app-accent)] transition">
-                          {c.name}
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          {c.phone && (
-                            <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                              <Phone className="w-3 h-3" />
-                              <span>{c.phone}</span>
-                            </span>
-                          )}
-                          {c.region && (
-                            <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded">
-                              {c.region}
-                            </span>
-                          )}
-                        </div>
-                        {(c.dealEligibility || c.debtStatus) && (
-                          <div className="flex items-center gap-1 mt-1 flex-wrap">
-                            {c.dealEligibility && (
-                              <span
-                                className={`text-[9px] px-1.5 py-0.2 rounded border font-bold ${
-                                  (c.dealEligibility || '').includes('غير') || (c.dealEligibility || '').includes('موقوف')
-                                    ? 't-risk border-[#e7c3c3] bg-[#fdf1f1]'
-                                    : 't-ok border-[#cbe3d6] bg-[#f1f8f4]'
-                                }`}
-                              >
-                                {c.dealEligibility}
-                              </span>
-                            )}
-                            {c.debtStatus && (
-                              <span
-                                className="text-[9px] px-1.5 py-0.2 rounded border border-[var(--app-line)] bg-slate-50 text-slate-600 font-bold"
-                                title="حالة السداد / سبب عدم السداد"
-                              >
-                                {c.debtStatus}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="p-3 whitespace-nowrap">
-                        <div className="font-bold text-slate-700">{c.branchName}</div>
-                        <div className="text-[11px] text-slate-500">
-                          {c.salesRepName || c.repName || 'غير محدد'}
-                        </div>
-                      </td>
-
-                      {/* المديونية */}
-                      <td className="p-3 text-left font-mono whitespace-nowrap">
-                        <div className={`font-black ${bal > 0 ? 'text-[var(--app-navy)]' : 'text-slate-400'}`}>
-                          {formatMoney(bal)}
-                        </div>
-                        {isOverLimit && (
-                          <span className="inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.2 rounded-full font-extrabold bg-rose-100 text-rose-700 border border-rose-200 mt-0.5">
-                            <AlertTriangle className="w-2.5 h-2.5" /> متجاوز الحد
-                          </span>
-                        )}
-                      </td>
-
-                      {/* المستحقات */}
-                      <td className="p-3 text-left font-mono whitespace-nowrap">
-                        {overdue > 0 ? (
-                          <div>
-                            <div className="font-black text-rose-700">
-                              {formatMoney(overdue)}
-                            </div>
-                            <span className="inline-block text-[9px] px-1.5 py-0.2 rounded bg-rose-50 text-rose-600 font-bold border border-rose-200 mt-0.5">
-                              واجب التحصيل
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 font-medium">0.00 ج.م</span>
-                        )}
-                      </td>
-
-                      {/* الحد الائتماني وطريقة الدفع */}
-                      <td className="p-3 text-left font-mono whitespace-nowrap">
-                        {limit > 0 ? (
-                          <div>
-                            <div className="font-bold text-slate-800">
-                              {formatMoney(limit)}
-                            </div>
-                            <div className="text-[10px] text-slate-400">
-                              المتبقي: {formatMoney(Math.max(0, limit - bal))}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 font-bold">0.00 ج.م</span>
-                        )}
-                        <div className="mt-1">
-                          <span className={`inline-block text-[10px] px-2 py-0.5 rounded font-bold ${
-                            (c.paymentTerms || 'كاش').includes('شيك')
-                              ? 'bg-purple-100 text-purple-800 border border-purple-200'
-                              : (c.paymentTerms || 'كاش').includes('دفع')
-                              ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          }`}>
-                            {c.paymentTerms || 'كاش'}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* أوراق الضمان */}
-                      <td className="p-3 text-center whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border ${guaranteeInfo.color}`}>
-                          <ShieldCheck className="w-3 h-3" />
-                          <span>{guaranteeInfo.label}</span>
-                        </span>
-                      </td>
-
-                      {/* البيع 2026 */}
-                      <td className="p-3 text-left font-mono font-black text-blue-800 whitespace-nowrap">
-                        {formatMoney(s26)}
-                      </td>
-
-                      {/* التحصيل 2026 */}
-                      <td className="p-3 text-left font-mono whitespace-nowrap">
-                        <div className="font-black text-emerald-800">
-                          {formatMoney(col26)}
-                        </div>
-                        {s26 > 0 && (
-                          <div className="text-[10px] font-bold text-emerald-600 mt-0.5">
-                            سداد: {colRate}%
-                          </div>
-                        )}
-                      </td>
-
-                      {/* تاريخ آخر زيارة */}
-                      <td className="p-3 text-center whitespace-nowrap">
-                        {c.lastVisitDate ? (
-                          <div>
-                            <div className="font-black text-slate-800 font-mono text-[11px]">
-                              {c.lastVisitDate}
-                            </div>
-                            <span className={`inline-block text-[10px] px-1.5 py-0.2 rounded-full font-bold mt-0.5 ${visitTime.color}`}>
-                              {visitTime.text}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 text-[11px]">لم تسجل بعد</span>
-                        )}
-                      </td>
-
-                      {/* أمر البيع لو عامل طلبية */}
-                      <td className="p-3 text-center whitespace-nowrap">
-                        {orderSummary.hasOrder && orderSummary.latestOrder ? (
-                          <div className="flex flex-col items-center">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg font-mono font-black text-[11px] bg-teal-50 text-teal-800 border border-teal-200">
-                              <ShoppingCart className="w-3 h-3 text-teal-600" />
-                              <span>{orderSummary.latestOrder.invoiceNumber || 'أمر بيع'}</span>
-                            </span>
-                            <div className="flex items-center gap-1 mt-0.5">
-                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-bold">
-                                {orderSummary.latestOrder.status || 'مسجل'}
-                              </span>
-                              <span className="text-[10px] font-mono font-bold text-slate-600">
-                                 {formatMoney(orderSummary.latestOrder.estimatedGrandTotal)}
-                              </span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center">
-                            <span className="text-slate-400 text-[11px]">لا يوجد أمر</span>
-                          </div>
-                        )}
-                      </td>
-
-                      {/* الإجراءات */}
-                      <td className="p-3 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1.5">
-                          {onOpenNewOrderForCustomer && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onOpenNewOrderForCustomer(c);
-                              }}
-                              className="px-2.5 py-1.5 rounded-lg bg-[var(--app-accent)] hover:bg-[#b98a35] text-[#102b4e] font-black text-xs transition flex items-center gap-1 shadow-xs cursor-pointer"
-                              title="إنشاء طلبية / فاتورة كاشير للعميل"
-                            >
-                              <ShoppingCart className="w-3.5 h-3.5" />
-                              <span className="hidden xl:inline">طلب</span>
-                            </button>
-                          )}
+                    <td className="p-3 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setQuickCustomer(c);
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                          title="تفاصيل سريعة"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelectedCustomer(c);
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-teal-700 transition cursor-pointer"
+                          title="فتح الملف الكامل 360°"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </button>
+                        {onOpenNewOrderForCustomer && (
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedCustomer(c);
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onOpenNewOrderForCustomer(c);
                             }}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
-                            title="عرض الملف الشامل للعميل"
+                            className="px-2 py-1.5 rounded-lg bg-[var(--app-accent)] hover:bg-[#b98a35] text-[#102b4e] font-black text-[11px] transition flex items-center gap-1 cursor-pointer"
+                            title="إنشاء طلبية جديدة"
                           >
-                            <Eye className="w-4 h-4" />
+                            <ShoppingCart className="w-3.5 h-3.5" />
+                            <span className="hidden xl:inline">طلب</span>
                           </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -2362,6 +2099,30 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           </div>
         )}
       </div>
+
+      {/* إعدادات الأعمدة والفلاتر المخصصة */}
+      {isTableSettingsOpen && (
+        <CustomerTableSettings
+          visibleColumns={visibleColumns}
+          onToggleColumn={handleToggleColumn}
+          onResetColumns={() => setVisibleColumns(getDefaultVisibleColumns())}
+          onClose={() => setIsTableSettingsOpen(false)}
+        />
+      )}
+
+      {/* لوحة تفاصيل العميل السريعة (Side Drawer) */}
+      {quickCustomer && (
+        <CustomerQuickDrawer
+          customer={quickCustomer}
+          isPrivacyMode={isPrivacyMode}
+          onClose={() => setQuickCustomer(null)}
+          onOpenFullProfile={(customer) => {
+            setQuickCustomer(null);
+            setSelectedCustomer(customer);
+          }}
+          onOpenNewOrder={onOpenNewOrderForCustomer}
+        />
+      )}
 
       {/* CUSTOMER 360-DEGREE DETAIL DRAWER / MODAL */}
       {selectedCustomer && (

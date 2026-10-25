@@ -20,7 +20,6 @@ import { DashboardHome } from './components/DashboardHome';
 import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { ProductCatalog } from './components/ProductCatalog';
-import { CustomerDirectoryView } from './components/CustomerDirectoryView';
 import { AllCustomersAnalyticsView } from './components/AllCustomersAnalyticsView';
 import { SupervisorDashboard } from './components/SupervisorDashboard';
 import { InvoicesManager } from './components/InvoicesManager';
