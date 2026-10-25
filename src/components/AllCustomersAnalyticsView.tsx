@@ -1193,7 +1193,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </div>
               <div className="h-64 sm:h-72 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={kpiStats.monthlyChartData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+                  <BarChart data={kpiStats.monthlyChartData} margin={{ top: 10, right: 10, left: 10, bottom: 10 }} barCategoryGap="16%" barGap={4}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
                     <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748B' }} />
                     <YAxis
@@ -1201,12 +1201,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       tickFormatter={(v) => (isPrivacyMode ? '•••' : `${(v / 1000).toFixed(0)}k`)}
                     />
                     <Tooltip
-                      formatter={(val: any) => formatMoney(Number(val) || 0)}
-                      contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '12px', border: 'none' }}
+                      formatter={(val: any, name: any) => [formatMoney(Math.abs(Number(val) || 0)), name]}
+                      contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '12px', border: 'none', direction: 'rtl', textAlign: 'right' }}
+                      labelStyle={{ color: '#fff', fontWeight: 700 }}
                     />
-                    <Legend />
-                    <Bar dataKey="مبيعات 2026" fill="#0284c7" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="تحصيلات 2026" fill="#10B981" radius={[4, 4, 0, 0]} />
+                    <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 700 }} />
+                    <Bar dataKey="مبيعات 2026" name="المبيعات" fill="#0284c7" radius={[6, 6, 0, 0]} maxBarSize={26} />
+                    <Bar dataKey="تحصيلات 2026" name="التحصيلات" fill="#10B981" radius={[6, 6, 0, 0]} maxBarSize={26} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

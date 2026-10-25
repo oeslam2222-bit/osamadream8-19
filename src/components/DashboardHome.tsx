@@ -758,18 +758,20 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
               </div>
             </div>
 
-            <div className="h-56 w-full" dir="ltr">
+            <div className="h-56 w-full" dir="rtl">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={salesCollectionsChart} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                <BarChart data={salesCollectionsChart} margin={{ top: 10, right: 10, left: 10, bottom: 0 }} barCategoryGap="18%" barGap={4}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" reversed tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                  <YAxis orientation="right" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => compact(Number(v))} />
+                  <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => compact(Number(v))} />
                   <Tooltip
-                    formatter={(val: any, name: any) => [money(Number(val)), name === 'sales' ? 'المبيعات' : 'التحصيلات']}
+                    formatter={(val: any, name: any) => [money(Math.abs(Number(val))), name === 'sales' ? 'المبيعات' : 'التحصيلات']}
                     labelFormatter={(_, payload) => payload?.[0]?.payload?.full || ''}
+                    contentStyle={{ direction: 'rtl', textAlign: 'right', borderRadius: '12px' }}
                   />
-                  <Bar dataKey="sales" name="المبيعات" fill="#009488" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="collections" name="التحصيلات" fill="#3882f6" radius={[4, 4, 0, 0]} />
+                  <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 700 }} formatter={(value) => (value === 'sales' ? 'المبيعات' : value === 'collections' ? 'التحصيلات' : value)} />
+                  <Bar dataKey="sales" name="المبيعات" fill="#009488" radius={[6, 6, 0, 0]} maxBarSize={26} />
+                  <Bar dataKey="collections" name="التحصيلات" fill="#3882f6" radius={[6, 6, 0, 0]} maxBarSize={26} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
