@@ -776,7 +776,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       { name: 'كاش / فوري', value: cashCount, color: '#10B981' },
       { name: 'على دفعات', value: installmentsCount, color: '#F59E0B' },
       { name: 'شيكات بنكية', value: chequesCount, color: '#6366F1' },
-      { name: 'آجل تجا����ي', value: creditCount, color: '#0EA5E9' },
+      { name: 'آجل تجا������ي', value: creditCount, color: '#0EA5E9' },
     ].filter((d) => d.value > 0);
   }, [filteredCustomers]);
 
@@ -2374,8 +2374,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
       {/* CUSTOMER 360-DEGREE DETAIL DRAWER / MODAL */}
       {selectedCustomer && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm overflow-y-auto p-2 sm:p-4 md:p-6 flex items-start justify-center animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-5xl xl:max-w-6xl w-full sm:w-[94%] my-2 sm:my-4 shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+<div className="fixed inset-0 z-50 bg-slate-950/55 backdrop-blur-[2px] flex items-stretch justify-end animate-in fade-in">
+          <div className="bg-white w-full sm:w-[94%] md:w-[430px] lg:w-[470px] h-full shadow-2xl border-l border-slate-200 flex flex-col overflow-hidden animate-in slide-in-from-right duration-200">
             {/* Modal Header */}
             <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white rounded-t-3xl flex items-center justify-between sticky top-0 z-20 border-b border-slate-800">
               <div className="flex items-center gap-3 sm:gap-4">
