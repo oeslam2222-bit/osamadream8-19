@@ -2,8 +2,6 @@
 import {
   Users,
   Search,
-  Filter,
-  SlidersHorizontal,
   ArrowUpDown,
   Download,
   Upload,
