@@ -925,8 +925,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
       </div>
 
-      {/* Deduplication Notice Notification Banner */}
-      {dedupeNotice && (
+      {/* Deduplication Notice Notification Banner removed */}
+      {false && dedupeNotice && (
         <div className="panel-ok rounded-[14px] p-3 sm:p-4 flex items-center justify-between gap-3 text-xs font-bold shadow-sm animate-in fade-in">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-[10px] tint-ok flex items-center justify-center shrink-0">
@@ -1182,17 +1182,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               >
                 أعلى المناديب
               </button>
-              <button
-                type="button"
-                onClick={() => setActiveChartTab('payment_guarantee')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap ${
-                  activeChartTab === 'payment_guarantee'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                طرق الدفع والضمانات
-              </button>
             </div>
           </div>
 
@@ -1201,7 +1190,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs text-slate-500">
                 <span className="font-bold">مقارنة حركة المبيعات والتحصيلات على مدار 12 شهراً لعام 2026:</span>
-                {isPrivacyMode && <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md">وضع السرية مفعل</span>}
               </div>
               <div className="h-64 sm:h-72 w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -2994,160 +2982,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
       )}
 
-      {/* ADMIN & MANAGER GOOGLE SHEETS & EXCEL SYNC MODAL */}
-      {isSyncModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-black">
-                  <FileSpreadsheet className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-black text-sm text-slate-900">مزامنة واستيراد شيت العملاء والمديونية</h3>
-                  <p className="text-[11px] text-slate-400">تحميل بيانات الـ 4000 عميل ومبيعات وتحصيلات الشهور</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsSyncModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Feedback Message */}
-            {syncStatus && (
-              <div
-                className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
-                  syncStatus.type === 'success'
-                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                    : 'bg-rose-50 text-rose-800 border border-rose-200'
-                }`}
-              >
-                {syncStatus.type === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                ) : (
-                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                )}
-                <span>{syncStatus.message}</span>
-              </div>
-            )}
-
-            {/* Google Sheets Sync Option */}
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                  <RefreshCw className="w-3.5 h-3.5 text-amber-500" />
-                  <span>رابط Google Sheet لشيت المديونية والعملاء (Clients):</span>
-                </label>
-                {googleSheetUrl && (
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <Check className="w-3 h-3 text-emerald-600" />
-                    <span>محفوظ دائماً</span>
-                  </span>
-                )}
-              </div>
-
-              <input
-                type="url"
-                value={googleSheetUrl}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setGoogleSheetUrl(val);
-                  if (val.trim()) {
-                    saveSingleSourceUrl('customers', val.trim());
-                    setSavedSheetHistory(getSavedSheetHistory('customers'));
-                  }
-                }}
-                placeholder="https://docs.google.com/spreadsheets/d/..."
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:border-amber-500"
-              />
-
-              {/* Saved History Quick Selector */}
-              {savedSheetHistory.length > 1 && (
-                <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                  <span className="text-[10px] text-slate-500 font-bold">الروابط السابقة المحفوظة:</span>
-                  {savedSheetHistory.map((link, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => {
-                        setGoogleSheetUrl(link);
-                        saveSingleSourceUrl('customers', link);
-                      }}
-                      className={`text-[10px] px-2 py-0.5 rounded-lg border transition font-mono truncate max-w-[200px] cursor-pointer ${
-                        googleSheetUrl === link
-                          ? 'bg-amber-100 border-amber-300 text-amber-900 font-bold'
-                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
-                      }`}
-                      title={link}
-                    >
-                      شيت {idx + 1}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <button
-                onClick={handleSyncGoogleSheet}
-                disabled={isSyncing || !googleSheetUrl}
-                className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black py-2.5 rounded-xl text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                {isSyncing ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>جاري سحب ومزامنة البيانات...</span>
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="w-4 h-4" />
-                    <span>بدء المزامنة الحية من جوجل شيت</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Direct Excel File Upload Option */}
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-              <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                <Upload className="w-3.5 h-3.5 text-blue-500" />
-                <span>أو رفع ملف Excel مباشر من الجهاز:</span>
-              </div>
-
-              <label className="w-full border-2 border-dashed border-slate-300 hover:border-amber-500 p-4 rounded-xl flex flex-col items-center justify-center gap-1.5 cursor-pointer bg-white transition text-center">
-                <Upload className="w-6 h-6 text-slate-400" />
-                <span className="text-xs font-bold text-slate-700">اضغط هنا لاختيار ملف Excel (.xlsx)</span>
-                <span className="text-[10px] text-slate-400">يدعم حتى 10,000 عميل مع التحليل الشهري</span>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-              </label>
-            </div>
-
-            {/* Template Download */}
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-              <button
-                onClick={downloadCustomerAnalyticsTemplate}
-                className="text-amber-600 hover:text-amber-700 font-bold flex items-center gap-1"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>تحميل قالب Excel جاهز بالأعمدة</span>
-              </button>
-
-              <button
-                onClick={() => setIsSyncModalOpen(false)}
-                className="px-4 py-1.5 bg-slate-200 text-slate-700 font-bold rounded-xl"
-              >
-                إغلاق
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ADMIN & MANAGER GOOGLE SHEETS & EXCEL SYNC MODAL removed */}
     </div>
   );
 };
