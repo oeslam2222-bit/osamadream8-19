@@ -33,6 +33,8 @@ import {
   X,
   FileSpreadsheet,
   Clock,
+  Columns3,
+  ListFilter,
   ArrowUpRight,
   ArrowDownRight,
   ShieldCheck,
@@ -61,7 +63,8 @@ import {
   Area,
   PieChart as RechartsPieChart,
   Pie,
-  Cell
+  Cell,
+  LabelList
 } from 'recharts';
 import { useApp } from '../context/AppContext';
 import { Customer, CustomerVisit, User, Invoice, OrderStatus } from '../types';
@@ -86,6 +89,7 @@ import {
   VisitFilter,
   getCreditUsagePercent,
   getCustomerBalance,
+  getCustomerCollectionRate,
   getCustomerOverdue,
   getCustomerStatusBadge,
   getPresetStateValue,
@@ -101,7 +105,41 @@ import {
 } from '../services/customerFilterPredicates';
 import { CustomerFilterBar, CustomerFilterBarState } from './customers/CustomerFilterBar';
 import { CustomerQuickDrawer } from './customers/CustomerQuickDrawer';
+import { CustomerTableSettings } from './customers/CustomerTableSettings';
+import {
+  CUSTOMER_COLUMNS,
+  ColumnFilter,
+  CustomerColumnKey,
+  getColumnDef,
+  getCustomerColumnText,
+  getCustomerPaid,
+  getCustomerSales2026,
+  getDefaultVisibleColumns,
+  loadColumnFilters,
+  loadVisibleColumns,
+  matchesColumnFilters,
+  saveColumnFilters,
+  saveVisibleColumns,
+} from '../services/customerTableSchema';
 import { getSavedSourceUrl, saveSingleSourceUrl, getSavedSheetHistory } from '../services/dataSourceService';
+
+const truncateLabel = (value: string, max = 16): string =>
+  value.length > max ? `${value.slice(0, max)}…` : value;
+
+/** تيك الرسم العمودي: اسم العميل فوق الكود — بشكل مقروء ومظبوط في RTL */
+const TopDebtAxisTick: React.FC<any> = ({ x, y, payload }) => {
+  const item = payload?.payload || {};
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text x={0} y={13} textAnchor="middle" fontSize={9} fontWeight={800} fill="#33475e">
+        {truncateLabel(item.name || '')}
+      </text>
+      <text x={0} y={25} textAnchor="middle" fontSize={8.5} fontWeight={700} fill="#93a4b8">
+        {item.code || ''}
+      </text>
+    </g>
+  );
+};
 
 interface AllCustomersAnalyticsViewProps {
   onOpenNewOrderForCustomer?: (customer: Customer) => void;
@@ -183,6 +221,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   // Selected Customer for Detailed 360 Drawer/Modal
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [quickCustomer, setQuickCustomer] = useState<Customer | null>(null);
+
+  // إعدادات الجدول: الأعمدة الظاهرة + الفلاتر المخصصة (بتتحفظ لكل مستخدم)
+  const [visibleColumns, setVisibleColumns] = useState<CustomerColumnKey[]>(() =>
+    loadVisibleColumns(currentUser?.id)
+  );
+  const [columnFilters, setColumnFilters] = useState<ColumnFilter[]>(() => loadColumnFilters(currentUser?.id));
+  const [isTableSettingsOpen, setIsTableSettingsOpen] = useState(false);
+  const [tableSettingsTab, setTableSettingsTab] = useState<'columns' | 'filters'>('columns');
 
   // Customer Dossier Edit state (Credit, Guarantee, Overdue, Next Visit)
   const [isEditingDossier, setIsEditingDossier] = useState(false);
@@ -463,6 +509,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       list = list.filter((c) => matchesDealtFilter(c, dealtFilter));
     }
 
+    // الفلاتر المخصصة (أي عمود من أعمدة الشيت)
+    if (columnFilters.length > 0) {
+      list = list.filter((c) => matchesColumnFilters(c, columnFilters));
+    }
+
     // Search query (normalized Arabic for resilient match)
     if (searchQuery.trim()) {
       const qNorm = normalizeArabicText(searchQuery);
@@ -495,6 +546,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     eligibilityFilter,
     debtStatusFilter,
     dealtFilter,
+    columnFilters,
     searchQuery,
     users,
   ]);
@@ -618,34 +670,28 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     [filteredCustomers]
   );
 
-  // توزيع العملاء حسب حالة السداد (رسم الدونات)
-  const debtStatusDistribution = useMemo(() => {
-    let regular = 0;
-    let late = 0;
-    let follow = 0;
-    let settled = 0;
+  // توزيع العملاء حسب تصنيف التعامل (قابل / غير قابل) — من عمود الشيت
+  const eligibilityDistribution = useMemo(() => {
+    let eligible = 0;
+    let notEligible = 0;
+    let unknown = 0;
 
     filteredCustomers.forEach((c) => {
-      const balance = getCustomerBalance(c);
-      const overdue = getCustomerOverdue(c);
-      const limit = c.creditLimit || 0;
-      const raw = (c.debtStatus || '').trim();
-
-      if (balance <= 0) settled += 1;
-      else if (overdue > 0 || /متعثر|متأخر|تأخر/.test(raw)) late += 1;
-      else if ((limit > 0 && balance > limit) || /متابعة|بحاجة/.test(raw)) follow += 1;
-      else regular += 1;
+      const raw = (c.dealEligibility || '').trim();
+      if (!raw) unknown += 1;
+      else if (raw.includes('غير') || raw.includes('موقوف')) notEligible += 1;
+      else if (raw.includes('قابل')) eligible += 1;
+      else unknown += 1;
     });
 
     return [
-      { name: 'منتظم', value: regular, color: '#1F9D74' },
-      { name: 'متأخر', value: late, color: '#E05B5B' },
-      { name: 'بحاجة متابعة', value: follow, color: '#E0A23C' },
-      { name: 'خالص الرصيد', value: settled, color: '#7C8DB5' },
+      { name: 'قابل للتعامل', value: eligible, color: '#1F9D74' },
+      { name: 'غير قابل', value: notEligible, color: '#E05B5B' },
+      { name: 'غير محدد', value: unknown, color: '#8FA0B8' },
     ];
   }, [filteredCustomers]);
 
-  // أعلى 5 عملاء في المديونية الحالية
+  // أعلى 5 عملاء في المديونية الحالية (اسم + كود + مبلغ)
   const topDebtCustomers = useMemo(
     () =>
       [...filteredCustomers]
@@ -661,7 +707,16 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     [filteredCustomers]
   );
 
-  const distributionTotal = debtStatusDistribution.reduce((sum, item) => sum + item.value, 0);
+  const distributionTotal = eligibilityDistribution.reduce((sum, item) => sum + item.value, 0);
+
+  // اختصار الأرقام الكبيرة فوق أعمدة الرسم (1.82 مليون / 840 ألف)
+  const formatCompactAmount = (value: number): string => {
+    if (isPrivacyMode) return '•••';
+    const abs = Math.abs(value);
+    if (abs >= 1000000) return `${(value / 1000000).toFixed(2)} مليون`;
+    if (abs >= 1000) return `${Math.round(value / 1000)} ألف`;
+    return String(Math.round(value));
+  };
 
   // Reset pagination on filter changes
   useEffect(() => {
@@ -733,6 +788,55 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     orderFilter,
     visitFilter,
     collectionRateFilter,
+  };
+
+  // حفظ تلقائي في إعدادات المستخدم
+  useEffect(() => {
+    saveVisibleColumns(visibleColumns, currentUser?.id);
+  }, [visibleColumns, currentUser?.id]);
+
+  useEffect(() => {
+    saveColumnFilters(columnFilters, currentUser?.id);
+  }, [columnFilters, currentUser?.id]);
+
+  // القيم المتاحة لكل عمود — مستخرجة من بيانات الشيت المحمّلة نفسها
+  const columnFilterOptions = useMemo(() => {
+    const result: Partial<Record<CustomerColumnKey, string[]>> = {};
+    CUSTOMER_COLUMNS.forEach((column) => {
+      if (column.type === 'currency' || column.type === 'number') return;
+      const seen = new Set<string>();
+      userVisibleCustomers.forEach((c) => {
+        if (seen.size >= 60) return;
+        const text = getCustomerColumnText(c, column.key).trim();
+        if (text && text.length <= 45) seen.add(text);
+      });
+      result[column.key] = Array.from(seen).sort((a, b) => a.localeCompare(b, 'ar'));
+    });
+    return result;
+  }, [userVisibleCustomers]);
+
+  const visibleColumnDefs = useMemo(
+    () => CUSTOMER_COLUMNS.filter((column) => column.locked || visibleColumns.includes(column.key)),
+    [visibleColumns]
+  );
+
+  const openTableSettings = (tab: 'columns' | 'filters') => {
+    setTableSettingsTab(tab);
+    setIsTableSettingsOpen(true);
+  };
+
+  const handleToggleColumn = (key: CustomerColumnKey) => {
+    setVisibleColumns((prev) => (prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]));
+  };
+
+  const handleAddColumnFilter = (filter: Omit<ColumnFilter, 'id'>) => {
+    setColumnFilters((prev) => [
+      ...prev,
+      {
+        ...filter,
+        id: `${filter.column}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      },
+    ]);
   };
 
   // Paginated Items
@@ -1030,6 +1134,179 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     }
   };
 
+  const columnAlignClass = (align: 'start' | 'center' | 'end') =>
+    align === 'end' ? 'text-left' : align === 'center' ? 'text-center' : 'text-right';
+
+  /** خلية العمود — كل عرض في مكان واحد، والجدول بيتبني حسب الأعمدة المختارة. */
+  const renderCustomerCell = (key: CustomerColumnKey, c: Customer) => {
+    const bal = getCustomerBalance(c);
+    const overdue = getCustomerOverdue(c);
+    const limit = c.creditLimit || 0;
+    const usage = getCreditUsagePercent(c);
+    const statusBadge = getCustomerStatusBadge(c);
+    const dealt = isDealtCustomer(c);
+    const lastTouch = c.lastVisitDate || c.lastOrderDate || c.lastCollectionDate;
+    const lastTouchInfo = getRelativeTimeArabic(lastTouch);
+
+    switch (key) {
+      case 'code':
+        return <span className="font-mono font-black text-slate-700">{c.code || '---'}</span>;
+
+      case 'name':
+        return (
+          <div className="min-w-[175px]">
+            <div className="font-black text-slate-900 group-hover:text-[var(--app-accent)] transition">
+              {c.name}
+            </div>
+            <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-400">
+              {c.phone ? (
+                <span dir="ltr" className="flex items-center gap-1">
+                  <Phone className="w-3 h-3" />
+                  {c.phone}
+                </span>
+              ) : (
+                <span>بدون هاتف</span>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'region':
+        return (
+          <>
+            <div className="font-bold text-slate-700">{c.region || c.district || c.branchName || '—'}</div>
+            <div className="text-[11px] text-slate-500">
+              {c.branchName && c.branchName !== c.region
+                ? c.branchName
+                : c.salesRepName || c.repName || '—'}
+            </div>
+          </>
+        );
+
+      case 'rep':
+        return <span className="font-bold text-slate-700">{c.salesRepName || c.repName || 'غير محدد'}</span>;
+
+      case 'branch':
+        return <span className="text-slate-700">{c.branchName || '—'}</span>;
+
+      case 'phone':
+        return c.phone ? (
+          <a
+            href={`tel:${c.phone}`}
+            onClick={(event) => event.stopPropagation()}
+            dir="ltr"
+            className="font-mono font-bold text-slate-600 hover:text-[var(--app-accent)]"
+          >
+            {c.phone}
+          </a>
+        ) : (
+          <span className="text-slate-400">—</span>
+        );
+
+      case 'debt':
+        return (
+          <div className="min-w-[170px]">
+            <div className={`font-black ${bal > 0 ? 'text-[var(--app-navy)]' : 'text-slate-400'}`}>
+              {formatMoney(bal)}
+            </div>
+            <div className="cdebt-bar" aria-hidden="true">
+              <span
+                className={usage > 100 ? 'is-over' : usage >= 80 ? 'is-high' : 'is-ok'}
+                style={{ width: `${Math.min(100, Math.max(limit > 0 ? 3 : 0, usage))}%` }}
+              />
+            </div>
+            <div className="cdebt-foot">
+              <span>{limit > 0 ? `الحد: ${formatMoney(limit)}` : 'بدون حد ائتماني'}</span>
+              {limit > 0 && <span className={usage > 100 ? 't-risk' : 't-muted'}>{usage}%</span>}
+            </div>
+          </div>
+        );
+
+      case 'creditLimit':
+        return <span className="app-num text-slate-600">{limit > 0 ? formatMoney(limit) : 'بدون حد'}</span>;
+
+      case 'paid':
+        return <span className="app-num font-black t-ok">{formatMoney(getCustomerPaid(c))}</span>;
+
+      case 'overdue':
+        return (
+          <>
+            <div className={`font-black ${overdue > 0 ? 't-risk' : 'text-slate-400'}`}>
+              {formatMoney(overdue)}
+            </div>
+            {overdue > 0 && <span className="text-[9px] font-extrabold t-risk">واجب التحصيل</span>}
+          </>
+        );
+
+      case 'collectionRate': {
+        const rate = Math.round(getCustomerCollectionRate(c));
+        return (
+          <div className="min-w-[80px]">
+            <div className="app-num font-black text-slate-700">{rate}%</div>
+            <div className="cdebt-bar" aria-hidden="true">
+              <span
+                className={rate >= 80 ? 'is-ok' : rate >= 30 ? 'is-high' : 'is-over'}
+                style={{ width: `${Math.min(100, Math.max(3, rate))}%` }}
+              />
+            </div>
+          </div>
+        );
+      }
+
+      case 'status':
+        return <span className={`pill pill-${statusBadge.tone}`}>{statusBadge.label}</span>;
+
+      case 'dealt':
+        return (
+          <span className={`pill ${dealt ? 'pill-teal' : 'pill-muted'}`}>
+            {dealt ? 'متعامل' : 'غير متعامل'}
+          </span>
+        );
+
+      case 'eligibility': {
+        const raw = (c.dealEligibility || '').trim() || 'غير محدد';
+        const isNot = raw.includes('غير') || raw.includes('موقوف');
+        return <span className={`pill ${isNot ? 'pill-risk' : 'pill-ok'}`}>{raw}</span>;
+      }
+
+      case 'paymentTerms':
+        return <span className="text-slate-600">{c.paymentTerms || 'غير محدد'}</span>;
+
+      case 'activityType':
+        return <span className="text-slate-600">{c.activityType || 'غير محدد'}</span>;
+
+      case 'guarantee':
+        return <span className="text-slate-600">{c.guaranteeDocs || 'لا يوجد'}</span>;
+
+      case 'sales2026':
+        return <span className="app-num font-black text-[var(--app-navy)]">{formatMoney(getCustomerSales2026(c))}</span>;
+
+      case 'collections2026':
+        return <span className="app-num font-black t-ok">{formatMoney(Math.abs(Number(c.collections2026) || 0))}</span>;
+
+      case 'lastTouch':
+        return lastTouch ? (
+          <>
+            <div className="font-bold text-slate-600 text-[11px]">
+              {new Date(lastTouch).toLocaleDateString('ar-EG')}
+            </div>
+            <div className="text-[10px] t-muted">{lastTouchInfo.text}</div>
+          </>
+        ) : (
+          <span className="text-slate-400 text-[11px]">لا يوجد</span>
+        );
+
+      case 'visits':
+        return <span className="app-num font-black text-slate-700">{c.visitCount2026 || 0}</span>;
+
+      case 'orders':
+        return <span className="app-num font-black text-slate-700">{c.totalOrdersCount || 0}</span>;
+
+      default:
+        return <span className="text-slate-400">—</span>;
+    }
+  };
+
   return (
     <div className="tantawy-screen space-y-4 animate-in fade-in pb-12">
       {/* Top Header Card */}
@@ -1078,6 +1355,31 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             )}
           </button>
           )}
+
+          {/* تخصيص الأعمدة والفلاتر المخصصة */}
+          <button
+            type="button"
+            onClick={() => openTableSettings('columns')}
+            className="app-btn app-btn-ghost px-3 py-2 text-xs whitespace-nowrap"
+            title="إظهار/إخفاء أعمدة الجدول — بيتحفظ في إعداداتك"
+          >
+            <Columns3 className="w-3.5 h-3.5" />
+            <span>الأعمدة</span>
+            <span className="app-num text-[10px] bg-slate-100 border border-slate-200 rounded-full px-1.5 py-0.5">
+              {visibleColumnDefs.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => openTableSettings('filters')}
+            className="app-btn app-btn-ghost px-3 py-2 text-xs whitespace-nowrap"
+            title="إضافة فلتر على أي عمود من بيانات الشيت"
+          >
+            <ListFilter className="w-3.5 h-3.5" />
+            <span>فلتر مخصص</span>
+            {columnFilters.length > 0 && <span className="cf-badge">{columnFilters.length}</span>}
+          </button>
 
           {/* Clean & Deduplicate Button (Prevents 3000 to 6000 duplicate explosion) */}
           {isAdminOrDev && (
@@ -1210,7 +1512,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         <div className="cchart-row">
           <section className="cchart-card">
             <header className="cchart-head">
-              <h3>توزيع العملاء حسب حالة السداد</h3>
+              <h3>توزيع العملاء حسب تصنيف التعامل (قابل / غير قابل)</h3>
               <span className="cchart-chip">{distributionTotal.toLocaleString()} عميل</span>
             </header>
             <div className="cchart-body">
@@ -1218,7 +1520,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 <ResponsiveContainer width="100%" height={220}>
                   <RechartsPieChart>
                     <Pie
-                      data={debtStatusDistribution}
+                      data={eligibilityDistribution}
                       dataKey="value"
                       nameKey="name"
                       innerRadius={62}
@@ -1226,7 +1528,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       paddingAngle={3}
                       stroke="none"
                     >
-                      {debtStatusDistribution.map((entry) => (
+                      {eligibilityDistribution.map((entry) => (
                         <Cell key={`status-${entry.name}`} fill={entry.color} />
                       ))}
                     </Pie>
@@ -1243,7 +1545,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               </div>
 
               <ul className="cchart-legend">
-                {debtStatusDistribution.map((item) => {
+                {eligibilityDistribution.map((item) => {
                   const pct = distributionTotal > 0 ? (item.value / distributionTotal) * 100 : 0;
                   return (
                     <li key={`legend-${item.name}`}>
@@ -1270,30 +1572,41 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8eef5" />
                     <XAxis
                       dataKey="code"
-                      tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }}
+                      tick={<TopDebtAxisTick />}
+                      height={34}
+                      interval={0}
                       axisLine={false}
                       tickLine={false}
                     />
                     <YAxis hide />
                     <Tooltip
                       formatter={(val: any) => [formatMoney(Number(val)), 'المديونية']}
-                      labelFormatter={(_label: any, payload: any) =>
-                        payload && payload[0] ? payload[0].payload.name : ''
-                      }
+                      labelFormatter={(_label: any, payload: any) => {
+                        if (!payload || !payload[0]) return '';
+                        const item = payload[0].payload;
+                        return `${item.name} — ${item.code}`;
+                      }}
                       contentStyle={{ backgroundColor: '#0F2B38', color: '#fff', borderRadius: '12px', border: 'none' }}
                     />
                     <Bar
                       dataKey="debt"
                       fill="#2F6FD0"
                       radius={[8, 8, 0, 0]}
-                      barSize={42}
+                      barSize={46}
                       cursor="pointer"
                       onClick={(data: any) => {
                         if (data && data.payload && data.payload.customer) {
                           setQuickCustomer(data.payload.customer);
                         }
                       }}
-                    />
+                    >
+                      <LabelList
+                        dataKey="debt"
+                        position="top"
+                        formatter={(val: any) => formatCompactAmount(Number(val))}
+                        style={{ fontSize: 9, fontWeight: 900, fill: '#1b3652' }}
+                      />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1532,6 +1845,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         canFilterBranch={isAdminOrDev}
         canFilterRep={!isRep}
         canFilterSupervisor={!isRep}
+        onOpenCustomFilters={() => openTableSettings('filters')}
+        customFilterCount={columnFilters.length}
         suggestions={searchSuggestions}
         onSelectSuggestion={(customer) => setQuickCustomer(customer)}
         sortValue={`${sortBy}:${sortOrder}`}
@@ -1542,6 +1857,40 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
       {/* Main Customers Table Card (Fast, Virtual-friendly, Paginated) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {/* الفلاتر المخصصة النشطة */}
+        {columnFilters.length > 0 && (
+          <div className="px-3 py-2 bg-[#fdf8ee] border-b border-[#f0e4cc] flex items-center gap-1.5 flex-wrap text-[11px]">
+            <span className="font-black text-[#8a6420] flex items-center gap-1">
+              <ListFilter className="w-3.5 h-3.5" />
+              فلاتر مخصصة ({columnFilters.length}):
+            </span>
+            {columnFilters.map((filter) => {
+              const def = getColumnDef(filter.column);
+              return (
+                <button
+                  key={filter.id}
+                  type="button"
+                  onClick={() => setColumnFilters((prev) => prev.filter((item) => item.id !== filter.id))}
+                  className="inline-flex items-center gap-1 rounded-full border border-[#e6d7b8] bg-white px-2 py-1 font-bold text-[#8a6420] hover:bg-[#f7efdd]"
+                  title="إزالة هذا الفلتر"
+                >
+                  <span>{def?.label || filter.column}</span>
+                  {filter.value ? <span className="text-[#b08b3f]">: {filter.value}</span> : null}
+                  {filter.value2 ? <span className="text-[#b08b3f]">— {filter.value2}</span> : null}
+                  <X className="w-3 h-3" />
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setColumnFilters([])}
+              className="font-black text-rose-700 hover:underline"
+            >
+              مسح الكل
+            </button>
+          </div>
+        )}
+
         {/* Table Controls Top */}
         <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs text-slate-500">
           <div className="flex items-center gap-2 font-bold">
@@ -1753,246 +2102,95 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               <thead>
                 <tr className="bg-slate-100 text-slate-700 font-extrabold border-b border-slate-200 whitespace-nowrap">
                   <th className="p-3 text-center w-10">#</th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'code') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('code'); setSortOrder('asc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition"
-                  >
-                    <div className="cf-th-inner cf-th-inner-start">
-                      <span>الكود</span>
-                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'name') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('name'); setSortOrder('asc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition"
-                  >
-                    <div className="cf-th-inner cf-th-inner-start">
-                      <span>اسم العميل / المحل</span>
-                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                    </div>
-                  </th>
-                  <th className="p-3">المنطقة / المندوب</th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'balance') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('balance'); setSortOrder('desc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition text-left"
-                  >
-                    <div className="cf-th-inner">
-                      <span>المديونية والحد الائتماني</span>
-                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'collections2026') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('collections2026'); setSortOrder('desc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition text-left"
-                  >
-                    <div className="cf-th-inner">
-                      <span>إجمالي المسدد</span>
-                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'overdue') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('overdue'); setSortOrder('desc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition text-left"
-                  >
-                    <div className="cf-th-inner">
-                      <span>المتبقي</span>
-                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                    </div>
-                  </th>
-                  <th className="p-3 text-center">حالة السداد</th>
-                  <th className="p-3 text-center">التعامل</th>
-                  <th
-                    onClick={() => {
-                      if (sortBy === 'lastVisit') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                      else { setSortBy('lastVisit'); setSortOrder('desc'); }
-                    }}
-                    className="p-3 cursor-pointer hover:bg-slate-200/60 transition text-center"
-                  >
-                    <div className="cf-th-inner">
-                      <span>آخر تحديث</span>
-                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                    </div>
-                  </th>
+                  {visibleColumnDefs.map((def) =>
+                    def.sortKey ? (
+                      <th
+                        key={def.key}
+                        onClick={() => {
+                          if (sortBy === def.sortKey) {
+                            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setSortBy(def.sortKey as typeof sortBy);
+                            setSortOrder(def.sortKey === 'name' || def.sortKey === 'code' ? 'asc' : 'desc');
+                          }
+                        }}
+                        className={`p-3 cursor-pointer hover:bg-slate-200/60 transition ${columnAlignClass(def.align)}`}
+                      >
+                        <div className={`cf-th-inner ${def.align === 'start' ? 'cf-th-inner-start' : ''}`}>
+                          <span>{def.label}</span>
+                          <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                        </div>
+                      </th>
+                    ) : (
+                      <th key={def.key} className={`p-3 ${columnAlignClass(def.align)}`}>
+                        {def.label}
+                      </th>
+                    )
+                  )}
                   <th className="p-3 text-center">الإجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginatedCustomers.map((c, index) => {
-                  const globalIdx = (currentPage - 1) * pageSize + index + 1;
-                  const bal = getCustomerBalance(c);
-                  const overdue = getCustomerOverdue(c);
-                  const limit = c.creditLimit || 0;
-                  const usage = getCreditUsagePercent(c);
-                  const statusBadge = getCustomerStatusBadge(c);
-                  const dealt = isDealtCustomer(c);
-                  const monthlyColsSum = c.monthlyCollections2026
-                    ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + Math.abs(Number(v) || 0), 0)
-                    : 0;
-                  const paid = Math.max(
-                    Math.abs(Number(c.collections2026) || 0),
-                    Math.abs(Number(c.totalMonthlyCollections) || 0),
-                    Math.abs(Number(c.totalOverallCollections) || 0),
-                    monthlyColsSum
-                  );
-                  const lastTouch = c.lastVisitDate || c.lastOrderDate || c.lastCollectionDate;
-                  const lastTouchInfo = getRelativeTimeArabic(lastTouch);
+                {paginatedCustomers.map((c, index) => (
+                  <tr
+                    key={c.id || c.code}
+                    onClick={() => setQuickCustomer(c)}
+                    className="hover:bg-[#fbf8f1] transition cursor-pointer group"
+                  >
+                    <td className="p-3 text-center font-bold text-slate-400">
+                      {(currentPage - 1) * pageSize + index + 1}
+                    </td>
 
-                  return (
-                    <tr
-                      key={c.id || c.code}
-                      onClick={() => setQuickCustomer(c)}
-                      className="hover:bg-[#fbf8f1] transition cursor-pointer group"
-                    >
-                      <td className="p-3 text-center font-bold text-slate-400">{globalIdx}</td>
-
-                      <td className="p-3 font-mono font-black text-slate-700 whitespace-nowrap">
-                        {c.code || '---'}
+                    {visibleColumnDefs.map((def) => (
+                      <td
+                        key={def.key}
+                        className={`p-3 ${columnAlignClass(def.align)} ${
+                          def.key === 'name' || def.key === 'region' ? '' : 'whitespace-nowrap'
+                        }`}
+                      >
+                        {renderCustomerCell(def.key, c)}
                       </td>
+                    ))}
 
-                      <td className="p-3 min-w-[190px]">
-                        <div className="font-black text-slate-900 group-hover:text-[var(--app-accent)] transition">
-                          {c.name}
-                        </div>
-                        <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-400 flex-wrap">
-                          {c.phone ? (
-                            <span dir="ltr" className="flex items-center gap-1">
-                              <Phone className="w-3 h-3" />
-                              <span>{c.phone}</span>
-                            </span>
-                          ) : (
-                            <span>بدون هاتف</span>
-                          )}
-                          {c.dealEligibility && (
-                            <span
-                              className={`text-[9px] px-1.5 py-0.2 rounded border font-bold ${
-                                (c.dealEligibility || '').includes('غير') || (c.dealEligibility || '').includes('موقوف')
-                                  ? 't-risk border-[#e7c3c3] bg-[#fdf1f1]'
-                                  : 't-ok border-[#cbe3d6] bg-[#f1f8f4]'
-                              }`}
-                            >
-                              {c.dealEligibility}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      <td className="p-3 whitespace-nowrap">
-                        <div className="font-bold text-slate-700">{c.region || c.branchName || '—'}</div>
-                        <div className="text-[11px] text-slate-500">
-                          {c.salesRepName || c.repName || 'غير محدد'}
-                        </div>
-                      </td>
-
-                      {/* المديونية + الحد الائتماني كمؤشر واحد */}
-                      <td className="p-3 text-left whitespace-nowrap min-w-[175px]">
-                        <div className={`font-black ${bal > 0 ? 'text-[var(--app-navy)]' : 'text-slate-400'}`}>
-                          {formatMoney(bal)}
-                        </div>
-                        <div className="cdebt-bar" aria-hidden="true">
-                          <span
-                            className={usage > 100 ? 'is-over' : usage >= 80 ? 'is-high' : 'is-ok'}
-                            style={{ width: `${Math.min(100, Math.max(limit > 0 ? 3 : 0, usage))}%` }}
-                          />
-                        </div>
-                        <div className="cdebt-foot">
-                          <span>{limit > 0 ? `الحد: ${formatMoney(limit)}` : 'بدون حد ائتماني'}</span>
-                          {limit > 0 && (
-                            <span className={usage > 100 ? 't-risk' : 't-muted'}>{usage}%</span>
-                          )}
-                        </div>
-                      </td>
-
-                      <td className="p-3 text-left whitespace-nowrap">
-                        <div className="font-black t-ok">{formatMoney(paid)}</div>
-                      </td>
-
-                      <td className="p-3 text-left whitespace-nowrap">
-                        <div className={`font-black ${overdue > 0 ? 't-risk' : 'text-slate-400'}`}>
-                          {formatMoney(overdue)}
-                        </div>
-                        {overdue > 0 && (
-                          <span className="text-[9px] font-extrabold t-risk">واجب التحصيل</span>
-                        )}
-                      </td>
-
-                      <td className="p-3 text-center whitespace-nowrap">
-                        <span className={`pill pill-${statusBadge.tone}`}>{statusBadge.label}</span>
-                      </td>
-
-                      <td className="p-3 text-center whitespace-nowrap">
-                        <span className={`pill ${dealt ? 'pill-teal' : 'pill-muted'}`}>
-                          {dealt ? 'متعامل' : 'غير متعامل'}
-                        </span>
-                      </td>
-
-                      <td className="p-3 text-center whitespace-nowrap">
-                        {lastTouch ? (
-                          <>
-                            <div className="font-bold text-slate-600 text-[11px]">
-                              {new Date(lastTouch).toLocaleDateString('ar-EG')}
-                            </div>
-                            <div className="text-[10px] t-muted">{lastTouchInfo.text}</div>
-                          </>
-                        ) : (
-                          <span className="text-slate-400 text-[11px]">لا يوجد</span>
-                        )}
-                      </td>
-
-                      <td className="p-3 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1.5">
+                    <td className="p-3 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setQuickCustomer(c);
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                          title="تفاصيل سريعة"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelectedCustomer(c);
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-teal-700 transition cursor-pointer"
+                          title="فتح الملف الكامل 360°"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </button>
+                        {onOpenNewOrderForCustomer && (
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setQuickCustomer(c);
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onOpenNewOrderForCustomer(c);
                             }}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
-                            title="تفاصيل سريعة"
+                            className="px-2 py-1.5 rounded-lg bg-[var(--app-accent)] hover:bg-[#b98a35] text-[#102b4e] font-black text-[11px] transition flex items-center gap-1 cursor-pointer"
+                            title="إنشاء طلبية جديدة"
                           >
-                            <Eye className="w-4 h-4" />
+                            <ShoppingCart className="w-3.5 h-3.5" />
+                            <span className="hidden xl:inline">طلب</span>
                           </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedCustomer(c);
-                            }}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-teal-700 transition cursor-pointer"
-                            title="فتح الملف الكامل 360°"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </button>
-                          {onOpenNewOrderForCustomer && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onOpenNewOrderForCustomer(c);
-                              }}
-                              className="px-2 py-1.5 rounded-lg bg-[var(--app-accent)] hover:bg-[#b98a35] text-[#102b4e] font-black text-[11px] transition flex items-center gap-1 cursor-pointer"
-                              title="إنشاء طلبية جديدة"
-                            >
-                              <ShoppingCart className="w-3.5 h-3.5" />
-                              <span className="hidden xl:inline">طلب</span>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -2050,6 +2248,22 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           </div>
         )}
       </div>
+
+      {/* إعدادات الأعمدة والفلاتر المخصصة */}
+      {isTableSettingsOpen && (
+        <CustomerTableSettings
+          visibleColumns={visibleColumns}
+          onToggleColumn={handleToggleColumn}
+          onResetColumns={() => setVisibleColumns(getDefaultVisibleColumns())}
+          filters={columnFilters}
+          onAddFilter={handleAddColumnFilter}
+          onRemoveFilter={(id) => setColumnFilters((prev) => prev.filter((item) => item.id !== id))}
+          onClearFilters={() => setColumnFilters([])}
+          columnOptions={columnFilterOptions}
+          initialTab={tableSettingsTab}
+          onClose={() => setIsTableSettingsOpen(false)}
+        />
+      )}
 
       {/* لوحة تفاصيل العميل السريعة (Side Drawer) */}
       {quickCustomer && (
