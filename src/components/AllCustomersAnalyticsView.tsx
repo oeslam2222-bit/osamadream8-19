@@ -34,7 +34,6 @@ import {
   FileSpreadsheet,
   Clock,
   Columns3,
-  ListFilter,
   RotateCcw,
   ArrowUpRight,
   ArrowDownRight,
@@ -107,17 +106,11 @@ import { CustomerQuickDrawer } from './customers/CustomerQuickDrawer';
 import { CustomerTableSettings } from './customers/CustomerTableSettings';
 import {
   CUSTOMER_COLUMNS,
-  ColumnFilter,
   CustomerColumnKey,
-  getColumnDef,
-  getCustomerColumnText,
   getCustomerPaid,
   getCustomerSales2026,
   getDefaultVisibleColumns,
-  loadColumnFilters,
   loadVisibleColumns,
-  matchesColumnFilters,
-  saveColumnFilters,
   saveVisibleColumns,
 } from '../services/customerTableSchema';
 import { getSavedSourceUrl, saveSingleSourceUrl, getSavedSheetHistory } from '../services/dataSourceService';
@@ -225,9 +218,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [visibleColumns, setVisibleColumns] = useState<CustomerColumnKey[]>(() =>
     loadVisibleColumns(currentUser?.id)
   );
-  const [columnFilters, setColumnFilters] = useState<ColumnFilter[]>(() => loadColumnFilters(currentUser?.id));
   const [isTableSettingsOpen, setIsTableSettingsOpen] = useState(false);
-  const [tableSettingsTab, setTableSettingsTab] = useState<'columns' | 'filters'>('columns');
 
   // Customer Dossier Edit state (Credit, Guarantee, Overdue, Next Visit)
   const [isEditingDossier, setIsEditingDossier] = useState(false);
@@ -508,11 +499,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       list = list.filter((c) => matchesDealtFilter(c, dealtFilter));
     }
 
-    // الفلاتر المخصصة (أي عمود من أعمدة الشيت)
-    if (columnFilters.length > 0) {
-      list = list.filter((c) => matchesColumnFilters(c, columnFilters));
-    }
-
     // Search query (normalized Arabic for resilient match)
     if (searchQuery.trim()) {
       const qNorm = normalizeArabicText(searchQuery);
@@ -545,7 +531,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     eligibilityFilter,
     debtStatusFilter,
     dealtFilter,
-    columnFilters,
     searchQuery,
     users,
   ]);
@@ -644,16 +629,18 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     [filteredCustomers]
   );
 
-  // توزيع العملاء حسب تصنيف التعامل (قابل / غير قابل) — من عمود الشيت
+  // توزيع العملاء حسب تصنيف التعامل — التصنيفات الثلاثة الموجودة في عمود الشيت «قابل / غير»
   const eligibilityDistribution = useMemo(() => {
     let eligible = 0;
     let notEligible = 0;
+    let dealt = 0;
     let unknown = 0;
 
     filteredCustomers.forEach((c) => {
       const raw = (c.dealEligibility || '').trim();
       if (!raw) unknown += 1;
       else if (raw.includes('غير') || raw.includes('موقوف')) notEligible += 1;
+      else if (raw.includes('متعامل')) dealt += 1;
       else if (raw.includes('قابل')) eligible += 1;
       else unknown += 1;
     });
@@ -661,8 +648,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     return [
       { name: 'قابل للتعامل', value: eligible, color: '#1F9D74' },
       { name: 'غير قابل', value: notEligible, color: '#E05B5B' },
+      { name: 'متعامل', value: dealt, color: '#2F6FD0' },
       { name: 'غير محدد', value: unknown, color: '#8FA0B8' },
-    ];
+    ].filter((bucket) => bucket.value > 0);
   }, [filteredCustomers]);
 
   // أعلى 5 عملاء في المديونية الحالية (اسم + كود + مبلغ)
@@ -756,49 +744,17 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     saveVisibleColumns(visibleColumns, currentUser?.id);
   }, [visibleColumns, currentUser?.id]);
 
-  useEffect(() => {
-    saveColumnFilters(columnFilters, currentUser?.id);
-  }, [columnFilters, currentUser?.id]);
-
-  // القيم المتاحة لكل عمود — مستخرجة من بيانات الشيت المحمّلة نفسها
-  const columnFilterOptions = useMemo(() => {
-    const result: Partial<Record<CustomerColumnKey, string[]>> = {};
-    CUSTOMER_COLUMNS.forEach((column) => {
-      if (column.type === 'currency' || column.type === 'number') return;
-      const seen = new Set<string>();
-      userVisibleCustomers.forEach((c) => {
-        if (seen.size >= 60) return;
-        const text = getCustomerColumnText(c, column.key).trim();
-        if (text && text.length <= 45) seen.add(text);
-      });
-      result[column.key] = Array.from(seen).sort((a, b) => a.localeCompare(b, 'ar'));
-    });
-    return result;
-  }, [userVisibleCustomers]);
-
   const visibleColumnDefs = useMemo(
     () => CUSTOMER_COLUMNS.filter((column) => column.locked || visibleColumns.includes(column.key)),
     [visibleColumns]
   );
 
-  const openTableSettings = (tab: 'columns' | 'filters') => {
-    setTableSettingsTab(tab);
-    setIsTableSettingsOpen(true);
-  };
+  const openTableSettings = () => setIsTableSettingsOpen(true);
 
   const handleToggleColumn = (key: CustomerColumnKey) => {
     setVisibleColumns((prev) => (prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]));
   };
 
-  const handleAddColumnFilter = (filter: Omit<ColumnFilter, 'id'>) => {
-    setColumnFilters((prev) => [
-      ...prev,
-      {
-        ...filter,
-        id: `${filter.column}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      },
-    ]);
-  };
 
   // Paginated Items
   const paginatedCustomers = useMemo(() => {
@@ -1291,10 +1247,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           </button>
           )}
 
-          {/* تخصيص الأعمدة والفلاتر المخصصة */}
+          {/* تخصيص أعمدة الجدول */}
           <button
             type="button"
-            onClick={() => openTableSettings('columns')}
+            onClick={openTableSettings}
             className="app-btn app-btn-ghost px-3 py-2 text-xs whitespace-nowrap"
             title="إظهار/إخفاء أعمدة الجدول — بيتحفظ في إعداداتك"
           >
@@ -1303,17 +1259,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             <span className="app-num text-[10px] bg-slate-100 border border-slate-200 rounded-full px-1.5 py-0.5">
               {visibleColumnDefs.length}
             </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => openTableSettings('filters')}
-            className="app-btn app-btn-ghost px-3 py-2 text-xs whitespace-nowrap"
-            title="إضافة فلتر على أي عمود من بيانات الشيت"
-          >
-            <ListFilter className="w-3.5 h-3.5" />
-            <span>فلتر مخصص</span>
-            {columnFilters.length > 0 && <span className="cf-badge">{columnFilters.length}</span>}
           </button>
 
           {/* Clean & Deduplicate Button (Prevents 3000 to 6000 duplicate explosion) */}
@@ -1768,7 +1713,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
       )}
 
-      {/* شريط فلترة العملاء: بحث ذكي + ترتيب المديونية + فلاتر مخصصة من أعمدة الشيت */}
+      {/* شريط فلترة العملاء: بحث ذكي + ترتيب المديونية + فلاتر متقدمة */}
       <CustomerFilterBar
         value={filterBarValue}
         onChange={handleFilterChange}
@@ -1783,8 +1728,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         canFilterBranch={isAdminOrDev}
         canFilterRep={!isRep}
         canFilterSupervisor={!isRep}
-        onOpenCustomFilters={() => openTableSettings('filters')}
-        customFilterCount={columnFilters.length}
         debtCustomersCount={debtCustomersCount}
         suggestions={searchSuggestions}
         onSelectSuggestion={(customer) => setQuickCustomer(customer)}
@@ -1796,40 +1739,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
       {/* Main Customers Table Card (Fast, Virtual-friendly, Paginated) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        {/* الفلاتر المخصصة النشطة */}
-        {columnFilters.length > 0 && (
-          <div className="px-3 py-2 bg-[#fdf8ee] border-b border-[#f0e4cc] flex items-center gap-1.5 flex-wrap text-[11px]">
-            <span className="font-black text-[#8a6420] flex items-center gap-1">
-              <ListFilter className="w-3.5 h-3.5" />
-              فلاتر مخصصة ({columnFilters.length}):
-            </span>
-            {columnFilters.map((filter) => {
-              const def = getColumnDef(filter.column);
-              return (
-                <button
-                  key={filter.id}
-                  type="button"
-                  onClick={() => setColumnFilters((prev) => prev.filter((item) => item.id !== filter.id))}
-                  className="inline-flex items-center gap-1 rounded-full border border-[#e6d7b8] bg-white px-2 py-1 font-bold text-[#8a6420] hover:bg-[#f7efdd]"
-                  title="إزالة هذا الفلتر"
-                >
-                  <span>{def?.label || filter.column}</span>
-                  {filter.value ? <span className="text-[#b08b3f]">: {filter.value}</span> : null}
-                  {filter.value2 ? <span className="text-[#b08b3f]">— {filter.value2}</span> : null}
-                  <X className="w-3 h-3" />
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => setColumnFilters([])}
-              className="font-black text-rose-700 hover:underline"
-            >
-              مسح الكل
-            </button>
-          </div>
-        )}
-
         {/* Table Controls Top */}
         <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs text-slate-500">
           <div className="flex items-center gap-2 font-bold flex-wrap">
@@ -2197,12 +2106,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           visibleColumns={visibleColumns}
           onToggleColumn={handleToggleColumn}
           onResetColumns={() => setVisibleColumns(getDefaultVisibleColumns())}
-          filters={columnFilters}
-          onAddFilter={handleAddColumnFilter}
-          onRemoveFilter={(id) => setColumnFilters((prev) => prev.filter((item) => item.id !== id))}
-          onClearFilters={() => setColumnFilters([])}
-          columnOptions={columnFilterOptions}
-          initialTab={tableSettingsTab}
           onClose={() => setIsTableSettingsOpen(false)}
         />
       )}

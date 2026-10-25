@@ -174,119 +174,10 @@ export const getCustomerColumnText = (c: Customer, key: CustomerColumnKey): stri
 };
 
 /* -------------------------------------------------------------------------- */
-/*                            الفلاتر المخصصة                                */
-/* -------------------------------------------------------------------------- */
-
-export type ColumnFilterOperator =
-  | 'contains'
-  | 'equals'
-  | 'notEquals'
-  | 'gt'
-  | 'lt'
-  | 'gte'
-  | 'lte'
-  | 'between'
-  | 'empty'
-  | 'notEmpty';
-
-export interface ColumnFilterOperatorDef {
-  value: ColumnFilterOperator;
-  label: string;
-  types: Array<'text' | 'number'>;
-  needsValue: boolean;
-  needsSecondValue?: boolean;
-}
-
-export const COLUMN_FILTER_OPERATORS: ColumnFilterOperatorDef[] = [
-  { value: 'contains', label: 'يحتوي على', types: ['text'], needsValue: true },
-  { value: 'equals', label: 'يساوي', types: ['text'], needsValue: true },
-  { value: 'notEquals', label: 'لا يساوي', types: ['text'], needsValue: true },
-  { value: 'empty', label: 'فارغ', types: ['text'], needsValue: false },
-  { value: 'notEmpty', label: 'غير فارغ', types: ['text'], needsValue: false },
-  { value: 'equals', label: 'يساوي', types: ['number'], needsValue: true },
-  { value: 'gt', label: 'أكبر من', types: ['number'], needsValue: true },
-  { value: 'gte', label: 'أكبر من أو يساوي', types: ['number'], needsValue: true },
-  { value: 'lt', label: 'أقل من', types: ['number'], needsValue: true },
-  { value: 'lte', label: 'أقل من أو يساوي', types: ['number'], needsValue: true },
-  { value: 'between', label: 'بين', types: ['number'], needsValue: true, needsSecondValue: true },
-];
-
-export const getOperatorsForColumn = (key: CustomerColumnKey) => {
-  const def = getColumnDef(key);
-  const type: 'text' | 'number' =
-    def && (def.type === 'currency' || def.type === 'number') ? 'number' : 'text';
-  return COLUMN_FILTER_OPERATORS.filter((operator) => operator.types.includes(type));
-};
-
-export interface ColumnFilter {
-  id: string;
-  column: CustomerColumnKey;
-  operator: ColumnFilterOperator;
-  value: string;
-  value2?: string;
-}
-
-const toNumber = (value: string): number | null => {
-  const cleaned = value.replace(/[^\d.-]/g, '');
-  if (!cleaned) return null;
-  const parsed = Number(cleaned);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-export const matchesColumnFilter = (c: Customer, filter: ColumnFilter): boolean => {
-  const raw = getCustomerColumnValue(c, filter.column);
-  const isNumeric = typeof raw === 'number';
-
-  if (filter.operator === 'empty') return !isNumeric && !String(raw).trim();
-  if (filter.operator === 'notEmpty') return isNumeric || !!String(raw).trim();
-
-  if (isNumeric) {
-    const target = toNumber(filter.value);
-    if (target === null) return true;
-    const second = filter.value2 !== undefined ? toNumber(filter.value2) : null;
-
-    switch (filter.operator) {
-      case 'equals':
-        return raw === target;
-      case 'gt':
-        return raw > target;
-      case 'gte':
-        return raw >= target;
-      case 'lt':
-        return raw < target;
-      case 'lte':
-        return raw <= target;
-      case 'between':
-        return second === null ? raw >= target : raw >= target && raw <= second;
-      default:
-        return true;
-    }
-  }
-
-  const text = normalizeArabicText(String(raw));
-  const needle = normalizeArabicText(filter.value);
-
-  switch (filter.operator) {
-    case 'contains':
-      return !needle || text.includes(needle);
-    case 'equals':
-      return text === needle;
-    case 'notEquals':
-      return text !== needle;
-    default:
-      return true;
-  }
-};
-
-export const matchesColumnFilters = (c: Customer, filters: ColumnFilter[]): boolean =>
-  filters.every((filter) => matchesColumnFilter(c, filter));
-
-/* -------------------------------------------------------------------------- */
 /*                     الحفظ في الإعدادات (لكل مستخدم)                        */
 /* -------------------------------------------------------------------------- */
 
 const COLUMNS_KEY = 'dream_customer_visible_columns_v3';
-const FILTERS_KEY = 'dream_customer_column_filters_v1';
 
 const scopedKey = (base: string, userId?: string) => `${base}:${userId || 'guest'}`;
 
@@ -317,31 +208,5 @@ export const saveVisibleColumns = (columns: CustomerColumnKey[], userId?: string
     localStorage.setItem(scopedKey(COLUMNS_KEY, userId), JSON.stringify(columns));
   } catch {
     /* التخزين ممتلئ أو محجوب — الشاشة تفضل شغالة بالافتراضي */
-  }
-};
-
-export const loadColumnFilters = (userId?: string): ColumnFilter[] => {
-  try {
-    const stored = localStorage.getItem(scopedKey(FILTERS_KEY, userId));
-    if (!stored) return [];
-    const parsed = JSON.parse(stored);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (filter: any) =>
-        filter &&
-        typeof filter.id === 'string' &&
-        CUSTOMER_COLUMNS.some((column) => column.key === filter.column) &&
-        COLUMN_FILTER_OPERATORS.some((operator) => operator.value === filter.operator)
-    ) as ColumnFilter[];
-  } catch {
-    return [];
-  }
-};
-
-export const saveColumnFilters = (filters: ColumnFilter[], userId?: string): void => {
-  try {
-    localStorage.setItem(scopedKey(FILTERS_KEY, userId), JSON.stringify(filters));
-  } catch {
-    /* تجاهل */
   }
 };

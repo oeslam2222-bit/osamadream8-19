@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronDown, ListFilter, RotateCcw, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronDown, RotateCcw, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Customer } from '../../types';
 import {
   ActivityFilter,
@@ -49,8 +49,6 @@ interface CustomerFilterBarProps {
   scopedCount: number;
   suggestions?: CustomerSearchSuggestion[];
   onSelectSuggestion?: (customer: Customer) => void;
-  onOpenCustomFilters?: () => void;
-  customFilterCount?: number;
   debtCustomersCount?: number;
 }
 
@@ -128,8 +126,6 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
   scopedCount,
   suggestions = [],
   onSelectSuggestion,
-  onOpenCustomFilters,
-  customFilterCount = 0,
   debtCustomersCount,
 }) => {
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -186,19 +182,6 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
         </div>
 
         <div className="cf-bar-actions">
-          {onOpenCustomFilters && (
-            <button
-              type="button"
-              onClick={onOpenCustomFilters}
-              className="app-btn app-btn-ghost px-3 py-2 text-xs"
-              title="أضف فلتر على أي عمود من أعمدة الشيت"
-            >
-              <ListFilter className="w-3.5 h-3.5" />
-              <span>فلتر مخصص</span>
-              {customFilterCount > 0 && <span className="cf-badge">{customFilterCount}</span>}
-            </button>
-          )}
-
           <button
             type="button"
             onClick={() => setAdvancedOpen((open) => !open)}
