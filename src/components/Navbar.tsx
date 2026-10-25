@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   Bell,
   BookOpen,
   Boxes,
@@ -153,6 +154,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'legal_advisor', label: 'الشؤون القانونية', icon: Scale, roles: ['admin', 'developer', 'legal_advisor'] },
     { id: 'catalog', label: 'الكتالوج', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'all_customers', label: 'العملاء', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'customer_item_sales', label: 'مبيعات الأصناف', icon: BarChart3, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'dashboard', label: 'المتابعة', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'targets', label: 'التارجت', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'visits', label: 'الزيارات', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },

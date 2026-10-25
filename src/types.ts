@@ -741,3 +741,61 @@ export interface CustomerCommentRecord {
   archivedAt?: string;
   archivedBy?: string;
 }
+
+/**
+ * سجل مبيعات العملاء بالصنف (Customer Sales by Product / Item)
+ * مستورد من شيت مبيعات الأصناف التابع لمنظومة الـ ERP / إكسل
+ */
+export interface CustomerItemSaleRecord {
+  id: string;
+  customerAccount: string;      // Customer account (كود العميل)
+  invoicingName: string;        // Invoicing name (اسم العميل في الفاتورة)
+  salesOrder?: string;          // Sales order (رقم أمر البيع / الفاتورة)
+  date?: string;                // Date (التاريخ YYYY-MM-DD)
+  repName: string;              // المندوب (Sales Rep)
+  repId?: string;               // Sales Rep User ID (for RBAC)
+  month: number;                // الشهر (1-12)
+  monthName?: string;           // اسم الشهر (يناير, فبراير...)
+  warehouse: string;            // Warehouse (الفرع / المخزن)
+  itemCode: string;             // Item (كود الصنف)
+  itemName: string;             // Name (اسم الصنف)
+  unit: string;                 // Unit (الوحدة - كرتونة / قطعة)
+  factor: number;               // factor (معامل التحويل / القطع بالكرتونة)
+  unitPrice: number;            // Unit price (سعر الوحدة)
+  discount: number;             // Discount (الخصم)
+  quantity: number;             // Quantity (الكمية المباعة)
+  amount: number;               // Amount (القيمة الإجمالية الصافية)
+  itemGroup: string;            // Item group (مجموعة الصنف)
+  definitions?: string;         // التعريفات (Definitions)
+  familyDimension: string;      // Family Dimension (عائلة الصنف / التصنيف)
+  createdAt?: string;
+}
+
+/** تجميع وتحليل مبيعات العميل الواحد بالصنف والمجموعات والشهور */
+export interface CustomerItemSalesSummary {
+  customerAccount: string;
+  customerName: string;
+  repName: string;
+  warehouse: string;
+  totalQuantity: number;
+  totalAmount: number;
+  distinctItemsCount: number;
+  distinctOrdersCount: number;
+  monthlySales: Record<number, number>; // month (1-12) -> amount
+  monthlyQuantities: Record<number, number>; // month (1-12) -> qty
+  groupBreakdown: Record<string, { quantity: number; amount: number; itemsCount: number }>;
+  familyBreakdown: Record<string, { quantity: number; amount: number }>;
+  items: Array<{
+    itemCode: string;
+    itemName: string;
+    itemGroup: string;
+    familyDimension: string;
+    unit: string;
+    factor: number;
+    avgUnitPrice: number;
+    totalQuantity: number;
+    totalAmount: number;
+    monthlyBreakdown: Record<number, { quantity: number; amount: number }>;
+  }>;
+}
+

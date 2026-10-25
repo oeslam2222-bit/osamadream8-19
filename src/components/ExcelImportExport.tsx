@@ -68,7 +68,11 @@ import { Customer, Product } from '../types';
 
 type SheetKey = keyof PublishedDataSources;
 
-export const ExcelImportExport: React.FC = () => {
+export interface ExcelImportExportProps {
+  onNavigateToItemSales?: () => void;
+}
+
+export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigateToItemSales }) => {
   const {
     products,
     customers,
@@ -1013,7 +1017,7 @@ function onEdit(e) {
           </div>
         </div>
 
-        {/* ---------------- CARD 2: Customer Sales & Targets (شيت مبيعات العملاء والتارجت) ---------------- */}
+        {/* ---------------- CARD 2: Customer Sales by Item (شيت مبيعات العملاء بالصنف) ---------------- */}
         <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-slate-300 transition">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
@@ -1023,7 +1027,7 @@ function onEdit(e) {
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-lg font-black text-slate-900">
-                    2. شيت مبيعات العملاء والتارجت
+                    2. شيت مبيعات العملاء بالصنف
                   </h3>
                   <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${
                     isValidPublishedSource(sources.customerSales)
@@ -1033,11 +1037,11 @@ function onEdit(e) {
                     {isValidPublishedSource(sources.customerSales) ? '● متصل سحابياً' : '○ غير متصل'}
                   </span>
                   <span className="bg-amber-100 text-amber-900 text-[10px] px-2 py-0.5 rounded-lg font-bold">
-                    مبيعات الشهور 2026 والتحصيل
+                    مبيعات الأصناف وأوامر البيع 2026
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  المبيعات الشهرية لعام 2026 (يناير - ديسمبر)، نسب النمو عن 2025، التحصيلات، وتارجت كل عميل
+                <p className="text-xs text-slate-500 mt-1 leading-5">
+                  مبيعات الأصناف التفصيلية: Customer account, Invoicing name, Sales order, Date, المندوب, الشهر, Warehouse, Item, Name, Quantity, Amount, Item group, Family Dimension
                 </p>
               </div>
             </div>
@@ -1164,14 +1168,27 @@ function onEdit(e) {
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => exportCustomerAnalyticsToExcel(customers, 'تقرير_مبيعات_كافة_العملاء_2026')}
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>تصدير إكسل (شيت مبيعات العملاء التفصيلي)</span>
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {onNavigateToItemSales && (
+                <button
+                  type="button"
+                  onClick={onNavigateToItemSales}
+                  className="bg-amber-100 hover:bg-amber-200 text-amber-950 font-black px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-2xs border border-amber-300 cursor-pointer"
+                >
+                  <BarChart3 className="w-3.5 h-3.5 text-amber-800" />
+                  <span>فتح شاشة تحليل مبيعات الأصناف ↗</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => exportCustomerAnalyticsToExcel(customers, 'تقرير_مبيعات_كافة_العملاء_2026')}
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-amber-400" />
+                <span>تصدير إكسل (مبيعات العملاء)</span>
+              </button>
+            </div>
           </div>
         </div>
 

@@ -21,6 +21,7 @@ import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { ProductCatalog } from './components/ProductCatalog';
 import { AllCustomersAnalyticsView } from './components/AllCustomersAnalyticsView';
+import { CustomerItemSalesView } from './components/CustomerItemSalesView';
 import { SupervisorDashboard } from './components/SupervisorDashboard';
 import { InvoicesManager } from './components/InvoicesManager';
 import { InventoryStockView } from './components/InventoryStockView';
@@ -138,6 +139,13 @@ const MainLayout: React.FC = () => {
             />
           )}
 
+          {activeTab === 'customer_item_sales' && (
+            <CustomerItemSalesView
+              onOpenNewOrderForCustomer={(cust) => handleOpenOrderForCustomer(cust)}
+              onNavigateToExcel={() => setActiveTab('excel')}
+            />
+          )}
+
           {activeTab === 'dashboard' && (
             <SupervisorDashboard
               onOpenNewOrder={() => setIsOrderModalOpen(true)}
@@ -161,7 +169,9 @@ const MainLayout: React.FC = () => {
 
           {activeTab === 'inventory' && <InventoryStockView />}
 
-          {activeTab === 'excel' && <ExcelImportExport />}
+          {activeTab === 'excel' && (
+            <ExcelImportExport onNavigateToItemSales={() => setActiveTab('customer_item_sales')} />
+          )}
 
           {activeTab === 'users' && <UserManager />}
 

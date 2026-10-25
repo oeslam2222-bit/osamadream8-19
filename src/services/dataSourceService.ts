@@ -28,7 +28,7 @@ const defaultSources: PublishedDataSources = {
   },
   customerSales: {
     kind: 'google_sheets',
-    label: 'شيت مبيعات العملاء والتارجت (Google Sheets)',
+    label: 'شيت مبيعات العملاء بالصنف (Google Sheets)',
     url: '',
     enabled: false,
     updatedAt: '',

@@ -21,9 +21,9 @@ const sourceMeta: Record<SourceKey, { icon: React.ReactNode; title: string; desc
   },
   customerSales: {
     icon: <BarChart3 className="w-5 h-5" />,
-    title: 'شيت مبيعات العملاء (Google Sheets)',
-    description: 'المبيعات الشهرية 2026، التحصيلات، نسب النمو، وتارجت كل عميل',
-    help: 'ضع رابط Google Sheet الخاص بمبيعات العملاء الشهرية والتحصيلات. يتم تحديث مبيعات العملاء في مكانها بدون تكرار السجلات.',
+    title: 'شيت مبيعات العملاء بالصنف (Google Sheets)',
+    description: 'مبيعات العملاء التفصيلية بالصنف والكميات والقيمة الشهرية وأوامر البيع',
+    help: 'ضع رابط Google Sheet الخاص بمبيعات العملاء بالصنف. يشمل أعمدة: Customer account, Item, Quantity, Amount, Month...',
   },
   products: {
     icon: <FileSpreadsheet className="w-5 h-5" />,
