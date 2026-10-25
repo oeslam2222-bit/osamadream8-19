@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { BarChart3, CheckCircle2, ExternalLink, FileSpreadsheet, Globe2, Info, Link2, Save, Users, X, Lock, ShieldAlert, Gift } from 'lucide-react';
+import { BarChart3, CheckCircle2, ExternalLink, FileSpreadsheet, Globe2, Info, Link2, Save, Users, X, Lock, ShieldAlert, Gift, RefreshCw, AlertCircle, DollarSign, CreditCard } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
   defaultSources,
@@ -9,6 +9,11 @@ import {
   PublishedDataSources,
   savePublishedDataSources,
 } from '../services/dataSourceService';
+import { fetchCustomersFromGoogleSheetUrl } from '../services/excelService';
+import { fetchAndParseGoogleSheet } from '../services/excelService';
+import { fetchTargetsFromGoogleSheetUrl } from '../services/targetService';
+import { parsePromotionsFromGoogleSheet } from '../services/promotionService';
+import { formatCurrency } from '../services/invoiceService';
 
 type SourceKey = keyof PublishedDataSources;
 
@@ -36,6 +41,12 @@ const sourceMeta: Record<SourceKey, { icon: React.ReactNode; title: string; desc
     title: 'شيت العروض وجدول الخصومات (Google Sheets)',
     description: 'عروض المنتجات الترويجية، الأسعار المخفضة، وجدول العروض والخصومات الفورية',
     help: 'ضع رابط Google Sheet الخاص بجدول العروض والخصومات لتحديث أسعار العروض وتطبيقها تلقائياً بالكتالوج والفواتير.',
+  },
+  sales_by_customer: {
+    icon: <DollarSign className="w-5 h-5" />,
+    title: 'شيت مبيعات العملاء (Google Sheets)',
+    description: 'تاريخ المبيعات والتحصيلات لكل عميل بالتقسيم الشهري',
+    help: 'ضع رابط Google Sheet الخاص بسجل مبيعات العملاء لاستيراد وتتبع مبيعات كل عميل مع تاريخه.',
   },
 };
 
