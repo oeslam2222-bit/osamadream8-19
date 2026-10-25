@@ -1,0 +1,3935 @@
+import * as XLSX from 'xlsx-js-style';
+import { COMPANY_INFO } from '../data/mockData';
+import { Customer, CustomerTier, Invoice, ItemStatus, Product, SalesPriority, User } from '../types';
+import { inferBranchFromText, resolveCustomerFinancials, getBranchStockForProduct, resolveBranchName, BRANCH_CODE_MAP } from './arabicMatchingService';
+import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
+import { deduplicateAndMergeCustomers } from './customerDeduplicationService';
+import { isSummaryOrTotalRow } from './customerFinancialService';
+import { resolveCustomerDuesValue } from './customerDues';
+
+export { parsePromotionsFromExcelBuffer, parsePromotionsFromGoogleSheet } from './promotionService';
+export { parseTargetExcel, fetchTargetsFromGoogleSheetUrl } from './targetService';
+
+/**
+ * Preserves the product code exactly as supplied by the sheet, including prefixes
+ * such as DRM- and any meaningful separators, while strictly discarding placeholder dashes or nulls.
+ */
+export function cleanProductCode(code?: string | number): string {
+  if (code === undefined || code === null) return '';
+  const s = String(code).trim();
+  if (
+    !s ||
+    s === '---' ||
+    s === '--' ||
+    s === '-' ||
+    s === '#---' ||
+    s === '#--' ||
+    s === '#-' ||
+    s === '#0' ||
+    s === '0' ||
+    s === 'بدون' ||
+    s === 'لا يوجد' ||
+    s === 'غير محدد' ||
+    s === 'none' ||
+    s === 'null' ||
+    s === 'undefined' ||
+    s === 'NaN'
+  ) {
+    return '';
+  }
+  return s;
+}
+
+/**
+ * Extracts a candidate product model or numeric code from a product name
+ * when the code column in the sheet is empty or placeholder (e.g. "سفرة 8009 60 ق KAZAN-YB" -> "8009")
+ */
+export function extractCodeFromProductName(name?: string | null): string {
+  if (!name) return '';
+  const s = String(name).trim();
+  if (!s) return '';
+
+  // 1. Look for explicit code/model prefixes: DRM-8009, KAZAN-8009, ART-101, etc.
+  const prefixMatch = s.match(/\b([A-Za-z]{2,8}[-_][0-9]{2,6}(?:[-_][A-Za-z0-9]+)?)\b/);
+  if (prefixMatch && prefixMatch[1]) {
+    return prefixMatch[1].trim();
+  }
+
+  // 2. Look for product type followed by numeric code (e.g. "سفرة 8009", "طقم 6008", "كازان 8009-YB")
+  const typeCodeMatch = s.match(/(?:طقم|سفرة|سفره|طاجن|صينية|صينيه|كوب|كاس|كأس|مج|حلة|حله|طبق|براد|شنطة|شنطه|دريم|كازان|سرفيس|اركوبال|بورسلين)\s*([A-Za-z0-9-_]{3,8})/i);
+  if (typeCodeMatch && typeCodeMatch[1]) {
+    const candidate = typeCodeMatch[1].trim();
+    if (!/^(19|20)\d\d$/.test(candidate) && !/^[0-9]+ق$/.test(candidate)) {
+      return candidate;
+    }
+  }
+
+  // 3. Look for 3 to 6 digits sequence (excluding year numbers like 2024, 2025, 2026 and piece counts like 60ق)
+  const numMatches = s.match(/\b([0-9]{3,6})\b/g);
+  if (numMatches) {
+    for (const m of numMatches) {
+      if (!/^(19|20)\d\d$/.test(m)) {
+        return m;
+      }
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Resolves true customer code, prioritizing valid ERP codes (e.g. CUST012295)
+ * and strictly forbidding placeholder words like "كاش" or "نقدي".
+ */
+export function resolveSafeCustomerCode(invoice: Partial<Invoice>, matchedCustomer?: Customer): string {
+  const isInvalidPlaceholder = (val?: string) => {
+    if (!val) return true;
+    const v = val.trim().toLowerCase();
+    return (
+      v === 'كاش' ||
+      v === 'نقدي' ||
+      v === 'نقدى' ||
+      v === 'cash' ||
+      v === 'غير محدد' ||
+      v === '---' ||
+      v === 'cash-direct' ||
+      v === 'undefined' ||
+      v === 'null'
+    );
+  };
+
+  // 1. Matched customer from database (e.g. CUST012295)
+  if (matchedCustomer?.code && !isInvalidPlaceholder(matchedCustomer.code)) {
+    return matchedCustomer.code.trim();
+  }
+
+  // 2. Customer code already set on invoice (if not a placeholder)
+  if (invoice.customerCode && !isInvalidPlaceholder(invoice.customerCode)) {
+    return invoice.customerCode.trim();
+  }
+
+  // 3. Customer ID if it has CUST prefix
+  if (invoice.customerId && !isInvalidPlaceholder(invoice.customerId)) {
+    const cid = invoice.customerId.trim();
+    if (cid.toUpperCase().startsWith('CUST')) {
+      return cid.replace(/^cust[-_]/i, 'CUST');
+    }
+  }
+
+  // 4. Default standard fallback code for customer (never output "كاش" as customer code)
+  return 'CUST012295';
+}
+
+/**
+ * Smart Branch Name normalizer for Excel input
+ * Supports all 7 company branches + central warehouse, and handles any flexible naming or custom branches
+ */
+export function normalizeExcelBranchName(rawBranch?: string): string {
+  if (!rawBranch || !rawBranch.trim()) {
+    return '';
+  }
+  const clean = rawBranch.trim();
+
+  // Single shared source of truth. The customer sheet and the target sheet must
+  // resolve the same numeric branch (15 -> الفيوم, 45 -> ديمشلت, ...) the same
+  // way, so both go through BRANCH_CODE_MAP instead of local copies that drift.
+  const branchCode = clean.replace(/^فرع\s*/i, '').trim();
+  if (BRANCH_CODE_MAP[branchCode] || BRANCH_CODE_MAP[branchCode.toLowerCase()]) {
+    return BRANCH_CODE_MAP[branchCode] || BRANCH_CODE_MAP[branchCode.toLowerCase()];
+  }
+
+  // Route everything else through the canonical resolver so branch names,
+  // branch numbers, and free-text governorate/districts all normalize to one
+  // of the 7 known branch names (October central warehouse handled separately).
+  const resolved = resolveBranchName(clean);
+  if (resolved) {
+    return resolved;
+  }
+
+  // If user provided a specific branch name, format nicely
+  if (!clean.startsWith('فرع') && !clean.includes('المخزن')) {
+    return `فرع ${clean}`;
+  }
+  return clean;
+}
+
+/**
+ * Clean and extract raw Image URL from Google Sheets cells
+ * Handles =IMAGE("..."), =HYPERLINK("...", "..."), Drive file sharing links, Google UserContent thumbnails, raw IDs with =w800, and standard web links.
+ */
+export function cleanGoogleSheetImageUrl(raw: string): string {
+  if (!raw) return '';
+  let clean = String(raw).trim();
+
+  // 1. Extract URL if inside =IMAGE("https://...") or =IMAGE('https://...')
+  const imageFormulaMatch = clean.match(/=IMAGE\s*\(\s*["']([^"']+)["']/i);
+  if (imageFormulaMatch) {
+    clean = imageFormulaMatch[1].trim();
+  }
+
+  // 2. Extract URL if inside =HYPERLINK("https://...", "...")
+  const hyperlinkMatch = clean.match(/=HYPERLINK\s*\(\s*["']([^"']+)["']/i);
+  if (hyperlinkMatch) {
+    clean = hyperlinkMatch[1].trim();
+  }
+
+  // 3. Strip enclosing single or double quotes
+  clean = clean.replace(/^["']+|["']+$/g, '').trim();
+
+  // 4. If someone entered googleusercontent.com/d/{ID} directly without https://
+  if (clean.startsWith('googleusercontent.com') || clean.startsWith('lh3.googleusercontent.com')) {
+    clean = `https://${clean}`;
+  }
+
+  // 5. Drive sharing URLs: drive.google.com/file/d/{ID}/view -> Google Direct CDN Thumbnail
+  const driveFileMatch = clean.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
+  if (driveFileMatch) {
+    return `https://lh3.googleusercontent.com/d/${driveFileMatch[1]}=w800`;
+  }
+
+  // 6. Drive open?id={ID} or uc?id={ID} or thumbnail?id={ID}
+  const driveIdMatch = clean.match(/[?&]id=([a-zA-Z0-9_-]+)/i);
+  if (driveIdMatch) {
+    return `https://lh3.googleusercontent.com/d/${driveIdMatch[1]}=w800`;
+  }
+
+  // 7. If raw contains googleusercontent /d/{ID}
+  const lhMatch = clean.match(/googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/i);
+  if (lhMatch) {
+    return `https://lh3.googleusercontent.com/d/${lhMatch[1]}=w800`;
+  }
+
+  // 8. If raw is a naked Google ID (with or without leading slash or =w800 parameter)
+  // e.g. "m6Z0e9dq9HwKa_AkEBbVhO0=w800" or "/dMJZNZDpeeZC1UcU19OX0zcdQ=w800"
+  const nakedIdMatch = clean.match(/^(\/)?([a-zA-Z0-9_-]{20,})(=w\d+)?$/i);
+  if (nakedIdMatch) {
+    return `https://lh3.googleusercontent.com/d/${nakedIdMatch[2]}=w800`;
+  }
+
+  // 9. If someone has multiple space-separated or comma-separated URLs, take the first valid one
+  if (clean.includes(' ') && (clean.startsWith('http://') || clean.startsWith('https://'))) {
+    const parts = clean.split(/\s+/);
+    if (parts[0] && parts[0].startsWith('http')) {
+      clean = parts[0];
+    }
+  }
+
+  return clean;
+}
+
+/**
+ * Normalizes header string to match flexibly
+ */
+function normalizeHeader(header: string): string {
+  if (!header) return '';
+  let str = header.toString().trim();
+  const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  for (let i = 0; i < 10; i++) {
+    str = str.split(arabicNumerals[i]).join(String(i));
+  }
+  return str
+    .toLowerCase()
+    .replace(/[ـ\s_-]/g, '')
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي');
+}
+
+/**
+ * Extract Google Sheet ID and GID from any Google Sheets URL
+ */
+export function extractGoogleSpreadsheetId(input: string): { sheetId: string; gid: string } {
+  if (!input) return { sheetId: '', gid: '0' };
+  const clean = input.trim();
+
+  // If user pasted just the sheet ID directly
+  if (!clean.includes('/') && clean.length > 20) {
+    return { sheetId: clean, gid: '0' };
+  }
+
+  // Regex to match /d/{SPREADSHEET_ID}
+  const idMatch = clean.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  const sheetId = idMatch ? idMatch[1] : '';
+
+  // Match gid parameter
+  const gidMatch = clean.match(/[#&?]gid=([0-9]+)/);
+  const gid = gidMatch ? gidMatch[1] : '0';
+
+  return { sheetId, gid };
+}
+
+/**
+ * Build direct CSV export URL for any Google Sheet link
+ */
+export function buildGoogleSheetsPublicCsvUrl(input: string): string {
+  const { sheetId, gid } = extractGoogleSpreadsheetId(input);
+  if (!sheetId) {
+    if (input.startsWith('http')) return input;
+    return '';
+  }
+  return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`;
+}
+
+/**
+ * Convert 2D array of rows from sheet/csv to Product list using Dream columns
+ */
+export function parseRawRowsToProducts(rawRows: any[]): {
+  products: Product[];
+  errors: string[];
+  totalRows: number;
+} {
+  if (!rawRows || rawRows.length < 2) {
+    return {
+      products: [],
+      errors: ['الملف فارغ أو لا يحتوي على صفوف بيانات صالحة'],
+      totalRows: 0,
+    };
+  }
+
+  // Find header row index
+  let headerRowIndex = 0;
+  for (let i = 0; i < Math.min(rawRows.length, 5); i++) {
+    const row = rawRows[i];
+    const hasCodeOrName = row.some((cell: any) => {
+      const str = String(cell);
+      return str.includes('كود') || str.includes('اسم') || str.includes('الصنف') || str.includes('code');
+    });
+    if (hasCodeOrName) {
+      headerRowIndex = i;
+      break;
+    }
+  }
+
+  const headers: string[] = rawRows[headerRowIndex].map((h: any) => String(h).trim());
+  const errors: string[] = [];
+  const products: Product[] = [];
+
+  // Identify column indexes based on Arabic & English header variations
+  const colMap: Record<string, number> = {
+    code: -1,
+    unifiedCode: -1,
+    name: -1,
+    salesPriority: -1,
+    category: -1,
+    status: -1,
+    cartonQuantity: -1,
+    factor: -1,
+    size: -1,
+    color: -1,
+    branchStockActual: -1,
+    branchStockReserved: -1,
+    mainWarehouseActual: -1,
+    mainWarehouseReserved: -1,
+    department: -1,
+    itemGroup: -1,
+    classification: -1,
+    familyName: -1,
+    promoPrice: -1,
+    promoPiecePrice: -1,
+    piecePrice: -1,
+    salesPrice: -1,
+    cartonPrice: -1,
+    branchName: -1,
+    imageUrl: -1,
+    barcode: -1,
+    // Branch stocks
+    stockBeheira: -1,
+    stockFayoum: -1,
+    stockCairo: -1,
+    stockMinya: -1,
+    stockDimeshalt: -1,
+    stockOctober: -1,
+    stockMenouf: -1,
+    stockMeq: -1,
+  };
+
+  headers.forEach((h, idx) => {
+    const norm = normalizeHeader(h);
+
+    // 1. الكود الموحد (Unified Code / Model Code)
+    if (
+      norm === 'الكودالموحد' ||
+      norm === 'كودموحد' ||
+      norm === 'الكودالموضح' ||
+      norm === 'كودموضح' ||
+      norm === 'الكودموضح' ||
+      norm === 'كودالموضح' ||
+      norm === 'الموضح' ||
+      norm === 'كودتوضيحي' ||
+      norm === 'كودالصنفالموضح' ||
+      norm === 'كودالموديل' ||
+      norm === 'الموديل' ||
+      norm === 'كودالموديلالموحد' ||
+      norm.includes('الكودالموحد') ||
+      norm.includes('كودموحد') ||
+      norm.includes('الكودالموضح') ||
+      norm.includes('unifiedcode') ||
+      norm.includes('modelcode') ||
+      norm.includes('mastercode')
+    ) {
+      colMap.unifiedCode = idx;
+    }
+    // 2. كود المنتج (Product Code / SKU / رقم الصنف / الكود)
+    else if (
+      idx !== colMap.unifiedCode &&
+      !norm.includes('موحد') &&
+      !norm.includes('موضح') &&
+      (norm === 'كودالمنتج' ||
+        norm === 'كودالصنف' ||
+        norm === 'الكودكامل' ||
+        norm === 'كودكامل' ||
+        norm === 'الكودالكامل' ||
+        norm === 'كودالصنفالكامل' ||
+        norm === 'الكود' ||
+        norm === 'كود' ||
+        norm === 'رقمالصنف' ||
+        norm === 'رقمصنف' ||
+        norm === 'رقمكود' ||
+        norm === 'رمزالصنف' ||
+        norm === 'رمز' ||
+        norm === 'الرقم' ||
+        norm === 'رقم' ||
+        norm === 'رقمالموديل' ||
+        norm.includes('كودالمنتج') ||
+        norm.includes('كودالصنف') ||
+        norm.includes('رقمالصنف') ||
+        norm.includes('productcode') ||
+        norm.includes('itemcode') ||
+        norm.includes('itemno') ||
+        norm.includes('sku') ||
+        norm === 'code')
+    ) {
+      if (
+        colMap.code === -1 ||
+        norm === 'كودالمنتج' ||
+        norm === 'كودالصنف' ||
+        norm === 'الكودكامل' ||
+        norm === 'كودكامل' ||
+        norm === 'الكود' ||
+        norm === 'كود'
+      ) {
+        colMap.code = idx;
+      }
+    }
+    // 3. اسم المنتج (Product Name / البيان)
+    else if (
+      !norm.includes('عائلة') &&
+      !norm.includes('عائله') &&
+      !norm.includes('فرع') &&
+      !norm.includes('مندوب') &&
+      (norm === 'اسمالمنتج' ||
+        norm === 'اسمالصنف' ||
+        norm === 'productname' ||
+        norm === 'itemname' ||
+        norm.includes('اسمالمنتج') ||
+        norm.includes('productname') ||
+        norm.includes('اسمالصنف') ||
+        norm === 'الاسم' ||
+        norm === 'اسم' ||
+        norm.includes('البيان'))
+    ) {
+      if (colMap.name === -1 || norm === 'اسمالمنتج' || norm === 'اسمالصنف' || norm.includes('اسمالصنف')) {
+        colMap.name = idx;
+      }
+    }
+    // 4. الحجم (Size / Weight)
+    else if (
+      norm === 'الحجم' ||
+      norm === 'حجم' ||
+      norm === 'الوزن' ||
+      norm === 'وزن' ||
+      norm === 'المقاس' ||
+      norm === 'مقاس' ||
+      norm.includes('حجم') ||
+      norm.includes('size')
+    ) {
+      colMap.size = idx;
+    }
+    // 5. عدد القطع (Factor / شدة الكرتونة / عدد القطع بالكرتونة)
+    else if (
+      norm === 'عددالقطع' ||
+      norm === 'القطع' ||
+      norm === 'عددالقط' ||
+      norm === 'factor' ||
+      norm.includes('factor') ||
+      norm.includes('الفاكتور') ||
+      norm.includes('فاكتور') ||
+      norm.includes('شدةالكرتون') ||
+      norm.includes('شدةالكرتونه') ||
+      norm.includes('شدةالكرتونة') ||
+      norm.includes('شدة') ||
+      norm.includes('شده') ||
+      norm.includes('عددالقطع') ||
+      norm.includes('القطعبالكرتون') ||
+      norm.includes('قطعبالكرتون')
+    ) {
+      colMap.factor = idx;
+      colMap.cartonQuantity = idx;
+    }
+    // 6. سعر الكرتونه (Carton Price / سعر الكرتونة / سعر الكرتون)
+    else if (
+      norm === 'سعرالكرتونه' ||
+      norm === 'سعرالكرتونة' ||
+      norm === 'سعرالكرتون' ||
+      norm === 'سعرالكر' ||
+      norm.includes('سعرالكرتون') ||
+      norm.includes('سعرالكرتونه') ||
+      norm.includes('سعرالكرتونة') ||
+      norm.includes('cartonprice') ||
+      norm.includes('wholesaleprice')
+    ) {
+      colMap.cartonPrice = idx;
+    }
+    // 7. Item group (المجموعة الرئيسية / القسم / الماركة / البراند)
+    else if (
+      norm === 'itemgroup' ||
+      norm === 'item_group' ||
+      norm === 'item group' ||
+      norm.includes('itemgroup') ||
+      norm.includes('مجموعةالاصناف') ||
+      norm.includes('مجموعةالأصناف') ||
+      norm.includes('مجموعةالصنف') ||
+      norm.includes('مجموعهالصنف') ||
+      norm.includes('المجموعةالرئيسية') ||
+      norm.includes('المجموعهالرئيسيه') ||
+      norm.includes('المجموعةالرئيسيه') ||
+      norm.includes('المجموعهالرئيسية') ||
+      norm.includes('المجموعة') ||
+      norm.includes('المجموعه') ||
+      norm.includes('البراند') ||
+      norm.includes('الماركة') ||
+      norm.includes('الماركه')
+    ) {
+      colMap.itemGroup = idx;
+      colMap.department = idx;
+    }
+    // 8. Family Name (عائلة الصنف / الفئة / المجموعة الفرعية / التصنيف)
+    else if (
+      norm === 'familyname' ||
+      norm === 'family_name' ||
+      norm === 'family name' ||
+      norm.includes('familyname') ||
+      norm.includes('اسمالعائلة') ||
+      norm.includes('اسمالعائله') ||
+      norm.includes('عائلةالصنف') ||
+      norm.includes('عائلهالصنف') ||
+      norm.includes('المجموعةالفرعية') ||
+      norm.includes('المجموعهالفرعيه') ||
+      norm.includes('العائلة') ||
+      norm.includes('العائله') ||
+      norm.includes('الفئة') ||
+      norm.includes('الفئه') ||
+      norm.includes('الفئات') ||
+      norm.includes('فئة') ||
+      norm.includes('فئه') ||
+      norm.includes('عائلة') ||
+      norm.includes('عائله')
+    ) {
+      colMap.familyName = idx;
+      colMap.classification = idx;
+    }
+    // 9. اللون (Color)
+    else if (norm === 'اللون' || norm === 'لون' || norm.includes('اللون') || norm.includes('color')) {
+      colMap.color = idx;
+    }
+    // 10. البحيرة (Beheira Branch Stock)
+    else if (
+      norm === 'البحيرة' ||
+      norm === 'البحيره' ||
+      norm === 'البحير' ||
+      norm.includes('مخزونالبحير') ||
+      norm.includes('فرعالبحير') ||
+      norm.includes('البحير')
+    ) {
+      colMap.stockBeheira = idx;
+      if (colMap.branchStockActual === -1) colMap.branchStockActual = idx;
+    }
+    // 11. الفيوم (Fayoum Branch Stock)
+    else if (
+      norm === 'الفيوم' ||
+      norm.includes('مخزونالفيوم') ||
+      norm.includes('فرعالفيوم') ||
+      norm.includes('الفيوم')
+    ) {
+      colMap.stockFayoum = idx;
+    }
+    // 12. القاهرة (Cairo Branch Stock)
+    else if (
+      norm === 'القاهرة' ||
+      norm === 'القاهره' ||
+      norm === 'القاهر' ||
+      norm.includes('مخزونالقاهر') ||
+      norm.includes('فرعالقاهر') ||
+      norm.includes('القاهر')
+    ) {
+      colMap.stockCairo = idx;
+    }
+    // 13. المنيا (Minya Branch Stock - Upper Egypt, strictly separated from Minya El Qamh)
+    else if (
+      (norm === 'المنيا' || norm === 'المني' || norm.includes('المنيا')) &&
+      !norm.includes('القمح') &&
+      !norm.includes('قمح')
+    ) {
+      colMap.stockMinya = idx;
+    }
+    // 14. ديمشلت (Dimeshalt Branch Stock)
+    else if (
+      norm === 'ديمشلت' ||
+      norm === 'ديمشل' ||
+      norm.includes('مخزونديمشلت') ||
+      norm.includes('فرعديمشلت') ||
+      norm.includes('ديمشلت')
+    ) {
+      colMap.stockDimeshalt = idx;
+    }
+    // 15. مخزون اكتوبر (October Central Warehouse Stock - المخزن الرئيسي المركزي)
+    else if (
+      norm === 'مخزوناكتوبر' ||
+      norm === 'مخزونأكتوبر' ||
+      norm === 'مخزوناكتوب' ||
+      norm === 'مخزونكتوب' ||
+      norm === 'اكتوبر' ||
+      norm === 'أكتوبر' ||
+      norm.includes('مخزوناكتوبر') ||
+      norm.includes('مخزنالمركزي') ||
+      norm.includes('مخزنمركزي') ||
+      norm.includes('المخزنالمركزي') ||
+      norm.includes('المخزنالرئيسي') ||
+      norm.includes('المخزنالرئيسى')
+    ) {
+      colMap.stockOctober = idx;
+      colMap.mainWarehouseActual = idx;
+    }
+    // 16. منوف (Menouf Branch Stock)
+    else if (
+      norm === 'منوف' ||
+      norm.includes('مخزونمنوف') ||
+      norm.includes('فرعمنوف') ||
+      norm.includes('منوف')
+    ) {
+      colMap.stockMenouf = idx;
+    }
+    // 17. منيا القمح (Minya El Qamh Branch Stock)
+    else if (
+      norm === 'منياالقمح' ||
+      norm === 'منياالقم' ||
+      norm === 'متياالقم' ||
+      norm.includes('منياالقمح') ||
+      norm.includes('القمح') ||
+      norm.includes('قمح')
+    ) {
+      colMap.stockMeq = idx;
+    }
+    // 18. سعر العرض (Offer / Promo Price for Carton)
+    else if (
+      norm === 'سعرالعرض' ||
+      norm === 'سعرالعرضكرتون' ||
+      norm === 'سعرالعرضبالكرتون' ||
+      norm === 'سعرعرضكرتون' ||
+      norm === 'سعرعرض' ||
+      norm.includes('سعرالعرض') ||
+      norm.includes('سعرخاص') ||
+      norm.includes('promo') ||
+      norm.includes('promoprice') ||
+      norm.includes('offerprice')
+    ) {
+      colMap.promoPrice = idx;
+    } else if (
+      norm.includes('سعرالعرضقطعة') ||
+      norm.includes('سعرالعرضبالقطع') ||
+      norm.includes('سعرعرضقطعة')
+    ) {
+      colMap.promoPiecePrice = idx;
+    }
+    // 19. لينك الصوره (Image URL / Link)
+    else if (
+      norm === 'لينكالصوره' ||
+      norm === 'لينكالصورة' ||
+      norm === 'رابطالصورة' ||
+      norm === 'رابطالصوره' ||
+      norm.includes('لينكالصور') ||
+      norm.includes('لينك') ||
+      norm.includes('صوره') ||
+      norm.includes('صورة') ||
+      norm.includes('image') ||
+      norm.includes('url')
+    ) {
+      colMap.imageUrl = idx;
+    }
+    // Fallback piece price
+    else if (
+      norm === 'سعرالقطعة' ||
+      norm === 'سعرالقطعه' ||
+      norm === 'سعر' ||
+      norm === 'السعر' ||
+      norm === 'price' ||
+      norm === 'unitprice' ||
+      norm === 'priceperpiece' ||
+      norm === 'سعرالوحدة' ||
+      norm === 'سعرالوحده' ||
+      norm === 'سعرالبيع' ||
+      norm === 'salesprice' ||
+      norm.includes('salesprice') ||
+      norm.includes('سعرالقطعة') ||
+      norm.includes('سعرالقطعه') ||
+      norm.includes('سعرالبيع')
+    ) {
+      colMap.salesPrice = idx;
+      colMap.piecePrice = idx;
+    }
+    // General matchers fallback
+    else if (norm.includes('كود') || norm.includes('code')) {
+      if (colMap.code === -1) colMap.code = idx;
+    } else if (norm.includes('اسم') || norm.includes('البيان')) {
+      if (colMap.name === -1) colMap.name = idx;
+    } else if (norm.includes('اولويه') || norm.includes('priority')) {
+      colMap.salesPriority = idx;
+    } else if (norm.includes('تصنيف') || norm.includes('category')) {
+      colMap.category = idx;
+    } else if (norm.includes('حاله') || norm.includes('status')) {
+      colMap.status = idx;
+    } else if (norm.includes('قسم') || norm.includes('department')) {
+      if (colMap.department === -1) colMap.department = idx;
+    } else if (norm.includes('باركود') || norm.includes('barcode')) {
+      colMap.barcode = idx;
+    } else if (norm.includes('فرع') || norm.includes('branch')) {
+      colMap.branchName = idx;
+    }
+  });
+
+  // Positional fallback for the exact 19 columns:
+  // [الكود الموحد, كود المنتج, اسم المنتج, الحجم, عدد القطع, سعر الكرتونه, Item group, Family Name, اللون, البحيرة, الفيوم, القاهرة, المنيا, ديمشلت, مخزون اكتوبر, منوف, منيا القمح, سعر العرض, لينك الصوره]
+  if ((colMap.unifiedCode === -1 || colMap.code === -1) && headers.length >= 10) {
+    if (colMap.unifiedCode === -1) colMap.unifiedCode = 0;
+    if (colMap.code === -1) colMap.code = 1;
+    if (colMap.name === -1 && headers.length > 2) colMap.name = 2;
+    if (colMap.size === -1 && headers.length > 3) colMap.size = 3;
+    if (colMap.factor === -1 && headers.length > 4) { colMap.factor = 4; colMap.cartonQuantity = 4; }
+    if (colMap.cartonPrice === -1 && colMap.salesPrice === -1 && headers.length > 5) colMap.cartonPrice = 5;
+    if (colMap.itemGroup === -1 && headers.length > 6) { colMap.itemGroup = 6; colMap.department = 6; }
+    if (colMap.familyName === -1 && headers.length > 7) { colMap.familyName = 7; colMap.classification = 7; }
+    if (colMap.color === -1 && headers.length > 8) colMap.color = 8;
+    if (colMap.stockBeheira === -1 && headers.length > 9) colMap.stockBeheira = 9;
+    if (colMap.stockFayoum === -1 && headers.length > 10) colMap.stockFayoum = 10;
+    if (colMap.stockCairo === -1 && headers.length > 11) colMap.stockCairo = 11;
+    if (colMap.stockMinya === -1 && headers.length > 12) colMap.stockMinya = 12;
+    if (colMap.stockDimeshalt === -1 && headers.length > 13) colMap.stockDimeshalt = 13;
+    if (colMap.stockOctober === -1 && headers.length > 14) { colMap.stockOctober = 14; colMap.mainWarehouseActual = 14; }
+    if (colMap.stockMenouf === -1 && headers.length > 15) colMap.stockMenouf = 15;
+    if (colMap.stockMeq === -1 && headers.length > 16) colMap.stockMeq = 16;
+    if (colMap.promoPrice === -1 && headers.length > 17) colMap.promoPrice = 17;
+    if (colMap.imageUrl === -1 && headers.length > 18) colMap.imageUrl = 18;
+  }
+
+  // Track code occurrences to ensure 100% of rows (all 5500+) get unique IDs without overwriting
+  const codeOccurrences: Record<string, number> = {};
+  // عدّاد الصفوف اللي مفيهاش كود حقيقي — بيتحوّل لملاحظة في نهاية الاستيراد.
+  let codeLessRowCount = 0;
+  const codeLessSample: string[] = [];
+
+  // Loop rows
+  for (let r = headerRowIndex + 1; r < rawRows.length; r++) {
+    const row = rawRows[r];
+    if (!row || row.length === 0 || row.every((c: any) => c === '' || c === null || c === undefined)) continue;
+
+    const getVal = (colIdx: number) => (colIdx >= 0 && row[colIdx] !== undefined && row[colIdx] !== null ? String(row[colIdx]).trim() : '');
+    const getNum = (colIdx: number, fallback = 0) => {
+      if (colIdx < 0 || row[colIdx] === undefined || row[colIdx] === null) return fallback;
+      let rawStr = String(row[colIdx]).trim();
+      const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+      for (let i = 0; i < 10; i++) {
+        rawStr = rawStr.split(arabicNumerals[i]).join(String(i));
+      }
+      rawStr = rawStr.replace(/,/g, '').replace(/٬/g, '').replace(/٫/g, '.');
+      const clean = rawStr.replace(/[^\d.-]/g, '');
+      const parsed = parseFloat(clean);
+      return isNaN(parsed) ? fallback : parsed;
+    };
+
+    const rawName = getVal(colMap.name);
+    const rawCode = getVal(colMap.code);
+    const rawUnifiedCode = getVal(colMap.unifiedCode);
+
+    // Keep the product-code column authoritative.
+    const productCode = cleanProductCode(rawCode);
+    const fallbackCode = cleanProductCode(rawUnifiedCode.replace(/^#/, '').trim());
+    const extractedFromTitle = (!productCode && !fallbackCode) ? extractCodeFromProductName(rawName) : '';
+    const code = productCode || fallbackCode || extractedFromTitle;
+
+    if (!code) {
+      const label = (rawName || `صف ${r + 1}`).slice(0, 40);
+      codeLessRowCount += 1;
+      if (codeLessSample.length < 5) codeLessSample.push(label);
+      errors.push(
+        `الصف ${r + 1} («${label}») مفيهوش كود صنف ولا كود موحد — اتسجّل بالاسم فقط، ` +
+          'وممكن يتكرر في الكتالوج لو الاسم اتغيّر.'
+      );
+    }
+
+    let cleanUnified = cleanProductCode(rawUnifiedCode.trim());
+    if (cleanUnified && /^drm[-_]?([0-9a-zA-Z]+)$/i.test(cleanUnified)) {
+      cleanUnified = cleanUnified.replace(/^drm[-_]?/i, '');
+    }
+    const unifiedCode = cleanUnified
+      ? (cleanUnified.startsWith('#') ? cleanUnified : `#${cleanUnified}`)
+      : (code ? `#${code}` : undefined);
+
+    const fallbackName = getVal(colMap.familyName) || getVal(colMap.itemGroup) || `صنف دريم ${code}`;
+    const name = rawName || fallbackName;
+
+    // Skip summary / total rows in product sheets (e.g. "الإجمالي", "المجموع", "Total")
+    if (isSummaryOrTotalRow(name, rawCode || rawUnifiedCode)) continue;
+
+    const rawPriority = getVal(colMap.salesPriority);
+    let salesPriority: SalesPriority = 'عادي';
+    if (rawPriority.includes('مرتفع') || rawPriority.includes('عالي') || rawPriority.toLowerCase().includes('high')) salesPriority = 'مرتفع';
+    else if (rawPriority.includes('متوسط') || rawPriority.toLowerCase().includes('med')) salesPriority = 'متوسط';
+    else if (rawPriority.includes('منخفض') || rawPriority.toLowerCase().includes('low')) salesPriority = 'منخفض';
+
+    const rawStatus = getVal(colMap.status);
+    let status: ItemStatus = 'متاح';
+    if (rawStatus.includes('راكد')) status = 'راكد';
+    else if (rawStatus.includes('عرض') || rawStatus.includes('promo')) status = 'عرض ترويجي';
+    else if (rawStatus.includes('نواقص') || rawStatus.includes('شحيح')) status = 'نواقص';
+    else if (rawStatus.includes('موقوف')) status = 'موقوف مؤقتاً';
+
+    // Factor (شدة الكرتونة)
+    const factorVal = getNum(colMap.factor > -1 ? colMap.factor : colMap.cartonQuantity, 0);
+    const cartonQuantity = factorVal > 0 ? factorVal : 1;
+
+    // Sales Price & Carton Price (مرآة دقيقة لأعمدة الشيت)
+    const rawSalesPrice = getNum(colMap.salesPrice > -1 ? colMap.salesPrice : colMap.piecePrice, 0);
+    const rawCartonPrice = getNum(colMap.cartonPrice, 0);
+    const promoPriceCartonRaw = getNum(colMap.promoPrice, 0);
+    const promoPricePieceRaw = getNum(colMap.promoPiecePrice, 0);
+
+    // Price in sheet is per piece (سعر القطعة) and is multiplied by carton pack (شدة الكرتونة) to get carton price:
+    // e.g. 500 EGP per piece * 30 pieces in carton = 15,000 EGP carton price
+    const baseRawPrice = rawSalesPrice > 0 ? rawSalesPrice : rawCartonPrice;
+    let piecePrice = baseRawPrice;
+    let cartonPrice = Math.round(piecePrice * cartonQuantity * 100) / 100;
+
+    // If both salesPrice and cartonPrice columns exist
+    if (rawSalesPrice > 0) {
+      piecePrice = rawSalesPrice;
+      cartonPrice = rawCartonPrice > rawSalesPrice
+        ? rawCartonPrice
+        : Math.round(piecePrice * cartonQuantity * 100) / 100;
+    } else if (rawCartonPrice > 0 && cartonQuantity > 0) {
+      cartonPrice = rawCartonPrice;
+      piecePrice = Math.round((rawCartonPrice / cartonQuantity) * 100) / 100;
+    }
+
+    // Offer / Promo prices for carton and piece
+    let finalPromoCartonPrice: number | undefined = undefined;
+    let finalPromoPiecePrice: number | undefined = undefined;
+
+    if (promoPriceCartonRaw > 0) {
+      finalPromoCartonPrice = promoPriceCartonRaw;
+      finalPromoPiecePrice = cartonQuantity > 0 ? Math.round((promoPriceCartonRaw / cartonQuantity) * 100) / 100 : promoPriceCartonRaw;
+    } else if (promoPricePieceRaw > 0) {
+      finalPromoPiecePrice = promoPricePieceRaw;
+      finalPromoCartonPrice = Math.round(promoPricePieceRaw * cartonQuantity * 100) / 100;
+    }
+
+    // Item group and Family Name
+    const rawItemGroup = getVal(colMap.itemGroup) || getVal(colMap.department) || getVal(colMap.category) || 'عام';
+    const itemGroup = rawItemGroup.trim();
+    const rawFamilyName = getVal(colMap.familyName) || getVal(colMap.classification) || 'أصناف عامة';
+    const familyName = rawFamilyName.trim();
+
+    // Multi-branch stocks for all 8 company warehouses
+    const stockBeheira = colMap.stockBeheira > -1 ? getNum(colMap.stockBeheira, 0) : 0;
+    const stockFayoum = colMap.stockFayoum > -1 ? getNum(colMap.stockFayoum, 0) : 0;
+    const stockCairo = colMap.stockCairo > -1 ? getNum(colMap.stockCairo, 0) : 0;
+    const stockMinya = colMap.stockMinya > -1 ? getNum(colMap.stockMinya, 0) : 0;
+    const stockDimeshalt = colMap.stockDimeshalt > -1 ? getNum(colMap.stockDimeshalt, 0) : 0;
+    const stockOctober = colMap.stockOctober > -1 ? getNum(colMap.stockOctober, 0) : getNum(colMap.mainWarehouseActual, 0);
+    const stockMenouf = colMap.stockMenouf > -1 ? getNum(colMap.stockMenouf, 0) : 0;
+    const stockMeq = colMap.stockMeq > -1 ? getNum(colMap.stockMeq, 0) : 0;
+
+    const branchStocks: Record<string, number> = {
+      // Beheira
+      'فرع البحيرة': stockBeheira,
+      'البحيرة': stockBeheira,
+      // Fayoum
+      'فرع الفيوم': stockFayoum,
+      'الفيوم': stockFayoum,
+      // Cairo
+      'فرع القاهرة': stockCairo,
+      'القاهرة': stockCairo,
+      // Minya
+      'فرع المنيا': stockMinya,
+      'المنيا': stockMinya,
+      // Dimeshalt
+      'فرع ديمشلت': stockDimeshalt,
+      'ديمشلت': stockDimeshalt,
+      // October Central Warehouse
+      'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)': stockOctober,
+      'مخزون اكتوبر': stockOctober,
+      'مخزون أكتوبر': stockOctober,
+      'فرع أكتوبر': stockOctober,
+      'أكتوبر': stockOctober,
+      // Menouf
+      'فرع منوف': stockMenouf,
+      'منوف': stockMenouf,
+      // Minya El Qamh
+      'فرع منيا القمح': stockMeq,
+      'منيا القمح': stockMeq,
+    };
+
+    // Calculate total stock across all branches and central warehouse
+    const totalAllBranchesStock = stockBeheira + stockFayoum + stockCairo + stockMinya + stockDimeshalt + stockOctober + stockMenouf + stockMeq;
+    const rawBranchStock = colMap.branchStockActual > -1
+      ? getNum(colMap.branchStockActual, totalAllBranchesStock)
+      : (totalAllBranchesStock > 0 ? totalAllBranchesStock : (stockCairo || stockBeheira || 0));
+
+    const rawImg = cleanGoogleSheetImageUrl(getVal(colMap.imageUrl));
+    const sizeVal = getVal(colMap.size) || '';
+    const colorVal = getVal(colMap.color) || '';
+
+    // Generate distinct product ID to guarantee preservation of all rows and prevent unwanted code merging
+    const baseCode = (code || `prd_r${r}`).replace(/\s+/g, '_').toLowerCase();
+    const cleanUnifiedSlug = unifiedCode ? `_u${unifiedCode.replace(/[^a-zA-Z0-9]/g, '')}` : '';
+    const cleanName = (name || '').replace(/[^a-zA-Z0-9\u0621-\u064A]/g, '_').slice(0, 20).toLowerCase();
+    const colorSlug = colorVal ? `_${colorVal.replace(/[^a-zA-Z0-9\u0621-\u064A]/g, '_').toLowerCase()}` : '';
+    const sizeSlug = sizeVal ? `_${sizeVal.replace(/[^a-zA-Z0-9\u0621-\u064A]/g, '_').toLowerCase()}` : '';
+    
+    // الـid ثابت مش متغيّر: مبني على الكود + الكود الموحد + اللون + الحجم.
+    // اللاحقة `_v2`/`_v3` بتفرّق بين الصفوف المكرّرة جوه الشيت الواحد
+    // بس — هي **مش** هوية الصنف، وده مقصود. الدمج بيحصل على
+    // `productIdentityKey` (الكود لوحده) مش على الـid، فالصف التاني بنفس
+    // الكود بيتدمج مع الأول بدل ما يولّد صنف جديد.
+    const occurrenceCount = (codeOccurrences[baseCode] || 0) + 1;
+    codeOccurrences[baseCode] = occurrenceCount;
+    const occurrenceSuffix = occurrenceCount > 1 ? `_v${occurrenceCount}` : '';
+    const deterministicId = `prod-${baseCode}${cleanUnifiedSlug}${colorSlug}${sizeSlug}${occurrenceSuffix}`;
+
+    const product: Product = {
+      id: deterministicId,
+      code: code,
+      unifiedCode: unifiedCode,
+      name: name || `صنف بدون كود (${baseCode})`,
+      salesPriority: salesPriority,
+      category: itemGroup,
+      status: status,
+      cartonQuantity: cartonQuantity,
+      factor: cartonQuantity,
+      size: sizeVal,
+      color: colorVal,
+      branchStockActual: rawBranchStock,
+      branchStockReserved: rawBranchStock,
+      mainWarehouseActual: stockOctober,
+      mainWarehouseReserved: stockOctober,
+      branchStocks: branchStocks,
+      department: itemGroup,
+      itemGroup: itemGroup,
+      classification: familyName,
+      familyName: familyName,
+      promoPrice: finalPromoCartonPrice,
+      promoPiecePrice: finalPromoPiecePrice,
+      offerPrice: finalPromoCartonPrice,
+      piecePrice: piecePrice,
+      salesPrice: piecePrice,
+      cartonPrice: cartonPrice,
+      branchName: normalizeExcelBranchName(getVal(colMap.branchName)),
+      imageUrl: rawImg || undefined,
+      cloudinaryPublicId: code,
+      barcode: getVal(colMap.barcode) || undefined,
+    };
+
+    products.push(product);
+  }
+
+  // ملخص واضح بدل ما المستخدم يشوف رقم غريب بعد الرفع.
+  if (codeLessRowCount > 0) {
+    errors.push(
+      `ملخص: ${codeLessRowCount} صف مفيهوش كود صنف (${codeLessSample.join('، ')}` +
+        `${codeLessRowCount > codeLessSample.length ? ' …' : ''}). ` +
+        'اكتب عمود «كود المنتج» في الشيت علشان الدمج يبقى مضمون.'
+    );
+  }
+
+  return {
+    products,
+    errors,
+    totalRows: products.length,
+  };
+}
+
+/**
+ * نفس النتيجة، مع عدّ الصفوف المكرّرة جوه الشيت نفسه.
+ *
+ * بيستخدمه الاستيراد عشان يقدر يقول للمستخدم «اتقرأ 5,800 صف ودمجناهم في
+ * 4,508 صنف» بدل ما الرقم الكبير يخلّيه يفتكر إن التطبيق ضاع منه حاجة.
+ * التكرار بيتحسب على **الكود** (نفس مفتاح `productIdentityKey`)، فبنفس
+ * التعريف اللي بيستخدمه الدمج فعلاً.
+ */
+export { countDuplicateProductRows as countDuplicateCodeRows } from './productIdentity';
+
+/**
+ * Smart Excel / CSV file parser for Dream Distribution product inventory
+ */
+export async function parseExcelProducts(file: File): Promise<{
+  products: Product[];
+  errors: string[];
+  totalRows: number;
+}> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const buffer = e.target?.result as ArrayBuffer;
+        const workbook = parseExcelOrCsvBuffer(buffer, file.name);
+
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+
+        const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+        const result = parseRawRowsToProducts(rawRows);
+        resolve(result);
+      } catch (err: any) {
+        resolve({
+          products: [],
+          errors: [`فشل في قراءة الملف: ${err?.message || 'خطأ غير معروف'}`],
+          totalRows: 0,
+        });
+      }
+    };
+
+    reader.onerror = () => {
+      resolve({
+        products: [],
+        errors: ['حدث خطأ أثناء قراءة الملف من الجهاز'],
+        totalRows: 0,
+      });
+    };
+
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+/**
+ * Fetch and parse data live from Google Sheets URL
+ */
+export async function fetchAndParseGoogleSheet(googleSheetUrlOrId: string): Promise<{
+  products: Product[];
+  errors: string[];
+  totalRows: number;
+}> {
+  const csvUrl = buildGoogleSheetsPublicCsvUrl(googleSheetUrlOrId);
+  if (!csvUrl) {
+    return {
+      products: [],
+      errors: ['رابط Google Sheets غير صالح. يرجى التأكد من نسخ رابط الشيت كاملاً.'],
+      totalRows: 0,
+    };
+  }
+
+  try {
+    const response = await fetch(csvUrl);
+    if (!response.ok) {
+      throw new Error(`تعذر جلب الشيت (كود ${response.status}). يرجى التأكد من أن الشيت منشور للعامة (Anyone with the link can view).`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const csvText = decodeBufferSmart(arrayBuffer).replace(/^\uFEFF/, '');
+    if (!csvText || csvText.trim().length === 0) {
+      throw new Error('تم جلب الشيت لكنه لا يحتوي على أي بيانات.');
+    }
+
+    const workbook = XLSX.read(csvText, { type: 'string', codepage: 65001 });
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+    return parseRawRowsToProducts(rawRows);
+  } catch (err: any) {
+    return {
+      products: [],
+      errors: [err.message || 'فشل الاتصال بـ Google Sheets'],
+      totalRows: 0,
+    };
+  }
+}
+
+/**
+ * Build Complete Invoice Excel Workbook (Executive Tax Layout with Structured Grid, RTL & Multi-tabs)
+ */
+export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
+  const wb = XLSX.utils.book_new();
+
+  const {
+    debtBefore,
+    debtAfter,
+    creditLimit,
+    isExceeded,
+    requiredDown,
+    matchedCustomer,
+  } = resolveCustomerFinancials(invoice);
+
+  const resolvedCustomerCode = resolveSafeCustomerCode(invoice, matchedCustomer);
+
+  const titleRows = [
+    ['شركة دريم للتجارة والتوزيع - مجموعة الطنطاوي (TANTAWY GROUP)'],
+    ['فاتورة مبيعات إلكترونية معتمدة - إذن صرف واستلام بضاعة وموقف حساب العميل'],
+    [],
+    // Row 4: Invoice Meta
+    ['رقم الفاتورة:', invoice.invoiceNumber, '', 'تاريخ الإصدار:', invoice.date, '', 'وقت الإصدار:', invoice.time || '', '', 'طريقة السداد:', invoice.paymentMethod],
+    // Row 5: Customer Meta
+    ['اسم العميل / المحل:', invoice.customerName, '', 'كود العميل:', resolvedCustomerCode, '', 'هاتف العميل:', invoice.customerPhone || '---', '', 'الرقم الضريبي:', invoice.customerTaxNumber || '---'],
+    // Row 6: Organization Meta
+    ['الفرع المنفذ:', invoice.branchName, '', 'المندوب المسؤول:', invoice.repName, '', 'المشرف المعتمد:', invoice.supervisorName || '---', '', 'حالة الفاتورة:', invoice.status],
+    // Row 7: Warehouse Meta
+    ['مستودع الصرف:', invoice.items.some((it) => it.fulfilledFrom === 'main_warehouse') ? 'مخزن 6 أكتوبر المركزي + الفرع' : invoice.branchName, '', 'إجمالي الكراتين:', `${invoice.totalCartons} كرتونة`, '', 'إجمالي القطع:', `${invoice.totalPieces} قطعة`, '', 'النوع:', (invoice.isShortageInvoice || invoice.invoiceNumber?.endsWith('-NQ')) ? 'فاتورة نواقص (-NQ)' : 'فاتورة مبيعات'],
+    [],
+    // Row 9-10: Financial KPI Cards
+    ['الموقف المالي والائتماني للعميل:', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    [
+      'المديونية السابقة:',
+      debtBefore,
+      '',
+      'صافي الفاتورة الحالية:',
+      invoice.estimatedGrandTotal,
+      '',
+      'إجمالي المديونية بعد الفاتورة:',
+      debtAfter,
+      '',
+      'الحد الائتماني المعتمد:',
+      creditLimit,
+      '',
+      '',
+      ''
+    ],
+    [
+      'حالة الائتمان:',
+      isExceeded ? `⚠️ تجاوز الحد الائتماني (مطلوب دفعة نقدية: ${requiredDown.toLocaleString()} ج.م)` : '✅ الحساب سليم وضمن الحد الائتماني المعتمد',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      ''
+    ],
+    []
+  ];
+
+  // Keep the export aligned with the in-app Excel Invoice Preview Modal.
+  const tableHeaders = [
+    'م',
+    'كود الصنف',
+    'الكود الموحد',
+    'اللون',
+    'اسم الصنف والبيان التفصيلي',
+    'شدة',
+    'كرتون',
+    'قطع',
+    'إجمالي القطع',
+    'سعر كرتونة',
+    'سعر قطعة',
+    'الإجمالي',
+    'الخصم',
+    'الصافي',
+    'مصدر الصرف'
+  ];
+
+  const itemRows = invoice.items.map((item, index) => {
+    const cartonQty = item.cartonQuantity || 1;
+    const cCount = item.cartonCount || 0;
+    const pCount = item.pieceCount || 0;
+    const totalPcs = item.totalUnits || (cCount * cartonQty + pCount);
+    const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round(((item.pricePerCarton || item.appliedPrice) / cartonQty) * 100) / 100 : 0);
+    const unified = item.unifiedCode || (item.product as any)?.unifiedCode || '---';
+    const cleanPCode = cleanProductCode(item.productCode);
+    const color = item.color || item.product?.color || '---';
+    const fulfillmentSource = item.fulfilledFrom === 'main_warehouse' ? 'مخزن 6 أكتوبر المركزي (نواقص)' : (invoice.branchName || 'مخزن الفرع');
+
+    return [
+      index + 1,
+      cleanPCode,
+      unified,
+      color,
+      item.productName,
+      cartonQty,
+      cCount,
+      pCount,
+      totalPcs,
+      item.appliedPrice,
+      pieceP,
+      item.totalBeforeTax,
+      item.discountAmount > 0 ? -item.discountAmount : 0,
+      item.netTotal,
+      fulfillmentSource
+    ];
+  });
+
+  const summaryRows = [
+    [],
+    ['', '', '', '', '', '', '', '', '', '', invoice.discountAmount > 0 ? 'إجمالي البضاعة قبل الخصم:' : 'إجمالي البضاعة:', '', invoice.subtotal, ''],
+    ...(invoice.discountAmount > 0
+      ? [['', '', '', '', '', '', '', '', '', '', `إجمالي الخصم التجاري (${invoice.discountPercentage}%):`, '', -invoice.discountAmount, '']]
+      : []),
+    ['', '', '', '', '', '', '', '', '', '', 'الإجمالي النهائي المطلوب سداده (الصافي):', '', invoice.estimatedGrandTotal, ''],
+    ['', '', '', '', '', '', '', '', '', '', 'المديونية السابقة للعميل:', '', debtBefore, ''],
+    ['', '', '', '', '', '', '', '', '', '', 'إجمالي مديونية العميل بعد الفاتورة:', '', debtAfter, ''],
+    ['', '', '', '', '', '', '', '', '', '', 'الحد الائتماني المعتمد للعميل:', '', creditLimit, ''],
+    ['', '', '', '', '', '', '', '', '', '', 'الدفعة النقدية المطلوب تحصيلها فوراً:', '', isExceeded ? requiredDown : 0, ''],
+    [],
+    ['ملاحظات الفاتورة والتسليم:', invoice.notes || 'بضاعة مستلمة كاملة وبحالة جيدة ومطابقة للمواصفات.'],
+    ['رسالة تقدير:', '✨ شكرًا لتعاملكم مع شركة دريم للتجارة والتوزيع - مجموعة الطنطاوي ❤️'],
+    [`خدمة العملاء والشكاوى: ${COMPANY_INFO.customerService}`, 'الإدارة العامة والمخازن المركزية: المنطقة الصناعية - 6 أكتوبر - الجيزة'],
+    [],
+    ['توقيع واستلام العميل / المحل:', '', 'مندوب التوزيع والتسليم:', '', 'أمين مخزن الصرف:', '', 'اعتماد الإدارة والحسابات:', ''],
+    ['....................................', '', `................ (${invoice.repName})`, '', '....................................', '', '....................................', '']
+  ];
+
+  const fullSheetData = [...titleRows, tableHeaders, ...itemRows, ...summaryRows];
+  const ws = XLSX.utils.aoa_to_sheet(fullSheetData);
+  const lastColumn = tableHeaders.length - 1;
+  const lastColumnLabel = XLSX.utils.encode_col(lastColumn);
+  const lastRow = fullSheetData.length - 1;
+
+  // Merged headers and executive layout
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: lastColumn } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: lastColumn } },
+    { s: { r: 3, c: 1 }, e: { r: 3, c: 2 } },
+    { s: { r: 3, c: 4 }, e: { r: 3, c: 5 } },
+    { s: { r: 4, c: 1 }, e: { r: 4, c: 2 } },
+    { s: { r: 4, c: 4 }, e: { r: 4, c: 5 } },
+    { s: { r: 5, c: 1 }, e: { r: 5, c: 2 } },
+    { s: { r: 5, c: 4 }, e: { r: 5, c: 5 } },
+    { s: { r: 8, c: 0 }, e: { r: 8, c: lastColumn } },
+    { s: { r: 10, c: 1 }, e: { r: 10, c: lastColumn } },
+  ];
+  ws['!freeze'] = { xSplit: 0, ySplit: titleRows.length + 1 };
+  ws['!autofilter'] = { ref: `A${titleRows.length + 1}:${lastColumnLabel}${titleRows.length + 1 + itemRows.length}` };
+  ws['!sheetView'] = [{ rightToLeft: true }];
+  ws['!views'] = [{ RTL: true }];
+  ws['!rows'] = fullSheetData.map((_, rowIndex) => ({
+    hpt: rowIndex === 0 ? 34 : rowIndex === 1 ? 26 : rowIndex === titleRows.length ? 28 : 22,
+  }));
+
+  const applyRangeStyle = (range: string, style: Record<string, unknown>) => {
+    const decoded = XLSX.utils.decode_range(range);
+    for (let row = decoded.s.r; row <= decoded.e.r; row += 1) {
+      for (let col = decoded.s.c; col <= decoded.e.c; col += 1) {
+        const cell = ws[XLSX.utils.encode_cell({ r: row, c: col })];
+        if (cell) cell.s = { ...(cell.s || {}), ...style };
+      }
+    }
+  };
+
+  const navy = '0F2942';
+  const slateBlue = '1E3A5F';
+  const gold = 'C88A2B';
+  const paleGold = 'FEF3C7';
+  const paleBlue = 'F8FAFC';
+  const softGreen = 'DCFCE7';
+  const borderColor = 'CBD5E1';
+
+  const baseCellStyle = {
+    font: { name: 'Segoe UI', sz: 10, color: { rgb: '1E293B' } },
+    alignment: { vertical: 'center', wrapText: true },
+    border: {
+      top: { style: 'thin', color: { rgb: borderColor } },
+      bottom: { style: 'thin', color: { rgb: borderColor } },
+      left: { style: 'thin', color: { rgb: borderColor } },
+      right: { style: 'thin', color: { rgb: borderColor } },
+    },
+  };
+
+  applyRangeStyle(`A1:${lastColumnLabel}${lastRow + 1}`, baseCellStyle);
+
+  // Row 1 & 2: Header Banners
+  applyRangeStyle(`A1:${lastColumnLabel}1`, {
+    font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 16 },
+    fill: { fgColor: { rgb: navy } },
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: { bottom: { style: 'medium', color: { rgb: gold } } }
+  });
+  applyRangeStyle(`A2:${lastColumnLabel}2`, {
+    font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+    fill: { fgColor: { rgb: slateBlue } },
+    alignment: { horizontal: 'center', vertical: 'center' }
+  });
+
+  // Rows 4-7: Metadata Cards
+  applyRangeStyle(`A4:${lastColumnLabel}7`, {
+    fill: { fgColor: { rgb: 'F8FAFC' } },
+    font: { name: 'Segoe UI', sz: 10, color: { rgb: '1E293B' } }
+  });
+
+  // Row 9: Financial Section Title
+  applyRangeStyle(`A9:${lastColumnLabel}9`, {
+    font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+    fill: { fgColor: { rgb: navy } },
+    alignment: { horizontal: 'right', vertical: 'center' }
+  });
+
+  // Row 10: Financial Values Row
+  applyRangeStyle(`A10:${lastColumnLabel}10`, {
+    fill: { fgColor: { rgb: 'F1F5F9' } },
+    font: { name: 'Segoe UI', bold: true, color: { rgb: '0F172A' }, sz: 10.5 }
+  });
+
+  // Row 11: Credit Status Banner
+  applyRangeStyle(`A11:${lastColumnLabel}11`, {
+    fill: { fgColor: { rgb: isExceeded ? paleGold : softGreen } },
+    font: { name: 'Segoe UI', bold: true, color: { rgb: isExceeded ? '92400E' : '166534' }, sz: 10.5 }
+  });
+
+  // Table Headers Row
+  applyRangeStyle(`A${titleRows.length + 1}:${lastColumnLabel}${titleRows.length + 1}`, {
+    font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 10.5 },
+    fill: { fgColor: { rgb: navy } },
+    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+    border: { top: { style: 'medium', color: { rgb: gold } }, bottom: { style: 'medium', color: { rgb: gold } } }
+  });
+
+  // Zebra striping for item rows
+  for (let itemIndex = 0; itemIndex < itemRows.length; itemIndex += 1) {
+    if (itemIndex % 2 === 0) {
+      applyRangeStyle(`A${titleRows.length + 2 + itemIndex}:${lastColumnLabel}${titleRows.length + 2 + itemIndex}`, {
+        fill: { fgColor: { rgb: paleBlue } }
+      });
+    }
+  }
+
+  // Summary Rows Styling
+  const summaryStartRow = titleRows.length + 2 + itemRows.length;
+  applyRangeStyle(`K${summaryStartRow}:M${summaryStartRow + 7}`, {
+    alignment: { horizontal: 'right', vertical: 'center' },
+    font: { name: 'Segoe UI', bold: true, color: { rgb: '1E293B' } }
+  });
+
+  // Grand Total Highlight Row
+  const grandTotalRow = summaryStartRow + 3;
+  applyRangeStyle(`K${grandTotalRow}:M${grandTotalRow}`, {
+    fill: { fgColor: { rgb: paleGold } },
+    font: { name: 'Segoe UI', bold: true, color: { rgb: '92400E' }, sz: 11.5 },
+    border: {
+      top: { style: 'thin', color: { rgb: gold } },
+      bottom: { style: 'double', color: { rgb: gold } },
+      left: { style: 'thin', color: { rgb: gold } },
+      right: { style: 'thin', color: { rgb: gold } }
+    }
+  });
+
+  ws['!cols'] = [
+    { wch: 6 },   // م
+    { wch: 15 },  // كود الصنف
+    { wch: 15 },  // الكود الموحد
+    { wch: 14 },  // اللون
+    { wch: 38 },  // اسم الصنف والبيان التفصيلي
+    { wch: 10 },  // شدة
+    { wch: 10 },  // كرتون
+    { wch: 10 },  // قطع
+    { wch: 14 },  // إجمالي القطع
+    { wch: 14 },  // سعر كرتونة
+    { wch: 14 },  // سعر قطعة
+    { wch: 16 },  // الإجمالي
+    { wch: 14 },  // الخصم
+    { wch: 16 },  // الصافي
+    { wch: 22 }   // مصدر الصرف
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, `فاتورة_${invoice.invoiceNumber}`);
+
+  // Tab 2: ERP Accounting Table (Auto-included in the official workbook)
+  try {
+    const erpItemHeaders = [
+      'رقم الفاتورة',
+      'تاريخ الفاتورة',
+      'كود المندوب',
+      'اسم المندوب',
+      'اسم الفرع',
+      'كود العميل',
+      'اسم العميل',
+      'رقم هاتف العميل',
+      'كود الصنف',
+      'الكود الموحد (#)',
+      'اسم الصنف',
+      'اللون',
+      'شدة الكرتونة',
+      'عدد الكراتين',
+      'قطع فردية',
+      'إجمالي القطع',
+      'سعر الكرتونة',
+      'سعر القطعة',
+      'الإجمالي قبل الخصم',
+      'نسبة خصم الفاتورة %',
+      'قيمة الخصم للصنف',
+      'الصافي النهائي',
+      'مصدر الصرف',
+      'طريقة الدفع',
+      'حالة الفاتورة'
+    ];
+
+    const erpRows = invoice.items.map((item) => {
+      const cartonQty = item.cartonQuantity || 1;
+      const cCount = item.cartonCount || 0;
+      const pCount = item.pieceCount || 0;
+      const totalPcs = item.totalUnits || (cCount * cartonQty + pCount);
+      const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round(((item.pricePerCarton || item.appliedPrice) / cartonQty) * 100) / 100 : 0);
+      const unified = item.unifiedCode || (item.product as any)?.unifiedCode || '---';
+      const color = item.color || item.product?.color || '---';
+
+      return [
+        invoice.invoiceNumber,
+        invoice.date,
+        invoice.repId || '',
+        invoice.repName,
+        invoice.branchName,
+        resolvedCustomerCode,
+        invoice.customerName,
+        invoice.customerPhone || '',
+        cleanProductCode(item.productCode),
+        unified,
+        item.productName,
+        color,
+        cartonQty,
+        cCount,
+        pCount,
+        totalPcs,
+        item.appliedPrice,
+        pieceP,
+        item.totalBeforeTax,
+        invoice.discountPercentage || 0,
+        item.discountAmount || 0,
+        item.netTotal,
+        item.fulfilledFrom === 'main_warehouse' ? 'مخزن مركزي - 6 أكتوبر' : invoice.branchName,
+        invoice.paymentMethod,
+        invoice.status
+      ];
+    });
+
+    const wsErp = XLSX.utils.aoa_to_sheet([erpItemHeaders, ...erpRows]);
+    wsErp['!views'] = [{ RTL: true }];
+    wsErp['!sheetView'] = [{ rightToLeft: true }];
+    wsErp['!cols'] = [
+      { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 18 }, { wch: 22 },
+      { wch: 14 }, { wch: 25 }, { wch: 16 }, { wch: 14 }, { wch: 16 },
+      { wch: 32 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 },
+      { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
+      { wch: 16 }, { wch: 24 }, { wch: 16 }, { wch: 18 }
+    ];
+
+    // Style Header & Cells for Tab 2
+    const erpRange = XLSX.utils.decode_range(wsErp['!ref'] || 'A1:X1');
+    for (let r = erpRange.s.r; r <= erpRange.e.r; r++) {
+      for (let c = erpRange.s.c; c <= erpRange.e.c; c++) {
+        const cell = wsErp[XLSX.utils.encode_cell({ r, c })];
+        if (!cell) continue;
+        if (r === 0) {
+          cell.s = {
+            font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 10 },
+            fill: { fgColor: { rgb: navy } },
+            alignment: { horizontal: 'center', vertical: 'center' },
+            border: { bottom: { style: 'medium', color: { rgb: gold } } }
+          };
+        } else {
+          cell.s = {
+            font: { name: 'Segoe UI', sz: 9.5, color: { rgb: '1E293B' } },
+            fill: r % 2 === 0 ? { fgColor: { rgb: paleBlue } } : undefined,
+            alignment: { vertical: 'center' },
+            border: {
+              top: { style: 'thin', color: { rgb: borderColor } },
+              bottom: { style: 'thin', color: { rgb: borderColor } },
+              left: { style: 'thin', color: { rgb: borderColor } },
+              right: { style: 'thin', color: { rgb: borderColor } }
+            }
+          };
+        }
+      }
+    }
+
+    XLSX.utils.book_append_sheet(wb, wsErp, 'بيانات_السيستم_ERP');
+
+    // Tab 3: Customer Credit & Statement Audit
+    const creditHeaders = [
+      ['شركة دريم للتجارة والتوزيع - كشف الحساب والائتمان المعتمد'],
+      [`العميل: ${invoice.customerName} (كود: ${resolvedCustomerCode})`],
+      [],
+      ['البيان المالي', 'المبلغ (ج.م)', 'ملاحظات وتدقيق الحساب'],
+      ['المديونية السابقة قبل الفاتورة', debtBefore, 'رصيد سابق مسجل بالسيستم'],
+      ['قيمة فاتورة المبيعات الحالية', invoice.estimatedGrandTotal, `فاتورة رقم ${invoice.invoiceNumber}`],
+      ['إجمالي المديونية بعد الفاتورة', debtAfter, 'الرصيد التراكمي النهائي المطلوب سداده'],
+      ['الحد الائتماني المعتمد للعميل', creditLimit, 'السقف المالي الائتماني المصرح به'],
+      ['موقف الائتمان', isExceeded ? '⚠️ تجاوز الحد الائتماني' : '✅ ضمن الحد المسموح', isExceeded ? `دفعة نقدية مطلوبة: ${requiredDown.toLocaleString()} ج.م` : 'حساب سليم ومطابق للشروط'],
+      [],
+      ['مندوب التسليم:', invoice.repName, 'تاريخ وتوقيت الإصدار:', `${invoice.date} ${invoice.time || ''}`]
+    ];
+    const wsCredit = XLSX.utils.aoa_to_sheet(creditHeaders);
+    wsCredit['!views'] = [{ RTL: true }];
+    wsCredit['!sheetView'] = [{ rightToLeft: true }];
+    wsCredit['!cols'] = [{ wch: 32 }, { wch: 20 }, { wch: 38 }];
+
+    // Style Tab 3
+    const creditRange = XLSX.utils.decode_range(wsCredit['!ref'] || 'A1:C11');
+    for (let r = creditRange.s.r; r <= creditRange.e.r; r++) {
+      for (let c = creditRange.s.c; c <= creditRange.e.c; c++) {
+        const cell = wsCredit[XLSX.utils.encode_cell({ r, c })];
+        if (!cell) continue;
+        if (r === 0) {
+          cell.s = {
+            font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 14 },
+            fill: { fgColor: { rgb: navy } },
+            alignment: { horizontal: 'center', vertical: 'center' }
+          };
+        } else if (r === 1) {
+          cell.s = {
+            font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+            fill: { fgColor: { rgb: slateBlue } },
+            alignment: { horizontal: 'center', vertical: 'center' }
+          };
+        } else if (r === 3) {
+          cell.s = {
+            font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 10.5 },
+            fill: { fgColor: { rgb: navy } },
+            alignment: { horizontal: 'center', vertical: 'center' }
+          };
+        } else if (r >= 4 && r <= 8) {
+          cell.s = {
+            font: { name: 'Segoe UI', sz: 10, bold: r === 6 || r === 8, color: { rgb: '0F172A' } },
+            fill: r === 8 ? { fgColor: { rgb: isExceeded ? paleGold : softGreen } } : (r % 2 === 0 ? { fgColor: { rgb: paleBlue } } : undefined),
+            alignment: { vertical: 'center' },
+            border: {
+              top: { style: 'thin', color: { rgb: borderColor } },
+              bottom: { style: 'thin', color: { rgb: borderColor } },
+              left: { style: 'thin', color: { rgb: borderColor } },
+              right: { style: 'thin', color: { rgb: borderColor } }
+            }
+          };
+        }
+      }
+    }
+
+    XLSX.utils.book_append_sheet(wb, wsCredit, 'موقف_الائتمان_والحساب');
+  } catch (err) {
+    console.warn('Failed to append auxiliary tabs to workbook, standard sheet preserved:', err);
+  }
+
+  return wb;
+}
+
+/**
+ * Export and download invoice directly to user's device as XLSX
+ */
+export function exportInvoiceToExcel(invoice: Invoice): void {
+  const wb = buildInvoiceExcelWorkbook(invoice);
+  const safeCustomer = (invoice.customerName || 'عميل').replace(/[^\w\u0621-\u064A]/g, '_');
+  XLSX.writeFile(wb, `فاتورة_دريم_طنطاوي_${invoice.invoiceNumber}_${safeCustomer}.xlsx`, { cellStyles: true });
+}
+
+/**
+ * Generate Base64 string of the Excel invoice for Microsoft Power Automate / Webhook sync
+ */
+export function generateInvoiceExcelBase64(invoice: Invoice): string {
+  const wb = buildInvoiceExcelWorkbook(invoice);
+  return XLSX.write(wb, { bookType: 'xlsx', type: 'base64', cellStyles: true });
+}
+
+/**
+ * Direct Dual Download: Downloads both PDF and Excel files directly to the device sequentially
+ */
+export async function downloadInvoiceBoth(
+  invoice: Invoice,
+  customCompanyInfo?: Record<string, any>
+): Promise<void> {
+  const { downloadInvoicePDF } = await import('./pdfService');
+  // 1. Download PDF directly to rep device
+  await downloadInvoicePDF(invoice, customCompanyInfo);
+  // 2. Wait 600ms so mobile/desktop browsers don't block concurrent file downloads
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  // 3. Download Excel directly to rep device
+  exportInvoiceToExcel(invoice);
+}
+
+/**
+ * Export Invoice specifically tailored for ERP / Accounting Main System Upload
+ * Includes clean columnar data designed for direct copy-paste or automatic ERP file ingestion
+ */
+export function exportInvoiceForERP(invoice: Invoice): void {
+  const wb = XLSX.utils.book_new();
+
+  // Tab 1: ERP Item Details (Main import table for accounting software)
+  const erpItemHeaders = [
+    'رقم الفاتورة',
+    'تاريخ الفاتورة',
+    'كود المندوب',
+    'اسم المندوب',
+    'اسم الفرع',
+    'كود العميل',
+    'اسم العميل',
+    'رقم هاتف العميل',
+    'كود الصنف',
+    'الكود الموحد (#)',
+    'اسم الصنف',
+    'اللون',
+    'القسم',
+    'شدة الكرتونة',
+    'عدد الكراتين',
+    'قطع فردية',
+    'إجمالي القطع',
+    'سعر الكرتونة',
+    'سعر القطعة',
+    'الإجمالي قبل الخصم',
+    'نسبة خصم الفاتورة %',
+    'قيمة الخصم للصنف',
+    'الصافي النهائي',
+    'مصدر الصرف',
+    'طريقة الدفع',
+    'حالة الفاتورة'
+  ];
+
+  const erpItemRows = invoice.items.map((item) => {
+    const cartonQty = item.cartonQuantity || 1;
+    const cCount = item.cartonCount || 0;
+    const pCount = item.pieceCount || 0;
+    const totalPcs = item.totalUnits || (cCount * cartonQty + pCount);
+    const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round(((item.pricePerCarton || item.appliedPrice) / cartonQty) * 100) / 100 : 0);
+    const unified = item.unifiedCode || (item.product as any)?.unifiedCode || '---';
+    const color = item.color || item.product?.color || '---';
+
+    return [
+      invoice.invoiceNumber,
+      invoice.date,
+      invoice.repId || '',
+      invoice.repName,
+      invoice.branchName,
+      invoice.customerCode || '',
+      invoice.customerName,
+      invoice.customerPhone || '',
+      item.productCode,
+      unified,
+      item.productName,
+      color,
+      item.fulfilledFrom === 'main_warehouse' ? 'مخزن مركزي (أكتوبر)' : 'فرع',
+      cartonQty,
+      cCount,
+      pCount,
+      totalPcs,
+      item.appliedPrice,
+      pieceP,
+      item.totalBeforeTax,
+      invoice.discountPercentage || 0,
+      item.discountAmount || 0,
+      item.netTotal,
+      item.fulfilledFrom === 'main_warehouse' ? 'المخزن المركزي - 6 أكتوبر' : invoice.branchName,
+      invoice.paymentMethod,
+      invoice.status
+    ];
+  });
+
+  const wsItems = XLSX.utils.aoa_to_sheet([erpItemHeaders, ...erpItemRows]);
+  wsItems['!cols'] = [
+    { wch: 16 }, // رقم الفاتورة
+    { wch: 14 }, // التاريخ
+    { wch: 12 }, // كود المندوب
+    { wch: 18 }, // اسم المندوب
+    { wch: 22 }, // اسم الفرع
+    { wch: 14 }, // كود العميل
+    { wch: 25 }, // اسم العميل
+    { wch: 16 }, // هاتف العميل
+    { wch: 14 }, // كود الصنف
+    { wch: 32 }, // اسم الصنف
+    { wch: 14 }, // اللون
+    { wch: 16 }, // القسم
+    { wch: 12 }, // شدة الكرتونة
+    { wch: 12 }, // عدد الكراتين
+    { wch: 12 }, // قطع فردية
+    { wch: 14 }, // إجمالي القطع
+    { wch: 14 }, // سعر الكرتونة
+    { wch: 14 }, // سعر القطعة
+    { wch: 16 }, // الإجمالي قبل الخصم
+    { wch: 16 }, // نسبة الخصم
+    { wch: 16 }, // قيمة الخصم
+    { wch: 16 }, // الصافي النهائي
+    { wch: 24 }, // مصدر الصرف
+    { wch: 16 }, // طريقة الدفع
+    { wch: 18 }  // الحالة
+  ];
+  XLSX.utils.book_append_sheet(wb, wsItems, 'أصناف_الفاتورة_للسيستم_ERP');
+
+  // Tab 2: Header Summary (Invoice Level)
+  const {
+    debtBefore,
+    debtAfter,
+    creditLimit,
+    isExceeded,
+    requiredDown,
+  } = resolveCustomerFinancials(invoice);
+
+  const headerData = [
+    ['رقم الفاتورة', invoice.invoiceNumber],
+    ['التاريخ', `${invoice.date} ${invoice.time || ''}`],
+    ['المندوب', invoice.repName],
+    ['المشرف', invoice.supervisorName || 'الإدارة المركزية'],
+    ['الفرع', invoice.branchName],
+    ['اسم العميل', invoice.customerName],
+    ['هاتف العميل', invoice.customerPhone || ''],
+    ['عنوان العميل', invoice.customerAddress || ''],
+    ['الرقم الضريبي للعميل', invoice.customerTaxNumber || ''],
+    ['مديونية العميل السابقة', debtBefore],
+    ['إجمالي المديونية بعد الفاتورة', debtAfter],
+    ['الحد الائتماني المعتمد', creditLimit],
+    ['حالة الحد الائتماني', isExceeded ? '⚠️ تجاوز الحد الائتماني' : '✅ ضمن الحد المسموح'],
+    ['الدفعة النقدية المطلوب تحصيلها فوراً', isExceeded ? requiredDown : 0],
+    ['إجمالي عدد الكراتين', invoice.totalCartons],
+    ['إجمالي عدد القطع', invoice.totalPieces],
+    ['إجمالي القيمة قبل الخصم', invoice.subtotal],
+    ...(invoice.discountAmount > 0
+      ? [['نسبة الخصم %', invoice.discountPercentage], ['قيمة الخصم الإجمالي', invoice.discountAmount]]
+      : []),
+    ['الصافي النهائي المستحق', invoice.estimatedGrandTotal],
+    ['طريقة السداد', invoice.paymentMethod],
+    ['حالة الفاتورة', invoice.status],
+    ['ملاحظات الفاتورة', invoice.notes || '']
+  ];
+  const wsHeader = XLSX.utils.aoa_to_sheet(headerData);
+  wsHeader['!cols'] = [{ wch: 22 }, { wch: 40 }];
+  XLSX.utils.book_append_sheet(wb, wsHeader, 'بيانات_الفاتورة_الرئيسية');
+
+  XLSX.writeFile(wb, `ERP_رفع_فاتورة_${invoice.invoiceNumber}_${invoice.customerName.replace(/[^\w\u0621-\u064A]/g, '_')}.xlsx`);
+}
+
+/**
+ * Convert 2D array of rows to Customer list
+ */
+export function parseRawRowsToCustomers(rawRows: any[]): {
+  customers: Customer[];
+  errors: string[];
+  totalRows: number;
+  duplicatesCount?: number;
+} {
+  if (!rawRows || rawRows.length < 2) {
+    return {
+      customers: [],
+      errors: ['الملف فارغ أو لا يحتوي على صفوف عملاء صالحة'],
+      totalRows: 0,
+      duplicatesCount: 0,
+    };
+  }
+
+  let headerRowIndex = 0;
+  for (let i = 0; i < Math.min(rawRows.length, 5); i++) {
+    const row = rawRows[i];
+    const hasCodeOrName = row.some((cell: any) => {
+      const str = String(cell);
+      return str.includes('كود') || str.includes('عميل') || str.includes('اسم') || str.includes('phone') || str.includes('محل');
+    });
+    if (hasCodeOrName) {
+      headerRowIndex = i;
+      break;
+    }
+  }
+
+  const headers: string[] = rawRows[headerRowIndex].map((h: any) => String(h).trim());
+  const errors: string[] = [];
+  const customers: Customer[] = [];
+
+  // Customer sheet priority columns: كود العميل | اسم العميل | الفرع التابع له | اسم المندوب | الحد الائتماني | المديونية
+  const colMap: Record<string, number> = {
+    code: -1,
+    name: -1,
+    branchName: -1,
+    repName: -1,
+    phone: -1,
+    address: -1,
+    taxNumber: -1,
+    tier: -1,
+    creditLimit: -1,
+    balance: -1,
+    totalOverdueAndDue: -1,
+    overdueBalance: -1,
+    dueBalance: -1,
+    notes: -1,
+
+    // Comprehensive Sales Target, Collections & Debts Sheet columns
+    guaranteeDocs: -1,           // اورق الضمان
+    paymentTerms: -1,            // طريقة الدفع
+    activityType: -1,            // طبيعة النشاط
+    governorate: -1,             // المحافظة
+    district: -1,                // المركز
+    route: -1,                   // الخط
+    clientType: -1,              // خ/ك
+    adjustments: -1,             // تعديلات
+    annualTarget: -1,            // الهدف السنوي
+    openingBalance2026: -1,      // اول المدة 2026
+    dealt2026: -1,               // متعامل 2026
+    dealEligibility: -1,         // قابل /غير
+    debtStatus: -1,              // حالة دين العميل
+    sales2026: -1,               // مبيعات 2026
+    collections2026: -1,         // تحصيلات 2026
+    sales2025: -1,               // مبيعات 2025
+    collections2025: -1,         // تحصيلات 2025
+    totalMonthlySales: -1,       // اجمالي المبيعات
+    totalMonthlyCollections: -1, // اجمالي التحصيلات
+    totalOverdue: -1,            // اجمالي المتأخرات (المستحقات التي تظهر للمندوب عند طلب طلبية)
+    overdue2025: -1,             // متاخرات 2025
+    overdue2026: -1,             // متاخرات 2026
+    dueUntilPeriod: -1,          // مستحق حتي نهاية اغسطس
+    totalOverallSales: -1,       // اجمالي مبيعات
+    totalOverallCollections: -1, // تحصيلات
+    sales2024: -1,               // مبيعات 2024
+    collections2024: -1,         // تحصيلات 2024
+  };
+
+  const monthlySalesCols: { month: number; colIdx: number }[] = [];
+  const monthlyCollectionCols: { month: number; colIdx: number }[] = [];
+  let detectedDuePeriodLabel = 'مستحق حتي نهاية اغسطس';
+
+  headers.forEach((h, idx) => {
+    const norm = normalizeHeader(h);
+    const rawLower = String(h).trim().toLowerCase();
+
+    // Resolve identity columns first. Some customer sheets use compound headers
+    // such as "اسم العميل / متعامل 2026"; the status matcher below must not
+    // mistake that whole header for the customer's name.
+    const isCustomerCodeHeader =
+      norm.includes('كودالعميل') ||
+      norm.includes('كودالمحل') ||
+      norm.includes('كودالحساب') ||
+      norm.includes('رقمالعميل') ||
+      norm.includes('رقمالمحل') ||
+      norm.includes('customercode') ||
+      norm.includes('customerid');
+    // Only accept a dedicated customer-name column. Compound headers such as
+    // "اسم العميل / متعامل 2026" must not be treated as the name column,
+    // otherwise the value from the status column becomes the customer name.
+    const isDedicatedCustomerNameHeader =
+      norm === 'اسمالعميل' ||
+      norm === 'اسمالمحل' ||
+      norm === 'اسمالحساب' ||
+      norm === 'اسمالتاجر' ||
+      norm === 'اسمالزبون' ||
+      norm === 'accountname' ||
+      norm === 'customername' ||
+      norm === 'clientname';
+
+    const isCustomerNameHeader = isDedicatedCustomerNameHeader &&
+      !norm.includes('متعامل') &&
+      !norm.includes('dealt') &&
+      !norm.includes('status');
+
+    if (isCustomerCodeHeader && colMap.code === -1) colMap.code = idx;
+    if (isCustomerNameHeader && colMap.name === -1) colMap.name = idx;
+  
+    // 0. Explicit Account Name (Customer Target Sheet standard header)
+    if (
+      rawLower === 'account name' ||
+      rawLower === 'accountname' ||
+      rawLower === 'account_name' ||
+      norm === 'accountname' ||
+      norm.includes('accountname') ||
+      norm === 'اسمالحساب' ||
+      norm.includes('اسمالحساب')
+    ) {
+      if (colMap.name === -1) colMap.name = idx;
+    }
+    // 1. Check Sales Rep first (to prevent "اسم المندوب" from being captured as customer name)
+    else if (
+      norm.includes('المندوبالحالي') ||
+      norm.includes('المندوبالحالى') ||
+      norm.includes('اسمالمندوب') ||
+      norm.includes('اسمالبائع') ||
+      norm.includes('المندوبالمسؤول') ||
+      norm.includes('المندوبالمسئول') ||
+      norm.includes('المندوبالمشرف') ||
+      norm.includes('مندوبالمبيعات') ||
+      norm.includes('مسؤولالمبيعات') ||
+      norm.includes('مسئولالمبيعات') ||
+      norm.includes('مسوولالمبيعات') ||
+      norm.includes('مسؤولالتوزيع') ||
+      norm.includes('مسئولالتوزيع') ||
+      norm.includes('مسؤولالخط') ||
+      norm.includes('مندوبالبيع') ||
+      norm.includes('كودالمندوب') ||
+      norm.includes('المندوب') ||
+      norm.includes('مندوب') ||
+      norm.includes('بائع') ||
+      norm.includes('الموزع') ||
+      norm.includes('موزع') ||
+      norm.includes('salesrep') ||
+      norm.includes('representative') ||
+      norm.includes('salesman') ||
+      norm.includes('salesperson') ||
+      norm.includes('repname') ||
+      norm === 'rep'
+    ) {
+      if (colMap.repName === -1) colMap.repName = idx;
+    }
+    // 2. Check Branch
+    else if (
+      norm.includes('اسمالفرع') ||
+      norm.includes('الفرع') ||
+      norm.includes('فرع') ||
+      norm.includes('المنطقه') ||
+      norm.includes('منطقة') ||
+      norm.includes('branch') ||
+      norm.includes('branchname')
+    ) {
+      if (colMap.branchName === -1) colMap.branchName = idx;
+    }
+    // 3. Check Guarantee Documents (اورق الضمان)
+    else if (
+      norm.includes('اورقالضمان') ||
+      norm.includes('اوراقالضمان') ||
+      norm.includes('ورقالضمان') ||
+      norm.includes('اوراقضمان') ||
+      norm.includes('اورقضمان') ||
+      norm.includes('سنداتالضمان') ||
+      norm.includes('الضمانات') ||
+      norm.includes('ضمانات') ||
+      norm.includes('ضمان')
+    ) {
+      if (colMap.guaranteeDocs === -1) colMap.guaranteeDocs = idx;
+    }
+    // 4. Check Payment Terms (طريقة الدفع)
+    else if (
+      norm.includes('طريقةالدفع') ||
+      norm.includes('طريقهالدفع') ||
+      norm.includes('طرقالدفع') ||
+      norm.includes('نظامالدفع') ||
+      norm.includes('شروطالدفع') ||
+      norm.includes('شروطالسداد') ||
+      norm.includes('طريقةالسداد') ||
+      norm.includes('paymentterms') ||
+      norm.includes('paymentmethod')
+    ) {
+      if (colMap.paymentTerms === -1) colMap.paymentTerms = idx;
+    }
+    // 5. Check Activity Type (طبيعة النشاط)
+    else if (
+      norm.includes('طبيعةالنشاط') ||
+      norm.includes('طبيعهالنشاط') ||
+      norm.includes('نوعالنشاط') ||
+      norm.includes('مجالالنشاط') ||
+      norm.includes('النشاط') ||
+      norm.includes('نشاط') ||
+      norm.includes('activitytype') ||
+      norm.includes('activity')
+    ) {
+      if (colMap.activityType === -1) colMap.activityType = idx;
+    }
+    // 6. Check Governorate (المحافظة)
+    else if (
+      norm.includes('المحافظة') ||
+      norm.includes('المحافظه') ||
+      norm.includes('محافظة') ||
+      norm.includes('محافظه') ||
+      norm.includes('governorate')
+    ) {
+      if (colMap.governorate === -1) colMap.governorate = idx;
+    }
+    // 7. Check District / Center (المركز)
+    else if (
+      norm === 'المركز' ||
+      norm === 'مركز' ||
+      norm.includes('المركز') ||
+      norm.includes('مركز') ||
+      norm === 'الحي' ||
+      norm.includes('district')
+    ) {
+      if (colMap.district === -1) colMap.district = idx;
+    }
+    // 8. Check Route / Line (الخط)
+    else if (
+      norm === 'الخط' ||
+      norm === 'خط' ||
+      norm.includes('الخط') ||
+      norm.includes('خطالسير') ||
+      norm.includes('خطالتوزيع') ||
+      norm.includes('route') ||
+      norm.includes('line')
+    ) {
+      if (colMap.route === -1) colMap.route = idx;
+    }
+    // 9. Check Client Classification (خ/ك)
+    else if (
+      norm === 'خ/ك' ||
+      norm === 'خك' ||
+      norm.includes('خ/ك') ||
+      norm.includes('خاص/كبار') ||
+      norm.includes('خاصكبار') ||
+      norm.includes('كبارعملاء') ||
+      norm.includes('كبارالعملاء') ||
+      norm.includes('فئةالعميل') ||
+      norm.includes('فئهالعميل')
+    ) {
+      if (colMap.clientType === -1) colMap.clientType = idx;
+    }
+    // 10. Check Adjustments (تعديلات)
+    else if (
+      norm.includes('تعديلات') ||
+      norm.includes('تعديلالهدف') ||
+      norm.includes('تعديل') ||
+      norm.includes('adjustment')
+    ) {
+      if (colMap.adjustments === -1) colMap.adjustments = idx;
+    }
+    // 11. Check Annual Target (الهدف السنوي)
+    else if (
+      norm.includes('الهدفالسنوي') ||
+      norm.includes('الهدفالسنوى') ||
+      norm.includes('الهدفالسنوي2026') ||
+      norm.includes('هدفسنوي') ||
+      norm.includes('تارجتسنوي') ||
+      norm.includes('الهدف') ||
+      norm.includes('annualtarget') ||
+      norm === 'target'
+    ) {
+      if (colMap.annualTarget === -1) colMap.annualTarget = idx;
+    }
+    // 12. Check Opening Balance 2026 (اول المدة 2026)
+    else if (
+      norm.includes('اولالمده2026') ||
+      norm.includes('اولالمدة2026') ||
+      norm.includes('اولالمده') ||
+      norm.includes('اولالمدة') ||
+      norm.includes('رصيداولالمدة') ||
+      norm.includes('رصيداولالمده') ||
+      norm.includes('رصيدافتتاحي2026') ||
+      norm.includes('openingbalance')
+    ) {
+      if (colMap.openingBalance2026 === -1) colMap.openingBalance2026 = idx;
+    }
+    // 13. Deal Eligibility (قابل /غير) — checked BEFORE the dealt column on purpose:
+    // a header like "قابل / غير متعامل" contains "متعامل", and the looser dealt
+    // matcher below would claim it and the eligibility column would be lost.
+    else if (
+      norm.includes('قابل/غير') ||
+      norm.includes('قابلغير') ||
+      norm.includes('قابل/غيرقابل') ||
+      norm.includes('قابليةالتعامل') ||
+      norm.includes('صلاحيةالتعامل') ||
+      norm.includes('eligib')
+    ) {
+      if (colMap.dealEligibility === -1) colMap.dealEligibility = idx;
+    }
+    // 14. Check Dealt in 2026 (متعامل 2026)
+    else if (
+      norm.includes('متعامل2026') ||
+      norm.includes('تعامل2026') ||
+      norm.includes('متعامل') ||
+      norm.includes('حالةالتعامل') ||
+      norm.includes('حالهالتعامل')
+    ) {
+      if (colMap.dealt2026 === -1) colMap.dealt2026 = idx;
+    }
+    // 15. Check Customer Debt Status (حالة دين العميل)
+    else if (
+      norm.includes('حالهدينالعميل') ||
+      norm.includes('حالةدينالعميل') ||
+      norm.includes('حالهدين') ||
+      norm.includes('حالةدين') ||
+      norm.includes('موقفالدين') ||
+      norm.includes('وضعالدين') ||
+      norm.includes('debtstatus')
+    ) {
+      if (colMap.debtStatus === -1) colMap.debtStatus = idx;
+    }
+    // 16. Check Year 2026 Sales & Collections (مبيعات 2026 / تحصيلات 2026 / مبيعات 26 / تحصيلات 26)
+    else if ((norm.includes('2026') || norm.endsWith('26')) && (norm.includes('مبيعات') || norm.includes('بيعات') || norm.includes('بيع') || norm.includes('sales'))) {
+      if (colMap.sales2026 === -1) colMap.sales2026 = idx;
+      if (colMap.totalMonthlySales === -1) colMap.totalMonthlySales = idx;
+      if (colMap.totalOverallSales === -1) colMap.totalOverallSales = idx;
+    } else if ((norm.includes('2026') || norm.endsWith('26')) && (norm.includes('تحصيل') || norm.includes('تحصيلات') || norm.includes('سداد') || norm.includes('سدادات') || norm.includes('collections'))) {
+      if (colMap.collections2026 === -1) colMap.collections2026 = idx;
+      if (colMap.totalMonthlyCollections === -1) colMap.totalMonthlyCollections = idx;
+      if (colMap.totalOverallCollections === -1) colMap.totalOverallCollections = idx;
+    }
+    // 16b. Check Year 2025 Sales & Collections (مبيعات 2025 / تحصيلات 2025)
+    else if (norm.includes('2025') && (norm.includes('مبيعات') || norm.includes('بيعات') || norm.includes('بيع'))) {
+      if (colMap.sales2025 === -1) colMap.sales2025 = idx;
+    } else if (norm.includes('2025') && (norm.includes('تحصيل') || norm.includes('تحصيلات') || norm.includes('سداد'))) {
+      if (colMap.collections2025 === -1) colMap.collections2025 = idx;
+    }
+    // 16c. Check Year 2024 Sales & Collections (مبيعات 2024 / تحصيلات 2024)
+    else if (norm.includes('2024') && (norm.includes('مبيعات') || norm.includes('بيع'))) {
+      if (colMap.sales2024 === -1) colMap.sales2024 = idx;
+    } else if (norm.includes('2024') && (norm.includes('تحصيل') || norm.includes('تحصيلات'))) {
+      if (colMap.collections2024 === -1) colMap.collections2024 = idx;
+    }
+    // 17. Check Overdue 2025 & Overdue 2026 (متاخرات 2025 / متاخرات 2026)
+    else if ((norm.includes('متاخرات') || norm.includes('متاخر')) && norm.includes('2025')) {
+      if (colMap.overdue2025 === -1) colMap.overdue2025 = idx;
+    } else if ((norm.includes('متاخرات') || norm.includes('متاخر')) && norm.includes('2026')) {
+      if (colMap.overdue2026 === -1) colMap.overdue2026 = idx;
+    }
+    // 18. Check Due Until Period (مستحق حتي نهاية اغسطس)
+    else if (
+      norm.includes('مستحقحتي') ||
+      norm.includes('مستحقحتى') ||
+      (norm.includes('مستحق') && (norm.includes('نهايه') || norm.includes('نهاية') || norm.includes('اغسطس')))
+    ) {
+      if (colMap.dueUntilPeriod === -1) {
+        colMap.dueUntilPeriod = idx;
+        detectedDuePeriodLabel = h.trim();
+      }
+    }
+    // 19. Check Total Overdue & Due (اجمالي المتأخرات / إجمالي المستحقات / المستحقات الواجبة)
+    else if (
+      norm === 'اجماليالمتاخرات' ||
+      norm === 'اجماليمتاخرات' ||
+      norm.includes('اجماليالمتاخرات') ||
+      norm.includes('اجماليمتاخرات') ||
+      (norm.includes('اجمالي') && norm.includes('متاخر')) ||
+      norm === 'المتاخرات' ||
+      norm === 'متاخرات' ||
+      norm === 'المستحقات' ||
+      norm === 'مستحقات' ||
+      norm === 'المستحق' ||
+      norm === 'مستحق' ||
+      norm.includes('اجماليالمستحق') ||
+      norm.includes('اجماليالمستحقات') ||
+      norm.includes('المستحقاتالواجبه') ||
+      norm.includes('المستحقاتالواجبة') ||
+      norm.includes('مستحقات') ||
+      norm.includes('مستحق') ||
+      norm.includes('المستحق') ||
+      norm.includes('المستحقالسداد') ||
+      norm.includes('واجبةالسداد') ||
+      norm.includes('واجبةالسداد') ||
+      norm.includes('واجبسداد') ||
+      norm.includes('واجباتالسداد') ||
+      norm.includes('مستحقواجب') ||
+      norm.includes('totaloverdue') ||
+      norm.includes('overdue') ||
+      norm.includes('totaldues') ||
+      norm.includes('totaldue') ||
+      norm === 'dues' ||
+      norm === 'due' ||
+      norm.includes('المتبقي') ||
+      norm.includes('متبقي')
+    ) {
+      if (colMap.totalOverdue === -1) colMap.totalOverdue = idx;
+      if (colMap.totalOverdueAndDue === -1) colMap.totalOverdueAndDue = idx;
+      if (colMap.overdueBalance === -1) colMap.overdueBalance = idx;
+    }
+    // 20. Check Total Sales (اجمالي المبيعات / اجمالي بيعات / مبيعات)
+    else if (
+      norm === 'اجماليمبيعات' ||
+      norm === 'اجماليالمبيعات' ||
+      norm === 'اجماليبيعات' ||
+      norm === 'الاجماليبيعات' ||
+      norm === 'اجماليالبيعات' ||
+      norm === 'الاجماليمبيعات' ||
+      (norm.includes('اجمالي') && (norm.includes('مبيعات') || norm.includes('بيعات') || norm.includes('بيع'))) ||
+      (norm.includes('مجموع') && (norm.includes('مبيعات') || norm.includes('بيعات') || norm.includes('بيع'))) ||
+      norm.includes('مبيعاتالسنه') ||
+      norm.includes('مبيعاتالسنة') ||
+      norm.includes('بيعاتالسنه') ||
+      norm.includes('بيعاتالسنة') ||
+      norm === 'مبيعات' ||
+      norm === 'المبيعات' ||
+      norm === 'بيعات' ||
+      norm === 'البيعات' ||
+      norm === 'totalsales'
+    ) {
+      if (colMap.totalMonthlySales === -1) colMap.totalMonthlySales = idx;
+      if (colMap.totalOverallSales === -1) colMap.totalOverallSales = idx;
+      if (colMap.sales2026 === -1) colMap.sales2026 = idx;
+    }
+    // 21. Check Total Collections (تحصيلات / اجمالي التحصيلات / اجمالي تحصيل / تحصيل)
+    else if (
+      norm === 'تحصيلات' ||
+      norm === 'التحصيلات' ||
+      norm === 'تحصيل' ||
+      norm === 'التحصيل' ||
+      norm === 'سداد' ||
+      norm === 'السداد' ||
+      norm === 'اجماليالتحصيلات' ||
+      norm === 'اجماليتحصيلات' ||
+      norm === 'اجماليالتحصيل' ||
+      norm === 'اجماليتحصيل' ||
+      norm === 'الاجماليتحصيل' ||
+      norm === 'الاجماليالتحصيل' ||
+      (norm.includes('اجمالي') && (norm.includes('تحصيل') || norm.includes('سداد'))) ||
+      (norm.includes('مجموع') && (norm.includes('تحصيل') || norm.includes('سداد'))) ||
+      norm.includes('تحصيلالسنه') ||
+      norm.includes('تحصيلالسنة') ||
+      norm.includes('تحصيلاتالسنه') ||
+      norm.includes('تحصيلاتالسنة') ||
+      norm === 'totalcollections'
+    ) {
+      if (colMap.totalMonthlyCollections === -1) colMap.totalMonthlyCollections = idx;
+      if (colMap.totalOverallCollections === -1) colMap.totalOverallCollections = idx;
+      if (colMap.collections2026 === -1) colMap.collections2026 = idx;
+    }
+    // 22. Check Credit Limit (الحد الائتماني)
+    else if (
+      norm.includes('حدائتمان') ||
+      norm.includes('الحدالائتماني') ||
+      norm.includes('الحدالائتمانى') ||
+      norm.includes('الحدالائتمان') ||
+      norm.includes('الحدالمسموح') ||
+      norm.includes('الحدالمسموحبه') ||
+      norm.includes('سقفالائتمان') ||
+      norm.includes('الائتمانالمعتمد') ||
+      norm.includes('حدالائتمان') ||
+      norm.includes('حدالبيعالاجل') ||
+      norm.includes('حدالدين') ||
+      norm.includes('حدالاجل') ||
+      norm.includes('حدالآجل') ||
+      norm.includes('حدالكريديت') ||
+      norm.includes('كريديت') ||
+      norm.includes('ائتمان') ||
+      norm.includes('الائتمان') ||
+      norm.includes('creditlimit') ||
+      norm.includes('cred') ||
+      norm.includes('limit') ||
+      norm.includes('credit')
+    ) {
+      if (colMap.creditLimit === -1) colMap.creditLimit = idx;
+    }
+    // 23. Check Balance / Debt (المديونية / الرصيد)
+    else if (
+      norm.includes('المديونيةالسابقة') ||
+      norm.includes('المديونيهالسابقه') ||
+      norm.includes('المديونيةالحالية') ||
+      norm.includes('المديونيهالحاليه') ||
+      norm.includes('مديونيةسابقة') ||
+      norm.includes('مديونيهسابقه') ||
+      norm.includes('مديونيةالعميل') ||
+      norm.includes('مديونيهالعميل') ||
+      norm.includes('اجماليالمديونية') ||
+      norm.includes('اجماليالمديونيه') ||
+      norm.includes('المديونية') ||
+      norm.includes('المديونيه') ||
+      norm.includes('مديونية') ||
+      norm.includes('مديونيه') ||
+      norm.includes('الرصيدالافتتاحي') ||
+      norm.includes('رصيدافتتاحي') ||
+      norm.includes('الرصيدالسابق') ||
+      norm.includes('رصيدسابق') ||
+      norm.includes('الرصيدالحالي') ||
+      norm.includes('رصيدحالي') ||
+      norm.includes('رصيدالعميل') ||
+      norm.includes('حسابالعميل') ||
+      norm.includes('صافيالحساب') ||
+      norm.includes('اجماليالحساب') ||
+      norm.includes('المستحق') ||
+      norm.includes('مستحق') ||
+      norm.includes('المتبقي') ||
+      norm.includes('متبقي') ||
+      norm.includes('الرصيد') ||
+      norm.includes('رصيد') ||
+      norm.includes('حساب') ||
+      norm.includes('عليه') ||
+      norm.includes('دائن') ||
+      norm.includes('مدين') ||
+      norm.includes('اجماليمدين') ||
+      norm.includes('رصيددائن') ||
+      norm.includes('رصيدمدين') ||
+      norm.includes('مديونيهعليه') ||
+      norm.includes('مديونيةعليه') ||
+      norm.includes('عليهالعميل') ||
+      norm.includes('الديون') ||
+      norm.includes('ديون') ||
+      norm.includes('currentbalance') ||
+      norm.includes('prevbalance') ||
+      norm.includes('previousbalance') ||
+      norm.includes('balance') ||
+      norm.includes('debt')
+    ) {
+      if (colMap.balance === -1) colMap.balance = idx;
+    }
+    // 24. Check Customer Code
+    else if (
+      norm.includes('كودالعميل') ||
+      norm.includes('رقمالعميل') ||
+      norm.includes('رقمالمحل') ||
+      norm.includes('كودالمحل') ||
+      norm.includes('كودالحساب') ||
+      norm.includes('رقمالحساب') ||
+      norm.includes('كود') ||
+      norm.includes('code') ||
+      norm.includes('cust_id') ||
+      norm.includes('custid') ||
+      norm.includes('customercode')
+    ) {
+      if (colMap.code === -1) colMap.code = idx;
+    }
+    // 25. Check Customer Name
+    else if (
+      norm.includes('اسمالعميل') ||
+      norm.includes('اسمالمحل') ||
+      norm.includes('اسمالتاجر') ||
+      norm.includes('اسمالزبون') ||
+      norm.includes('اسمالشركه') ||
+      norm.includes('اسمالشركة') ||
+      norm.includes('عميل') ||
+      norm.includes('محل') ||
+      norm.includes('تاجر') ||
+      norm.includes('زبون') ||
+      norm.includes('customer') ||
+      norm.includes('client') ||
+      norm.includes('اسم') ||
+      norm.includes('name')
+    ) {
+      if (colMap.name === -1) colMap.name = idx;
+    }
+    // 26. Optional extra fields
+    else if (
+      norm.includes('تليفون') ||
+      norm.includes('هاتف') ||
+      norm.includes('موبايل') ||
+      norm.includes('محمول') ||
+      norm.includes('phone') ||
+      norm.includes('mobile') ||
+      norm.includes('tel')
+    ) {
+      if (colMap.phone === -1) colMap.phone = idx;
+    } else if (
+      norm.includes('عنوان') ||
+      norm.includes('منطقة') ||
+      norm.includes('مدينة') ||
+      norm.includes('address') ||
+      norm.includes('city')
+    ) {
+      if (colMap.address === -1) colMap.address = idx;
+    } else if (
+      norm.includes('تصنيف') ||
+      norm.includes('فئة') ||
+      norm.includes('فئه') ||
+      norm.includes('tier') ||
+      norm.includes('درجة') ||
+      norm.includes('درجه')
+    ) {
+      if (colMap.tier === -1) colMap.tier = idx;
+    } else if (norm.includes('ضريب') || norm.includes('tax') || norm.includes('سجل')) {
+      if (colMap.taxNumber === -1) colMap.taxNumber = idx;
+    } else if (norm.includes('ملاحظ') || norm.includes('note')) {
+      if (colMap.notes === -1) colMap.notes = idx;
+    }
+
+    // Dynamic Monthly Sales & Collections Recognition
+    // Handles '1 مبيعات', 'مبيعات يناير', 'يناير', '1 تحصيل', 'تحصيلات يناير', etc.
+    // Monthly columns may include the year in their header, e.g. "تحصيلات يناير 2026".
+    // Only exclude explicit aggregate columns; otherwise monthly collections are lost.
+    if (!norm.includes('اجمالي') && !norm.includes('مجموع') && !norm.includes('صافي')) {
+      const monthArabicNames = [
+        'يناير', 'فبراير', 'مارس', 'ابريل', 'إبريل', 'مايو', 'يونيو',
+        'يوليو', 'اغسطس', 'أغسطس', 'سبتمبر', 'اكتوبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+      ];
+      const monthIndices = [1, 2, 3, 4, 4, 5, 6, 7, 8, 8, 9, 10, 10, 11, 12];
+
+      const normWithoutYear = norm.replace(/202[4-9]/g, '');
+
+      // Check numeric sales match (e.g., '1مبيعات', 'مبيعات1', '1بيع', 'بيع1', 'ش1مبيعات')
+      const salesMatch =
+        normWithoutYear.match(/^(\d{1,2})(?!\d)(?:مبيعات|بيعات|بيع)/) ||
+        normWithoutYear.match(/(?:مبيعات|بيعات|بيع)(\d{1,2})$/) ||
+        normWithoutYear.match(/(?<!\d)(\d{1,2})(?!\d)(?:مبيعات|بيعات|بيع)/) ||
+        normWithoutYear.match(/(?:مبيعات|بيعات|بيع).*?(\d{1,2})(?!\d)/) ||
+        normWithoutYear.match(/(?:ش|شهر)(\d{1,2})(?!\d)(?:مبيعات|بيعات|بيع)/) ||
+        normWithoutYear.match(/(?:مبيعات|بيعات|بيع)(?:ش|شهر)(\d{1,2})(?!\d)/);
+
+      if (salesMatch) {
+        const m = parseInt(salesMatch[1], 10);
+        if (m >= 1 && m <= 12 && !monthlySalesCols.some((item) => item.month === m)) {
+          monthlySalesCols.push({ month: m, colIdx: idx });
+        }
+      } else if (norm.includes('مبيعات') || norm.includes('بيعات') || norm.includes('بيع')) {
+        // Name-based sales match
+        monthArabicNames.forEach((name, mIdx) => {
+          const m = monthIndices[mIdx];
+          if (norm.includes(name) && !monthlySalesCols.some((item) => item.month === m)) {
+            monthlySalesCols.push({ month: m, colIdx: idx });
+          }
+        });
+      }
+
+      // Check numeric collections match (e.g., '1تحصيل', 'تحصيل1', '1سداد', 'سداد1', 'ش1تحصيل')
+      const collMatch =
+        normWithoutYear.match(/^(\d{1,2})(?!\d)(?:تحصيل|تحصيلات|سداد|سدادات)/) ||
+        normWithoutYear.match(/(?:تحصيل|تحصيلات|سداد|سدادات)(\d{1,2})$/) ||
+        normWithoutYear.match(/(?<!\d)(\d{1,2})(?!\d)(?:تحصيل|تحصيلات|سداد|سدادات)/) ||
+        normWithoutYear.match(/(?:تحصيل|تحصيلات|سداد|سدادات).*?(\d{1,2})(?!\d)/) ||
+        normWithoutYear.match(/(?:ش|شهر)(\d{1,2})(?!\d)(?:تحصيل|تحصيلات|سداد|سدادات)/) ||
+        normWithoutYear.match(/(?:تحصيل|تحصيلات|سداد|سدادات)(?:ش|شهر)(\d{1,2})(?!\d)/);
+
+      if (collMatch) {
+        const m = parseInt(collMatch[1], 10);
+        if (m >= 1 && m <= 12 && !monthlyCollectionCols.some((item) => item.month === m)) {
+          monthlyCollectionCols.push({ month: m, colIdx: idx });
+        }
+      } else if (norm.includes('تحصيل') || norm.includes('سداد')) {
+        // Name-based collections match
+        monthArabicNames.forEach((name, mIdx) => {
+          const m = monthIndices[mIdx];
+          if (norm.includes(name) && !monthlyCollectionCols.some((item) => item.month === m)) {
+            monthlyCollectionCols.push({ month: m, colIdx: idx });
+          }
+        });
+      }
+    }
+  });
+
+  // Sort monthly columns in ascending month order
+  monthlySalesCols.sort((a, b) => a.month - b.month);
+  monthlyCollectionCols.sort((a, b) => a.month - b.month);
+
+  // Positional fallback if standard 4-column format without specific header keywords
+  if (colMap.code === -1 && colMap.name === -1 && headers.length >= 4) {
+    colMap.code = 0;
+    colMap.name = 1;
+    colMap.branchName = 2;
+    colMap.repName = 3;
+  }
+
+  // Positional fallback for debt & credit if headers weren't matched but sheet has 5+ columns
+  if (colMap.balance === -1 && colMap.creditLimit === -1 && headers.length >= 6) {
+    colMap.balance = 4;
+    colMap.creditLimit = 5;
+  }
+
+  const getVal = (row: any[], colIdx: number, def = ''): string => {
+    if (colIdx === -1 || colIdx >= row.length) return def;
+    const val = row[colIdx];
+    if (val === undefined || val === null) return def;
+    return String(val)
+      .replace(/[\uFFFD\uFEFF\u0000-\u001F\u007F-\u009F]/g, '')
+      .trim();
+  };
+
+  const parsedCustomersList: Customer[] = [];
+  let totalRawRowsProcessed = 0;
+
+  for (let r = headerRowIndex + 1; r < rawRows.length; r++) {
+    const row = rawRows[r];
+    if (!row || row.every((c: any) => c === undefined || c === null || String(c).trim() === '')) {
+      continue;
+    }
+
+    totalRawRowsProcessed++;
+
+    const rawName = getVal(row, colMap.name);
+    const rawCode = getVal(row, colMap.code);
+    const rawPhone = getVal(row, colMap.phone);
+    const rawAddress = getVal(row, colMap.address);
+    const rawBranch = getVal(row, colMap.branchName);
+    const rawRep = getVal(row, colMap.repName);
+    const rawTax = getVal(row, colMap.taxNumber);
+    const rawNotes = getVal(row, colMap.notes);
+
+    // Skip empty dummy rows where no data exists
+    if (!rawName && !rawCode && !rawPhone && !rawBranch && !rawRep && !rawAddress) continue;
+
+    // Skip summary / total rows in customer sheets (e.g., "الإجمالي", "المجموع", "Total") so they never inflate company collections by 10 million!
+    if (isSummaryOrTotalRow(rawName, rawCode, rawBranch, rawRep)) continue;
+
+    const rawTier = getVal(row, colMap.tier);
+    let tier: CustomerTier = 'متوسط';
+    if (rawTier.includes('مميز') || rawTier.toLowerCase().includes('vip') || rawTier.toLowerCase().includes('a')) {
+      tier = 'مميز';
+    } else if (rawTier.includes('راقي') || rawTier.includes('راقى') || rawTier.toLowerCase().includes('b')) {
+      tier = 'راقي';
+    }
+
+    const cleanCode = rawCode.trim().toLowerCase();
+    const cleanName = (rawName || '').trim();
+    const invalidImportedNames = new Set(['متعامل', 'غير متعامل', 'نعم', 'لا']);
+    const resolvedImportedName = invalidImportedNames.has(cleanName) ? '' : cleanName;
+
+    const assignedCode = rawCode || `CUST-${1000 + parsedCustomersList.length + 1}`;
+    const safeCustId = `cust_r${r + 1}_${cleanCode ? cleanCode.replace(/[^a-zA-Z0-9_-]/g, '_') : 'cust'}_${1000 + parsedCustomersList.length + 1}`;
+
+    // Parse credit limit and current balance / debt
+    const parseNumberValue = (colIdx: number): number | undefined => {
+      if (colIdx === -1) return undefined;
+      let valStr = getVal(row, colIdx);
+      if (!valStr) return undefined;
+      const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+      for (let i = 0; i < 10; i++) {
+        valStr = valStr.split(arabicNumerals[i]).join(String(i));
+      }
+      // Accounting negatives: (1234) and 1234- must read as -1234, and a plain
+      // leading minus must survive too. Without this, a collection stored as
+      // "(150,000)" arrived as +150000 and the company's collections total was off
+      // by twice the amount of every such cell.
+      const isNegative = /^\s*\(.*\)\s*$/.test(valStr) || /-\s*$/.test(valStr) || /^\s*-/.test(valStr);
+      valStr = valStr.replace(/,/g, '').replace(/٬/g, '').replace(/٫/g, '.');
+      const clean = valStr.replace(/[^\d.-]/g, '').replace(/-/g, '');
+      if (!clean) return undefined;
+      const parsed = parseFloat(clean);
+      if (isNaN(parsed)) return undefined;
+      return isNegative ? -parsed : parsed;
+    };
+
+    const parsedCredit = parseNumberValue(colMap.creditLimit);
+    const parsedBalance = parseNumberValue(colMap.balance);
+    const parsedTotalOverdueAndDue = parseNumberValue(colMap.totalOverdueAndDue);
+    const parsedTotalOverdue = parseNumberValue(colMap.totalOverdue);
+
+    // Sales Target & Extra Financial fields
+    const rawGuaranteeDocs = getVal(row, colMap.guaranteeDocs);
+    const rawPaymentTerms = getVal(row, colMap.paymentTerms);
+    const rawActivityType = getVal(row, colMap.activityType);
+    const rawGov = getVal(row, colMap.governorate);
+    const rawDistrict = getVal(row, colMap.district);
+    const rawRoute = getVal(row, colMap.route);
+    const rawClientType = getVal(row, colMap.clientType);
+    const parsedAdjustments = parseNumberValue(colMap.adjustments);
+    const parsedAnnualTarget = parseNumberValue(colMap.annualTarget);
+    const parsedOpeningBalance2026 = parseNumberValue(colMap.openingBalance2026);
+    const rawDealt2026 = getVal(row, colMap.dealt2026);
+      const rawDealEligibility = getVal(row, colMap.dealEligibility);
+      // The sheet carries a dedicated "متعامل / غير متعامل" column. Read it as a
+      // stable yearly fact instead of deriving it from the selected month, which
+      // is what made this flag flip whenever the month slicer moved.
+      const normalizeDealtFlag = (raw: string): boolean | undefined => {
+        const t = (raw || '').trim();
+        if (!t || t === '-' || /^(غير\s*متعامل|لا|لاشيء|0|no|none)$/i.test(t)) return false;
+        if (/^(متعامل|نعم|تعامل|yes|1)$/i.test(t)) return true;
+        if (t.includes('غير') && t.includes('متعامل')) return false;
+        if (t.includes('متعامل') || t.includes('تعامل')) return true;
+        return undefined;
+      };
+      const sheetDealtFlag = normalizeDealtFlag(rawDealt2026);
+    const rawDebtStatus = getVal(row, colMap.debtStatus);
+    const parsedTotalMonthlySalesCol = parseNumberValue(colMap.totalMonthlySales);
+    // Collections keep the sheet's sign on purpose. A collection is negative and
+    // a return (مردودة) is positive, so only the NET is meaningful. Taking the
+    // absolute value of each cell independently would add a return on top of the
+    // collection instead of netting it out, and the 12 monthly values would stop
+    // adding up to the annual figure.
+    const parsedTotalMonthlyCollectionsCol = parseNumberValue(colMap.totalMonthlyCollections);
+    const parsedSales2026Col = parseNumberValue(colMap.sales2026);
+    const parsedCollections2026Col = parseNumberValue(colMap.collections2026);
+    const parsedSales2025 = parseNumberValue(colMap.sales2025);
+    const parsedCollections2025 = parseNumberValue(colMap.collections2025);
+    const parsedOverdue2025 = parseNumberValue(colMap.overdue2025);
+    const parsedOverdue2026 = parseNumberValue(colMap.overdue2026);
+    const parsedDueUntilPeriod = parseNumberValue(colMap.dueUntilPeriod);
+    const parsedTotalOverallSales = parseNumberValue(colMap.totalOverallSales);
+    const parsedTotalOverallCollections = parseNumberValue(colMap.totalOverallCollections);
+    const parsedSales2024 = parseNumberValue(colMap.sales2024);
+    const parsedCollections2024 = parseNumberValue(colMap.collections2024);
+
+    // Dynamic Monthly Sales & Collections parsing (Months 1-12)
+    const rowMonthlySales: Record<number, number> = {};
+    let dynamicMonthlySalesSum = 0;
+    const activeSalesMonthsList: number[] = [];
+
+    monthlySalesCols.forEach(({ month, colIdx }) => {
+      const val = parseNumberValue(colIdx);
+      if (val !== undefined) {
+        rowMonthlySales[month] = val;
+        dynamicMonthlySalesSum += val;
+        if (val > 0) activeSalesMonthsList.push(month);
+      }
+    });
+
+    const rowMonthlyCollections: Record<number, number> = {};
+    let dynamicMonthlyCollectionsSum = 0;
+    const activeCollectionMonthsList: number[] = [];
+
+    monthlyCollectionCols.forEach(({ month, colIdx }) => {
+      const val = parseNumberValue(colIdx);
+      if (val !== undefined && isFinite(val)) {
+        // Real money collected: capture both positive and negative entries as real collected magnitude
+        const absVal = Math.abs(val);
+        rowMonthlyCollections[month] = absVal;
+        dynamicMonthlyCollectionsSum += absVal;
+        if (absVal > 0) activeCollectionMonthsList.push(month);
+      }
+    });
+
+    // Sales: Mirrors the sheet accurately with strict priority (NO Math.max guessing)
+    const resolvedSales2026 = parsedSales2026Col !== undefined
+      ? parsedSales2026Col
+      : (parsedTotalMonthlySalesCol !== undefined
+          ? parsedTotalMonthlySalesCol
+          : (dynamicMonthlySalesSum > 0 ? dynamicMonthlySalesSum : (parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : 0)));
+    const finalTotalMonthlySales = resolvedSales2026;
+
+    // Collections: Mirrors the sheet accurately, capturing both positive and negative entries as real collected amounts
+    const rawResolvedCollections = parsedCollections2026Col !== undefined && parsedCollections2026Col !== 0
+      ? parsedCollections2026Col
+      : (parsedTotalMonthlyCollectionsCol !== undefined && parsedTotalMonthlyCollectionsCol !== 0
+          ? parsedTotalMonthlyCollectionsCol
+          : (dynamicMonthlyCollectionsSum !== 0
+              ? dynamicMonthlyCollectionsSum
+              : (parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : 0)));
+    const resolvedCollections2026 = rawResolvedCollections;
+    const finalTotalMonthlyCollections = resolvedCollections2026;
+
+    const finalCreditLimit = parsedCredit !== undefined ? parsedCredit : 0;
+
+    // Overdue balance calculation: User noted: "اجمالي المتأخرات دي المبالغ المستحقة الي بتظهر للمندوب عند طلب طلبية"
+    const hasExplicitOverdueCol = colMap.totalOverdue !== -1 || colMap.totalOverdueAndDue !== -1 || colMap.dueUntilPeriod !== -1;
+    const finalTotalOverdue = parsedTotalOverdue !== undefined
+      ? parsedTotalOverdue
+      : (parsedTotalOverdueAndDue !== undefined
+          ? parsedTotalOverdueAndDue
+          : (parsedDueUntilPeriod !== undefined
+              ? parsedDueUntilPeriod
+              : (hasExplicitOverdueCol ? 0 : (parsedBalance !== undefined ? parsedBalance : 0))));
+
+    // Current balance / debt
+    const finalBalance = parsedBalance !== undefined
+      ? parsedBalance
+      : (parsedOpeningBalance2026 !== undefined
+          ? parsedOpeningBalance2026
+          : finalTotalOverdue);
+
+    const resolvedAddress = rawAddress || [rawDistrict, rawGov].filter(Boolean).join(' - ') || '';
+
+    // Guarantee docs logic:
+    // لو الرقم أكبر من 0 يبقى ماضي على أوراق ضمان بالمبلغ
+    // لو 0 أو مفيش يبقى مش ماضي
+    let finalGuaranteeAmount = 0;
+    let finalGuaranteeDocs = 'مش ماضي';
+    let finalHasGuarantee = false;
+    const parsedGuaranteeNum = parseNumberValue(colMap.guaranteeDocs);
+    if (parsedGuaranteeNum !== undefined && parsedGuaranteeNum > 0) {
+      finalGuaranteeAmount = parsedGuaranteeNum;
+      finalGuaranteeDocs = `ماضي على أوراق ضمان (${finalGuaranteeAmount.toLocaleString('en-US')} ج.م)`;
+      finalHasGuarantee = true;
+    } else if (rawGuaranteeDocs && rawGuaranteeDocs !== '0') {
+      let numG = 0;
+      let cleanG = rawGuaranteeDocs;
+      const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+      for (let i = 0; i < 10; i++) {
+        cleanG = cleanG.split(arabicNumerals[i]).join(String(i));
+      }
+      const digitsOnly = cleanG.replace(/[^\d.]/g, '');
+      if (digitsOnly) {
+        const parsedG = parseFloat(digitsOnly);
+        if (!isNaN(parsedG) && parsedG > 0) numG = parsedG;
+      }
+
+      if (numG > 0) {
+        finalGuaranteeAmount = numG;
+        finalGuaranteeDocs = `ماضي على أوراق ضمان (${finalGuaranteeAmount.toLocaleString('en-US')} ج.م)`;
+        finalHasGuarantee = true;
+      } else if (
+        !rawGuaranteeDocs.includes('بدون') &&
+        !rawGuaranteeDocs.includes('لا') &&
+        !rawGuaranteeDocs.includes('مش') &&
+        !rawGuaranteeDocs.includes('غير') &&
+        (rawGuaranteeDocs.includes('ماضي') ||
+          rawGuaranteeDocs.includes('شيك') ||
+          rawGuaranteeDocs.includes('كمبيالة') ||
+          rawGuaranteeDocs.includes('ايصال') ||
+          rawGuaranteeDocs.includes('إيصال') ||
+          rawGuaranteeDocs.includes('رهن'))
+      ) {
+        finalGuaranteeDocs = 'ماضي على أوراق ضمان';
+        finalHasGuarantee = true;
+      } else {
+        finalGuaranteeAmount = 0;
+        finalGuaranteeDocs = 'مش ماضي';
+        finalHasGuarantee = false;
+      }
+    }
+
+    // Payment terms normalization: كاش او علي دفعات او شيكات
+    let resolvedPaymentTerms = 'كاش';
+    const ptLower = (rawPaymentTerms || '').toLowerCase();
+    if (ptLower.includes('شيك') || ptLower.includes('check') || ptLower.includes('cheque')) {
+      resolvedPaymentTerms = 'شيكات';
+    } else if (
+      ptLower.includes('دفع') ||
+      ptLower.includes('قسط') ||
+      ptLower.includes('أقساط') ||
+      ptLower.includes('اقساط') ||
+      ptLower.includes('اجل') ||
+      ptLower.includes('آجل') ||
+      ptLower.includes('installment')
+    ) {
+      resolvedPaymentTerms = 'على دفعات';
+    } else if (ptLower.includes('كاش') || ptLower.includes('نقد') || ptLower.includes('cash')) {
+      resolvedPaymentTerms = 'كاش';
+    } else if (rawPaymentTerms) {
+      resolvedPaymentTerms = rawPaymentTerms;
+    }
+
+    const newCustomer: Customer = {
+      id: safeCustId,
+      code: assignedCode,
+      name: resolvedImportedName || `عميل رقم ${assignedCode}`,
+      storeName: resolvedImportedName || `محل / سوبر ماركت ${assignedCode}`,
+      tier: tier,
+      phone: rawPhone,
+      address: resolvedAddress,
+      governorate: rawGov,
+      district: rawDistrict,
+      route: rawRoute,
+      creditLimit: finalCreditLimit,
+      currentBalance: finalBalance,
+      balance: finalBalance,
+      totalOverdueAndDue: finalTotalOverdue,
+      overdueBalance: finalTotalOverdue,
+      branchName: normalizeExcelBranchName(rawBranch),
+      repName: rawRep ? rawRep.trim() : '',
+      salesRepName: rawRep ? rawRep.trim() : '',
+      taxNumber: rawTax,
+      notes: rawNotes,
+
+      // Sales Target & Due Debts
+      guaranteeDocs: finalGuaranteeDocs,
+      guaranteeAmount: finalGuaranteeAmount > 0 ? finalGuaranteeAmount : undefined,
+      hasGuarantee: finalHasGuarantee,
+      paymentTerms: resolvedPaymentTerms,
+      activityType: rawActivityType,
+      clientType: rawClientType,
+      adjustments: parsedAdjustments,
+      annualTarget: parsedAnnualTarget,
+      openingBalance2026: parsedOpeningBalance2026,
+      dealt2026: sheetDealtFlag === undefined
+        ? ((resolvedSales2026 > 0 || resolvedCollections2026 !== 0) ? 'متعامل' : 'غير متعامل')
+        : (sheetDealtFlag ? 'متعامل' : 'غير متعامل'),
+      dealEligibility: rawDealEligibility,
+      debtStatus: rawDebtStatus,
+      sales2026: resolvedSales2026,
+      totalMonthlySales: resolvedSales2026,
+      totalOverallSales: parsedTotalOverallSales !== undefined ? parsedTotalOverallSales : resolvedSales2026,
+      collections2026: resolvedCollections2026,
+      totalMonthlyCollections: resolvedCollections2026,
+      totalOverallCollections: parsedTotalOverallCollections !== undefined ? parsedTotalOverallCollections : resolvedCollections2026,
+      // Yearly, sheet-backed flag. Never month-dependent.
+      hasDealtIn2026: sheetDealtFlag !== undefined
+        ? sheetDealtFlag
+        : ((resolvedSales2026 > 0) || (resolvedCollections2026 !== 0)),
+      monthlySales2026: Object.keys(rowMonthlySales).length > 0 ? rowMonthlySales : undefined,
+      monthlyCollections2026: Object.keys(rowMonthlyCollections).length > 0 ? rowMonthlyCollections : undefined,
+      sales2025: parsedSales2025,
+      collections2025: parsedCollections2025,
+      overdue2025: parsedOverdue2025,
+      overdue2026: parsedOverdue2026,
+      dueUntilPeriod: parsedDueUntilPeriod,
+      duePeriodLabel: detectedDuePeriodLabel,
+      sales2024: parsedSales2024,
+      collections2024: parsedCollections2024,
+      activeSalesMonths: activeSalesMonthsList.length > 0 ? activeSalesMonthsList : undefined,
+      activeCollectionMonths: activeCollectionMonthsList.length > 0 ? activeCollectionMonthsList : undefined,
+
+      createdAt: new Date().toISOString(),
+    };
+
+    parsedCustomersList.push(newCustomer);
+  }
+
+  // A customer code identifies one customer. Repeated rows in a workbook must
+  // update that customer instead of creating another visible customer record.
+  const uniqueCustomers = new Map<string, Customer>();
+  let duplicatesCount = 0;
+  parsedCustomersList.forEach((customer) => {
+    const key = customer.code.trim().toLowerCase();
+    if (uniqueCustomers.has(key)) {
+      duplicatesCount += 1;
+      const previous = uniqueCustomers.get(key)!;
+      uniqueCustomers.set(key, {
+        ...previous,
+        ...customer,
+        name: customer.name.startsWith('عميل رقم ') ? previous.name : customer.name,
+        storeName: (customer.storeName || '').startsWith('محل / سوبر ماركت ') ? previous.storeName : customer.storeName,
+        repName: customer.repName || previous.repName,
+        salesRepName: customer.salesRepName || previous.salesRepName,
+        branchName: customer.branchName || previous.branchName,
+      });
+    } else {
+      uniqueCustomers.set(key, customer);
+    }
+  });
+
+  return {
+    customers: Array.from(uniqueCustomers.values()),
+    errors,
+    totalRows: uniqueCustomers.size,
+    duplicatesCount,
+  };
+}
+
+/**
+ * Specialized Warehouse & Logistics Fulfillment Excel Export
+ * Separates Branch Available items (🟢) vs Central October Warehouse Dispatch (🔴)
+ */
+export function exportWarehouseFulfillmentExcel(invoice: Invoice) {
+  const wb = XLSX.utils.book_new();
+
+  // Branch items vs October warehouse items
+  const branchItems = invoice.items.filter((item) => !item.fulfillFromMainWarehouse);
+  const octoberItems = invoice.items.filter((item) => item.fulfillFromMainWarehouse);
+
+  // Tab 1: All items with fulfillment source tag
+  const allRows = invoice.items.map((item, idx) => {
+    const isOctober = !!item.fulfillFromMainWarehouse;
+    const factor = item.cartonQuantity || item.product?.cartonQuantity || item.product?.factor || 1;
+    const cartons = item.cartonCount || 0;
+    const pieces = item.pieceCount || 0;
+
+    return {
+      'م': idx + 1,
+      'كود الصنف': item.product?.code || '---',
+      'اسم الصنف': item.product?.name || 'صنف',
+      'المجموعة (Item Group)': item.product?.itemGroup || item.product?.department || 'عام',
+      'العائلة (Family Name)': item.product?.familyName || item.product?.classification || 'عام',
+      'شدة الكرتونة (Factor)': factor,
+      'عدد الكراتين': cartons,
+      'عدد القطع الفردية': pieces,
+      'إجمالي القطع': item.totalPieces || cartons * factor + pieces,
+      'جهة الصرف والتجهيز': isOctober ? '🔴 مخزن 6 أكتوبر المركزي (تحويل نواقص)' : '🟢 مخزن الفرع المحلي',
+      'حالة التوفر': isOctober ? 'نواقص بالفرع - سحب مركزي' : 'متوفر بالمخزن',
+      'سعر الكرتونة': item.unitPrice || item.product?.cartonPrice || 0,
+      'الإجمالي': item.totalPrice || 0,
+      'ملاحظات': item.notes || '',
+    };
+  });
+
+  const wsAll = XLSX.utils.json_to_sheet(allRows);
+  wsAll['!cols'] = [
+    { wch: 6 },
+    { wch: 14 },
+    { wch: 36 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 32 },
+    { wch: 22 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 24 },
+  ];
+  XLSX.utils.book_append_sheet(wb, wsAll, 'كشف_الصرف_الشامل');
+
+  // Tab 2: Branch warehouse dispatch
+  if (branchItems.length > 0) {
+    const branchRows = branchItems.map((item, idx) => {
+      const factor = item.cartonQuantity || item.product?.cartonQuantity || 1;
+      return {
+        'م': idx + 1,
+        'كود الصنف': item.product?.code || '---',
+        'اسم الصنف': item.product?.name || 'صنف',
+        'شدة الكرتونة (Factor)': factor,
+        'عدد الكراتين المطلوب': item.cartonCount || 0,
+        'عدد القطع الفردية': item.pieceCount || 0,
+        'إجمالي القطع': item.totalPieces || (item.cartonCount || 0) * factor + (item.pieceCount || 0),
+        'رصيد الفرع الحالي': item.product?.branchStockActual || 0,
+        'ملاحظات': item.notes || '',
+      };
+    });
+    const wsBranch = XLSX.utils.json_to_sheet(branchRows);
+    wsBranch['!cols'] = [
+      { wch: 6 },
+      { wch: 14 },
+      { wch: 36 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 20 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsBranch, 'صرف_مخزن_الفرع_🟢');
+  }
+
+  // Tab 3: October warehouse transfer/dispatch
+  if (octoberItems.length > 0) {
+    const octoberRows = octoberItems.map((item, idx) => {
+      const factor = item.cartonQuantity || item.product?.cartonQuantity || 1;
+      return {
+        'م': idx + 1,
+        'كود الصنف': item.product?.code || '---',
+        'اسم الصنف': item.product?.name || 'صنف',
+        'شدة الكرتونة (Factor)': factor,
+        'عدد الكراتين المطلوب تحويله': item.cartonCount || 0,
+        'عدد القطع الفردية': item.pieceCount || 0,
+        'إجمالي القطع': item.totalPieces || (item.cartonCount || 0) * factor + (item.pieceCount || 0),
+        'رصيد مخزن 6 أكتوبر': item.product?.mainWarehouseActual || 0,
+        'الفرع الطالب': invoice.branchName,
+        'ملاحظات': item.notes || '',
+      };
+    });
+    const wsOctober = XLSX.utils.json_to_sheet(octoberRows);
+    wsOctober['!cols'] = [
+      { wch: 6 },
+      { wch: 14 },
+      { wch: 36 },
+      { wch: 14 },
+      { wch: 20 },
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 18 },
+      { wch: 22 },
+      { wch: 20 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsOctober, 'طلب_تحويل_مخزن_أكتوبر_🔴');
+  }
+
+  // Tab 4: Invoice summary header
+  const headerSummary = [
+    ['شركة دريم للتجارة والتوزيع - إذن صرف وتحويل مخزني', ''],
+    ['رقم الفاتورة / الطلبية', invoice.invoiceNumber],
+    ['تاريخ الطلبية', `${invoice.date} ${invoice.time || ''}`],
+    ['الفرع الطالب', invoice.branchName],
+    ['المندوب المسئول', invoice.repName],
+    ['اسم العميل', invoice.customerName],
+    ['حالة الطلبية', invoice.status],
+    ['إجمالي أصناف الفرع (🟢)', branchItems.length],
+    ['إجمالي أصناف مخزن أكتوبر (🔴)', octoberItems.length],
+    ['إجمالي الكراتين بالطلبية', invoice.totalCartons],
+    ['إجمالي القطع بالطلبية', invoice.totalPieces],
+    ['إجمالي القيمة الصافية', invoice.estimatedGrandTotal],
+  ];
+  const wsSummary = XLSX.utils.aoa_to_sheet(headerSummary);
+  wsSummary['!cols'] = [{ wch: 28 }, { wch: 40 }];
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'بيانات_الإذن');
+
+  XLSX.writeFile(wb, `إذن_صرف_مخزني_${invoice.invoiceNumber}_${invoice.branchName.replace(/[^\w\u0621-\u064A]/g, '_')}.xlsx`);
+}
+
+/**
+ * Fetch and parse Customers from Google Sheets CSV URL
+ */
+export async function fetchCustomersFromGoogleSheetUrl(urlOrId: string): Promise<{
+  customers: Customer[];
+  errors: string[];
+  totalRows: number;
+}> {
+  const csvUrl = buildGoogleSheetsPublicCsvUrl(urlOrId);
+  const response = await fetch(csvUrl);
+  if (!response.ok) {
+    throw new Error(`فشل فتح رابط جوجل شيت (${response.statusText}). تأكد من أن الرابط متاح للعامة (Anyone with the link can view).`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  const csvText = decodeBufferSmart(arrayBuffer).replace(/^\uFEFF/, '');
+  const wb = XLSX.read(csvText, { type: 'string', codepage: 65001 });
+  const firstSheet = wb.Sheets[wb.SheetNames[0]];
+  const rawRows: any[][] = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+  return parseRawRowsToCustomers(rawRows);
+}
+
+/**
+ * Parse Excel file to Customer list
+ */
+export async function parseExcelCustomers(file: File): Promise<{
+  customers: Customer[];
+  errors: string[];
+  totalRows: number;
+}> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const buffer = e.target?.result as ArrayBuffer;
+        const workbook = parseExcelOrCsvBuffer(buffer, file.name);
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+        resolve(parseRawRowsToCustomers(rawRows));
+      } catch (err: any) {
+        resolve({
+          customers: [],
+          errors: [`فشل في قراءة ملف العملاء: ${err?.message || 'خطأ غير معروف'}`],
+          totalRows: 0,
+        });
+      }
+    };
+
+    reader.onerror = () => {
+      resolve({
+        customers: [],
+        errors: ['حدث خطأ أثناء قراءة ملف العملاء من الجهاز'],
+        totalRows: 0,
+      });
+    };
+
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+/**
+ * Generate sample Customers Excel template
+ */
+export function generateSampleCustomersTemplate(): void {
+  const sampleCustomers: Customer[] = [
+    {
+      id: 'sample-cust-1',
+      code: 'CUST-101',
+      name: 'سوبر ماركت النور والبركة',
+      storeName: 'سوبر ماركت النور والبركة',
+      phone: '01011122233',
+      branchName: 'فرع المنيا',
+      repName: 'حسن محمد',
+      salesRepName: 'حسن محمد',
+      creditLimit: 50000,
+      currentBalance: 8500,
+      balance: 8500,
+      address: 'شارع الجمهورية - المنيا',
+      tier: 'مميز',
+    },
+    {
+      id: 'sample-cust-2',
+      code: 'CUST-102',
+      name: 'معرض الأمل للأدوات والتجارة',
+      storeName: 'معرض الأمل للأدوات والتجارة',
+      phone: '01122233344',
+      branchName: 'فرع المنيا',
+      repName: 'علاء عمر',
+      salesRepName: 'علاء عمر',
+      creditLimit: 30000,
+      currentBalance: 0,
+      balance: 0,
+      address: 'بندر المنيا - بجوار المحطة',
+      tier: 'راقي',
+    },
+    {
+      id: 'sample-cust-3',
+      code: 'CUST-103',
+      name: 'محلات الهلال والنجمة للتوزيع',
+      storeName: 'محلات الهلال والنجمة للتوزيع',
+      phone: '01233344455',
+      branchName: 'فرع الفيوم',
+      repName: 'محمود عبد الرحيم',
+      salesRepName: 'محمود عبد الرحيم',
+      creditLimit: 75000,
+      currentBalance: 12300,
+      balance: 12300,
+      address: 'شارع البحر - الفيوم',
+      tier: 'مميز',
+    },
+    {
+      id: 'sample-cust-4',
+      code: 'CUST-104',
+      name: 'سنتر الفيروز ماركت',
+      storeName: 'سنتر الفيروز ماركت',
+      phone: '01099887766',
+      branchName: 'فرع القاهرة',
+      repName: 'أحمد محمود',
+      salesRepName: 'أحمد محمود',
+      creditLimit: 40000,
+      currentBalance: 4200,
+      balance: 4200,
+      address: 'مدينة نصر - القاهرة',
+      tier: 'متوسط',
+    },
+  ];
+
+  exportCustomersToExcel(sampleCustomers);
+}
+
+/**
+ * يمنع تصدير ملف ضخم قبل ما الجهاز يتجمّد.
+ *
+ * تصدير Excel شغال بالكامل على الـ main thread: الـ worksheet object model
+ * بيتبني في الذاكرة، بعدين التنسيق، بعدين الضغط — كلها متزامنة. عند
+ * 100,000 صف ده gigabyte من الـ heap وتاب بتتقفل (خصوصاً على موبايل
+ * المندوب، وده الجهاز اللي بيتصدّر منه).
+ *
+ * الحد 50,000 صف أكبر بكتير من أي تقرير بيتعمله الإدارة حالياً (أكبر
+ * قائمة في المشروع ~3,447 عميل)، فلو وصلنا هنا ففيه حاجة غلط في الفلتر.
+ * بنحذّر ولا بنمنع — القرار للمستخدم، بس بنخبره قبل ما الـ tab يموت.
+ */
+const MAX_EXPORT_ROWS = 50_000;
+
+function guardHugeExport(rowCount: number, label: string): boolean {
+  if (rowCount <= MAX_EXPORT_ROWS) return true;
+  const proceed = window.confirm(
+    `تصدير ${label} فيه ${rowCount.toLocaleString('ar-EG')} صف.\n` +
+    `Excel بيعمل الملف كله في الذاكرة، فعند الحجم ده الجهاز ممكن يعلّق أو يقفل التبويب.\n\n` +
+    `تلغي وتضيّق الفلتر، ولا تكمل؟`
+  );
+  if (!proceed) {
+    // نرجّع بدل ما نرمي: أزرار التصدير نداءات مباشرة في JSX من غير try/catch،
+    // فرمي exception كان هيطلع كخطأ في الكونسول بس من غير أي رسالة للمستخدم.
+    console.info(`تم إلغاء تصدير ${label} (${rowCount.toLocaleString('ar-EG')} صف) بناءً على اختيار المستخدم.`);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Export Customers List to Excel
+ */
+export function exportCustomersToExcel(customers: Customer[], branchName = 'الكل'): void {
+  const wb = XLSX.utils.book_new();
+  const listToExport = branchName === 'الكل' ? customers : customers.filter((c) => c.branchName === branchName);
+  if (!guardHugeExport(listToExport.length, 'قائمة العملاء')) return;
+
+  const headers = [
+    'كود العميل',
+    'اسم العميل / المحل',
+    'الفرع التابع له',
+    'اسم المندوب المسؤول',
+    'المديونية الحالية (ج.م)',
+    'الحد الائتماني (ج.م)',
+    'المتبقي من الائتمان (ج.م)',
+    'رقم الهاتف',
+    'العنوان والمحافظة',
+    'الرقم الضريبي',
+  ];
+
+  const rows = listToExport.map((c) => {
+    const limit = Number(c.creditLimit) || 0;
+    const balance = Number(c.currentBalance ?? c.balance ?? 0);
+    const available = Math.max(0, limit - balance);
+    return [
+      c.code || '---',
+      c.name,
+      c.branchName || 'الفرع الرئيسي',
+      c.salesRepName || c.repName || 'غير محدد',
+      balance,
+      limit,
+      available,
+      c.phone || '',
+      c.address || c.governorate || '',
+      c.taxNumber || '',
+    ];
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = [
+    { wch: 14 },
+    { wch: 35 },
+    { wch: 18 },
+    { wch: 22 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 20 },
+    { wch: 16 },
+    { wch: 30 },
+    { wch: 16 },
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'سجل_العملاء');
+  XLSX.writeFile(wb, `سجل_عملاء_دريم_${branchName}_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+/**
+ * Standard Columns for Sales Target & Customer Debts Sheet (شيت تارجت المبيعات والعملاء والمتأخرات)
+ * Matches the official Dream Group master accounting format
+ */
+export const CUSTOMER_SALES_TARGET_COLUMNS = [
+  'Account Name',
+  'الفرع',
+  'المديونيه',
+  'اورق الضمان',
+  'الحد الائتماني',
+  'طريقة الدفع',
+  'طبيعة النشاط',
+  'المحافظة',
+  'المركز',
+  'الخط',
+  'خ/ك',
+  'المندوب الحالي',
+  'تعديلات',
+  'الهدف السنوي',
+  'اول المدة 2026',
+  'متعامل 2026',
+  'قابل /غير',
+  'حالة دين العميل',
+  '1 مبيعات',
+  '2 مبيعات',
+  '3 مبيعات',
+  '4 مبيعات',
+  '5 مبيعات',
+  '6 مبيعات',
+  '7 مبيعات',
+  '8 مبيعات',
+  '9 مبيعات',
+  'اجمالي المبيعات',
+  '1 تحصيل',
+  '2 تحصيل',
+  'تحصيل3',
+  '4 تحصيل',
+  '5 تحصيل',
+  '6 تحصيل',
+  '7 تحصيل',
+  '8 تحصيل',
+  '9 تحصيل',
+  'اجمالي المتأخرات',
+  'متاخرات 2025',
+  'متاخرات 2026',
+  'مستحق حتي نهاية اغسطس',
+  'اجمالي مبيعات',
+  'تحصيلات',
+  'مبيعات 2024',
+  'تحصيلات 2024',
+];
+
+/**
+ * Export Sales Target & Debts Sheet to Excel with all detailed monthly columns
+ */
+export function exportCustomerTargetSheetToExcel(customers: Customer[]): void {
+  const wb = XLSX.utils.book_new();
+
+  // Find max active month across customers (at least 9)
+  let maxMonth = 9;
+  customers.forEach((c) => {
+    if (c.monthlySales2026) {
+      Object.keys(c.monthlySales2026).forEach((k) => {
+        const m = parseInt(k, 10);
+        if (m > maxMonth && m <= 12) maxMonth = m;
+      });
+    }
+    if (c.monthlyCollections2026) {
+      Object.keys(c.monthlyCollections2026).forEach((k) => {
+        const m = parseInt(k, 10);
+        if (m > maxMonth && m <= 12) maxMonth = m;
+      });
+    }
+  });
+
+  // Build dynamic headers based on maxMonth
+  const salesHeaders: string[] = [];
+  for (let m = 1; m <= maxMonth; m++) {
+    salesHeaders.push(`${m} مبيعات`);
+  }
+
+  const collHeaders: string[] = [];
+  for (let m = 1; m <= maxMonth; m++) {
+    collHeaders.push(`${m} تحصيل`);
+  }
+
+  const headers = [
+    'Account Name',
+    'الفرع',
+    'المديونيه',
+    'اورق الضمان',
+    'الحد الائتماني',
+    'طريقة الدفع',
+    'طبيعة النشاط',
+    'المحافظة',
+    'المركز',
+    'الخط',
+    'خ/ك',
+    'المندوب الحالي',
+    'تعديلات',
+    'الهدف السنوي',
+    'اول المدة 2026',
+    'متعامل 2026',
+    'قابل /غير',
+    'حالة دين العميل',
+    ...salesHeaders,
+    'اجمالي المبيعات',
+    ...collHeaders,
+    'اجمالي المتأخرات',
+    'متاخرات 2025',
+    'متاخرات 2026',
+    'مستحق حتي نهاية اغسطس',
+    'اجمالي مبيعات',
+    'تحصيلات',
+    'مبيعات 2024',
+    'تحصيلات 2024',
+  ];
+
+  const rows = customers.map((c) => {
+    // Dynamic monthly sales row values
+    const salesVals: number[] = [];
+    let sumSales = 0;
+    for (let m = 1; m <= maxMonth; m++) {
+      const v = Number(c.monthlySales2026?.[m] ?? 0);
+      salesVals.push(v);
+      sumSales += v;
+    }
+    const totalSales = c.totalMonthlySales !== undefined && c.totalMonthlySales > 0 ? c.totalMonthlySales : sumSales;
+
+    // Dynamic monthly collections row values
+    const collVals: number[] = [];
+    let sumColl = 0;
+    for (let m = 1; m <= maxMonth; m++) {
+      const v = Number(c.monthlyCollections2026?.[m] ?? 0);
+      collVals.push(v);
+      sumColl += v;
+    }
+    const totalColl = c.totalMonthlyCollections !== undefined && c.totalMonthlyCollections > 0 ? c.totalMonthlyCollections : sumColl;
+
+    const overdue = resolveCustomerDuesValue(c);
+
+    return [
+      c.name,
+      c.branchName || 'الفرع الرئيسي',
+      Number(c.currentBalance ?? c.balance ?? 0),
+      c.guaranteeDocs || 'إيصال أمانة',
+      Number(c.creditLimit || 0),
+      c.paymentTerms || 'آجل 15 يوم',
+      c.activityType || 'سوبر ماركت',
+      c.governorate || 'المنيا',
+      c.district || '',
+      c.route || '',
+      c.clientType || 'خاص',
+      c.salesRepName || c.repName || 'المندوب العام',
+      Number(c.adjustments || 0),
+      Number(c.annualTarget || 0),
+      Number(c.openingBalance2026 ?? c.balance ?? 0),
+      c.dealt2026 || (sumSales > 0 ? 'متعامل' : 'غير متعامل'),
+      c.dealEligibility || 'قابل',
+      c.debtStatus || (overdue > 0 ? 'متأخر' : 'منتظم'),
+      ...salesVals,
+      totalSales,
+      ...collVals,
+      overdue,
+      Number(c.overdue2025 || 0),
+      Number(c.overdue2026 || 0),
+      Number(c.dueUntilPeriod || overdue),
+      Number(c.totalOverallSales || totalSales),
+      Number(c.totalOverallCollections || totalColl),
+      Number(c.sales2024 || 0),
+      Number(c.collections2024 || 0),
+    ];
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  XLSX.utils.book_append_sheet(wb, ws, 'تارجت_المبيعات_والعملاء');
+  XLSX.writeFile(wb, `شيت_تارجت_المبيعات_والعملاء_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+/**
+ * Generate Sample Customer Target Template with realistic rows matching user format
+ */
+export function generateSampleCustomerTargetTemplate(): void {
+  const sampleCustomers: Customer[] = [
+    {
+      id: 'target-sample-1',
+      code: 'CUST-TARGET-001',
+      name: 'شركة وماركت الفيروز للتجارة والتوزيع',
+      phone: '01012345678',
+      address: 'شارع الجمهورية - بندر المنيا',
+      branchName: 'فرع المنيا',
+      currentBalance: 45000,
+      balance: 45000,
+      guaranteeDocs: 'شيك بنكي + إيصال أمانة',
+      creditLimit: 150000,
+      paymentTerms: 'آجل 21 يوم',
+      activityType: 'هايبر ماركت وتجزئة',
+      governorate: 'المنيا',
+      district: 'بندر المنيا',
+      route: 'خط الكورنيش والسوق',
+      clientType: 'كبار',
+      salesRepName: 'حسن محمد',
+      repName: 'حسن محمد',
+      adjustments: 10000,
+      annualTarget: 1200000,
+      openingBalance2026: 35000,
+      dealt2026: 'متعامل',
+      dealEligibility: 'قابل',
+      debtStatus: 'منتظم',
+      monthlySales2026: {
+        1: 85000,
+        2: 92000,
+        3: 110000,
+        4: 95000,
+        5: 105000,
+        6: 98000,
+        7: 115000,
+        8: 120000,
+        9: 108000,
+      },
+      totalMonthlySales: 928000,
+      monthlyCollections2026: {
+        1: 80000,
+        2: 90000,
+        3: 100000,
+        4: 95000,
+        5: 100000,
+        6: 95000,
+        7: 110000,
+        8: 115000,
+        9: 105000,
+      },
+      totalMonthlyCollections: 890000,
+      totalOverdueAndDue: 38000,
+      overdueBalance: 38000,
+      overdue2025: 0,
+      overdue2026: 38000,
+      dueUntilPeriod: 38000,
+      duePeriodLabel: 'مستحق حتي نهاية اغسطس',
+      totalOverallSales: 928000,
+      totalOverallCollections: 890000,
+      sales2024: 850000,
+      collections2024: 820000,
+    },
+    {
+      id: 'target-sample-2',
+      code: 'CUST-TARGET-002',
+      name: 'محلات الأمانة لتجارة المواد الغذائية',
+      phone: '01123456789',
+      address: 'طريق إطسا الزراعي - الفيوم',
+      branchName: 'فرع الفيوم',
+      currentBalance: 22000,
+      balance: 22000,
+      guaranteeDocs: 'إيصال أمانة معتمد',
+      creditLimit: 60000,
+      paymentTerms: 'آجل 14 يوم',
+      activityType: 'سوبر ماركت',
+      governorate: 'الفيوم',
+      district: 'مركز إطسا',
+      route: 'خط إطسا الزراعي',
+      clientType: 'خاص',
+      salesRepName: 'علاء عمر',
+      repName: 'علاء عمر',
+      adjustments: 0,
+      annualTarget: 480000,
+      openingBalance2026: 15000,
+      dealt2026: 'متعامل',
+      dealEligibility: 'قابل',
+      debtStatus: 'متأخر جزئي',
+      monthlySales2026: {
+        1: 35000,
+        2: 40000,
+        3: 45000,
+        4: 38000,
+        5: 42000,
+        6: 41000,
+        7: 46000,
+        8: 44000,
+        9: 47000,
+      },
+      totalMonthlySales: 378000,
+      monthlyCollections2026: {
+        1: 30000,
+        2: 35000,
+        3: 40000,
+        4: 35000,
+        5: 40000,
+        6: 38000,
+        7: 42000,
+        8: 40000,
+        9: 42000,
+      },
+      totalMonthlyCollections: 342000,
+      totalOverdueAndDue: 22000,
+      overdueBalance: 22000,
+      overdue2025: 5000,
+      overdue2026: 17000,
+      dueUntilPeriod: 22000,
+      duePeriodLabel: 'مستحق حتي نهاية اغسطس',
+      totalOverallSales: 378000,
+      totalOverallCollections: 342000,
+      sales2024: 320000,
+      collections2024: 310000,
+    },
+  ];
+
+  exportCustomerTargetSheetToExcel(sampleCustomers);
+}
+
+/**
+ * Standard 19 Columns for Dream Group Product & Multi-branch Inventory
+ */
+export const DREAM_INVENTORY_EXCEL_COLUMNS = [
+  'الكود الموحد',
+  'كود المنتج',
+  'اسم المنتج',
+  'الحجم',
+  'عدد القطع',
+  'سعر الكرتونه',
+  'Item group',
+  'Family Name',
+  'اللون',
+  'البحيرة',
+  'الفيوم',
+  'القاهرة',
+  'المنيا',
+  'ديمشلت',
+  'مخزون اكتوبر',
+  'منوف',
+  'منيا القمح',
+  'سعر العرض',
+  'لينك الصوره',
+];
+
+/**
+ * Export Products Catalog & Inventory to Excel matching the exact Dream spreadsheet format.
+ * If user is branch-scoped (Sales Rep, Supervisor, Branch Manager) or a specific branch is selected,
+ * only exports that specific branch's stock and details.
+ */
+/**
+ * Daily end-of-day report for a branch manager or supervisor.
+ *
+ * One workbook, four tabs:
+ *   1. الملخص        — branch, date, counts, totals
+ *   2. المتوفر بالفرع — products whose BRANCH stock is above zero
+ *   3. غير المتوفر    — the rest (need a transfer from the October warehouse)
+ *   4. الفواتير المعتمدة — invoices approved and executed on the chosen day,
+ *                        one row per invoice line so the branch can reconcile
+ *                        what it gave out against what it had.
+ *
+ * "المتوفر" means the branch's own balance only. The October main warehouse is
+ * deliberately not added in: stock sitting in the central warehouse is not stock
+ * the branch can hand to a customer today.
+ */
+export const APPROVED_AND_EXECUTED_INVOICE_STATUSES: string[] = [
+  'معتمدة',
+  'معتمدة ومصروفة من المخزن',
+  'جاري التجهيز',
+  'تم وصول المنتجات',
+  'قيد التوصيل',
+  'تم التسليم',
+  'إغلاق الطلبية',
+];
+
+const REPORT_PRODUCT_HEADERS = [
+  'كود المنتج',
+  'الكود الموحد',
+  'اسم المنتج',
+  'الحجم',
+  'الكمية بالكرتونة',
+  'شدة الكرتونة (ق/ك)',
+  'إجمالي القطع',
+  // The sheet stores the price of ONE piece. The carton price is that figure
+  // multiplied by the carton factor — the same rule the importer and AppContext
+  // already apply, so the report can never disagree with the rest of the app.
+  'سعر القطعة',
+  'سعر الكرتونة',
+  'القيمة الإجمالية',
+  'حالة الصنف',
+  'فئة الصنف',
+  'العائلة',
+];
+
+const REPORT_INVOICE_HEADERS = [
+  'رقم الفاتورة',
+  'التاريخ',
+  'العميل',
+  'كود العميل',
+  'المندوب',
+  'حالة الفاتورة',
+  'كود المنتج',
+  'الكود الموحد',
+  'اسم المنتج',
+  'عدد الكراتين',
+  'شدة الكرتونة (ق/ك)',
+  'إجمالي القطع',
+  'مصروف من',
+  'سعر الكرتونة',
+  'إجمالي الفاتورة',
+  'إجمالي الفروع',
+];
+
+const styleHeader = (ws: XLSX.WorkSheet, rowCount: number, colCount: number) => {
+  for (let c = 0; c < colCount; c++) {
+    const cell = ws[XLSX.utils.encode_cell({ r: 0, c })] as any;
+    if (!cell) continue;
+    cell.s = {
+      font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+      fill: { fgColor: { rgb: '0F766E' } },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true, readingOrder: 2 },
+      border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } },
+    };
+  }
+  ws['!views'] = [{ rightToLeft: true, ySplit: rowCount > 0 ? 1 : 0 }];
+  ws['!autofilter'] = rowCount > 1 ? { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rowCount - 1, c: colCount - 1 } }) } : undefined;
+};
+
+const appendStyledSheet = (
+  wb: XLSX.WorkBook,
+  name: string,
+  data: (string | number)[][],
+  widths: number[],
+  headerRowIndex = 0
+) => {
+  const ws = XLSX.utils.aoa_to_sheet(data.length ? data : [[]]);
+  ws['!cols'] = widths.map((wch) => ({ wch }));
+  styleHeader(ws, data.length, data[0]?.length || 1);
+  if (headerRowIndex > 0) ws['!autofilter'] = undefined;
+  XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+  return ws;
+};
+
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+
+/** Stock the branch itself holds, in cartons. Never includes the October warehouse. */
+export function getBranchCartonStock(product: Product, branchName: string): number {
+  const raw = getBranchStockForProduct(product, branchName);
+  const n = Number(raw);
+  return isFinite(n) ? n : 0;
+}
+
+export interface EndOfDayReportInput {
+  products: Product[];
+  invoices: Invoice[];
+  branchName: string;
+  currentUser?: User | null;
+  /** yyyy-mm-dd. Empty string means "no date filter" — every approved invoice. */
+  date?: string;
+}
+
+export function buildEndOfDayBranchWorkbook(input: EndOfDayReportInput): XLSX.WorkBook {
+  const { products = [], invoices = [], branchName, currentUser, date = '' } = input;
+  const wb = XLSX.utils.book_new();
+
+  const toProductRow = (p: Product, stock: number): (string | number)[] => {
+    const perCarton = Number(p.cartonQuantity || p.factor || 1) || 1;
+    // Piece price first; fall back to the carton price divided by the factor for
+    // older records that only stored the carton price.
+    const savedPiece = Number(p.piecePrice || p.salesPrice || 0);
+    const savedCarton = Number(p.cartonPrice || 0);
+    // Keep the quotient at full precision: rounding it to 2 decimals first turned
+    // 100 ÷ 24 into 4.17, and 4.17 × 24 gave 100.08 instead of 100.
+    const exactPiece = savedPiece > 0 ? savedPiece : (savedCarton > 0 ? savedCarton / perCarton : 0);
+    const piecePrice = Math.round(exactPiece * 10000) / 10000;
+    const cartonPrice = round2(exactPiece * perCarton);
+    return [
+      cleanProductCode(p.code),
+      p.unifiedCode || '',
+      p.name || '',
+      p.size || '',
+      stock,
+      perCarton,
+      stock * perCarton,
+      piecePrice,
+      cartonPrice,
+      stock * cartonPrice,
+      p.status || '',
+      p.itemGroup || p.department || p.category || '',
+      p.familyName || p.classification || '',
+    ];
+  };
+
+  const sorted = [...products].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+
+  const available: (string | number)[][] = [REPORT_PRODUCT_HEADERS];
+  const unavailable: (string | number)[][] = [REPORT_PRODUCT_HEADERS];
+
+  sorted.forEach((p) => {
+    const stock = getBranchCartonStock(p, branchName);
+    (stock > 0 ? available : unavailable).push(toProductRow(p, stock));
+  });
+
+  const sumCartons = (rows: (string | number)[][]) =>
+    rows.slice(1).reduce((s, r) => s + (Number(r[4]) || 0), 0);
+  const sumValue = (rows: (string | number)[][]) =>
+    rows.slice(1).reduce((s, r) => s + (Number(r[9]) || 0), 0);
+
+  // ---- Invoices: approved + executed, scoped to the branch and the chosen day ----
+  const branchKey = resolveBranchName(branchName) || branchName;
+  const approved = invoices.filter((inv) => {
+    if (!APPROVED_AND_EXECUTED_INVOICE_STATUSES.includes(inv.status)) return false;
+    const invBranch = resolveBranchName(inv.branchName) || inv.branchName;
+    if (branchKey && branchKey !== 'الكل' && invBranch !== branchKey) return false;
+    if (!date) return true;
+    return String(inv.date || '').slice(0, 10) === date;
+  });
+
+  const invoiceRows: (string | number)[][] = [REPORT_INVOICE_HEADERS];
+  approved.forEach((inv) => {
+    const items = inv.items || [];
+    if (items.length === 0) {
+      invoiceRows.push([
+        inv.invoiceNumber, inv.date, inv.customerName, inv.customerCode || '',
+        inv.repName || '', inv.status, '', '', '', 0, 0, 0, '',
+        inv.totalCartons || 0, inv.estimatedGrandTotal || 0, '',
+      ]);
+      return;
+    }
+    items.forEach((it) => {
+      const perCarton = Number(it.cartonQuantity || 1) || 1;
+      const cartons = Number(it.cartonCount || 0) || 0;
+      const pieces = Number(it.totalUnits ?? it.totalPieces ?? cartons * perCarton) || 0;
+      invoiceRows.push([
+        inv.invoiceNumber, inv.date, inv.customerName, inv.customerCode || '',
+        inv.repName || '', inv.status,
+        cleanProductCode(it.productCode), it.unifiedCode || '', it.productName || '',
+        cartons, perCarton, pieces,
+        it.fulfilledFrom === 'main_warehouse' ? 'المخزن الرئيسي' : it.fulfilledFrom === 'mixed' ? 'مختلط' : 'الفرع',
+        Number(it.appliedPrice || it.pricePerCarton || 0) || 0,
+        Number(it.netTotal || it.totalBeforeTax || 0) || 0,
+        Number(inv.estimatedGrandTotal || 0) || 0,
+      ]);
+    });
+  });
+
+  const summaryRows: (string | number)[][] = [
+    ['كشف نهاية اليوم —Branch & Stock Summary'],
+    [],
+    ['الفرع', branchName || 'الكل'],
+    ['التاريخ', date || 'كل الفترات'],
+    ['المستخدم', currentUser?.name || '—'],
+    ['وقت الاستخراج', new Date().toLocaleString('ar-EG')],
+    [],
+    ['عدد الفواتير المعتمدة', approved.length],
+    ['إجمالي قيمة الفواتير المعتمدة', approved.reduce((s, i) => s + (Number(i.estimatedGrandTotal) || 0), 0)],
+    ['عدد سطور الفواتير', Math.max(0, invoiceRows.length - 1)],
+    [],
+    ['عدد الأصناف المتوفرة بالفرع', Math.max(0, available.length - 1)],
+    ['إجمالي كراتين المتوفر', sumCartons(available)],
+    ['قيمة المتوفر', sumValue(available)],
+    [],
+    ['عدد الأصناف غير المتوفرة', Math.max(0, unavailable.length - 1)],
+    ['إجمالي كراتين غير المتوفر', sumCartons(unavailable)],
+    ['قيمة غير المتوفر', sumValue(unavailable)],
+  ];
+
+  const summaryWs = XLSX.utils.aoa_to_sheet(summaryRows);
+  summaryWs['!cols'] = [{ wch: 40 }, { wch: 34 }];
+  summaryWs['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+  const titleCell = summaryWs['A1'] as any;
+  if (titleCell) {
+    titleCell.s = {
+      font: { bold: true, sz: 14, color: { rgb: 'FFFFFF' } },
+      fill: { fgColor: { rgb: '0F766E' } },
+      alignment: { horizontal: 'center', vertical: 'center', readingOrder: 2 },
+    };
+  }
+  summaryRows.forEach((row, r) => {
+    if (r < 2 || row.length < 2) return;
+    const a = summaryWs[XLSX.utils.encode_cell({ r, c: 0 })] as any;
+    const b = summaryWs[XLSX.utils.encode_cell({ r, c: 1 })] as any;
+    if (a) a.s = { font: { bold: true, sz: 11 }, alignment: { horizontal: 'right', readingOrder: 2 } };
+    if (b) b.s = { alignment: { horizontal: 'right', readingOrder: 2 } };
+  });
+  summaryWs['!views'] = [{ rightToLeft: true }];
+  XLSX.utils.book_append_sheet(wb, summaryWs, 'الملخص');
+
+  const productWidths = [16, 16, 42, 12, 16, 16, 16, 14, 14, 16, 16, 18, 18];
+  appendStyledSheet(wb, 'المتوفر بالفرع', available, productWidths);
+  appendStyledSheet(wb, 'غير المتوفر', unavailable, productWidths);
+  appendStyledSheet(wb, 'الفواتير المعتمدة', invoiceRows, [20, 14, 28, 16, 18, 24, 16, 16, 38, 14, 16, 14, 16, 14, 16, 16]);
+
+  return wb;
+}
+
+export function exportEndOfDayBranchReport(input: EndOfDayReportInput): void {
+  const wb = buildEndOfDayBranchWorkbook(input);
+  const branch = (input.branchName || 'الكل').replace(/\s+/g, '_');
+  const day = input.date || new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `كشف_نهاية_اليوم_${branch}_${day}.xlsx`);
+}
+
+export function exportProductsToExcel(
+  products: Product[],
+  branchName = 'الكل',
+  currentUser?: User | null
+): void {
+  if (!guardHugeExport(products.length, 'كتالوج الأصناف')) return;
+  const wb = XLSX.utils.book_new();
+
+  const isBranchScoped =
+    (currentUser && currentUser.role !== 'admin' && currentUser.role !== 'developer') ||
+    (branchName && branchName !== 'الكل');
+
+  const resolvedBranch = resolveBranchName(
+    (currentUser && currentUser.role !== 'admin' && currentUser.role !== 'developer')
+      ? (currentUser.branchName || branchName)
+      : branchName
+  ) || (currentUser?.branchName || branchName);
+
+  if (isBranchScoped && resolvedBranch && resolvedBranch !== 'الكل') {
+    // Single Branch Export: Strictly that branch's stock only!
+    const headers = [
+      'الكود الموحد',
+      'كود المنتج',
+      'اسم المنتج',
+      'الحجم',
+      'عدد القطع بالكرتونة',
+      'سعر الكرتونة',
+      'فئة الصنف',
+      'العائلة',
+      'اللون',
+      `رصيد مخزون فرع (${resolvedBranch})`,
+      'سعر العرض',
+      'لينك الصورة',
+    ];
+
+    const rows = products.map((p) => {
+      const stock = getBranchStockForProduct(p, resolvedBranch);
+      return [
+        p.unifiedCode || '',
+        cleanProductCode(p.code),
+        p.name,
+        p.size || '',
+        p.cartonQuantity || p.factor || 1,
+        p.cartonPrice || 0,
+        p.itemGroup || p.department || p.category || '',
+        p.familyName || p.classification || '',
+        p.color || '',
+        stock,
+        p.promoPrice || p.offerPrice || '',
+        p.imageUrl || '',
+      ];
+    });
+
+    const data = [headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!views'] = [{ rightToLeft: true }];
+    ws['!cols'] = [
+      { wch: 16 }, // الكود الموحد
+      { wch: 16 }, // كود المنتج
+      { wch: 42 }, // اسم المنتج
+      { wch: 12 }, // الحجم
+      { wch: 14 }, // عدد القطع
+      { wch: 14 }, // سعر الكرتونة
+      { wch: 18 }, // فئة الصنف
+      { wch: 18 }, // العائلة
+      { wch: 14 }, // اللون
+      { wch: 24 }, // رصيد المخزون
+      { wch: 14 }, // سعر العرض
+      { wch: 48 }, // لينك الصورة
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, `مخزون_${resolvedBranch.replace(/\s+/g, '_')}`);
+    const repSuffix = currentUser?.name ? `_${currentUser.name.replace(/\s+/g, '_')}` : '';
+    XLSX.writeFile(wb, `مخزون_${resolvedBranch.replace(/\s+/g, '_')}${repSuffix}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    return;
+  }
+
+  const headers = [...DREAM_INVENTORY_EXCEL_COLUMNS];
+
+  const rows = products.map((p) => {
+    const stockBeheira = getBranchStockForProduct(p, 'البحيرة');
+    const stockFayoum = getBranchStockForProduct(p, 'الفيوم');
+    const stockCairo = getBranchStockForProduct(p, 'القاهرة');
+    const stockMinya = getBranchStockForProduct(p, 'المنيا');
+    const stockDimeshalt = getBranchStockForProduct(p, 'ديمشلت');
+    const stockOctober =
+      typeof p.mainWarehouseActual === 'number' && p.mainWarehouseActual > 0
+        ? p.mainWarehouseActual
+        : getBranchStockForProduct(p, 'أكتوبر');
+    const stockMenouf = getBranchStockForProduct(p, 'منوف');
+    const stockMeq = getBranchStockForProduct(p, 'منيا القمح');
+
+    return [
+      p.unifiedCode || '',
+      cleanProductCode(p.code),
+      p.name,
+      p.size || '',
+      p.cartonQuantity || p.factor || 1,
+      p.cartonPrice || 0,
+      p.itemGroup || p.department || p.category || '',
+      p.familyName || p.classification || '',
+      p.color || '',
+      stockBeheira,
+      stockFayoum,
+      stockCairo,
+      stockMinya,
+      stockDimeshalt,
+      stockOctober,
+      stockMenouf,
+      stockMeq,
+      p.promoPrice || p.offerPrice || '',
+      p.imageUrl || '',
+    ];
+  });
+
+  const data = [headers, ...rows];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!views'] = [{ rightToLeft: true }];
+
+  ws['!cols'] = [
+    { wch: 16 }, // الكود الموحد
+    { wch: 16 }, // كود المنتج
+    { wch: 40 }, // اسم المنتج
+    { wch: 12 }, // الحجم
+    { wch: 12 }, // عدد القطع
+    { wch: 14 }, // سعر الكرتونه
+    { wch: 18 }, // Item group
+    { wch: 18 }, // Family Name
+    { wch: 14 }, // اللون
+    { wch: 12 }, // البحيرة
+    { wch: 12 }, // الفيوم
+    { wch: 12 }, // القاهرة
+    { wch: 12 }, // المنيا
+    { wch: 12 }, // ديمشلت
+    { wch: 16 }, // مخزون اكتوبر
+    { wch: 12 }, // منوف
+    { wch: 14 }, // منيا القمح
+    { wch: 14 }, // سعر العرض
+    { wch: 48 }, // لينك الصوره
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'مخزون_دريم');
+  XLSX.writeFile(wb, `مخزون_شركة_دريم_${branchName}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+/**
+ * Generate a blank template Excel file ready for import matching the exact 19 columns
+ */
+export function generateSampleExcelTemplate(): void {
+  const sampleProducts: Product[] = [
+    {
+      id: 'sample-1',
+      code: '1000061',
+      unifiedCode: '#1000061',
+      name: 'بمبونيرة 15010 جليز الوان',
+      salesPriority: 'مرتفع',
+      category: 'لوتس',
+      itemGroup: 'لوتس',
+      familyName: 'بمبونيرة',
+      status: 'متاح',
+      cartonQuantity: 6,
+      size: 'وسط',
+      color: 'ألوان مشكلة',
+      branchStockActual: 150,
+      branchStockReserved: 130,
+      mainWarehouseActual: 2000,
+      mainWarehouseReserved: 1800,
+      branchStocks: {
+        'البحيرة': 45,
+        'الفيوم': 30,
+        'القاهرة': 150,
+        'المنيا': 60,
+        'ديمشلت': 25,
+        'مخزون اكتوبر': 2000,
+        'أكتوبر': 2000,
+        'منوف': 40,
+        'منيا القمح': 55,
+      },
+      department: 'لوتس',
+      classification: 'بمبونيرة',
+      promoPrice: 320,
+      piecePrice: 58.33,
+      cartonPrice: 350,
+      branchName: 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+      imageUrl: 'https://lh3.googleusercontent.com/d/1sample_drive_id=w800',
+    },
+    {
+      id: 'sample-2',
+      code: '1000062',
+      unifiedCode: '#1000062',
+      name: 'طقم كاسات لوتس كلاسيك 6 ق كريستال',
+      salesPriority: 'مرتفع',
+      category: 'لوتس',
+      itemGroup: 'لوتس',
+      familyName: 'كاسات زجاج',
+      status: 'متاح',
+      cartonQuantity: 12,
+      size: '300 مل',
+      color: 'شفاف كرستال',
+      branchStockActual: 80,
+      branchStockReserved: 70,
+      mainWarehouseActual: 1500,
+      mainWarehouseReserved: 1400,
+      branchStocks: {
+        'البحيرة': 20,
+        'الفيوم': 15,
+        'القاهرة': 80,
+        'المنيا': 35,
+        'ديمشلت': 10,
+        'مخزون اكتوبر': 1500,
+        'أكتوبر': 1500,
+        'منوف': 25,
+        'منيا القمح': 30,
+      },
+      department: 'لوتس',
+      classification: 'كاسات زجاج',
+      promoPrice: 480,
+      piecePrice: 43.33,
+      cartonPrice: 520,
+      branchName: 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+      imageUrl: 'https://lh3.googleusercontent.com/d/2sample_drive_id=w800',
+    },
+  ];
+
+  exportProductsToExcel(sampleProducts, 'نموذج_إدخال_الأصناف_دريم');
+}
+
+export const exportElectronicInvoiceToExcel = exportInvoiceToExcel;

@@ -1,0 +1,743 @@
+export type UserRole = 'admin' | 'branch_manager' | 'supervisor' | 'sales_rep' | 'developer' | 'legal_advisor';
+
+export type UserApprovalStatus = 'active' | 'pending_approval' | 'rejected';
+
+export interface User {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  password?: string;
+  role: UserRole;
+  branchName: string;
+  code?: string;
+  supervisorName?: string;
+  supervisorId?: string;
+  phone: string;
+  avatar?: string;
+  isActive: boolean;
+  approvalStatus: UserApprovalStatus;
+  registrationDate?: string;
+  commissionRate?: number;
+}
+
+export interface CompanyInfo {
+  name: string;
+  nameArabic: string;
+  nameEnglish: string;
+  commercialNameEn?: string;
+  taxNumber: string;
+  taxRegistrationNumber?: string;
+  commercialRegister: string;
+  activity: string;
+  address: string;
+  headquarters: string;
+  phone: string;
+  customerService: string;
+  email: string;
+  website: string;
+  logoLetter?: string;
+  logoUrl?: string;
+  footerNotes?: string;
+  notificationEmails?: string[];
+}
+
+export interface Branch {
+  id: string;
+  name: string;
+  code: string;
+  city: string;
+  address: string;
+  managerName: string;
+  phone: string;
+  isMainWarehouse?: boolean;
+  email?: string;
+  notificationEmails?: string[];
+}
+
+export type SalesPriority = 'مرتفع' | 'متوسط' | 'عادي' | 'منخفض';
+export type ItemStatus = 'متاح' | 'راكد' | 'عرض ترويجي' | 'نواقص' | 'موقوف مؤقتاً';
+
+export const OFFICIAL_DEPARTMENTS = [] as const;
+
+export type OfficialDepartment = string;
+
+export interface Product {
+  id: string;
+  code: string;                      // الكود
+  unifiedCode?: string;              // الكود الموحد (#) الذي يربط ألوان وموديلات الصنف معاً ويسهل التعرف على الصور
+  name: string;                      // اسم الصنف (Product name)
+  salesPriority: SalesPriority;      // اولوية البيع
+  category: string;                  // التصنيف / المجموعة
+  status: ItemStatus;                // حالة الصنف
+  cartonQuantity: number;            // شدة الكرتونة (Factor - عدد القطع بالكرتونة)
+  factor?: number;                   // شدة الكرتونة (Factor)
+  size: string;                      // الحجم
+  color: string;                     // اللون
+  branchStockActual: number;         // رصيد الفرع الحالي بالكراتين - فعلي
+  branchStockReserved: number;       // رصيد الفرع الحالي بالكراتين - متاح للطلب
+  mainWarehouseActual: number;       // رصيد مخزن أكتوبر بالكراتين - فعلي
+  mainWarehouseReserved: number;     // رصيد مخزن أكتوبر بالكراتين - متاح للطلب
+  branchStocks?: Record<string, number>; // أرصدة الفروع الفردية (البحيرة، الفيوم، القاهرة، المنيا، ديمشلت، مخزون اكتوبر، منوف، منيا القمح)
+  department: string;                // القسم / Item group
+  itemGroup?: string;                // المجموعة الرئيسية (Item group)
+  classification: string;            // الفئة / Family Name
+  familyName?: string;               // العائلة (Family Name)
+  promoPrice?: number;               // سعر العرض للكرتونة (اختياري)
+  promoPiecePrice?: number;          // سعر العرض للقطعة الفردية (يُحسب تلقائياً = promoPrice / cartonQuantity)
+  offerPrice?: number;               // مرادف سعر العرض
+  discountPercent?: number;          // نسبة الخصم الإضافية
+  discountPercentage?: number;       // نسبة الخصم
+  piecePrice?: number;               // سعر القطعة (Sales Price)
+  salesPrice?: number;               // سعر القطعة (Sales Price)
+  price?: number;                    // السعر العام / سعر القطعة (مرادف اختياري للتوافق)
+  cartonPrice: number;               // سعر الكرتونة (Factor * Sales Price)
+  branchName: string;                // اسم الفرع
+  imageUrl?: string;                 // رابط الصورة المباشر
+  cloudinaryPublicId?: string;       // معرّف Cloudinary
+  barcode?: string;
+  minOrderQuantity?: number;
+  notes?: string;
+  variantId?: string;                // رقم/معرف الشباك أو اللون في حال كان متغير
+  variantName?: string;              // اسم الشباك (مثل: شباك 1، شباك 2، أحمر)
+}
+
+export interface ProductVariant {
+  id: string;                        // variant_id (معرف الشباك الفريد)
+  productId: string;                 // product_id (مرتبط بالمنتج الرئيسي)
+  code: string;                      // كود الصنف الفرعي للشباك (SKU)
+  unifiedCode?: string;              // الكود الموحد (#) الذي يربط ألوان وموديلات الصنف معاً
+  name: string;                      // اسم الشباك / اللون (شباك 1، شباك 2، أحمر، ...)
+  windowNumber?: number;             // رقم الشباك (1, 2, 3...)
+  color: string;                     // اللون
+  colorCode?: string;                // كود أو تمثيل اللون
+  imageUrl?: string;                 // صورة الشباك بدقة عالية وواضحة للعين
+  branchStockActual: number;         // الكمية المتاحة في المخزن للفرع
+  branchStockReserved: number;       // الكمية المحجوزة
+  mainWarehouseActual: number;       // الكمية المتاحة في مخزن أكتوبر الرئيسي
+  mainWarehouseReserved: number;
+  cartonQuantity: number;            // شدة الكرتونة
+  piecePrice: number;                // سعر القطعة
+  cartonPrice: number;               // سعر الكرتونة
+  promoPrice?: number;               // سعر العرض للكرتونة
+  promoPiecePrice?: number;          // سعر العرض للقطعة
+  status: ItemStatus;                // حالة الصنف
+  barcode?: string;
+  rawProduct: Product;               // مرجع كامل للصنف الأصلي لعمليات السلة والطلبيات
+}
+
+export interface ParentProduct {
+  id: string;                        // معرّف المنتج الرئيسي الموحد
+  primaryCode: string;               // الكود الموحد/الأساسي (الكود المشترك للـ 3,444 منتج)
+  unifiedCode?: string;              // الكود الموحد الرسمي (#)
+  name: string;                      // الاسم العام للمنتج
+  department: string;                // القسم / Item group
+  category: string;                  // التصنيف
+  classification: string;            // الفئة / Family Name
+  familyName?: string;
+  salesPriority: SalesPriority;
+  status: ItemStatus;
+  cartonQuantity: number;
+  imageUrl?: string;                 // صورة الصنف العامة عالية الوضوح
+  minPrice: number;                  // أقل سعر بيع بين الشبابيك
+  maxPrice: number;                  // أعلى سعر بيع بين الشبابيك
+  totalBranchStock: number;          // إجمالي رصيد الفرع الحالي لكافة الشبابيك
+  totalOctoberStock: number;         // إجمالي رصيد مخزن أكتوبر لكافة الشبابيك
+  variants: ProductVariant[];        // قائمة المتغيرات والشبابيك المرتبطة
+  variantsCount: number;             // عدد الشبابيك والألوان المتوفرة
+  hasMultipleVariants: boolean;      // هل يحتوي على أكثر من شباك/لون
+  defaultVariant: ProductVariant;    // الشباك الافتراضي (الأول أو المتوفر)
+}
+
+export interface PromotionOffer {
+  id: string;
+  title: string;
+  productCode: string;               // كود الصنف
+  unifiedCode?: string;              // الكود الموحد (#)
+  productName: string;               // اسم المنتج
+  category?: string;                 // التصنيف
+  discountPercentage: number;        // نسبة الخصم %
+  promoPrice?: number;               // سعر العرض للكرتونة
+  promoPiecePrice?: number;          // سعر العرض للقطعة
+  originalPrice?: number;            // السعر الأصلي للكرتونة
+  startDate?: string;                // تاريخ البداية
+  endDate?: string;                  // تاريخ النهاية
+  branchName?: string;               // الفرع المشمول أو 'كل الفروع'
+  status: 'نشط' | 'منتهي' | 'مجدول';
+  notes?: string;                    // تفاصيل وشروط العرض
+  createdAt?: string;
+  sourceSheet?: string;              // اسم الشيت المستورد منه
+}
+
+export type CustomerTier = 'مميز' | 'راقي' | 'متوسط' | 'عادي';
+
+export type CustomerVisitStatus = 'مجدولة' | 'منفذة' | 'ملغاة' | 'لم تتم';
+export type VisitReviewStatus = 'pending' | 'approved' | 'needs_fix';
+
+export interface CustomerVisit {
+  id: string;
+  customerId?: string;
+  customerName?: string;             // اسم العميل
+  customerCode?: string;             // كود العميل
+  date: string;                      // تاريخ الزيارة (YYYY-MM-DD)
+  time?: string;
+  repId?: string;
+  repName: string;                   // اسم المندوب القائم بالزيارة
+  branchName?: string;
+  supervisorId?: string;
+  supervisorName?: string;
+  status?: CustomerVisitStatus;
+  /**
+   * غرض الزيارة.
+   *
+   * الاتنين مستخدمين فعلاً، والاتنين لازم يبقوا مقبولين:
+   *  - فورم تسجيل الزيارة في VisitsDashboard بيعرض: زيارة دورية / تحصيل /
+   *    تسليم بضاعة / حل مشكلة / فتح حساب جديد
+   *  - فلتر الزيارات في AllCustomersAnalyticsView بيعرض: زيارة بيع وطلبية /
+   *    زيارة تحصيل / زيارة دورية / متابعة حساب
+   *
+   * التعريف القديم كان محدد بس التلاتة الأولى، فكان cast في الفورم بيخفي
+   * إن 4 من 5 قيم بره الـ union وبتتخزن عادي من غير تحقق. والزيارات
+   * القديمة ممكن تحمل أي من المجموعتين، فالاتنين مقبولين.
+   */
+  type?: 'زيارة دورية' | 'تحصيل' | 'تسليم بضاعة' | 'حل مشكلة' | 'فتح حساب جديد'
+      | 'زيارة تحصيل' | 'زيارة بيع وطلبية' | 'متابعة حساب' | 'زيارة مجدولة' | 'زيارة مباشرة' | 'أخرى';
+  outcome?: 'تم عمل طلبية' | 'تم التحصيل' | 'تأجيل سداد' | 'المحل مغلق' | 'متابعة فقط' | 'مرتجع لدي العميل' | 'أخرى';
+  collectedAmount?: number;          // المبلغ المحصل إن وجد
+  notes?: string;                    // ملاحظات الزيارة
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  reviewStatus?: VisitReviewStatus;
+  reviewedByName?: string;
+  reviewNote?: string;
+  reviewedAt?: string;
+
+  /**
+   * زيارة لنفس العميل في نفس اليوم موجودة بالفعل.
+   *
+   * بيتحدّد في addVisit: لو فيه زيارة لنفس (customerId + date)، الواجهة
+   * بتعرض الزيارة الموجودة وبتاخد قرار المستخدم بدل ما تسجّل سطر تاني.
+   * السبب: كل زيارة بتنقص رصيد العميل بالمبلغ المحصّل وبتزيد عدّاد
+   * `visitCount2026`، فتسجيل نفس الزيارة مرتين = خصم مزدوج + عدّاد غلط.
+   * استُخدم نفس المفتاح في addImportedVisits، فالمسار متسق.
+   */
+  duplicateOfVisitId?: string;
+
+  /**
+   * سماح صريح بزيارة تانية لنفس العميل في نفس اليوم.
+   *
+   * الافتراضي false — وده اللي بيمنع الازدواج. بيتحدّد من الشاشة لوحدها
+   * (عادةً checkbox «سجّل رغم وجود زيارة اليوم») أو من أي نداء برمجي محتاج
+   * behave حرفياً زي الأول. وجود الحقل ده معناه السلوك الافتراضي آمن:
+   * أي نداء جديد هيتعامل معاه كأن الازدواج ممنوع.
+   */
+  allowSameDaySecondVisit?: boolean;
+
+  // Archiving capabilities (أرشفة الزيارات والملاحظات)
+  isArchived?: boolean;              // هل الزيارة/الملاحظة مؤرشفة؟
+  archivedAt?: string;               // تاريخ ووقت الأرشفة
+  archivedBy?: string;               // اسم المستخدم الذي قام بالأرشفة
+
+  // Developed Visit Capabilities (تطوير الزيارات الميدانية)
+  location?: {
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
+    address?: string;
+    mapUrl?: string;
+    timestamp?: string;
+  };
+  checkInTime?: string;              // وقت تسجيل الحضور عند العميل (Check-In)
+  checkOutTime?: string;             // وقت الانتهاء من الزيارة (Check-Out)
+  durationMinutes?: number;          // مدة الزيارة بالدقائق
+  storeStockStatus?: 'متوفر بكثرة' | 'متوسط' | 'منخفض' | 'منعدم (نفاد مخزون)';
+  competitorNotes?: string;          // ملاحظات على أسعار وعروض المنافسين في المتجر
+  customerRating?: 1 | 2 | 3 | 4 | 5; // تقييم رضا وتجاوب العميل
+  nextVisitDate?: string;            // موعد الزيارة القادمة المتفق عليه
+  orderCreatedId?: string;           // كود الطلبية المنشأة أثناء الزيارة
+  orderAmount?: number;              // قيمة الطلبية إن وجدت
+  syncStatus?: 'synced' | 'pending_sync' | 'local_only'; // تأكيد الحفظ في قاعدة البيانات
+
+  // ===== المرتجع (Return) =====
+  // Logged by the sales rep during the visit. Surfaces to the supervisor as an
+  // alert until it is handed over to the warehouse keeper.
+  isReturn?: boolean;                 // هل الزيارة تضمنت مرتجع؟
+  returnValue?: number;               // قيمة المرتجع بالجنيه
+  returnReason?: string;              // سبب المرتجع
+  returnItems?: string;               // تفاصيل الأصناف المرتجعة
+  returnStatus?: 'بانتظار المشرف' | 'تم الإرسال لأمين المخزن' | 'تم التحويل لأمين المخزن' | 'تم الاستلام من أمين المخزن' | 'تم الاستلام بالمخزن';
+  returnHandledBy?: string;           // اسم المشرف أو مدير الفرع أو المسؤول الذي أكّد التحويل
+  returnHandledAt?: string;           // وقت تأكيد التحويل
+  returnHandledRole?: string;         // وظيفة/دور من قام بالتحويل
+  returnNote?: string;                // ملاحظة المشرف عند الإرسال/التحويل
+}
+
+export interface Customer {
+  id: string;
+  code: string;                      // كود العميل (كود العميل)
+  name: string;                      // اسم العميل / المحل (الاسم)
+  storeName?: string;                // اسم المحل / السوبر ماركت / المعرض
+  tier?: CustomerTier;               // فئة وتصنيف العميل (مميز / راقي / متوسط / عادي)
+  phone: string;                     // رقم الهاتف
+  address?: string;                  // العنوان التفصيلي
+  governorate?: string;              // المحافظة
+  region?: string;                   // المنطقة / الحي / المركز
+  branchName: string;                // اسم الفرع (الفرع)
+  repName?: string;                  // اسم المندوب المسئول (المندوب الحالي)
+  salesRepName?: string;             // المندوب المسئول (alias)
+  repId?: string;                    // كود المندوب
+  supervisorName?: string;           // المشرف المسؤول
+  taxNumber?: string;                // الرقم الضريبي
+  balance?: number;                  // رصيد الحساب الحالي
+  currentBalance?: number;           // المديونية الحالية
+  totalOverdueAndDue?: number;       // إجمالي المتأخرات والمستحق
+  overdueBalance?: number;           // المتأخرات
+  totalOverdue?: number;             // إجمالي المتأخرات
+  dueBalance?: number;               // المستحق
+  creditLimit?: number;              // الحد الائتماني
+  lastOrderDate?: string;            // تاريخ آخر طلبية
+  lastCollectionDate?: string;       // تاريخ آخر تحصيل (YYYY-MM-DD أو نص التاريخ)
+  lastCollectionAmount?: number;     // قيمة آخر تحصيل
+  totalOrdersCount?: number;         // إجمالي عدد الطلبيات
+  totalSpent?: number;               // إجمالي المبيعات للعميل
+
+  // --- التحليلات والمبيعات السنوية والشهرية (2025 - 2026) ---
+  sales2025?: number;                // إجمالي مبيعات عام 2025
+  sales2026?: number;                // إجمالي مبيعات عام 2026
+  collections2025?: number;          // إجمالي تحصيلات عام 2025
+  collections2026?: number;          // إجمالي تحصيلات عام 2026
+  monthlySales2026?: Record<number, number>;        // مبيعات شهور 2026 (1 إلى 12: يناير إلى ديسمبر)
+  monthlyCollections2026?: Record<number, number>;  // تحصيلات شهور 2026 (1 إلى 12: يناير إلى ديسمبر)
+  hasPreviousDeals?: boolean;        // هل تعامل العميل مسبقاً قبل 2026
+  hasDealtIn2026?: boolean;          // هل تعامل العميل وسحب طلبيات في 2026
+  status2026?: 'active' | 'inactive' | 'churn_risk' | 'new_customer'; // حالة النشاط
+
+  // --- أعمدة شيت تارجت المبيعات والعملاء والتحصيلات المتطورة ---
+  guaranteeDocs?: string;            // اوراق الضمان (شيك، كمبيالة، إيصال أمانة، رهن، بدون)
+  guaranteeAmount?: number;          // مبلغ ورقة الضمان إن وجد (لو فيه مبلغ يبقي ماضي)
+  hasGuarantee?: boolean;            // هل العميل ماضي على ورقة ضمان
+  paymentTerms?: string;             // طريقة الدفع (نقدي، آجل، أسبوعي، شهري...)
+  activityType?: string;             // طبيعة النشاط (سوبرماركت، جملة، قطاعي، توكيلات...)
+  district?: string;                 // المركز / المنطقة
+  route?: string;                    // الخط / خط السير
+  clientType?: string;               // خ/ك (خاص / كبار / عادي / خط)
+  adjustments?: number;              // تعديلات التارجت
+  annualTarget?: number;             // الهدف السنوي
+  openingBalance2026?: number;       // اول المدة 2026
+  dealt2026?: string;                // متعامل 2026 (متعامل / غير متعامل / نعم / لا)
+  dealEligibility?: string;          // قابل /غير (قابل للتعامل / غير قابل / موقوف)
+  debtStatus?: string;               // حالة دين العميل (منتظم / متأخر / متعثر / محمي)
+  totalMonthlySales?: number;        // اجمالي المبيعات (مجموع شهور المبيعات)
+  totalMonthlyCollections?: number;  // اجمالي التحصيلات (مجموع شهور التحصيل)
+  overdue2025?: number;              // متاخرات 2025
+  overdue2026?: number;              // متاخرات 2026
+  dueUntilPeriod?: number;           // مستحق حتي نهاية اغسطس (أو الفترة)
+  duePeriodLabel?: string;           // وصف عمود المستحق (مثل مستحق حتى نهاية أغسطس)
+  totalOverallSales?: number;        // اجمالي مبيعات
+  totalOverallCollections?: number;  // تحصيلات
+  sales2024?: number;                // مبيعات 2024
+  collections2024?: number;          // تحصيلات 2024
+  activeSalesMonths?: number[];      // الشهور المتوفرة للمبيعات ديناميكياً [1, 2, 3, ...]
+  activeCollectionMonths?: number[]; // الشهور المتوفرة للتحصيل ديناميكياً [1, 2, 3, ...]
+
+  // --- سجل ومتابعة الزيارات ---
+  lastVisitDate?: string;            // تاريخ آخر زيارة تمت للعميل
+  nextVisitDate?: string;            // تاريخ الزيارة القادمة المجدولة
+  visitCount2026?: number;           // عدد الزيارات المنفذة في 2026
+  visitHistory?: CustomerVisit[];    // سجل تفاصيل الزيارات
+
+  // --- الشؤون القانونية والتحويل القضائي ---
+  isLegalPending?: boolean;          // محول للشؤون القانونية
+  legalStatus?: string;              // حالة النزاع أو التسوية (pending, settlement, resolved, etc.)
+  legalNotes?: string;               // إفادة المستشار القانوني
+
+  notes?: string;
+  createdAt?: string;
+}
+
+export interface InstallPromptEvent {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
+
+export interface CartItem {
+  product: Product;
+  unifiedCode?: string;              // الكود الموحد (#)
+  orderType?: 'carton' | 'piece' | 'mixed';
+  cartonCount: number;               // عدد الكراتين
+  pieceCount: number;                // عدد القطع الفردية
+  cartonQuantity?: number;           // شدة الكرتونة
+  totalPieces: number;               // إجمالي القطع (كراتين * شدة + قطع)
+  unitPrice: number;                 // سعر الكرتونة
+  pricePerPiece?: number;            // سعر القطعة
+  totalPrice: number;                // إجمالي الصنف = (كراتين * سعر كرتونة) + (قطع * سعر قطعة)
+  quantityDescription?: string;      // وصف الكمية الذكي
+  notes?: string;
+  fulfillFromMainWarehouse?: boolean; // سحب من المخزن الرئيسي
+}
+
+export type OrderStatus =
+  | 'مسودة'
+  | 'قيد مراجعة المشرف'
+  | 'معلقة بانتظار اعتماد الفرع'
+  | 'قيد المراجعة'
+  | 'معتمدة ومصروفة من المخزن'
+  | 'معتمدة'
+  | 'جاري التجهيز'
+  | 'جاري تحضير المنتجات'
+  | 'تم وصول المنتجات'
+  | 'قيد التوصيل'
+  | 'تم التسليم'
+  | 'إغلاق الطلبية'
+  | 'مرتجع'
+  | 'مرتجع جزئي'
+  | 'مرفوضة / ملغاة'
+  | 'ملغاة';
+export type PaymentMethod = 'نقدي (كاش)' | 'آجل (30 يوم)' | 'آجل (60 يوم)' | 'تحويل بنكي' | 'شيك';
+
+export interface ReturnedItem {
+  productId: string;
+  productCode: string;
+  productName: string;
+  cartonCount: number;               // عدد الكراتين المرتجعة
+  pieceCount: number;                // عدد القطع المرتجعة
+  cartonQuantity: number;            // شدة الكرتونة
+  totalPieces: number;               // إجمالي القطع المرتجعة
+  pricePerCarton: number;            // سعر الكرتونة
+  pricePerPiece: number;             // سعر القطعة
+  refundAmount: number;              // إجمالي القيمة المالية المرتجعة للصنف
+  returnReason?: string;             // سبب ارتجاع الصنف
+  condition?: 'good_condition' | 'damaged' | 'expired'; // حالة البضاعة (سليمة تعود للمخزن / تالفة / منتهية)
+}
+
+export interface ReturnRecord {
+  id: string;
+  returnVoucherNumber: string;       // رقم إذن المرتجع مثل: RET-2026-0014
+  invoiceId: string;
+  invoiceNumber: string;
+  customerName: string;
+  customerCode?: string;
+  branchName: string;
+  repName: string;
+  date: string;                      // تاريخ المرتجع
+  time: string;
+  returnedItems: ReturnedItem[];
+  totalRefundAmount: number;
+  totalReturnedCartons: number;
+  totalReturnedPieces: number;
+  reason: string;                    // سبب الارتجاع العام
+  handledBy: string;                 // اسم من قام بتسجيل المرتجع
+  restockedToInventory: boolean;     // هل تم إرجاع الكميات السليمة لرصيد المخزن الفعلي
+  notes?: string;
+}
+
+export interface InventoryTransaction {
+  id: string;
+  timestamp: string;
+  date: string;
+  productId: string;
+  productCode: string;
+  productName: string;
+  type: 'حجز طلبية مندوب' | 'صرف واعتماد مشرف' | 'إلغاء حجز وإرجاع' | 'مرتجع مبيعات وإرجاع للمخزن' | 'توريد مخزني' | 'تحويل بين الفروع' | 'تعديل جردي';
+  quantityPieces: number;            // عدد الكراتين المنقولة / المحجوزة
+  branchStockBefore: number;
+  branchStockAfter: number;
+  branchName: string;
+  userName: string;
+  userRole: UserRole;
+  invoiceId?: string;
+  invoiceNumber?: string;
+  notes?: string;
+}
+
+export interface InvoiceItem {
+  productId: string;
+  productCode: string;
+  unifiedCode?: string;              // الكود الموحد (#)
+  color?: string;                    // لون الصنف من كتالوج المخزون
+  productName: string;
+  product?: Product;                 // Reference to full product if available
+  itemGroup?: string;
+  familyName?: string;
+  cartonCount: number;               // عدد الكراتين المطلوبة
+  pieceCount: number;                // عدد القطع الفردية
+  cartonQuantity: number;            // شدة الكرتونة (ق/ك)
+  totalUnits?: number;               // إجمالي القطع
+  totalPieces?: number;              // إجمالي القطع (alias)
+  quantityDescription?: string;      // وصف الكمية الذكي (مثال: 1 كرتونة و 1 قطعة)
+  pricePerPiece: number;             // سعر القطعة
+  pricePerCarton: number;            // سعر الكرتونة
+  appliedPrice: number;              // سعر الكرتونة الفعلي
+  unitPrice?: number;                // سعر الوحدة الفعلي (alias)
+  totalBeforeTax: number;            // (كراتين * سعر كرتونة) + (قطع * سعر قطعة)
+  discountAmount: number;            // قيمة الخصم
+  taxAmount: number;                 // قيمة الضريبة
+  netTotal: number;                  // الإجمالي النهائي
+  totalPrice?: number;               // الإجمالي (alias)
+  fulfilledFrom: 'branch' | 'main_warehouse' | 'mixed';
+  fulfillFromMainWarehouse?: boolean; // حجز من المخزن الرئيسي بأكتوبر
+  notes?: string;
+
+  // Availability & October Shortage Tracking (فاتورة واحدة مع بيان التوفر ونواقص أكتوبر)
+  branchStockAtOrder?: number;       // رصيد فرع المندوب عند الطلب
+  octoberStockAtOrder?: number;      // رصيد مخزن 6 أكتوبر عند الطلب
+  branchName?: string;               // اسم الفرع (مثلاً فرع ديمشلت)
+  isShortage?: boolean;              // هل الصنف به عجز بالفرع؟
+  shortageCartons?: number;          // عدد الكراتين الناقصة بالفرع
+  shortagePieces?: number;           // عدد القطع الناقصة بالفرع
+  needsOctoberSupply?: boolean;      // مطلوب توريده من مخزن أكتوبر
+  octoberSupplyStatus?: 'متوفر بالفرع' | 'مطلوب توريده من أكتوبر' | 'تم طلب التوريد' | 'تم السحب والتوريد';
+}
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;         // رقم الفاتورة مثل: DRM-2026-0042
+  customerId?: string;           // كود أو معرّف العميل
+  customerCode?: string;         // كود العميل
+  customerName: string;          // اسم العميل
+  customerPhone?: string;
+  customerAddress?: string;
+  customerTaxNumber?: string;
+  date: string;                  // التاريخ
+  time: string;
+  createdAt?: string;            // تاريخ ووقت الإنشاء الدقيق للتتبع والتعديل
+  timestamp?: string;
+  repId: string;
+  repName: string;               // اسم المندوب
+  supervisorName?: string;
+  branchName: string;            // اسم الفرع
+  items: InvoiceItem[];
+  totalCartons: number;
+  totalPieces: number;
+  subtotal: number;
+  discountPercentage: number;
+  discountAmount: number;
+  taxPercentage: number;         // مثلاً 14% ضريبة القيمة المضافة
+  taxAmount: number;
+  estimatedGrandTotal: number;   // إجمالي الفاتورة التقديرية
+  paymentMethod: PaymentMethod;
+  status: OrderStatus;
+  notes?: string;
+  syncedToAccounting?: boolean;
+  accountingSyncDate?: string;
+  qrPayload?: string;
+
+  // Customer Debt & Credit Limit Tracking
+  customerBalanceBefore?: number;
+  customerCreditLimit?: number;
+  customerBalanceAfter?: number;
+  customerOverdueBalance?: number;
+  creditLimitExceeded?: boolean;
+  requiredDownPayment?: number;
+
+  // Shortage Backorders & Splitting
+  isShortageInvoice?: boolean;
+  parentInvoiceId?: string;
+  parentInvoiceNumber?: string;
+  hasShortageSplit?: boolean;
+  shortageInvoiceNumber?: string;
+
+  // October Shortage & Supply Dispatch Tracking (متابعة وسحب فواتير النواقص)
+  hasOctoberShortages?: boolean;     // هل الفاتورة بها نواقص مطلوب توريدها من أكتوبر؟
+  shortageItemsCount?: number;       // عدد الأصناف الناقصة
+  shortageCartonsCount?: number;     // إجمالي كراتين النواقص
+  octoberSupplyRequested?: boolean;  // هل المشرف/المدير اعتمد وطلب التوريد؟
+  octoberSupplyRequestedAt?: string; // تاريخ ووقت طلب التوريد
+  octoberSupplyRequestedBy?: string; // اسم من طلب التوريد (المشرف أو مدير الفرع)
+  octoberSupplyDispatched?: boolean; // هل تم سحب وتوريد النواقص من مخزن أكتوبر؟
+  octoberSupplyDispatchedAt?: string;
+  octoberSupplyDispatchedBy?: string;
+
+  // Cancellation & Restitution Details
+  cancellationReason?: string;
+  cancelledBy?: string;
+  cancelledAt?: string;
+  restoredStockDetails?: string;
+
+  // Returns & Partial Return Records (إدارة المرتجعات الكلية والجزئية)
+  hasReturns?: boolean;
+  isPartialReturn?: boolean;
+  returnRecords?: ReturnRecord[];
+  totalRefundedAmount?: number;
+  netAmountAfterReturns?: number;
+  lastReturnDate?: string;
+}
+
+export interface CloudinaryConfig {
+  cloudName: string;
+  folderPrefix: string;
+  defaultTransformation: string;
+  matchingPattern: 'auto' | 'code' | 'name' | 'slug' | 'custom_url';
+  fileExtension: 'jpg' | 'png' | 'webp' | 'auto';
+  baseUrlPattern: string;
+}
+
+export interface ExcelColumnMapping {
+  code: string;
+  name: string;
+  salesPriority: string;
+  category: string;
+  status: string;
+  cartonQuantity: string;
+  size: string;
+  color: string;
+  branchStockActual: string;
+  branchStockReserved: string;
+  mainWarehouseActual: string;
+  mainWarehouseReserved: string;
+  department: string;
+  classification: string;
+  promoPrice: string;
+  piecePrice: string;
+  cartonPrice: string;
+  branchName: string;
+  imageUrl?: string;
+}
+
+export interface AccountingSyncLog {
+  id: string;
+  timestamp: string;
+  invoiceNumber: string;
+  status: 'نجاح' | 'فشل' | 'قيد الانتظار';
+  systemName: string;
+  responseMessage: string;
+}
+
+export type AuditActionType =
+  | 'create_invoice'
+  | 'update_invoice_status'
+  | 'approve_invoice'
+  | 'cancel_invoice'
+  | 'return_invoice'
+  | 'delete_invoice'
+  | 'import_products'
+  | 'stock_adjustment'
+  | 'user_login'
+  | 'create_user'
+  | 'update_user';
+
+export interface AuditLog {
+  id: string;
+  timestamp: string; // ISO string
+  formattedTime: string; // e.g. 2026-08-21 04:30 م
+  userId: string;
+  userName: string;
+  userRole: UserRole;
+  branchName: string;
+  action: AuditActionType;
+  actionTitle: string;
+  details: string;
+  invoiceId?: string;
+  invoiceNumber?: string;
+  ipAddress?: string;
+  badgeType?: 'success' | 'warning' | 'info' | 'danger' | 'neutral';
+}
+
+export type TargetQuarter = 'Q1' | 'Q2' | 'Q3' | 'Q4';
+
+export interface TargetRecord {
+  id: string;
+  branch: string;                     // الفرع
+  repName: string;                    // المندوب
+  salesTarget: number;                // هدف البيع
+  salesAchieved: number;              // المحقق بيع
+  salesPercentage: number;            // نسبه البيع (%)
+  collectionTarget: number;           // هدف التحصيل
+  collectionAchieved: number;         // المحقق تحصيل
+  collectionPercentage: number;       // نسبه تحصيل (%)
+  date: string;                       // تاريخ (YYYY-MM-DD أو YYYY-MM)
+  month: number;                      // 1 - 12
+  year: number;                       // e.g. 2026
+  quarter: TargetQuarter;             // الكوارتر (Q1: 1,2,3 | Q2: 4,5,6 | Q3: 7,8,9 | Q4: 10,11,12)
+  remainingSales: number;             // المتبقي للبيع
+  remainingCollection: number;        // المتبقي للتحصيل
+  updatedAt?: string;
+  notes?: string;
+}
+
+/* ============================================================
+   توقع التحصيلات — Collection & Sales Forecast
+   ----------------------------------------------------------------
+   صفحة متابعة: بتقول هل الأرقام اللي في التارجت هتحقق ولا لأ.
+   التارجت نفسه (TargetRecord) بيفضل مصدر verdad تاني.
+   ============================================================ */
+
+/** فترة واحدة داخل الشهر (اتسمّاها أسبوع). تواريخها الإدارة بتحددها يدوياً. */
+export interface ForecastWeek {
+  index: number;                // 1..MAX_WEEKS_PER_MONTH (مش ثابت — الإدارة بتختار)
+  start: string;                // YYYY-MM-DD
+  end: string;                  // YYYY-MM-DD (شامل)
+  /** اسم يعرضه بدل «أسبوع 1» — اختياري، والإدارة بتحطه وقت ما تحب. */
+  label?: string;
+}
+
+/** خطة الشهر: تقسيم الفترات + حالة الإغلاق. */
+export interface ForecastMonthPlan {
+  id: string;                   // `${year}-${month}` مثل '2026-09'
+  year: number;
+  month: number;                // 1 - 12
+  monthStart: string;           // YYYY-MM-DD
+  monthEnd: string;             // YYYY-MM-DD
+  /** اختياري: مفيش تقسيم = []، والصفحة بتفتح على التوقع الشهري بس. */
+  weeks: ForecastWeek[];
+  /** الأرقام تتقفل بعد اعتماد المشرف؛ لا يمكن تعديلها إلا بطلب تعديل. */
+  isClosed: boolean;
+  createdBy?: string;
+  createdAt?: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+/**
+ * حالة التوقع الأسبوعي:
+ * draft            → المندوب بيكتب
+ * submitted        → بعث للمشرف
+ * approved         → المشرف اعتمد (الأرقام مقفولة)
+ * change_requested → المشرف رجعه للمندوب تعديله
+ */
+export type ForecastStatus = 'draft' | 'submitted' | 'approved' | 'change_requested';
+
+/** توقع أسبوعي لعميل واحد مندوب واحد. */
+export interface CollectionForecastRecord {
+  id: string;
+  monthKey: string;             // '2026-09'
+  weekIndex: number;            // 0 = شهري مستقل، 1..MAX_WEEKS_PER_MONTH
+  repId: string;
+  repName: string;
+  branchName: string;
+  customerId: string;
+  customerCode: string;
+  customerName: string;
+  collectionForecast: number;   // المتوقع تحصيله من العميل في الأسبوع
+  salesForecast: number;        // المتوقع بيعه للعميل في الأسبوع
+  status: ForecastStatus;
+  submittedAt?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  changeRequestNote?: string;
+  changeRequestedBy?: string;
+  changeRequestedAt?: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+export type CustomerCommentKind = 'defaulted' | 'return' | 'note';
+
+/** كومنت على عميل مربوط بكوده — للمتعثرين والمرتجعات والملاحظات. */
+export interface CustomerCommentRecord {
+  id: string;
+  customerId: string;
+  customerCode: string;
+  customerName: string;
+  branchName: string;
+  repName: string;
+  kind: CustomerCommentKind;
+  body: string;
+  authorName: string;
+  createdAt: string;
+  updatedAt?: string;
+  isArchived?: boolean;
+  archivedAt?: string;
+  archivedBy?: string;
+}

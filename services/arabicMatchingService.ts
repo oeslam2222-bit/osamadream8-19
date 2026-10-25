@@ -1,0 +1,1218 @@
+import { Customer, Product, User, Invoice } from '../types';
+import { resolveCustomerDuesValue } from './customerDues';
+
+/**
+ * Universal Arabic Text Normalizer
+ * Cleans diacritics (tashkeel), tatweel/kashida, non-breaking spaces,
+ * Unicode replacement characters (\uFFFD /  / ?),
+ * normalizes alif variants, taa marbuta, alef maqsura, compound names (عبد الفتاح / عبدالفتاح),
+ * honorific prefixes (أ/ , ك/ , م/ , د/ ), and punctuation.
+ */
+export function normalizeArabicText(str?: string): string {
+  if (!str) return '';
+  let text = str
+    .toString()
+    // 0. Remove Unicode Replacement Character \uFFFD, replacement mark , control chars, and weird artifacts
+    .replace(/[\uFFFD\uFEFF\u0000-\u001F\u007F-\u009F]/g, ' ')
+    // 1. Remove non-breaking spaces, zero-width chars, tabs
+    .replace(/[\u00A0\u1680\u180E\u2000-\u200B\u202F\u205F\u3000]/g, ' ')
+    // 2. Remove Arabic Tashkeel / Harakat (Fatha, Damma, Kasra, Shadda, Sukun, Tanween...)
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    // 3. Remove Arabic Tatweel / Kashida (ـ)
+    .replace(/\u0640/g, '')
+    // 4. Normalize all forms of Alif (أ, إ, آ, ٱ, ٵ, ٲ) -> ا
+    .replace(/[أإآٱٵٲ]/g, 'ا')
+    // 5. Normalize Taa Marbuta (ة) -> ه
+    .replace(/ة/g, 'ه')
+    // 6. Normalize Alef Maqsura (ى) -> ي, and common duplicated ya spelling (يحيى / يحيي)
+    .replace(/ى/g, 'ي')
+    .replace(/يي+/g, 'ي')
+    // 7. Normalize Hamzas (ؤ, ئ, ء)
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ي')
+    .replace(/ء/g, '')
+    // 8. Replace punctuation, question marks, brackets, dashes, and separators with spaces
+    .replace(/[\-_/\\()\[\]+.,:;*&^%$#@!~"'{}`|?؟]/g, ' ')
+    // 9. Collapse spaces
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  // 10. Normalize compound Arabic names (e.g. "عبد الفتاح" -> "عبدالفتاح", "ابو بكر" -> "ابوبكر")
+  text = normalizeCompoundNames(text);
+
+  return text;
+}
+
+/**
+ * Normalizes compound Arabic names so that variants like "عبد الفتاح" and "عبدالفتاح"
+ * or "ابو بكر" and "ابوبكر" match identically.
+ */
+export function normalizeCompoundNames(text: string): string {
+  if (!text) return '';
+  return text
+    // Normalize "عبد ال..." -> "عبدال..."
+    .replace(/\bعبد\s+ال/g, 'عبدال')
+    .replace(/\bعبد\s+/g, 'عبد')
+    // Normalize "ابو ال..." -> "ابوال..."
+    .replace(/\bابو\s+ال/g, 'ابوال')
+    .replace(/\bابو\s+/g, 'ابو')
+    .replace(/\bابي\s+/g, 'ابو')
+    .replace(/\bابا\s+/g, 'ابو')
+    // Normalize "ال " prefix when detached
+    .replace(/\bال\s+/g, 'ال')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Extract meaningful Arabic name tokens, filtering out common noise titles
+ */
+export function getArabicTokens(str?: string): string[] {
+  const norm = normalizeArabicText(str);
+  if (!norm) return [];
+
+  const ignoreWords = new Set([
+    'المندوب',
+    'مندوب',
+    'استاذ',
+    'استاذه',
+    'كابتن',
+    'فرع',
+    'فروع',
+    'المبيعات',
+    'مبيعات',
+    'مسؤول',
+    'مسئول',
+    'مسوول',
+    'بائع',
+    'بايع',
+    'موزع',
+    'الموزع',
+    'السيد',
+    'السيده',
+    'محل',
+    'شركة',
+    'شركه',
+    'مؤسسة',
+    'مؤسسه',
+    'م',
+    'أ',
+    'ا',
+    'د',
+    'ك',
+    'دكتور',
+    'مهندس',
+    'باشمهندس',
+    'حساب',
+    'توزيع',
+    'خط',
+    'منطقة',
+    'محافظة',
+    // Common branch tokens when embedded in rep column
+    'المنيا',
+    'منيا',
+    'الفيوم',
+    'فيوم',
+    'القاهرة',
+    'قاهرة',
+    'ديمشلت',
+    'دكرنس',
+    'البحيرة',
+    'بحيرة',
+    'دمنهور',
+    'منوف',
+    'المنوفية',
+    'منوفية',
+    'اكتوبر',
+    'أكتوبر',
+    'المركزي',
+    'مركزي',
+    'رئيسي',
+    'الرئيسي',
+    'طنطا',
+    'اسكندرية',
+    'الاسكندرية',
+  ]);
+
+  return norm
+    .split(' ')
+    .map((t) => t.trim())
+    .filter((token) => token.length >= 2 && !ignoreWords.has(token));
+}
+
+/**
+ * Intelligent Arabic Name Matcher
+ * Handles exact matches, full token equality, prefix/suffix titles stripping,
+ * and compound names normalization without false positive partial matching.
+ */
+export function isArabicNameMatch(nameA?: string, nameB?: string): boolean {
+  if (!nameA || !nameB) return false;
+  const normA = normalizeArabicText(nameA);
+  const normB = normalizeArabicText(nameB);
+  if (!normA || !normB) return false;
+  if (normA === normB) return true;
+
+  // Compact space-stripped match (e.g. "احمدعلاء" vs "احمد علاء").
+  // Only allowed when the shorter name has 2+ tokens: a single long token like
+  // "ياسمين" must not substring-match "ياسمين عبدالله".
+  const compactA = normA.replace(/\s+/g, '');
+  const compactB = normB.replace(/\s+/g, '');
+  if (compactA === compactB) return true;
+  if (compactA.length >= 6 && compactB.length >= 6) {
+    const shortIsMultiToken = normA.includes(' ') ? normA.split(/\s+/).length >= 2 : normB.split(/\s+/).length >= 2;
+    if (shortIsMultiToken && (compactA.includes(compactB) || compactB.includes(compactA))) return true;
+  }
+
+  const tokensA = getArabicTokens(nameA);
+  const tokensB = getArabicTokens(nameB);
+  if (tokensA.length === 0 || tokensB.length === 0) return false;
+
+  const joinedA = tokensA.join(' ');
+  const joinedB = tokensB.join(' ');
+  if (joinedA === joinedB) return true;
+
+  // Exact word boundary containment (e.g. "علاء عمر" inside "مندوب علاء عمر فرع الفيوم")
+  if (
+    (` ${normA} `).includes(` ${normB} `) ||
+    (` ${normB} `).includes(` ${normA} `) ||
+    (` ${joinedA} `).includes(` ${joinedB} `) ||
+    (` ${joinedB} `).includes(` ${joinedA} `)
+  ) {
+    return true;
+  }
+
+  // Token matching heuristics:
+  // Names MUST share first name token or all tokens of shorter name
+  const [shorter, longer] = tokensA.length <= tokensB.length ? [tokensA, tokensB] : [tokensB, tokensA];
+  const longerSet = new Set(longer);
+
+  // If all tokens of shorter name exist in longer name in exact sequence or set
+  const allShorterMatch = shorter.every((t) => longerSet.has(t));
+  if (allShorterMatch) {
+    return true;
+  }
+
+  // If first names match (e.g. "يحيى بدير" and "يحيى بدير طنطاوي" or "يحيى" and "يحيى بدير")
+  const firstMatch = tokensA[0] === tokensB[0];
+  if (firstMatch) {
+    if (tokensA.length === 1 || tokensB.length === 1) {
+      return true;
+    }
+    // If both have >= 2 tokens and second token matches
+    if (tokensA[1] === tokensB[1]) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Canonical Branch Names in Dream Distribution
+ */
+export const CANONICAL_BRANCHES = [
+  'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+  'فرع المنيا',
+  'فرع منيا القمح',
+  'فرع القاهرة',
+  'فرع الفيوم',
+  'فرع البحيرة',
+  'فرع ديمشلت',
+  'فرع منوف',
+] as const;
+
+export const MAIN_BRANCH_NAME: string = CANONICAL_BRANCHES[0];
+
+export const BRANCH_CODE_MAP: Record<string, string> = {
+  '8': MAIN_BRANCH_NAME,
+  '08': MAIN_BRANCH_NAME,
+  '15': 'فرع الفيوم',
+  '45': 'فرع ديمشلت',
+  '55': 'فرع منوف',
+  '65': 'فرع منيا القمح',
+  '75': 'فرع القاهرة',
+  '90': 'فرع البحيرة',
+  '95': 'فرع المنيا',
+};
+
+const ARABIC_DIGIT_MAP: Record<string, string> = {
+  '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
+  '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9',
+};
+
+function toLatinDigits(value: string): string {
+  return value.replace(/[٠-٩]/g, (d) => ARABIC_DIGIT_MAP[d]);
+}
+
+export function resolveBranchName(name?: string): string {
+  if (!name || !name.trim()) return '';
+  const clean = name.trim();
+  const codeCandidate = toLatinDigits(clean).replace(/^فرع\s*/i, '').trim();
+  const codeMatch = BRANCH_CODE_MAP[codeCandidate] || BRANCH_CODE_MAP[codeCandidate.toLowerCase()];
+  if (codeMatch) return codeMatch;
+
+  const inferred = inferBranchFromText(clean);
+  if (inferred) return inferred;
+
+  const norm = normalizeArabicText(clean);
+  for (const branch of CANONICAL_BRANCHES) {
+    if (norm === normalizeArabicText(branch) || norm === normalizeArabicText(branch.replace(/^فرع\s*/, ''))) {
+      return branch;
+    }
+  }
+
+  return '';
+}
+
+export function isCanonicalBranchName(name?: string): boolean {
+  return CANONICAL_BRANCHES.includes(normalizeBranchName(name) as any);
+}
+
+/**
+ * Infer exact branch name from text (address, customer name, notes, governorate, or branch string)
+ * Distinguishes Upper Egypt Minya (بني مزار، ملوي، سمالوط، مغاغة) from Sharqia Minya El-Qamh (منيا القمح، الزقازيق، بلبيس)
+ */
+export function inferBranchFromText(text?: string): string {
+  if (!text) return '';
+  const norm = normalizeArabicText(text);
+  if (!norm) return '';
+
+  // 1. Minya (Upper Egypt) specific centers & districts - Check first for unambiguous Minya locations
+  if (
+    norm.includes('بني مزار') ||
+    norm.includes('بنى مزار') ||
+    norm.includes('ملوي') ||
+    norm.includes('ملوى') ||
+    norm.includes('مغاغة') ||
+    norm.includes('مغاغه') ||
+    norm.includes('سمالوط') ||
+    norm.includes('ابوقرقاص') ||
+    norm.includes('ابو قرقاص') ||
+    norm.includes('دير مواس') ||
+    norm.includes('ديرمواس') ||
+    norm.includes('مطاي') ||
+    norm.includes('مطاى') ||
+    norm.includes('العدوة') ||
+    norm.includes('العدوه') ||
+    norm.includes('عروس الصعيد') ||
+    norm.includes('طه حسين')
+  ) {
+    return 'فرع المنيا';
+  }
+
+  // 2. Minya El-Qamh (Sharqia) - Must be checked before generic "منيا"
+  if (
+    norm.includes('منيا القمح') ||
+    norm.includes('القمح') ||
+    norm.includes('meq') ||
+    norm.includes('شرقيه') ||
+    norm.includes('الشرقيه') ||
+    norm.includes('زقازيق') ||
+    norm.includes('الزقازيق') ||
+    norm.includes('بلبيس') ||
+    norm.includes('فاقوس') ||
+    norm.includes('مشتول') ||
+    norm.includes('ابو حماد') ||
+    norm.includes('ابوحماد') ||
+    norm.includes('ديرب نجم') ||
+    norm.includes('العاشر من رمضان')
+  ) {
+    return 'فرع منيا القمح';
+  }
+
+  // 3. Minya (Upper Egypt) general - Strict word matching
+  if (
+    /(?:^|\s)(?:المنيا|فرع المنيا|مدينة المنيا)(?:\s|$)/.test(norm) ||
+    norm === 'المنيا' ||
+    norm === 'منيا' ||
+    norm.includes('عروس الصعيد')
+  ) {
+    return 'فرع المنيا';
+  }
+
+  // 4. Central October
+  if (
+    norm.includes('اكتوبر') ||
+    norm.includes('مركزي') ||
+    norm.includes('رئيسي') ||
+    norm.includes('الجيزه') ||
+    norm.includes('جيزه') ||
+    norm.includes('october') ||
+    norm.includes('giza') ||
+    norm.includes('main')
+  ) {
+    return 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+  }
+
+  // 5. Dimeshalt (Dakahlia / Mansoura)
+  if (
+    norm.includes('ديمشلت') ||
+    norm.includes('دكرنس') ||
+    norm.includes('منصوره') ||
+    norm.includes('المنصوره') ||
+    norm.includes('دقهليه') ||
+    norm.includes('الدقهليه') ||
+    norm.includes('ميت غمر') ||
+    norm.includes('شربين') ||
+    norm.includes('السنبلاوين') ||
+    norm.includes('سنبلاوين') ||
+    norm.includes('بلقاس') ||
+    norm.includes('اجا') ||
+    norm.includes('طلخا') ||
+    norm.includes('المنزله') ||
+    norm.includes('dimeshalt') ||
+    norm.includes('dim')
+  ) {
+    return 'فرع ديمشلت';
+  }
+
+  // 6. Fayoum
+  if (
+    norm.includes('فيوم') ||
+    norm.includes('الفيوم') ||
+    norm.includes('اطسا') ||
+    norm.includes('سنورس') ||
+    norm.includes('طاميه') ||
+    norm.includes('ابشواي') ||
+    norm.includes('يوسف الصديق') ||
+    norm.includes('fayoum') ||
+    norm.includes('fay')
+  ) {
+    return 'فرع الفيوم';
+  }
+
+  // 7. Cairo
+  if (
+    norm.includes('قاهره') ||
+    norm.includes('القاهره') ||
+    norm.includes('مدينة نصر') ||
+    norm.includes('وسط البلد') ||
+    norm.includes('المعادي') ||
+    norm.includes('شبرا') ||
+    norm.includes('عين شمس') ||
+    norm.includes('حلوان') ||
+    norm.includes('cairo') ||
+    norm.includes('cai')
+  ) {
+    return 'فرع القاهرة';
+  }
+
+  // 8. Beheira / Damanhour
+  if (
+    norm.includes('بحيره') ||
+    norm.includes('البحيره') ||
+    norm.includes('دمنهور') ||
+    norm.includes('كفر الدوار') ||
+    norm.includes('ايتاي البارود') ||
+    norm.includes('ابو حمص') ||
+    norm.includes('حوش عيسى') ||
+    norm.includes('شبراخيت') ||
+    norm.includes('كوم حماده') ||
+    norm.includes('رشيد') ||
+    norm.includes('الدلنجات') ||
+    norm.includes('beheira') ||
+    norm.includes('damanhour') ||
+    norm.includes('beh')
+  ) {
+    return 'فرع البحيرة';
+  }
+
+  // 9. Menouf / Menoufia
+  if (
+    norm.includes('منوف') ||
+    norm.includes('المنوفيه') ||
+    norm.includes('شبين') ||
+    norm.includes('اشمون') ||
+    norm.includes('الباجور') ||
+    norm.includes('قويسنا') ||
+    norm.includes('بركة السبع') ||
+    norm.includes('بركه السبع') ||
+    norm.includes('تلا') ||
+    norm.includes('الشهداء') ||
+    norm.includes('السادات') ||
+    norm.includes('menouf') ||
+    norm.includes('mnf')
+  ) {
+    return 'فرع منوف';
+  }
+
+  return '';
+}
+
+/**
+ * Branch canonical identifier
+ */
+export function normalizeBranchKey(branch?: string): string {
+  if (!branch) return '';
+  const resolved = resolveBranchName(branch);
+  if (!resolved) return '';
+  if (
+    resolved.includes('أكتوبر') ||
+    resolved.includes('اكتوبر') ||
+    resolved.includes('مركزي') ||
+    resolved === MAIN_BRANCH_NAME
+  ) {
+    return 'main';
+  }
+  const branchNorm = normalizeArabicText(resolved);
+  if (
+    branchNorm.includes('اكتوبر') ||
+    branchNorm.includes('مركزي') ||
+    branchNorm.includes('رئيسي') ||
+    branchNorm.includes('main') ||
+    branchNorm.includes('giza') ||
+    branchNorm.includes('aljizah') ||
+    branchNorm.includes('جيزه')
+  ) {
+    return 'main';
+  }
+  if (branchNorm.includes('منيا القمح') || branchNorm.includes('القمح') || branchNorm.includes('meq')) return 'meq';
+  if (branchNorm.includes('المنيا') || branchNorm.includes('منيا') || branchNorm.includes('minya') || branchNorm.includes('min')) return 'minya';
+  if (branchNorm.includes('ديمشلت') || branchNorm.includes('دكرنس') || branchNorm.includes('دقهليه') || branchNorm.includes('المنصوره') || branchNorm.includes('منصوره') || branchNorm.includes('dimeshalt') || branchNorm.includes('dim')) return 'dimeshalt';
+  if (branchNorm.includes('فيوم') || branchNorm.includes('الفيوم') || branchNorm.includes('fayoum') || branchNorm.includes('fay')) return 'fayoum';
+  if (branchNorm.includes('قاهره') || branchNorm.includes('القاهره') || branchNorm.includes('cairo') || branchNorm.includes('cai') || branchNorm.includes('مدينة نصر') || branchNorm.includes('المعادي')) return 'cairo';
+  if (branchNorm.includes('بحيره') || branchNorm.includes('البحيره') || branchNorm.includes('دمنهور') || branchNorm.includes('beheira') || branchNorm.includes('beh')) return 'beheira';
+  if (branchNorm.includes('منوف') || branchNorm.includes('المنوفيه') || branchNorm.includes('شبين') || branchNorm.includes('menouf') || branchNorm.includes('mnf')) return 'menouf';
+  if (branchNorm.includes('طنطا') || branchNorm.includes('الغربيه') || branchNorm.includes('غربيه') || branchNorm.includes('tanta')) return 'tanta';
+  if (branchNorm.includes('اسكندريه') || branchNorm.includes('الاسكندريه') || branchNorm.includes('alex')) return 'alex';
+  if (branchNorm.includes('زقازيق') || branchNorm.includes('الشرقيه') || branchNorm.includes('شرقيه')) return 'meq';
+  if (branchNorm.includes('بني سويف') || branchNorm.includes('سويف')) return 'benisuef';
+  if (branchNorm.includes('اسيوط') || branchNorm.includes('الاسيوط')) return 'assiut';
+  if (branchNorm.includes('سوهاج')) return 'sohag';
+  if (branchNorm.includes('قنا') || branchNorm.includes('الاقصر') || branchNorm.includes('اسوان')) return 'upperegypt';
+  if (branchNorm.includes('اسماعيليه') || branchNorm.includes('سويس') || branchNorm.includes('بورسعيد')) return 'canal';
+  if (branchNorm.includes('قليوبيه') || branchNorm.includes('بنها') || branchNorm.includes('شبرا')) return 'qalyubia';
+  if (branchNorm.includes('كفر الشيخ') || branchNorm.includes('كفرالشيخ')) return 'kafr';
+  return branchNorm;
+}
+
+/**
+ * Check if two branch references match
+ */
+export function isBranchMatch(
+  branchA?: string,
+  branchB?: string,
+  options: { allowUnassigned?: boolean } = { allowUnassigned: true }
+): boolean {
+  const normA = (branchA || '').trim();
+  const normB = (branchB || '').trim();
+
+  if (!normA && !normB) return true;
+
+  if (!normA || !normB) {
+    return options.allowUnassigned !== false;
+  }
+
+  // Direct normalized text exact match
+  const cleanA = normalizeArabicText(normA);
+  const cleanB = normalizeArabicText(normB);
+  if (cleanA === cleanB) return true;
+
+  // Stripped "فرع" comparison
+  const strippedA = cleanA.replace(/^فرع\s+/, '').trim();
+  const strippedB = cleanB.replace(/^فرع\s+/, '').trim();
+  if (strippedA && strippedB) {
+    if (strippedA === strippedB) return true;
+    if (strippedA.includes(strippedB) || strippedB.includes(strippedA)) return true;
+  }
+
+  const keyA = normalizeBranchKey(normA);
+  const keyB = normalizeBranchKey(normB);
+
+  if (!keyA || !keyB) {
+    return options.allowUnassigned !== false;
+  }
+
+  return keyA === keyB;
+}
+
+/**
+ * Check if a customer strictly belongs to a specific sales rep
+ * Direct rep assignment (by repId or salesRepName/repName) takes top priority,
+ * with comprehensive Arabic normalization, phone/username matching, and alias support.
+ */
+export function doesCustomerBelongToRep(customer: Customer, repUser: User): boolean {
+  if (!customer || !repUser) return false;
+
+  // 1. Direct ID / Username match (Highest authority - unique identifier)
+  if (
+    customer.repId &&
+    (customer.repId === repUser.id ||
+      customer.repId.toLowerCase() === repUser.id.toLowerCase() ||
+      (repUser.username && customer.repId.toLowerCase() === repUser.username.toLowerCase()))
+  ) {
+    return true;
+  }
+
+  // Strict Branch Isolation: If both rep and customer specify a branch, they MUST match!
+  if (customer.branchName && repUser.branchName) {
+    if (!isBranchMatch(customer.branchName, repUser.branchName, { allowUnassigned: false })) {
+      return false;
+    }
+  }
+
+  const normUserName = normalizeArabicText(repUser.name);
+  const normUserCompact = normUserName.replace(/\s+/g, '');
+  const cleanUserTokens = getArabicTokens(repUser.name).filter(
+    (t) => !['مندوب', 'المندوب', 'استاذ', 'الاستاذ', 'كابتن', 'مهندس', 'مسؤول', 'مسئول', 'فرع', 'مبيعات', 'المبيعات'].includes(t)
+  );
+
+  const rawAny = customer as any;
+  const repCandidates: string[] = [];
+  if (customer.salesRepName) repCandidates.push(customer.salesRepName);
+  if (customer.repName && customer.repName !== customer.salesRepName) repCandidates.push(customer.repName);
+  if (customer.repId && customer.repId !== customer.salesRepName && customer.repId !== customer.repName) repCandidates.push(customer.repId);
+  if (rawAny.rep) repCandidates.push(rawAny.rep);
+  if (rawAny.delegateName) repCandidates.push(rawAny.delegateName);
+  if (rawAny.salesRep) repCandidates.push(rawAny.salesRep);
+  if (rawAny.sales_rep) repCandidates.push(rawAny.sales_rep);
+  if (rawAny.rep_name) repCandidates.push(rawAny.rep_name);
+  if (rawAny.representative_name) repCandidates.push(rawAny.representative_name);
+
+  // Also check if notes contains explicit rep declaration (e.g. "المندوب: أحمد علاء" or "أحمد علاء")
+  if (customer.notes && typeof customer.notes === 'string') {
+    const noteNorm = normalizeArabicText(customer.notes);
+    if (
+      normUserName &&
+      (noteNorm.includes(`مندوب ${normUserName}`) ||
+        noteNorm.includes(`المندوب ${normUserName}`) ||
+        noteNorm.includes(`المندوب: ${normUserName}`) ||
+        noteNorm.includes(normUserName))
+    ) {
+      return true;
+    }
+  }
+
+  // Also check if address contains rep note (e.g. "تسليم مندوب أحمد علاء")
+  if (customer.address && typeof customer.address === 'string') {
+    const addrNorm = normalizeArabicText(customer.address);
+    if (normUserName && (addrNorm.includes(`مندوب ${normUserName}`) || addrNorm.includes(`تسليم ${normUserName}`))) {
+      return true;
+    }
+  }
+
+  for (const repField of repCandidates) {
+    const isGenericRep =
+      !repField ||
+      repField === 'مندوب المبيعات' ||
+      repField === 'المندوب' ||
+      repField === 'مندوب' ||
+      repField === 'مبيعات' ||
+      repField === 'غير محدد' ||
+      repField === '---' ||
+      repField === '..' ||
+      repField === '.' ||
+      repField.toLowerCase() === 'unassigned' ||
+      repField.toLowerCase() === 'none' ||
+      repField.toLowerCase() === 'null';
+
+    if (isGenericRep) continue;
+
+    // Exact or normalized Arabic match via isArabicNameMatch
+    if (isArabicNameMatch(repField, repUser.name)) return true;
+    if (repUser.username && isArabicNameMatch(repField, repUser.username)) return true;
+    if (repUser.phone && repUser.phone.length >= 8 && (repField.includes(repUser.phone) || repUser.phone.includes(repField))) return true;
+
+    const normRepField = normalizeArabicText(repField);
+
+    if (normRepField && normUserName) {
+      if (normRepField === normUserName) return true;
+
+      // Word boundary match (e.g. "مندوب احمد علاء فرع الفيوم" contains "احمد علاء").
+      // Guarded the same way: a one-token name must match the whole rep field,
+      // otherwise every rep sharing a first name claims the same customers.
+      if (normUserName.includes(' ')) {
+        if ((` ${normRepField} `).includes(` ${normUserName} `) || (` ${normUserName} `).includes(` ${normRepField} `)) {
+          return true;
+        }
+      } else if (normRepField === normUserName) {
+        return true;
+      }
+
+      // Compact match without spaces (e.g. "احمدعلاء" vs "احمد علاء").
+      // Guarded: a one-token name like "احمد" must never substring-match
+      // "احمد اشرف", or one rep absorbs every same-first-name rep's customers.
+      if (normUserName.includes(' ')) {
+        const normRepCompact = normRepField.replace(/\s+/g, '');
+        if (normUserCompact && normRepCompact.includes(normUserCompact)) return true;
+        if (normRepCompact.length >= 6 && normUserCompact.includes(normRepCompact)) return true;
+      }
+    }
+
+    // Tokenized Arabic matching
+    const repTokens = getArabicTokens(repField).filter(
+      (t) => !['مندوب', 'المندوب', 'استاذ', 'الاستاذ', 'كابتن', 'مهندس', 'مسؤول', 'مسئول', 'فرع', 'مبيعات', 'المبيعات'].includes(t)
+    );
+
+    if (cleanUserTokens.length > 0 && repTokens.length > 0) {
+      // A single shared token is not an identity. A rep named "احمد" used to
+      // claim every customer whose rep field contained "احمد", which inflated
+      // each rep's totals to cover the whole branch. Require the shared part to
+      // be the user's FULL name (or at least two significant tokens) before
+      // treating the customer as theirs.
+      const sharedTokens = cleanUserTokens.filter((tok) => repTokens.includes(tok));
+
+      // Single-token user names are far too common in this dataset to be treated
+      // as a match on their own; they must match exactly (handled above).
+      if (cleanUserTokens.length === 1) {
+        const exactSingle = cleanUserTokens[0] === repField.trim();
+        if (exactSingle) return true;
+      } else {
+        // If all tokens of user name exist in the rep field (e.g. user "احمد علاء" in "احمد علاء الدين")
+        const allUserTokensMatch = cleanUserTokens.every((tok) => repTokens.includes(tok));
+        if (allUserTokensMatch) return true;
+
+        // If all rep tokens exist in user name tokens (e.g. rep field is "احمد علاء" and user is "احمد علاء محمد")
+        const allRepTokensInUser = repTokens.every((tok) => cleanUserTokens.includes(tok));
+        if (allRepTokensInUser) return true;
+
+        // Check shared non-trivial name tokens (e.g. first and second name match)
+        if (sharedTokens.length >= 2) return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Find the sales rep that actually owns this customer.
+ *
+ * Returns null when no rep claims the customer, which lets callers distinguish
+ * "assigned to someone else" from "not assigned at all". A supervisor must only
+ * see the customers of their own reps, so this distinction is what keeps a
+ * branch-wide supervisorName column from exposing the whole branch.
+ */
+export function findOwningSalesRep(customer: Customer, allUsers: User[]): User | null {
+  if (!customer || !Array.isArray(allUsers)) return null;
+  const reps = allUsers.filter((u) => u.role === 'sales_rep');
+  if (reps.length === 0) return null;
+  return reps.find((rep) => doesCustomerBelongToRep(customer, rep)) || null;
+}
+
+/**
+ * Check if a customer belongs to a supervisor's supervised team
+ */
+export function doesCustomerBelongToSupervisor(
+  customer: Customer,
+  supervisorUser: User,
+  allUsers: User[]
+): boolean {
+  if (!supervisorUser || !customer) return false;
+
+  // Strict Branch Isolation: If customer specifies a branch and supervisor specifies a branch, they MUST match!
+  if (supervisorUser.branchName && customer.branchName) {
+    if (!isBranchMatch(customer.branchName, supervisorUser.branchName, { allowUnassigned: false })) {
+      return false;
+    }
+  }
+
+  // 1. Check if assigned directly to the supervisor
+  if (doesCustomerBelongToRep(customer, supervisorUser)) {
+    return true;
+  }
+
+  // 2. If the customer is owned by another sales rep, the supervisor sees it ONLY
+  //    when that rep reports to this supervisor. A supervisorName column that
+  //    carries the same supervisor for a whole branch must never override the
+  //    real rep assignment, otherwise the supervisor sees the entire branch.
+  const owner = findOwningSalesRep(customer, allUsers);
+  if (owner && owner.id !== supervisorUser.id) {
+    return owner.supervisorId === supervisorUser.id;
+  }
+
+  // 3. Unassigned customer: fall back to the explicit supervisorName column.
+  if (
+    customer.supervisorName &&
+    (isArabicNameMatch(customer.supervisorName, supervisorUser.name) ||
+      normalizeArabicText(customer.supervisorName) === normalizeArabicText(supervisorUser.name))
+  ) {
+    return true;
+  }
+
+  // 4. Find sales reps belonging directly to this supervisor (by explicit supervisorId only).
+  //    Branch membership alone must NEVER grant a rep to a supervisor — only an explicit
+  //    supervisorId assignment should. This prevents unlinked reps in the same branch from
+  //    leaking into every supervisor's data.
+  const supervisedReps = allUsers.filter((u) => u.supervisorId === supervisorUser.id);
+
+  // 5. Check if customer belongs to any of these reps
+  return supervisedReps.some((rep) => doesCustomerBelongToRep(customer, rep));
+}
+
+/**
+ * Check if a customer belongs to a branch manager's branch
+ * Checks direct branchName match, inferred branch from address/city/notes,
+ * or if assigned to any sales rep registered to this branch.
+ */
+export function doesCustomerBelongToBranch(
+  customer: Customer,
+  branchName?: string,
+  allUsers?: User[]
+): boolean {
+  if (!branchName) return false;
+  if (!customer) return false;
+
+  // 1. Direct branch match on customer.branchName
+  if (customer.branchName && isBranchMatch(customer.branchName, branchName, { allowUnassigned: false })) {
+    return true;
+  }
+
+  // 2. Inferred branch from address, city, or notes (only for unassigned branch customers)
+  const rawCust = customer as any;
+  const textToScan = `${customer.address || ''} ${rawCust.city || ''} ${customer.notes || ''}`.trim();
+  if (textToScan) {
+    const inferred = inferBranchFromText(textToScan);
+    if (inferred && isBranchMatch(inferred, branchName, { allowUnassigned: false })) {
+      return true;
+    }
+  }
+
+  // 3. If customer is assigned to any rep who belongs to this branch
+  if (allUsers && allUsers.length > 0) {
+    const rawAny = customer as any;
+    const repCandidate = customer.salesRepName || customer.repName || customer.repId || rawAny.rep || rawAny.delegateName || rawAny.salesRep;
+    if (repCandidate && typeof repCandidate === 'string' && repCandidate.trim().length > 2) {
+      const isBranchRep = allUsers.some(
+        (u) =>
+          u.role === 'sales_rep' &&
+          u.branchName &&
+          isBranchMatch(u.branchName, branchName, { allowUnassigned: false }) &&
+          (u.id === customer.repId ||
+            isArabicNameMatch(u.name, repCandidate) ||
+            (u.username && u.username.toLowerCase() === repCandidate.toLowerCase()))
+      );
+      if (isBranchRep) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Robustly resolve product branch stock in cartons for a target branch using normalized matching
+ * When targetBranch is 'الكل', accurately sums stocks across all branches and central warehouse
+ */
+export function getBranchStockForProduct(product: Product, targetBranch?: string): number {
+  if (!product) return 0;
+
+  // 1. When querying ALL branches (الكل): aggregate total inventory across all 8 branches
+  if (!targetBranch || targetBranch === 'الكل') {
+    if (product.branchStocks && typeof product.branchStocks === 'object' && Object.keys(product.branchStocks).length > 0) {
+      // 8 company branches + central warehouse
+      const canonicalBranches = ['البحيرة', 'الفيوم', 'القاهرة', 'المنيا', 'ديمشلت', 'أكتوبر', 'منوف', 'منيا القمح'];
+      let totalStock = 0;
+      let countedAny = false;
+      for (const b of canonicalBranches) {
+        const val = product.branchStocks[`فرع ${b}`] ?? product.branchStocks[b];
+        if (typeof val === 'number' && !isNaN(val)) {
+          totalStock += val;
+          countedAny = true;
+        }
+      }
+      if (countedAny) return totalStock;
+    }
+    const branchActual = typeof product.branchStockActual === 'number' ? product.branchStockActual : 0;
+    const warehouseActual = typeof product.mainWarehouseActual === 'number' ? product.mainWarehouseActual : 0;
+    return branchActual + warehouseActual;
+  }
+
+  const targetKey = normalizeBranchKey(targetBranch);
+
+  // 2. If querying October Central Warehouse
+  if (targetKey === 'main') {
+    if (typeof product.mainWarehouseActual === 'number' && !isNaN(product.mainWarehouseActual)) {
+      return product.mainWarehouseActual;
+    }
+    if (product.branchStocks) {
+      const octStock = product.branchStocks['الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)'] ?? product.branchStocks['مخزون اكتوبر'] ?? product.branchStocks['أكتوبر'];
+      if (typeof octStock === 'number' && !isNaN(octStock)) return octStock;
+    }
+  }
+
+  // 3. Direct branchStocks map lookup by normalized keys
+  if (product.branchStocks && typeof product.branchStocks === 'object' && Object.keys(product.branchStocks).length > 0) {
+    let hasBranchKey = false;
+    for (const [key, stock] of Object.entries(product.branchStocks)) {
+      if (typeof stock === 'number' && !isNaN(stock)) {
+        hasBranchKey = true;
+        if (normalizeBranchKey(key) === targetKey) {
+          return stock;
+        }
+      }
+    }
+    // If the product has explicit branch-specific stock map but the requested branch is not present
+    if (hasBranchKey) {
+      return 0;
+    }
+  }
+
+  // 4. If product has a single branchName assigned, verify branch match
+  if (product.branchName) {
+    if (normalizeBranchKey(product.branchName) === targetKey) {
+      return product.branchStockActual || 0;
+    }
+    return 0;
+  }
+
+  // 5. Fallback to product.branchStockActual if unassigned
+  return product.branchStockActual || 0;
+}
+
+/**
+ * Normalizes branch names consistently across system data and customers.
+ */
+export function normalizeBranchName(name?: string): string {
+  const resolved = resolveBranchName(name);
+  return resolved || MAIN_BRANCH_NAME;
+}
+
+export interface UserDeduplicationResult {
+  deduplicated: User[];
+  mergedCount: number;
+  removedUserIds: string[];
+  idRedirectMap: Record<string, string>; // maps removedId -> keptId
+  mergedPairs: {
+    keptUser: User;
+    removedId: string;
+    removedUsername: string;
+    reason: string;
+  }[];
+}
+
+/**
+ * Robust User Deduplication & Sanitization Engine
+ * Detects duplicated accounts for the same sales representative or supervisor across branches,
+ * merges their properties intelligently, and returns a redirect mapping for IDs.
+ */
+export function sanitizeAndDeduplicateUsers(userList: User[]): UserDeduplicationResult {
+  if (!Array.isArray(userList)) {
+    return { deduplicated: [], mergedCount: 0, removedUserIds: [], idRedirectMap: {}, mergedPairs: [] };
+  }
+
+  const result: User[] = [];
+  const removedUserIds: string[] = [];
+  const idRedirectMap: Record<string, string> = {};
+  const mergedPairs: { keptUser: User; removedId: string; removedUsername: string; reason: string }[] = [];
+
+  for (const rawUser of userList) {
+    if (!rawUser) continue;
+    const u: User = {
+      ...rawUser,
+      name: (rawUser.name || '').trim(),
+      username: (rawUser.username || '').trim(),
+      email: (rawUser.email || '').trim(),
+      branchName: normalizeBranchName(rawUser.branchName),
+    };
+
+    // System accounts (Admin / Developer) are protected
+    if (u.id === 'u-admin-osama' || u.role === 'developer' || u.role === 'admin') {
+      const existingIdx = result.findIndex(
+        (ex) => ex.id === u.id || (u.email && ex.email?.toLowerCase() === u.email.toLowerCase())
+      );
+      if (existingIdx >= 0) {
+        result[existingIdx] = { ...result[existingIdx], ...u };
+      } else {
+        result.push(u);
+      }
+      continue;
+    }
+
+    const normName = normalizeArabicText(u.name);
+    // Find if another user already exists with matching Arabic name and compatible branch/role
+    const matchIdx = result.findIndex((ex) => {
+      // Never merge different roles: a supervisor and a sales rep may share
+      // the same name but are separate accounts with different permissions.
+      const roleMatch = ex.role === u.role;
+      if (!roleMatch) return false;
+
+      // Check branch compatibility:
+      if (ex.branchName && u.branchName && !isBranchMatch(ex.branchName, u.branchName, { allowUnassigned: false })) {
+        return false;
+      }
+
+      const exNorm = normalizeArabicText(ex.name);
+      return exNorm === normName || isArabicNameMatch(ex.name, u.name);
+    });
+
+    if (matchIdx >= 0) {
+      // Duplicate found!
+      const existing = result[matchIdx];
+      // Priority for keeping:
+      // Prefer standard 'u-rep-' or 'u-sup-' over generated 'rep_..._1234'
+      const existingIsStandard = existing.id.startsWith('u-rep-') || existing.id.startsWith('u-sup-');
+      const currentIsStandard = u.id.startsWith('u-rep-') || u.id.startsWith('u-sup-');
+
+      let kept: User;
+      let removed: User;
+
+      if (currentIsStandard && !existingIsStandard) {
+        // Keep current (standard ID), drop existing
+        kept = {
+          ...existing,
+          ...u,
+          password: u.password || existing.password || '',
+          supervisorId: u.supervisorId || existing.supervisorId,
+          phone: u.phone || existing.phone,
+          email: u.email || existing.email,
+        };
+        removed = existing;
+        result[matchIdx] = kept;
+      } else {
+        // Keep existing, drop current
+        kept = {
+          ...u,
+          ...existing,
+          password: existing.password || u.password || '',
+          supervisorId: existing.supervisorId || u.supervisorId,
+          phone: existing.phone || u.phone,
+          email: existing.email || u.email,
+        };
+        removed = u;
+        result[matchIdx] = kept;
+      }
+
+      removedUserIds.push(removed.id);
+      idRedirectMap[removed.id] = kept.id;
+      mergedPairs.push({
+        keptUser: kept,
+        removedId: removed.id,
+        removedUsername: removed.username,
+        reason: `تطابق الاسم [${kept.name}] والفرع [${kept.branchName || 'العام'}]`,
+      });
+    } else {
+      result.push(u);
+    }
+  }
+
+  return {
+    deduplicated: result,
+    mergedCount: removedUserIds.length,
+    removedUserIds,
+    idRedirectMap,
+    mergedPairs,
+  };
+}
+
+// ---------------------------------------------------------
+// In-Memory Customers Cache & Dynamic Customer Lookup
+// ---------------------------------------------------------
+let _activeCustomersCache: Customer[] = [];
+
+export function setActiveCustomersCache(custs: Customer[]): void {
+  if (Array.isArray(custs)) {
+    _activeCustomersCache = custs;
+  }
+}
+
+export function getActiveCustomersCache(): Customer[] {
+  return _activeCustomersCache;
+}
+
+export function cleanCustomerCode(code?: string): string {
+  if (!code) return '';
+  return code
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/^cust[-_ ]*/i, '')
+    .replace(/^c[-_ ]*/i, '')
+    .replace(/\s+/g, '');
+}
+
+export function cleanPhoneNumber(phone?: string): string {
+  if (!phone) return '';
+  const western = phone.replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
+  const digits = western.replace(/\D/g, '');
+  return digits.length >= 7 ? digits.slice(-9) : digits;
+}
+
+/**
+ * Intelligent Customer Matcher
+ * Finds a customer accurately by ID, code, normalized Arabic name, or phone number.
+ */
+export function findCustomerMatch(
+  customers: Customer[],
+  query: {
+    customerId?: string;
+    customerCode?: string;
+    customerName?: string;
+    customerPhone?: string;
+  }
+): Customer | undefined {
+  if (!customers || customers.length === 0) return undefined;
+
+  // 1. Direct ID match
+  if (query.customerId) {
+    const byId = customers.find((c) => c.id === query.customerId);
+    if (byId) return byId;
+  }
+
+  // 2. Strict / Cleaned Customer Code match
+  if (query.customerCode) {
+    const rawCode = query.customerCode.trim().toLowerCase();
+    const cleanedCode = cleanCustomerCode(query.customerCode);
+    const byCode = customers.find((c) => {
+      if (!c.code) return false;
+      const cRaw = c.code.trim().toLowerCase();
+      if (cRaw === rawCode) return true;
+      if (cleanedCode && cleanCustomerCode(c.code) === cleanedCode) return true;
+      return false;
+    });
+    if (byCode) return byCode;
+  }
+
+  // 3. Exact Normalized Name match
+  if (query.customerName) {
+    const normTarget = normalizeArabicText(query.customerName);
+    if (normTarget) {
+      const byExactNormName = customers.find((c) => {
+        if (!c.name) return false;
+        return normalizeArabicText(c.name) === normTarget;
+      });
+      if (byExactNormName) return byExactNormName;
+    }
+  }
+
+  // 4. Phone Number match
+  if (query.customerPhone) {
+    const targetPhone = cleanPhoneNumber(query.customerPhone);
+    if (targetPhone && targetPhone.length >= 7) {
+      const byPhone = customers.find((c) => {
+        if (!c.phone) return false;
+        const cPhone = cleanPhoneNumber(c.phone);
+        return cPhone && cPhone === targetPhone;
+      });
+      if (byPhone) return byPhone;
+    }
+  }
+
+  // 5. Intelligent Arabic Name matching (handles compound names, prefixes, etc.)
+  if (query.customerName) {
+    const byFuzzyArabic = customers.find((c) => {
+      if (!c.name) return false;
+      return isArabicNameMatch(c.name, query.customerName);
+    });
+    if (byFuzzyArabic) return byFuzzyArabic;
+  }
+
+  return undefined;
+}
+
+export interface CustomerFinancialPosition {
+  debtBefore: number;
+  creditLimit: number;
+  debtAfter: number;
+  isExceeded: boolean;
+  requiredDown: number;
+  overdue: number;
+  matchedCustomer?: Customer;
+}
+
+/**
+ * Universal Financial Position Resolver
+ * Resolves the true previous debt, approved credit limit, and current debt after invoice.
+ * Falls back safely to customer database/cache if invoice fields are missing.
+ */
+export function resolveCustomerFinancials(
+  invoice: Partial<Invoice>,
+  customCustomersList?: Customer[]
+): CustomerFinancialPosition {
+  const invoiceTotal = Number(invoice.estimatedGrandTotal || 0);
+
+  // 1. Gather all candidate customers
+  let candidateCustomers = customCustomersList && customCustomersList.length > 0
+    ? customCustomersList
+    : getActiveCustomersCache();
+
+  // If empty, check localStorage
+  if ((!candidateCustomers || candidateCustomers.length === 0) && typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const stored = localStorage.getItem('dream_dist_customers_v9') || localStorage.getItem('dream_dist_customers_v3');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          candidateCustomers = parsed;
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Find matching customer
+  const matchedCustomer = findCustomerMatch(candidateCustomers || [], {
+    customerId: invoice.customerId,
+    customerCode: invoice.customerCode,
+    customerName: invoice.customerName,
+    customerPhone: invoice.customerPhone,
+  });
+
+  // 3. Resolve Previous Debt (المديونية السابقة)
+  let debtBefore: number;
+  if (invoice.customerBalanceBefore !== undefined && invoice.customerBalanceBefore !== null) {
+    debtBefore = Number(invoice.customerBalanceBefore);
+  } else if (matchedCustomer) {
+    debtBefore = Number(matchedCustomer.currentBalance ?? matchedCustomer.balance ?? 0);
+  } else {
+    debtBefore = 0;
+  }
+
+  // 4. Resolve Credit Limit (الحد الائتماني)
+  let creditLimit: number;
+  if (invoice.customerCreditLimit !== undefined && invoice.customerCreditLimit !== null) {
+    creditLimit = Number(invoice.customerCreditLimit);
+  } else if (matchedCustomer?.creditLimit !== undefined && matchedCustomer?.creditLimit !== null) {
+    creditLimit = Number(matchedCustomer.creditLimit);
+  } else {
+    creditLimit = 0;
+  }
+
+  // 5. Resolve Overdue Debt (المتأخرات)
+  let overdue: number;
+  if (invoice.customerOverdueBalance !== undefined && invoice.customerOverdueBalance !== null) {
+    overdue = Number(invoice.customerOverdueBalance);
+  } else if (matchedCustomer) {
+    overdue = resolveCustomerDuesValue(matchedCustomer);
+  } else {
+    overdue = 0;
+  }
+
+  // 6. Resolve Debt After Invoice (إجمالي المديونية بعد الفاتورة)
+  let debtAfter: number;
+  if (invoice.customerBalanceAfter !== undefined && invoice.customerBalanceAfter !== null) {
+    debtAfter = Number(invoice.customerBalanceAfter);
+  } else {
+    debtAfter = debtBefore + invoiceTotal;
+  }
+
+  // 7. Resolve Credit Limit Exceeded & Required Down Payment
+  // IMPORTANT: A credit limit of 0 means cash customer (no credit facility).
+  // A customer has exceeded their credit limit ONLY if creditLimit > 0 and debtAfter > creditLimit.
+  let isExceeded: boolean;
+  if (invoice.creditLimitExceeded !== undefined) {
+    isExceeded = Boolean(invoice.creditLimitExceeded);
+  } else {
+    isExceeded = creditLimit > 0 && debtAfter > creditLimit;
+  }
+
+  let requiredDown: number;
+  if (invoice.requiredDownPayment !== undefined && invoice.requiredDownPayment !== null) {
+    requiredDown = Number(invoice.requiredDownPayment);
+  } else {
+    requiredDown = isExceeded ? Math.max(0, debtAfter - creditLimit) : 0;
+  }
+
+  return {
+    debtBefore,
+    creditLimit,
+    debtAfter,
+    isExceeded,
+    requiredDown,
+    overdue,
+    matchedCustomer,
+  };
+}
+
+
