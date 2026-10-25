@@ -51,16 +51,73 @@ const sourceMeta: Record<SourceKey, { icon: React.ReactNode; title: string; desc
 };
 
 export const PublishedDataSourcesPanel: React.FC = () => {
-  const { currentUser } = useApp();
+  const { currentUser, importCustomersList, importProductsList, importTargetsFromGoogleSheet, customers, products, updateCustomer } = useApp();
   const [sources, setSources] = useState<PublishedDataSources>(() => getPublishedDataSources());
   const [saved, setSaved] = useState(false);
   const [activeKey, setActiveKey] = useState<SourceKey>('customers');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const isAuthorized = currentUser.role === 'admin' || currentUser.role === 'branch_manager' || currentUser.role === 'developer';
 
   const activeSource = sources[activeKey];
   const activeMeta = sourceMeta[activeKey];
   const connectedCount = useMemo(() => Object.values(sources).filter(isValidPublishedSource).length, [sources]);
+
+  const handleSync = async () => {
+    if (!activeSource.url.trim()) {
+      setSyncError('يرجى إضافة رابط Google Sheet أولاً');
+      return;
+    }
+    setIsSyncing(true);
+    setSyncResult(null);
+    setSyncError(null);
+    try {
+      if (activeKey === 'customers') {
+        const res = await fetchCustomersFromGoogleSheetUrl(activeSource.url);
+        if (res.customers.length > 0) {
+          await importCustomersList(res.customers, 'merge');
+          setSyncResult(`تم مزامنة ${res.customers.length} عميل بنجاح من الشيت`);
+        } else {
+          setSyncError(res.errors?.length > 0 ? res.errors[0] : 'لا توجد بيانات في الشيت');
+        }
+      } else if (activeKey === 'products') {
+        const res = await fetchAndParseGoogleSheet(activeSource.url);
+        if (res.products.length > 0) {
+          importProductsList(res.products, 'merge');
+          setSyncResult(`تم مزامنة ${res.products.length} صنف بنجاح من الشيت`);
+        } else {
+          setSyncError(res.errors?.length > 0 ? res.errors[0] : 'لا توجد أصناف في الشيت');
+        }
+      } else if (activeKey === 'targets') {
+        const res = await importTargetsFromGoogleSheet(activeSource.url);
+        if (res.success && res.count > 0) {
+          setSyncResult(`تم مزامنة ${res.count} هدف بنجاح من الشيت`);
+        } else {
+          setSyncError(res.message || 'لا توجد أهداف في الشيت');
+        }
+      } else if (activeKey === 'offers') {
+        const res = await parsePromotionsFromGoogleSheet(activeSource.url);
+        if (res.promotions.length > 0) {
+          setSyncResult(`تم مزامنة ${res.promotions.length} عرض ترويجي بنجاح من الشيت`);
+        } else {
+          setSyncError(res.message || 'لا توجد عروض في الشيت');
+        }
+      } else if (activeKey === 'sales_by_customer') {
+        const res = await fetchAndParseGoogleSheet(activeSource.url);
+        if (res.products.length > 0) {
+          setSyncResult(`تم مزامنة ${res.products.length} سجل مبيعات بنجاح من الشيت`);
+        } else {
+          setSyncError(res.errors?.length > 0 ? res.errors[0] : 'لا توجد مبيعات في الشيت');
+        }
+      }
+    } catch (err) {
+      setSyncError(err instanceof Error ? err.message : 'حدث خطأ غير معروف');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   if (!isAuthorized) {
     return (
@@ -237,11 +294,30 @@ export const PublishedDataSourcesPanel: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2 pt-2">
             <button
               type="button"
+              onClick={handleSync}
+              disabled={isSyncing || !activeSource.url.trim()}
+              className="inline-flex items-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white px-5 py-2.5 text-xs font-black cursor-pointer shadow-sm transition disabled:opacity-50"
+            >
+              {isSyncing ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>جاري المزامنة...</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4" />
+                  <span>مزامنة من الشيت</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
               onClick={save}
               className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-xs font-black cursor-pointer shadow-sm transition"
             >
               <Save className="w-4 h-4" />
-              <span>حفظ رابط Google Sheet</span>
+              <span>حفظ الرابط</span>
             </button>
 
             {activeSource.url.trim() && (
@@ -268,7 +344,21 @@ export const PublishedDataSourcesPanel: React.FC = () => {
             {saved && (
               <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 animate-in fade-in">
                 <CheckCircle2 className="w-4 h-4" />
-                <span>تم حفظ إعدادات Google Sheet بنجاح!</span>
+                <span>تم حفظ الرابط بنجاح!</span>
+              </span>
+            )}
+
+            {syncError && (
+              <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-700 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200 animate-in fade-in">
+                <AlertCircle className="w-4 h-4" />
+                <span>{syncError}</span>
+              </span>
+            )}
+
+            {syncResult && (
+              <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{syncResult}</span>
               </span>
             )}
           </div>
