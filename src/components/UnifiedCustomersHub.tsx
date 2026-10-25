@@ -1,6 +1,7 @@
 import {
   CalendarCheck,
   Users,
+  ArrowLeft,
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { Customer } from '../types';
@@ -10,11 +11,13 @@ import { VisitsDashboard } from './VisitsDashboard';
 interface UnifiedCustomersHubProps {
   initialSubTab?: 'customers' | 'visits';
   onOpenNewOrderForCustomer?: (customer: Customer) => void;
+  onNavigateToTab?: (tab: string) => void;
 }
 
 export const UnifiedCustomersHub: React.FC<UnifiedCustomersHubProps> = ({
   initialSubTab = 'customers',
   onOpenNewOrderForCustomer,
+  onNavigateToTab,
 }) => {
   const [subTab, setSubTab] = useState<'customers' | 'visits'>(initialSubTab);
 
@@ -23,6 +26,14 @@ export const UnifiedCustomersHub: React.FC<UnifiedCustomersHubProps> = ({
       {/* Top Header Hub Navigation Pills */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-2 sm:p-2.5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onNavigateToTab?.('home')}
+            className="w-8 h-8 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition flex items-center justify-center cursor-pointer"
+            title="رجوع"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
           <div className="w-8 h-8 rounded-xl bg-purple-500 text-white flex items-center justify-center font-black">
             <Users className="w-4 h-4" />
           </div>

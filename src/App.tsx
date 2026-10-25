@@ -21,7 +21,7 @@ import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { ProductCatalog } from './components/ProductCatalog';
 import { CustomerDirectoryView } from './components/CustomerDirectoryView';
-import { AllCustomersAnalyticsView } from './components/AllCustomersAnalyticsView';
+import { UnifiedCustomersHub } from './components/UnifiedCustomersHub';
 import { SupervisorDashboard } from './components/SupervisorDashboard';
 import { InvoicesManager } from './components/InvoicesManager';
 import { InventoryStockView } from './components/InventoryStockView';
@@ -134,8 +134,9 @@ const MainLayout: React.FC = () => {
           )}
 
           {(activeTab === 'all_customers' || activeTab === 'customers') && (
-            <AllCustomersAnalyticsView
+            <UnifiedCustomersHub
               onOpenNewOrderForCustomer={(cust) => handleOpenOrderForCustomer(cust)}
+              onNavigateToTab={(tab) => setActiveTab(tab)}
             />
           )}
 
