@@ -1442,7 +1442,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
       )}
 
-      {/* الرسوم: توزيع حالة السداد + أعلى 5 عملاء مديونية */}
+      {/* الرسوم: توزيع تصنيف التعامل (قابل / غير قابل) + أعلى 5 عملاء مديونية */}
       {!isRep && !isSupervisor && (
         <div className="cchart-row">
           <section className="cchart-card">
@@ -1768,7 +1768,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
       )}
 
-      {/* شريط فلترة العملاء الموحّد (بحث + شرائح سريعة + فلاتر متقدمة) */}
+      {/* شريط فلترة العملاء: بحث ذكي + ترتيب المديونية + فلاتر مخصصة من أعمدة الشيت */}
       <CustomerFilterBar
         value={filterBarValue}
         onChange={handleFilterChange}
