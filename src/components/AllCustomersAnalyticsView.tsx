@@ -19,7 +19,6 @@ import {
   DollarSign,
   Calendar,
   Layers,
-  Sparkles,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -29,7 +28,6 @@ import {
   BarChart3,
   PieChart,
   Eye,
-  EyeOff,
   Lock,
   Plus,
   X,
@@ -897,44 +895,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-          {!isRep && !isSupervisor && (
-          <button
-            id="analytics-privacy-mode-btn"
-            type="button"
-            onClick={togglePrivacyMode}
-            className={`app-btn min-h-[40px] px-3 py-2 text-xs whitespace-nowrap ${
-              isPrivacyMode ? 'app-btn-warn-soft' : 'app-btn-ghost'
-            }`}
-            title={isPrivacyMode ? 'وضع سرية البيانات نشط (المبيعات والأرصدة مخفية). اضغط للإظهار.' : 'تفعيل وضع سرية البيانات لإخفاء الأرقام المالية الحساسة أثناء العرض'}
-          >
-            {isPrivacyMode ? (
-              <>
-                <EyeOff className="w-4 h-4 t-warn animate-pulse" />
-                <span className="font-extrabold t-warn">سرية البيانات: نشطة</span>
-              </>
-            ) : (
-              <>
-                <Eye className="w-4 h-4 text-slate-500" />
-                <span>سرية البيانات</span>
-              </>
-            )}
-          </button>
-          )}
-
-          {/* Clean & Deduplicate Button (Prevents 3000 to 6000 duplicate explosion) */}
-          {isAdminOrDev && (
-            <button
-              id="analytics-deduplicate-btn"
-              type="button"
-              onClick={handleRunDeduplication}
-              className="app-btn app-btn-ghost px-3 py-2 text-xs shadow-xs whitespace-nowrap"
-              title="فحص قاعدة البيانات ومنع أي تكرار ناتج عن تحديث الشيتات اليومية لضمان ثبات عدد العملاء (3000 عميل فريد)"
-            >
-              <Sparkles className="w-3.5 h-3.5 app-ink-brass" />
-              <span>منع وتنقية التكرار (3,000 عميل)</span>
-            </button>
-          )}
-
+          {/* Power BI Charts Toggle (Admin/Dev/Manager only) */}
           {!isRep && !isSupervisor && (
           <button
             id="analytics-toggle-charts-btn"
@@ -947,19 +908,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             <BarChart3 className="w-4 h-4" />
             <span>{showCharts ? 'إخفاء التحليل' : 'التحليل'}</span>
           </button>
-          )}
-
-          {/* Export & Import (Admin, Dev, Branch Manager) */}
-          {isAdminOrDev && (
-            <button
-              id="analytics-sync-sheet-btn"
-              type="button"
-              onClick={() => setIsSyncModalOpen(true)}
-              className="app-btn app-btn-primary px-3.5 py-2 text-xs whitespace-nowrap"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>مزامنة شيت المديونية / إكسل</span>
-            </button>
           )}
 
           {!isRep && (
