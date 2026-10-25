@@ -80,8 +80,6 @@ import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../servic
 import {
   ActivityFilter,
   CollectionRateFilter,
-  CustomerFilterPresetId,
-  CUSTOMER_FILTER_PRESETS,
   DealtFilter,
   DebtFilter,
   EligibilityFilter,
@@ -92,7 +90,6 @@ import {
   getCustomerCollectionRate,
   getCustomerOverdue,
   getCustomerStatusBadge,
-  getPresetStateValue,
   isDealtCustomer,
   matchesActivityFilter,
   matchesCollectionRateFilter,
@@ -101,7 +98,6 @@ import {
   matchesEligibilityFilter,
   matchesOrderFilter,
   matchesVisitFilter,
-  resolveActivePresetId,
 } from '../services/customerFilterPredicates';
 import { CustomerFilterBar, CustomerFilterBarState } from './customers/CustomerFilterBar';
 import { CustomerQuickDrawer } from './customers/CustomerQuickDrawer';
@@ -617,36 +613,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     return list;
   }, [contextCustomers, debtFilter, activityFilter, orderFilter, collectionRateFilter, visitFilter, sortBy, sortOrder]);
 
-  // عدّادات الشرائح السريعة: بتتحسب على نفس السياق (بدون فلتر الشريحة نفسها)،
-  // فالرقم المعروض = عدد العملاء اللي هتظهر لو المستخدم دوس على الشريحة.
-  const presetCounts = useMemo(() => {
-    const counts = { all: contextCustomers.length } as Record<CustomerFilterPresetId, number>;
-    CUSTOMER_FILTER_PRESETS.forEach((preset) => {
-      if (preset.id !== 'all') counts[preset.id] = 0;
-    });
-
-    contextCustomers.forEach((c) => {
-      if (matchesDebtFilter(c, 'has_overdue')) counts.has_overdue += 1;
-      if (matchesDebtFilter(c, 'over_limit')) counts.over_limit += 1;
-      if (matchesDebtFilter(c, 'has_debt')) counts.has_debt += 1;
-      if (matchesDebtFilter(c, 'zero_debt')) counts.zero_debt += 1;
-      if (matchesActivityFilter(c, 'active_2026')) counts.active_2026 += 1;
-      if (matchesActivityFilter(c, 'churn_risk')) counts.churn_risk += 1;
-      if (matchesActivityFilter(c, 'new_customer')) counts.new_customer += 1;
-      if (matchesVisitFilter(c, 'not_visited')) counts.not_visited += 1;
-      if (matchesCollectionRateFilter(c, 'high_80')) counts.high_80 += 1;
-      if (matchesCollectionRateFilter(c, 'low_zero')) counts.low_zero += 1;
-      if (matchesOrderFilter('has_order', getCustomerOrderSummary(c))) counts.has_order += 1;
-    });
-
-    return counts;
-  }, [contextCustomers]);
-
-  const activePreset = useMemo(
-    () => resolveActivePresetId({ debtFilter, activityFilter, orderFilter, visitFilter, collectionRateFilter }),
-    [debtFilter, activityFilter, orderFilter, visitFilter, collectionRateFilter]
-  );
-
   // اقتراحات البحث الذكي: أول 5 عملاء مطابقين للحرف/الكود المكتوب
   const searchSuggestions = useMemo(() => {
     if (!searchQuery.trim()) return [];
@@ -722,19 +688,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedBranch, selectedRep, selectedRegion, selectedSupervisor, activityFilter, debtFilter, eligibilityFilter, debtStatusFilter, orderFilter, visitFilter, collectionRateFilter, dealtFilter, searchQuery, pageSize]);
-
-  // كل شريحة بتفرد بُعدها وتصفّر باقي أبعاد الشرائح، عشان مايتعارضوش.
-  const handlePresetChange = (id: CustomerFilterPresetId) => {
-    const mapping = getPresetStateValue(id);
-
-    setDebtFilter(mapping && mapping.dimension === 'debt' ? (mapping.value as DebtFilter) : 'ALL');
-    setActivityFilter(mapping && mapping.dimension === 'activity' ? (mapping.value as ActivityFilter) : 'ALL');
-    setOrderFilter(mapping && mapping.dimension === 'order' ? (mapping.value as OrderFilter) : 'ALL');
-    setVisitFilter(mapping && mapping.dimension === 'visit' ? (mapping.value as VisitFilter) : 'ALL');
-    setCollectionRateFilter(
-      mapping && mapping.dimension === 'collection' ? (mapping.value as CollectionRateFilter) : 'ALL'
-    );
-  };
 
   const handleFilterChange = (patch: Partial<CustomerFilterBarState>) => {
     if (patch.searchQuery !== undefined) setSearchQuery(patch.searchQuery);
@@ -956,35 +909,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       monthlyChartData,
     };
   }, [filteredCustomers]);
-
-  // Segment counters (presentation-only aggregation over the role-scoped list)
-  const segmentStats = useMemo(() => {
-    let cash = 0;
-    let overdue = 0;
-    let overLimit = 0;
-    let doubtful = 0;
-    let churn = 0;
-
-    userVisibleCustomers.forEach((c) => {
-      const bal = c.currentBalance ?? c.balance ?? 0;
-      const od = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
-      const limit = c.creditLimit || 0;
-      const monthlySum = c.monthlySales2026
-        ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0)
-        : 0;
-      const s26 = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, monthlySum);
-      const s25 = c.sales2025 || 0;
-      const isActive = Boolean(c.hasDealtIn2026) || s26 > 0;
-
-      if (bal <= 0) cash++;
-      if (od > 0) overdue++;
-      if (limit > 0 && bal > limit) overLimit++;
-      if (!isActive && s25 > 0) churn++;
-      if (!isActive && s25 <= 0) doubtful++;
-    });
-
-    return { cash, overdue, overLimit, doubtful, churn, total: userVisibleCustomers.length };
-  }, [userVisibleCustomers]);
 
   // Power BI Visuals Computations (Branches, Top Reps, Payment Terms Distribution)
   const branchAnalyticsData = useMemo(() => {
@@ -1832,9 +1756,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         value={filterBarValue}
         onChange={handleFilterChange}
         onReset={handleResetFilters}
-        activePreset={activePreset}
-        onPresetChange={handlePresetChange}
-        presetCounts={presetCounts}
         options={{
           branches: availableBranches,
           supervisors: availableSupervisors,

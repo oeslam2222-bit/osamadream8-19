@@ -1,28 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ChevronDown,
-  Gauge,
-  ListFilter,
-  MapPinOff,
-  RotateCcw,
-  Search,
-  ShieldAlert,
-  ShoppingCart,
-  SlidersHorizontal,
-  Sparkles,
-  TrendingUp,
-  Users,
-  Wallet,
-  X,
-} from 'lucide-react';
+import { ChevronDown, ListFilter, RotateCcw, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Customer } from '../../types';
 import {
   ActivityFilter,
   CollectionRateFilter,
-  CustomerFilterPresetId,
-  CUSTOMER_FILTER_PRESETS,
   DealtFilter,
   DebtFilter,
   EligibilityFilter,
@@ -58,9 +39,6 @@ interface CustomerFilterBarProps {
   value: CustomerFilterBarState;
   onChange: (patch: Partial<CustomerFilterBarState>) => void;
   onReset: () => void;
-  activePreset: CustomerFilterPresetId;
-  onPresetChange: (id: CustomerFilterPresetId) => void;
-  presetCounts: Record<CustomerFilterPresetId, number>;
   options: CustomerFilterBarOptions;
   canFilterBranch: boolean;
   canFilterRep: boolean;
@@ -85,21 +63,6 @@ export interface CustomerSearchSuggestion {
   status: { label: string; tone: 'ok' | 'warn' | 'risk' | 'muted' };
   customer: Customer;
 }
-
-const PRESET_ICONS: Record<CustomerFilterPresetId, React.ComponentType<{ className?: string }>> = {
-  all: Users,
-  has_overdue: AlertTriangle,
-  over_limit: ShieldAlert,
-  has_debt: Wallet,
-  zero_debt: CheckCircle2,
-  active_2026: TrendingUp,
-  churn_risk: Sparkles,
-  new_customer: CheckCircle2,
-  not_visited: MapPinOff,
-  has_order: ShoppingCart,
-  high_80: Gauge,
-  low_zero: AlertTriangle,
-};
 
 const DEBT_LABELS: Record<string, string> = {
   has_debt: 'عليه مديونية',
@@ -138,11 +101,10 @@ const COLLECTION_LABELS: Record<string, string> = {
 };
 
 const SORT_OPTIONS = [
-  { value: 'sales2026:desc', label: 'الأعلى مبيعاً' },
   { value: 'balance:desc', label: 'الأكثر مديونية' },
+  { value: 'balance:asc', label: 'الأقل مديونية' },
   { value: 'overdue:desc', label: 'الأكثر تأخراً' },
-  { value: 'collections2026:desc', label: 'الأعلى تحصيلاً' },
-  { value: 'lastVisit:asc', label: 'الأقدم زيارة' },
+  { value: 'lastVisit:desc', label: 'الأحدث تحديثاً' },
   { value: 'name:asc', label: 'الاسم (أ - ي)' },
 ];
 
@@ -155,9 +117,6 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
   value,
   onChange,
   onReset,
-  activePreset,
-  onPresetChange,
-  presetCounts,
   options,
   canFilterBranch,
   canFilterRep,
@@ -323,74 +282,8 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
         )}
       </div>
 
-      {/* الشرائح السريعة */}
-      <div className="cf-chips no-scrollbar" role="group" aria-label="شرائح سريعة للعملاء">
-        {CUSTOMER_FILTER_PRESETS.map((preset) => {
-          const Icon = PRESET_ICONS[preset.id];
-          const isActive = activePreset === preset.id;
-          const count = presetCounts[preset.id] ?? 0;
-          return (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => onPresetChange(preset.id)}
-              aria-pressed={isActive}
-              title={preset.hint}
-              data-tone={preset.tone}
-              className={`cf-chip ${isActive ? 'on' : ''}`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{preset.label}</span>
-              <span className="cf-count app-num">{count.toLocaleString()}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* فلاتر سريعة ظاهرة دائماً */}
+      {/* الترتيب + إظهار المديونيات فقط */}
       <div className="cf-quick">
-        <label className="cf-field cf-field-quick">
-          <span>التعامل</span>
-          <select
-            value={value.dealtFilter}
-            onChange={(event) => onChange({ dealtFilter: event.target.value as DealtFilter })}
-          >
-            <option value="ALL">الكل</option>
-            <option value="dealt_2026">متعامل 2026</option>
-            <option value="not_dealt_2026">غير متعامل</option>
-          </select>
-        </label>
-
-        {options.debtStatuses.length > 0 && (
-          <label className="cf-field cf-field-quick">
-            <span>حالة السداد</span>
-            <select
-              value={value.debtStatusFilter}
-              onChange={(event) => onChange({ debtStatusFilter: event.target.value })}
-            >
-              <option value="ALL">كل الحالات</option>
-              {options.debtStatuses.map((status) => (
-                <option key={status} value={status}>{status}</option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        {options.regions.length > 0 && (
-          <label className="cf-field cf-field-quick">
-            <span>المنطقة</span>
-            <select
-              value={value.selectedRegion}
-              onChange={(event) => onChange({ selectedRegion: event.target.value })}
-            >
-              <option value="ALL">جميع المناطق</option>
-              {options.regions.map((region) => (
-                <option key={region} value={region}>{region}</option>
-              ))}
-            </select>
-          </label>
-        )}
-
         <label className="cf-field cf-field-quick">
           <span>الترتيب</span>
           <select value={sortValue} onChange={(event) => onSortChange(event.target.value)}>
@@ -399,7 +292,23 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
             ))}
           </select>
         </label>
+
+        <label className={`cf-switch ${value.debtFilter === 'has_debt' ? 'on' : ''}`}>
+          <input
+            type="checkbox"
+            checked={value.debtFilter === 'has_debt'}
+            onChange={(event) => onChange({ debtFilter: event.target.checked ? 'has_debt' : 'ALL' })}
+          />
+          <span className="cf-switch-track" aria-hidden="true">
+            <span className="cf-switch-thumb" />
+          </span>
+          <span className="cf-switch-text">
+            <strong>إظهار المديونيات فقط</strong>
+            <small>العملاء اللي عليهم رصيد مدين أكبر من صفر</small>
+          </span>
+        </label>
       </div>
+
       {/* الفلاتر المتقدمة */}
       {advancedOpen && (
         <div id="customer-advanced-filters" className="cf-advanced">

@@ -1428,3 +1428,67 @@ main .border-slate-200 { border-color: var(--app-line) !important; }
   .ctl-add { grid-column: 1 / -1; }
   .ctl-saved { order: 3; flex-basis: 100%; }
 }
+
+/* --- مفتاح «إظهار المديونيات فقط» --- */
+.cf-switch {
+  display: flex; align-items: center; gap: 0.55rem;
+  min-height: 56px; padding: 0.5rem 0.65rem;
+  border: 1px solid var(--app-line); border-radius: 12px; background: #fff;
+  cursor: pointer; transition: border-color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+.cf-switch:hover { border-color: #b8c9db; box-shadow: 0 2px 10px rgba(27, 54, 82, .05); }
+.cf-switch.on { border-color: #b9e3dc; background: #f2faf8; }
+.cf-switch input { position: absolute; opacity: 0; pointer-events: none; }
+.cf-switch-track {
+  position: relative; flex: 0 0 42px; width: 42px; height: 23px; min-height: 23px;
+  border-radius: 999px; background: #dfe7f0; transition: background .18s ease;
+}
+.cf-switch-thumb {
+  position: absolute; top: 3px; inset-inline-start: 3px;
+  width: 17px; height: 17px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 43, 78, .28);
+  transition: inset-inline-start .18s ease;
+}
+.cf-switch input:checked + .cf-switch-track { background: linear-gradient(135deg, #1f9d74, #3cc79a); }
+.cf-switch input:checked + .cf-switch-track .cf-switch-thumb { inset-inline-start: calc(100% - 20px); }
+.cf-switch-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.cf-switch-text strong { font-size: 0.7rem; font-weight: 900; color: var(--app-navy); }
+.cf-switch-text small { font-size: 0.58rem; font-weight: 600; color: var(--app-muted); }
+.cf-switch.on .cf-switch-text strong { color: #046b62; }
+
+/* --- كروت المؤشرات: تلوين أعمق وأشيك --- */
+.ckpi {
+  border-top: 3px solid var(--kpi);
+  background:
+    radial-gradient(120% 120% at 100% 0%, var(--kpi-soft) 0%, rgba(255, 255, 255, 0) 62%),
+    linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+.ckpi:hover { border-color: var(--kpi); box-shadow: 0 10px 24px rgba(27, 54, 82, .12); }
+.ckpi-icon {
+  background: linear-gradient(135deg, var(--kpi) 0%, var(--kpi-2) 100%);
+  color: #fff;
+  box-shadow: 0 5px 14px rgba(15, 43, 78, .20);
+}
+.ckpi-label { color: #5b6f85; }
+.ckpi-value { color: var(--kpi); }
+.ckpi-hint { color: #7d90a4; }
+
+.ckpi-navy   { --kpi: #1b3652; --kpi-2: #2f5f86; --kpi-soft: rgba(27, 54, 82, .10); }
+.ckpi-violet { --kpi: #6b4fd8; --kpi-2: #9a84ee; --kpi-soft: rgba(107, 79, 216, .12); }
+.ckpi-blue   { --kpi: #2f6fd0; --kpi-2: #62a0ef; --kpi-soft: rgba(47, 111, 208, .12); }
+.ckpi-green  { --kpi: #1f9d74; --kpi-2: #45c99c; --kpi-soft: rgba(31, 157, 116, .12); }
+.ckpi-rose   { --kpi: #cf4d4d; --kpi-2: #ef8080; --kpi-soft: rgba(207, 77, 77, .12); }
+
+/* --- لمسة لون للرسوم --- */
+.cchart-card { border-top: 3px solid #cfdbe8; }
+.cchart-row > .cchart-card:first-child { border-top-color: var(--app-ok); }
+.cchart-row > .cchart-card:last-child { border-top-color: #2f6fd0; }
+
+/* صف الترتيب + مفتاح المديونيات: عمود ضيق للترتيب والباقي للمفتاح */
+.cf-quick {
+  grid-template-columns: minmax(180px, 270px) minmax(220px, 1fr);
+  align-items: stretch;
+}
+@media (max-width: 640px) {
+  .cf-quick { grid-template-columns: 1fr; }
+}
