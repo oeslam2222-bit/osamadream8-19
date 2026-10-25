@@ -90,6 +90,7 @@ import {
   getCustomerCollectionRate,
   getCustomerOverdue,
   getCustomerStatusBadge,
+  getCustomerDealtBadge,
   getEligibilityBadge,
   isDealtCustomer,
   matchesActivityFilter,
@@ -1069,7 +1070,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     const limit = c.creditLimit || 0;
     const usage = getCreditUsagePercent(c);
     const statusBadge = getCustomerStatusBadge(c);
-    const dealt = isDealtCustomer(c);
     const lastTouch = c.lastVisitDate || c.lastOrderDate || c.lastCollectionDate;
     const lastTouchInfo = getRelativeTimeArabic(lastTouch);
 
@@ -1181,12 +1181,17 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       case 'status':
         return <span className={`pill pill-${statusBadge.tone}`}>{statusBadge.label}</span>;
 
-      case 'dealt':
+      case 'dealt': {
+        const dealtBadge = getCustomerDealtBadge(c);
         return (
-          <span className={`pill ${dealt ? 'pill-teal' : 'pill-muted'}`}>
-            {dealt ? 'متعامل' : 'غير متعامل'}
-          </span>
+          <div className="flex flex-col items-center gap-0.5">
+            <span className={`pill pill-${dealtBadge.tone}`}>{dealtBadge.label}</span>
+            {dealtBadge.raw && dealtBadge.raw !== dealtBadge.label && (
+              <span className="text-[9px] font-bold text-slate-400">{dealtBadge.raw}</span>
+            )}
+          </div>
         );
+      }
 
       case 'eligibility': {
         const badge = getEligibilityBadge(c);
@@ -1878,7 +1883,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               const isLegal = c.isLegalPending || (c.legalStatus && c.legalStatus !== 'none');
               const isActive = s26 > 0 || (c.lastVisitDate && new Date(c.lastVisitDate) > new Date(Date.now() - 60*24*60*60*1000));
               const statusBadge = getCustomerStatusBadge(c);
-              const eligibilityBadge = getEligibilityBadge(c);
+              const dealtBadge = getCustomerDealtBadge(c);
               const creditUsage = getCreditUsagePercent(c);
               const paidAmount = Math.max(
                 Math.abs(Number(c.collections2026) || 0),
@@ -1929,7 +1934,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         </span>
                       )}
                       <span className={`pill pill-${statusBadge.tone}`}>{statusBadge.label}</span>
-                      <span className={`pill pill-${eligibilityBadge.tone}`}>{eligibilityBadge.label}</span>
+                      <span className={`pill pill-${dealtBadge.tone}`}>{dealtBadge.label}</span>
                       <span className="text-[10px] font-mono text-slate-400">#{(currentPage - 1) * pageSize + index + 1}</span>
                     </div>
                   </div>

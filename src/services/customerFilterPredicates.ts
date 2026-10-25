@@ -167,3 +167,24 @@ export const getEligibilityBadge = (c: Customer): { label: string; tone: Custome
   if (raw.includes('قابل')) return { label: raw, tone: 'ok' };
   return { label: raw, tone: 'muted' };
 };
+
+/**
+ * حالة التعامل مشتقة من عمود «قابل / غير» في الشيت:
+ *   قابل للتعامل  → متعامل
+ *   غير قابل/موقوف → غير متعامل
+ *   فاضي           → غير محدد
+ * بنرجّع كمان النص الأصلي (raw) عشان يظهر جنب الحالة ومايضيعش تفصيل من الشيت.
+ */
+export const getCustomerDealtBadge = (
+  c: Customer
+): { label: string; tone: CustomerTone; raw: string } => {
+  const raw = (c.dealEligibility || '').trim();
+  if (!raw) return { label: 'غير محدد', tone: 'muted', raw: '' };
+  if (raw.includes('غير متعامل') || raw.includes('غير قابل') || raw.includes('موقوف')) {
+    return { label: 'غير متعامل', tone: 'risk', raw };
+  }
+  if (raw.includes('متعامل') || raw.includes('قابل')) {
+    return { label: 'متعامل', tone: 'ok', raw };
+  }
+  return { label: raw, tone: 'muted', raw };
+};

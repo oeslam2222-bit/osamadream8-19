@@ -18,7 +18,7 @@ import {
   getCustomerBalance,
   getCustomerOverdue,
   getCustomerStatusBadge,
-  getEligibilityBadge,
+  getCustomerDealtBadge,   
 } from '../../services/customerFilterPredicates';
 
 interface CustomerQuickDrawerProps {
@@ -48,7 +48,7 @@ export const CustomerQuickDrawer: React.FC<CustomerQuickDrawerProps> = ({
   const limit = customer.creditLimit || 0;
   const usage = getCreditUsagePercent(customer);
   const status = getCustomerStatusBadge(customer);
-  const eligibilityBadge = getEligibilityBadge(customer);
+  const dealtBadge = getCustomerDealtBadge(customer);
 
   const monthlyCollections = customer.monthlyCollections2026
     ? Object.values(customer.monthlyCollections2026).reduce((sum, value) => sum + Math.abs(Number(value) || 0), 0)
@@ -83,7 +83,7 @@ export const CustomerQuickDrawer: React.FC<CustomerQuickDrawerProps> = ({
             </p>
             <div className="cq-badges">
               <span className={`pill pill-${status.tone}`}>{status.label}</span>
-              <span className={`pill pill-${eligibilityBadge.tone}`}>{eligibilityBadge.label}</span>
+              <span className={`pill pill-${dealtBadge.tone}`}>{dealtBadge.label}</span>
             </div>
           </div>
           <button type="button" className="cq-close" onClick={onClose} aria-label="إغلاق تفاصيل العميل">
@@ -156,10 +156,13 @@ export const CustomerQuickDrawer: React.FC<CustomerQuickDrawerProps> = ({
             </div>
           </div>
 
-          {(customer.activityType || customer.paymentTerms || customer.debtStatus) && (
+          {(customer.activityType || customer.paymentTerms || customer.debtStatus || customer.dealEligibility) && (
             <div className="cq-notes">
               <h4>بيانات التعامل</h4>
               <ul>
+                {customer.dealEligibility && (
+                  <li><span>تصنيف الشيت</span><strong>{customer.dealEligibility}</strong></li>
+                )}
                 {customer.activityType && <li><span>النشاط</span><strong>{customer.activityType}</strong></li>}
                 {customer.paymentTerms && <li><span>طريقة الدفع</span><strong>{customer.paymentTerms}</strong></li>}
                 {customer.debtStatus && <li><span>حالة السداد</span><strong>{customer.debtStatus}</strong></li>}
