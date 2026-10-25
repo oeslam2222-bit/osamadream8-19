@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<title>مقارنة تصاميم صفحة العملاء</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Cairo',sans-serif; background:#0f1522; color:#e8eef7; padding:28px 20px 60px; min-width:900px; }
+  h1 { text-align:center; font-weight:800; font-size:25px; margin-bottom:6px; }
+  .sub { text-align:center; color:#8fa3bd; font-size:13px; margin-bottom:32px; }
+  .variant { margin-bottom:44px; }
+  .var-head { display:flex; align-items:baseline; gap:14px; margin-bottom:13px; padding-inline-start:6px; }
+  .var-head .tag { font-size:12px; font-weight:700; padding:4px 12px; border-radius:999px; }
+  .var-head h2 { font-size:19px; font-weight:800; }
+  .var-head p { font-size:12.5px; color:#93a7c1; }
+  .pair { display:grid; grid-template-columns: 1fr 320px; gap:18px; align-items:start; }
+  .frame { border-radius:14px; overflow:hidden; border:1px solid #263650; box-shadow:0 10px 40px rgba(0,0,0,.45); background:#111a27; }
+  .frame img { display:block; width:100%; height:auto; }
+  .cap { display:flex; justify-content:space-between; padding:8px 12px; background:#131c2b; font-size:11.5px; color:#7e93ae; border-top:1px solid #263650; }
+</style>
+</head>
+<body>
+  <h1>مقارنة تصاميم صفحة العملاء — النسختان (ويب + موبايل)</h1>
+  <div class="sub">v1 على طريقة الصورة المرجعية — v2 مقترح مطوّر (نظرة عامة + دليل + لوحة تفصيل)</div>
+
+  <section class="variant">
+    <div class="var-head">
+      <span class="tag" style="background:#173a63;color:#9ecbf5;">v1 — المرجعي</span>
+      <h2>كما الصورة المرجعية (KPIs + Donut + أعلى ٥ + جدول نظيف)</h2>
+      <p>بنفس ترتيب صورتك، لكن بهوية نظامنا (كحلي + نحاسي) وşekel موحد للأرقام</p>
+    </div>
+    <div class="pair">
+      <div class="frame"><img src="v1_ref/_shot_web_full.png" alt="v1 web"><div class="cap"><span>ويب — 1440px (كاملة)</span><span>v1_ref</span></div></div>
+      <div class="frame"><img src="v1_ref/_shot_mobile_full.png" alt="v1 mobile"><div class="cap"><span>موبايل — 390px</span><span>v1_ref</span></div></div>
+    </div>
+  </section>
+
+  <section class="variant">
+    <div class="var-head">
+      <span class="tag" style="background:#2c2d6e;color:#b7b9ff;">v2 — المطوّر</span>
+      <h2>المستويان: نظرة عامة (دوت/أعمار مالية) + دليل ذكي (شرائح عدّاد + صفوف مضغوطة + Drawer)</h2>
+      <p>مقترحي — البيانات اللي في v1 كلها موجودة بس مرتّبة بالميزة "لمحة أولاً، تفاصيل بالطلب"</p>
+    </div>
+    <div class="pair">
+      <div class="frame"><img src="v2_enhanced/shots/desktop_1440x900.png" alt="v2 web"><div class="cap"><span>ويب — 1440×900</span><span>v2_enhanced</span></div></div>
+      <div class="frame"><img src="v2_enhanced/shots/mobile_390.png" alt="v2 mobile"><div class="cap"><span>موبايل — 390px (full)</span><span>v2_enhanced</span></div></div>
+    </div>
+  </section>
+</body>
+</html>

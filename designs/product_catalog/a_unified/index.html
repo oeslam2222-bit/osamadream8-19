@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#102b4e">
+<title>كتالوج المنتجات — دريم للتوزيع</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ================= Tokens ================= */
+:root{
+  --navy:#102b4e; --navy2:#0b2140; --navy3:#152f52;
+  --brass:#c99a43; --brass-ink:#8a6420; --brass-soft:rgba(201,154,67,.13);
+  --paper:#eef3f8; --card:#ffffff; --ink:#17283d;
+  --mut:#5a6f88; --mut2:#66788f;
+  --line:#d8e2ec; --line2:#e3ebf3;
+  --ok:#2e7d5b; --ok-bg:#e8f3ee; --ok-line:rgba(46,125,91,.22);
+  --warn:#9b7027; --warn-bg:#f7f0e1; --warn-line:rgba(155,112,39,.25);
+  --bad:#b34a4a;
+  --sbw:272px; --tbt:72px;
+  --r:14px;
+  --shadow:0 2px 10px rgba(27,54,82,.05);
+  --shadow2:0 10px 28px rgba(15,40,70,.12);
+  --mono:'IBM Plex Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:'Cairo',sans-serif;
+  background-color:var(--paper);
+  background-image:radial-gradient(rgba(16,43,78,.05) 1px,transparent 1.3px);
+  background-size:23px 23px;
+  color:var(--ink);
+  min-height:100vh;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:rgba(201,154,67,.28)}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,select{font-family:inherit;color:inherit}
+a{color:inherit;text-decoration:none}
+img{display:block}
+.ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.mono{font-family:var(--mono)}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px;border-radius:6px}
+kbd{font-family:var(--mono);font-size:10px;font-weight:600;background:#f2f6fa;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;color:var(--mut)}
+.bump{animation:bump .45s cubic-bezier(.2,.7,.3,1)}
+@keyframes bump{0%{transform:scale(1)}35%{transform:scale(1.35)}100%{transform:scale(1)}}
+
+/* ================= Sidebar ================= */
+.sidebar{
+  position:fixed;inset-block:0;inset-inline-start:0;width:var(--sbw);z-index:40;
+  background:linear-gradient(180deg,#123157 0%,#0d2444 58%,#0b2140 100%);
+  color:#fff;display:flex;flex-direction:column;padding:20px 16px 18px;overflow-y:auto;
+}
+.sidebar::before{content:"";position:absolute;inset-inline-end:0;top:0;bottom:0;width:1px;
+  background:linear-gradient(180deg,rgba(201,154,67,.45),rgba(201,154,67,.08) 55%,transparent)}
+.brand{display:flex;align-items:center;gap:11px;padding-inline:6px}
+.brand img{width:42px;height:42px;border-radius:12px;background:#fff;object-fit:cover;padding:2px;box-shadow:0 0 0 1px rgba(255,255,255,.15)}
+.brand b{display:block;font-size:16px;font-weight:900;letter-spacing:-.2px}
+.brand span{display:block;font-family:var(--mono);font-size:8.5px;font-weight:500;letter-spacing:1.6px;color:#87a0bd;margin-top:2px}
+.snav{margin-top:26px;display:flex;flex-direction:column;gap:3px}
+.snav-label{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:1.4px;color:#6d87a5;padding:0 12px 8px}
+.sitem{position:relative;display:flex;align-items:center;gap:11px;padding:10.5px 12px;border-radius:11px;
+  color:#9db0c7;font-size:14.5px;font-weight:600;transition:.18s}
+.sitem .ic{width:19px;height:19px}
+.sitem:hover{background:rgba(255,255,255,.06);color:#dce6f2}
+.sitem.on{background:linear-gradient(270deg,rgba(201,154,67,.16),rgba(201,154,67,.02) 70%);color:#fff;font-weight:800}
+.sitem.on .ic{color:var(--brass)}
+.sitem.on::after{content:"";position:absolute;inset-inline-start:-16px;top:7px;bottom:7px;width:3px;border-radius:0 3px 3px 0;
+  background:var(--brass);box-shadow:0 0 10px rgba(201,154,67,.6)}
+.sitem.nbadge{margin-inline-start:auto;font-family:var(--mono);font-size:10px;background:rgba(255,255,255,.08);border-radius:5px;padding:0 5px;color:#87a0bd;font-weight:500}
+.sitem.on .nbadge{background:rgba(201,154,67,.2);color:var(--brass)}
+.sfoot{margin-top:auto;padding-top:18px}
+.sbranch{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);border-radius:13px;padding:12px}
+.sbranch .row{display:flex;align-items:center;gap:8px}
+.sbranch .ic{width:15px;height:15px;color:var(--brass)}
+.sbranch b{font-size:12.5px;font-weight:800}
+.sbranch small{display:block;font-family:var(--mono);font-size:8.5px;letter-spacing:1.2px;color:#6d87a5;margin-top:1px}
+.smeter{margin-top:11px}
+.smeter .lbl{display:flex;justify-content:space-between;font-size:10.5px;color:#87a0bd;margin-bottom:5px}
+.smeter .lbl b{color:#fff;font-weight:800}
+.smeter .track{height:5px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden}
+.smeter .fill{height:100%;width:78%;border-radius:99px;background:var(--brass)}
+.ssync{display:flex;align-items:center;gap:7px;margin-top:12px;padding-inline:4px;font-size:10.5px;color:#87a0bd}
+
+/* ================= Layout / Topbar ================= */
+.main{margin-inline-start:var(--sbw)}
+.topbar{position:sticky;top:0;z-index:35;display:flex;align-items:center;gap:13px;height:var(--tbt);
+  padding:0 28px;background:rgba(238,243,248,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.branchbtn{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);border-radius:12px;height:46px;padding:0 13px;transition:.18s}
+.branchbtn:hover{border-color:#b8c9db;box-shadow:var(--shadow)}
+.branchbtn .ic{color:var(--brass-ink)}
+.branchbtn .col{text-align:start}
+.branchbtn small{display:block;font-size:9.5px;color:var(--mut2);font-weight:600}
+.branchbtn b{display:block;font-size:13px;font-weight:800;line-height:1.2}
+.branchbtn .chev{color:var(--mut2);width:15px;height:15px}
+.tbdiv{width:1px;height:26px;background:var(--line)}
+.syncpill{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:99px;height:34px;padding:0 13px;font-size:12px;font-weight:700;color:var(--mut)}
+.syncpill .dot{width:8px;height:8px;border-radius:99px;background:var(--ok);position:relative;flex:none}
+.syncpill .dot::after{content:"";position:absolute;inset:-4px;border-radius:99px;border:1.5px solid rgba(46,125,91,.4);animation:pulse 2.2s infinite}
+@keyframes pulse{0%{transform:scale(.55);opacity:1}80%,100%{transform:scale(1.25);opacity:0}}
+.syncpill .t{font-family:var(--mono);font-size:10.5px;font-weight:500;color:var(--mut2)}
+.tbspacer{flex:1}
+.iconbtn{position:relative;width:40px;height:40px;border-radius:11px;border:1px solid var(--line);background:#fff;display:grid;place-items:center;color:var(--mut);transition:.18s}
+.iconbtn:hover{color:var(--navy);border-color:#b8c9db}
+.iconbtn .rdot{position:absolute;top:9px;inset-inline-end:9px;width:7px;height:7px;border-radius:99px;background:var(--brass);box-shadow:0 0 0 2px #fff}
+.uchip{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);border-radius:12px;height:46px;padding:0 11px;transition:.18s}
+.uchip:hover{border-color:#b8c9db}
+.uchip .av{width:32px;height:32px;border-radius:9px;background:var(--navy);color:var(--brass);display:grid;place-items:center;font-size:11.5px;font-weight:900}
+.uchip .col b{display:block;font-size:12.5px;font-weight:800;line-height:1.2}
+.uchip .col small{display:block;font-size:9.5px;color:var(--mut2)}
+.uchip .chev{width:14px;height:14px;color:var(--mut2)}
+.ver{font-family:var(--mono);font-size:9.5px;color:var(--mut2);border:1px solid var(--line);border-radius:6px;padding:2px 7px;background:#fff}
+
+/* ================= Content head ================= */
+.content{padding:0 28px 120px;max-width:1560px}
+.pagehead{display:flex;align-items:flex-end;gap:20px;padding:26px 0 18px;flex-wrap:wrap}
+.kicker{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:2px;color:var(--brass-ink);margin-bottom:6px}
+.pagehead h1{font-size:34px;font-weight:900;letter-spacing:-.5px;line-height:1.1}
+.pagehead h1 em{font-style:normal;color:var(--navy)}
+.phead-sub{margin-top:5px;font-size:12.5px;color:var(--mut)}
+.phead-sub b{color:var(--ink);font-weight:800}
+.phend{margin-inline-start:auto;display:flex;align-items:center;gap:14px}
+.phstat{text-align:end}
+.phstat b{display:block;font-family:var(--mono);font-size:32px;font-weight:600;line-height:1;color:var(--navy)}
+.phstat span{display:block;font-size:10.5px;color:var(--mut2);font-weight:600;margin-top:3px}
+.phstat .up{color:var(--ok)}
+.ghostbtn{display:flex;align-items:center;gap:7px;border:1px solid var(--line);background:#fff;border-radius:11px;height:42px;padding:0 14px;font-size:12.5px;font-weight:700;color:var(--mut);transition:.18s}
+.ghostbtn:hover{color:var(--navy);border-color:#b8c9db;box-shadow:var(--shadow)}
+.ghostbtn .ic{width:16px;height:16px}
+
+/* ================= Sticky toolbar ================= */
+.toolbar{position:sticky;top:var(--tbt);z-index:30;display:flex;align-items:center;gap:10px;
+  padding:12px 0;background:rgba(238,243,248,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.search{flex:1;display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:12px;height:48px;padding:0 14px;transition:.18s;min-width:0}
+.search:focus-within{border-color:var(--brass);box-shadow:0 0 0 3px var(--brass-soft)}
+.search .ic{color:var(--mut2)}
+.search input{flex:1;border:none;outline:none;background:none;font-size:14.5px;font-weight:600;min-width:0}
+.search input::placeholder{color:#9aabbf;font-weight:600}
+.search .mbar{display:none;width:18px;height:18px;color:#9aabbf;flex:none}
+.rmeta{display:flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);border-radius:10px;height:38px;padding:0 11px;font-family:var(--mono);font-size:10.5px;color:var(--mut);white-space:nowrap}
+.rmeta b{color:var(--navy);font-weight:600}
+.sortbox{position:relative;display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:12px;height:48px;padding:0 12px;transition:.18s}
+.sortbox:hover{border-color:#b8c9db}
+.sortbox .ic{color:var(--mut2);width:16px;height:16px}
+.sortbox select{border:none;outline:none;background:none;font-size:13px;font-weight:700;color:var(--ink);appearance:none;padding-inline-end:18px;cursor:pointer}
+.sortbox .chev{position:absolute;inset-inline-end:10px;width:14px;height:14px;color:var(--mut2);pointer-events:none}
+
+/* ================= Category chips ================= */
+.chipswrap{position:sticky;top:calc(var(--tbt) + 72px);z-index:29;background:rgba(238,243,248,.92);backdrop-filter:blur(10px)}
+.chips{display:flex;gap:8px;padding:11px 0;overflow-x:auto;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--mut);
+  border:1px solid var(--line);background:#fff;border-radius:10px;height:37px;padding:0 13px;transition:.18s;position:relative}
+.chip i{font-style:normal;font-family:var(--mono);font-size:9.5px;color:var(--mut2);background:#f2f6fa;border-radius:5px;padding:0 5px;line-height:16px}
+.chip:hover{color:var(--navy);border-color:#b8c9db}
+.chip.on{color:var(--navy);font-weight:800;border-color:rgba(16,43,78,.28)}
+.chip.on::after{content:"";position:absolute;bottom:-1px;inset-inline:10px;height:2.5px;border-radius:3px;background:var(--brass)}
+.chip.on i{background:var(--brass-soft);color:var(--brass-ink);font-weight:600}
+
+/* ================= Product grid ================= */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(292px,1fr));gap:16px;padding-top:20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;
+  box-shadow:var(--shadow);transition:transform .22s,box-shadow .22s,border-color .22s;animation:rise .5s cubic-bezier(.2,.7,.3,1) both;
+  animation-delay:calc(min(var(--i,0),14)*.028s)}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001s!important;transition-duration:.001s!important}}
+.card:hover{transform:translateY(-3px);box-shadow:var(--shadow2);border-color:#bfcfdb}
+.card.off{display:none}
+.card.oos .thumb img{filter:grayscale(.5) saturate(.75) brightness(1.04);opacity:.95}
+.thumb{position:relative;display:block;aspect-ratio:4/3;background:#f2f6fa;overflow:hidden;border-bottom:1px solid var(--line2)}
+.thumb img{width:100%;height:100%;object-fit:cover;transition:transform .35s cubic-bezier(.2,.7,.3,1)}
+.card:hover .thumb img{transform:scale(1.035)}
+.badge{position:absolute;top:10px;inset-inline-start:10px;font-size:11px;font-weight:800;padding:3px 9px;border-radius:99px;letter-spacing:.2px}
+.badge.ok{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-line)}
+.badge.warn{background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn-line)}
+.badge.bad{background:#f9eaea;color:var(--bad);border:1px solid rgba(179,74,74,.25)}
+.tag{position:absolute;bottom:10px;inset-inline-start:10px;display:flex;align-items:center;gap:4px;font-size:10px;font-weight:800;
+  background:rgba(255,255,255,.94);color:var(--brass-ink);border:1px solid rgba(201,154,67,.35);border-radius:7px;padding:2.5px 8px}
+.tag .ic{width:11px;height:11px;color:var(--brass)}
+.cbody{padding:13px 14px 14px;display:flex;flex-direction:column;gap:9px;flex:1}
+.cname{font-size:15px;font-weight:800;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:43px}
+.cmeta{display:flex;align-items:center;gap:8px}
+.code{font-family:var(--mono);font-size:10.5px;font-weight:600;color:#657b93;background:#f3f6fa;border:1px solid var(--line2);border-radius:6px;padding:1.5px 7px;letter-spacing:.4px}
+.cspec{font-size:11px;color:var(--mut2);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cprices{margin-top:auto;border-top:1px dashed #dde7f0;padding-top:10px;display:flex;align-items:stretch;gap:13px}
+.unit small{display:block;font-size:10px;color:var(--mut2);font-weight:600;margin-bottom:1px}
+.unit b{font-size:21px;font-weight:900;line-height:1;letter-spacing:-.3px}
+.unit b s{text-decoration:none;font-size:12px;font-weight:800;color:var(--mut);margin-inline-start:3px}
+.vline{width:1px;background:var(--line2)}
+.carton small{display:block;font-size:10px;color:var(--mut2);font-weight:600;margin-bottom:2px}
+.carton b{font-size:13.5px;font-weight:800;color:var(--navy);font-variant-numeric:tabular-nums;white-space:nowrap}
+.cactions{display:flex;gap:8px}
+.stepper{display:flex;align-items:center;border:1px solid var(--line);border-radius:10px;background:#fbfdff;height:38px;overflow:hidden;flex:none}
+.stepper button{width:31px;height:100%;display:grid;place-items:center;color:var(--mut);transition:.15s}
+.stepper button:hover:not(:disabled){background:#eef3f9;color:var(--navy)}
+.stepper button:disabled{opacity:.3;cursor:default}
+.stepper button .ic{width:14px;height:14px}
+.stepper output{width:30px;text-align:center;font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;min-width:30px}
+.add{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;background:var(--navy);color:#fff;border-radius:10px;height:38px;
+  font-size:13px;font-weight:800;transition:.18s;letter-spacing:.1px;min-width:0}
+.add:hover:not(:disabled){background:var(--navy2);box-shadow:0 4px 12px rgba(16,43,78,.28)}
+.add:active:not(:disabled){transform:scale(.98)}
+.add:disabled{opacity:.35;cursor:default}
+.add.done{background:var(--ok)}
+.add .ic{width:15px;height:15px;display:none}
+.add.done .ic{display:block}
+.add .icp{display:block}
+.add.done .icp{display:none}
+/* mobile-only blocks (shown in the mobile media query) */
+.mprice,.mpills,.madd{display:none}
+
+/* ================= Empty state ================= */
+.empty{grid-column:1/-1;display:none;flex-direction:column;align-items:center;text-align:center;padding:46px 20px;
+  background:rgba(255,255,255,.6);border:1.5px dashed #c9d7e4;border-radius:var(--r)}
+.grid.no-results .empty{display:flex}
+.grid.no-results .ghostcard{display:none}
+.empty .ic{width:38px;height:38px;color:#9aabbf;margin-bottom:12px}
+.empty b{font-size:16px;font-weight:900;color:var(--navy)}
+.empty p{font-size:12.5px;color:var(--mut);margin:5px 0 16px}
+.empty button{border:1px solid var(--line);background:#fff;border-radius:10px;height:38px;padding:0 16px;font-size:12.5px;font-weight:800;color:var(--navy);transition:.18s}
+.empty button:hover{border-color:#b8c9db;box-shadow:var(--shadow)}
+
+/* ================= Load-more / skeleton ghosts ================= */
+.ghostcard{grid-column:auto;min-height:210px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;
+  border:1.5px dashed #c9d7e4;border-radius:var(--r);background:rgba(255,255,255,.45);text-align:center;padding:18px;
+  transition:.2s;animation:rise .5s cubic-bezier(.2,.7,.3,1) both;animation-delay:calc(min(var(--i,0),14)*.028s)}
+.ghostcard:not(.skeleton){cursor:pointer}
+.ghostcard:hover{border-color:rgba(201,154,67,.6);background:#fff;box-shadow:var(--shadow)}
+.ghostcard .plus{width:44px;height:44px;border-radius:99px;border:1px dashed #b8c9db;background:#fff;display:grid;place-items:center;color:var(--brass-ink);flex:none}
+.ghostcard .plus .ic{width:18px;height:18px}
+.ghostcard b{font-size:14px;font-weight:900;color:var(--navy)}
+.ghostcard small{font-family:var(--mono);font-size:9.5px;color:var(--mut2);letter-spacing:.4px}
+.ghostcard .sk{display:block;border-radius:8px;background:#e7edf4;animation:shim 1.6s ease-in-out infinite;flex:none}
+.ghostcard .sk-th{width:56%;aspect-ratio:1/.66;border-radius:12px}
+.ghostcard .sk-l{width:80%;height:13px;margin-top:2px}
+.ghostcard .sk-s{width:55%;height:10px}
+@keyframes shim{0%,100%{background:#e4ebf3}50%{background:#f3f7fb}}
+
+/* ================= Cart strip (desktop) ================= */
+.cartbar{position:fixed;bottom:0;inset-inline-start:var(--sbw);inset-inline-end:0;z-index:45;
+  display:flex;align-items:center;gap:14px;min-height:72px;padding:9px 22px;
+  background:rgba(255,255,255,.97);backdrop-filter:blur(12px);border-top:1px solid var(--line);
+  box-shadow:0 -8px 30px rgba(15,40,70,.09)}
+.cbicon{position:relative;width:46px;height:46px;border-radius:13px;background:var(--navy);color:#fff;display:grid;place-items:center;flex:none}
+.cbicon .ic{width:21px;height:21px}
+.cbicon u{position:absolute;top:-5px;inset-inline-end:-5px;text-decoration:none;min-width:18px;height:18px;border-radius:99px;background:var(--brass);color:#231a05;
+  font-size:10.5px;font-weight:900;display:grid;place-items:center;padding-inline:4px;box-shadow:0 0 0 2px #fff}
+.cbmain b{display:block;font-size:14.5px;font-weight:900;line-height:1.2}
+.cbmain small{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.6px;color:var(--mut2);margin-top:1px}
+.cbmain .cnt{font-family:'Cairo';font-size:11.5px;color:var(--brass-ink);font-weight:800;letter-spacing:0}
+.cbtotal{display:flex;align-items:center;gap:12px;padding-inline:16px;border-inline-start:1px solid var(--line)}
+.cbtotal small{display:block;font-size:9.5px;color:var(--mut2);font-weight:700}
+.cbtotal b{display:block;font-size:20px;font-weight:900;color:var(--brass-ink);line-height:1.15;font-variant-numeric:tabular-nums}
+.carttoggle{width:34px;height:34px;border-radius:99px;border:1px solid var(--line);background:#fff;display:grid;place-items:center;color:var(--mut);transition:.2s}
+.carttoggle .ic{width:16px;height:16px;transition:transform .25s}
+.carttoggle[aria-expanded="true"]{background:#f2f6fa;color:var(--navy)}
+.carttoggle[aria-expanded="true"] .ic{transform:rotate(180deg)}
+.cbspacer{flex:1}
+.cta{display:flex;align-items:center;justify-content:center;gap:9px;background:var(--navy);color:#fff;border-radius:12px;height:46px;padding:0 22px;
+  font-size:15px;font-weight:800;transition:.18s;flex:none}
+.cta:hover:not(:disabled){background:var(--navy2);box-shadow:0 5px 16px rgba(16,43,78,.3)}
+.cta:active:not(:disabled){transform:scale(.98)}
+.cta:disabled{opacity:.4;cursor:default}
+.cta .ic{width:17px;height:17px}
+.cartpanel{position:fixed;bottom:88px;inset-inline-start:calc(var(--sbw) + 22px);inset-inline-end:22px;z-index:44;
+  background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow2);overflow:hidden;
+  opacity:0;transform:translateY(14px);pointer-events:none;transition:.26s cubic-bezier(.2,.7,.3,1);max-height:min(390px,60vh);display:flex;flex-direction:column}
+.cartpanel.open{opacity:1;transform:none;pointer-events:auto}
+.chead{display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid var(--line2);flex:none}
+.chead b{font-size:14px;font-weight:900}
+.chead .clr{margin-inline-end:auto;font-size:11.5px;font-weight:700;color:var(--bad);padding:4px 2px;border-radius:6px}
+.chead .clr:hover{background:#fdf0ee}
+.chead small{margin-inline-start:auto;font-size:10px;color:var(--mut2)}
+.cartlist{overflow-y:auto;padding:4px 0;scrollbar-width:thin}
+.crow{display:flex;align-items:center;gap:11px;padding:9px 18px;border-bottom:1px solid #f0f4f9}
+.crow:last-child{border-bottom:none}
+.crow img{width:44px;height:44px;border-radius:10px;object-fit:cover;background:#f2f6fa;border:1px solid var(--line2);flex:none}
+.crow .ri{min-width:0;flex:1}
+.crow .ri b{display:block;font-size:12.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crow .ri span{font-family:var(--mono);font-size:9.5px;color:var(--mut2);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mstep{display:flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:8px;height:30px;background:#fbfdff;flex:none}
+.mstep button{width:26px;height:100%;display:grid;place-items:center;color:var(--mut)}
+.mstep button:hover{color:var(--navy)}
+.mstep button .ic{width:12px;height:12px}
+.mstep b{min-width:26px;text-align:center;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums}
+.crow .sum{font-size:13px;font-weight:900;font-variant-numeric:tabular-nums;flex:none;width:66px;text-align:end}
+.crow .rm{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;color:#c07a6b;flex:none;transition:.15s}
+.crow .rm:hover{background:#fdf0ee;color:var(--bad)}
+.crow .rm .ic{width:14px;height:14px}
+.cempty{padding:22px;text-align:center;font-size:12.5px;color:var(--mut);font-weight:600}
+
+/* ================= Mobile chrome (hidden ≥768) ================= */
+.mtop,.mbottom,.bottomnav,.msheet,.scrim{display:none}
+
+/* ================= Footer ================= */
+.cfoot{margin-top:30px;padding:18px 0 10px;border-top:1px solid var(--line);text-align:center;font-size:10.5px;color:var(--mut2);font-weight:600}
+.cfoot .mono{font-size:9px;letter-spacing:1px}
+
+/* ================= Responsive : tablets ================= */
+@media (max-width:1199px){
+  .grid{grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:13px}
+  .uchip .col{display:none}
+}
+@media (max-width:1023px){
+  .sidebar{display:none}
+  .main{margin-inline-start:0}
+  .cartbar,.cartpanel{inset-inline-start:14px;inset-inline-end:14px}
+  .topbar{padding:0 18px}
+  .content{padding:0 18px 110px}
+  .ver,.syncpill .t,.cbmain small{display:none}
+  .grid{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ================= Responsive : mobile <768 — field mode ================= */
+@media (max-width:767px){
+  :root{--tbt:0px}
+  .topbar,.toolbar,.cartbar,.cartpanel{display:none}
+
+  /* --- compact sticky app bar --- */
+  .mtop{display:block;position:sticky;top:0;z-index:35;background:rgba(238,243,248,.94);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .appbar{display:flex;align-items:center;gap:10px;height:56px;padding:0 14px}
+  .appbar img{width:36px;height:36px;border-radius:10px;background:#fff;padding:2px;box-shadow:0 0 0 1px var(--line)}
+  .appbar .col{flex:1;min-width:0}
+  .appbar .col b{display:block;font-size:15px;font-weight:900;line-height:1.25}
+  .appbar .col small{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--mut2);font-weight:700}
+  .appbar .col small .dot{width:6px;height:6px;border-radius:99px;background:var(--ok);flex:none}
+  .appbar .iconbtn{width:44px;height:44px;border-radius:12px}
+  .appbar .iconbtn .cartbad{position:absolute;top:-5px;inset-inline-start:-5px;text-decoration:none;min-width:20px;height:20px;border-radius:99px;
+    background:var(--brass);color:#231a05;font-size:10.5px;font-weight:900;display:grid;place-items:center;padding-inline:4px;box-shadow:0 0 0 2.5px var(--paper)}
+
+  /* --- big rounded search with barcode icon --- */
+  .msearch{display:flex;align-items:center;gap:9px;padding:10px 14px 12px}
+  .msearch .search{height:50px;border-radius:14px;box-shadow:var(--shadow)}
+  .msearch .search .mbar{display:block}
+  .msearch .sortbox{height:50px;border-radius:14px;width:50px;justify-content:center;padding:0;flex:none}
+  .msearch .sortbox select{position:absolute;opacity:0;pointer-events:none;width:0;height:0}
+  .msearch .sortbox .chev{display:none}
+
+  /* --- category chips: big, scrollable --- */
+  .chipswrap{position:static;background:none}
+  .chips{padding:10px 14px;margin:0 -14px;gap:8px}
+  .chip{height:40px;font-size:13.5px;font-weight:800;border-radius:12px;padding:0 15px}
+  .chip i{font-size:10.5px;line-height:18px}
+
+  /* --- page head --- */
+  .pagehead{padding:16px 0 4px;gap:10px}
+  .pagehead h1{font-size:22px}
+  .kicker{font-size:8.5px;letter-spacing:1.6px}
+  .phead-sub{font-size:11px}
+  .phend{display:none}
+  .mcount{display:flex;align-items:center;gap:7px;margin:10px 0 0;font-size:11px;color:var(--mut);font-weight:700}
+  .mcount b{background:#fff;border:1px solid var(--line);border-radius:7px;padding:2px 9px;font-family:var(--mono);font-size:10px;color:var(--navy)}
+
+  /* --- 2-column big cards --- */
+  .content{padding:0 14px calc(158px + env(safe-area-inset-bottom))}
+  .grid{grid-template-columns:repeat(2,1fr);gap:10px;padding-top:14px}
+  .card{border-radius:13px}
+  .thumb{aspect-ratio:1/1;background:#f0f5fa;border-bottom:none}
+  .badge{top:8px;inset-inline-start:8px;font-size:9.5px;padding:2px 7px}
+  .tag{bottom:8px;inset-inline-start:8px;font-size:8.5px;padding:2px 6px}
+  .cbody{padding:10px 11px 11px;gap:7px}
+  .cname{font-size:13px;font-weight:800;min-height:37px;-webkit-line-clamp:2}
+  .code{font-size:9px;padding:1px 5px}
+  .cspec{display:none}
+  .cprices,.cactions{display:none}
+
+  /* hero price */
+  .mprice{display:flex;flex-direction:column;gap:1px;margin-top:1px}
+  .mprice .row{display:flex;align-items:baseline;gap:4px}
+  .mprice b{font-size:22px;font-weight:900;line-height:1;letter-spacing:-.3px;color:var(--navy);font-variant-numeric:tabular-nums}
+  .mprice .cur{font-size:12px;font-weight:800;color:var(--brass-ink)}
+  .mprice small{font-size:10px;font-weight:700;color:var(--mut2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* unit pills */
+  .mpills{display:flex;gap:5px}
+  .pill{flex:1;min-height:44px;border:1px solid var(--line);border-radius:10px;background:#fbfdff;
+    font-size:11.5px;font-weight:800;color:var(--mut);transition:.15s;padding:0 2px}
+  .pill:hover{border-color:#b8c9db;color:var(--navy)}
+  .pill.on{background:var(--navy);border-color:var(--navy);color:#fff;box-shadow:0 2px 8px rgba(16,43,78,.22)}
+
+  /* full-width add button (48px) */
+  .madd{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;min-height:48px;border-radius:10px;
+    background:var(--navy);color:#fff;font-size:14.5px;font-weight:900;transition:.18s;margin-top:2px}
+  .madd:active{transform:scale(.97)}
+  .madd.done{background:var(--ok)}
+  .madd .ic{width:16px;height:16px}
+  .madd .ick{display:none}
+  .madd.done .icp{display:none}
+  .madd.done .ick{display:block}
+  .madd span{white-space:nowrap}
+  .madd:disabled{opacity:.4;cursor:default}
+
+  /* enlarged sheet steppers (≥44px tap targets) */
+  .msheet .mstep{height:46px;border-radius:10px}
+  .msheet .mstep button{width:36px}
+  .msheet .mstep button .ic{width:15px;height:15px}
+  .msheet .mstep b{min-width:36px;font-size:13.5px}
+
+  /* --- sticky bottom order bar (navy, brass total) --- */
+  .mbottom{display:flex;align-items:center;gap:8px;position:fixed;bottom:calc(62px + env(safe-area-inset-bottom));
+    inset-inline:10px;z-index:47;background:var(--navy2);border-radius:16px;padding:8px 9px;
+    box-shadow:0 10px 30px rgba(11,33,64,.4),0 0 0 1px rgba(201,154,67,.25)}
+  .mb-open{flex:1;min-width:0;display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.07);
+    border:1px solid rgba(255,255,255,.13);border-radius:12px;height:46px;padding:0 9px;text-align:start;transition:.15s}
+  .mb-open:active{background:rgba(255,255,255,.13)}
+  .mb-ic{position:relative;width:34px;height:34px;border-radius:10px;background:rgba(201,154,67,.18);color:var(--brass);display:grid;place-items:center;flex:none}
+  .mb-ic .ic{width:17px;height:17px}
+  .mb-ic u{position:absolute;top:-5px;inset-inline-end:-5px;text-decoration:none;min-width:17px;height:17px;border-radius:99px;
+    background:var(--brass);color:#231a05;font-size:9.5px;font-weight:900;display:grid;place-items:center;padding-inline:3px;box-shadow:0 0 0 2px var(--navy2)}
+  .mb-col{min-width:0}
+  .mb-col b{display:block;font-size:12px;font-weight:900;line-height:1.25;color:#fff}
+  .mb-col small{display:block;font-size:9.5px;font-weight:700;color:#87a0bd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mb-total{flex:none;text-align:center;padding-inline:2px}
+  .mb-total small{display:block;font-size:8px;font-weight:700;color:#87a0bd;letter-spacing:.4px}
+  .mb-total b{display:block;font-size:16.5px;font-weight:900;color:var(--brass);line-height:1.2;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .mb-cta{flex:none;display:flex;align-items:center;justify-content:center;gap:5px;height:46px;border-radius:12px;padding:0 15px;
+    background:var(--brass);color:#231a05;font-size:13.5px;font-weight:900;transition:.18s}
+  .mb-cta:active:not(:disabled){transform:scale(.96)}
+  .mb-cta:disabled{opacity:.4;cursor:default}
+  .mb-cta .ic{width:15px;height:15px}
+
+  /* --- 5-item bottom nav with brass top-inset --- */
+  .bottomnav{display:flex;position:fixed;bottom:0;inset-inline:0;z-index:48;height:calc(62px + env(safe-area-inset-bottom));
+    padding-bottom:env(safe-area-inset-bottom);background:rgba(255,255,255,.98);backdrop-filter:blur(12px);border-top:1px solid var(--line)}
+  .bnav{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:9.5px;font-weight:700;color:#92a5ba;min-height:44px}
+  .bnav .ic{width:21px;height:21px}
+  .bnav.on{color:var(--navy);font-weight:800}
+  .bnav.on::before{content:"";position:absolute;top:0;width:26px;height:3px;border-radius:0 0 4px 4px;background:var(--brass);box-shadow:0 2px 8px rgba(201,154,67,.5)}
+
+  /* --- cart bottom sheet --- */
+  .scrim{display:block;position:fixed;inset:0;z-index:55;background:rgba(11,33,64,.42);opacity:0;pointer-events:none;transition:.25s}
+  .scrim.open{opacity:1;pointer-events:auto}
+  .msheet{display:flex;flex-direction:column;position:fixed;bottom:0;inset-inline:0;z-index:60;background:#fff;border-radius:20px 20px 0 0;
+    transform:translateY(108%);transition:.32s cubic-bezier(.2,.7,.3,1);padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -14px 40px rgba(11,33,64,.25)}
+  .msheet.open{transform:none}
+  .grab{width:38px;height:4px;border-radius:99px;background:#dbe4ee;margin:8px auto 0;flex:none}
+  .msh-head{display:flex;align-items:center;gap:10px;padding:13px 16px 11px;border-bottom:1px solid var(--line2);flex:none}
+  .msh-head b{font-size:15px;font-weight:900}
+  .msh-head .clr{margin-inline-end:auto;font-size:11.5px;font-weight:700;color:var(--bad);padding:4px 2px;border-radius:6px}
+  .msh-head .clr:hover{background:#fdf0ee}
+  .msh-head .tot{font-size:16px;font-weight:900;color:var(--brass-ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .msh-head .x{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:#f2f6fa;color:var(--mut)}
+  .msheet .cartlist{max-height:38vh}
+  .msheet .cta{margin:12px 16px 14px;width:calc(100% - 32px)}
+
+  .empty{padding:34px 14px}
+  .ghostcard{min-height:190px;gap:7px;padding:14px;border-radius:13px}
+}
+@media (min-width:768px){.mcount{display:none}}
+</style>
+</head>
+<body>
+<svg style="display:none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+<symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10a2 2 0 0 1 .7-1.5l7-6a2 2 0 0 1 2.6 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-package" viewBox="0 0 24 24"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></symbol>
+<symbol id="i-receipt" viewBox="0 0 24 24"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M14 8H8"/><path d="M16 12H8"/><path d="M13 16H8"/></symbol>
+<symbol id="i-archive" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+<symbol id="i-searchx" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/><path d="m8.5 8.5 5 5"/><path d="m13.5 8.5-5 5"/></symbol>
+<symbol id="i-barcode" viewBox="0 0 24 24"><path d="M3 5v14"/><path d="M6.5 5v14"/><path d="M10.5 5v14"/><path d="M14 5v10"/><path d="M17 5v14"/><path d="M21 5v10"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 4.99-5.54 10.03-7.35 11.62a1 1 0 0 1-1.3 0C9.54 20.03 4 14.99 4 10a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-sync" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></symbol>
+<symbol id="i-sort" viewBox="0 0 24 24"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
+<symbol id="i-cart" viewBox="0 0 24 24"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></symbol>
+<symbol id="i-flame" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3 1.072-2.143 2.5-3.5 4-4 0 1 .5 2.5 2 4 1.5 1.5 2 3 2 4.5a5.5 5.5 0 1 1-11 0c0-1.5.5-2.5 1.5-3.5.5 1.5 1 2.5 2 3.5Z"/></symbol>
+</svg>
+
+<!-- ===== Sidebar (desktop) ===== -->
+<aside class="sidebar" aria-label="التنقل الرئيسي">
+  <div class="brand">
+    <img src="assets/logo.png" alt="شعار دريم للتوزيع">
+    <div><b>دريم للتوزيع</b><span>DREAM DISTRIBUTION</span></div>
+  </div>
+  <nav class="snav">
+    <div class="snav-label">العمليات</div>
+    <a class="sitem" href="#"><svg class="ic"><use href="#i-home"/></svg>لوحة التحكم</a>
+    <a class="sitem on" href="#" aria-current="page"><svg class="ic"><use href="#i-package"/></svg>الكتالوج<span class="nbadge">٤٢٨</span></a>
+    <a class="sitem" href="#"><svg class="ic"><use href="#i-users"/></svg>العملاء<span class="nbadge">١٩٦</span></a>
+    <a class="sitem" href="#"><svg class="ic"><use href="#i-receipt"/></svg>الفواتير</a>
+    <a class="sitem" href="#"><svg class="ic"><use href="#i-archive"/></svg>المخزون</a>
+    <a class="sitem" href="#"><svg class="ic"><use href="#i-chart"/></svg>التقارير</a>
+  </nav>
+  <div class="sfoot">
+    <div class="sbranch">
+      <div class="row"><svg class="ic"><use href="#i-pin"/></svg><div><b>فرع القاهرة — مدينة نصر</b><small>MAIN WAREHOUSE</small></div></div>
+      <div class="smeter">
+        <div class="lbl"><span>سعة المخزن</span><b>٧٨٪</b></div>
+        <div class="track"><div class="fill"></div></div>
+      </div>
+    </div>
+    <div class="ssync"><svg class="ic" style="width:13px;height:13px"><use href="#i-sync"/></svg>مزامنة سليمة · ١٠:٤٥ ص</div>
+  </div>
+</aside>
+
+<div class="main">
+  <!-- ===== Top bar (desktop / tablet) ===== -->
+  <header class="topbar">
+    <button class="branchbtn" aria-label="تغيير الفرع">
+      <svg class="ic"><use href="#i-pin"/></svg>
+      <span class="col"><small>الفرع الحالي</small><b>فرع القاهرة — مدينة نصر</b></span>
+      <svg class="ic chev"><use href="#i-chev"/></svg>
+    </button>
+    <div class="tbdiv"></div>
+    <div class="syncpill"><span class="dot"></span>الأسعار محدّثة<span class="t mono">١٠:٤٥ ص</span></div>
+    <div class="tbspacer"></div>
+    <button class="iconbtn" aria-label="الإشعارات"><svg class="ic"><use href="#i-bell"/></svg><span class="rdot"></span></button>
+    <button class="uchip" aria-label="حساب المستخدم">
+      <span class="av">أ.م</span>
+      <span class="col"><b>أحمد منير</b><small>مندوب مبيعات</small></span>
+      <svg class="ic chev"><use href="#i-chev"/></svg>
+    </button>
+    <span class="ver">v2.4.1</span>
+  </header>
+
+  <!-- ===== Mobile app bar ===== -->
+  <header class="mtop">
+    <div class="appbar">
+      <img src="assets/logo.png" alt="شعار دريم للتوزيع">
+      <div class="col">
+        <b>دريم للتوزيع</b>
+        <small><span class="dot"></span>فرع القاهرة · متصل</small>
+      </div>
+      <button class="iconbtn" aria-label="الإشعارات"><svg class="ic"><use href="#i-bell"/></svg><span class="rdot"></span></button>
+      <button class="iconbtn" id="mappBtn" aria-label="سلة الطلب"><svg class="ic"><use href="#i-cart"/></svg><u class="cartbad" id="mappBad">٣</u></button>
+    </div>
+    <div class="msearch">
+      <label class="search">
+        <svg class="ic"><use href="#i-search"/></svg>
+        <input id="mq" type="search" placeholder="ابحث بالاسم أو الكود...">
+        <svg class="mbar" aria-hidden="true"><use href="#i-barcode"/></svg>
+      </label>
+      <label class="sortbox" aria-label="ترتيب النتائج">
+        <svg class="ic"><use href="#i-sort"/></svg>
+        <select id="msort" aria-label="ترتيب النتائج">
+          <option value="pop">الأكثر طلبًا</option>
+          <option value="asc">السعر ↑</option>
+          <option value="desc">السعر ↓</option>
+        </select>
+      </label>
+    </div>
+  </header>
+
+  <!-- ===== Page head ===== -->
+  <main class="content">
+    <div class="pagehead">
+      <div>
+        <div class="kicker">OPS CONSOLE / CATALOG</div>
+        <h1><em>كتالوج</em> المنتجات</h1>
+        <p class="phead-sub">عرض <b id="rshown">١٦</b> من <b>٤٢٨</b> منتجًا · آخر تحديث للأسعار ٢١ أكتوبر ١٠:٤٠ ص</p>
+      </div>
+      <div class="phend">
+        <div class="phstat">
+          <b>٤٢٨</b>
+          <span>منتج نشط · <span class="up">+١٢ هذا الأسبوع</span></span>
+        </div>
+        <div class="tbdiv"></div>
+        <button class="ghostbtn"><svg class="ic"><use href="#i-down"/></svg>تصدير القائمة</button>
+      </div>
+      <div class="mcount" style="order:-1;width:100%"><span>نتائج البحث</span><b id="rmcount">١٦</b><span>من ٤٢٨ منتج</span></div>
+    </div>
+
+    <!-- ===== Search toolbar (desktop / tablet) ===== -->
+    <div class="toolbar">
+      <label class="search">
+        <svg class="ic"><use href="#i-search"/></svg>
+        <input id="q" type="search" placeholder="ابحث بالاسم أو الكود...">
+      </label>
+      <div class="rmeta"><b id="rmeta">١٦</b> / ٤٢٨ نتيجة</div>
+      <label class="sortbox">
+        <svg class="ic"><use href="#i-sort"/></svg>
+        <select id="sort" aria-label="ترتيب النتائج">
+          <option value="pop">الأكثر طلبًا</option>
+          <option value="asc">السعر: الأقل أولًا</option>
+          <option value="desc">السعر: الأعلى أولًا</option>
+        </select>
+        <svg class="ic chev"><use href="#i-chev"/></svg>
+      </label>
+    </div>
+
+    <!-- ===== Category chips ===== -->
+    <div class="chipswrap">
+      <nav class="chips" aria-label="تصنيفات المنتجات">
+        <button class="chip on" data-cat="all">الكل<i>١٦</i></button>
+        <button class="chip" data-cat="pens">أقلام<i>٣</i></button>
+        <button class="chip" data-cat="notebooks">دفاتر<i>٣</i></button>
+        <button class="chip" data-cat="files">ملفات<i>٣</i></button>
+        <button class="chip" data-cat="bind">ربط<i>٢</i></button>
+        <button class="chip" data-cat="packs">عبوات<i>٣</i></button>
+        <button class="chip" data-cat="tools">أدوات مكتبية<i>٢</i></button>
+        <button class="chip" data-cat="print">مطابع<i>٠</i></button>
+      </nav>
+    </div>
+
+    <!-- ===== Product grid ===== -->
+    <section class="grid" id="grid" aria-label="المنتجات">
+
+      <article class="card" data-code="D-1024" data-cat="notebooks" data-name="كراسة ٦٥ ورقة مسطرة" data-ul="القطعة" data-price="24" data-cq="20" data-cp="480" data-pop="1" style="--i:1">
+        <a class="thumb" href="#">
+          <img src="assets/d1024.png" alt="كراسة ٦٥ ورقة مسطرة" loading="lazy">
+          <span class="badge ok">متوفر</span>
+          <span class="tag"><svg class="ic"><use href="#i-flame"/></svg>الأكثر طلبًا</span>
+        </a>
+        <div class="cbody">
+          <h3 class="cname">كراسة ٦٥ ورقة مسطرة</h3>
+          <div class="cmeta"><span class="code">D-1024</span><span class="cspec">١٧×٢٣ سم · مدرسية</span></div>
+          <div class="cprices">
+            <div class="unit"><small>سعر القطعة</small><b>٢٤<s>ج</s></b></div>
+            <span class="vline"></span>
+            <div class="carton"><small>كرتونة ×٢٠</small><b>٤٨٠ ج</b></div>
+          </div>
+          <div class="mprice"><span class="row"><b></b><span class="cur">ج</span></span><small></small></div>
+          <div class="mpills" role="group" aria-label="وحدة البيع">
+            <button type="button" class="pill on" data-u="c">كرتونة</button>
+            <button type="button" class="pill" data-u="h">نص</button>
+            <button type="button" class="pill" data-u="p">قطعة</button>
+          </div>
+          <div class="cactions">
+            <div class="stepper">
+              <button type="button" aria-label="إنقاص الكمية" data-d="-1"><svg class="ic"><use href="#i-minus"/></svg></button>
+              <output>٠</output>
+              <button type="button" aria-label="زيادة الكمية" data-d="1"><svg class="ic"><use href="#i-plus"/></svg></button>
+            </div>
+            <button class="add" type="button"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>أضف للسلة</span></button>
+          </div>
+          <button class="madd" type="button" aria-label="أضف للسلة"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>سلة</span></button>
+        </div>
+      </article>
+
+      <article class="card" data-code="P-2110" data-cat="pens" data-name="قلم حبر جاف Z — أزرق" data-ul="القطعة" data-price="10" data-cq="50" data-cp="500" data-pop="2" style="--i:2">
+        <a class="thumb" href="#">
+          <img src="assets/p2110.png" alt="قلم حبر جاف Z — أزرق" loading="lazy">
+          <span class="badge ok">متوفر</span>
+          <span class="tag"><svg class="ic"><use href="#i-flame"/></svg>الأكثر طلبًا</span>
+        </a>
+        <div class="cbody">
+          <h3 class="cname">قلم حبر جاف Z — أزرق</h3>
+          <div class="cmeta"><span class="code">P-2110</span><span class="cspec">أزرق · عبوة ٥٠ جملة</span></div>
+          <div class="cprices">
+            <div class="unit"><small>سعر القطعة</small><b>١٠<s>ج</s></b></div>
+            <span class="vline"></span>
+            <div class="carton"><small>كرتونة ×٥٠</small><b>٥٠٠ ج</b></div>
+          </div>
+          <div class="mprice"><span class="row"><b></b><span class="cur">ج</span></span><small></small></div>
+          <div class="mpills" role="group" aria-label="وحدة البيع">
+            <button type="button" class="pill on" data-u="c">كرتونة</button>
+            <button type="button" class="pill" data-u="h">نص</button>
+            <button type="button" class="pill" data-u="p">قطعة</button>
+          </div>
+          <div class="cactions">
+            <div class="stepper">
+              <button type="button" aria-label="إنقاص الكمية" data-d="-1"><svg class="ic"><use href="#i-minus"/></svg></button>
+              <output>٠</output>
+              <button type="button" aria-label="زيادة الكمية" data-d="1"><svg class="ic"><use href="#i-plus"/></svg></button>
+            </div>
+            <button class="add" type="button"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>أضف للسلة</span></button>
+          </div>
+          <button class="madd" type="button" aria-label="أضف للسلة"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>سلة</span></button>
+        </div>
+      </article>
+
+      <article class="card" data-code="F-3301" data-cat="files" data-name="ملف مستندات A4 جانب ٣ سم" data-ul="القطعة" data-price="18" data-cq="50" data-cp="900" data-pop="3" style="--i:3">
+        <a class="thumb" href="#">
+          <img src="assets/f3301.png" alt="ملف مستندات A4 جانب ٣ سم" loading="lazy">
+          <span class="badge ok">متوفر</span>
+          <span class="tag"><svg class="ic"><use href="#i-flame"/></svg>الأكثر طلبًا</span>
+        </a>
+        <div class="cbody">
+          <h3 class="cname">ملف مستندات A4 جانب ٣ سم</h3>
+          <div class="cmeta"><span class="code">F-3301</span><span class="cspec">A4 · كرتون مقوى</span></div>
+          <div class="cprices">
+            <div class="unit"><small>سعر القطعة</small><b>١٨<s>ج</s></b></div>
+            <span class="vline"></span>
+            <div class="carton"><small>كرتونة ×٥٠</small><b>٩٠٠ ج</b></div>
+          </div>
+          <div class="mprice"><span class="row"><b></b><span class="cur">ج</span></span><small></small></div>
+          <div class="mpills" role="group" aria-label="وحدة البيع">
+            <button type="button" class="pill on" data-u="c">كرتونة</button>
+            <button type="button" class="pill" data-u="h">نص</button>
+            <button type="button" class="pill" data-u="p">قطعة</button>
+          </div>
+          <div class="cactions">
+            <div class="stepper">
+              <button type="button" aria-label="إنقاص الكمية" data-d="-1"><svg class="ic"><use href="#i-minus"/></svg></button>
+              <output>٠</output>
+              <button type="button" aria-label="زيادة الكمية" data-d="1"><svg class="ic"><use href="#i-plus"/></svg></button>
+            </div>
+            <button class="add" type="button"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>أضف للسلة</span></button>
+          </div>
+          <button class="madd" type="button" aria-label="أضف للسلة"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>سلة</span></button>
+        </div>
+      </article>
+
+      <article class="card" data-code="T-6104" data-cat="tools" data-name="مقص مكتبي ٨ بوصة" data-ul="القطعة" data-price="35" data-cq="24" data-cp="840" data-pop="4" style="--i:4">
+        <a class="thumb" href="#">
+          <img src="assets/t6104.png" alt="مقص مكتبي ٨ بوصة" loading="lazy">
+          <span class="badge ok">متوفر</span>
+        </a>
+        <div class="cbody">
+          <h3 class="cname">مقص مكتبي ٨ بوصة</h3>
+          <div class="cmeta"><span class="code">T-6104</span><span class="cspec">شفرة ستانلس</span></div>
+          <div class="cprices">
+            <div class="unit"><small>سعر القطعة</small><b>٣٥<s>ج</s></b></div>
+            <span class="vline"></span>
+            <div class="carton"><small>كرتونة ×٢٤</small><b>٨٤٠ ج</b></div>
+          </div>
+          <div class="mprice"><span class="row"><b></b><span class="cur">ج</span></span><small></small></div>
+          <div class="mpills" role="group" aria-label="وحدة البيع">
+            <button type="button" class="pill on" data-u="c">كرتونة</button>
+            <button type="button" class="pill" data-u="h">نص</button>
+            <button type="button" class="pill" data-u="p">قطعة</button>
+          </div>
+          <div class="cactions">
+            <div class="stepper">
+              <button type="button" aria-label="إنقاص الكمية" data-d="-1"><svg class="ic"><use href="#i-minus"/></svg></button>
+              <output>٠</output>
+              <button type="button" aria-label="زيادة الكمية" data-d="1"><svg class="ic"><use href="#i-plus"/></svg></button>
+            </div>
+            <button class="add" type="button"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>أضف للسلة</span></button>
+          </div>
+          <button class="madd" type="button" aria-label="أضف للسلة"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>سلة</span></button>
+        </div>
+      </article>
+
+      <article class="card" data-code="D-1030" data-cat="notebooks" data-name="دفتر مقيد ١٠٠ ورقة غلاف مقوى" data-ul="القطعة" data-price="42" data-cq="24" data-cp="1008" data-pop="5" style="--i:5">
+        <a class="thumb" href="#"><img src="assets/d1030.png" alt="دفتر مقيد ١٠٠ ورقة غلاف مقوى" loading="lazy"><span class="badge warn">كمية محدودة</span></a>
+        <div class="cbody">
+          <h3 class="cname">دفتر مقيد ١٠٠ ورقة غلاف مقوى</h3>
+          <div class="cmeta"><span class="code">D-1030</span><span class="cspec">A4 · ١٠٠ ورقة</span></div>
+          <div class="cprices">
+            <div class="unit"><small>سعر القطعة</small><b>٤٢<s>ج</s></b></div>
+            <span class="vline"></span>
+            <div class="carton"><small>كرتونة ×٢٤</small><b>١٬٠٠٨ ج</b></div>
+          </div>
+          <div class="mprice"><span class="row"><b></b><span class="cur">ج</span></span><small></small></div>
+          <div class="mpills" role="group" aria-label="وحدة البيع">
+            <button type="button" class="pill on" data-u="c">كرتونة</button>
+            <button type="button" class="pill" data-u="h">نص</button>
+            <button type="button" class="pill" data-u="p">قطعة</button>
+          </div>
+          <div class="cactions">
+            <div class="stepper">
+              <button type="button" aria-label="إنقاص الكمية" data-d="-1"><svg class="ic"><use href="#i-minus"/></svg></button>
+              <output>٠</output>
+              <button type="button" aria-label="زيادة الكمية" data-d="1"><svg class="ic"><use href="#i-plus"/></svg></button>
+            </div>
+            <button class="add" type="button"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>أضف للسلة</span></button>
+          </div>
+          <button class="madd" type="button" aria-label="أضف للسلة"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>سلة</span></button>
+        </div>
+      </article>
+
+      <article class="card" data-code="E-4402" data-cat="packs" data-name="ظرف بريد C5 — أبيض" data-ul="العلبة" data-price="95" data-cq="20" data-cp="1900" data-pop="6" style="--i:6">
+        <a class="thumb" href="#"><img src="assets/e4402.png" alt="ظرف بريد C5 — أبيض" loading="lazy"><span class="badge ok">متوفر</span></a>
+        <div class="cbody">
+          <h3 class="cname">ظرف بريد C5 — أبيض</h3>
+          <div class="cmeta"><span class="code">E-4402</span><span class="cspec">علبة ٥٠ ظرف</span></div>
+          <div class="cprices">
+            <div class="unit"><small>سعر العلبة</small><b>٩٥<s>ج</s></b></div>
+            <span class="vline"></span>
+            <div class="carton"><small>كرتونة ×٢٠</small><b>١٬٩٠٠ ج</b></div>
+          </div>
+          <div class="mprice"><span class="row"><b></b><span class="cur">ج</span></span><small></small></div>
+          <div class="mpills" role="group" aria-label="وحدة البيع">
+            <button type="button" class="pill on" data-u="c">كرتونة</button>
+            <button type="button" class="pill" data-u="h">نص</button>
+            <button type="button" class="pill" data-u="p">قطعة</button>
+          </div>
+          <div class="cactions">
+            <div class="stepper">
+              <button type="button" aria-label="إنقاص الكمية" data-d="-1"><svg class="ic"><use href="#i-minus"/></svg></button>
+              <output>٠</output>
+              <button type="button" aria-label="زيادة الكمية" data-d="1"><svg class="ic"><use href="#i-plus"/></svg></button>
+            </div>
+            <button class="add" type="button"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>أضف للسلة</span></button>
+          </div>
+          <button class="madd" type="button" aria-label="أضف للسلة"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>سلة</span></button>
+        </div>
+      </article>
+
+      <article class="card" data-code="T-6250" data-cat="tools" data-name="آلة حاسبة ٨ أرقام" data-ul="القطعة" data-price="180" data-cq="10" data-cp="1800" data-pop="7" style="--i:7">
+        <a class="thumb" href="#"><img src="assets/t6250.png" alt="آلة حاسبة ٨ أرقام" loading="lazy"><span class="badge ok">متوفر</span></a>
+        <div class="cbody">
+          <h3 class="cname">آلة حاسبة ٨ أرقام</h3>
+          <div class="cmeta"><span class="code">T-6250</span><span class="cspec">شاشة كبيرة · مكتبي</span></div>
+          <div class="cprices">
+            <div class="unit"><small>سعر القطعة</small><b>١٨٠<s>ج</s></b></div>
+            <span class="vline"></span>
+            <div class="carton"><small>كرتونة ×١٠</small><b>١٬٨٠٠ ج</b></div>
+          </div>
+          <div class="mprice"><span class="row"><b></b><span class="cur">ج</span></span><small></small></div>
+          <div class="mpills" role="group" aria-label="وحدة البيع">
+            <button type="button" class="pill on" data-u="c">كرتونة</button>
+            <button type="button" class="pill" data-u="h">نص</button>
+            <button type="button" class="pill" data-u="p">قطعة</button>
+          </div>
+          <div class="cactions">
+            <div class="stepper">
+              <button type="button" aria-label="إنقاص الكمية" data-d="-1"><svg class="ic"><use href="#i-minus"/></svg></button>
+              <output>٠</output>
+              <button type="button" aria-label="زيادة الكمية" data-d="1"><svg class="ic"><use href="#i-plus"/></svg></button>
+            </div>
+            <button class="add" type="button"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>أضف للسلة</span></button>
+          </div>
+          <button class="madd" type="button" aria-label="أضف للسلة"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>سلة</span></button>
+        </div>
+      </article>
+
+      <article class="card" data-code="S-0872" data-cat="bind" data-name="دباسة مكتبية — ٢٠ ورقة" data-ul="القطعة" data-price="75" data-cq="12" data-cp="900" data-pop="8" style="--i:8">
+        <a class="thumb" href="#"><img src="assets/s0872.png" alt="دباسة مكتبية — ٢٠ ورقة" loading="lazy"><span class="badge ok">متوفر</span></a>
+        <div class="cbody">
+          <h3 class="cname">دباسة مكتبية — ٢٠ ورقة</h3>
+          <div class="cmeta"><span class="code">S-0872</span><span class="cspec">فولاذ · ٢٦/٦</span></div>
+          <div class="cprices">
+            <div class="unit"><small>سعر القطعة</small><b>٧٥<s>ج</s></b></div>
+            <span class="vline"></span>
+            <div class="carton"><small>كرتونة ×١٢</small><b>٩٠٠ ج</b></div>
+          </div>
+          <div class="mprice"><span class="row"><b></b><span class="cur">ج</span></span><small></small></div>
+          <div class="mpills" role="group" aria-label="وحدة البيع">
+            <button type="button" class="pill on" data-u="c">كرتونة</button>
+            <button type="button" class="pill" data-u="h">نص</button>
+            <button type="button" class="pill" data-u="p">قطعة</button>
+          </div>
+          <div class="cactions">
+            <div class="stepper">
+              <button type="button" aria-label="إنقاص الكمية" data-d="-1"><svg class="ic"><use href="#i-minus"/></svg></button>
+              <output>٠</output>
+              <button type="button" aria-label="زيادة الكمية" data-d="1"><svg class="ic"><use href="#i-plus"/></svg></button>
+            </div>
+            <button class="add" type="button"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>أضف للسلة</span></button>
+          </div>
+          <button class="madd" type="button" aria-label="أضف للسلة"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>سلة</span></button>
+        </div>
+      </article>
+
+      <article class="card" data-code="G-7501" data-cat="notebooks" data-name="كراسة ملاحظات فاخرة A5" data-ul="القطعة" data-price="30" data-cq="16" data-cp="480" data-pop="9" style="--i:9">
+        <a class="thumb" href="#"><img src="assets/g7501.png" alt="كراسة ملاحظات فاخرة A5" loading="lazy"><span class="badge warn">كمية محدودة</span></a>
+        <div class="cbody">
+          <h3 class="cname">كراسة ملاحظات فاخرة A5</h3>
+          <div class="cmeta"><span class="code">G-7501</span><span class="cspec">A5 · مسطرة</span></div>
+          <div class="cprices">
+            <div class="unit"><small>سعر القطعة</small><b>٣٠<s>ج</s></b></div>
+            <span class="vline"></span>
+            <div class="carton"><small>كرتونة ×١٦</small><b>٤٨٠ ج</b></div>
+          </div>
+          <div class="mprice"><span class="row"><b></b><span class="cur">ج</span></span><small></small></div>
+          <div class="mpills" role="group" aria-label="وحدة البيع">
+            <button type="button" class="pill on" data-u="c">كرتونة</button>
+            <button type="button" class="pill" data-u="h">نص</button>
+            <button type="button" class="pill" data-u="p">قطعة</button>
+          </div>
+          <div class="cactions">
+            <div class="stepper">
+              <button type="button" aria-label="إنقاص الكمية" data-d="-1"><svg class="ic"><use href="#i-minus"/></svg></button>
+              <output>٠</output>
+              <button type="button" aria-label="زيادة الكمية" data-d="1"><svg class="ic"><use href="#i-plus"/></svg></button>
+            </div>
+            <button class="add" type="button"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>أضف للسلة</span></button>
+          </div>
+          <button class="madd" type="button" aria-label="أضف للسلة"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>سلة</span></button>
+        </div>
+      </article>
+
+      <article class="card" data-code="T-6301" data-cat="pens" data-name="أقلام رصاص HB — عبوة ١٢" data-ul="العبوة" data-price="26" data-cq="48" data-cp="1248" data-pop="10" style="--i:10">
+        <a class="thumb" href="#"><img src="assets/t6301.png" alt="أقلام رصاص HB — عبوة ١٢" loading="lazy"><span class="badge ok">متوفر</span></a>
+        <div class="cbody">
+          <h3 class="cname">أقلام رصاص HB — عبوة ١٢</h3>
+          <div class="cmeta"><span class="code">T-6301</span><span class="cspec">HB · علبة مقوّاة</span></div>
+          <div class="cprices">
+            <div class="unit"><small>سعر العبوة</small><b>٢٦<s>ج</s></b></div>
+            <span class="vline"></span>
+            <div class="carton"><small>كرتونة ×٤٨</small><b>١٬٢٤٨ ج</b></div>
+          </div>
+          <div class="mprice"><span class="row"><b></b><span class="cur">ج</span></span><small></small></div>
+          <div class="mpills" role="group" aria-label="وحدة البيع">
+            <button type="button" class="pill on" data-u="c">كرتونة</button>
+            <button type="button" class="pill" data-u="h">نص</button>
+            <button type="button" class="pill" data-u="p">قطعة</button>
+          </div>
+          <div class="cactions">
+            <div class="stepper">
+              <button type="button" aria-label="إنقاص الكمية" data-d="-1"><svg class="ic"><use href="#i-minus"/></svg></button>
+              <output>٠</output>
+              <button type="button" aria-label="زيادة الكمية" data-d="1"><svg class="ic"><use href="#i-plus"/></svg></button>
+            </div>
+            <button class="add" type="button"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>أضف للسلة</span></button>
+          </div>
+          <button class="madd" type="button" aria-label="أضف للسلة"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>سلة</span></button>
+        </div>
+      </article>
+
+      <article class="card" data-code="E-4415" data-cat="packs" data-name="شريط لاصق شفاف ٢ إنش" data-ul="القطعة" data-price="18" data-cq="60" data-cp="1080" data-pop="11" style="--i:11">
+        <a class="thumb" href="#"><img src="assets/e4415.png" alt="شريط لاصق شفاف ٢ إنش" loading="lazy"><span class="badge ok">متوفر</span></a>
+        <div class="cbody">
+          <h3 class="cname">شريط لاصق شفاف ٢ إنش</h3>
+          <div class="cmeta"><span class="code">E-4415</span><span class="cspec">٢ إنش × ٥٠ ياردة</span></div>
+          <div class="cprices">
+            <div class="unit"><small>سعر القطعة</small><b>١٨<s>ج</s></b></div>
+            <span class="vline"></span>
+            <div class="carton"><small>كرتونة ×٦٠</small><b>١٬٠٨٠ ج</b></div>
+          </div>
+          <div class="mprice"><span class="row"><b></b><span class="cur">ج</span></span><small></small></div>
+          <div class="mpills" role="group" aria-label="وحدة البيع">
+            <button type="button" class="pill on" data-u="c">كرتونة</button>
+            <button type="button" class="pill" data-u="h">نص</button>
+            <button type="button" class="pill" data-u="p">قطعة</button>
+          </div>
+          <div class="cactions">
+            <div class="stepper">
+              <button type="button" aria-label="إنقاص الكمية" data-d="-1"><svg class="ic"><use href="#i-minus"/></svg></button>
+              <output>٠</output>
+              <button type="button" aria-label="زيادة الكمية" data-d="1"><svg class="ic"><use href="#i-plus"/></svg></button>
+            </div>
+            <button class="add" type="button"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>أضف للسلة</span></button>
+          </div>
+          <button class="madd" type="button" aria-label="أضف للسلة"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>سلة</span></button>
+        </div>
+      </article>
+
+      <article class="card" data-code="F-3305" data-cat="files" data-name="لوح قلم A5 مشبك معدني" data-ul="القطعة" data-price="55" data-cq="20" data-cp="1100" data-pop="12" style="--i:12">
+        <a class="thumb" href="#"><img src="assets/f3305.png" alt="لوح قلم A5 مشبك معدني" loading="lazy"><span class="badge ok">متوفر</span></a>
+        <div class="cbody">
+          <h3 class="cname">لوح قلم A5 مشبك معدني</h3>
+          <div class="cmeta"><span class="code">F-3305</span><span class="cspec">A5 · خشب Como</span></div>
+          <div class="cprices">
+            <div class="unit"><small>سعر القطعة</small><b>٥٥<s>ج</s></b></div>
+            <span class="vline"></span>
+            <div class="carton"><small>كرتونة ×٢٠</small><b>١٬١٠٠ ج</b></div>
+          </div>
+          <div class="mprice"><span class="row"><b></b><span class="cur">ج</span></span><small></small></div>
+          <div class="mpills" role="group" aria-label="وحدة البيع">
+            <button type="button" class="pill on" data-u="c">كرتونة</button>
+            <button type="button" class="pill" data-u="h">نص</button>
+            <button type="button" class="pill" data-u="p">قطعة</button>
+          </div>
+          <div class="cactions">
+            <div class="stepper">
+              <button type="button" aria-label="إنقاص الكمية" data-d="-1"><svg class="ic"><use href="#i-minus"/></svg></button>
+              <output>٠</output>
+              <button type="button" aria-label="زيادة الكمية" data-d="1"><svg class="ic"><use href="#i-plus"/></svg></button>
+            </div>
+            <button class="add" type="button"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>أضف للسلة</span></button>
+          </div>
+          <button class="madd" type="button" aria-label="أضف للسلة"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>سلة</span></button>
+        </div>
+      </article>
+
+      <article class="card" data-code="G-7520" data-cat="files" data-name="شهادة تقدير A4 مع غلاف" data-ul="القطعة" data-price="8" data-cq="100" data-cp="800" data-pop="13" style="--i:13">
+        <a class="thumb" href="#"><img src="assets/g7520.png" alt="شهادة تقدير A4 مع غلاف" loading="lazy"><span class="badge ok">متوفر</span></a>
+        <div class="cbody">
+          <h3 class="cname">شهادة تقدير A4 مع غلاف</h3>
+          <div class="cmeta"><span class="code">G-7520</span><span class="cspec">تصميم مذهّب</span></div>
+          <div class="cprices">
+            <div class="unit"><small>سعر القطعة</small><b>٨<s>ج</s></b></div>
+            <span class="vline"></span>
+            <div class="carton"><small>كرتونة ×١٠٠</small><b>٨٠٠ ج</b></div>
+          </div>
+          <div class="mprice"><span class="row"><b></b><span class="cur">ج</span></span><small></small></div>
+          <div class="mpills" role="group" aria-label="وحدة البيع">
+            <button type="button" class="pill on" data-u="c">كرتونة</button>
+            <button type="button" class="pill" data-u="h">نص</button>
+            <button type="button" class="pill" data-u="p">قطعة</button>
+          </div>
+          <div class="cactions">
+            <div class="stepper">
+              <button type="button" aria-label="إنقاص الكمية" data-d="-1"><svg class="ic"><use href="#i-minus"/></svg></button>
+              <output>٠</output>
+              <button type="button" aria-label="زيادة الكمية" data-d="1"><svg class="ic"><use href="#i-plus"/></svg></button>
+            </div>
+            <button class="add" type="button"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>أضف للسلة</span></button>
+          </div>
+          <button class="madd" type="button" aria-label="أضف للسلة"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>سلة</span></button>
+        </div>
+      </article>
+
+      <article class="card" data-code="P-2156" data-cat="pens" data-name="قلم تصحيح دقيق ٢٠ مل" data-ul="القطعة" data-price="22" data-cq="12" data-cp="264" data-pop="14" style="--i:14">
+        <a class="thumb" href="#"><img src="assets/p2156.png" alt="قلم تصحيح دقيق ٢٠ مل" loading="lazy"><span class="badge ok">متوفر</span></a>
+        <div class="cbody">
+          <h3 class="cname">قلم تصحيح دقيق ٢٠ مل</h3>
+          <div class="cmeta"><span class="code">P-2156</span><span class="cspec">رأس إسفيني</span></div>
+          <div class="cprices">
+            <div class="unit"><small>سعر القطعة</small><b>٢٢<s>ج</s></b></div>
+            <span class="vline"></span>
+            <div class="carton"><small>كرتونة ×١٢</small><b>٢٦٤ ج</b></div>
+          </div>
+          <div class="mprice"><span class="row"><b></b><span class="cur">ج</span></span><small></small></div>
+          <div class="mpills" role="group" aria-label="وحدة البيع">
+            <button type="button" class="pill on" data-u="c">كرتونة</button>
+            <button type="button" class="pill" data-u="h">نص</button>
+            <button type="button" class="pill" data-u="p">قطعة</button>
+          </div>
+          <div class="cactions">
+            <div class="stepper">
+              <button type="button" aria-label="إنقاص الكمية" data-d="-1"><svg class="ic"><use href="#i-minus"/></svg></button>
+              <output>٠</output>
+              <button type="button" aria-label="زيادة الكمية" data-d="1"><svg class="ic"><use href="#i-plus"/></svg></button>
+            </div>
+            <button class="add" type="button"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>أضف للسلة</span></button>
+          </div>
+          <button class="madd" type="button" aria-label="أضف للسلة"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>سلة</span></button>
+        </div>
+      </article>
+
+      <article class="card" data-code="T-6320" data-cat="packs" data-name="لاصق ماء ١٢٥ جم" data-ul="القطعة" data-price="16" data-cq="36" data-cp="576" data-pop="15" style="--i:15">
+        <a class="thumb" href="#"><img src="assets/t6320.png" alt="لاصق ماء ١٢٥ جم" loading="lazy"><span class="badge ok">متوفر</span></a>
+        <div class="cbody">
+          <h3 class="cname">لاصق ماء ١٢٥ جم</h3>
+          <div class="cmeta"><span class="code">T-6320</span><span class="cspec">فوهة دقيقة</span></div>
+          <div class="cprices">
+            <div class="unit"><small>سعر القطعة</small><b>١٦<s>ج</s></b></div>
+            <span class="vline"></span>
+            <div class="carton"><small>كرتونة ×٣٦</small><b>٥٧٦ ج</b></div>
+          </div>
+          <div class="mprice"><span class="row"><b></b><span class="cur">ج</span></span><small></small></div>
+          <div class="mpills" role="group" aria-label="وحدة البيع">
+            <button type="button" class="pill on" data-u="c">كرتونة</button>
+            <button type="button" class="pill" data-u="h">نص</button>
+            <button type="button" class="pill" data-u="p">قطعة</button>
+          </div>
+          <div class="cactions">
+            <div class="stepper">
+              <button type="button" aria-label="إنقاص الكمية" data-d="-1"><svg class="ic"><use href="#i-minus"/></svg></button>
+              <output>٠</output>
+              <button type="button" aria-label="زيادة الكمية" data-d="1"><svg class="ic"><use href="#i-plus"/></svg></button>
+            </div>
+            <button class="add" type="button"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>أضف للسلة</span></button>
+          </div>
+          <button class="madd" type="button" aria-label="أضف للسلة"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>سلة</span></button>
+        </div>
+      </article>
+
+      <article class="card oos" data-code="S-0880" data-cat="bind" data-name="مخرقة ورق ٣ فتحات" data-ul="القطعة" data-price="120" data-cq="6" data-cp="720" data-pop="16" style="--i:16">
+        <a class="thumb" href="#"><img src="assets/s0880.png" alt="مخرقة ورق ٣ فتحات" loading="lazy"><span class="badge bad">نفدت الكمية</span></a>
+        <div class="cbody">
+          <h3 class="cname">مخرقة ورق ٣ فتحات</h3>
+          <div class="cmeta"><span class="code">S-0880</span><span class="cspec">سلة مانعة للانسداد</span></div>
+          <div class="cprices">
+            <div class="unit"><small>سعر القطعة</small><b>١٢٠<s>ج</s></b></div>
+            <span class="vline"></span>
+            <div class="carton"><small>كرتونة ×٦</small><b>٧٢٠ ج</b></div>
+          </div>
+          <div class="mprice"><span class="row"><b></b><span class="cur">ج</span></span><small></small></div>
+          <div class="mpills" role="group" aria-label="وحدة البيع">
+            <button type="button" class="pill on" data-u="c">كرتونة</button>
+            <button type="button" class="pill" data-u="h">نص</button>
+            <button type="button" class="pill" data-u="p">قطعة</button>
+          </div>
+          <div class="cactions">
+            <div class="stepper">
+              <button type="button" aria-label="إنقاص الكمية" data-d="-1" disabled><svg class="ic"><use href="#i-minus"/></svg></button>
+              <output>٠</output>
+              <button type="button" aria-label="زيادة الكمية" data-d="1" disabled><svg class="ic"><use href="#i-plus"/></svg></button>
+            </div>
+            <button class="add" type="button" disabled><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>نفدت الكمية</span></button>
+          </div>
+          <button class="madd" type="button" disabled aria-label="نفدت الكمية"><svg class="ic icp"><use href="#i-plus"/></svg><svg class="ic ick"><use href="#i-check"/></svg><span>نفدت الكمية</span></button>
+        </div>
+      </article>
+
+      <!-- Load more / loading ghosts -->
+      <div class="ghostcard" style="--i:17" role="button" tabindex="0" aria-label="عرض منتجات إضافية">
+        <span class="plus"><svg class="ic"><use href="#i-plus"/></svg></span>
+        <b>عرض المزيد</b>
+        <small>٤١٢ منتجًا إضافيًا</small>
+      </div>
+      <div class="ghostcard skeleton" style="--i:18" aria-hidden="true">
+        <span class="sk sk-th"></span>
+        <span class="sk sk-l"></span>
+        <span class="sk sk-s"></span>
+      </div>
+
+      <!-- Empty / no-results state -->
+      <div class="empty">
+        <svg class="ic"><use href="#i-searchx"/></svg>
+        <b>لا توجد منتجات مطابقة</b>
+        <p>جرّب كلمة بحث أخرى أو اختر تصنيفًا مختلفًا — البحث يعمل بالاسم العربي وبالكود اللاتيني معًا.</p>
+        <button type="button" id="clearAll">مسح البحث والتصفية</button>
+      </div>
+    </section>
+
+    <footer class="cfoot">© ٢٠٢٦ دريم للتوزيع — نظام كتالوج تنتاوي <span class="mono">TQW-OS v2.4.1</span></footer>
+  </main>
+</div><!-- /main -->
+
+<!-- ===== Cart strip (desktop / tablet) ===== -->
+<div class="cartbar" role="region" aria-label="سلة الطلب">
+  <div class="cbicon"><svg class="ic"><use href="#i-cart"/></svg><u id="cbCount">٣</u></div>
+  <div class="cbmain">
+    <b>سلة الطلب</b>
+    <small>ORDER DRAFT №٢٤٥٨ · <span class="cnt" id="cbLabel">٣ منتجات</span></small>
+  </div>
+  <div class="cbtotal"><div><small>الإجمالي التقديري</small><b id="cbTotal">١٬٢٤٠ ج</b></div></div>
+  <button class="carttoggle" id="cartToggle" aria-expanded="false" aria-controls="cartPanel" aria-label="عرض تفاصيل السلة">
+    <svg class="ic"><use href="#i-chev"/></svg>
+  </button>
+  <div class="cbspacer"></div>
+  <button class="cta" id="cta1">إتمام الطلب<svg class="ic"><use href="#i-arrow"/></svg><kbd>Enter ↵</kbd></button>
+</div>
+
+<!-- Cart detail panel (desktop / tablet) -->
+<div class="cartpanel" id="cartPanel">
+  <div class="chead">
+    <b>المنتجات المضافة</b>
+    <button class="clr" id="clearCart">مسح الكل</button>
+    <small>تعديل الكميات يحدّث الإجمالي فورًا</small>
+  </div>
+  <div class="cartlist" id="cartList"></div>
+</div>
+
+<!-- ===== Mobile: sticky order bar ===== -->
+<div class="mbottom">
+  <button class="mb-open" id="mCartOpen" aria-haspopup="dialog" aria-label="عرض سلة الطلب">
+    <span class="mb-ic"><svg class="ic"><use href="#i-cart"/></svg><u id="mbBadge">٣</u></span>
+    <span class="mb-col"><b>سلة الطلب</b><small id="mbLabel">٣ منتجات</small></span>
+  </button>
+  <div class="mb-total"><small>الإجمالي</small><b id="mbTotal">١٬٢٤٠ ج</b></div>
+  <button class="mb-cta" id="cta2">إتمام الطلب<svg class="ic"><use href="#i-arrow"/></svg></button>
+</div>
+
+<!-- Mobile bottom sheet -->
+<div class="scrim" id="scrim"></div>
+<div class="msheet" id="msheet" role="dialog" aria-label="سلة الطلب">
+  <div class="grab"></div>
+  <div class="msh-head">
+    <b>سلة الطلب</b>
+    <button class="clr" id="mclear">مسح الكل</button>
+    <span class="tot" id="mshTotal">١٬٢٤٠ ج</span>
+    <button class="x" id="mshClose" aria-label="إغلاق"><svg class="ic"><use href="#i-x"/></svg></button>
+  </div>
+  <div class="cartlist" id="mcartList"></div>
+  <button class="cta" id="cta3" style="width:calc(100% - 32px)">إتمام الطلب<svg class="ic"><use href="#i-arrow"/></svg></button>
+</div>
+
+<!-- Mobile bottom nav -->
+<nav class="bottomnav" aria-label="التنقل السفلي">
+  <a class="bnav" href="#"><svg class="ic"><use href="#i-home"/></svg>الرئيسية</a>
+  <a class="bnav" href="#"><svg class="ic"><use href="#i-users"/></svg>العملاء</a>
+  <a class="bnav on" href="#" aria-current="page"><svg class="ic"><use href="#i-package"/></svg>الكتالوج</a>
+  <a class="bnav" href="#"><svg class="ic"><use href="#i-archive"/></svg>المخزون</a>
+  <a class="bnav" href="#"><svg class="ic"><use href="#i-more"/></svg>المزيد</a>
+</nav>
+
+<script>
+(function(){
+"use strict";
+var $=function(s,r){return (r||document).querySelector(s)}, $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+var AR=new Intl.NumberFormat('ar-EG',{maximumFractionDigits:2});
+function fmt(n){return AR.format(n)}
+
+/* ---------- Product registry ---------- */
+var prods={};
+$$('.card').forEach(function(c){
+  var d=c.dataset;
+  prods[d.code]={el:c,name:d.name,code:d.code,ul:d.ul,price:+d.price,cq:+d.cq,cp:+d.cp,cat:d.cat,pop:+d.pop,
+    img:c.querySelector('.thumb img').getAttribute('src')};
+});
+var cart={"D-1024":20,"P-2110":20,"T-6104":16}; /* exactly ٣ منتجات — ١٬٢٤٠ ج */
+
+/* ---------- Mobile unit pills + hero pricing ---------- */
+function unitInfo(p,u){
+  if(u==='p')return{q:1,price:p.price,sub:'سعر '+p.ul};
+  if(u==='h')return{q:p.cq/2,price:p.cp/2,sub:'نص الكرتونة ×'+fmt(p.cq/2)};
+  return{q:p.cq,price:p.cp,sub:'سعر الكرتونة ×'+fmt(p.cq)};
+}
+function paintHero(card){
+  var p=prods[card.dataset.code],m=unitInfo(p,card._u||'c');
+  $('.mprice b',card).textContent=fmt(m.price);
+  $('.mprice small',card).textContent=m.sub;
+}
+
+/* ---------- Order mutation ---------- */
+function bump(){
+  [$('#cbCount'),$('#mappBad'),$('#mbBadge')].forEach(function(el){
+    if(!el)return;el.classList.remove('bump');void el.offsetWidth;el.classList.add('bump');
+  });
+}
+function addQty(code,n){cart[code]=(cart[code]||0)+n;updateCart();bump()}
+
+/* ---------- Per-card wiring ---------- */
+$$('.card').forEach(function(card){
+  var code=card.dataset.code,p=prods[code];
+  card._u='c';paintHero(card);
+
+  /* desktop: stepper + add */
+  var out=$('output',card),add=$('.add',card),v=0,timer=null;
+  function label(){
+    out.textContent=fmt(v);
+    if(add.classList.contains('done'))return;
+    var span=$('span',add);
+    span.textContent=v>0?('أضف '+fmt(v)+' للسلة'):'أضف للسلة';
+    add.disabled=v<1;
+  }
+  $$('.stepper button',card).forEach(function(b){
+    b.addEventListener('click',function(){v=Math.max(0,Math.min(999,v+ +b.dataset.d));label()});
+  });
+  var dis=v<1;add.disabled=dis;
+  add.addEventListener('click',function(){
+    if(!v)return;
+    addQty(code,v);v=0;label();
+    add.classList.add('done');$('span',add).textContent='تمت الإضافة';
+    clearTimeout(timer);
+    timer=setTimeout(function(){add.classList.remove('done');label()},1300);
+  });
+
+  /* mobile: unit pills */
+  $$('.mpills .pill',card).forEach(function(pill){
+    pill.addEventListener('click',function(){
+      card._u=pill.dataset.u;
+      $$('.mpills .pill',card).forEach(function(x){x.classList.toggle('on',x===pill)});
+      paintHero(card);
+    });
+  });
+
+  /* mobile: + سلة (adds 1 of the selected unit) */
+  var madd=$('.madd',card),mtimer=null;
+  madd.addEventListener('click',function(){
+    addQty(code,unitInfo(p,card._u).q);
+    madd.classList.add('done');$('span',madd).textContent='تمت الإضافة';
+    clearTimeout(mtimer);
+    mtimer=setTimeout(function(){madd.classList.remove('done');$('span',madd).textContent='سلة'},1200);
+  });
+});
+
+/* ---------- Cart rendering ---------- */
+var cbTotal=$('#cbTotal'),cbCount=$('#cbCount'),cbLabel=$('#cbLabel'),cartList=$('#cartList'),mcartList=$('#mcartList'),
+    mbBadge=$('#mbBadge'),mbLabel=$('#mbLabel'),mbTotal=$('#mbTotal'),
+    mappBad=$('#mappBad'),mshTotal=$('#mshTotal');
+var plural={0:'السلة فارغة',1:'منتج واحد',2:'منتجان'};
+function countText(n){if(n===0)return plural[0];if(n===1)return plural[1];if(n===2)return plural[2];return fmt(n)+' منتجات'}
+function rowHTML(code){
+  var p=prods[code],q=cart[code];
+  return '<div class="crow" data-code="'+code+'">'+
+    '<img src="'+p.img+'" alt="">'+
+    '<div class="ri"><b>'+p.name+'</b><span>'+p.code+'</span></div>'+
+    '<div class="mstep">'+
+      '<button type="button" data-act="m" aria-label="إنقاص"><svg class="ic"><use href="#i-minus"/></svg></button>'+
+      '<b>'+fmt(q)+'</b>'+
+      '<button type="button" data-act="p" aria-label="زيادة"><svg class="ic"><use href="#i-plus"/></svg></button>'+
+    '</div>'+
+    '<b class="sum">'+fmt(p.price*q)+' ج</b>'+
+    '<button class="rm" type="button" data-act="rm" aria-label="إزالة من السلة"><svg class="ic"><use href="#i-x"/></svg></button>'+
+  '</div>';
+}
+function updateCart(){
+  var codes=Object.keys(cart),total=0,count=codes.length;
+  codes.forEach(function(c){total+=prods[c].price*cart[c]});
+  var html=codes.length?codes.map(rowHTML).join(''):'<div class="cempty">السلة فارغة — أضف منتجات من الكتالوج لبدء طلب جديد.</div>';
+  cartList.innerHTML=html;mcartList.innerHTML=html;
+  var ct=countText(count);
+  cbTotal.textContent=fmt(total)+' ج';
+  cbCount.textContent=count?fmt(count):'';
+  cbCount.style.display=count?'grid':'none';
+  cbLabel.textContent=ct;
+  mbBadge.textContent=count?fmt(count):'';
+  mbBadge.style.display=count?'grid':'none';
+  mbLabel.textContent=ct;
+  mbTotal.textContent=fmt(total)+' ج';
+  mappBad.textContent=count?fmt(count):'';
+  mappBad.style.display=count?'grid':'none';
+  mshTotal.textContent=fmt(total)+' ج';
+  $('#cta1').disabled=!count;$('#cta2').disabled=!count;$('#cta3').disabled=!count;
+  if(!count){
+    $('#cartToggle').setAttribute('aria-expanded','false');
+    cartPanel.classList.remove('open');
+  }
+}
+function wireList(list){
+  list.addEventListener('click',function(e){
+    var b=e.target.closest('[data-act]');if(!b)return;
+    var code=b.closest('.crow').dataset.code,act=b.dataset.act;
+    if(act==='rm'){delete cart[code]}
+    else if(act==='m'){cart[code]=Math.max(1,cart[code]-1)}
+    else if(act==='p'){cart[code]=Math.min(999,cart[code]+1)}
+    updateCart();
+  });
+}
+wireList(cartList);wireList(mcartList);
+$('#clearCart').addEventListener('click',function(){cart={};updateCart()});
+$('#mclear').addEventListener('click',function(){cart={};updateCart()});
+updateCart();
+
+/* ---------- Cart panel (desktop / tablet) ---------- */
+var cartToggle=$('#cartToggle'),cartPanel=$('#cartPanel');
+cartToggle.addEventListener('click',function(){
+  var open=!cartPanel.classList.contains('open');
+  cartPanel.classList.toggle('open',open);cartToggle.setAttribute('aria-expanded',open);
+});
+
+/* ---------- Mobile cart sheet ---------- */
+var scrim=$('#scrim'),msheet=$('#msheet');
+function sheet(open){msheet.classList.toggle('open',open);scrim.classList.toggle('open',open);
+  document.body.style.overflow=open?'hidden':''}
+$('#mCartOpen').addEventListener('click',function(){sheet(true)});
+$('#mappBtn').addEventListener('click',function(){sheet(true)});
+$('#mshClose').addEventListener('click',function(){sheet(false)});
+scrim.addEventListener('click',function(){sheet(false)});
+
+/* ---------- Search / chips / sort ---------- */
+var qEl=$('#q'),mqEl=$('#mq'),sortEl=$('#sort'),msortEl=$('#msort'),grid=$('#grid');
+var state={q:'',cat:'all',sort:'pop'};
+function apply(){
+  var cards=$$('.card',grid);
+  var sorted=cards.slice().sort(function(a,b){
+    var pa=prods[a.dataset.code],pb=prods[b.dataset.code];
+    if(state.sort==='asc')return pa.price-pb.price;
+    if(state.sort==='desc')return pb.price-pa.price;
+    return pa.pop-pb.pop;
+  });
+  var frag=document.createDocumentFragment();sorted.forEach(function(c){frag.appendChild(c)});
+  $$('.ghostcard',grid).forEach(function(g){frag.appendChild(g)});
+  grid.appendChild(frag);
+  var q=state.q.trim().toLowerCase(),shown=0;
+  cards.forEach(function(c){
+    var p=prods[c.dataset.code];
+    var hit=(state.cat==='all'||p.cat===state.cat)&&
+      (q===''||p.name.toLowerCase().indexOf(q)>-1||p.code.toLowerCase().indexOf(q)>-1);
+    c.classList.toggle('off',!hit);
+    if(hit)shown++;
+  });
+  grid.classList.toggle('no-results',shown===0);
+  var num=shown?fmt(shown):'٠';
+  $('#rmeta').textContent=num;$('#rshown').textContent=num;$('#rmcount').textContent=num;
+}
+qEl.addEventListener('input',function(){state.q=qEl.value;mqEl.value=qEl.value;apply()});
+mqEl.addEventListener('input',function(){state.q=mqEl.value;qEl.value=mqEl.value;apply()});
+sortEl.addEventListener('change',function(){state.sort=sortEl.value;msortEl.value=sortEl.value;apply()});
+msortEl.addEventListener('change',function(){state.sort=msortEl.value;sortEl.value=msortEl.value;apply()});
+$$('.chip').forEach(function(ch){
+  ch.addEventListener('click',function(){
+    $$('.chip').forEach(function(x){x.classList.remove('on')});
+    ch.classList.add('on');state.cat=ch.dataset.cat;apply();
+  });
+});
+$('#clearAll').addEventListener('click',function(){
+  var s=state.sort;
+  state={q:'',cat:'all',sort:s};
+  qEl.value='';mqEl.value='';
+  $$('.chip').forEach(function(x){x.classList.toggle('on',x.dataset.cat==='all')});
+  apply();
+});
+apply();
+}                               

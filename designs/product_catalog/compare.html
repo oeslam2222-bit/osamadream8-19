@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<title>مقارنة تصاميم كتالوج المنتجات</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Cairo',sans-serif; background:#0f1522; color:#e8eef7; padding:28px 20px 60px; min-width:900px; }
+  h1 { text-align:center; font-weight:800; font-size:26px; margin-bottom:6px; }
+  .sub { text-align:center; color:#8fa3bd; font-size:13px; margin-bottom:34px; }
+  body.rtl { background:#0f1522; }
+  .variant { margin-bottom:48px; }
+  .var-head { display:flex; align-items:baseline; gap:14px; margin-bottom:14px; padding-inline-start:6px; }
+  .var-head .tag { font-size:12px; font-weight:700; padding:4px 12px; border-radius:999px; }
+  .var-head h2 { font-size:20px; font-weight:800; }
+  .var-head p { font-size:12.5px; color:#93a7c1; }
+  .pair { display:grid; grid-template-columns: 1fr 330px; gap:18px; align-items:start; }
+  .frame { border-radius:14px; overflow:hidden; border:1px solid #263650; box-shadow:0 10px 40px rgba(0,0,0,.45); background:#111a27; }
+  .frame img { display:block; width:100%; height:auto; }
+  .cap { display:flex; justify-content:space-between; padding:8px 12px; background:#131c2b; font-size:11.5px; color:#7e93ae; border-top:1px solid #263650; }
+</style>
+</head>
+<body>
+  <h1>مقارنة التصاميم الشكلية — صفحة كتالوج المنتجات</h1>
+  <div class="sub">3 هويات بصرية × (ويب 1440px + موبايل 390px) — افرد النافذة لو الصور مقطوعة، والملفات في designs/product_catalog/shots/</div>
+
+  <section class="variant">
+    <div class="var-head">
+      <span class="tag" style="background:#173a63;color:#9ecbf5;">A — تطوير الهوية</span>
+      <h2>الكحلي + النحاسي (الهوية الحالية مصقولة)</h2>
+      <p>رسمي، كثافة معلومات أعلى، مناسب للأدمن والإدارة — نفس روح النظام الحالي لكن أرقى</p>
+    </div>
+    <div class="pair">
+      <div class="frame"><img src="shots/v1_web.png" alt="A web"><div class="cap"><span>ويب — 1440×900</span><span>v1_web.png</span></div></div>
+      <div class="frame"><img src="shots/v1_mobile.png" alt="A mobile"><div class="cap"><span>موبايل — 390px</span><span>v1_mobile.png</span></div></div>
+    </div>
+  </section>
+
+  <section class="variant">
+    <div class="var-head">
+      <span class="tag" style="background:#2c2d6e;color:#b7b9ff;">B — مودرن مينيمال</span>
+      <h2>ستايل SaaS عالمي (Linear/Notion بالعربي)</h2>
+      <p>أبيض هادئ + أزرق نيلي واحد، مسافات مريحة، أسعار مضبوطة — إحساس احترافي عصري</p>
+    </div>
+    <div class="pair">
+      <div class="frame"><img src="shots/v2_web.png" alt="B web"><div class="cap"><span>ويب — 1440×900</span><span>v2_web.png</span></div></div>
+      <div class="frame"><img src="shots/v2_mobile.png" alt="B mobile"><div class="cap"><span>موبايل — 390px</span><span>v2_mobile.png</span></div></div>
+    </div>
+  </section>
+
+  <section class="variant">
+    <div class="var-head">
+      <span class="tag" style="background:#135e57;color:#8fe3d8;">C — ميداني ملون</span>
+      <h2>كرت كبيرة مريحة للموبايل (إضاءة الشمس ومشاعر الأصابع)</h2>
+      <p>تركواز + عنبري، أزرار ضخمة والسعر بطلة الشاشة — مصمم أولاً للمندوب في الشارع</p>
+    </div>
+    <div class="pair">
+      <div class="frame"><img src="shots/v3_web.png" alt="C web"><div class="cap"><span>ويب — 1440×900</span><span>v3_web.png</span></div></div>
+      <div class="frame"><img src="shots/v3_mobile.png" alt="C mobile"><div class="cap"><span>موبايل — 390px</span><span>v3_mobile.png</span></div></div>
+    </div>
+  </section>
+</body>
+</html>

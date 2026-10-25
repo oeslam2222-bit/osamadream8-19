@@ -1,0 +1,826 @@
+﻿<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="theme-color" content="#0d9488"/>
+<title>كتالوج المنتجات — دريم للتوزيع</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* ============ tokens ============ */
+:root{
+  --paper:#fbf7f2;
+  --card:#ffffff;
+  --ink:#35281d;
+  --ink-soft:#7a6a5b;
+  --ink-faint:#a08f7e;
+  --line:#eee1cf;
+  --line-soft:#f3e9db;
+  --teal:#0d9488;
+  --teal-bright:#14b8a6;
+  --teal-deep:#0f766e;
+  --teal-ink:#134e4a;
+  --teal-soft:#d5f5ef;
+  --amber:#f59e0b;
+  --amber-ink:#b45309;
+  --amber-soft:#fdeecd;
+  --coral:#f43f5e;
+  --coral-ink:#be123c;
+  --coral-soft:#ffe4e7;
+  --r-lg:22px;
+  --r-md:16px;
+  --shadow-card:0 14px 30px -16px rgba(93,64,28,.25);
+  --shadow-pop:0 18px 34px -14px rgba(15,118,110,.42);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input{font:inherit;color:inherit}
+img,svg{display:block}
+:focus-visible{outline:3px solid rgba(20,184,166,.55);outline-offset:2px;border-radius:12px}
+html{scroll-behavior:smooth}
+body{
+  font-family:"Cairo","Segoe UI",Tahoma,sans-serif;
+  background:var(--paper);color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+/* warm ambient mesh + grain */
+body::before{
+  content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
+  background:
+    radial-gradient(820px 480px at 88% -8%, rgba(13,148,136,.11), transparent 62%),
+    radial-gradient(640px 420px at 2% 4%, rgba(245,158,11,.14), transparent 62%),
+    radial-gradient(700px 520px at 50% 112%, rgba(244,63,94,.06), transparent 62%);
+}
+body::after{
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.05;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+.ic{width:22px;height:22px;flex:none}
+
+/* ============ motion ============ */
+.rise{animation:rise .55s cubic-bezier(.2,.7,.3,1) both;animation-delay:var(--d,0s)}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}}
+@keyframes pop{from{transform:scale(1.4);opacity:.3}to{transform:scale(1);opacity:1}}
+@keyframes barpulse{0%{transform:scale(1)}40%{transform:scale(1.035)}100%{transform:scale(1)}}
+@keyframes wave{0%,60%,100%{transform:rotate(0)}20%{transform:rotate(16deg)}40%{transform:rotate(-10deg)}}
+@keyframes toastIn{from{transform:translate(-50%,-18px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+
+/* ============ shell ============ */
+.feed{padding:18px 16px 208px;max-width:1120px;margin-inline:auto}
+.rail,.panel{display:none}
+
+/* ============ greeting header ============ */
+.hello{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.avatar{position:relative;width:52px;height:52px;flex:none;border-radius:18px;
+  background:linear-gradient(145deg,#14b8a6,#0f766e 65%);color:#fff;
+  display:grid;place-items:center;font-size:24px;font-weight:900;
+  box-shadow:0 10px 18px -8px rgba(15,118,110,.55), inset 0 0 0 3px rgba(255,255,255,.25)}
+.avatar i{position:absolute;bottom:-3px;inset-inline-start:-3px;width:14px;height:14px;border-radius:50%;
+  background:#84cc16;border:3px solid var(--paper)}
+.hello-txt{flex:1;min-width:0}
+.hello-txt h1{font-size:22px;font-weight:900;letter-spacing:-.2px;line-height:1.25}
+.wave{display:inline-block;transform-origin:70% 70%;animation:wave 2.4s .8s ease-in-out 2}
+.hello-txt p{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:700;color:var(--ink-soft);margin-top:2px}
+.sync{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:800;color:var(--teal-ink);
+  background:var(--teal-soft);padding:8px 12px;border-radius:999px;transition:transform .15s}
+.sync:active{transform:scale(.94)}
+.sync .ic{width:15px;height:15px}
+
+/* ============ search ============ */
+.search{display:flex;align-items:center;gap:8px;background:var(--card);
+  border:1.5px solid var(--line);border-radius:20px;padding:5px 7px 5px 5px;height:62px;
+  box-shadow:var(--shadow-card);transition:border-color .2s, box-shadow .2s}
+.search:focus-within{border-color:var(--teal-bright);box-shadow:0 0 0 4px rgba(20,184,166,.16),var(--shadow-card)}
+.search>.ic{margin-inline-start:10px;color:var(--teal-deep)}
+.search input{flex:1;min-width:0;border:0;outline:0;background:none;font-size:16px;font-weight:700}
+.search input::placeholder{color:var(--ink-faint);font-weight:600}
+.q-clear{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;color:var(--ink-soft);background:var(--line-soft)}
+.q-clear:active{transform:scale(.9)}
+.scan{width:48px;height:48px;flex:none;border-radius:14px;display:grid;place-items:center;color:var(--amber-ink);
+  background:var(--amber-soft);box-shadow:inset 0 0 0 1.5px #f6dfae;transition:transform .15s}
+.scan:active{transform:scale(.92)}
+.scan .ic{width:24px;height:24px}
+
+/* ============ categories ============ */
+.cats{margin-top:20px}
+.cats h2,.sec h2{font-size:16.5px;font-weight:900;color:var(--ink)}
+.cat-scroll{display:flex;gap:10px;margin-top:10px;overflow-x:auto;padding:4px 2px 12px;
+  scroll-snap-type:x mandatory;scrollbar-width:none}
+.cat-scroll::-webkit-scrollbar{display:none}
+.catchip{scroll-snap-align:start;flex:none;width:142px;text-align:start;background:var(--card);
+  border:1.5px solid var(--line);border-radius:20px;padding:12px;display:flex;flex-direction:column;gap:8px;
+  transition:transform .18s, box-shadow .18s, border-color .18s}
+.catchip:hover{transform:translateY(-3px);box-shadow:var(--shadow-card)}
+.catchip:active{transform:scale(.96)}
+.catchip .cat-ic{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;color:#fff;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
+.catchip .cat-ic .ic{width:24px;height:24px}
+.catchip b{font-size:14px;font-weight:800;line-height:1.3}
+.catchip .cat-n{font-size:11.5px;font-weight:800;padding:3px 9px;border-radius:999px;width:fit-content}
+/* per-category palettes */
+.c-amber .cat-ic{background:linear-gradient(140deg,#fbbf24,#d97706)}
+.c-teal  .cat-ic{background:linear-gradient(140deg,#2dd4bf,#0d9488)}
+.c-coral .cat-ic{background:linear-gradient(140deg,#fb7185,#e11d48)}
+.catchip.c-violet .cat-ic{background:linear-gradient(140deg,#c084fc,#7c3aed)}
+.c-lime  .cat-ic{background:linear-gradient(140deg,#a3e635,#65a30d)}
+.c-sky   .cat-ic{background:linear-gradient(140deg,#38bdf8,#0284c7)}
+.catchip.on{border-color:var(--teal);box-shadow:0 0 0 3px rgba(13,148,136,.16),var(--shadow-card)}
+.catchip.on .cat-n{background:var(--teal-soft);color:var(--teal-ink)}
+
+/* ============ section head ============ */
+.sec{display:flex;align-items:center;gap:10px;margin-top:18px}
+.sec h2{display:flex;align-items:baseline;gap:8px}
+.sec .count{font-size:12.5px;font-weight:800;color:var(--teal-deep);background:var(--teal-soft);
+  padding:3px 10px;border-radius:999px}
+.chipbtn{margin-inline-start:auto;display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;
+  color:var(--ink-soft);background:var(--card);border:1.5px solid var(--line);padding:8px 13px;border-radius:999px;
+  transition:transform .15s}
+.chipbtn:active{transform:scale(.94)}
+.chipbtn .ic{width:16px;height:16px}
+.chipbtn.sort[data-dir="asc"] .arr{transform:rotate(180deg)}
+.chipbtn .arr{width:14px;height:14px;transition:transform .25s}
+
+/* ============ product grid & card ============ */
+.products{display:grid;grid-template-columns:repeat(2,1fr);gap:14px 12px;margin-top:14px}
+.card{display:flex;flex-direction:column;background:var(--card);border:1.5px solid var(--line-soft);
+  border-radius:var(--r-lg);padding:9px;box-shadow:var(--shadow-card);
+  transition:transform .22s, box-shadow .22s, border-color .22s}
+.card:hover{transform:translateY(-4px);box-shadow:0 20px 36px -16px rgba(93,64,28,.32);border-color:#e6d5bd}
+.card .img{position:relative;border-radius:15px;overflow:hidden;aspect-ratio:4/3}
+.card .img img{width:100%;height:100%;object-fit:cover}
+.stockbadge{position:absolute;top:8px;inset-inline-start:8px;font-size:10.5px;font-weight:800;color:var(--coral-ink);
+  background:rgba(255,255,255,.94);padding:4px 8px;border-radius:999px;box-shadow:inset 0 0 0 1.5px #fecdd3}
+.card h3{font-size:14.5px;font-weight:800;line-height:1.35;margin:10px 4px 0;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.7em}
+.meta{display:flex;align-items:center;gap:6px;margin:6px 4px 0;flex-wrap:wrap}
+.code{font-size:10.5px;font-weight:700;letter-spacing:.03em;color:var(--ink-faint);
+  background:var(--line-soft);padding:2.5px 8px;border-radius:7px;direction:ltr}
+.flag{font-size:10.5px;font-weight:800;display:flex;align-items:center;gap:5px}
+.flag.ok{color:#15803d}
+.flag.ok::before{content:"";width:7px;height:7px;border-radius:50%;background:#22c55e}
+.flag.lows{color:var(--coral-ink)}
+.price{display:flex;align-items:baseline;gap:4px;margin:auto 4px 10px;padding-top:10px}
+.p-num{font-size:27px;font-weight:900;color:var(--amber-ink);line-height:1;letter-spacing:-.5px}
+.p-cur{font-size:14px;font-weight:800;color:var(--amber-ink)}
+.p-per{font-size:12px;font-weight:700;color:var(--ink-soft)}
+.pills{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:0 2px 9px}
+.upill{height:36px;border-radius:11px;font-size:12px;font-weight:800;color:#6b6157;
+  background:#f6efe4;transition:background .15s,color .15s,transform .1s}
+.upill:active{transform:scale(.92)}
+.upill.on{background:var(--teal-soft);color:var(--teal-ink);box-shadow:inset 0 0 0 1.5px #99e6da}
+.add{display:flex;align-items:center;justify-content:center;gap:7px;height:52px;border-radius:15px;
+  background:linear-gradient(180deg,#14b8a6,#0f766e);color:#fff;font-size:18.5px;font-weight:900;
+  box-shadow:0 10px 20px -10px rgba(15,118,110,.65), inset 0 1px 0 rgba(255,255,255,.3);
+  transition:transform .15s, filter .15s}
+.add:hover{filter:brightness(1.06)}
+.add:active{transform:scale(.95)}
+.add .ic{width:20px;height:20px}
+.add.added{background:linear-gradient(180deg,#65a30d,#3f6212)}
+/* empty search state */
+.nores{grid-column:1/-1;text-align:center;padding:38px 16px;background:var(--card);border:2px dashed var(--line);
+  border-radius:var(--r-lg);color:var(--ink-soft)}
+.nores b{display:block;font-size:16px;font-weight:900;color:var(--ink);margin-top:10px}
+.nores p{font-size:13px;font-weight:600;margin-top:4px}
+.nores button{margin-top:14px;font-size:13px;font-weight:800;color:var(--teal-ink);background:var(--teal-soft);
+  padding:11px 20px;border-radius:13px}
+.nores .ic{width:44px;height:44px;margin-inline:auto;color:var(--ink-faint)}
+
+/* ============ sticky cart bar (mobile/tablet) ============ */
+.cart-bar{position:fixed;z-index:40;inset-inline:12px;bottom:84px;
+  display:flex;align-items:center;gap:10px;padding:10px 16px 10px 10px;
+  background:linear-gradient(180deg,#12a093,#0f766e);border-radius:20px;
+  box-shadow:var(--shadow-pop), inset 0 1px 0 rgba(255,255,255,.28)}
+.cart-bar.pulse{animation:barpulse .35s ease}
+.bar-info{display:flex;align-items:baseline;gap:9px;color:#d6faf3;flex:1;min-width:0}
+.bar-info .bdg{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:800}
+.bar-info .bdg .ic{width:19px;height:19px}
+.bar-info .bdg b{font-size:16px;color:#fff}
+.bar-info .tot{font-size:15px;font-weight:700}
+.bar-info .tot b{font-size:23px;font-weight:900;color:var(--amber-soft);letter-spacing:-.4px}
+.bar-cta{flex:none;height:48px;padding:0 18px;border-radius:14px;background:#fff;color:var(--teal-ink);
+  font-size:16px;font-weight:900;box-shadow:0 6px 14px -6px rgba(0,0,0,.35);transition:transform .15s}
+.bar-cta:active{transform:scale(.94)}
+.cart-bar.empty{background:linear-gradient(180deg,#9aa39c,#6d786f)}
+.cart-bar.empty .tot,.cart-bar.empty .bdg{display:none}
+.bar-cta[disabled]{opacity:.55;cursor:not-allowed}
+
+/* ============ bottom nav (mobile/tablet) ============ */
+.bottomnav{position:fixed;z-index:30;inset-inline:0;bottom:0;display:flex;background:#fffefb;
+  border-top:1.5px solid var(--line-soft);padding:8px 6px calc(8px + env(safe-area-inset-bottom));
+  box-shadow:0 -12px 26px -18px rgba(93,64,28,.3)}
+.bn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;border-radius:14px;
+  color:#8d8177;font-size:11px;font-weight:700;transition:transform .12s}
+.bn:active{transform:scale(.92)}
+.bn .ic{width:24px;height:24px}
+.bn.on{color:var(--teal-deep);font-weight:900}
+.bn.on .ic{color:var(--teal)}
+.bn.on .pill{background:var(--teal-soft)}
+
+/* ============ toast ============ */
+.toast{position:fixed;z-index:60;top:16px;left:50%;transform:translate(-50%,-18px);opacity:0;
+  max-width:min(92vw,420px);display:flex;align-items:center;gap:9px;
+  background:#33261b;color:#fff;font-size:13.5px;font-weight:700;
+  padding:12px 16px;border-radius:15px;box-shadow:0 16px 32px -12px rgba(0,0,0,.4);pointer-events:none}
+.toast.show{animation:toastIn .28s ease both}
+.toast .ic{width:19px;height:19px;color:#4ade80}
+
+/* ============ desktop ≥1024 ============ */
+@media (min-width:1024px){
+  .cart-bar,.bottomnav{display:none}
+  .app{display:grid;grid-template-columns:248px minmax(0,1fr) 356px;align-items:start}
+  .rail{display:flex;flex-direction:column;position:sticky;top:0;height:100vh;
+    background:#fffdf8;border-inline-end:1.5px solid var(--line);padding:22px 14px;gap:6px}
+  .brand{display:flex;align-items:center;gap:11px;padding:2px 8px 20px}
+  .brand .mark{width:44px;height:44px;border-radius:14px;background:linear-gradient(145deg,#14b8a6,#0f766e);
+    color:#fff;display:grid;place-items:center;font-size:22px;font-weight:900;
+    box-shadow:0 8px 16px -7px rgba(15,118,110,.6), inset 0 0 0 2px rgba(255,255,255,.25)}
+  .brand b{font-size:16.5px;font-weight:900;display:block;line-height:1.3}
+  .brand span{font-size:11px;font-weight:700;color:var(--ink-soft)}
+  .rnav{display:flex;flex-direction:column;gap:4px}
+  .rn{display:flex;align-items:center;gap:11px;padding:12px 13px;border-radius:14px;
+    font-size:14.5px;font-weight:800;color:#6e5f50;transition:background .15s,color .15s}
+  .rn:hover{background:#f5ede1;color:var(--ink)}
+  .rn.on{background:var(--teal-soft);color:var(--teal-ink);box-shadow:inset 0 0 0 1.5px #a9e8dd}
+  .rn.on .ic{color:var(--teal)}
+  .rail .spacer{flex:1}
+  .r-user{display:flex;align-items:center;gap:10px;background:var(--card);border:1.5px solid var(--line);
+    border-radius:16px;padding:10px 11px}
+  .r-user .mini{width:36px;height:36px;border-radius:11px;background:linear-gradient(145deg,#f59e0b,#d97706);
+    color:#fff;display:grid;place-items:center;font-size:15px;font-weight:900}
+  .r-user b{font-size:13px;font-weight:800;display:block;line-height:1.3}
+  .r-user span{font-size:11px;font-weight:700;color:var(--ink-soft)}
+  .feed{padding:30px 34px 60px}
+  .hello-txt h1{font-size:28px}
+  .products{grid-template-columns:repeat(3,1fr);gap:18px;margin-top:16px}
+  .card{padding:11px;border-radius:var(--r-lg)}
+  .card h3{font-size:15.5px;margin-top:12px}
+  .p-num{font-size:31px}
+  .add{height:54px;font-size:19px}
+  .catchip{width:156px}
+  .cats .sec-hint{display:block}
+  .panel{display:block;position:sticky;top:0;height:100vh;overflow-y:auto;
+    background:#fffdf8;border-inline-start:1.5px solid var(--line);padding:26px 22px}
+  .panel-in{max-width:340px}
+}
+@media (min-width:1440px){
+  .products{grid-template-columns:repeat(4,1fr)}
+}
+
+/* ============ order panel ============ */
+.pl-head{display:flex;align-items:center;gap:10px}
+.pl-head h2{font-size:20px;font-weight:900}
+.pl-chip{font-size:12px;font-weight:800;color:var(--amber-ink);background:var(--amber-soft);
+  padding:4px 11px;border-radius:999px;box-shadow:inset 0 0 0 1px #f3ddb2}
+.pl-sub{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:12.5px;font-weight:700;color:var(--ink-soft);
+  background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:9px 12px}
+.pl-sub .ic{width:16px;height:16px;color:var(--teal-deep)}
+.pl-items{margin-top:14px;display:flex;flex-direction:column}
+.cli{display:flex;gap:11px;align-items:flex-start;padding:13px 2px;border-bottom:1px dashed var(--line)}
+.cli:last-child{border-bottom:0}
+.cli-thumb{width:52px;height:52px;flex:none;border-radius:15px;overflow:hidden;box-shadow:inset 0 0 0 1px var(--line-soft)}
+.cli-thumb img{width:100%;height:100%;object-fit:cover}
+.cli-info{flex:1;min-width:0;padding-top:2px}
+.cli-info b{display:block;font-size:13.5px;font-weight:800;line-height:1.35;
+  display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.cli-info span{display:block;font-size:11.5px;font-weight:700;color:var(--ink-faint);margin-top:3px}
+.cli-info em{font-style:normal;color:var(--teal-deep);font-weight:800}
+.unlink{font-size:11.5px;font-weight:800;color:var(--coral-ink);margin-inline-start:6px}
+.unlink:hover{text-decoration:underline}
+.cli-right{text-align:center;flex:none}
+.cli-tot{display:block;font-size:16.5px;font-weight:900;color:var(--amber-ink);line-height:1.2}
+.cli-tot i{font-style:normal;font-size:11px;font-weight:800}
+.stepper{display:flex;align-items:center;gap:2px;margin-top:6px;background:#f6efe4;border-radius:11px;padding:3px}
+.stepper button{width:27px;height:27px;border-radius:9px;display:grid;place-items:center;color:var(--teal-ink);
+  background:#fff;box-shadow:0 2px 5px -2px rgba(93,64,28,.35);transition:transform .12s;font-weight:900}
+.stepper button:active{transform:scale(.88)}
+.stepper .ic{width:15px;height:15px}
+.stepper b{min-width:26px;font-size:14.5px;font-weight:900}
+.pl-sum{margin-top:16px;background:var(--card);border:1.5px solid var(--line);border-radius:var(--r-lg);
+  padding:16px;box-shadow:var(--shadow-card)}
+.sum-row{display:flex;align-items:baseline;justify-content:space-between}
+.sum-row>span{font-size:13px;font-weight:800;color:var(--ink-soft)}
+.sum-row b{font-size:30px;font-weight:900;color:var(--amber-ink);letter-spacing:-.5px}
+.sum-row b small{font-size:15px;font-weight:800}
+.deliv{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;font-weight:800;color:var(--teal-ink);
+  background:var(--teal-soft);border-radius:12px;padding:10px 12px}
+.deliv .ic{width:18px;height:18px}
+.checkout{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:58px;margin-top:13px;
+  border-radius:17px;background:linear-gradient(180deg,#14b8a6,#0f766e);color:#fff;
+  font-size:19px;font-weight:900;box-shadow:0 14px 24px -10px rgba(15,118,110,.62), inset 0 1px 0 rgba(255,255,255,.3);
+  transition:transform .15s, filter .15s}
+.checkout:hover{filter:brightness(1.06)}
+.checkout:active{transform:scale(.96)}
+.checkout .ic{width:21px;height:21px}
+.ghost2{display:block;width:100%;margin-top:9px;padding:12px;border-radius:14px;font-size:13.5px;font-weight:800;
+  color:var(--ink-soft);border:1.5px dashed var(--line);transition:color .15s,border-color .15s}
+.ghost2:hover{color:var(--ink);border-color:#d8c4a6}
+.pl-empty{margin-top:14px;text-align:center;border:2px dashed var(--line);border-radius:var(--r-lg);
+  padding:30px 16px;color:var(--ink-soft)}
+.pl-empty .ic{width:52px;height:52px;margin-inline:auto;color:var(--ink-faint)}
+.pl-empty b{display:block;font-size:16px;font-weight:900;color:var(--ink);margin-top:10px}
+.pl-empty p{font-size:13px;font-weight:600;margin-top:3px}
+.pl-empty button{margin-top:14px;font-size:12.5px;font-weight:800;color:var(--teal-ink);
+  background:var(--teal-soft);padding:10px 18px;border-radius:12px}
+
+/* hint visible only on desktop */
+.cats{position:relative}
+</style>
+</head>
+<body>
+
+<!-- ======= icon & artwork library ======= -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+
+
+<!-- stroke icons -->
+<symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5 16 16"/></symbol>
+<symbol id="i-scan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h3M16 4h3a2 2 0 0 1 2 2v3M20 16v3a2 2 0 0 1-2 2h-3M8 20H5a2 2 0 0 1-2-2v-3"/><path d="M8 9v6M11.5 9v6M15 9v6"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.4-7-11a7 7 0 0 1 14 0c0 5.6-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></symbol>
+<symbol id="i-sync" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14-3.4M4 13a8 8 0 0 0 14 3.4"/><path d="M17 4.5v3.5h-3.5M7 19.5V16h3.5"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12h14"/></symbol>
+<symbol id="i-cart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h2.2l2.3 10.4A2 2 0 0 0 9.5 17h8.1a2 2 0 0 0 2-1.6L21.5 8H6.2"/><circle cx="9.8" cy="20.4" r="1.5"/><circle cx="17.6" cy="20.4" r="1.5"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4.5 4.5L19 7"/></symbol>
+<symbol id="i-bars" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M7 12h10M10 17h4"/></symbol>
+<symbol id="i-arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 10l6 5 6-5"/></symbol>
+<symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.2 12 4.4l8 6.8"/><path d="M6 9.8V20h4.6v-4.8a1.4 1.4 0 0 1 2.8 0V20H18V9.8"/></symbol>
+<symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7.2" height="7.2" rx="2"/><rect x="13.3" y="3.5" width="7.2" height="7.2" rx="2"/><rect x="3.5" y="13.3" width="7.2" height="7.2" rx="2"/><rect x="13.3" y="13.3" width="7.2" height="7.2" rx="2"/></symbol>
+<symbol id="i-gridf" viewBox="0 0 24 24" fill="currentColor"><rect x="3.5" y="3.5" width="7.2" height="7.2" rx="2"/><rect x="13.3" y="3.5" width="7.2" height="7.2" rx="2"/><rect x="3.5" y="13.3" width="7.2" height="7.2" rx="2"/><rect x="13.3" y="13.3" width="7.2" height="7.2" rx="2"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.2" r="3.2"/><path d="M3.2 19.6c.6-3.2 3-4.9 5.8-4.9s5.2 1.7 5.8 4.9"/><circle cx="17" cy="9.2" r="2.5"/><path d="M16.4 14.5c2.6.2 4.1 1.6 4.5 4"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5.2 20c.8-3.4 3.6-5.3 6.8-5.3s6 1.9 6.8 5.3"/></symbol>
+<symbol id="i-receipt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M9 8h6M9 12h6M9 16h3"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 20v-6M11 20V9M17 20v-4M3.5 20.5h17"/></symbol>
+<symbol id="i-route" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5.5" r="2.2"/><circle cx="18" cy="18.5" r="2.2"/><path d="M8.2 5.5H15a3 3 0 0 1 0 6H9.5a3 3 0 0 0 0 6h6.3"/></symbol>
+<symbol id="i-truck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 15.5V6.5h12v9"/><path d="M14.5 9.5h3.6l3.4 3.7v2.3"/><path d="M2.5 15.5h2M9 15.5h5.5M21.5 15.5h-1"/><circle cx="7" cy="17.3" r="1.8"/><circle cx="17.2" cy="17.3" r="1.8"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9.5 7V5.5A1.5 1.5 0 0 1 11 4h2a1.5 1.5 0 0 1 1.5 1.5V7"/><path d="M6.5 7l1 12a2 2 0 0 0 2 1.8h5a2 2 0 0 0 2-1.8l1-12"/></symbol>
+
+<!-- category icons -->
+<symbol id="i-note" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M9 8.5h6M9 12.5h6M9 16.5h3"/></symbol>
+<symbol id="i-drop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5c3 4.2 6 7 6 10.5a6 6 0 0 1-12 0c0-3.5 3-6.3 6-10.5z"/></symbol>
+<symbol id="i-cup" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11L16.2 19a2 2 0 0 1-2 1.7h-4.4a2 2 0 0 1-2-1.7L6.5 6.5z"/><path d="M12 6.5 15 2.5"/></symbol>
+<symbol id="i-cookie" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5a8.5 8.5 0 1 0 8.5 8.5c-1.5 1-3.4.4-3.4-1.4 0-1.3-1.4-2.2-2.6-1.6-1.4.7-2.9-.5-2.4-2 .4-1.4-.6-2.9-2.1-2.5z"/><path d="M9 10.5h.01M14 15h.01M9.5 15.5h.01"/></symbol>
+<symbol id="i-basket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 9h15l-1.5 8.6A2 2 0 0 1 16 19.3H8a2 2 0 0 1-2-1.7L4.5 9z"/><path d="M8.5 9a3.5 3.5 0 0 1 7 0"/></symbol>
+<symbol id="i-water" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3.5h6M10 3.5v3.2L8 9.5V19a1.8 1.8 0 0 0 1.8 1.8h4.4A1.8 1.8 0 0 0 16 19V9.5l-2-2.8V3.5"/><path d="M8.5 13.5h7"/></symbol>
+<symbol id="i-emptybox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.2 12 4l8 4.2v9.6L12 22l-8-4.2V8.2z"/><path d="M4 8.2l8 4.3 8-4.3M12 12.5V22" opacity=".7"/><path d="M8.5 6.2l7.2 3.8" opacity=".5"/></symbol>
+
+<!-- product artworks -->
+
+
+
+
+
+
+</svg>
+
+<div class="app">
+
+  <!-- ======= right nav rail (desktop) ======= -->
+  <aside class="rail">
+    <div class="brand">
+      <span class="mark">د</span>
+      <div><b>دريم للتوزيع</b><span>منظومة المندوبين</span></div>
+    </div>
+    <nav class="rnav">
+      <button class="rn"><svg class="ic"><use href="#i-home"/></svg>الرئيسية</button>
+      <button class="rn on"><svg class="ic"><use href="#i-gridf"/></svg>كتالوج المنتجات</button>
+      <button class="rn"><svg class="ic"><use href="#i-receipt"/></svg>الطلبات</button>
+      <button class="rn"><svg class="ic"><use href="#i-route"/></svg>المشاوير</button>
+      <button class="rn"><svg class="ic"><use href="#i-users"/></svg>العملاء</button>
+      <button class="rn"><svg class="ic"><use href="#i-chart"/></svg>التقارير</button>
+    </nav>
+    <span class="spacer"></span>
+    <div class="r-user">
+      <span class="mini">م</span>
+      <div><b>محمود سيد</b><span>مندوب مبيعات — الفيوم</span></div>
+    </div>
+  </aside>
+
+  <!-- ======= main feed ======= -->
+  <main class="feed">
+
+    <header class="hello rise" style="--d:.02s">
+      <div class="avatar"><span>م</span><i></i></div>
+      <div class="hello-txt">
+        <h1>صباح الخير، محمود <span class="wave">👋</span></h1>
+        <p><svg class="ic" style="width:16px;height:16px"><use href="#i-pin"/></svg> فرع الفيوم · الجمعة ٢٣ أكتوبر ٢٠٢٦</p>
+      </div>
+      <button class="sync" id="syncBtn"><svg class="ic"><use href="#i-sync"/></svg>آخر مزامنة ٨:٤٢ ص</button>
+    </header>
+
+    <div class="search rise" style="--d:.07s">
+      <svg class="ic"><use href="#i-search"/></svg>
+      <input id="q" type="text" placeholder="ابحث بالاسم أو الكود — مثال: N-1055" aria-label="ابحث في المنتجات"/>
+      <button class="q-clear" id="qClear" hidden aria-label="مسح البحث"><svg class="ic" style="width:17px;height:17px"><use href="#i-x"/></svg></button>
+      <button class="scan" id="scanBtn" aria-label="اسكان الباركود"><svg class="ic"><use href="#i-scan"/></svg></button>
+    </div>
+
+    <section class="cats rise" style="--d:.12s" aria-label="المنتجات حسب القسم">
+      <h2>الأقسام</h2>
+      <div class="cat-scroll" id="catScroll">
+        <button class="catchip c-teal on" data-cat="all">
+          <span class="cat-ic"><svg class="ic"><use href="#i-gridf"/></svg></span>
+          <b>كل المنتجات</b><span class="cat-n" style="background:#e5efe9;color:#3f5349">٦ أصناف</span>
+        </button>
+        <button class="catchip c-amber" data-cat="cat1">
+          <span class="cat-ic"><svg class="ic"><use href="#i-note"/></svg></span>
+          <b>قرطاسية ومدارس</b><span class="cat-n" style="background:#fdf0cf;color:#95560a">٤٨ صنف</span>
+        </button>
+        <button class="catchip c-teal" data-cat="cat2">
+          <span class="cat-ic"><svg class="ic"><use href="#i-drop"/></svg></span>
+          <b>عناية ونظافة</b><span class="cat-n" style="background:#d9f3ef;color:#0b5e56">٦٢ صنف</span>
+        </button>
+        <button class="catchip c-coral" data-cat="cat3">
+          <span class="cat-ic"><svg class="ic"><use href="#i-cup"/></svg></span>
+          <b>مشروبات</b><span class="cat-n" style="background:#fde5ea;color:#a3123e">٣٧ صنف</span>
+        </button>
+        <button class="catchip c-violet" data-cat="cat4">
+          <span class="cat-ic"><svg class="ic"><use href="#i-cookie"/></svg></span>
+          <b>بسكويت وحلويات</b><span class="cat-n" style="background:#eee6fd;color:#5b21b6">٣١ صنف</span>
+        </button>
+        <button class="catchip c-lime" data-cat="cat5">
+          <span class="cat-ic"><svg class="ic"><use href="#i-basket"/></svg></span>
+          <b>مواد غذائية</b><span class="cat-n" style="background:#e7f3c9;color:#3f6212">٥٤ صنف</span>
+        </button>
+        <button class="catchip c-sky" data-cat="cat6">
+          <span class="cat-ic"><svg class="ic"><use href="#i-water"/></svg></span>
+          <b>مياه وسائل</b><span class="cat-n" style="background:#dcf0fb;color:#0b5e85">٢٩ صنف</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="sec rise" style="--d:.17s">
+      <h2>المنتجات <span class="count" id="countText">٦ أصناف</span></h2>
+      <button class="chipbtn sort" id="sortBtn" data-dir="none">
+        <svg class="ic"><use href="#i-bars"/></svg>السعر
+        <svg class="ic arr" hidden><use href="#i-arr"/></svg>
+      </button>
+    </section>
+
+    <!-- ======= product grid ======= -->
+    <section class="products" id="grid" aria-label="قائمة المنتجات">
+
+      <article class="card rise" data-cat="cat1" data-sort="480" data-id="p1" style="--d:.2s">
+        <figure class="img">
+          <img src="assets/p1.png" alt="كرتون كراسات ملكي — ٢٠ حبة" loading="lazy"/>
+          <span class="stockbadge">باقي ٨ كراتين بس</span>
+        </figure>
+        <h3>كرتون كراسات ملكي ٢٠ حبة</h3>
+        <div class="meta"><span class="code">N-1055</span><span class="flag lows">قريب من النفاد</span></div>
+        <div class="price"><b class="p-num">٤٨٠</b><span class="p-cur">ج</span><span class="p-per">/ كرتونة</span></div>
+        <div class="pills" role="group" aria-label="وحدة البيع">
+          <button class="upill on" data-u="1">كرتونة</button>
+          <button class="upill" data-u="2">نص</button>
+          <button class="upill" data-u="3">قطعة</button>
+        </div>
+        <button class="add"><svg class="ic"><use href="#i-plus"/></svg>سلة</button>
+      </article>
+
+      <article class="card rise" data-cat="cat2" data-sort="360" data-id="p2" style="--d:.24s">
+        <figure class="img">
+          <img src="assets/p2.png" alt="كرتون مناديل وجه — ١٠٠ علبة" loading="lazy"/>
+        </figure>
+        <h3>كرتون مناديل وجه ١٠٠ علبة</h3>
+        <div class="meta"><span class="code">T-2214</span><span class="flag ok">متوفر</span></div>
+        <div class="price"><b class="p-num">٣٦٠</b><span class="p-cur">ج</span><span class="p-per">/ كرتونة</span></div>
+        <div class="pills" role="group" aria-label="وحدة البيع">
+          <button class="upill on" data-u="1">كرتونة</button>
+          <button class="upill" data-u="2">نص</button>
+          <button class="upill" data-u="3">علبة</button>
+        </div>
+        <button class="add"><svg class="ic"><use href="#i-plus"/></svg>سلة</button>
+      </article>
+
+      <article class="card rise" data-cat="cat2" data-sort="624" data-id="p3" style="--d:.28s">
+        <figure class="img">
+          <img src="assets/p3.png" alt="كرتون شامبو عائلي — ١٢ زجاجة" loading="lazy"/>
+        </figure>
+        <h3>كرتون شامبو عائلي ١٢ زجاجة</h3>
+        <div class="meta"><span class="code">H-0892</span><span class="flag ok">متوفر</span></div>
+        <div class="price"><b class="p-num">٦٢٤</b><span class="p-cur">ج</span><span class="p-per">/ كرتونة</span></div>
+        <div class="pills" role="group" aria-label="وحدة البيع">
+          <button class="upill on" data-u="1">كرتونة</button>
+          <button class="upill" data-u="2">نص</button>
+          <button class="upill" data-u="3">زجاجة</button>
+        </div>
+        <button class="add"><svg class="ic"><use href="#i-plus"/></svg>سلة</button>
+      </article>
+
+      <article class="card rise" data-cat="cat3" data-sort="540" data-id="p4" style="--d:.32s">
+        <figure class="img">
+          <img src="assets/p4.png" alt="كرتون عصير برتقال — ٢٧ كوب" loading="lazy"/>
+        </figure>
+        <h3>كرتون عصير برتقال — ٢٧ كوب</h3>
+        <div class="meta"><span class="code">J-3031</span><span class="flag ok">متوفر</span></div>
+        <div class="price"><b class="p-num">٥٤٠</b><span class="p-cur">ج</span><span class="p-per">/ كرتونة</span></div>
+        <div class="pills" role="group" aria-label="وحدة البيع">
+          <button class="upill on" data-u="1">كرتونة</button>
+          <button class="upill" data-u="2">نص</button>
+          <button class="upill" data-u="3">كوب</button>
+        </div>
+        <button class="add"><svg class="ic"><use href="#i-plus"/></svg>سلة</button>
+      </article>
+
+      <article class="card rise" data-cat="cat4" data-sort="432" data-id="p5" style="--d:.36s">
+        <figure class="img">
+          <img src="assets/p5.png" alt="كرتون بسكويت عائلي — ٢٤ باكو" loading="lazy"/>
+        </figure>
+        <h3>كرتون بسكويت عائلي — ٢٤ باكو</h3>
+        <div class="meta"><span class="code">B-1177</span><span class="flag ok">متوفر</span></div>
+        <div class="price"><b class="p-num">٤٣٢</b><span class="p-cur">ج</span><span class="p-per">/ كرتونة</span></div>
+        <div class="pills" role="group" aria-label="وحدة البيع">
+          <button class="upill on" data-u="1">كرتونة</button>
+          <button class="upill" data-u="2">نص</button>
+          <button class="upill" data-u="3">باكو</button>
+        </div>
+        <button class="add"><svg class="ic"><use href="#i-plus"/></svg>سلة</button>
+      </article>
+
+      <article class="card rise" data-cat="cat6" data-sort="156" data-id="p6" style="--d:.4s">
+        <figure class="img">
+          <img src="assets/p6.png" alt="كرتون مياه صافي — ١٢ زجاجة" loading="lazy"/>
+        </figure>
+        <h3>كرتون مياه صافي ١.٥ لتر × ١٢</h3>
+        <div class="meta"><span class="code">W-0044</span><span class="flag ok">متوفر</span></div>
+        <div class="price"><b class="p-num">١٥٦</b><span class="p-cur">ج</span><span class="p-per">/ كرتونة</span></div>
+        <div class="pills" role="group" aria-label="وحدة البيع">
+          <button class="upill on" data-u="1">كرتونة</button>
+          <button class="upill" data-u="2">نص</button>
+          <button class="upill" data-u="3">زجاجة</button>
+        </div>
+        <button class="add"><svg class="ic"><use href="#i-plus"/></svg>سلة</button>
+      </article>
+
+      <div class="nores" id="noRes" hidden>
+        <svg class="ic"><use href="#i-search"/></svg>
+        <b>مفيش نتائج مطابقة</b>
+        <p>جرّب كلمة أقصر أو ابحث بالكود — مثال: <span style="direction:ltr;unicode-bidi:embed">N-1055</span></p>
+        <button id="clearFilters">مسح البحث والفلاتر</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- ======= order panel (desktop) ======= -->
+  <aside class="panel">
+    <div class="panel-in">
+      <div class="pl-head">
+        <h2>سلة الطلب</h2><span class="pl-chip" id="plCount">٣ أصناف</span>
+      </div>
+      <div class="pl-sub">
+        <svg class="ic"><use href="#i-user"/></svg>
+        العميل: سوبر ماركت الأمانة — الحي الأول، الفيوم
+      </div>
+
+      <div class="pl-items" id="plItems"></div>
+
+      <div class="pl-empty" id="plEmpty" hidden>
+        <svg class="ic"><use href="#i-emptybox"/></svg>
+        <b>السلة فاضية</b>
+        <p>ضيف أول صنف من الكتالوج وابدأ الطلب</p>
+        <button id="restoreSeed">استعادة الطلب المبدئي</button>
+      </div>
+
+      <div class="pl-sum" id="plSum">
+        <div class="sum-row">
+          <span>الإجمالي التقريبي</span>
+          <b><span id="plTotal">١,٢٤٠</span> <small>ج</small></b>
+        </div>
+        <div class="deliv"><svg class="ic"><use href="#i-truck"/></svg>تسليم سيارة الفرع — غدًا الساعة ٩:٠٠ ص</div>
+        <button class="checkout" id="checkoutBtn"><svg class="ic"><use href="#i-check"/></svg>إتمام الطلب</button>
+        <button class="ghost2" id="draftBtn">حفظ كمسودة وتكملة بعدين</button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- ======= sticky cart bar (mobile/tablet) ======= -->
+<div class="cart-bar" id="cartBar">
+  <div class="bar-info">
+    <span class="bdg"><svg class="ic"><use href="#i-cart"/></svg><b id="barCount">٣</b> أصناف</span>
+    <span class="tot">· <b id="barTotal">١,٢٤٠</b> ج</span>
+  </div>
+  <button class="bar-cta" id="barCheckout">إتمام الطلب</button>
+</div>
+
+<!-- ======= bottom nav (mobile/tablet) ======= -->
+<nav class="bottomnav" aria-label="التنقّل الرئيسي">
+  <button class="bn"><span class="pill" style="width:52px;height:30px;border-radius:12px;display:grid;place-items:center;justify-self:center"><svg class="ic"><use href="#i-home"/></svg></span>الرئيسية</button>
+  <button class="bn on"><span class="pill" style="width:52px;height:30px;border-radius:12px;display:grid;place-items:center;justify-self:center"><svg class="ic"><use href="#i-gridf"/></svg></span>الكتالوج</button>
+  <button class="bn"><span class="pill" style="width:52px;height:30px;border-radius:12px;display:grid;place-items:center;justify-self:center"><svg class="ic"><use href="#i-route"/></svg></span>المشاوير</button>
+  <button class="bn"><span class="pill" style="width:52px;height:30px;border-radius:12px;display:grid;place-items:center;justify-self:center"><svg class="ic"><use href="#i-users"/></svg></span>العملاء</button>
+  <button class="bn"><span class="pill" style="width:52px;height:30px;border-radius:12px;display:grid;place-items:center;justify-self:center"><svg class="ic"><use href="#i-user"/></svg></span>حسابي</button>
+</nav>
+
+<div class="toast" id="toast" role="status" aria-live="polite"><svg class="ic"><use href="#i-check"/></svg><span id="toastMsg"></span></div>
+
+<script>
+/* ================= data ================= */
+const AR = n => String(n).replace(/\d/g, d => "٠١٢٣٤٥٦٧٨٩"[d]);
+function fmt(n){
+  n = Math.round(n * 10) / 10;
+  const neg = n < 0 ? "-" : ""; n = Math.abs(n);
+  const [i, f] = String(n).split(".");
+  const grouped = i.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return neg + AR(grouped) + (f ? "٫" + AR(f) : "");
+}
+const DB = {
+  p1:{name:"كرتون كراسات ملكي ٢٠ حبة", code:"N-1055", u:{1:480,2:250,3:24},  l:{1:"كرتونة",2:"نص",3:"قطعة"}, img:"assets/p1.png"},
+  p2:{name:"كرتون مناديل وجه ١٠٠ علبة", code:"T-2214", u:{1:360,2:190,3:3.5}, l:{1:"كرتونة",2:"نص",3:"علبة"}, img:"assets/p2.png"},
+  p3:{name:"كرتون شامبو عائلي ١٢ زجاجة", code:"H-0892", u:{1:624,2:320,3:28}, l:{1:"كرتونة",2:"نص",3:"زجاجة"}, img:"assets/p3.png"},
+  p4:{name:"كرتون عصير برتقال — ٢٧ كوب", code:"J-3031", u:{1:540,2:280,3:20}, l:{1:"كرتونة",2:"نص",3:"كوب"}, img:"assets/p4.png"},
+  p5:{name:"كرتون بسكويت عائلي — ٢٤ باكو", code:"B-1177", u:{1:432,2:225,3:18}, l:{1:"كرتونة",2:"نص",3:"باكو"}, img:"assets/p5.png"},
+  p6:{name:"كرتون مياه صافي ١.٥ لتر × ١٢", code:"W-0044", u:{1:156,2:80,3:6.5}, l:{1:"كرتونة",2:"نص",3:"زجاجة"}, img:"assets/p6.png"},
+};
+const SEED = [{id:"p1", u:"1", q:2},{id:"p4", u:"2", q:1}];
+let cart = SEED.map(s => ({...s}));
+let toFilterCat = "all";
+
+/* ================= toast ================= */
+const toast = document.getElementById("toast");
+const toastMsg = document.getElementById("toastMsg");
+let toastT;
+function showToast(msg){
+  toastMsg.textContent = msg;
+  toast.classList.remove("show"); void toast.offsetWidth;
+  toast.classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(() => toast.classList.remove("show"), 2300);
+}
+
+/* ================= cart ================= */
+const cartBar = document.getElementById("cartBar");
+const barCount = document.getElementById("barCount");
+const barTotal = document.getElementById("barTotal");
+const plItems = document.getElementById("plItems");
+const plEmpty = document.getElementById("plEmpty");
+const plSum = document.getElementById("plSum");
+const plTotal = document.getElementById("plTotal");
+const plCount = document.getElementById("plCount");
+
+function cartTotals(){
+  let count = 0, total = 0;
+  cart.forEach(e => { count += e.q; total += DB[e.id].u[e.u] * e.q; });
+  return {count, total};
+}
+function renderCart(){
+  const {count, total} = cartTotals();
+  barCount.textContent = AR(count);
+  barTotal.textContent = fmt(total);
+  cartBar.classList.toggle("empty", count === 0);
+  document.getElementById("barCheckout").disabled = count === 0;
+  plTotal.textContent = fmt(total);
+  const lineCount = cart.length;
+  plCount.textContent = AR(lineCount) + (lineCount === 1 ? " صنف" : " أصناف");
+  document.getElementById("plCheckout").disabled = count === 0;
+  const isEmpty = lineCount === 0;
+  plEmpty.hidden = !isEmpty;
+  plSum.style.display = isEmpty ? "none" : "";
+  plItems.style.display = isEmpty ? "none" : "";
+  if (isEmpty) return;
+  plItems.innerHTML = cart.map(e => {
+    const p = DB[e.id], t = p.u[e.u] * e.q;
+    return `<div class="cli">
+      <span class="cli-thumb"><img src="${p.img}" alt="" loading="lazy"></span>
+      <div class="cli-info">
+        <b>${p.name}</b>
+        <span><span style="direction:ltr;unicode-bidi:embed">${p.code}</span> · <em>${p.l[e.u]}</em>
+          <button class="unlink" data-del="${e.id}:${e.u}">إزالة</button></span>
+      </div>
+      <div class="cli-right">
+        <b class="cli-tot">${fmt(t)} <i>ج</i></b>
+        <span class="stepper">
+          <button data-dec="${e.id}:${e.u}" aria-label="تقليل الكمية"><svg class="ic"><use href="#i-minus"/></svg></button>
+          <b>${AR(e.q)}</b>
+          <button data-inc="${e.id}:${e.u}" aria-label="زيادة الكمية"><svg class="ic"><use href="#i-plus"/></svg></button>
+        </span>
+      </div>
+    </div>`;
+  }).join("");
+}
+function addItem(id, u){
+  const found = cart.find(e => e.id === id && e.u === u);
+  if (found) found.q++; else cart.push({id, u, q:1});
+  renderCart();
+  cartBar.classList.remove("pulse"); void cartBar.offsetWidth; cartBar.classList.add("pulse");
+  showToast(`تمت إضافة ${DB[id].l[u]} من «${DB[id].name}» للسلة ✓`);
+}
+plItems.addEventListener("click", ev => {
+  const b = ev.target.closest("[data-inc],[data-dec],[data-del]");
+  if (!b) return;
+  const [id, u] = (b.dataset.inc || b.dataset.dec || b.dataset.del).split(":");
+  const e = cart.find(x => x.id === id && x.u === u);
+  if (!e) return;
+  if (b.dataset.inc) e.q++;
+  else if (b.dataset.dec) { e.q--; if (e.q <= 0) cart = cart.filter(x => x !== e); }
+  else cart = cart.filter(x => x !== e);
+  renderCart();
+});
+
+/* checkout (bar + panel) */
+function checkout(){
+  const {count, total} = cartTotals();
+  if (!count) return;
+  showToast(`تم إرسال الطلب للفرع — الإجمالي ${fmt(total)} ج 🎉`);
+  cart = []; renderCart();
+}
+document.getElementById("barCheckout").addEventListener("click", checkout);
+document.getElementById("plCheckout").addEventListener("click", checkout);
+document.getElementById("restoreSeed").addEventListener("click", () => {
+  cart = SEED.map(s => ({...s})); renderCart(); showToast("رجّعنا الطلب المبدئي لأجرابة سهلة ✓");
+});
+document.getElementById("draftBtn").addEventListener("click", () => showToast("اتحفظ الطلب كمسودة في «طلباتي» ✓"));
+document.getElementById("syncBtn").addEventListener("click", () => showToast("بيانات الفرع محدّثة — آخر مزامنة الآن ✓"));
+document.getElementById("scanBtn").addEventListener("click", () => showToast("الكاميرا هتفتح — وجّه الموبايل على باركود الكرتون 📷"));
+
+/* ================= product cards ================= */
+document.querySelectorAll(".card").forEach(card => {
+  const id = card.dataset.id;
+  const num = card.querySelector(".p-num");
+  const per = card.querySelector(".p-per");
+  let unit = "1";
+  card.querySelectorAll(".upill").forEach(pill => {
+    pill.addEventListener("click", () => {
+      card.querySelectorAll(".upill").forEach(x => x.classList.remove("on"));
+      pill.classList.add("on");
+      unit = pill.dataset.u;
+      num.textContent = fmt(DB[id].u[unit]);
+      per.textContent = "/ " + DB[id].l[unit];
+      num.style.animation = "none"; void num.offsetWidth; num.style.animation = "pop .22s ease both";
+    });
+  });
+  const addBtn = card.querySelector(".add");
+  addBtn.addEventListener("click", () => {
+    addItem(id, unit);
+    addBtn.classList.add("added");
+    addBtn.innerHTML = '<svg class="ic"><use href="#i-check"/></svg>تمت';
+    setTimeout(() => {
+      addBtn.classList.remove("added");
+      addBtn.innerHTML = '<svg class="ic"><use href="#i-plus"/></svg>سلة';
+    }, 1400);
+  });
+});
+
+/* ================= category filter ================= */
+const catScroll = document.getElementById("catScroll");
+catScroll.addEventListener("click", ev => {
+  const chip = ev.target.closest(".catchip");
+  if (!chip) return;
+  catScroll.querySelectorAll(".catchip").forEach(c => c.classList.remove("on"));
+  chip.classList.add("on");
+  toFilterCat = chip.dataset.cat;
+  applyFilter();
+});
+
+/* ================= search + sort ================= */
+const q = document.getElementById("q");
+const qClear = document.getElementById("qClear");
+const noRes = document.getElementById("noRes");
+const countText = document.getElementById("countText");
+const grid = document.getElementById("grid");
+
+function applyFilter(){
+  const needle = q.value.trim().toLowerCase();
+  qClear.hidden = !needle;
+  let shown = 0;
+  document.querySelectorAll(".card").forEach(card => {
+    const hay = (DB[card.dataset.id].name + " " + DB[card.dataset.id].code).toLowerCase();
+    const tokens = needle ? needle.split(/\s+/) : [];
+    const okQ = tokens.every(t => hay.includes(t));
+    const okC = toFilterCat === "all" || card.dataset.cat === toFilterCat;
+    card.style.display = (okQ && okC) ? "" : "none";
+    if (okQ && okC) shown++;
+  });
+  countText.textContent = AR(shown) + (shown === 1 ? " صنف" : " أصناف");
+  noRes.hidden = shown !== 0;
+}
+q.addEventListener("input", applyFilter);
+qClear.addEventListener("click", () => { q.value = ""; applyFilter(); q.focus(); });
+document.getElementById("clearFilters").addEventListener("click", () => {
+  q.value = "";
+  catScroll.querySelectorAll(".catchip").forEach(c => c.classList.toggle("on", c.dataset.cat === "all"));
+  toFilterCat = "all"; applyFilter();
+});
+
+let sortDir = "none";
+const sortBtn = document.getElementById("sortBtn");
+const sortArr = sortBtn.querySelector(".arr");
+sortBtn.addEventListener("click", () => {
+  sortDir = sortDir === "asc" ? "desc" : "asc";
+  sortBtn.dataset.dir = sortDir;
+  sortArr.hidden = false;
+  const cards = [...document.querySelectorAll(".card")].sort((a,b) =>
+    sortDir === "asc" ? a.dataset.sort - b.dataset.sort : b.dataset.sort - a.dataset.sort);
+  cards.forEach(c => grid.insertBefore(c, noRes));
+  showToast(sortDir === "asc" ? "الترتيب: الأرخص أولًا ↑" : "الترتيب: الأغلى أولًا ↓");
+});
+
+/* init */
+renderCart();
+</script>
+</body>
+</html>

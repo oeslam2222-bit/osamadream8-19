@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>دريم للتوزيع — كتالوج المنتجات</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============ Tokens ============ */
+:root{
+  --bg:#fafafa;
+  --surface:#ffffff;
+  --line:#e5e7eb;
+  --line-2:#eef0f3;
+  --ink:#101828;
+  --ink-2:#4a5568;
+  --ink-3:#98a2b3;
+  --accent:#3b5bdb;
+  --accent-d:#3350c1;
+  --accent-soft:#eef2ff;
+  --accent-line:#dbe4ff;
+  --ok:#18a05e;
+  --warn:#e8a713;
+  --r-lg:16px;
+  --r-md:12px;
+  --sh-1:0 1px 2px rgba(16,24,40,.05);
+  --sh-2:0 14px 34px -14px rgba(16,24,40,.16);
+  --sh-accent:0 10px 24px -10px rgba(59,91,219,.55);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:'Cairo',sans-serif;
+  background:var(--bg);
+  color:var(--ink);
+  font-size:14px;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  overflow:hidden;
+}
+::selection{background:#dbe4ff;color:#233a8f}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#e3e6ec;border-radius:8px;border:3px solid var(--bg)}
+::-webkit-scrollbar-track{background:transparent}
+.num{font-feature-settings:"tnum" 1,"lnum" 1;font-variant-numeric:tabular-nums}
+[hidden]{display:none!important}
+button,select,input{font-family:inherit}
+button{cursor:pointer;background:none;border:none;color:inherit}
+a{text-decoration:none;color:inherit}
+.ic{width:20px;height:20px;flex:none}
+:focus{outline:none}
+:focus-visible{box-shadow:0 0 0 3px rgba(59,91,219,.28);border-radius:10px}
+
+/* ============ App frame ============ */
+.app{
+  display:grid;
+  grid-template-columns:260px minmax(0,1fr) 324px;
+  height:100vh;
+  height:100dvh;
+  overflow:hidden;
+}
+
+/* ============ Sidebar (right in RTL) ============ */
+.sidebar{
+  border-inline-end:1px solid var(--line-2);
+  background:#fbfcfd;
+  padding:18px 14px 14px;
+  display:flex;
+  flex-direction:column;
+  overflow-y:auto;
+}
+.brand{display:flex;align-items:center;gap:11px;padding:4px 8px 6px}
+.brand-mark{
+  width:38px;height:38px;border-radius:12px;flex:none;
+  background:linear-gradient(135deg,#4263eb 0%,#3b5bdb 55%,#2f4bc8 100%);
+  display:grid;place-items:center;color:#fff;
+  box-shadow:0 6px 14px -6px rgba(59,91,219,.55);
+}
+.brand-mark .ic{width:20px;height:20px}
+.brand b{font-size:15px;font-weight:700;display:block;line-height:1.25}
+.brand span{font-size:11px;color:var(--ink-3);font-weight:500}
+.nav-label{
+  font-size:10.5px;font-weight:600;color:var(--ink-3);
+  letter-spacing:.06em;margin:22px 10px 8px;
+}
+.nav-item{
+  display:flex;align-items:center;gap:12px;
+  height:40px;padding:0 12px;border-radius:11px;
+  font-size:13.5px;font-weight:600;color:var(--ink-2);
+  transition:background .15s,color .15s;width:100%;
+}
+.nav-item .ic{width:19px;height:19px;color:var(--ink-3);transition:color .15s}
+.nav-item:hover{background:#f0f2f6;color:var(--ink)}
+.nav-item:hover .ic{color:var(--ink-2)}
+.nav-item.active{background:var(--accent-soft);color:var(--accent)}
+.nav-item.active .ic{color:var(--accent)}
+.nav-count{
+  margin-inline-start:auto;font-size:11px;font-weight:600;
+  color:var(--ink-3);background:#f0f2f6;border-radius:999px;padding:2px 8px;
+}
+.nav-item.active .nav-count{background:#dbe4ff;color:var(--accent)}
+.side-bottom{margin-top:auto;padding-top:14px;border-top:1px solid var(--line-2)}
+.side-user{
+  display:flex;align-items:center;gap:10px;padding:8px;border-radius:12px;
+  width:100%;transition:background .15s;text-align:start;
+}
+.side-user:hover{background:#f0f2f6}
+.avatar{
+  width:34px;height:34px;border-radius:999px;flex:none;
+  background:linear-gradient(135deg,#dbe4ff,#eef2ff);
+  color:var(--accent);display:grid;place-items:center;
+  font-size:12.5px;font-weight:700;border:1px solid var(--accent-line);
+}
+.side-user b{font-size:12.5px;font-weight:600;display:block;line-height:1.3}
+.side-user span{font-size:10.5px;color:var(--ink-3)}
+.side-user .ic{width:15px;height:15px;color:var(--ink-3);margin-inline-start:auto}
+.side-ver{
+  font-size:10.5px;color:var(--ink-3);text-align:center;
+  padding-top:12px;direction:ltr;letter-spacing:.02em;
+}
+
+/* ============ Main ============ */
+.main{overflow-y:auto;display:flex;flex-direction:column;min-width:0}
+.topbar{
+  position:sticky;top:0;z-index:30;
+  display:flex;align-items:center;gap:12px;
+  padding:14px 32px;
+  background:rgba(250,250,250,.86);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line-2);
+}
+.crumbs{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-3)}
+.crumbs .ic{width:14px;height:14px}
+.crumbs a:hover{color:var(--accent)}
+.crumbs b{color:var(--ink);font-weight:600}
+.top-actions{margin-inline-start:auto;display:flex;align-items:center;gap:10px}
+.icon-btn{
+  width:38px;height:38px;border-radius:11px;flex:none;
+  background:var(--surface);border:1px solid var(--line);
+  display:grid;place-items:center;color:var(--ink-2);
+  position:relative;transition:border-color .15s,color .15s,transform .15s;
+}
+.icon-btn:hover{border-color:#d5d9e0;color:var(--ink)}
+.icon-btn:active{transform:scale(.95)}
+.icon-btn .dot{
+  position:absolute;top:9px;inset-inline-end:9px;width:7px;height:7px;
+  border-radius:99px;background:var(--accent);border:2px solid #fff;
+}
+.top-user{display:flex;align-items:center;gap:10px;padding:4px 6px 4px 4px;border-radius:999px}
+.top-user:hover{background:#f0f2f6}
+.top-user .avatar{width:36px;height:36px}
+.top-user div b{font-size:12.5px;display:block;line-height:1.3}
+.top-user div span{font-size:10.5px;color:var(--ink-3)}
+.tb-brand{display:none}
+
+/* ---- content ---- */
+.content{padding:30px 32px 56px;max-width:1120px;width:100%;margin:0 auto}
+.page-head{margin-bottom:20px}
+.page-head h1{font-size:25px;font-weight:700;letter-spacing:-.01em;line-height:1.3}
+.page-head p{font-size:13px;color:var(--ink-3);font-weight:500;margin-top:5px}
+
+/* search */
+.searchbox{position:relative;margin-bottom:16px}
+.searchbox .ic.lead{
+  position:absolute;inset-inline-start:18px;top:50%;transform:translateY(-50%);
+  color:var(--ink-3);width:19px;height:19px;pointer-events:none;
+}
+.search-input{
+  width:100%;height:54px;border-radius:14px;
+  border:1px solid var(--line);background:var(--surface);
+  padding-inline:52px 96px;font-size:14.5px;color:var(--ink);
+  box-shadow:var(--sh-1);transition:border-color .18s,box-shadow .18s;
+}
+.search-input::placeholder{color:var(--ink-3);font-weight:500}
+.search-input:hover{border-color:#d5d9e0}
+.search-input:focus{border-color:var(--accent);box-shadow:0 0 0 3.5px rgba(59,91,219,.14)}
+.kbd{
+  position:absolute;inset-inline-end:14px;top:50%;transform:translateY(-50%);
+  direction:ltr;display:flex;align-items:center;gap:4px;
+  font-size:11px;font-weight:600;color:#64748b;
+  background:#f8fafc;border:1px solid #e2e8f0;border-bottom-width:2px;
+  border-radius:7px;padding:3px 8px;pointer-events:none;
+}
+
+/* chips */
+.chips{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:18px}
+.chip{
+  height:35px;padding:0 16px;border-radius:999px;
+  background:#f1f2f5;color:var(--ink-2);font-size:12.5px;font-weight:600;
+  border:1px solid transparent;
+  transition:background .16s,color .16s,border-color .16s,transform .1s;
+  white-space:nowrap;
+}
+.chip:hover{background:#e9ebef;color:var(--ink)}
+.chip:active{transform:scale(.96)}
+.chip.active{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)}
+.chip-more{display:inline-flex;align-items:center;gap:6px}
+.chip-more .ic{width:14px;height:14px}
+
+/* toolbar */
+.toolbar{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.seg{display:inline-flex;background:#f1f2f5;border-radius:11px;padding:3px;gap:2px}
+.seg button{
+  width:32px;height:30px;border-radius:8px;display:grid;place-items:center;
+  color:var(--ink-3);transition:background .15s,color .15s,box-shadow .15s;
+}
+.seg button.active{background:#fff;color:var(--ink);box-shadow:var(--sh-1)}
+.seg .ic{width:16px;height:16px}
+.sort-wrap{position:relative}
+.sort{
+  appearance:none;-webkit-appearance:none;
+  height:36px;border-radius:10px;border:1px solid var(--line);
+  background:var(--surface) url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="%2398a2b3" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="m6 9 6 6 6-6"/%3E%3C/svg%3E') no-repeat left 12px center;
+  padding-inline:14px 30px;padding-inline-end:32px;
+  font-size:12.5px;font-weight:600;color:var(--ink-2);cursor:pointer;
+  transition:border-color .15s,box-shadow .15s;
+}
+.sort:hover{border-color:#d5d9e0}
+.sort:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,91,219,.14)}
+.results{margin-inline-start:auto;font-size:12.5px;color:var(--ink-3);font-weight:500}
+
+/* ============ Product grid ============ */
+.grid{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:16px;
+}
+.card{
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r-lg);overflow:hidden;
+  transition:transform .2s cubic-bezier(.2,.7,.3,1),box-shadow .2s,border-color .2s;
+  box-shadow:var(--sh-1);
+  display:flex;flex-direction:column;
+}
+.card:hover{
+  transform:translateY(-3px);
+  border-color:#dde1e8;
+  box-shadow:var(--sh-2);
+}
+.card-media{
+  position:relative;display:block;margin:10px;border-radius:11px;
+  overflow:hidden;background:#f4f5f7;aspect-ratio:5/4;
+}
+.card-media img{
+  width:100%;height:100%;object-fit:cover;display:block;
+  transition:transform .35s cubic-bezier(.2,.7,.3,1);
+}
+.card:hover .card-media img{transform:scale(1.045)}
+.stock{
+  position:absolute;top:14px;inset-inline-start:14px;
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,.92);backdrop-filter:blur(6px);
+  border:1px solid rgba(229,231,235,.9);border-radius:999px;
+  padding:4px 10px;font-size:11px;font-weight:600;color:var(--ink-2);
+}
+.stock i{width:7px;height:7px;border-radius:99px;flex:none}
+.stock.in i{background:var(--ok)}
+.stock.low i{background:var(--warn)}
+.stock.out{color:var(--ink-3)}
+.stock.out i{background:#c4cad2}
+.card-body{padding:2px 16px 16px;display:flex;flex-direction:column;flex:1}
+.card-name{font-size:14.5px;font-weight:600;line-height:1.5}
+.card-code{
+  font-size:11.5px;color:var(--ink-3);direction:ltr;unicode-bidi:plaintext;
+  display:inline-block;margin-top:2px;letter-spacing:.02em;
+  font-family:ui-monospace,'Cascadia Mono',Consolas,monospace;
+}
+.card-row{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line-2)}
+.price{display:flex;align-items:baseline;gap:4px}
+.price b{font-size:19px;font-weight:700;line-height:1}
+.price span.cur{font-size:12px;font-weight:600;color:var(--ink-3)}
+.unit-sel{
+  appearance:none;-webkit-appearance:none;
+  margin-inline-start:auto;max-width:52%;
+  height:30px;border-radius:9px;border:1px solid var(--line);
+  background:var(--surface) url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="%2398a2b3" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="m6 9 6 6 6-6"/%3E%3C/svg%3E') no-repeat left 8px center;
+  padding:0 10px 0 24px;padding-inline-end:10px;padding-inline-start:24px;
+  font-size:11.5px;font-weight:600;color:var(--ink-2);cursor:pointer;
+  text-overflow:ellipsis;transition:border-color .15s,box-shadow .15s;
+}
+.unit-sel:hover{border-color:#d5d9e0}
+.unit-sel:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,91,219,.14)}
+.add{
+  margin-top:13px;height:41px;border-radius:11px;
+  border:1px solid var(--line);background:var(--surface);color:var(--ink-2);
+  font-size:13px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:background .18s,color .18s,border-color .18s,transform .12s,box-shadow .18s;
+}
+.add .ic{width:16px;height:16px}
+.add:hover{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 6px 16px -6px rgba(59,91,219,.5)}
+.add:active{transform:scale(.975)}
+.add.added{background:var(--accent);border-color:var(--accent);color:#fff}
+.add:disabled{
+  background:#f4f5f7;border-color:transparent;color:var(--ink-3);
+  cursor:not-allowed;box-shadow:none;
+}
+.card.oos .card-media img{filter:grayscale(1) opacity(.55)}
+.card.oos .card-name{color:var(--ink-2)}
+
+/* empty results */
+.empty-results{
+  text-align:center;padding:60px 20px;color:var(--ink-3);
+  border:1px dashed var(--line);border-radius:var(--r-lg);background:var(--surface);
+}
+.empty-results .bubble{
+  width:56px;height:56px;margin:0 auto 14px;border-radius:18px;
+  background:#f1f2f5;display:grid;place-items:center;color:var(--ink-3);
+}
+.empty-results b{display:block;font-size:14px;font-weight:600;color:var(--ink-2)}
+.empty-results span{font-size:12.5px}
+
+.page-foot{
+  margin-top:44px;padding-top:16px;border-top:1px solid var(--line-2);
+  display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-3);
+}
+
+/* ============ Cart panel (left in RTL) ============ */
+.cart{
+  border-inline-start:1px solid var(--line-2);background:var(--surface);
+  display:flex;flex-direction:column;min-height:0;overflow:hidden;
+}
+.cart-head{
+  display:flex;align-items:center;gap:10px;padding:18px 18px 14px;
+  border-bottom:1px solid var(--line-2);
+}
+.cart-head h2{font-size:15px;font-weight:700}
+.cart-badge{
+  font-size:11px;font-weight:700;color:var(--accent);
+  background:var(--accent-soft);border:1px solid var(--accent-line);
+  border-radius:999px;padding:1px 9px;
+}
+.cart-head .ghost{
+  margin-inline-start:auto;width:30px;height:30px;border-radius:9px;
+  display:grid;place-items:center;color:var(--ink-3);
+  transition:background .15s,color .15s;
+}
+.cart-head .ghost:hover{background:#f1f2f5;color:var(--ink)}
+.cart-head .ghost .ic{width:16px;height:16px;transition:transform .25s}
+.cart.collapsed .chev .ic{transform:rotate(180deg)}
+.cart-sub{font-size:11px;color:var(--ink-3);font-weight:500;padding:10px 18px;background:linear-gradient(180deg,#fbfcfe,#fff);border-bottom:1px solid var(--line-2)}
+.cart-body{flex:1;overflow-y:auto;padding:4px 18px}
+.line{
+  display:grid;grid-template-columns:46px minmax(0,1fr);
+  gap:12px;padding:14px 0;border-bottom:1px solid var(--line-2);
+}
+.line:last-child{border-bottom:none}
+.line img{
+  width:46px;height:46px;border-radius:11px;background:#f4f5f7;
+  border:1px solid var(--line-2);object-fit:cover;
+}
+.l-mid b{font-size:12.5px;font-weight:600;display:block;line-height:1.45;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.l-mid span{font-size:10.5px;color:var(--ink-3);direction:ltr;unicode-bidi:plaintext;display:inline-block}
+.l-foot{display:flex;align-items:center;justify-content:space-between;margin-top:9px}
+.stepper{
+  display:inline-flex;align-items:center;border:1px solid var(--line);
+  border-radius:999px;height:28px;overflow:hidden;background:#fff;
+}
+.stepper button{
+  width:27px;height:100%;display:grid;place-items:center;color:var(--ink-2);
+  font-size:14px;transition:background .12s,color .12s;
+}
+.stepper button:hover{background:#f1f2f5;color:var(--accent)}
+.stepper button:active{background:#e9ebef}
+.stepper .q{min-width:26px;text-align:center;font-size:12.5px;font-weight:700}
+.l-price{font-size:13px;font-weight:700}
+.l-price small{font-size:10.5px;font-weight:600;color:var(--ink-3);margin-inline-start:3px}
+.cart-collapsed-info{display:none;padding:12px 18px;font-size:12.5px;font-weight:600;color:var(--ink-2);border-top:1px solid var(--line-2)}
+.cart-collapsed-info b{color:var(--ink)}
+.cart.collapsed .cart-body,.cart.collapsed .cart-foot,.cart.collapsed .cart-sub{display:none}
+.cart.collapsed .cart-collapsed-info{display:block}
+.cart-head{border-bottom:1px solid var(--line-2)}
+.cart.collapsed .cart-head{border-bottom:none}
+.cart-foot{
+  border-top:1px solid var(--line-2);background:#fbfcfd;
+  padding:14px 18px 18px;
+}
+.t-row{display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink-2);font-weight:500;padding:3px 0}
+.t-row .free{color:var(--ok);font-weight:700}
+.t-total{
+  margin-top:9px;padding-top:11px;border-top:1px dashed var(--line);
+  display:flex;justify-content:space-between;align-items:baseline;
+}
+.t-total span{font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.t-total b{font-size:19px;font-weight:800}
+.t-total b small{font-size:12px;font-weight:600;color:var(--ink-3)}
+.checkout{
+  margin-top:14px;width:100%;height:50px;border-radius:13px;
+  background:var(--accent);color:#fff;font-size:14.5px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  box-shadow:var(--sh-accent);
+  transition:background .18s,transform .12s,box-shadow .18s;
+}
+.checkout .ic{width:19px;height:19px}
+.checkout:hover{background:var(--accent-d)}
+.checkout:active{transform:scale(.98)}
+.cart-draft{
+  display:block;margin:11px auto 0;width:fit-content;
+  font-size:11.5px;color:var(--ink-3);font-weight:600;
+  padding:2px 4px;border-radius:6px;transition:color .15s;
+}
+.cart-draft:hover{color:var(--ink)}
+.cart-empty{text-align:center;padding:44px 20px}
+.cart-empty .bubble{
+  width:58px;height:58px;margin:0 auto 14px;border-radius:20px;
+  background:#f1f2f5;display:grid;place-items:center;color:#c2c8d1;
+}
+.cart-empty .bubble .ic{width:24px;height:24px}
+.cart-empty b{display:block;font-size:13.5px;font-weight:600;color:var(--ink-2)}
+.cart-empty span{font-size:11.5px;color:var(--ink-3)}
+.cart-empty button{
+  margin-top:16px;height:36px;padding:0 16px;border-radius:10px;
+  border:1px solid var(--line);font-size:12.5px;font-weight:600;color:var(--ink-2);
+  transition:all .15s;background:#fff;
+}
+.cart-empty button:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* ============ FAB + bottom nav ============ */
+.cart-fab{
+  display:none;position:fixed;z-index:50;
+  bottom:calc(env(safe-area-inset-bottom) + 18px);
+  inset-inline-start:16px;
+  align-items:center;gap:10px;height:48px;padding:0 18px;
+  background:var(--ink);color:#fff;border-radius:999px;
+  font-size:13px;font-weight:700;
+  box-shadow:0 16px 32px -10px rgba(16,24,40,.45);
+  transition:transform .15s;
+}
+.cart-fab:hover{transform:translateY(-2px)}
+.cart-fab .ic{width:19px;height:19px}
+.cart-fab .fcount{
+  background:rgba(255,255,255,.18);border-radius:999px;
+  padding:2px 9px;font-size:11px;font-weight:700;
+}
+.bottomnav{
+  display:none;position:fixed;z-index:60;
+  bottom:0;left:0;right:0;
+  grid-auto-flow:column;
+  background:rgba(255,255,255,.94);backdrop-filter:blur(14px);
+  border-top:1px solid var(--line);
+  padding:9px 10px calc(env(safe-area-inset-bottom) + 9px);
+}
+.bn-item{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  font-size:10.5px;font-weight:600;color:var(--ink-3);
+  padding:2px 0;border-radius:10px;position:relative;
+  transition:color .15s;
+}
+.bn-item .ic{width:21px;height:21px}
+.bn-item.active{color:var(--accent)}
+.bn-item.active::before{
+  content:'';position:absolute;top:-9px;width:22px;height:3px;
+  border-radius:99px;background:var(--accent);
+}
+
+/* ============ Reveal animation ============ */
+.reveal{animation:rise .55s cubic-bezier(.2,.7,.3,1) both;animation-delay:var(--d,0s)}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+
+/* ============ Responsive ============ */
+@media (max-width:1180px){
+  .app{grid-template-columns:250px minmax(0,1fr) 300px}
+}
+@media (max-width:1023px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .sidebar,.cart{display:none}
+  .tb-brand{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:700}
+  .tb-brand .brand-mark{width:32px;height:32px;border-radius:10px}
+  .cart-fab{display:inline-flex}
+  .content{padding:24px 24px 96px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+  .top-user div{display:none}
+}
+@media (max-width:767px){
+  .topbar{padding:12px 16px}
+  .crumbs{display:none}
+  .tb-brand{margin-inline:auto}
+  .content{padding:20px 16px 170px}
+  .page-head h1{font-size:20px}
+  .searchbox{margin-bottom:14px}
+  .search-input{height:50px;padding-inline:48px 20px;font-size:14px}
+  .searchbox .ic.lead{inset-inline-start:15px}
+  .kbd{display:none}
+  .chips{
+    flex-wrap:nowrap;overflow-x:auto;margin-inline:-16px;padding:2px 16px 8px;
+    scrollbar-width:none;
+  }
+  .chips::-webkit-scrollbar{display:none}
+  .toolbar{margin-bottom:12px}
+  .results{display:none}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .card-body{padding:0 12px 12px}
+  .card-name{font-size:13px}
+  .price b{font-size:17px}
+  .unit-sel{height:28px;font-size:10.5px}
+  .add{height:37px;font-size:12px;margin-top:11px}
+  .card-media{margin:8px}
+  .stock{top:10px;inset-inline-start:10px;font-size:10px;padding:3px 8px}
+  .bottomnav{display:grid}
+  .cart-fab{bottom:calc(env(safe-area-inset-bottom) + 82px)}
+  .page-foot{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ================= Sidebar ================= -->
+  <aside class="sidebar" aria-label="القائمة الرئيسية">
+    <a class="brand" href="#">
+      <span class="brand-mark">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>
+      </span>
+      <span><b>دريم للتوزيع</b><span>منصة إدارة التوزيع</span></span>
+    </a>
+
+    <span class="nav-label">القائمة</span>
+    <nav>
+      <a class="nav-item" href="#">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 3l9 8.5"/><path d="M5.5 10v10.5h13V10"/></svg>
+        الرئيسية
+      </a>
+      <a class="nav-item active" href="#" aria-current="page">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>
+        الكتالوج
+        <span class="nav-count num">٤٢٨</span>
+      </a>
+      <a class="nav-item" href="#">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h10v18l-2.5-2-2.5 2-2.5-2L7 21V3z"/><path d="M10 8h4M10 12h4"/></svg>
+        الطلبات
+      </a>
+      <a class="nav-item" href="#">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>
+        المخزون
+      </a>
+      <a class="nav-item" href="#">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
+        الفواتير
+      </a>
+      <a class="nav-item" href="#">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20c.8-3.4 2.9-5.2 5.5-5.2s4.7 1.8 5.5 5.2"/><circle cx="17" cy="9" r="2.4"/><path d="M16 14.8c2.4.4 4 2.1 4.5 4.7"/></svg>
+        العملاء
+      </a>
+      <a class="nav-item" href="#">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20.5v-9M12 20.5v-16M19 20.5v-6"/></svg>
+        التقارير
+      </a>
+
+      <span class="nav-label">أخرى</span>
+      <a class="nav-item" href="#">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></svg>
+        الإعدادات
+      </a>
+      <a class="nav-item" href="#">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.6"/><path d="M12 16.5h.01"/></svg>
+        المساعدة
+      </a>
+    </nav>
+
+    <div class="side-bottom">
+      <button class="side-user">
+        <span class="avatar">أس</span>
+        <span><b>أحمد سعيد</b><span>مندوب مبيعات — امبابة</span></span>
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="side-ver">v 2.4.1 · 2026</div>
+    </div>
+  </aside>
+
+  <!-- ================= Main ================= -->
+  <main class="main">
+    <header class="topbar">
+      <a class="tb-brand" href="#">
+        <span class="brand-mark">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>
+        </span>
+        دريم للتوزيع
+      </a>
+      <nav class="crumbs" aria-label="مسار التنقل">
+        <a href="#">الرئيسية</a>
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 6-6 6 6 6"/></svg>
+        <b>الكتالوج</b>
+      </nav>
+      <div class="top-actions">
+        <button class="icon-btn" aria-label="الاشعارات">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9.5a6 6 0 1 1 12 0c0 4.8 1.8 6 1.8 6H4.2s1.8-1.2 1.8-6"/><path d="M10 20a2.2 2.2 0 0 0 4 0"/></svg>
+          <span class="dot"></span>
+        </button>
+        <button class="top-user">
+          <span class="avatar">أس</span>
+          <span>
+            <b>أحمد سعيد</b>
+            <span>مندوب مبيعات — امبابة</span>
+          </span>
+        </button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <div class="page-head reveal" style="--d:.02s">
+        <h1>كتالوج المنتجات</h1>
+        <p>٤٢٨ منتج موزعة على ٦ أقسام — التسعير بالجنيه المصري</p>
+      </div>
+
+      <!-- Search -->
+      <div class="searchbox reveal" style="--d:.06s">
+        <svg class="ic lead" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+        <input id="searchInput" class="search-input" type="text"
+               placeholder="ابحث عن منتج بالاسم أو الباركود…"
+               aria-label="البحث في الكتالوج">
+        <span class="kbd" aria-hidden="true">Ctrl <b>K</b></span>
+      </div>
+
+      <!-- Category chips -->
+      <div class="chips reveal" style="--d:.09s" id="chips" role="tablist" aria-label="الأقسام">
+        <button class="chip active" data-cat="all">جميع الأقسام</button>
+        <button class="chip" data-cat="stationery">أدوات مكتبية</button>
+        <button class="chip" data-cat="paper">ورقيات</button>
+        <button class="chip" data-cat="drinks">مشروبات</button>
+        <button class="chip" data-cat="cleaning">منظفات</button>
+        <button class="chip chip-more">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          قسم جديد
+        </button>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar reveal" style="--d:.12s">
+        <div class="seg" role="group" aria-label="طريقة العرض">
+          <button id="viewGrid" class="active" data-view="grid" aria-label="عرض شبكي">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>
+          </button>
+          <button id="viewList" data-view="list" aria-label="عرض قائمة">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+        </div>
+        <div class="sort-wrap">
+          <select class="sort" aria-label="الترتيب">
+            <option>الأحدث أولًا</option>
+            <option>الأكثر مبيعًا</option>
+            <option>السعر: من الأقل</option>
+            <option>السعر: من الأعلى</option>
+            <option>المتوفر أولًا</option>
+          </select>
+        </div>
+        <span class="results num" id="resultsCount">عرض ٩ من ٤٢٨</span>
+      </div>
+
+      <!-- Product grid -->
+      <section class="grid" id="productGrid" aria-label="قائمة المنتجات">
+
+        <!-- 1 قلم جاف -->
+        <article class="card reveal" style="--d:.15s" data-cat="stationery" data-name="قلم جاف سلايد باك" data-code="p-2210">
+          <a class="card-media" href="#">
+            <img src="assets/p1.png" alt="قلم جاف سلايد باك" loading="lazy">
+            <span class="stock in"><i></i>متوفر ١٢٠ قطعة</span>
+          </a>
+          <div class="card-body">
+            <h3 class="card-name">قلم جاف سلايد باك</h3>
+            <span class="card-code">P-2210</span>
+            <div class="card-row">
+              <span class="price num"><b class="pval">١٢</b><span class="cur">ج</span></span>
+              <select class="unit-sel" aria-label="وحدة البيع">
+                <option value="12" data-unit="قطعة" selected>قطعة</option>
+                <option value="550" data-unit="علبة">علبة ×٥٠</option>
+              </select>
+            </div>
+            <button class="add" data-key="1|قطعة" data-id="1" data-name="قلم جاف سلايد باك" data-code="P-2210" data-img="assets/p1.png">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              أضف للطلب
+            </button>
+          </div>
+        </article>
+
+        <!-- 2 دفتر -->
+        <article class="card reveal" style="--d:.18s" data-cat="paper" data-name="دفتر ١٠٠ ورقة مسطر" data-code="n-1051">
+          <a class="card-media" href="#">
+            <img src="assets/p2.png" alt="دفتر ١٠٠ ورقة مسطر" loading="lazy">
+            <span class="stock in"><i></i>متوفر ٦٠ قطعة</span>
+          </a>
+          <div class="card-body">
+            <h3 class="card-name">دفتر ١٠٠ ورقة مسطر</h3>
+            <span class="card-code">N-1051</span>
+            <div class="card-row">
+              <span class="price num"><b class="pval">٣٢</b><span class="cur">ج</span></span>
+              <select class="unit-sel" aria-label="وحدة البيع">
+                <option value="32" data-unit="قطعة" selected>قطعة</option>
+                <option value="1440" data-unit="كرتون">كرتون ×٤٨</option>
+              </select>
+            </div>
+            <button class="add" data-key="2|قطعة" data-id="2" data-name="دفتر ١٠٠ ورقة مسطر" data-code="N-1051" data-img="assets/p2.png">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              أضف للطلب
+            </button>
+          </div>
+        </article>
+
+        <!-- 3 مياه -->
+        <article class="card reveal" style="--d:.21s" data-cat="drinks" data-name="مياه شرب ١.٥ لتر" data-code="w-3301">
+          <a class="card-media" href="#">
+            <img src="assets/p3.png" alt="مياه شرب ١.٥ لتر" loading="lazy">
+            <span class="stock in"><i></i>متوفر ٤٥ كرتون</span>
+          </a>
+          <div class="card-body">
+            <h3 class="card-name">مياه شرب ١.٥ لتر</h3>
+            <span class="card-code">W-3301</span>
+            <div class="card-row">
+              <span class="price num"><b class="pval">١٠٠</b><span class="cur">ج</span></span>
+              <select class="unit-sel" aria-label="وحدة البيع">
+                <option value="100" data-unit="كرتون" selected>كرتون ×١٢</option>
+                <option value="52" data-unit="نصف كرتون">نصف ×٦</option>
+                <option value="9" data-unit="زجاجة">زجاجة</option>
+              </select>
+            </div>
+            <button class="add" data-key="3|كرتون" data-id="3" data-name="مياه شرب ١.٥ لتر" data-code="W-3301" data-img="assets/p3.png">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              أضف للطلب
+            </button>
+          </div>
+        </article>
+
+        <!-- 4 أقلام تلوين -->
+        <article class="card reveal" style="--d:.24s" data-cat="stationery" data-name="أقلام تلوين ٢٤ لون" data-code="p-2244">
+          <a class="card-media" href="#">
+            <img src="assets/p4.png" alt="أقلام تلوين ٢٤ لون" loading="lazy">
+            <span class="stock in"><i></i>متوفر ٣٢ علبة</span>
+          </a>
+          <div class="card-body">
+            <h3 class="card-name">أقلام تلوين ٢٤ لون</h3>
+            <span class="card-code">P-2244</span>
+            <div class="card-row">
+              <span class="price num"><b class="pval">٦٥</b><span class="cur">ج</span></span>
+              <select class="unit-sel" aria-label="وحدة البيع">
+                <option value="65" data-unit="علبة" selected>علبة</option>
+                <option value="2200" data-unit="كرتون">كرتون ×٣٦</option>
+              </select>
+            </div>
+            <button class="add" data-key="4|علبة" data-id="4" data-name="أقلام تلوين ٢٤ لون" data-code="P-2244" data-img="assets/p4.png">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              أضف للطلب
+            </button>
+          </div>
+        </article>
+
+        <!-- 5 مقلمة -->
+        <article class="card reveal" style="--d:.27s" data-cat="stationery" data-name="مقلمة قماش بسحاب" data-code="s-1102">
+          <a class="card-media" href="#">
+            <img src="assets/p5.png" alt="مقلمة قماش بسحاب" loading="lazy">
+            <span class="stock in"><i></i>متوفر ٢٥ قطعة</span>
+          </a>
+          <div class="card-body">
+            <h3 class="card-name">مقلمة قماش بسحاب</h3>
+            <span class="card-code">S-1102</span>
+            <div class="card-row">
+              <span class="price num"><b class="pval">٤٨</b><span class="cur">ج</span></span>
+              <select class="unit-sel"><option value="48" data-unit="قطعة" selected>قطعة</option></select>
+            </div>
+            <button class="add" data-key="5|قطعة" data-id="5" data-name="مقلمة قماش بسحاب" data-code="S-1102" data-img="assets/p5.png">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              أضف للطلب
+            </button>
+          </div>
+        </article>
+
+        <!-- 6 منظف -->
+        <article class="card reveal" style="--d:.30s" data-cat="cleaning" data-name="منظف أرضيات ٤ لتر" data-code="c-5510">
+          <a class="card-media" href="#">
+            <img src="assets/p6.png" alt="منظف أرضيات ٤ لتر" loading="lazy">
+            <span class="stock in"><i></i>متوفر ١٨ كرتون</span>
+          </a>
+          <div class="card-body">
+            <h3 class="card-name">منظف أرضيات ٤ لتر</h3>
+            <span class="card-code">C-5510</span>
+            <div class="card-row">
+              <span class="price num"><b class="pval">٧٨</b><span class="cur">ج</span></span>
+              <select class="unit-sel" aria-label="وحدة البيع">
+                <option value="78" data-unit="جالون" selected>جالون</option>
+                <option value="296" data-unit="كرتون">كرتون ×٤</option>
+              </select>
+            </div>
+            <button class="add" data-key="6|جالون" data-id="6" data-name="منظف أرضيات ٤ لتر" data-code="C-5510" data-img="assets/p6.png">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              أضف للطلب
+            </button>
+          </div>
+        </article>
+
+        <!-- 7 شريط لاصق -->
+        <article class="card reveal" style="--d:.33s" data-cat="paper" data-name="شريط لاصق شفاف ٢ سم" data-code="s-1160">
+          <a class="card-media" href="#">
+            <img src="assets/p7.png" alt="شريط لاصق شفاف ٢ سم" loading="lazy">
+            <span class="stock in"><i></i>متوفر ٩٠ بكر</span>
+          </a>
+          <div class="card-body">
+            <h3 class="card-name">شريط لاصق شفاف ٢ سم</h3>
+            <span class="card-code">S-1160</span>
+            <div class="card-row">
+              <span class="price num"><b class="pval">١٥</b><span class="cur">ج</span></span>
+              <select class="unit-sel" aria-label="وحدة البيع">
+                <option value="15" data-unit="بكر" selected>بكر</option>
+                <option value="1350" data-unit="كرتون">كرتون ×١٠٠</option>
+              </select>
+            </div>
+            <button class="add" data-key="7|بكر" data-id="7" data-name="شريط لاصق شفاف ٢ سم" data-code="S-1160" data-img="assets/p7.png">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              أضف للطلب
+            </button>
+          </div>
+        </article>
+
+        <!-- 8 ممحاة (نفدت) -->
+        <article class="card oos reveal" style="--d:.36s" data-cat="stationery" data-name="ممحاة آرتو ناعمة" data-code="s-1145">
+          <a class="card-media" href="#">
+            <img src="assets/p8.png" alt="ممحاة آرتو ناعمة" loading="lazy">
+            <span class="stock out"><i></i>نفدت الكمية</span>
+          </a>
+          <div class="card-body">
+            <h3 class="card-name">ممحاة آرتو ناعمة</h3>
+            <span class="card-code">S-1145</span>
+            <div class="card-row">
+              <span class="price num"><b class="pval">٦</b><span class="cur">ج</span></span>
+              <select class="unit-sel"><option value="6" data-unit="قطعة" selected>قطعة</option></select>
+            </div>
+            <button class="add" disabled>
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v5M12 16h.01"/></svg>
+              غير متاح حاليًا
+            </button>
+          </div>
+        </article>
+
+        <!-- 9 قلم تحديد (قليل) -->
+        <article class="card reveal" style="--d:.39s" data-cat="stationery" data-name="قلم تحديد فسفوري" data-code="m-2070">
+          <a class="card-media" href="#">
+            <img src="assets/p9.png" alt="قلم تحديد فسفوري" loading="lazy">
+            <span class="stock low"><i></i>بقي ٧ فقط</span>
+          </a>
+          <div class="card-body">
+            <h3 class="card-name">قلم تحديد فسفوري</h3>
+            <span class="card-code">M-2070</span>
+            <div class="card-row">
+              <span class="price num"><b class="pval">١٤</b><span class="cur">ج</span></span>
+              <select class="unit-sel" aria-label="وحدة البيع">
+                <option value="14" data-unit="قطعة" selected>قطعة</option>
+                <option value="156" data-unit="علبة">علبة ×١٢</option>
+              </select>
+            </div>
+            <button class="add" data-key="9|قطعة" data-id="9" data-name="قلم تحديد فسفوري" data-code="M-2070" data-img="assets/p9.png">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              أضف للطلب
+            </button>
+          </div>
+        </article>
+
+      </section>
+
+      <!-- empty results -->
+      <div class="empty-results" id="emptyResults" hidden>
+        <div class="bubble">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/><path d="M8.5 11h5"/></svg>
+        </div>
+        <b>لا توجد منتجات مطابقة</b>
+        <span>جرّب كلمة بحث أخرى أو اختر قسمًا مختلفًا</span>
+      </div>
+
+      <footer class="page-foot num">
+        <span>دريم للتوزيع © ٢٠٢٦</span>
+        <span>آخر مزامنة أسعار: اليوم ١٠:٤٢ ص</span>
+      </footer>
+    </div>
+  </main>
+
+  <!-- ================= Cart ================= -->
+  <aside class="cart" id="cartPanel" aria-label="طلب جديد">
+    <div class="cart-head">
+      <h2>طلب جديد</h2>
+      <span class="cart-badge num" id="cartBadge">٣ أصناف</span>
+      <button class="ghost" id="clearCart" aria-label="مسح السلة" title="مسح السلة">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9.5 7V4.5h5V7M7 7l1 13h8l1-13M10 11v6M14 11v6"/></svg>
+      </button>
+      <button class="ghost chev" id="collapseCart" aria-label="طي السلة" aria-expanded="true">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 6-6 6 6 6"/></svg>
+      </button>
+    </div>
+    <div class="cart-sub">فاتورة #٠٠٤٧ — تسليم غدًا ١٠ ص إلى ٢ م</div>
+    <div class="cart-body" id="cartLines"></div>
+    <div class="cart-empty" id="cartEmpty" hidden>
+      <div class="bubble">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 7h11l1.5 14H5L6.5 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
+      </div>
+      <b>السلة فارغة</b>
+      <span>ابدأ بإضافة منتجات من الكتالوج</span>
+      <button type="button" onclick="document.getElementById('searchInput').focus()">تصفح الأقسام</button>
+    </div>
+    <div class="cart-collapsed-info num" id="collapsedInfo"></div>
+    <div class="cart-foot" id="cartFoot">
+      <div class="t-row"><span>المجموع الفرعي</span><span class="num" id="tSub">—</span></div>
+      <div class="t-row"><span>التوصيل (غدًا ١٠ ص – ٢ م)</span><span class="free num">مجانًا</span></div>
+      <div class="t-total">
+        <span>الإجمالي</span>
+        <b class="num" id="tTotal">—</b>
+      </div>
+      <button class="checkout">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4.5 4.5L19 7"/></svg>
+        إتمام الطلب
+      </button>
+      <a class="cart-draft" href="#">حفظ كمسودة</a>
+    </div>
+  </aside>
+</div>
+
+<!-- FAB cart (tablet / mobile) -->
+<button class="cart-fab" aria-label="فتح السلة">
+  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 7h11l1.5 14H5L6.5 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
+  <span class="num" id="fabTotal">٣٨٤ ج</span>
+  <span class="fcount num" id="fabCount">٣</span>
+</button>
+
+<!-- Bottom nav (mobile) -->
+<nav class="bottomnav" aria-label="التنقل السفلي">
+  <a class="bn-item" href="#">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 3l9 8.5"/><path d="M5.5 10v10.5h13V10"/></svg>
+    الرئيسية
+  </a>
+  <a class="bn-item active" href="#" aria-current="page">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>
+    الكتالوج
+  </a>
+  <a class="bn-item" href="#">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h10v18l-2.5-2-2.5 2-2.5-2L7 21V3z"/><path d="M10 8h4M10 12h4"/></svg>
+    الطلبات
+  </a>
+  <a class="bn-item" href="#">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.2-3.2 3.8-5 7-5s5.8 1.8 7 5"/></svg>
+    الحساب
+  </a>
+  <a class="bn-item" href="#">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>
+    المزيد
+  </a>
+</nav>
+
+<script>
+(function(){
+  'use strict';
+
+  var $  = function(s){ return document.querySelector(s); };
+  var $$ = function(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); };
+  var ar = function(n){ return Number(n).toLocaleString('ar-EG'); };
+
+  /* ---------- state ---------- */
+  var items = [
+    { key:'1|قطعة', name:'قلم جاف سلايد باك', code:'P-2210', price:12,  unit:'قطعة', qty:10, img:'assets/p1.png' },
+    { key:'3|كرتون', name:'مياه شرب ١.٥ لتر', code:'W-3301', price:100, unit:'كرتون', qty:2,  img:'assets/p3.png' },
+    { key:'2|قطعة', name:'دفتر ١٠٠ ورقة مسطر', code:'N-1051', price:32,  unit:'قطعة', qty:2,  img:'assets/p2.png' }
+  ];
+  var activeCat = 'all';
+  var query = '';
+
+  /* ---------- cart render ---------- */
+  var linesEl = $('#cartLines'), emptyEl = $('#cartEmpty'), footEl = $('#cartFoot');
+
+  function renderCart(){
+    var has = items.length > 0;
+    linesEl.innerHTML = items.map(function(it){
+      return '' +
+      '<div class="line" data-key="' + it.key + '" data-price="' + it.price + '">' +
+        '<img src="' + it.img + '" alt="">' +
+        '<div>' +
+          '<div class="l-mid"><b>' + it.name + '</b><span>' + it.code + ' · ' + it.unit + '</span></div>' +
+          '<div class="l-foot">' +
+            '<span class="stepper">' +
+              '<button data-a="minus" aria-label="إنقاص الكمية">−</button>' +
+              '<b class="q num">' + ar(it.qty) + '</b>' +
+              '<button data-a="plus" aria-label="زيادة الكمية">+</button>' +
+            '</span>' +
+            '<span class="l-price num">' + ar(it.qty * it.price) + '<small>ج</small></span>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    emptyEl.hidden = has;
+    footEl.hidden = !has;
+    linesEl.style.display = has ? '' : 'none';
+
+    var sub = items.reduce(function(s, it){ return s + it.qty * it.price; }, 0);
+    $('#tSub').textContent = ar(sub) + ' ج';
+    $('#tTotal').innerHTML = ar(sub) + ' <small>ج</small>';
+    $('#cartBadge').textContent = ar(items.length) + ' أصناف';
+    $('#fabTotal').textContent = ar(sub) + ' ج';
+    $('#fabCount').textContent = ar(items.length);
+    $('#collapsedInfo').innerHTML = 'الإجمالي <b class="num">' + ar(sub) + ' ج</b> · ' + ar(items.length) + ' أصناف';
+  }
+
+  linesEl.addEventListener('click', function(e){
+    var btn = e.target.closest('[data-a]');
+    if(!btn) return;
+    var line = btn.closest('.line');
+    var key = line.getAttribute('data-key');
+    var it = items.filter(function(x){ return x.key === key; })[0];
+    if(!it) return;
+    if(btn.getAttribute('data-a') === 'plus'){ it.qty++; }
+    else {
+      it.qty--;
+      if(it.qty <= 0){ items = items.filter(function(x){ return x !== it; }); }
+    }
+    renderCart();
+  });
+
+  $('#clearCart').addEventListener('click', function(){ items = []; renderCart(); });
+
+  /* ---------- add to cart ---------- */
+  var PLUS  = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>أضف للطلب';
+  var ADDED = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4.5 4.5L19 7"/></svg>تمت الإضافة';
+
+  $$('.add[data-key]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var card = btn.closest('.card');
+      var sel = card.querySelector('.unit-sel');
+      var opt = sel.options[sel.selectedIndex];
+      var price = parseInt(opt.value, 10);
+      var unit = opt.getAttribute('data-unit') || opt.text;
+      var key = btn.getAttribute('data-id') + '|' + unit;
+      var found = items.filter(function(x){ return x.key === key; })[0];
+      if(found){ found.qty++; }
+      else {
+        items.push({
+          key: key,
+          name: btn.getAttribute('data-name'),
+          code: btn.getAttribute('data-code'),
+          price: price,
+          unit: unit,
+          qty: 1,
+          img: btn.getAttribute('data-img')
+        });
+      }
+      renderCart();
+      btn.classList.add('added');
+      btn.innerHTML = ADDED;
+      setTimeout(function(){ btn.classList.remove('added'); btn.innerHTML = PLUS; }, 1100);
+    });
+  });
+
+  /* ---------- unit selector updates displayed price ---------- */
+  $$('.unit-sel').forEach(function(sel){
+    sel.addEventListener('change', function(){
+      var pval = sel.closest('.card').querySelector('.pval');
+      pval.textContent = ar(parseInt(sel.value, 10));
+    });
+  });
+
+  /* ---------- collapse ---------- */
+  var cart = $('#cartPanel');
+  $('#collapseCart').addEventListener('click', function(){
+    var collapsed = cart.classList.toggle('collapsed');
+    this.setAttribute('aria-label', collapsed ? 'فتح السلة' : 'طي السلة');
+    this.setAttribute('aria-expanded', String(!collapsed));
+  });
+
+  /* ---------- filtering (search + chips) ---------- */
+  var grid = $('#productGrid');
+  var cards = $$('#productGrid .card');
+  var countEl = $('#resultsCount');
+  var emptyRes = $('#emptyResults');
+
+  function applyFilter(){
+    var q = query.trim().toLowerCase();
+    var shown = 0;
+    cards.forEach(function(card){
+      var okCat = activeCat === 'all' || card.getAttribute('data-cat') === activeCat;
+      var hay = (card.getAttribute('data-name') + ' ' + card.getAttribute('data-code')).toLowerCase();
+      var okQ = !q || hay.indexOf(q) !== -1;
+      var show = okCat && okQ;
+      card.hidden = !show;
+      if(show) shown++;
+    });
+    emptyRes.hidden = shown !== 0;
+    countEl.textContent = 'عرض ' + ar(shown) + ' من ٤٢٨';
+  }
+
+  var input = $('#searchInput');
+  input.addEventListener('input', function(){ query = this.value; applyFilter(); });
+  document.addEventListener('keydown', function(e){
+    if((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')){
+      e.preventDefault();
+      input.focus();
+      input.select();
+    }
+  });
+  input.addEventListener('keydown', function(e){ if(e.key === 'Enter') e.preventDefault(); });
+
+  $$('#chips .chip[data-cat]').forEach(function(chip){
+    chip.addEventListener('click', function(){
+      $$('#chips .chip').forEach(function(c){ c.classList.remove('active'); });
+      chip.classList.add('active');
+      activeCat = chip.getAttribute('data-cat');
+      applyFilter();
+    });
+  });
+
+  /* ---------- view toggle ---------- */
+  var vGrid = $('#viewGrid'), vList = $('#viewList');
+  function setView(v){
+    var list = v === 'list';
+    grid.classList.toggle('as-list', list);
+    vGrid.classList.toggle('active', !list);
+    vList.classList.toggle('active', list);
+  }
+  vGrid.addEventListener('click', function(){ setView('grid'); });
+  vList.addEventListener('click', function(){ setView('list'); });
+
+  renderCart();
+  applyFilter();
+})();
+</script>
+
+<style>
+/* list view (toggled) */
+.grid.as-list{grid-template-columns:1fr}
+.as-list .card{display:grid;grid-template-columns:96px minmax(0,1fr);flex-direction:unset}
+.as-list .card-media{margin:10px;width:96px;height:96px;aspect-ratio:auto}
+.as-list .card-body{display:flex;flex-wrap:wrap;align-items:center;gap:6px 22px;padding:14px 18px 14px 4px}
+.as-list .card-name{margin:0}
+.as-list .card-row{margin:0;padding:0;border-top:none;min-width:0}
+.as-list .add{margin-top:0;margin-inline-start:auto;min-width:150px;height:38px}
+@media (max-width:767px){
+  .as-list .card{grid-template-columns:64px minmax(0,1fr)}
+  .as-list .card-media{width:64px;height:64px;margin:8px}
+  .as-list .add{min-width:120px}
+}
+</style>
+</body>
+</html>
