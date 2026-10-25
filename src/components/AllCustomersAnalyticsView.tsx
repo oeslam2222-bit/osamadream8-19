@@ -1205,7 +1205,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '12px', border: 'none', direction: 'rtl', textAlign: 'right' }}
                       labelStyle={{ color: '#fff', fontWeight: 700 }}
                     />
-                    <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 700 }} />
+                  <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 700 }} />
                     <Bar dataKey="مبيعات 2026" name="المبيعات" fill="#0284c7" radius={[6, 6, 0, 0]} maxBarSize={26} />
                     <Bar dataKey="تحصيلات 2026" name="التحصيلات" fill="#10B981" radius={[6, 6, 0, 0]} maxBarSize={26} />
                   </BarChart>
