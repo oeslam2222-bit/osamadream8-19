@@ -90,6 +90,7 @@ import {
   getCustomerCollectionRate,
   getCustomerOverdue,
   getCustomerStatusBadge,
+  getEligibilityBadge,
   isDealtCustomer,
   matchesActivityFilter,
   matchesCollectionRateFilter,
@@ -1188,9 +1189,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         );
 
       case 'eligibility': {
-        const raw = (c.dealEligibility || '').trim() || 'غير محدد';
-        const isNot = raw.includes('غير') || raw.includes('موقوف');
-        return <span className={`pill ${isNot ? 'pill-risk' : 'pill-ok'}`}>{raw}</span>;
+        const badge = getEligibilityBadge(c);
+        return <span className={`pill pill-${badge.tone}`}>{badge.label}</span>;
       }
 
       case 'paymentTerms':
@@ -1878,7 +1878,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               const isLegal = c.isLegalPending || (c.legalStatus && c.legalStatus !== 'none');
               const isActive = s26 > 0 || (c.lastVisitDate && new Date(c.lastVisitDate) > new Date(Date.now() - 60*24*60*60*1000));
               const statusBadge = getCustomerStatusBadge(c);
-              const dealt = isDealtCustomer(c);
+              const eligibilityBadge = getEligibilityBadge(c);
               const creditUsage = getCreditUsagePercent(c);
               const paidAmount = Math.max(
                 Math.abs(Number(c.collections2026) || 0),
@@ -1929,9 +1929,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         </span>
                       )}
                       <span className={`pill pill-${statusBadge.tone}`}>{statusBadge.label}</span>
-                      <span className={`pill ${dealt ? 'pill-teal' : 'pill-muted'}`}>
-                        {dealt ? 'متعامل' : 'غير متعامل'}
-                      </span>
+                      <span className={`pill pill-${eligibilityBadge.tone}`}>{eligibilityBadge.label}</span>
                       <span className="text-[10px] font-mono text-slate-400">#{(currentPage - 1) * pageSize + index + 1}</span>
                     </div>
                   </div>

@@ -18,7 +18,7 @@ import {
   getCustomerBalance,
   getCustomerOverdue,
   getCustomerStatusBadge,
-  isDealtCustomer,
+  getEligibilityBadge,
 } from '../../services/customerFilterPredicates';
 
 interface CustomerQuickDrawerProps {
@@ -48,7 +48,7 @@ export const CustomerQuickDrawer: React.FC<CustomerQuickDrawerProps> = ({
   const limit = customer.creditLimit || 0;
   const usage = getCreditUsagePercent(customer);
   const status = getCustomerStatusBadge(customer);
-  const dealt = isDealtCustomer(customer);
+  const eligibilityBadge = getEligibilityBadge(customer);
 
   const monthlyCollections = customer.monthlyCollections2026
     ? Object.values(customer.monthlyCollections2026).reduce((sum, value) => sum + Math.abs(Number(value) || 0), 0)
@@ -83,9 +83,7 @@ export const CustomerQuickDrawer: React.FC<CustomerQuickDrawerProps> = ({
             </p>
             <div className="cq-badges">
               <span className={`pill pill-${status.tone}`}>{status.label}</span>
-              <span className={`pill ${dealt ? 'pill-teal' : 'pill-muted'}`}>
-                {dealt ? 'متعامل 2026' : 'غير متعامل'}
-              </span>
+              <span className={`pill pill-${eligibilityBadge.tone}`}>{eligibilityBadge.label}</span>
             </div>
           </div>
           <button type="button" className="cq-close" onClick={onClose} aria-label="إغلاق تفاصيل العميل">

@@ -80,8 +80,8 @@ export const CUSTOMER_COLUMNS: CustomerColumnDef[] = [
   { key: 'sales2026', label: 'مبيعات 2026', group: 'المالية', type: 'currency', align: 'end', sortKey: 'sales2026', defaultVisible: false },
   { key: 'collections2026', label: 'تحصيلات 2026', group: 'المالية', type: 'currency', align: 'end', sortKey: 'collections2026', defaultVisible: false },
   { key: 'status', label: 'حالة السداد', group: 'الحالة والتصنيف', type: 'status', align: 'center', defaultVisible: true },
-  { key: 'dealt', label: 'التعامل', group: 'الحالة والتصنيف', type: 'status', align: 'center', defaultVisible: true },
-  { key: 'eligibility', label: 'التصنيف (قابل / غير قابل)', group: 'الحالة والتصنيف', type: 'status', align: 'center', defaultVisible: false },
+  { key: 'eligibility', label: 'قابل / غير قابل', group: 'الحالة والتصنيف', type: 'status', align: 'center', defaultVisible: true },
+  { key: 'dealt', label: 'التعامل (متعامل / غير متعامل)', group: 'الحالة والتصنيف', type: 'status', align: 'center', defaultVisible: false },
   { key: 'paymentTerms', label: 'طريقة الدفع', group: 'الحالة والتصنيف', type: 'text', align: 'start', defaultVisible: false },
   { key: 'guarantee', label: 'أوراق الضمان', group: 'الحالة والتصنيف', type: 'text', align: 'start', defaultVisible: false },
   { key: 'activityType', label: 'طبيعة النشاط', group: 'النشاط والمتابعة', type: 'text', align: 'start', defaultVisible: false },
@@ -285,7 +285,7 @@ export const matchesColumnFilters = (c: Customer, filters: ColumnFilter[]): bool
 /*                     الحفظ في الإعدادات (لكل مستخدم)                        */
 /* -------------------------------------------------------------------------- */
 
-const COLUMNS_KEY = 'dream_customer_visible_columns_v1';
+const COLUMNS_KEY = 'dream_customer_visible_columns_v2';
 const FILTERS_KEY = 'dream_customer_column_filters_v1';
 
 const scopedKey = (base: string, userId?: string) => `${base}:${userId || 'guest'}`;

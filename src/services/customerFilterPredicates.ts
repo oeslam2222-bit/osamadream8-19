@@ -158,3 +158,12 @@ export const getCreditUsagePercent = (c: Customer): number => {
   if (limit <= 0) return 0;
   return Math.min(999, Math.round((getCustomerBalance(c) / limit) * 100));
 };
+
+/** تصنيف التعامل (قابل / غير قابل) — للون الموحّد في الجدول واللوحة. */
+export const getEligibilityBadge = (c: Customer): { label: string; tone: CustomerTone } => {
+  const raw = (c.dealEligibility || '').trim();
+  if (!raw) return { label: 'غير محدد', tone: 'muted' };
+  if (raw.includes('غير') || raw.includes('موقوف')) return { label: raw, tone: 'risk' };
+  if (raw.includes('قابل')) return { label: raw, tone: 'ok' };
+  return { label: raw, tone: 'muted' };
+};
