@@ -51,6 +51,7 @@ interface CustomerFilterBarProps {
   onSelectSuggestion?: (customer: Customer) => void;
   onOpenCustomFilters?: () => void;
   customFilterCount?: number;
+  debtCustomersCount?: number;
 }
 
 export interface CustomerSearchSuggestion {
@@ -129,6 +130,7 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
   onSelectSuggestion,
   onOpenCustomFilters,
   customFilterCount = 0,
+  debtCustomersCount,
 }) => {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
@@ -303,7 +305,12 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
             <span className="cf-switch-thumb" />
           </span>
           <span className="cf-switch-text">
-            <strong>إظهار المديونيات فقط</strong>
+            <strong>
+              إظهار المديونيات فقط
+              {typeof debtCustomersCount === 'number' && (
+                <span className="cf-switch-count app-num">{debtCustomersCount.toLocaleString()}</span>
+              )}
+            </strong>
             <small>العملاء اللي عليهم رصيد مدين أكبر من صفر</small>
           </span>
         </label>

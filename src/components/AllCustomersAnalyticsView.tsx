@@ -35,6 +35,7 @@ import {
   Clock,
   Columns3,
   ListFilter,
+  RotateCcw,
   ArrowUpRight,
   ArrowDownRight,
   ShieldCheck,
@@ -632,6 +633,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         customer,
       }));
   }, [contextCustomers, searchQuery, isPrivacyMode]);
+
+  const debtCustomersCount = useMemo(
+    () => contextCustomers.filter((c) => getCustomerBalance(c) > 0).length,
+    [contextCustomers]
+  );
 
   const overdueCustomersCount = useMemo(
     () => filteredCustomers.filter((c) => getCustomerOverdue(c) > 0).length,
@@ -1334,7 +1340,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             }`}
           >
             <BarChart3 className="w-4 h-4" />
-            <span>{showCharts ? 'إخفاء التحليل' : 'التحليل'}</span>
+            <span>{showCharts ? 'إخفاء التحليل التفصيلي' : 'تحليل تفصيلي'}</span>
           </button>
           )}
 
@@ -1446,7 +1452,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </header>
             <div className="cchart-body">
               <div className="cchart-donut">
-                <ResponsiveContainer width="100%" height={220}>
+                <ResponsiveContainer width="100%" height={240}>
                   <RechartsPieChart>
                     <Pie
                       data={eligibilityDistribution}
@@ -1496,7 +1502,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </header>
             {topDebtCustomers.length > 0 ? (
               <div className="cchart-bars">
-                <ResponsiveContainer width="100%" height={250}>
+                <ResponsiveContainer width="100%" height={240}>
                   <BarChart data={topDebtCustomers} margin={{ top: 12, right: 6, left: 6, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8eef5" />
                     <XAxis
@@ -1507,7 +1513,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       axisLine={false}
                       tickLine={false}
                     />
-                    <YAxis hide />
+                    <YAxis
+                      width={56}
+                      tick={{ fontSize: 9, fontWeight: 700, fill: '#93a4b8' }}
+                      tickFormatter={(value: any) => formatCompactAmount(Number(value))}
+                      axisLine={false}
+                      tickLine={false}
+                    />
                     <Tooltip
                       formatter={(val: any) => [formatMoney(Number(val)), 'المديونية']}
                       labelFormatter={(_label: any, payload: any) => {
@@ -1773,6 +1785,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         canFilterSupervisor={!isRep}
         onOpenCustomFilters={() => openTableSettings('filters')}
         customFilterCount={columnFilters.length}
+        debtCustomersCount={debtCustomersCount}
         suggestions={searchSuggestions}
         onSelectSuggestion={(customer) => setQuickCustomer(customer)}
         sortValue={`${sortBy}:${sortOrder}`}
@@ -1819,10 +1832,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
         {/* Table Controls Top */}
         <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs text-slate-500">
-          <div className="flex items-center gap-2 font-bold">
-            <span>عرض الصفحة: {currentPage} من {totalPages}</span>
+          <div className="flex items-center gap-2 font-bold flex-wrap">
+            <span className="text-[11px]">الصفحة {currentPage} من {totalPages}</span>
             <span className="text-slate-300">|</span>
-            <span>النتائج: {filteredCustomers.length.toLocaleString()} عميل</span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#e6f7f5] text-[#046b62] border border-[#c4ebe6] px-2 py-0.5 text-[11px] font-black">
+              <Users className="w-3 h-3" />
+              {filteredCustomers.length.toLocaleString()} عميل مطابق
+            </span>
           </div>
 
           {/* Page Size Selector */}
@@ -1844,14 +1860,26 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
         {/* Table Content */}
         {paginatedCustomers.length === 0 ? (
-          <div className="py-16 text-center text-slate-400 space-y-3">
-            <Users className="w-12 h-12 mx-auto text-slate-300 stroke-1" />
-            <div className="font-black text-slate-700">لا يوجد عملاء مطابقين لمعايير البحث الحالية</div>
-            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+          <div className="py-12 px-6 text-center">
+            <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#c4ebe6] bg-gradient-to-br from-[#f4fbfd] to-[#e6f7f5] text-[var(--app-ok)]">
+              <Users className="h-7 w-7" />
+            </div>
+            <div className="text-sm font-black text-slate-800">لا يوجد عملاء مطابقين للفلاتر الحالية</div>
+            <p className="mx-auto mt-1 max-w-md text-xs font-medium leading-relaxed text-slate-500">
               {customers.length === 0
                 ? 'قاعدة البيانات خالية حالياً. يمكن للمسؤول استيراد بيانات العملاء عبر إكسل أو شيت المديونية.'
-                : 'جرب تعديل خيارات التصفية أو مسح كلمة البحث لرؤية النتائج.'}
+                : 'جرّب تعديل الفلاتر أو مسح البحث لرؤية النتائج.'}
             </p>
+            {customers.length > 0 && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="app-btn app-btn-primary mx-auto mt-4 px-4 py-2 text-xs"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>مسح كل الفلاتر</span>
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -1881,7 +1909,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
               // Customer Status logic
               const isLegal = c.isLegalPending || (c.legalStatus && c.legalStatus !== 'none');
-              const isActive = s26 > 0 || (c.lastVisitDate && new Date(c.lastVisitDate) > new Date(Date.now() - 60*24*60*60*1000));
               const statusBadge = getCustomerStatusBadge(c);
               const dealtBadge = getCustomerDealtBadge(c);
               const creditUsage = getCreditUsagePercent(c);
@@ -1923,16 +1950,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                           <ShieldAlert className="w-3 h-3 text-rose-600" />
                           <span>شؤون قانونية</span>
                         </span>
-                      ) : isActive ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                          <span>نشط</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200">
-                          <span>متوقف</span>
-                        </span>
-                      )}
+                      ) : null}
                       <span className={`pill pill-${statusBadge.tone}`}>{statusBadge.label}</span>
                       <span className={`pill pill-${dealtBadge.tone}`}>{dealtBadge.label}</span>
                       <span className="text-[10px] font-mono text-slate-400">#{(currentPage - 1) * pageSize + index + 1}</span>
@@ -1941,8 +1959,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
                   {/* 3-Column Financial Metrics Bar */}
                   <div className="grid grid-cols-3 gap-1.5 pt-1">
-                    <div className="rounded-xl bg-purple-50/70 border border-purple-100/80 p-2 text-right">
-                      <div className="text-[9px] text-purple-700 font-bold">المديونية</div>
+                    <div className="rounded-xl bg-[#eef3f8]/80 border border-[#dbe5f0] p-2 text-right">
+                      <div className="text-[9px] text-[#1b3652] font-bold">المديونية</div>
                       <div className="font-black text-[var(--app-navy)] text-xs sm:text-sm mt-0.5 truncate" title={isPrivacyMode ? 'مخفي' : formatMoney(bal)}>
                         {formatMoney(bal)}
                       </div>
@@ -1957,15 +1975,15 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       </div>
                     </div>
 
-                    <div className="rounded-xl bg-rose-50/70 border border-rose-100/80 p-2 text-right">
-                      <div className="text-[9px] text-rose-700 font-bold">المستحقات</div>
+                    <div className="rounded-xl bg-[#fdeeee]/80 border border-[#f3cccc] p-2 text-right">
+                      <div className="text-[9px] text-[#b03d3d] font-bold">المستحقات</div>
                       <div className="font-black text-rose-900 text-xs sm:text-sm mt-0.5 truncate">
                         {formatMoney(overdue)}
                       </div>
                     </div>
 
-                    <div className="rounded-xl bg-teal-50/70 border border-teal-100/80 p-2 text-right">
-                      <div className="text-[9px] text-teal-700 font-bold">إجمالي المسدد</div>
+                    <div className="rounded-xl bg-[#e8f6ef]/80 border border-[#c7e9d9] p-2 text-right">
+                      <div className="text-[9px] text-[#157a58] font-bold">إجمالي المسدد</div>
                       <div className="font-black text-teal-900 text-xs sm:text-sm mt-0.5 truncate">
                         {formatMoney(paidAmount)}
                       </div>
@@ -2042,7 +2060,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       >
                         <div className={`cf-th-inner ${def.align === 'start' ? 'cf-th-inner-start' : ''}`}>
                           <span>{def.label}</span>
-                          <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                          <ArrowUpDown className="w-3 h-3 text-[#a9c4de]" />
                         </div>
                       </th>
                     ) : (

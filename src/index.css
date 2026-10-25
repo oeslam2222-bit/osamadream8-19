@@ -1492,3 +1492,10 @@ main .border-slate-200 { border-color: var(--app-line) !important; }
 @media (max-width: 640px) {
   .cf-quick { grid-template-columns: 1fr; }
 }
+
+.cf-switch-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-inline-start: 6px; padding: 0 6px; border-radius: 999px;
+  background: #e6f7f5; color: #046b62; font-size: 10px; font-weight: 900;
+}
+.cf-switch.on .cf-switch-count { background: #fff; }
